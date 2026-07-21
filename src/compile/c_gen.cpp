@@ -49,6 +49,98 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Ana
 GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     GenResult gr;
 
+    cur_package_name_.clear();
+    package_header_stmt_.reset();
+    if (pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block) {
+        const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
+        std::vector<SyntaxTreeInterfacePtr> stmts_to_check = blk->Stmts();
+        for (const auto &stmt : blk->Stmts()) {
+            if (stmt && stmt->Type() == SyntaxTreeType::Function) {
+                const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+                if (func && func->Funcname()) {
+                    const auto fn = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+                    if (fn && fn->FuncNameList()) {
+                        const auto fnl = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(fn->FuncNameList());
+                        if (fnl && fnl->Funcnames().size() == 1 && fnl->Funcnames()[0] == kInitFunctionName) {
+                            if (func->Funcbody()) {
+                                const auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(func->Funcbody());
+                                if (fbody && fbody->Block()) {
+                                    const auto init_blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(fbody->Block());
+                                    if (init_blk) {
+                                        stmts_to_check = init_blk->Stmts();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!stmts_to_check.empty()) {
+            const auto first_stmt = stmts_to_check[0];
+            if (first_stmt->Type() == SyntaxTreeType::FunctionCall) {
+                const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(first_stmt);
+                if (fc && fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
+                    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+                    if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar && pe->GetValue()) {
+                        const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+                        if (v && v->GetName() == "package" && fc->Args()) {
+                            const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+                            if (args && args->GetArgsKind() == ArgsKind::kString && args->String()) {
+                                const auto str_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(args->String());
+                                if (str_exp) {
+                                    std::string raw_pkg = str_exp->ExpValue();
+                                    if (raw_pkg.size() >= 2 && (raw_pkg.front() == '"' || raw_pkg.front() == '\'')) {
+                                        cur_package_name_ = raw_pkg.substr(1, raw_pkg.size() - 2);
+                                    } else {
+                                        cur_package_name_ = raw_pkg;
+                                    }
+                                    package_header_stmt_ = first_stmt;
+                                }
+                            } else if (args && args->GetArgsKind() == ArgsKind::kExpList && args->Explist()) {
+                                const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(args->Explist());
+                                if (el && !el->Exps().empty()) {
+                                    const auto str_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
+                                    if (str_exp && str_exp->GetExpKind() == ExpKind::kString) {
+                                        std::string raw_pkg = str_exp->ExpValue();
+                                        if (raw_pkg.size() >= 2 && (raw_pkg.front() == '"' || raw_pkg.front() == '\'')) {
+                                            cur_package_name_ = raw_pkg.substr(1, raw_pkg.size() - 2);
+                                        } else {
+                                            cur_package_name_ = raw_pkg;
+                                        }
+                                        package_header_stmt_ = first_stmt;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (first_stmt->Type() == SyntaxTreeType::Assign) {
+                const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(first_stmt);
+                if (assign && assign->Varlist() && assign->Explist()) {
+                    const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+                    const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+                    if (vl && !vl->Vars().empty() && el && !el->Exps().empty()) {
+                        const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vl->Vars()[0]);
+                        if (v && v->GetName() == "package") {
+                            const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
+                            if (exp && exp->GetExpKind() == ExpKind::kString) {
+                                std::string raw_pkg = exp->ExpValue();
+                                if (raw_pkg.size() >= 2 && (raw_pkg.front() == '"' || raw_pkg.front() == '\'')) {
+                                    cur_package_name_ = raw_pkg.substr(1, raw_pkg.size() - 2);
+                                } else {
+                                    cur_package_name_ = raw_pkg;
+                                }
+                                package_header_stmt_ = first_stmt;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // 0. Resolve lexical scopes and closure upvalues
     std::vector<Scope> scopes;
     std::vector<FuncInfo *> func_stack;
@@ -327,18 +419,20 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                 SyntaxTreeInterfacePtr exp = (i < exps.size()) ? exps[i] : nullptr;
 
                 InferredType global_type = ir().global_const_vars.at(name);
+                const bool is_mutated = ir().mutated_global_vars.contains(name);
+                const char *const_kw = is_mutated ? "" : "const ";
                 const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
                 if (global_type == T_INT) {
                     if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
-                        Out() << "static int64_t " << name << " = 0;\n";
+                        Out() << "static " << const_kw << "int64_t " << name << " = 0;\n";
                     } else {
-                        Out() << "static const int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
+                        Out() << "static " << const_kw << "int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else if (global_type == T_FLOAT) {
                     if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
-                        Out() << "static double " << name << " = 0.0;\n";
+                        Out() << "static " << const_kw << "double " << name << " = 0.0;\n";
                     } else {
-                        Out() << "static const double " << name << " = " << CompileNumericExp(exp) << ";\n";
+                        Out() << "static " << const_kw << "double " << name << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else {
                     // 非数值字面量：保留 static CVar 形式。
@@ -368,7 +462,11 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
         Out() << ");\n";
 
         bool is_vararg = func->is_vararg;
-        gr.function_names[name] = JitFunctionInfo{static_cast<int>(params.size()), is_vararg};
+        gr.function_names[name] = JitFunctionInfo{static_cast<int>(params.size()), is_vararg, name};
+        if (!cur_package_name_.empty() && func->parent == nullptr && func->unique_c_name != kInitFunctionName && !func->name.empty()) {
+            std::string pkg_func_name = cur_package_name_ + "." + func->name;
+            gr.function_names[pkg_func_name] = JitFunctionInfo{static_cast<int>(params.size()), is_vararg, name};
+        }
 
         // 如果原始函数含有数学参数，声明其特化变体
         if (const auto math_it = ir().math_param_positions.find(func->name); math_it != ir().math_param_positions.end()) {
@@ -908,7 +1006,39 @@ void CGen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
     }
 }
 
+bool CGen::IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const {
+    LOG_INFO("[c_gen] IsPackageHeaderStmt called, cur_pkg: '{}', stmt type: {}", cur_package_name_, (int)stmt->Type());
+    if (cur_package_name_.empty()) return false;
+    if (stmt->Type() == SyntaxTreeType::FunctionCall) {
+        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(stmt);
+        if (fc && fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
+            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+            if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar && pe->GetValue()) {
+                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+                if (v && v->GetName() == "package") {
+                    return true;
+                }
+            }
+        }
+    } else if (stmt->Type() == SyntaxTreeType::Assign) {
+        const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+        if (assign && assign->Varlist()) {
+            const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+            if (vl && !vl->Vars().empty()) {
+                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vl->Vars()[0]);
+                if (v && v->GetName() == "package") {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
+    if (IsPackageHeaderStmt(stmt)) {
+        return;
+    }
     switch (stmt->Type()) {
         case SyntaxTreeType::Return:
             CompileStmtReturn(stmt);
@@ -2787,8 +2917,35 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                         Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
                         Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
                     } else {
-                        const auto id = s_->GetConstString().Alloc(key_name);
-                        Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
+                        const SyntaxTreeVar *var_node = nullptr;
+                        if (const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[0])) {
+                            if (exp_node->GetExpKind() == ExpKind::kPrefixExp && exp_node->Right()) {
+                                const auto pe_node = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp_node->Right());
+                                if (pe_node && pe_node->GetPrefixKind() == PrefixExpKind::kVar && pe_node->GetValue()) {
+                                    const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_node->GetValue());
+                                    if (v) {
+                                        var_node = v.get();
+                                    }
+                                }
+                            }
+                        }
+                        bool is_known_local = false;
+                        if (var_node) {
+                            const std::string &vname = var_node->GetName();
+                            for (const auto &[vptr, def] : var_to_def_map_) {
+                                if (def && def->name == vname) {
+                                    is_known_local = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (var_node && var_node->GetVarKind() == VarKind::kSimple && !is_known_local) {
+                            std::string full_func_name = var_node->GetName() + "." + key_name;
+                            Out() << GenTab() << std::format("FakeluaRegisterPackageFunction(_S, \"{}\", {});\n", full_func_name, val_str);
+                        } else {
+                            const auto id = s_->GetConstString().Alloc(key_name);
+                            Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
+                        }
                     }
                     Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
                     return tmp;
@@ -2910,6 +3067,27 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         if (var && var->GetVarKind() == VarKind::kSimple) {
             func_name = var->GetName();
             var_ptr = var.get();
+        } else if (var && var->GetVarKind() == VarKind::kDot) {
+            const auto base_pe = var->GetPrefixexp();
+            if (base_pe && base_pe->Type() == SyntaxTreeType::PrefixExp) {
+                const auto base_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(base_pe);
+                if (base_pe_ptr && base_pe_ptr->GetPrefixKind() == PrefixExpKind::kVar && base_pe_ptr->GetValue()) {
+                    const auto base_var = std::dynamic_pointer_cast<SyntaxTreeVar>(base_pe_ptr->GetValue());
+                    if (base_var && base_var->GetVarKind() == VarKind::kSimple) {
+                        bool is_base_local = false;
+                        const std::string &bname = base_var->GetName();
+                        for (const auto &[vptr, def] : var_to_def_map_) {
+                            if (def && def->name == bname) {
+                                is_base_local = true;
+                                break;
+                            }
+                        }
+                        if (!is_base_local) {
+                            func_name = base_var->GetName() + "." + var->GetName();
+                        }
+                    }
+                }
+            }
         }
     }
 

@@ -1505,6 +1505,40 @@ void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTyp
             }
         }
     }
+
+    // Detect which file-level local vars are mutated (assigned) inside function bodies.
+    // First, collect all Assign nodes that are inside function bodies using WalkSyntaxTreePruned.
+    // WalkSyntaxTreePruned lets us skip subtrees we don't need.
+    // We walk the whole chunk: when inside a function boundary, check Assign LHS.
+    {
+        // Collect all function body blocks at top level of the chunk.
+        // Walk top-level stmts; when we encounter a Function/LocalFunction/FunctionDef, walk inside it.
+        for (const auto &stmt : block->Stmts()) {
+            // Only dive into function definitions
+            const auto t = stmt ? stmt->Type() : SyntaxTreeType::Empty;
+            if (t == SyntaxTreeType::Function || t == SyntaxTreeType::LocalFunction || t == SyntaxTreeType::FunctionDef) {
+                // Walk everything inside this function
+                WalkSyntaxTree(stmt, [&](const SyntaxTreeInterfacePtr &inner) {
+                    if (inner->Type() == SyntaxTreeType::Assign) {
+                        const auto assign_node = std::dynamic_pointer_cast<SyntaxTreeAssign>(inner);
+                        if (assign_node && assign_node->Varlist()) {
+                            const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign_node->Varlist());
+                            if (vl) {
+                                for (const auto &v : vl->Vars()) {
+                                    if (v && v->Type() == SyntaxTreeType::Var) {
+                                        const auto sv = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
+                                        if (sv && sv->GetVarKind() == VarKind::kSimple && ir.global_const_vars.contains(sv->GetName())) {
+                                            ir.mutated_global_vars.insert(sv->GetName());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    }
 }
 
 std::string TypeInferencer::FieldKeyDescriptor(const TableFieldInfo &f) {
