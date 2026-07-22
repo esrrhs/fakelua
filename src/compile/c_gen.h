@@ -332,6 +332,12 @@ private:
     // 遍历 params，对命中 math_params 的参数输出原生类型，其余输出 CVar。
     void EmitSpecParamList(const std::vector<std::string> &params, const std::vector<int> &math_params, int bitmask);
 
+    // 构建特化函数调用的实参表达式字符串。
+    // math_params 对应参数加 ".data_.f" 或 ".data_.i" 后缀，其余原样传递。
+    // 返回例如 "x, y.data_.f, z"
+    [[nodiscard]] static std::string BuildSpecCallArgs(const std::vector<std::string> &params,
+                                                       const std::vector<int> &math_params, int bitmask);
+
     // -----------------------------------------------------------------------
     // Package 探测辅助
     // -----------------------------------------------------------------------
