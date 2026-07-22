@@ -701,19 +701,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
     for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
         const auto spec_name = SpecFuncName(func_name, math_param_indices, bitmask);
 
-        std::string args_str;
-        for (size_t i = 0; i < func_params.size(); ++i) {
-            if (i > 0) {
-                args_str += ", ";
-            }
-            if (const auto mp_it = std::ranges::find(math_param_indices, static_cast<int>(i)); mp_it != math_param_indices.end()) {
-                const int mp_idx = static_cast<int>(mp_it - math_param_indices.begin());
-                const auto kind = MathParamKindOf(bitmask, mp_idx);
-                args_str += func_params[i] + (kind == kMathParamFloat ? ".data_.f" : ".data_.i");
-            } else {
-                args_str += func_params[i];
-            }
-        }
+        std::string args_str = BuildSpecCallArgs(func_params, math_param_indices, bitmask);
 
         if (const auto spec_ret = GetSpecReturnType(func_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
             const auto native_tmp = std::format("flua_r_{}", bitmask);
@@ -1015,6 +1003,23 @@ void CGen::EmitSpecParamList(const std::vector<std::string> &params, const std::
             Out() << "CVar " << params[i];
         }
     }
+}
+
+std::string CGen::BuildSpecCallArgs(const std::vector<std::string> &params, const std::vector<int> &math_params, int bitmask) {
+    std::string args;
+    for (size_t i = 0; i < params.size(); ++i) {
+        if (i > 0) {
+            args += ", ";
+        }
+        if (const auto mp_it = std::ranges::find(math_params, static_cast<int>(i)); mp_it != math_params.end()) {
+            const int mp_idx = static_cast<int>(mp_it - math_params.begin());
+            const auto kind = MathParamKindOf(bitmask, mp_idx);
+            args += params[i] + (kind == kMathParamFloat ? ".data_.f" : ".data_.i");
+        } else {
+            args += params[i];
+        }
+    }
+    return args;
 }
 
 // ===========================================================================
