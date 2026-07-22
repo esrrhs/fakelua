@@ -833,11 +833,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
         
         if (parlist_ptr) {
             for (const auto &pname : cur_func_info_->params) {
-                bool is_captured = false;
-                if (const auto it = stmt_var_to_def_.find({parlist_ptr, pname}); it != stmt_var_to_def_.end()) {
-                    is_captured = it->second->is_captured;
-                }
-                if (is_captured) {
+                if (IsCapturedInStmt(parlist_ptr, pname)) {
                     func_temp_decls_ << "    CVar *__box_" << pname << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
                     if (cur_spec_ctx_) {
                         if (const auto pit = cur_spec_ctx_->param_types.find(pname); pit != cur_spec_ctx_->param_types.end()) {
@@ -1184,14 +1180,8 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             if (ar().global_const_names.contains(name)) {
                 ThrowError("local variable conflicts with global constant: " + name, stmt);
             }
-            bool is_captured = false;
-            if (const auto it = stmt_var_to_def_.find({stmt.get(), name}); it != stmt_var_to_def_.end()) {
-                is_captured = it->second->is_captured;
-            }
-            if (is_captured) {
-                const std::string init = CompileExp(exps[i]);
-                Out() << GenTab() << "CVar *__box_" << name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
-                Out() << GenTab() << "*__box_" << name << " = " << init << ";\n";
+            if (IsCapturedInStmt(stmt.get(), name)) {
+                EmitCapturedBoxDecl(name, CompileExp(exps[i]));
                 continue;
             }
             // All prior expressions map one-to-one to variables
@@ -1225,13 +1215,8 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             if (ar().global_const_names.contains(name)) {
                 ThrowError("local variable conflicts with global constant: " + name, stmt);
             }
-            bool is_captured = false;
-            if (const auto it = stmt_var_to_def_.find({stmt.get(), name}); it != stmt_var_to_def_.end()) {
-                is_captured = it->second->is_captured;
-            }
-            if (is_captured) {
-                Out() << GenTab() << "CVar *__box_" << name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
-                Out() << GenTab() << "*__box_" << name << " = FlUnboxMulti(" << tmp_res << ", " << (i - (exps.size() - 1)) << ");\n";
+            if (IsCapturedInStmt(stmt.get(), name)) {
+                EmitCapturedBoxDecl(name, std::format("FlUnboxMulti({}, {})", tmp_res, i - (exps.size() - 1)));
             } else {
                 Out() << GenTab() << "CVar " << name << " = FlUnboxMulti(" << tmp_res << ", " << (i - (exps.size() - 1)) << ");\n";
             }
@@ -1245,14 +1230,8 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 ThrowError("local variable conflicts with global constant: " + name, stmt);
             }
 
-            bool is_captured = false;
-            if (const auto it = stmt_var_to_def_.find({stmt.get(), name}); it != stmt_var_to_def_.end()) {
-                is_captured = it->second->is_captured;
-            }
-            if (is_captured) {
-                const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
-                Out() << GenTab() << "CVar *__box_" << name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
-                Out() << GenTab() << "*__box_" << name << " = " << init << ";\n";
+            if (IsCapturedInStmt(stmt.get(), name)) {
+                EmitCapturedBoxDecl(name, (i < exps.size()) ? CompileExp(exps[i]) : "kNil");
                 continue;
             }
 
@@ -1600,13 +1579,8 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
               << " += " << step_var << ") {\n";
     }
     cur_tab_++;
-    bool is_captured = false;
-    if (const auto it = stmt_var_to_def_.find({for_stmt.get(), for_stmt->Name()}); it != stmt_var_to_def_.end()) {
-        is_captured = it->second->is_captured;
-    }
-    if (is_captured) {
-        Out() << GenTab() << "CVar *__box_" << for_stmt->Name() << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
-        Out() << GenTab() << "*__box_" << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, loop_type) << ";\n";
+    if (IsCapturedInStmt(for_stmt.get(), for_stmt->Name())) {
+        EmitCapturedBoxDecl(for_stmt->Name(), BoxNativeValue(ctrl_var, loop_type));
     } else {
         if (LookupNodeType(for_stmt.get()) == loop_type) {
             Out() << GenTab() << type_str << " " << for_stmt->Name() << " = " << ctrl_var << ";\n";
@@ -1677,13 +1651,8 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     Out() << GenTab() << std::format("if (!{}) break;\n", cond_var);
 
     const auto &loop_var_name = for_stmt->Name();
-    bool is_captured = false;
-    if (const auto it = stmt_var_to_def_.find({for_stmt.get(), loop_var_name}); it != stmt_var_to_def_.end()) {
-        is_captured = it->second->is_captured;
-    }
-    if (is_captured) {
-        Out() << GenTab() << "CVar *__box_" << loop_var_name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
-        Out() << GenTab() << "*__box_" << loop_var_name << " = " << ctrl_var << ";\n";
+    if (IsCapturedInStmt(for_stmt.get(), loop_var_name)) {
+        EmitCapturedBoxDecl(loop_var_name, ctrl_var);
     } else {
         Out() << GenTab() << "CVar " << loop_var_name << " = " << ctrl_var << ";\n";
     }
@@ -1698,6 +1667,36 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
 
     cur_tab_--;
     Out() << GenTab() << "}\n";
+}
+
+CGen::PairsIpairsKind CGen::TryMatchPairsIpairs(
+    const std::shared_ptr<SyntaxTreeExplist> &explist_ptr, const std::vector<std::string> &names,
+    SyntaxTreeInterfacePtr &out_tbl_arg) {
+    if (explist_ptr->Exps().size() != 1 || names.size() > 2) return PairsIpairsKind::kNone;
+    const auto exp = explist_ptr->Exps()[0];
+    if (!exp || exp->Type() != SyntaxTreeType::Exp) return PairsIpairsKind::kNone;
+    const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    if (!exp_ptr || exp_ptr->GetExpKind() != ExpKind::kPrefixExp || !exp_ptr->Right()) return PairsIpairsKind::kNone;
+    const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp_ptr->Right());
+    if (!pe_ptr || pe_ptr->GetPrefixKind() != PrefixExpKind::kFunctionCall) return PairsIpairsKind::kNone;
+    const auto fc_ptr = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe_ptr->GetValue());
+    if (!fc_ptr || !fc_ptr->Name().empty()) return PairsIpairsKind::kNone;
+    const auto func_pe = fc_ptr->prefixexp();
+    if (!func_pe || func_pe->Type() != SyntaxTreeType::PrefixExp) return PairsIpairsKind::kNone;
+    const auto func_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(func_pe);
+    if (!func_pe_ptr || func_pe_ptr->GetPrefixKind() != PrefixExpKind::kVar) return PairsIpairsKind::kNone;
+    const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe_ptr->GetValue());
+    if (!func_var) return PairsIpairsKind::kNone;
+    const auto func_name = func_var->GetName();
+    if (func_name != "pairs" && func_name != "ipairs") return PairsIpairsKind::kNone;
+    const auto args_node = fc_ptr->Args();
+    if (!args_node || args_node->Type() != SyntaxTreeType::Args) return PairsIpairsKind::kNone;
+    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
+    if (!args_ptr || args_ptr->GetArgsKind() != ArgsKind::kExpList) return PairsIpairsKind::kNone;
+    const auto args_explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+    if (!args_explist || args_explist->Exps().size() != 1) return PairsIpairsKind::kNone;
+    out_tbl_arg = args_explist->Exps()[0];
+    return func_name == "pairs" ? PairsIpairsKind::kPairs : PairsIpairsKind::kIpairs;
 }
 
 void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
@@ -1715,58 +1714,17 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
 
     auto handle_loop_var = [&](const std::string &vname, const std::string &src_tmp) {
-        bool is_captured = false;
-        if (const auto it = stmt_var_to_def_.find({for_in.get(), vname}); it != stmt_var_to_def_.end()) {
-            is_captured = it->second->is_captured;
-        }
-        if (is_captured) {
-            Out() << GenTab() << "CVar *__box_" << vname << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
-            Out() << GenTab() << "*__box_" << vname << " = " << src_tmp << ";\n";
+        if (IsCapturedInStmt(for_in.get(), vname)) {
+            EmitCapturedBoxDecl(vname, src_tmp);
         } else {
             Out() << GenTab() << "CVar " << vname << " = " << src_tmp << ";\n";
         }
     };
 
-    bool is_pairs_or_ipairs = false;
     SyntaxTreeInterfacePtr tbl_exp_node;
+    const auto kind = TryMatchPairsIpairs(explist_ptr, names, tbl_exp_node);
 
-    // Detect pairs/ipairs fast path with early returns to flatten nesting
-    if (explist_ptr->Exps().size() == 1 && names.size() <= 2) {
-        const auto exp = explist_ptr->Exps()[0];
-        if (exp && exp->Type() == SyntaxTreeType::Exp) {
-            const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-            if (exp_ptr && exp_ptr->GetExpKind() == ExpKind::kPrefixExp && exp_ptr->Right()) {
-                const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp_ptr->Right());
-                if (pe_ptr && pe_ptr->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
-                    const auto fc_ptr = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe_ptr->GetValue());
-                    if (fc_ptr && fc_ptr->Name().empty()) {
-                        const auto func_pe = fc_ptr->prefixexp();
-                        if (func_pe && func_pe->Type() == SyntaxTreeType::PrefixExp) {
-                            const auto func_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(func_pe);
-                            if (func_pe_ptr && func_pe_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
-                                const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe_ptr->GetValue());
-                                if (func_var && (func_var->GetName() == "pairs" || func_var->GetName() == "ipairs")) {
-                                    const auto args_node = fc_ptr->Args();
-                                    if (args_node && args_node->Type() == SyntaxTreeType::Args) {
-                                        const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-                                        if (args_ptr && args_ptr->GetArgsKind() == ArgsKind::kExpList) {
-                                            const auto args_explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
-                                            if (args_explist && args_explist->Exps().size() == 1) {
-                                                is_pairs_or_ipairs = true;
-                                                tbl_exp_node = args_explist->Exps()[0];
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (is_pairs_or_ipairs) {
+    if (kind != PairsIpairsKind::kNone) {
         const auto tbl_expr = CompileExp(tbl_exp_node);
 
         const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);
@@ -3443,18 +3401,27 @@ std::string CGen::CompileUpvaluePointer(VarDef *def) {
     return "NULL";
 }
 
+bool CGen::IsCapturedInStmt(const SyntaxTreeInterface *stmt_ptr, const std::string &name) const {
+    if (const auto it = stmt_var_to_def_.find({stmt_ptr, name}); it != stmt_var_to_def_.end()) {
+        return it->second->is_captured;
+    }
+    return false;
+}
+
+void CGen::EmitCapturedBoxDecl(const std::string &name, const std::string &init_expr) {
+    Out() << GenTab() << "CVar *__box_" << name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+    if (!init_expr.empty()) {
+        Out() << GenTab() << "*__box_" << name << " = " << init_expr << ";\n";
+    }
+}
+
 void CGen::CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::LocalFunction);
     const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
     const auto &name = lf->Name();
-    
+
     FuncInfo *func = func_map_[lf.get()];
-    
-    bool is_captured = false;
-    if (const auto it = stmt_var_to_def_.find({lf.get(), name}); it != stmt_var_to_def_.end()) {
-        is_captured = it->second->is_captured;
-    }
-    
+
     std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}",
                                            func->unique_c_name,
                                            func->captured_vars.size(),
@@ -3464,10 +3431,9 @@ void CGen::CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt) {
         closure_expr += ", " + CompileUpvaluePointer(up);
     }
     closure_expr += ")";
-    
-    if (is_captured) {
-        Out() << GenTab() << "CVar *__box_" << name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
-        Out() << GenTab() << "*__box_" << name << " = " << closure_expr << ";\n";
+
+    if (IsCapturedInStmt(lf.get(), name)) {
+        EmitCapturedBoxDecl(name, closure_expr);
     } else {
         Out() << GenTab() << "CVar " << name << " = " << closure_expr << ";\n";
     }

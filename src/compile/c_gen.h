@@ -112,6 +112,17 @@ private:
     void CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
     // 编译泛型 for-in 遍历循环（如 ipairs/pairs 循环）
     void CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt);
+
+    // for-in pairs/ipairs 快速路径识别结果
+    enum class PairsIpairsKind { kNone, kPairs, kIpairs };
+
+    // 若 explist 是 pairs(tbl) 或 ipairs(tbl) 的单调用，返回对应 kind 并通过
+    // out_tbl_arg 输出 tbl 表达式节点；否则返回 kNone，out_tbl_arg 不写入。
+    [[nodiscard]] static PairsIpairsKind TryMatchPairsIpairs(
+        const std::shared_ptr<SyntaxTreeExplist> &explist_ptr,
+        const std::vector<std::string> &names,
+        SyntaxTreeInterfacePtr &out_tbl_arg);
+
     void CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt);
 
@@ -306,6 +317,16 @@ private:
 
     bool IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const;
     std::string CompileUpvaluePointer(VarDef *def);
+
+    // 查询 name 在 stmt_ptr 对应语句节点上是否被标记为 captured
+    [[nodiscard]] bool IsCapturedInStmt(const SyntaxTreeInterface *stmt_ptr,
+                                        const std::string &name) const;
+
+    // 发射 heap-boxed captured var 声明：
+    //   CVar *__box_<name> = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);
+    //   *__box_<name> = <init_expr>;
+    // init_expr 为空字符串时省略第二行（仅 alloc box）
+    void EmitCapturedBoxDecl(const std::string &name, const std::string &init_expr);
 
     // 向当前输出流发射特化函数的参数类型+名称列表。
     // 遍历 params，对命中 math_params 的参数输出原生类型，其余输出 CVar。
