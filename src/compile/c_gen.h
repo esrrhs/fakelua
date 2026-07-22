@@ -76,6 +76,8 @@ private:
     [[nodiscard]] std::string GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const;
     // table 特化辅助：检查 key 是否为已知 spec 字段
     [[nodiscard]] bool IsSpecField(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
+    // table 特化辅助：组合检查 spec_type 非空 + IsSpecField 命中
+    [[nodiscard]] bool TryMatchSpecKey(const std::string &spec_type, const std::string &key_repr, TableKeyKind kind) const;
     [[nodiscard]] std::string GetSpecFieldCName(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     [[nodiscard]] int GetSpecFieldIndex(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     [[nodiscard]] InferredType GetSpecFieldType(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
@@ -308,6 +310,30 @@ private:
     // 向当前输出流发射特化函数的参数类型+名称列表。
     // 遍历 params，对命中 math_params 的参数输出原生类型，其余输出 CVar。
     void EmitSpecParamList(const std::vector<std::string> &params, const std::vector<int> &math_params, int bitmask);
+
+    // -----------------------------------------------------------------------
+    // Package 探测辅助
+    // -----------------------------------------------------------------------
+    // 剥离 Lua 字符串字面量的引号（"..." 或 '...'），返回内容部分。
+    [[nodiscard]] static std::string StripLuaStringQuotes(const std::string &raw);
+    // 尝试从一条语句中提取 package 声明名。
+    // 支持两种 AST 形态：FunctionCall（package "xxx"）和 Assign（package = "xxx"）。
+    [[nodiscard]] bool ExtractPackageName(const SyntaxTreeInterfacePtr &stmt, std::string &out_name) const;
+
+    // -----------------------------------------------------------------------
+    // 字面量 key 分类辅助
+    // -----------------------------------------------------------------------
+    struct LiteralKeyInfo {
+        TableKeyKind kind;  // kString / kInt / kFloat / kBool
+        std::string repr;   // 归一化后的字符串，用于 spec 命中判定；
+                            // - kString: 原始字符串内容（不含引号）
+                            // - kInt: 十进制整数字符串
+                            // - kFloat: 浮点数字符串
+                            // - kBool: "true" 或 "false"
+    };
+    // 若 exp 是可静态分类的字面量 key，填充 out 并返回 true；否则返回 false。
+    // 纯查询函数，不做任何 emit。
+    [[nodiscard]] static bool ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo &out);
     void CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt);
 
 };
