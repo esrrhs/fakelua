@@ -10,11 +10,20 @@
 
 namespace fakelua {
 
-namespace {
+// ===========================================================================
+// 第一部分：核心调度与编排
+// ===========================================================================
+
+CGen::CGen(State *s) : s_(s) {
+}
+
+// ---------------------------------------------------------------------------
+// Package 探测辅助
+// ---------------------------------------------------------------------------
 
 // 剥离 Lua 字符串字面量的引号（"..." 或 '...'），返回内容部分。
 // 若不以引号开头则原样返回。
-std::string StripLuaStringQuotes(const std::string &raw) {
+std::string CGen::StripLuaStringQuotes(const std::string &raw) {
     if (raw.size() >= 2 && (raw.front() == '"' || raw.front() == '\'')) {
         return raw.substr(1, raw.size() - 2);
     }
@@ -24,7 +33,7 @@ std::string StripLuaStringQuotes(const std::string &raw) {
 // 尝试从一条语句中提取 package 声明名。
 // 支持两种 AST 形态：FunctionCall（package "xxx"）和 Assign（package = "xxx"）。
 // 成功则 out_name 被赋值，返回 true；否则返回 false。
-bool ExtractPackageName(const SyntaxTreeInterfacePtr &stmt, std::string &out_name) {
+bool CGen::ExtractPackageName(const SyntaxTreeInterfacePtr &stmt, std::string &out_name) const {
     if (stmt->Type() == SyntaxTreeType::FunctionCall) {
         const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(stmt);
         if (fc && fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
@@ -72,19 +81,43 @@ bool ExtractPackageName(const SyntaxTreeInterfacePtr &stmt, std::string &out_nam
     return false;
 }
 
-// 判断一条语句是否为 package 声明语句（只检查形态，不提取名字）。
-bool IsPackageDeclStmt(const SyntaxTreeInterfacePtr &stmt) {
-    std::string ignored;
-    return ExtractPackageName(stmt, ignored);
-}
+// ---------------------------------------------------------------------------
+// 字面量 key 分类辅助
+// ---------------------------------------------------------------------------
 
-} // anonymous namespace
+bool CGen::ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo &out) {
+    if (!exp) return false;
+    const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    if (!exp_node) return false;
 
-// ===========================================================================
-// 第一部分：核心调度与编排
-// ===========================================================================
-
-CGen::CGen(State *s) : s_(s) {
+    if (exp_node->GetExpKind() == ExpKind::kString) {
+        out.kind = TableKeyKind::kString;
+        out.repr = exp_node->ExpValue();
+        return true;
+    }
+    if (exp_node->GetExpKind() == ExpKind::kNumber) {
+        std::string num_str = exp_node->ExpValue();
+        if (num_str.find('.') == std::string::npos &&
+            num_str.find('e') == std::string::npos &&
+            num_str.find('E') == std::string::npos) {
+            out.kind = TableKeyKind::kInt;
+        } else {
+            out.kind = TableKeyKind::kFloat;
+        }
+        out.repr = num_str;
+        return true;
+    }
+    if (exp_node->GetExpKind() == ExpKind::kTrue) {
+        out.kind = TableKeyKind::kBool;
+        out.repr = "true";
+        return true;
+    }
+    if (exp_node->GetExpKind() == ExpKind::kFalse) {
+        out.kind = TableKeyKind::kBool;
+        out.repr = "false";
+        return true;
+    }
+    return false;
 }
 
 // 核心编译入口函数：为输入的 AST、推断结果及配置生成 C 代码
@@ -742,6 +775,11 @@ bool CGen::IsSpecField(const std::string &spec_type, const std::string &key, Tab
     return it->second.field_key_descs.contains(GetKeyDescriptor(key, kind));
 }
 
+bool CGen::TryMatchSpecKey(const std::string &spec_type, const std::string &key_repr, TableKeyKind kind) const {
+    if (spec_type.empty()) return false;
+    return IsSpecField(spec_type, key_repr, kind);
+}
+
 std::string CGen::GetSpecFieldCName(const std::string &spec_type, const std::string &key, TableKeyKind kind) const {
     const auto it = ir().spec_type_metadata.find(spec_type);
     if (it == ir().spec_type_metadata.end()) return "";
@@ -998,7 +1036,8 @@ void CGen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
 
 bool CGen::IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const {
     if (cur_package_name_.empty()) return false;
-    return IsPackageDeclStmt(stmt);
+    std::string ignored;
+    return ExtractPackageName(stmt, ignored);
 }
 
 void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
@@ -1985,24 +2024,29 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                     } else {
                         const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
                         if (key_exp) {
-                            if (key_exp->GetExpKind() == ExpKind::kString) {
-                                const auto key_name = key_exp->ExpValue();
-                                const auto id = s_->GetConstString().Alloc(key_name);
-                                Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
-                            } else if (key_exp->GetExpKind() == ExpKind::kNumber) {
-                                std::string num_str = key_exp->ExpValue();
-                                if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                                    int64_t int_val = std::stoll(num_str);
-                                    Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, int_val, value_str);
-                                    cur_array_idx = std::max(cur_array_idx, static_cast<int>(int_val + 1));
-                                } else {
-                                    double float_val = std::stod(num_str);
-                                    Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}, {});\n", var_name, float_val, value_str);
+                            LiteralKeyInfo key_info;
+                            if (ClassifyLiteralKey(fp->Key(), key_info)) {
+                                switch (key_info.kind) {
+                                    case TableKeyKind::kString: {
+                                        const auto id = s_->GetConstString().Alloc(key_info.repr);
+                                        Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
+                                        break;
+                                    }
+                                    case TableKeyKind::kInt: {
+                                        int64_t int_val = std::stoll(key_info.repr);
+                                        Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, int_val, value_str);
+                                        cur_array_idx = std::max(cur_array_idx, static_cast<int>(int_val + 1));
+                                        break;
+                                    }
+                                    case TableKeyKind::kFloat: {
+                                        double float_val = std::stod(key_info.repr);
+                                        Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}, {});\n", var_name, float_val, value_str);
+                                        break;
+                                    }
+                                    case TableKeyKind::kBool:
+                                        Out() << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_info.repr == "true" ? "kTrue" : "kFalse", value_str);
+                                        break;
                                 }
-                            } else if (key_exp->GetExpKind() == ExpKind::kTrue) {
-                                Out() << GenTab() << std::format("FlSetTable({}, kTrue, {});\n", var_name, value_str);
-                            } else if (key_exp->GetExpKind() == ExpKind::kFalse) {
-                                Out() << GenTab() << std::format("FlSetTable({}, kFalse, {});\n", var_name, value_str);
                             }
                         }
                     }
@@ -2485,41 +2529,25 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto spec_type = GetSpecTypeForVar(pe);
 
         if (const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp)) {
-            // String literal key fast path: t["key"] → FlGetTableStrId or FL_SPEC.
-            if (exp_node->GetExpKind() == ExpKind::kString) {
-                const auto key_name = exp_node->ExpValue();
-                if (!spec_type.empty() && IsSpecField(spec_type, key_name, TableKeyKind::kString)) {
-                    const auto c_name = GetSpecFieldCName(spec_type, key_name, TableKeyKind::kString);
+            // Literal key fast path: classify and dispatch spec vs generic read.
+            LiteralKeyInfo info;
+            if (ClassifyLiteralKey(exp, info)) {
+                if (TryMatchSpecKey(spec_type, info.repr, info.kind)) {
+                    const auto c_name = GetSpecFieldCName(spec_type, info.repr, info.kind);
                     return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                 }
-                const auto id = s_->GetConstString().Alloc(key_name);
-                return std::format("FlGetTableStrId({}, {})", pe_ret, id);
-            }
-            // Integer literal key fast path: t[1] → FlGetTableInt or FL_SPEC.
-            if (exp_node->GetExpKind() == ExpKind::kNumber) {
-                std::string num_str = exp_node->ExpValue();
-                if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                    if (!spec_type.empty() && IsSpecField(spec_type, num_str, TableKeyKind::kInt)) {
-                        const auto c_name = GetSpecFieldCName(spec_type, num_str, TableKeyKind::kInt);
-                        return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                switch (info.kind) {
+                    case TableKeyKind::kString: {
+                        const auto id = s_->GetConstString().Alloc(info.repr);
+                        return std::format("FlGetTableStrId({}, {})", pe_ret, id);
                     }
-                    return std::format("FlGetTableInt({}, {})", pe_ret, num_str);
-                } else {
-                    if (!spec_type.empty() && IsSpecField(spec_type, num_str, TableKeyKind::kFloat)) {
-                        const auto c_name = GetSpecFieldCName(spec_type, num_str, TableKeyKind::kFloat);
-                        return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
-                    }
-                    return std::format("FlGetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}})", pe_ret, num_str);
+                    case TableKeyKind::kInt:
+                        return std::format("FlGetTableInt({}, {})", pe_ret, info.repr);
+                    case TableKeyKind::kFloat:
+                        return std::format("FlGetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}})", pe_ret, info.repr);
+                    case TableKeyKind::kBool:
+                        return std::format("FlGetTable({}, {})", pe_ret, info.repr == "true" ? "kTrue" : "kFalse");
                 }
-            }
-            // Boolean literal key fast path: t[true] → FlGetTable or FL_SPEC.
-            if (exp_node->GetExpKind() == ExpKind::kTrue || exp_node->GetExpKind() == ExpKind::kFalse) {
-                std::string bool_str = (exp_node->GetExpKind() == ExpKind::kTrue) ? "true" : "false";
-                if (!spec_type.empty() && IsSpecField(spec_type, bool_str, TableKeyKind::kBool)) {
-                    const auto c_name = GetSpecFieldCName(spec_type, bool_str, TableKeyKind::kBool);
-                    return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
-                }
-                return std::format("FlGetTable({}, {})", pe_ret, bool_str == "true" ? "kTrue" : "kFalse");
             }
         }
 
@@ -2846,21 +2874,19 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             func_temp_decls_ << "    CVar " << tmp << ";\n";
 
             // table 特化快速路径：通过 spec 指针直接设置成员
-            if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1])) {
+            {
                 const auto tbl_str = CompileExp(raw_args[0]);
                 const auto val_str = CompileExp(raw_args[2]);
                 const auto spec_type = GetSpecTypeForVar(raw_args[0]);
 
-                bool is_spec = false;
-                std::string c_field_name;
-                int index = -1;
-
-                if (key_exp->GetExpKind() == ExpKind::kString) {
-                    const auto key_name = key_exp->ExpValue();
-                    if (!spec_type.empty() && IsSpecField(spec_type, key_name, TableKeyKind::kString)) {
-                        is_spec = true;
-                        c_field_name = GetSpecFieldCName(spec_type, key_name, TableKeyKind::kString);
-                        index = GetSpecFieldIndex(spec_type, key_name, TableKeyKind::kString);
+                LiteralKeyInfo info;
+                if (ClassifyLiteralKey(raw_args[1], info)) {
+                    bool is_spec = TryMatchSpecKey(spec_type, info.repr, info.kind);
+                    std::string c_field_name;
+                    int index = -1;
+                    if (is_spec) {
+                        c_field_name = GetSpecFieldCName(spec_type, info.repr, info.kind);
+                        index = GetSpecFieldIndex(spec_type, info.repr, info.kind);
                     }
                     if (is_spec) {
                         const auto tmp_val = std::format("flua_spec_val_{}", tmp_var_counter_++);
@@ -2868,58 +2894,22 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                         Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
                         Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
                     } else {
-                        const auto id = s_->GetConstString().Alloc(key_name);
-                        Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
-                    }
-                    Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
-                    return tmp;
-                } else if (key_exp->GetExpKind() == ExpKind::kNumber) {
-                    std::string num_str = key_exp->ExpValue();
-                    if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                        if (!spec_type.empty() && IsSpecField(spec_type, num_str, TableKeyKind::kInt)) {
-                            is_spec = true;
-                            c_field_name = GetSpecFieldCName(spec_type, num_str, TableKeyKind::kInt);
-                            index = GetSpecFieldIndex(spec_type, num_str, TableKeyKind::kInt);
+                        switch (info.kind) {
+                            case TableKeyKind::kString: {
+                                const auto id = s_->GetConstString().Alloc(info.repr);
+                                Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
+                                break;
+                            }
+                            case TableKeyKind::kInt:
+                                Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", tbl_str, info.repr, val_str);
+                                break;
+                            case TableKeyKind::kFloat:
+                                Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}, {});\n", tbl_str, info.repr, val_str);
+                                break;
+                            case TableKeyKind::kBool:
+                                Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_BOOL, .data_.b = {}}}, {});\n", tbl_str, info.repr == "true" ? "true" : "false", val_str);
+                                break;
                         }
-                        if (is_spec) {
-                            const auto tmp_val = std::format("flua_spec_val_{}", tmp_var_counter_++);
-                            func_temp_decls_ << "    CVar " << tmp_val << ";\n";
-                            Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
-                            Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
-                        } else {
-                            Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", tbl_str, num_str, val_str);
-                        }
-                    } else {
-                        if (!spec_type.empty() && IsSpecField(spec_type, num_str, TableKeyKind::kFloat)) {
-                            is_spec = true;
-                            c_field_name = GetSpecFieldCName(spec_type, num_str, TableKeyKind::kFloat);
-                            index = GetSpecFieldIndex(spec_type, num_str, TableKeyKind::kFloat);
-                        }
-                        if (is_spec) {
-                            const auto tmp_val = std::format("flua_spec_val_{}", tmp_var_counter_++);
-                            func_temp_decls_ << "    CVar " << tmp_val << ";\n";
-                            Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
-                            Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
-                        } else {
-                            Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}, {});\n", tbl_str, num_str, val_str);
-                        }
-                    }
-                    Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
-                    return tmp;
-                } else if (key_exp->GetExpKind() == ExpKind::kTrue || key_exp->GetExpKind() == ExpKind::kFalse) {
-                    std::string bool_str = (key_exp->GetExpKind() == ExpKind::kTrue) ? "true" : "false";
-                    if (!spec_type.empty() && IsSpecField(spec_type, bool_str, TableKeyKind::kBool)) {
-                        is_spec = true;
-                        c_field_name = GetSpecFieldCName(spec_type, bool_str, TableKeyKind::kBool);
-                        index = GetSpecFieldIndex(spec_type, bool_str, TableKeyKind::kBool);
-                    }
-                    if (is_spec) {
-                        const auto tmp_val = std::format("flua_spec_val_{}", tmp_var_counter_++);
-                        func_temp_decls_ << "    CVar " << tmp_val << ";\n";
-                        Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
-                        Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
-                    } else {
-                        Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_BOOL, .data_.b = {}}}, {});\n", tbl_str, bool_str == "true" ? "true" : "false", val_str);
                     }
                     Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
                     return tmp;
