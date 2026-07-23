@@ -1,7 +1,7 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
 #include "var/var_string.h"
-#include "var/var_table.h"
+#include "var/var.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;

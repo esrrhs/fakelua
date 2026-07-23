@@ -8,7 +8,6 @@ namespace fakelua {
 
 class State;
 class VarString;
-class VarTable;
 
 // Var 是 FakeLua 中用于存储各种数据类型的通用变量类。
 // 在JIT中使用的是CVar，Var是同等内存布局的结构，只在JIT之外使用。
@@ -62,12 +61,6 @@ public:
     // 获取字符串对象（仅在类型匹配时有效）
     [[nodiscard]] VarString *GetString() const;
 
-    // 获取表对象（仅在类型匹配时有效）
-    [[nodiscard]] VarTable *GetTable() const {
-        DEBUG_ASSERT(type_ == static_cast<int>(VarType::Table));
-        return data_.t;
-    }
-
     // 获取闭包对象（仅在类型匹配时有效）
     [[nodiscard]] VarClosure *GetClosure() const {
         DEBUG_ASSERT(type_ == static_cast<int>(VarType::Closure));
@@ -104,9 +97,6 @@ public:
     // 设置常量字符串值
     void SetConstString(State *state, const std::string_view &val);
 
-    // 创建并设置新表
-    void SetTable(State *state);
-
     // 检查变量在逻辑判断中是否为真（Lua 规则：除了 nil 和 false 之外都为真）
     [[nodiscard]] bool TestTrue() const;
 
@@ -119,18 +109,6 @@ public:
 
     // 比较两个变量是否相等
     [[nodiscard]] bool Equal(const Var &rhs) const;
-
-    // 表元素设置
-    void TableSet(State *state, const Var &key, const Var &val, bool can_be_nil) const;
-
-    // 获取表元素
-    [[nodiscard]] Var TableGet(const Var &key) const;
-
-    // 获取表大小
-    [[nodiscard]] size_t TableSize() const;
-
-private:
-    void CheckTable(const char *op) const;
 };
 
 // 确保 Var 的大小为 16 字节，与 gccjit 中定义的 CVar 一致

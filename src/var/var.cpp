@@ -5,7 +5,6 @@
 #include "util/common.h"
 #include "var_multi.h"
 #include "var_string.h"
-#include "var_table.h"
 
 namespace fakelua {
 
@@ -28,11 +27,6 @@ void Var::SetTempString(State *state, const std::string_view &val) {
 void Var::SetConstString(State *state, const std::string_view &val) {
     type_ = static_cast<int>(VarType::StringId);
     data_.i = state->GetConstString().Alloc(val);
-}
-
-void Var::SetTable(State *state) {
-    type_ = static_cast<int>(VarType::Table);
-    data_.t = state->GetHeap().GetAllocator(false).New<VarTable>();
 }
 
 bool Var::TestTrue() const {
@@ -180,27 +174,6 @@ bool Var::Equal(const Var &rhs) const {
         default:
             return false;
     }
-}
-
-void Var::CheckTable(const char *op) const {
-    if (UNLIKELY(Type() != VarType::Table)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be table, got {} {}", op, VarTypeToString(Type()), ToString()));
-    }
-}
-
-void Var::TableSet(State *state, const Var &key, const Var &val, bool can_be_nil) const {
-    CheckTable("TableSet");
-    GetTable()->Set(state, key, val, can_be_nil);
-}
-
-Var Var::TableGet(const Var &key) const {
-    CheckTable("TableGet");
-    return GetTable()->Get(key);
-}
-
-size_t Var::TableSize() const {
-    CheckTable("TableSize");
-    return GetTable()->Size();
 }
 
 }// namespace fakelua
