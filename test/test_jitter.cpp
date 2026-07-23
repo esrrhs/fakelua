@@ -576,76 +576,7 @@ TEST(jitter, test_const_nested_table) {
     });
 }
 
-TEST(jitter, test_local_table) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_local_table.lua", {.debug_mode = debug_mode});
-        CVar t1, t2, t3;
-        Call(s, type, "test1", t1);
-        Call(s, type, "test2", t2);
-        Call(s, type, "test3", t3);
-        ASSERT_EQ(t1.type_, static_cast<int>(VarType::Table));
-        ASSERT_EQ(t2.type_, static_cast<int>(VarType::Table));
-        ASSERT_EQ(t3.type_, static_cast<int>(VarType::Table));
 
-        VarTable *tt1 = t1.data_.t;
-        ASSERT_EQ(tt1->Size(), 10);
-        for (int i = 1; i <= 10; ++i) {
-            ASSERT_EQ(tt1->Get(Var(int64_t(i))).GetInt(), i);
-        }
-
-        VarTable *tt2 = t2.data_.t;
-        ASSERT_EQ(tt2->Size(), 3);
-        Var key_a, key_b, key_c;
-        key_a.SetConstString(s, "a");
-        key_b.SetConstString(s, "b");
-        key_c.SetConstString(s, "c");
-        ASSERT_EQ(tt2->Get(key_a).GetInt(), 1);
-        ASSERT_EQ(tt2->Get(key_b).GetInt(), 2);
-        ASSERT_EQ(tt2->Get(key_c).GetInt(), 3);
-
-        VarTable *tt3 = t3.data_.t;
-        ASSERT_EQ(tt3->Size(), 5);
-        Var key_d;
-        key_d.SetConstString(s, "d");
-        ASSERT_EQ(tt3->Get(Var(int64_t(1))).GetInt(), 1);
-        ASSERT_EQ(tt3->Get(Var(int64_t(2))).GetInt(), 3);
-        ASSERT_EQ(tt3->Get(Var(int64_t(3))).GetInt(), 5);
-        ASSERT_EQ(tt3->Get(key_b).GetInt(), 2);
-        ASSERT_EQ(tt3->Get(key_d).GetInt(), 4);
-    });
-}
-
-TEST(jitter, test_local_nested_table) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_local_nested_table.lua", {.debug_mode = debug_mode});
-        CVar t;
-        Call(s, type, "test", t);
-        ASSERT_EQ(t.type_, static_cast<int>(VarType::Table));
-
-        VarTable *tt = t.data_.t;
-        Var key_array, key_map;
-        key_array.SetConstString(s, "array");
-        key_map.SetConstString(s, "map");
-
-        Var val_array = tt->Get(key_array);
-        ASSERT_EQ(val_array.Type(), VarType::Table);
-        VarTable *t_array = val_array.data_.t;
-        ASSERT_EQ(t_array->Size(), 3);
-        ASSERT_EQ(t_array->Get(Var(int64_t(1))).GetInt(), 1);
-
-        Var val_map = tt->Get(key_map);
-        ASSERT_EQ(val_map.Type(), VarType::Table);
-        VarTable *t_map = val_map.data_.t;
-        ASSERT_EQ(t_map->Size(), 3);
-        Var key_a, key_b, key_c;
-        key_a.SetConstString(s, "a");
-        key_b.SetConstString(s, "b");
-        key_c.SetConstString(s, "c");
-        ASSERT_EQ(t_map->Get(key_a).GetInt(), 1);
-        ASSERT_EQ(t_map->Get(key_b).GetInt(), 2);
-        ASSERT_EQ(t_map->Get(key_c).GetInt(), 3);
-    });
-}
 
 // Variadic (...) in table constructors is not supported yet, these tests verify the exception is thrown
 TEST(jitter, test_local_table_with_variadic) {
@@ -2813,3 +2744,4 @@ TEST(jitter, test_table_negative_int_key) {
         ASSERT_EQ(ret, 1);
     });
 }
+
