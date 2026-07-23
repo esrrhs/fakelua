@@ -11,10 +11,9 @@ namespace fakelua {
 typedef CVar (*SpecGetFn)(void *tbl, CVar k, bool *finish);
 typedef void (*SpecSetFn)(void *tbl, CVar k, CVar v, bool *finish);
 
-// VarTable struct layout must match c_runtime_header.h exactly.
-// Only Get() has a C++ implementation (needed for test verification of
-// JIT-created tables). All other methods are provided by c_runtime_header.h.
-// Production code uses c_runtime_header.h inline functions exclusively.
+// Lightweight C++ wrapper: struct + inline Size() + inline accessors only.
+// All table logic is in c_runtime_header.h (used by JIT-compiled C code).
+// The simple inline Get() iterates active_list for test verification.
 struct VarTable {
     static constexpr uint32_t QUICK_DATA_SIZE = 8;
     static constexpr uint32_t INVALID_INDEX = 0xFFFFFFFFu;
@@ -47,7 +46,9 @@ struct VarTable {
     [[nodiscard]] uint32_t Size() const { return count_ + spec_count; }
     [[nodiscard]] uint32_t GetHashCount() const { return count_; }
 
-    [[nodiscard]] Var Get(const Var &key) const;
+    [[nodiscard]] Var Get(const Var &key) const {
+        return GetImpl(key);
+    }
 
     [[nodiscard]] const VarEntry *GetQuickData() const { return quick_data_; }
     [[nodiscard]] const TableNode *GetNodes() const { return nodes_; }
@@ -55,6 +56,30 @@ struct VarTable {
     [[nodiscard]] uint32_t GetSpecCount() const { return spec_count; }
     [[nodiscard]] const CVar *GetSpecKeys() const { return spec_keys; }
     [[nodiscard]] const CVar *GetSpecVals() const { return spec_vals; }
+
+private:
+    [[nodiscard]] Var GetImpl(const Var &key) const {
+        if (UNLIKELY(count_ == 0)) {
+            return const_null_var;
+        }
+        // Quick-data mode: linear scan
+        if (bucket_count_ == 0) {
+            for (uint32_t i = 0; i < count_; ++i) {
+                if (quick_data_[i].key.Equal(key)) {
+                    return quick_data_[i].val;
+                }
+            }
+            return const_null_var;
+        }
+        // Hash mode: iterate active_list for all valid entries
+        for (uint32_t i = 0; i < count_; ++i) {
+            const auto &e = nodes_[active_list_[i]].entry;
+            if (e.key.Equal(key)) {
+                return e.val;
+            }
+        }
+        return const_null_var;
+    }
 };
 
 }// namespace fakelua
