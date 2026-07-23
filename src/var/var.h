@@ -107,6 +107,9 @@ public:
     // 创建并设置新表
     void SetTable(State *state);
 
+    // 检查变量在逻辑判断中是否为真（Lua 规则：除了 nil 和 false 之外都为真）
+    [[nodiscard]] bool TestTrue() const;
+
 public:
     // 转换为字符串显示
     [[nodiscard]] std::string ToString(bool has_quote = true, bool has_postfix = true) const;
@@ -116,91 +119,6 @@ public:
 
     // 比较两个变量是否相等
     [[nodiscard]] bool Equal(const Var &rhs) const;
-
-    // 检查变量是否可以参与算术运算（数字或数字格式的字符串）
-    [[nodiscard]] bool IsCalculable() const;
-
-    // 检查变量是否可以作为整数参与运算
-    [[nodiscard]] bool IsCalculableInteger() const;
-
-    // 获取计算用的整数值，仅在 IsCalculableInteger() 为真时调用
-    [[nodiscard]] int64_t GetCalculableInt() const;
-
-    // 获取计算用的浮点数值（支持数字、字符串转换）
-    [[nodiscard]] double GetCalculableNumber() const;
-
-public:
-    // 加法运算
-    void Plus(const Var &rhs, Var &result) const;
-
-    // 减法运算
-    void Minus(const Var &rhs, Var &result) const;
-
-    // 乘法运算
-    void Star(const Var &rhs, Var &result) const;
-
-    // 除法运算
-    void Slash(const Var &rhs, Var &result) const;
-
-    // 整除运算
-    void DoubleSlash(const Var &rhs, Var &result) const;
-
-    // 幂运算
-    void Pow(const Var &rhs, Var &result) const;
-
-    // 取模运算
-    void Mod(const Var &rhs, Var &result) const;
-
-    // 位与运算
-    void Bitand(const Var &rhs, Var &result) const;
-
-    // 位异或运算
-    void Xor(const Var &rhs, Var &result) const;
-
-    // 位或运算
-    void Bitor(const Var &rhs, Var &result) const;
-
-    // 右移运算
-    void RightShift(const Var &rhs, Var &result) const;
-
-    // 左移运算
-    void LeftShift(const Var &rhs, Var &result) const;
-
-    // 字符串连接运算
-    void Concat(State *state, const Var &rhs, Var &result) const;
-
-    // 小于判断
-    void Less(const Var &rhs, Var &result) const;
-
-    // 小于等于判断
-    void LessEqual(const Var &rhs, Var &result) const;
-
-    // 大于判断
-    void More(const Var &rhs, Var &result) const;
-
-    // 大于等于判断
-    void MoreEqual(const Var &rhs, Var &result) const;
-
-    // 等于判断
-    void Equal(const Var &rhs, Var &result) const;
-
-    // 不等于判断
-    void NotEqual(const Var &rhs, Var &result) const;
-
-    // 检查变量在逻辑判断中是否为真（Lua 规则：除了 nil 和 false 之外都为真）
-    [[nodiscard]] bool TestTrue() const;
-
-    // 一元减（取负）
-    void UnopMinus(Var &result) const;
-
-    // 一元非（取反）
-    void UnopNot(Var &result) const;
-
-    // 长度运算符 #
-    void UnopNumberSign(Var &result) const;
-
-    // 位取反运算
-    void UnopBitnot(Var &result) const;
 
     // 表元素设置
     void TableSet(State *state, const Var &key, const Var &val, bool can_be_nil) const;
@@ -212,44 +130,7 @@ public:
     [[nodiscard]] size_t TableSize() const;
 
 private:
-    // 尝试将数值类型变量转换为整数；仅对 Int 和整数值的 Float 成功。
-    bool TryConvertNumberToInteger(int64_t &out) const;
-
-    void CheckCalculable(const Var &rhs, const char *op) const;
-    void CheckCalculable(const char *op) const;
-    void CheckInteger(const Var &rhs, const char *op, int64_t &lhs_int, int64_t &rhs_int) const;
-    void CheckInteger(const char *op, int64_t &val) const;
     void CheckTable(const char *op) const;
-    void Shift(const Var &rhs, Var &result, const char *op_str, bool right) const;
-
-    template<typename BitOp>
-    void BitBinop(const Var &rhs, Var &result, const char *op_str, BitOp bit_op) const {
-        int64_t lhs_int = 0, rhs_int = 0;
-        CheckInteger(rhs, op_str, lhs_int, rhs_int);
-        result.SetInt(bit_op(lhs_int, rhs_int));
-    }
-
-    int64_t FloorDiv(int64_t lhs_val, int64_t rhs_val) const;
-
-    template<typename IntOp, typename FloatOp>
-    void ArithBinop(const Var &rhs, Var &result, const char *op_str, IntOp int_op, FloatOp float_op) const {
-        CheckCalculable(rhs, op_str);
-        if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
-            result.SetInt(int_op(GetCalculableInt(), rhs.GetCalculableInt()));
-        } else {
-            result.SetFloat(float_op(GetCalculableNumber(), rhs.GetCalculableNumber()));
-        }
-    }
-
-    template<typename IntOp, typename FloatOp>
-    void CompBinop(const Var &rhs, Var &result, const char *op_str, IntOp int_op, FloatOp float_op) const {
-        CheckCalculable(rhs, op_str);
-        if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
-            result.SetBool(int_op(GetCalculableInt(), rhs.GetCalculableInt()));
-        } else {
-            result.SetBool(float_op(GetCalculableNumber(), rhs.GetCalculableNumber()));
-        }
-    }
 };
 
 // 确保 Var 的大小为 16 字节，与 gccjit 中定义的 CVar 一致
