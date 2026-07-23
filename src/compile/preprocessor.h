@@ -40,11 +40,7 @@ private:
 private:
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 
-    std::string LocationStr(const SyntaxTreeInterfacePtr &ptr);
-
     void DumpDebugFile(const SyntaxTreeInterfacePtr &chunk, int step);
-
-    bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node);
 
     std::shared_ptr<SyntaxTreePrefixexp> MakeSimpleVarPrefixexp(const SyntaxTreeLocation &loc, const std::string &name);
 

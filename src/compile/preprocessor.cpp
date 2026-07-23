@@ -7,17 +7,6 @@
 
 namespace fakelua {
 
-bool PreProcessor::IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node) {
-    // All callers pass an explist element, which is always a SyntaxTreeExp.
-    DEBUG_ASSERT(exp_node && exp_node->Type() == SyntaxTreeType::Exp);
-    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
-    if (exp->GetExpKind() != ExpKind::kPrefixExp) {
-        return false;
-    }
-    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
-    return pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall;
-}
-
 std::shared_ptr<SyntaxTreePrefixexp> PreProcessor::MakeSimpleVarPrefixexp(const SyntaxTreeLocation &loc, const std::string &name) {
     auto var = std::make_shared<SyntaxTreeVar>(loc);
     var->SetVarKind(VarKind::kSimple);
@@ -87,11 +76,7 @@ void PreProcessor::DumpDebugFile(const SyntaxTreeInterfacePtr &chunk, int step) 
 }
 
 [[noreturn]] void PreProcessor::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
-    ThrowFakeluaException(std::format("PreProcess file failed, {} at {}", msg, LocationStr(ptr)));
-}
-
-std::string PreProcessor::LocationStr(const SyntaxTreeInterfacePtr &ptr) {
-    return std::format("{}:{}:{}", file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column);
+    ThrowFakeluaException(std::format("PreProcess file failed, {} at {}", msg, SyntaxTreeLocationStr(file_name_, ptr)));
 }
 
 void PreProcessor::PreprocessSplitAssigns(const SyntaxTreeInterfacePtr &chunk) {

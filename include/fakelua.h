@@ -361,84 +361,28 @@ void ThrowIfMultiCVar(const CVar &v);
 
 template<typename T>
 CVar NativeToFakelua(State *s, T v) {
-    // 检查 T 是否为 nil
     if constexpr (std::is_same_v<T, std::nullptr_t>) {
         return NativeToFakeluaNil(s);
-    }
-    // 检查 T 是否为 bool
-    else if constexpr (std::is_same_v<T, bool>) {
+    } else if constexpr (std::is_same_v<T, bool>) {
         return NativeToFakeluaBool(s, v);
-    }
-    // 检查 T 是否为 char
-    else if constexpr (std::is_same_v<T, char>) {
-        return NativeToFakeluaChar(s, v);
-    }
-    // 检查 T 是否为 unsigned char
-    else if constexpr (std::is_same_v<T, unsigned char>) {
-        return NativeToFakeluaUchar(s, v);
-    }
-    // 检查 T 是否为 short
-    else if constexpr (std::is_same_v<T, short>) {
-        return NativeToFakeluaShort(s, v);
-    }
-    // 检查 T 是否为 unsigned short
-    else if constexpr (std::is_same_v<T, unsigned short>) {
-        return NativeToFakeluaUshort(s, v);
-    }
-    // 检查 T 是否为 int
-    else if constexpr (std::is_same_v<T, int>) {
-        return NativeToFakeluaInt(s, v);
-    }
-    // 检查 T 是否为 unsigned int
-    else if constexpr (std::is_same_v<T, unsigned int>) {
-        return NativeToFakeluaUint(s, v);
-    }
-    // 检查 T 是否为 long
-    else if constexpr (std::is_same_v<T, long>) {
-        return NativeToFakeluaLong(s, v);
-    }
-    // 检查 T 是否为 unsigned long
-    else if constexpr (std::is_same_v<T, unsigned long>) {
-        return NativeToFakeluaUlong(s, v);
-    }
-    // 检查 T 是否为 long long
-    else if constexpr (std::is_same_v<T, long long>) {
-        return NativeToFakeluaLonglong(s, v);
-    }
-    // 检查 T 是否为 unsigned long long
-    else if constexpr (std::is_same_v<T, unsigned long long>) {
-        return NativeToFakeluaUlonglong(s, v);
-    }
-    // 检查 T 是否为 float
-    else if constexpr (std::is_same_v<T, float>) {
-        return NativeToFakeluaFloat(s, v);
-    }
-    // 检查 T 是否为 double
-    else if constexpr (std::is_same_v<T, double>) {
-        return NativeToFakeluaDouble(s, v);
-    }
-    // 检查 T 是否为 const char *
-    else if constexpr (std::is_same_v<T, const char *>) {
+    } else if constexpr (std::is_integral_v<T>) {
+        // All integer types (char..unsigned long long) are routed through
+        // NativeToFakeluaInt, which casts to int64_t and sets VAR_INT.
+        return NativeToFakeluaInt(s, static_cast<int>(v));
+    } else if constexpr (std::is_floating_point_v<T>) {
+        return NativeToFakeluaDouble(s, static_cast<double>(v));
+    } else if constexpr (std::is_same_v<T, const char *>) {
         return NativeToFakeluaCstr(s, v);
-    }
-    // 检查 T 是否为 char *
-    else if constexpr (std::is_same_v<T, char *>) {
+    } else if constexpr (std::is_same_v<T, char *>) {
         return NativeToFakeluaStr(s, v);
-    }
-    // 检查 T 是否为 std::string
-    else if constexpr (std::is_same_v<T, std::string>) {
+    } else if constexpr (std::is_same_v<T, std::string>) {
         return NativeToFakeluaString(s, v);
-    }
-    // 检查 T 是否为 std::string_view
-    else if constexpr (std::is_same_v<T, std::string_view>) {
+    } else if constexpr (std::is_same_v<T, std::string_view>) {
         return NativeToFakeluaStringView(s, v);
-    }
-    // 检查 T 是否为 cvar
-    else if constexpr (std::is_same_v<T, CVar>) {
+    } else if constexpr (std::is_same_v<T, CVar>) {
         ThrowIfMultiCVar(v);
         return v;
     } else {
-        // 静态断言 T 应该是 VarInterface* 或实现 VarInterface
         static_assert(std::is_pointer_v<T>, "T should be pointer");
         static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
         return NativeToFakeluaObj(s, v);

@@ -168,6 +168,24 @@ inline bool IsVarargExp(const SyntaxTreeInterfacePtr &exp_node) {
     return var->GetName().rfind("__fakelua_vararg_", 0) == 0;
 }
 
+// 判断一个表达式节点是否为函数调用表达式。
+inline bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node) {
+    if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
+    if (exp->GetExpKind() != ExpKind::kPrefixExp) {
+        return false;
+    }
+    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
+    return pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall;
+}
+
+// 统一的语法树位置格式化字符串，供各编译阶段共用。
+inline std::string SyntaxTreeLocationStr(const std::string &file_name, const SyntaxTreeInterfacePtr &ptr) {
+    return std::format("{}:{}:{}", file_name, ptr->Loc().begin.line, ptr->Loc().begin.column);
+}
+
 // ---- 阶段一：解析结果 -------------------------------------------------------
 // Parser 的输出：源文件名和语法树根节点。
 // 由 Compiler::Compile 在词法/语法解析阶段填充，

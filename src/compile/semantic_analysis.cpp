@@ -191,18 +191,6 @@ void SemanticAnalysis::CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node
     }
 }
 
-bool SemanticAnalysis::IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node) {
-    if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) {
-        return false;
-    }
-    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
-    if (exp->GetExpKind() != ExpKind::kPrefixExp) {
-        return false;
-    }
-    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
-    return pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall;
-}
-
 std::string SemanticAnalysis::GetCalleeName(const SyntaxTreeInterfacePtr &exp_node) {
     if (!IsFunctionCallExp(exp_node)) {
         return "";
@@ -560,11 +548,7 @@ void SemanticAnalysis::CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp) {
 }
 
 [[noreturn]] void SemanticAnalysis::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
-    ThrowFakeluaException(std::format("SemanticAnalysis check failed, {} at {}", msg, LocationStr(ptr)));
-}
-
-std::string SemanticAnalysis::LocationStr(const SyntaxTreeInterfacePtr &ptr) {
-    return std::format("{}:{}:{}", file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column);
+    ThrowFakeluaException(std::format("SemanticAnalysis check failed, {} at {}", msg, SyntaxTreeLocationStr(file_name_, ptr)));
 }
 
 }// namespace fakelua

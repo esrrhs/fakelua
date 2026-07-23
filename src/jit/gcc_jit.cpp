@@ -91,6 +91,14 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 #endif
     const std::string log_file = c_file.substr(0, c_file.size() - kCExtLen) + ".gcc.log";
 
+    // RAII cleanup for temp files on early error paths (before GCCHandle takes ownership).
+    const auto cleanup_on_error = [&]() {
+        std::error_code ec;
+        std::filesystem::remove(c_file, ec);
+        std::filesystem::remove(so_file, ec);
+        std::filesystem::remove(log_file, ec);
+    };
+
     if (std::ofstream ofs(c_file); !ofs.is_open()) {
         ThrowFakeluaException(std::format("GCC compile failed, cannot open c file {}", c_file));
     } else {
@@ -133,54 +141,46 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     args.emplace_back(so_file);
     args.emplace_back(c_file);
 
-#if defined(_WIN32)
-    std::vector<char *> argv;
-    argv.reserve(args.size() + 1);
-    for (auto &arg: args) {
-        argv.emplace_back(arg.data());
-    }
-    argv.emplace_back(nullptr);
+// Helper: build null-terminated argv from std::vector<std::string>.
+    auto build_argv = [&]() {
+        std::vector<char *> argv;
+        argv.reserve(args.size() + 1);
+        for (auto &arg: args) {
+            argv.emplace_back(arg.data());
+        }
+        argv.emplace_back(nullptr);
+        return argv;
+    };
 
+#if defined(_WIN32)
+    auto argv = build_argv();
     const int compile_status = _spawnvp(_P_WAIT, "gcc", argv.data());
     if (compile_status == -1) {
+        cleanup_on_error();
         ThrowFakeluaException(std::format("GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}", pr.file_name, errno, std::strerror(errno), JoinCommand(args)));
     }
     if (compile_status != 0) {
+        cleanup_on_error();
         ThrowFakeluaException(std::format("GCC compile failed for {} with exit code {}. cmd: {}", pr.file_name, compile_status, JoinCommand(args)));
     }
 
     HMODULE module_handle = LoadLibraryA(so_file.c_str());
     if (!module_handle) {
+        cleanup_on_error();
         ThrowFakeluaException(std::format("GCC compile failed, LoadLibrary failed for {}: {}", so_file, WinErrToString(GetLastError())));
     }
-    const auto handle = std::make_shared<GCCHandle>(c_file, so_file, module_handle);
+    const auto handle = std::make_shared<GCCHandle>(c_file, so_file, log_file, module_handle);
 
-    for (const auto &[name, info]: gr.function_names) {
-        const std::string &sym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
-        FARPROC symbol_address = GetProcAddress(module_handle, sym.c_str());
-        if (!symbol_address) {
-            ThrowFakeluaException(std::format("GCC compile failed, GetProcAddress failed for symbol {} in {}", name, so_file));
-        }
-        void *func_ptr = reinterpret_cast<void *>(symbol_address);
-        s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_GCC, func_ptr, handle, info.is_vararg));
-        LOG_INFO("Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
-    }
-
-    FARPROC init_symbol = GetProcAddress(module_handle, kInitFunctionName);
-    if (init_symbol) {
-        void *init_ptr = reinterpret_cast<void *>(init_symbol);
-        inter::DispatchCall(init_ptr, nullptr, 0);
-    }
+    // Common post-load: register compiled functions + call init.
+    auto dlsym_lambda = [&](const std::string &sym) -> void * {
+        FARPROC p = GetProcAddress(module_handle, sym.c_str());
+        return p ? reinterpret_cast<void *>(p) : nullptr;
+    };
 #else
-    std::vector<char *> argv;
-    argv.reserve(args.size() + 1);
-    for (auto &arg: args) {
-        argv.emplace_back(arg.data());
-    }
-    argv.emplace_back(nullptr);
-
+    auto argv = build_argv();
     const int log_fd = open(log_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (log_fd < 0) {
+        cleanup_on_error();
         ThrowFakeluaException(std::format("GCC compile failed, cannot open log file {}", log_file));
     }
 
@@ -195,6 +195,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     if (pid < 0) {
         pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
         close(log_fd);
+        cleanup_on_error();
         ThrowFakeluaException(std::format("GCC compile failed, fork failed for {}", pr.file_name));
     }
 
@@ -212,6 +213,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     int status = 0;
     if (waitpid(pid, &status, 0) < 0) {
         pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
+        cleanup_on_error();
         ThrowFakeluaException(std::format("GCC compile failed, waitpid failed for {}", pr.file_name));
     }
     pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
@@ -220,30 +222,39 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         if (std::ifstream ifs(log_file); ifs.is_open()) {
             gcc_log.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
         }
+        cleanup_on_error();
         ThrowFakeluaException(std::format("GCC compile failed for {} (log: {})\n{}", pr.file_name, log_file, gcc_log));
     }
 
     void *dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!dl_handle) {
+        cleanup_on_error();
         ThrowFakeluaException(std::format("GCC compile failed, dlopen failed for {}: {}", so_file, dlerror()));
     }
-    const auto handle = std::make_shared<GCCHandle>(c_file, so_file, dl_handle);
+    const auto handle = std::make_shared<GCCHandle>(c_file, so_file, log_file, dl_handle);
 
+    auto dlsym_lambda = [&](const std::string &sym) -> void * {
+        return dlsym(dl_handle, sym.c_str());
+    };
+#endif
+
+    // ---- Common post-load: register compiled functions + call init ----
     for (const auto &[name, info]: gr.function_names) {
         const std::string &sym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
-        void *func_ptr = dlsym(dl_handle, sym.c_str());
+        void *func_ptr = dlsym_lambda(sym);
         if (!func_ptr) {
-            ThrowFakeluaException(std::format("GCC compile failed, dlsym failed for symbol {} in {}", name, so_file));
+            ThrowFakeluaException(std::format("GCC compile failed, symbol resolution failed for {} in {}", name, so_file));
         }
         s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_GCC, func_ptr, handle, info.is_vararg));
         LOG_INFO("Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
 
-    void *init_ptr = dlsym(dl_handle, kInitFunctionName);
+    void *init_ptr = dlsym_lambda(kInitFunctionName);
     if (init_ptr) {
         inter::DispatchCall(init_ptr, nullptr, 0);
     }
 
+#if !defined(_WIN32)
     LOG_INFO("GCC JIT compilation finished for {}", pr.file_name);
 #endif
 }

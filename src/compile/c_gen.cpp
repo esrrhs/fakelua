@@ -210,6 +210,128 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     return gr;
 }
 
+
+// EmitSpecAccessorBody —— 按 key kind（string / int / float / bool）发射
+// spec get/set 访问器内层的 if-else / switch 条件逻辑。
+// is_get: true 时生成 get 的 match action，false 时生成 set 的 match action。
+void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
+    // ---- string keys ----
+    if (meta.has_string_keys) {
+        Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
+        Out() << "        switch (k.data_.i) {\n";
+        int f_idx = 0;
+        for (const auto &f: meta.fields) {
+            if (f.key_kind == TableKeyKind::kString) {
+                if (is_get) {
+                    Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": *__finish = true; return s->" << f.c_field_name << ";\n";
+                } else {
+                    Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return;\n";
+                }
+            }
+            f_idx++;
+        }
+        Out() << "            default: break;\n";
+        Out() << "        }\n";
+        Out() << "    } else if (k.type_ == VAR_STRING) {\n";
+        Out() << "        VarString *__vs = k.data_.s;\n";
+        f_idx = 0;
+        for (const auto &f: meta.fields) {
+            if (f.key_kind == TableKeyKind::kString) {
+                if (is_get) {
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                } else {
+                    const auto id = s_->GetConstString().Alloc(f.key);
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
+                }
+            }
+            f_idx++;
+        }
+        Out() << "    }\n";
+    }
+
+    // ---- int keys ----
+    if (meta.has_int_keys) {
+        Out() << "    if (k.type_ == VAR_INT) {\n";
+        Out() << "        switch (k.data_.i) {\n";
+        int f_idx = 0;
+        for (const auto &f: meta.fields) {
+            if (f.key_kind == TableKeyKind::kInt) {
+                if (is_get) {
+                    Out() << "            case " << f.int_value << ": *__finish = true; return s->" << f.c_field_name << ";\n";
+                } else {
+                    Out() << "            case " << f.int_value << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return;\n";
+                }
+            }
+            f_idx++;
+        }
+        Out() << "            default: break;\n";
+        Out() << "        }\n";
+        Out() << "    } else if (k.type_ == VAR_FLOAT) {\n";
+        Out() << "        double __fval = k.data_.f;\n";
+        f_idx = 0;
+        for (const auto &f: meta.fields) {
+            if (f.key_kind == TableKeyKind::kInt) {
+                if (is_get) {
+                    Out() << "        if (__fval == (double)" << f.int_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                } else {
+                    Out() << "        if (__fval == (double)" << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                }
+            }
+            f_idx++;
+        }
+        Out() << "    }\n";
+    }
+
+    // ---- float keys ----
+    if (meta.has_float_keys) {
+        Out() << "    if (k.type_ == VAR_FLOAT) {\n";
+        Out() << "        double __fval = k.data_.f;\n";
+        int f_idx = 0;
+        for (const auto &f: meta.fields) {
+            if (f.key_kind == TableKeyKind::kFloat) {
+                if (is_get) {
+                    Out() << "        if (__fval == " << f.float_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                } else {
+                    Out() << "        if (__fval == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                }
+            }
+            f_idx++;
+        }
+        Out() << "    } else if (k.type_ == VAR_INT) {\n";
+        Out() << "        int64_t __ival = k.data_.i;\n";
+        f_idx = 0;
+        for (const auto &f: meta.fields) {
+            if (f.key_kind == TableKeyKind::kFloat) {
+                if (is_get) {
+                    Out() << "        if ((double)__ival == " << f.float_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                } else {
+                    Out() << "        if ((double)__ival == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                }
+            }
+            f_idx++;
+        }
+        Out() << "    }\n";
+    }
+
+    // ---- bool keys ----
+    if (meta.has_bool_keys) {
+        Out() << "    if (k.type_ == VAR_BOOL) {\n";
+        Out() << "        bool __bval = k.data_.b;\n";
+        int f_idx = 0;
+        for (const auto &f: meta.fields) {
+            if (f.key_kind == TableKeyKind::kBool) {
+                if (is_get) {
+                    Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                } else {
+                    Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                }
+            }
+            f_idx++;
+        }
+        Out() << "    }\n";
+    }
+}
+
 void CGen::EmitSpecTypeBoilerplate(const std::string &spec_type, const SpecTypeMetadata &meta) {
     // 发射 typedef + 特化 get/set 函数到 Headers section（每个 spec 类型仅一次）。
     SectionGuard sg(*this, Section::Headers);
@@ -223,171 +345,18 @@ void CGen::EmitSpecTypeBoilerplate(const std::string &spec_type, const SpecTypeM
     }
     Out() << "} " << spec_type << ";\n\n";
 
-    // get 函数：接受 CVar k + bool *finish，命中设 *finish=true
+    // ---- get 函数 ----
     Out() << "static CVar " << get_fn << "(VarTable *tbl, CVar k, bool *__finish) {\n";
     Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
-
-    if (meta.has_string_keys) {
-        Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
-        Out() << "        switch (k.data_.i) {\n";
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kString) {
-                Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": *__finish = true; return s->" << f.c_field_name << ";\n";
-            }
-        }
-        Out() << "            default: break;\n";
-        Out() << "        }\n";
-        Out() << "    } else if (k.type_ == VAR_STRING) {\n";
-        Out() << "        VarString *__vs = k.data_.s;\n";
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kString) {
-                Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->" << f.c_field_name << "; }\n";
-            }
-        }
-        Out() << "    }\n";
-    }
-
-    if (meta.has_int_keys) {
-        Out() << "    if (k.type_ == VAR_INT) {\n";
-        Out() << "        switch (k.data_.i) {\n";
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kInt) {
-                Out() << "            case " << f.int_value << ": *__finish = true; return s->" << f.c_field_name << ";\n";
-            }
-        }
-        Out() << "            default: break;\n";
-        Out() << "        }\n";
-        Out() << "    } else if (k.type_ == VAR_FLOAT) {\n";
-        Out() << "        double __fval = k.data_.f;\n";
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kInt) {
-                Out() << "        if (__fval == (double)" << f.int_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
-            }
-        }
-        Out() << "    }\n";
-    }
-
-    if (meta.has_float_keys) {
-        Out() << "    if (k.type_ == VAR_FLOAT) {\n";
-        Out() << "        double __fval = k.data_.f;\n";
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kFloat) {
-                Out() << "        if (__fval == " << f.float_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
-            }
-        }
-        Out() << "    } else if (k.type_ == VAR_INT) {\n";
-        Out() << "        int64_t __ival = k.data_.i;\n";
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kFloat) {
-                Out() << "        if ((double)__ival == " << f.float_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
-            }
-        }
-        Out() << "    }\n";
-    }
-
-    if (meta.has_bool_keys) {
-        Out() << "    if (k.type_ == VAR_BOOL) {\n";
-        Out() << "        bool __bval = k.data_.b;\n";
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kBool) {
-                Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
-            }
-        }
-        Out() << "    }\n";
-    }
-
+    EmitSpecAccessorBody(meta, /*is_get=*/true);
     Out() << "    *__finish = false;\n";
     Out() << "    return (CVar){VAR_NIL};\n";
     Out() << "}\n\n";
 
-    // set 函数：同理
+    // ---- set 函数 ----
     Out() << "static void " << set_fn << "(VarTable *tbl, CVar k, CVar v, bool *__finish) {\n";
     Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
-
-    if (meta.has_string_keys) {
-        Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
-        Out() << "        switch (k.data_.i) {\n";
-        int f_idx = 0;
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kString) {
-                Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return;\n";
-            }
-            f_idx++;
-        }
-        Out() << "            default: break;\n";
-        Out() << "        }\n";
-        Out() << "    } else if (k.type_ == VAR_STRING) {\n";
-        Out() << "        VarString *__vs = k.data_.s;\n";
-        f_idx = 0;
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kString) {
-                const auto id = s_->GetConstString().Alloc(f.key);
-                Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
-            }
-            f_idx++;
-        }
-        Out() << "    }\n";
-    }
-
-    if (meta.has_int_keys) {
-        Out() << "    if (k.type_ == VAR_INT) {\n";
-        Out() << "        switch (k.data_.i) {\n";
-        int f_idx = 0;
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kInt) {
-                Out() << "            case " << f.int_value << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return;\n";
-            }
-            f_idx++;
-        }
-        Out() << "            default: break;\n";
-        Out() << "        }\n";
-        Out() << "    } else if (k.type_ == VAR_FLOAT) {\n";
-        Out() << "        double __fval = k.data_.f;\n";
-        f_idx = 0;
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kInt) {
-                Out() << "        if (__fval == (double)" << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-            }
-            f_idx++;
-        }
-        Out() << "    }\n";
-    }
-
-    if (meta.has_float_keys) {
-        Out() << "    if (k.type_ == VAR_FLOAT) {\n";
-        Out() << "        double __fval = k.data_.f;\n";
-        int f_idx = 0;
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kFloat) {
-                Out() << "            if (__fval == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-            }
-            f_idx++;
-        }
-        Out() << "    } else if (k.type_ == VAR_INT) {\n";
-        Out() << "        int64_t __ival = k.data_.i;\n";
-        f_idx = 0;
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kFloat) {
-                Out() << "        if ((double)__ival == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-            }
-            f_idx++;
-        }
-        Out() << "    }\n";
-    }
-
-    if (meta.has_bool_keys) {
-        Out() << "    if (k.type_ == VAR_BOOL) {\n";
-        Out() << "        bool __bval = k.data_.b;\n";
-        int f_idx = 0;
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kBool) {
-                Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-            }
-            f_idx++;
-        }
-        Out() << "    }\n";
-    }
-
+    EmitSpecAccessorBody(meta, /*is_get=*/false);
     Out() << "    *__finish = false;\n";
     Out() << "}\n\n";
 }
@@ -547,7 +516,7 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
 }
 
 [[noreturn]] void CGen::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
-    ThrowFakeluaException(std::format("Code generate failed, {} at {}:{}:{}", msg, file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column));
+    ThrowFakeluaException(std::format("Code generate failed, {} at {}", msg, SyntaxTreeLocationStr(file_name_, ptr)));
 }
 
 bool CGen::BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
@@ -2772,9 +2741,78 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     DEBUG_ASSERT(pe_pre->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_pre_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe_pre);
 
-    // 尝试直接调用优化：若被调函数是含有数学参数的本地函数，
-    // 且所有数学参数的实参类型均已知，则直接发出特化调用。
-    if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && args_kind == ArgsKind::kExpList) {
+    if (auto result = TryCompileSpecDirectCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        return result;
+    }
+
+    if (auto result = TryCompileSetTableCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        return result;
+    }
+
+    std::vector<std::string> compiled_args;
+    bool has_expansion = false;
+    std::string expansion_tmp;
+    int expansion_start_idx = 0;
+
+    CompileCallArgs(args_ptr, args_kind, compiled_args, has_expansion, expansion_tmp, expansion_start_idx);
+    std::string func_name;
+    const SyntaxTreeVar *var_ptr = nullptr;
+    ResolveCalleeName(pe_pre_ptr, func_name, var_ptr);
+    std::shared_ptr<SyntaxTreeVar> var;
+    if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
+        var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+    }
+
+    if (!func_name.empty() && func_name == "FAKELUA_SET_TABLE") {
+        if (compiled_args.size() != 3) {
+            ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
+        }
+        ThrowError("FAKELUA_SET_TABLE should have been handled by early fast path", functioncall);
+        return "";
+    }
+
+    std::string call_expr;
+    bool is_local_callee = false;
+    if (var_ptr) {
+        if (const auto it = var_to_def_map_.find(var_ptr); it != var_to_def_map_.end()) {
+            is_local_callee = true;
+        }
+    }
+
+    if (local_func_names_.contains(func_name)) {
+        const auto &info = local_func_names_.at(func_name);
+        if (!info.is_vararg && !has_expansion) {
+            if (static_cast<int>(compiled_args.size()) != info.params_count) {
+                ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, info.params_count, compiled_args.size()), functioncall);
+            }
+        }
+        if (!info.is_vararg && has_expansion) {
+            int expanded_count = static_cast<int>(compiled_args.size()) + (info.params_count - expansion_start_idx);
+            if (expanded_count != info.params_count) {
+                ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, info.params_count, expanded_count), functioncall);
+            }
+        }
+    }
+
+    if (local_func_names_.contains(func_name) && !is_local_callee) {
+        call_expr = BuildLocalFunctionCall(func_name, compiled_args, has_expansion, expansion_tmp, expansion_start_idx);
+    } else if (!fc->Name().empty()) {
+        call_expr = BuildMethodCall(fc, pe_pre, pe_pre_ptr, var, compiled_args, has_expansion, expansion_tmp);
+    } else {
+        call_expr = BuildDynamicCall(func_name, pe_pre, pe_pre_ptr, var, compiled_args, has_expansion, expansion_tmp, is_local_callee);
+    }
+    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    "
+                     << "CVar " << tmp << ";\n";
+    Out() << GenTab() << tmp << " = " << call_expr << ";\n";
+
+    return tmp;
+}
+
+// 尝试直接调用优化：若被调函数是含有数学参数的本地函数，
+// 且所有数学参数的实参类型均已知，则直接发出特化调用。
+std::string CGen::TryCompileSpecDirectCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
+    if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && args_ptr->GetArgsKind() == ArgsKind::kExpList) {
         if (const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue()); callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
             const auto &callee_name = callee_var->GetName();
             if (const auto math_it = ir().math_param_positions.find(callee_name); math_it != ir().math_param_positions.end()) {
@@ -2820,10 +2858,13 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             }
         }
     }
+    return "";
+}
 
-    // FAKELUA_SET_TABLE fast path: detect early before compiling all args to CVar,
-    // so we can use FlSetTableInt/FlSetTableStrId when the key type is known.
-    if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && args_kind == ArgsKind::kExpList) {
+// FAKELUA_SET_TABLE fast path: detect early before compiling all args to CVar,
+// so we can use FlSetTableInt/FlSetTableStrId when the key type is known.
+std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
+    if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && args_ptr->GetArgsKind() == ArgsKind::kExpList) {
         if (const auto early_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
             early_var && early_var->GetVarKind() == VarKind::kSimple && early_var->GetName() == "FAKELUA_SET_TABLE") {
             const auto explist_node = args_ptr->Explist();
@@ -2831,7 +2872,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_node);
             const auto &raw_args = explist_ptr->Exps();
             if (raw_args.size() != 3) {
-                ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
+                ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", fc);
             }
             const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
             func_temp_decls_ << "    CVar " << tmp << ";\n";
@@ -2897,13 +2938,11 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             return tmp;
         }
     }
+    return "";
+}
 
-    // 普通路径：将所有参数编译为 CVar。
-    std::vector<std::string> compiled_args;
-    bool has_expansion = false;
-    std::string expansion_tmp;
-    int expansion_start_idx = 0;
-
+// 普通路径：将所有参数编译为 CVar。
+void CGen::CompileCallArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr, ArgsKind args_kind, std::vector<std::string> &compiled_args, bool &has_expansion, std::string &expansion_tmp, int &expansion_start_idx) {
     if (args_kind == ArgsKind::kExpList) {
         const auto explist = args_ptr->Explist();
         DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
@@ -2936,11 +2975,11 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     } else if (args_kind == ArgsKind::kString) {
         compiled_args.push_back(CompileExp(args_ptr->String()));
     }
-    std::string func_name;
-    const SyntaxTreeVar *var_ptr = nullptr;
-    std::shared_ptr<SyntaxTreeVar> var;
+}
+
+void CGen::ResolveCalleeName(const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, std::string &func_name, const SyntaxTreeVar *&var_ptr) {
     if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
-        var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+        auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
         if (var && var->GetVarKind() == VarKind::kSimple) {
             func_name = var->GetName();
             var_ptr = var.get();
@@ -2960,163 +2999,140 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             }
         }
     }
+}
 
-    if (!func_name.empty() && func_name == "FAKELUA_SET_TABLE") {
-        if (compiled_args.size() != 3) {
-            ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
-        }
-        ThrowError("FAKELUA_SET_TABLE should have been handled by early fast path", functioncall);
-        return "";
-    }
-
-    std::string call_expr;
-    bool is_local_callee = false;
-    if (var_ptr) {
-        if (const auto it = var_to_def_map_.find(var_ptr); it != var_to_def_map_.end()) {
-            is_local_callee = true;
-        }
-    }
-
-    if (local_func_names_.contains(func_name)) {
-        const auto &info = local_func_names_.at(func_name);
-        if (!info.is_vararg && !has_expansion) {
-            if (static_cast<int>(compiled_args.size()) != info.params_count) {
-                ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, info.params_count, compiled_args.size()), functioncall);
-            }
-        }
-    }
-
-    if (local_func_names_.contains(func_name) && !is_local_callee) {
-        const auto &info = local_func_names_.at(func_name);
-        if (info.is_vararg) {
-            int N = info.params_count;
-            int fixed_param_count = N - 1;
-            if (has_expansion) {
-                if (expansion_start_idx < fixed_param_count) {
-                    for (int i = expansion_start_idx; i < fixed_param_count; ++i) {
-                        compiled_args.push_back(std::format("FlUnboxMulti({}, {})", expansion_tmp, i - expansion_start_idx));
-                    }
-                    std::string slice_expr = std::format("FlSliceMulti(_S, {}, {})", expansion_tmp, fixed_param_count - expansion_start_idx);
-                    compiled_args.push_back(slice_expr);
-                } else if (expansion_start_idx == fixed_param_count) {
-                    compiled_args.push_back(expansion_tmp);
-                } else { // expansion_start_idx > fixed_param_count
-                    std::vector<std::string> prefix_args;
-                    for (int i = fixed_param_count; i < expansion_start_idx; ++i) {
-                        prefix_args.push_back(compiled_args[i]);
-                    }
-                    compiled_args.resize(fixed_param_count);
-                    std::string prefix_arr_name = std::format("flua_vararg_prefix_{}", tmp_var_counter_++);
-                    func_temp_decls_ << "    CVar " << prefix_arr_name << "[" << prefix_args.size() << "];\n";
-                    for (size_t i = 0; i < prefix_args.size(); ++i) {
-                        Out() << GenTab() << prefix_arr_name << "[" << i << "] = " << prefix_args[i] << ";\n";
-                    }
-                    std::string combine_expr = std::format("FlCombineMulti(_S, {}, {}, {})", prefix_args.size(), prefix_arr_name, expansion_tmp);
-                    compiled_args.push_back(combine_expr);
-                }
-            } else {
-                int num_varargs = static_cast<int>(compiled_args.size()) > fixed_param_count ? static_cast<int>(compiled_args.size()) - fixed_param_count : 0;
-                if (num_varargs == 0) {
-                    while (static_cast<int>(compiled_args.size()) < fixed_param_count) {
-                        compiled_args.push_back("kNil");
-                    }
-                    compiled_args.push_back("kNil");
-                } else {
-                    std::string pack = std::format("FlMakeMulti(_S, {}", num_varargs);
-                    for (int i = fixed_param_count; i < static_cast<int>(compiled_args.size()); ++i) {
-                        pack += ", " + compiled_args[i];
-                    }
-                    pack += ")";
-                    compiled_args.resize(fixed_param_count);
-                    compiled_args.push_back(pack);
-                }
-            }
-        } else {
-            const int expected_params = info.params_count;
-            if (has_expansion) {
-                for (int i = expansion_start_idx; i < expected_params; ++i) {
-                    compiled_args.push_back(std::format("FlUnboxMulti({}, {})", expansion_tmp, i - expansion_start_idx));
-                }
-            }
-            if (static_cast<int>(compiled_args.size()) != expected_params) {
-                ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params, compiled_args.size()), functioncall);
-            }
-        }
-        call_expr = func_name + "(NULL";
-        for (size_t i = 0; i < compiled_args.size(); ++i) {
-            call_expr += ", " + compiled_args[i];
-        }
-        call_expr += ")";
-    } else if (!fc->Name().empty()) {
+std::string CGen::BuildLocalFunctionCall(const std::string &func_name, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, int expansion_start_idx) {
+    auto args = compiled_args;
+    const auto &info = local_func_names_.at(func_name);
+    if (info.is_vararg) {
+        int N = info.params_count;
+        int fixed_param_count = N - 1;
         if (has_expansion) {
-            compiled_args.push_back(expansion_tmp);
-        }
-        const std::string &method_name = fc->Name();
-        std::string obj_expr;
-        if (var) {
-            obj_expr = CompileVar(var);
+            if (expansion_start_idx < fixed_param_count) {
+                for (int i = expansion_start_idx; i < fixed_param_count; ++i) {
+                    args.push_back(std::format("FlUnboxMulti({}, {})", expansion_tmp, i - expansion_start_idx));
+                }
+                std::string slice_expr = std::format("FlSliceMulti(_S, {}, {})", expansion_tmp, fixed_param_count - expansion_start_idx);
+                args.push_back(slice_expr);
+            } else if (expansion_start_idx == fixed_param_count) {
+                args.push_back(expansion_tmp);
+            } else { // expansion_start_idx > fixed_param_count
+                std::vector<std::string> prefix_args;
+                for (int i = fixed_param_count; i < expansion_start_idx; ++i) {
+                    prefix_args.push_back(args[i]);
+                }
+                args.resize(fixed_param_count);
+                std::string prefix_arr_name = std::format("flua_vararg_prefix_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    CVar " << prefix_arr_name << "[" << prefix_args.size() << "];\n";
+                for (size_t i = 0; i < prefix_args.size(); ++i) {
+                    Out() << GenTab() << prefix_arr_name << "[" << i << "] = " << prefix_args[i] << ";\n";
+                }
+                std::string combine_expr = std::format("FlCombineMulti(_S, {}, {}, {})", prefix_args.size(), prefix_arr_name, expansion_tmp);
+                args.push_back(combine_expr);
+            }
         } else {
-            obj_expr = CompilePrefixexp(pe_pre_ptr);
+            int num_varargs = static_cast<int>(args.size()) > fixed_param_count ? static_cast<int>(args.size()) - fixed_param_count : 0;
+            if (num_varargs == 0) {
+                while (static_cast<int>(args.size()) < fixed_param_count) {
+                    args.push_back("kNil");
+                }
+                args.push_back("kNil");
+            } else {
+                std::string pack = std::format("FlMakeMulti(_S, {}", num_varargs);
+                for (int i = fixed_param_count; i < static_cast<int>(args.size()); ++i) {
+                    pack += ", " + args[i];
+                }
+                pack += ")";
+                args.resize(fixed_param_count);
+                args.push_back(pack);
+            }
         }
-        std::string obj_tmp = std::format("flua_obj_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    CVar " << obj_tmp << ";\n";
-        Out() << GenTab() << obj_tmp << " = " << obj_expr << ";\n";
-
-        std::string callee_expr;
-        const auto spec_type = GetSpecTypeForVar(pe_pre_ptr);
-        if (!spec_type.empty() && IsSpecField(spec_type, method_name, TableKeyKind::kString)) {
-            const auto c_name = GetSpecFieldCName(spec_type, method_name, TableKeyKind::kString);
-            callee_expr = std::format("FL_SPEC({}, {}, {})", spec_type, obj_tmp, c_name);
-        } else {
-            const auto id = s_->GetConstString().Alloc(method_name);
-            callee_expr = std::format("FlGetTableStrId({}, {})", obj_tmp, id);
+    } else {
+        const int expected_params = info.params_count;
+        if (has_expansion) {
+            for (int i = expansion_start_idx; i < expected_params; ++i) {
+                args.push_back(std::format("FlUnboxMulti({}, {})", expansion_tmp, i - expansion_start_idx));
+            }
         }
+    }
+    std::string call_expr = func_name + "(NULL";
+    for (size_t i = 0; i < args.size(); ++i) {
+        call_expr += ", " + args[i];
+    }
+    call_expr += ")";
+    return call_expr;
+}
 
-        std::string callee_tmp = std::format("flua_method_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    CVar " << callee_tmp << ";\n";
-        Out() << GenTab() << callee_tmp << " = " << callee_expr << ";\n";
+std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp) {
+    auto args = compiled_args;
+    if (has_expansion) {
+        args.push_back(expansion_tmp);
+    }
+    const std::string &method_name = fc->Name();
+    std::string obj_expr;
+    if (var) {
+        obj_expr = CompileVar(var);
+    } else {
+        obj_expr = CompilePrefixexp(pe_pre_ptr);
+    }
+    std::string obj_tmp = std::format("flua_obj_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    CVar " << obj_tmp << ";\n";
+    Out() << GenTab() << obj_tmp << " = " << obj_expr << ";\n";
 
-        std::vector<std::string> final_args;
-        final_args.push_back(obj_tmp);
-        for (const auto &arg : compiled_args) {
-            final_args.push_back(arg);
-        }
+    std::string callee_expr;
+    const auto spec_type = GetSpecTypeForVar(pe_pre_ptr);
+    if (!spec_type.empty() && IsSpecField(spec_type, method_name, TableKeyKind::kString)) {
+        const auto c_name = GetSpecFieldCName(spec_type, method_name, TableKeyKind::kString);
+        callee_expr = std::format("FL_SPEC({}, {}, {})", spec_type, obj_tmp, c_name);
+    } else {
+        const auto id = s_->GetConstString().Alloc(method_name);
+        callee_expr = std::format("FlGetTableStrId({}, {})", obj_tmp, id);
+    }
 
-        call_expr = std::format("FlCallClosure(_S, {}, {}", callee_tmp, final_args.size());
-        for (const auto &arg : final_args) {
+    std::string callee_tmp = std::format("flua_method_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    CVar " << callee_tmp << ";\n";
+    Out() << GenTab() << callee_tmp << " = " << callee_expr << ";\n";
+
+    std::vector<std::string> final_args;
+    final_args.push_back(obj_tmp);
+    for (const auto &arg : args) {
+        final_args.push_back(arg);
+    }
+
+    std::string call_expr = std::format("FlCallClosure(_S, {}, {}", callee_tmp, final_args.size());
+    for (const auto &arg : final_args) {
+        call_expr += ", " + arg;
+    }
+    call_expr += ")";
+    return call_expr;
+}
+
+std::string CGen::BuildDynamicCall(const std::string &func_name, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, bool is_local_callee) {
+    auto args = compiled_args;
+    if (has_expansion) {
+        args.push_back(expansion_tmp);
+    }
+    std::string call_expr;
+    if (!func_name.empty() && !is_local_callee) {
+        call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, args.size());
+        for (const auto &arg: args) {
             call_expr += ", " + arg;
         }
         call_expr += ")";
     } else {
-        if (has_expansion) {
-            compiled_args.push_back(expansion_tmp);
-        }
-        if (!func_name.empty() && !is_local_callee) {
-            call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, compiled_args.size());
-            for (const auto &arg: compiled_args) {
-                call_expr += ", " + arg;
-            }
-            call_expr += ")";
+        std::string callee_expr;
+        if (var) {
+            callee_expr = CompileVar(var);
         } else {
-            std::string callee_expr;
-            if (var) {
-                callee_expr = CompileVar(var);
-            } else {
-                callee_expr = CompilePrefixexp(pe_pre);
-            }
-            call_expr = std::format("FlCallClosure(_S, {}, {}", callee_expr, compiled_args.size());
-            for (const auto &arg: compiled_args) {
-                call_expr += ", " + arg;
-            }
-            call_expr += ")";
+            callee_expr = CompilePrefixexp(pe_pre);
         }
+        call_expr = std::format("FlCallClosure(_S, {}, {}", callee_expr, args.size());
+        for (const auto &arg: args) {
+            call_expr += ", " + arg;
+        }
+        call_expr += ")";
     }
-    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    "
-                     << "CVar " << tmp << ";\n";
-    Out() << GenTab() << tmp << " = " << call_expr << ";\n";
-
-    return tmp;
+    return call_expr;
 }
 
 
