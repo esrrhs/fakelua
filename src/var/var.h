@@ -124,4 +124,15 @@ static_assert(sizeof(Var) == 16);
 
 extern Var const_null_var;
 
+// CVar ↔ Var 转换工具函数
+// CVar 是 POD 结构（C JIT ABI 兼容），Var 继承 CVar 并添加 C++ 方法。
+// 由于 Var 是 final 且与 CVar 内存布局一致，reinterpret_cast 是安全的。
+inline Var &AsVar(CVar &cv) {
+    return reinterpret_cast<Var &>(cv);
+}
+
+inline const Var &AsVar(const CVar &cv) {
+    return reinterpret_cast<const Var &>(cv);
+}
+
 }// namespace fakelua

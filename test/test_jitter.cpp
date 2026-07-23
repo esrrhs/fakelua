@@ -4,7 +4,6 @@
 #include "state/state.h"
 #include "var/var_multi.h"
 #include "var/var_string.h"
-#include "var/var_table.h"
 #include "var/var_type.h"
 #include "gtest/gtest.h"
 
@@ -15,44 +14,48 @@ static VarInterface *TableToVi(State *s, const CVar &cv) {
     return inter::FakeluaToNativeObj(s, cv);
 }
 
-// Helper: find int value by int key in a VarInterface table.
-static int64_t ViTableGetInt(VarInterface *t, int64_t key) {
+// Helper: find value VarInterface* by int key in a VarInterface table.
+static VarInterface *ViFindVal(VarInterface *t, int64_t key) {
     for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
         auto kv = t->ViGetTableKv(i);
         if (kv.first->ViGetType() == VarInterface::Type::INT && kv.first->ViGetInt() == key)
-            return kv.second->ViGetInt();
+            return kv.second;
     }
-    return INT64_MIN;
+    return nullptr;
+}
+
+// Helper: find value VarInterface* by string key in a VarInterface table.
+static VarInterface *ViFindVal(VarInterface *t, const std::string &key) {
+    for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
+        auto kv = t->ViGetTableKv(i);
+        if (kv.first->ViGetType() == VarInterface::Type::STRING && kv.first->ViGetString() == key)
+            return kv.second;
+    }
+    return nullptr;
+}
+
+// Helper: find int value by int key in a VarInterface table.
+static int64_t ViTableGetInt(VarInterface *t, int64_t key) {
+    auto *v = ViFindVal(t, key);
+    return v && v->ViGetType() == VarInterface::Type::INT ? v->ViGetInt() : INT64_MIN;
 }
 
 // Helper: find int value by string key in a VarInterface table.
 static int64_t ViTableGetInt(VarInterface *t, const std::string &key) {
-    for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
-        auto kv = t->ViGetTableKv(i);
-        if (kv.first->ViGetType() == VarInterface::Type::STRING && kv.first->ViGetString() == key)
-            return kv.second->ViGetInt();
-    }
-    return INT64_MIN;
+    auto *v = ViFindVal(t, key);
+    return v && v->ViGetType() == VarInterface::Type::INT ? v->ViGetInt() : INT64_MIN;
 }
 
 // Helper: find string value by string key in a VarInterface table.
 static std::string ViTableGetStr(VarInterface *t, const std::string &key) {
-    for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
-        auto kv = t->ViGetTableKv(i);
-        if (kv.first->ViGetType() == VarInterface::Type::STRING && kv.first->ViGetString() == key)
-            return std::string(kv.second->ViGetString());
-    }
-    return "";
+    auto *v = ViFindVal(t, key);
+    return v && v->ViGetType() == VarInterface::Type::STRING ? std::string(v->ViGetString()) : "";
 }
 
 // Helper: find string value by int key in a VarInterface table.
 static std::string ViTableGetStr(VarInterface *t, int64_t key) {
-    for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
-        auto kv = t->ViGetTableKv(i);
-        if (kv.first->ViGetType() == VarInterface::Type::INT && kv.first->ViGetInt() == key)
-            return std::string(kv.second->ViGetString());
-    }
-    return "";
+    auto *v = ViFindVal(t, key);
+    return v && v->ViGetType() == VarInterface::Type::STRING ? std::string(v->ViGetString()) : "";
 }
 
 static std::vector<JITType> GetSupportedJitTypes() {
@@ -78,9 +81,8 @@ TEST(jitter, empty_func) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_func.lua", {.debug_mode = debug_mode});
         CVar ret;
-        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
-        ASSERT_EQ(v.Type(), VarType::Nil);
+        ASSERT_EQ(AsVar(ret).Type(), VarType::Nil);
     });
 }
 
@@ -88,9 +90,8 @@ TEST(jitter, empty_local_func) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_local_func.lua", {.debug_mode = debug_mode});
         CVar ret;
-        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
-        ASSERT_EQ(v.Type(), VarType::Nil);
+        ASSERT_EQ(AsVar(ret).Type(), VarType::Nil);
     });
 }
 
@@ -303,7 +304,7 @@ TEST(jitter, multi_return_expr_arith) {
         // string concatenation
         Call(s, type, "test_concat", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::String));
-        ASSERT_EQ(reinterpret_cast<Var &>(ret).GetString()->Str(), "hello_suffix");
+        ASSERT_EQ(AsVar(ret).GetString()->Str(), "hello_suffix");
 
         // logical and
         Call(s, type, "test_logical_and", ret);
@@ -369,7 +370,6 @@ TEST(jitter, multi_const_define) {
         CompileFile(s, "./jit/test_multi_const_define.lua", {.debug_mode = debug_mode});
 
         CVar ret0 = {};
-        auto v = reinterpret_cast<Var &>(ret0);
         int ret1 = 0;
         bool ret2 = false;
         bool ret3 = false;
@@ -382,7 +382,7 @@ TEST(jitter, multi_const_define) {
         Call(s, type, "test4", ret4);
         Call(s, type, "test5", ret5);
 
-        ASSERT_EQ(v.Type(), VarType::Nil);
+        ASSERT_EQ(AsVar(ret0).Type(), VarType::Nil);
         ASSERT_EQ(ret1, 1);
         ASSERT_EQ(ret2, false);
         ASSERT_EQ(ret3, true);
@@ -456,9 +456,8 @@ TEST(jitter, local_define) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_local_define.lua", {.debug_mode = debug_mode});
         CVar ret;
-        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
-        ASSERT_EQ(v.Type(), VarType::Nil);
+        ASSERT_EQ(AsVar(ret).Type(), VarType::Nil);
     });
 }
 
@@ -470,7 +469,6 @@ TEST(jitter, local_define_with_values) {
         int ret3 = 0;
         std::string ret4;
         CVar ret5;
-        const auto v5 = reinterpret_cast<Var &>(ret5);
         Call(s, type, "test1", ret1, true, 2);
         Call(s, type, "test2", ret2, true, 2);
         Call(s, type, "test3", ret3, true, 2);
@@ -480,7 +478,7 @@ TEST(jitter, local_define_with_values) {
         ASSERT_EQ(ret2, 2);
         ASSERT_EQ(ret3, 1);
         ASSERT_EQ(ret4, "test");
-        ASSERT_EQ(v5.Type(), VarType::Nil);
+        ASSERT_EQ(AsVar(ret5).Type(), VarType::Nil);
     });
 }
 
@@ -754,9 +752,8 @@ TEST(jitter, test_empty_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_return.lua", {.debug_mode = debug_mode});
         CVar ret;
-        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
-        ASSERT_EQ(v.Type(), VarType::Nil);
+        ASSERT_EQ(AsVar(ret).Type(), VarType::Nil);
     });
 }
 
@@ -764,9 +761,8 @@ TEST(jitter, test_empty_func_no_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_func_no_return.lua", {.debug_mode = debug_mode});
         CVar ret;
-        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
-        ASSERT_EQ(v.Type(), VarType::Nil);
+        ASSERT_EQ(AsVar(ret).Type(), VarType::Nil);
     });
 }
 
@@ -1080,11 +1076,10 @@ TEST(jitter, test_binop_and) {
         CompileFile(s, "./jit/test_binop_and.lua", {.debug_mode = debug_mode});
         float ret1 = 0;
         CVar ret2 = {};
-        auto v = reinterpret_cast<Var &>(ret2);
         Call(s, type, "test1", ret1, 1, 1.2);
         Call(s, type, "test2", ret2, nullptr, "10");
         ASSERT_NEAR(ret1, 1.2, 0.001);
-        ASSERT_EQ(v.Type(), VarType::Nil);
+        ASSERT_EQ(AsVar(ret2).Type(), VarType::Nil);
     });
 }
 
@@ -1685,9 +1680,8 @@ TEST(jitter, test_table_empty_get) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_empty_get.lua", {.debug_mode = debug_mode});
         CVar ret = {};
-        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
-        ASSERT_EQ(v.Type(), VarType::Nil);
+        ASSERT_EQ(AsVar(ret).Type(), VarType::Nil);
     });
 }
 
