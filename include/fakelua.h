@@ -355,8 +355,6 @@ CVar NativeToFakeluaCstr(State *s, const char *v);
 CVar NativeToFakeluaStr(State *s, char *v);
 CVar NativeToFakeluaString(State *s, const std::string &v);
 CVar NativeToFakeluaStringView(State *s, const std::string_view &v);
-CVar NativeToFakeluaObj(State *s, const VarInterface *v);
-
 void ThrowIfMultiCVar(const CVar &v);
 
 template<typename T>
@@ -383,9 +381,7 @@ CVar NativeToFakelua(State *s, T v) {
         ThrowIfMultiCVar(v);
         return v;
     } else {
-        static_assert(std::is_pointer_v<T>, "T should be pointer");
-        static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
-        return NativeToFakeluaObj(s, v);
+        static_assert(sizeof(T) == 0, "NativeToFakelua: unsupported type T");
     }
 }
 
@@ -406,7 +402,6 @@ double FakeluaToNativeDouble(State *s, CVar v);
 std::string FakeluaToNativeString(State *s, CVar v);
 std::string_view FakeluaToNativeStringView(State *s, CVar v);
 VarInterface *FakeluaToNativeObj(State *s, CVar v);
-
 template<typename T>
 T FakeluaToNative(State *s, const CVar v) {
     if constexpr (std::is_same_v<T, bool>) {
@@ -442,7 +437,6 @@ T FakeluaToNative(State *s, const CVar v) {
     } else if constexpr (std::is_same_v<T, CVar>) {
         return v;
     } else {
-        // 静态断言 T 应该是 VarInterface* 或实现 VarInterface
         static_assert(std::is_pointer_v<T>, "T should be pointer");
         static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
         return FakeluaToNativeObj(s, v);

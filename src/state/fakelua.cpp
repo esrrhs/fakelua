@@ -102,44 +102,6 @@ CVar NativeToFakeluaStringView(State *state, const std::string_view &val) {
     return ret;
 }
 
-Var ViToVar(State *state, const VarInterface *src) {
-    DEBUG_ASSERT(src->ViGetType() >= VarInterface::Type::MIN && src->ViGetType() <= VarInterface::Type::MAX);
-    Var ret;
-    switch (src->ViGetType()) {
-        case VarInterface::Type::NIL:
-            ret.SetNil();
-            break;
-        case VarInterface::Type::BOOL:
-            ret.SetBool(src->ViGetBool());
-            break;
-        case VarInterface::Type::INT:
-            ret.SetInt(src->ViGetInt());
-            break;
-        case VarInterface::Type::FLOAT:
-            ret.SetFloat(src->ViGetFloat());
-            break;
-        case VarInterface::Type::STRING:
-            ret.SetTempString(state, src->ViGetString());
-            break;
-        case VarInterface::Type::TABLE:
-            ret.SetTable(state);
-            for (int i = 0; i < static_cast<int>(src->ViGetTableSize()); ++i) {
-                const auto [fst, snd] = src->ViGetTableKv(i);
-                auto key = ViToVar(state, fst);
-                auto val = ViToVar(state, snd);
-                ret.GetTable()->Set(state, key, val, true);
-            }
-            break;
-        default:
-            ThrowFakeluaException(std::format("ViToVar failed, unknown type {}", static_cast<int>(src->ViGetType())));
-    }
-    return ret;
-}
-
-CVar NativeToFakeluaObj(State *state, const VarInterface *val) {
-    return ViToVar(state, val);
-}
-
 bool FakeluaToNativeBool(State *state, CVar val) {
     const auto var_val = reinterpret_cast<Var &>(val);
     if (LIKELY(var_val.Type() == VarType::Bool)) {
@@ -233,7 +195,9 @@ std::string_view FakeluaToNativeStringView(State *state, CVar val) {
     ThrowFakeluaException(std::format("FakeluaToNativeStringview failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-void VarToVi(State *state, CVar src, VarInterface *dst) {
+// VarToVi: read CVar into VarInterface* bridge type. Tables are read-only —
+// no VarTable methods needed, just direct field access on the C struct.
+static void VarToVi(State *state, CVar src, VarInterface *dst) {
     const auto var_val = reinterpret_cast<Var &>(src);
     DEBUG_ASSERT(var_val.Type() >= VarType::Min && var_val.Type() <= VarType::Max);
     switch (var_val.Type()) {
@@ -256,56 +220,46 @@ void VarToVi(State *state, CVar src, VarInterface *dst) {
         case VarType::Table: {
             std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
             const auto table = var_val.GetTable();
-            // 先遍历 spec 字段
-            if (table->GetSpecCount() > 0) {
-                const auto *spec_keys = table->GetSpecKeys();
-                const auto *spec_vals = table->GetSpecVals();
-                for (uint32_t i = 0; i < table->GetSpecCount(); ++i) {
+            if (table->spec_count > 0) {
+                const auto *sk = reinterpret_cast<const Var *>(table->spec_keys);
+                const auto *sv = reinterpret_cast<const Var *>(table->spec_vals);
+                for (uint32_t i = 0; i < table->spec_count; ++i) {
                     auto key_item = GetVarInterfaceNewFunc(state)();
                     auto val_item = GetVarInterfaceNewFunc(state)();
-                    VarToVi(state, spec_keys[i], key_item);
-                    VarToVi(state, spec_vals[i], val_item);
+                    VarToVi(state, sk[i], key_item);
+                    VarToVi(state, sv[i], val_item);
                     kvs.emplace_back(key_item, val_item);
                 }
             }
-            // 再遍历 hash 字段
-            const uint32_t count = table->GetHashCount();
-            const VarTable::VarEntry *quick_data = table->GetQuickData();
-            const auto *nodes = table->GetNodes();
-            if (const uint32_t *active_list = table->GetActiveList(); active_list == nullptr) {
+            const uint32_t count = table->count_;
+            if (const uint32_t *al = table->active_list_; al == nullptr) {
                 for (uint32_t i = 0; i < count; ++i) {
-                    const auto &entry = quick_data[i];
-                    const auto key = entry.key;
-                    const auto val = entry.val;
+                    const auto &e = table->quick_data_[i];
                     auto key_item = GetVarInterfaceNewFunc(state)();
                     auto val_item = GetVarInterfaceNewFunc(state)();
-                    VarToVi(state, key, key_item);
-                    VarToVi(state, val, val_item);
+                    VarToVi(state, e.key, key_item);
+                    VarToVi(state, e.val, val_item);
                     kvs.emplace_back(key_item, val_item);
                 }
             } else {
                 for (uint32_t i = 0; i < count; ++i) {
-                    const auto &entry = nodes[active_list[i]].entry;
-                    const auto key = entry.key;
-                    const auto val = entry.val;
+                    const auto &e = table->nodes_[al[i]].entry;
                     auto key_item = GetVarInterfaceNewFunc(state)();
                     auto val_item = GetVarInterfaceNewFunc(state)();
-                    VarToVi(state, key, key_item);
-                    VarToVi(state, val, val_item);
+                    VarToVi(state, e.key, key_item);
+                    VarToVi(state, e.val, val_item);
                     kvs.emplace_back(key_item, val_item);
                 }
             }
             dst->ViSetTable(kvs);
             break;
         }
-        case VarType::Closure: {
-            ThrowFakeluaException("VarToVi failed: Closure type is not supported in host VarInterface");
+        case VarType::Closure:
+            ThrowFakeluaException("VarToVi failed: Closure type is not supported");
             break;
-        }
-        case VarType::Multi: {
-            ThrowFakeluaException("VarToVi failed: Multi-return type is not supported in host VarInterface");
+        case VarType::Multi:
+            ThrowFakeluaException("VarToVi failed: Multi-return type is not supported");
             break;
-        }
     }
 }
 

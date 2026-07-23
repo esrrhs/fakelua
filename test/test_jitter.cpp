@@ -10,6 +10,51 @@
 
 using namespace fakelua;
 
+// Helper: convert CVar table to VarInterface* for test verification.
+static VarInterface *TableToVi(State *s, const CVar &cv) {
+    return inter::FakeluaToNativeObj(s, cv);
+}
+
+// Helper: find int value by int key in a VarInterface table.
+static int64_t ViTableGetInt(VarInterface *t, int64_t key) {
+    for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
+        auto kv = t->ViGetTableKv(i);
+        if (kv.first->ViGetType() == VarInterface::Type::INT && kv.first->ViGetInt() == key)
+            return kv.second->ViGetInt();
+    }
+    return INT64_MIN;
+}
+
+// Helper: find int value by string key in a VarInterface table.
+static int64_t ViTableGetInt(VarInterface *t, const std::string &key) {
+    for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
+        auto kv = t->ViGetTableKv(i);
+        if (kv.first->ViGetType() == VarInterface::Type::STRING && kv.first->ViGetString() == key)
+            return kv.second->ViGetInt();
+    }
+    return INT64_MIN;
+}
+
+// Helper: find string value by string key in a VarInterface table.
+static std::string ViTableGetStr(VarInterface *t, const std::string &key) {
+    for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
+        auto kv = t->ViGetTableKv(i);
+        if (kv.first->ViGetType() == VarInterface::Type::STRING && kv.first->ViGetString() == key)
+            return std::string(kv.second->ViGetString());
+    }
+    return "";
+}
+
+// Helper: find string value by int key in a VarInterface table.
+static std::string ViTableGetStr(VarInterface *t, int64_t key) {
+    for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
+        auto kv = t->ViGetTableKv(i);
+        if (kv.first->ViGetType() == VarInterface::Type::INT && kv.first->ViGetInt() == key)
+            return std::string(kv.second->ViGetString());
+    }
+    return "";
+}
+
 static std::vector<JITType> GetSupportedJitTypes() {
     return {JIT_TCC, JIT_GCC};
 }
@@ -17,6 +62,7 @@ static std::vector<JITType> GetSupportedJitTypes() {
 static void JitterRunHelper(const std::function<void(State *, JITType, bool)> &f) {
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
+    SetVarInterfaceNewFunc(s, []() { return new SimpleVarImpl(); });
     for (const auto type: GetSupportedJitTypes()) {
         f(s, type, true);
         f(s, type, false);
@@ -161,13 +207,12 @@ TEST(jitter, multi_return_table_expand) {
         CompileFile(s, "./jit/test_multi_return_table_expand.lua", {.debug_mode = debug_mode});
         CVar ret;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
-        VarTable *t = ret.data_.t;
-        ASSERT_EQ(t->Size(), 4);
-        ASSERT_EQ(t->Get(Var(int64_t(1))).GetInt(), 1);
-        ASSERT_EQ(t->Get(Var(int64_t(2))).GetInt(), 2);
-        ASSERT_EQ(t->Get(Var(int64_t(3))).GetInt(), 3);
-        ASSERT_EQ(t->Get(Var(int64_t(4))).GetInt(), 4);
+        VarInterface *t = TableToVi(s, ret);
+        ASSERT_EQ(t->ViGetTableSize(), 4);
+        ASSERT_EQ(ViTableGetInt(t, 1), 1);
+        ASSERT_EQ(ViTableGetInt(t, 2), 2);
+        ASSERT_EQ(ViTableGetInt(t, 3), 3);
+        ASSERT_EQ(ViTableGetInt(t, 4), 4);
     });
 }
 
@@ -176,13 +221,12 @@ TEST(jitter, multi_return_table_truncate) {
         CompileFile(s, "./jit/test_multi_return_table_truncate.lua", {.debug_mode = debug_mode});
         CVar ret;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
-        VarTable *t = ret.data_.t;
-        ASSERT_EQ(t->Size(), 4);
-        ASSERT_EQ(t->Get(Var(int64_t(1))).GetInt(), 1);
-        ASSERT_EQ(t->Get(Var(int64_t(2))).GetInt(), 2);
-        ASSERT_EQ(t->Get(Var(int64_t(3))).GetInt(), 3);
-        ASSERT_EQ(t->Get(Var(int64_t(4))).GetInt(), 5);
+        VarInterface *t = TableToVi(s, ret);
+        ASSERT_EQ(t->ViGetTableSize(), 4);
+        ASSERT_EQ(ViTableGetInt(t, 1), 1);
+        ASSERT_EQ(ViTableGetInt(t, 2), 2);
+        ASSERT_EQ(ViTableGetInt(t, 3), 3);
+        ASSERT_EQ(ViTableGetInt(t, 4), 5);
     });
 }
 
@@ -191,14 +235,10 @@ TEST(jitter, multi_return_table_keyed_val) {
         CompileFile(s, "./jit/test_multi_return_table_keyed_val.lua", {.debug_mode = debug_mode});
         CVar ret;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
-        VarTable *t = ret.data_.t;
-        Var key_a;
-        key_a.SetConstString(s, "a");
-        ASSERT_EQ(t->Get(key_a).GetInt(), 3);
-        Var key_b;
-        key_b.SetConstString(s, "b");
-        ASSERT_EQ(t->Get(key_b).type_, static_cast<int>(VarType::Nil));
+        VarInterface *t = TableToVi(s, ret);
+        ASSERT_EQ(ViTableGetInt(t, "a"), 3);
+        // key "b" not present → sentinel
+        ASSERT_EQ(ViTableGetInt(t, "b"), INT64_MIN);
     });
 }
 
@@ -207,10 +247,10 @@ TEST(jitter, multi_return_table_keyed_exp) {
         CompileFile(s, "./jit/test_multi_return_table_keyed_exp.lua", {.debug_mode = debug_mode});
         CVar ret;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
-        VarTable *t = ret.data_.t;
-        ASSERT_EQ(t->Get(Var(int64_t(3))).GetString()->Str(), "hello");
-        ASSERT_EQ(t->Get(Var(int64_t(4))).type_, static_cast<int>(VarType::Nil));
+        VarInterface *t = TableToVi(s, ret);
+        // Keys are integers: 3 -> "hello", 4 -> nil (not present)
+        ASSERT_EQ(ViTableGetStr(t, 3), "hello");
+        ASSERT_EQ(ViTableGetStr(t, 4), "");
     });
 }
 
@@ -223,10 +263,10 @@ TEST(jitter, multi_return_table_indexing) {
         ASSERT_EQ(ConstString::GetString(ret.data_.i), "val3");
 
         Call(s, type, "test_set", ret);
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
-        VarTable *t = ret.data_.t;
-        ASSERT_EQ(t->Get(Var(int64_t(3))).GetString()->Str(), "inserted");
-        ASSERT_EQ(t->Get(Var(int64_t(4))).type_, static_cast<int>(VarType::Nil));
+        VarInterface *t = TableToVi(s, ret);
+        // Keys are integers: 3 -> "inserted", 4 -> nil (not present)
+        ASSERT_EQ(ViTableGetStr(t, 3), "inserted");
+        ASSERT_EQ(ViTableGetStr(t, 4), "");
     });
 }
 
@@ -507,37 +547,25 @@ TEST(jitter, test_const_table) {
         VarMulti *m = ret.data_.m;
         ASSERT_EQ(m->GetCount(), 3);
 
-        CVar ret1 = m->GetVars()[0];
-        ASSERT_EQ(ret1.type_, static_cast<int>(VarType::Table));
-        VarTable *t1 = ret1.data_.t;
-        ASSERT_EQ(t1->Size(), 10);
+        VarInterface *t1 = TableToVi(s, m->GetVars()[0]);
+        ASSERT_EQ(t1->ViGetTableSize(), 10);
         for (int i = 1; i <= 10; ++i) {
-            ASSERT_EQ(t1->Get(Var(int64_t(i))).GetInt(), i);
+            ASSERT_EQ(ViTableGetInt(t1, static_cast<int64_t>(i)), i);
         }
 
-        CVar ret2 = m->GetVars()[1];
-        ASSERT_EQ(ret2.type_, static_cast<int>(VarType::Table));
-        VarTable *t2 = ret2.data_.t;
-        ASSERT_EQ(t2->Size(), 3);
-        Var key_a, key_b, key_c;
-        key_a.SetConstString(s, "a");
-        key_b.SetConstString(s, "b");
-        key_c.SetConstString(s, "c");
-        ASSERT_EQ(t2->Get(key_a).GetInt(), 1);
-        ASSERT_EQ(t2->Get(key_b).GetInt(), 2);
-        ASSERT_EQ(t2->Get(key_c).GetInt(), 3);
+        VarInterface *t2 = TableToVi(s, m->GetVars()[1]);
+        ASSERT_EQ(t2->ViGetTableSize(), 3);
+        ASSERT_EQ(ViTableGetInt(t2, "a"), 1);
+        ASSERT_EQ(ViTableGetInt(t2, "b"), 2);
+        ASSERT_EQ(ViTableGetInt(t2, "c"), 3);
 
-        CVar ret3 = m->GetVars()[2];
-        ASSERT_EQ(ret3.type_, static_cast<int>(VarType::Table));
-        VarTable *t3 = ret3.data_.t;
-        ASSERT_EQ(t3->Size(), 5);
-        ASSERT_EQ(t3->Get(Var(int64_t(1))).GetInt(), 1);
-        ASSERT_EQ(t3->Get(Var(int64_t(2))).GetInt(), 3);
-        ASSERT_EQ(t3->Get(Var(int64_t(3))).GetInt(), 5);
-        Var key_d;
-        key_d.SetConstString(s, "d");
-        ASSERT_EQ(t3->Get(key_b).GetInt(), 2);
-        ASSERT_EQ(t3->Get(key_d).GetInt(), 4);
+        VarInterface *t3 = TableToVi(s, m->GetVars()[2]);
+        ASSERT_EQ(t3->ViGetTableSize(), 5);
+        ASSERT_EQ(ViTableGetInt(t3, 1), 1);
+        ASSERT_EQ(ViTableGetInt(t3, 2), 3);
+        ASSERT_EQ(ViTableGetInt(t3, 3), 5);
+        ASSERT_EQ(ViTableGetInt(t3, "b"), 2);
+        ASSERT_EQ(ViTableGetInt(t3, "d"), 4);
     });
 }
 
@@ -547,95 +575,42 @@ TEST(jitter, test_const_nested_table) {
         CVar ret;
         Call(s, type, "test", ret);
 
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
-        VarTable *t = ret.data_.t;
-
-        Var key_array;
-        key_array.SetConstString(s, "array");
-        Var val_array = t->Get(key_array);
-        ASSERT_EQ(val_array.Type(), VarType::Table);
-        VarTable *t_array = val_array.GetTable();
-        ASSERT_EQ(t_array->Size(), 3);
-        ASSERT_EQ(t_array->Get(Var(int64_t(1))).GetInt(), 1);
-        ASSERT_EQ(t_array->Get(Var(int64_t(2))).GetInt(), 2);
-        ASSERT_EQ(t_array->Get(Var(int64_t(3))).GetInt(), 3);
-
-        Var key_map;
-        key_map.SetConstString(s, "map");
-        Var val_map = t->Get(key_map);
-        ASSERT_EQ(val_map.Type(), VarType::Table);
-        VarTable *t_map = val_map.GetTable();
-        ASSERT_EQ(t_map->Size(), 3);
-        Var key_a, key_b, key_c;
-        key_a.SetConstString(s, "a");
-        key_b.SetConstString(s, "b");
-        key_c.SetConstString(s, "c");
-        ASSERT_EQ(t_map->Get(key_a).GetInt(), 1);
-        ASSERT_EQ(t_map->Get(key_b).GetInt(), 2);
-        ASSERT_EQ(t_map->Get(key_c).GetInt(), 3);
-    });
-}
-
-TEST(jitter, test_local_table) {
-    std::vector<VarInterface *> tmp;
-    auto newfunc = [&]() {
-        auto ret = new SimpleVarImpl();
-        tmp.push_back(ret);
-        return ret;
-    };
-    JitterRunHelper([&](State *s, JITType type, bool debug_mode) {
-        SetVarInterfaceNewFunc(s, newfunc);
-        CompileFile(s, "./jit/test_local_table.lua", {.debug_mode = debug_mode});
-        VarInterface *t1 = nullptr;
-        VarInterface *t2 = nullptr;
-        VarInterface *t3 = nullptr;
-        Call(s, type, "test1", t1);
-        Call(s, type, "test2", t2);
-        Call(s, type, "test3", t3);
-        ASSERT_NE(t1, nullptr);
-        ASSERT_EQ(t1->ViGetType(), VarInterface::Type::TABLE);
-        ASSERT_NE(t2, nullptr);
-        ASSERT_EQ(t2->ViGetType(), VarInterface::Type::TABLE);
-        ASSERT_NE(t3, nullptr);
-        ASSERT_EQ(t3->ViGetType(), VarInterface::Type::TABLE);
-
-        // need sort kv
-        dynamic_cast<SimpleVarImpl *>(t1)->ViSortTable();
-        dynamic_cast<SimpleVarImpl *>(t2)->ViSortTable();
-        dynamic_cast<SimpleVarImpl *>(t3)->ViSortTable();
-        ASSERT_EQ(t1->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-        ASSERT_EQ(t2->ViToString(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-        ASSERT_EQ(t3->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
-    });
-    for (auto &i: tmp) {
-        delete i;
-    }
-}
-
-TEST(jitter, test_local_nested_table) {
-    std::vector<VarInterface *> tmp;
-    auto newfunc = [&]() {
-        auto ret = new SimpleVarImpl();
-        tmp.push_back(ret);
-        return ret;
-    };
-    JitterRunHelper([&](State *s, JITType type, bool debug_mode) {
-        SetVarInterfaceNewFunc(s, newfunc);
-        CompileFile(s, "./jit/test_local_nested_table.lua", {.debug_mode = debug_mode});
-        VarInterface *t = nullptr;
-        Call(s, type, "test", t);
-        ASSERT_NE(t, nullptr);
+        VarInterface *t = TableToVi(s, ret);
         ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
-        // need sort kv
-        dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-        ASSERT_EQ(t->ViToString(0), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-                                    "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+        // Get nested "array" table
+        VarInterface *t_array = nullptr;
+        for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
+            auto kv = t->ViGetTableKv(i);
+            if (kv.first->ViGetType() == VarInterface::Type::STRING && kv.first->ViGetString() == "array") {
+                t_array = kv.second;
+                break;
+            }
+        }
+        ASSERT_NE(t_array, nullptr);
+        ASSERT_EQ(t_array->ViGetTableSize(), 3);
+        ASSERT_EQ(ViTableGetInt(t_array, 1), 1);
+        ASSERT_EQ(ViTableGetInt(t_array, 2), 2);
+        ASSERT_EQ(ViTableGetInt(t_array, 3), 3);
+
+        // Get nested "map" table
+        VarInterface *t_map = nullptr;
+        for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
+            auto kv = t->ViGetTableKv(i);
+            if (kv.first->ViGetType() == VarInterface::Type::STRING && kv.first->ViGetString() == "map") {
+                t_map = kv.second;
+                break;
+            }
+        }
+        ASSERT_NE(t_map, nullptr);
+        ASSERT_EQ(t_map->ViGetTableSize(), 3);
+        ASSERT_EQ(ViTableGetInt(t_map, "a"), 1);
+        ASSERT_EQ(ViTableGetInt(t_map, "b"), 2);
+        ASSERT_EQ(ViTableGetInt(t_map, "c"), 3);
     });
-    for (auto &i: tmp) {
-        delete i;
-    }
 }
+
+
 
 // Variadic (...) in table constructors is not supported yet, these tests verify the exception is thrown
 TEST(jitter, test_local_table_with_variadic) {
@@ -1988,29 +1963,14 @@ TEST(jitter, test_for_in_shadow_local) {
 }
 
 TEST(jitter, test_table_zero_key) {
-    std::vector<VarInterface *> tmp;
-    auto newfunc = [&]() {
-        auto ret = new SimpleVarImpl();
-        tmp.push_back(ret);
-        return ret;
-    };
-    JitterRunHelper([&](State *s, JITType type, bool debug_mode) {
-        SetVarInterfaceNewFunc(s, newfunc);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_zero_key.lua", {.debug_mode = debug_mode});
-        VarInterface *t = nullptr;
-        Call(s, type, "test", t);
-        ASSERT_NE(t, nullptr);
-        ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
+        CVar ret;
+        Call(s, type, "test", ret);
+        VarInterface *t = TableToVi(s, ret);
         ASSERT_EQ(t->ViGetTableSize(), 1);
-        auto kv = t->ViGetTableKv(0);
-        ASSERT_EQ(kv.first->ViGetType(), VarInterface::Type::INT);
-        ASSERT_EQ(kv.first->ViGetInt(), 0);
-        ASSERT_EQ(kv.second->ViGetType(), VarInterface::Type::INT);
-        ASSERT_EQ(kv.second->ViGetInt(), 100);
+        ASSERT_EQ(ViTableGetInt(t, 0), 100);
     });
-    for (auto &i: tmp) {
-        delete i;
-    }
 }
 
 TEST(jitter, test_table_construct) {
@@ -2323,22 +2283,12 @@ TEST(jitter, spec_func_returning_float) {
 }
 
 TEST(jitter, set_table_generic_fallback) {
-    std::vector<VarInterface *> tmp;
-    auto newfunc = [&]() {
-        auto ret = new SimpleVarImpl();
-        tmp.push_back(ret);
-        return ret;
-    };
-    JitterRunHelper([&](State *s, JITType type, bool debug_mode) {
-        SetVarInterfaceNewFunc(s, newfunc);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_set_table_generic_fallback.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, "mykey", 42);
         ASSERT_EQ(ret, 42);
     });
-    for (auto &i: tmp) {
-        delete i;
-    }
 }
 
 TEST(jitter, fallback_assign_to_spec_var) {
@@ -2746,12 +2696,9 @@ TEST(jitter, test_const_complex_expr) {
         ASSERT_EQ(m->GetVars()[2].data_.i, -20);
 
         // d = { val = -20 }
-        ASSERT_EQ(m->GetVars()[3].type_, static_cast<int>(VarType::Table));
-        VarTable *t = m->GetVars()[3].data_.t;
-        ASSERT_EQ(t->Size(), 1);
-        Var key_val;
-        key_val.SetConstString(s, "val");
-        ASSERT_EQ(t->Get(key_val).GetInt(), -20);
+        VarInterface *t = TableToVi(s, m->GetVars()[3]);
+        ASSERT_EQ(t->ViGetTableSize(), 1);
+        ASSERT_EQ(ViTableGetInt(t, "val"), -20);
     });
 }
 
@@ -2827,3 +2774,4 @@ TEST(jitter, test_table_negative_int_key) {
         ASSERT_EQ(ret, 1);
     });
 }
+

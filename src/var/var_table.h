@@ -1,110 +1,41 @@
 #pragma once
 
-#include "util/common.h"
 #include "var/var.h"
+#include <cstdint>
 
 namespace fakelua {
 
-// 混合模式哈希表：
-// 1. 元素较少时（QUICK_DATA_SIZE），使用 quick_data_ 进行线性扫描。
-// 2. 元素增多时，自动升级为 buckets_，使用拉链法 (Chaining) 哈希表。
-// 3. 内存布局设计为 C 兼容，方便未来在 C 代码中直接访问。
-class VarTable {
-public:
-    VarTable() = default;
+// VarTable struct layout must match c_runtime_header.h exactly.
+// No methods — this is a pure struct definition for ABI compatibility
+// with JIT-compiled C code. All table logic lives in c_runtime_header.h.
+struct VarTable {
+    static constexpr uint32_t QUICK_DATA_SIZE = 8;
+    static constexpr uint32_t INVALID_INDEX = 0xFFFFFFFFu;
 
-    static constexpr uint32_t QUICK_DATA_SIZE = 8;// 快速路径的最大容量
-    static constexpr uint32_t INVALID_INDEX = 0xFFFFFFFF;
-
-    // 基础条目：键、值、哈希
     struct VarEntry {
         Var key;
         Var val;
-        uint32_t hash = 0;
+        uint32_t hash;
     };
 
-    // 链表节点：基础条目 + 下一个节点下标
     struct TableNode {
         VarEntry entry;
-        uint32_t next = INVALID_INDEX;
-        uint32_t active_pos = INVALID_INDEX;// 在 active_list_ 中的位置
+        uint32_t next;
+        uint32_t active_pos;
     };
 
-public:
-    // 禁止拷贝
-    VarTable(const VarTable &) = delete;
-    VarTable &operator=(const VarTable &) = delete;
-
-    // 根据 Key 获取 Value。如果不存在则返回 const_null_var。
-    [[nodiscard]] Var Get(const Var &key) const;
-
-    // 设置键值对。如果 val 为 Nil 且 can_be_nil 为 false，则执行删除操作。
-    void Set(State *state, const Var &key, const Var &val, bool can_be_nil);
-
-    // 获取当前元素数量
-    [[nodiscard]] size_t Size() const {
-        return count_ + spec_count;
-    }
-
-    // 返回 hash 元素数量（不含 spec 字段）
-    [[nodiscard]] uint32_t GetHashCount() const {
-        return count_;
-    }
-
-    // 遍历支持：获取快速路径数据指针
-    [[nodiscard]] VarEntry *GetQuickData() {
-        return quick_data_;
-    }
-
-    // AIA 遍历支持：返回活跃索引数组起始地址
-    [[nodiscard]] const uint32_t *GetActiveList() const {
-        return active_list_;
-    }
-
-    // AIA 遍历支持：返回底层节点数组起始地址
-    [[nodiscard]] const TableNode *GetNodes() const {
-        return nodes_;
-    }
-
-    // 特化遍历支持：返回 spec 字段数
-    [[nodiscard]] uint32_t GetSpecCount() const {
-        return spec_count;
-    }
-
-    // 特化遍历支持：返回 spec_keys 数组
-    [[nodiscard]] const CVar *GetSpecKeys() const {
-        return reinterpret_cast<const CVar *>(spec_keys);
-    }
-
-    // 特化遍历支持：返回 spec_vals 数组
-    [[nodiscard]] const CVar *GetSpecVals() const {
-        return reinterpret_cast<const CVar *>(spec_vals);
-    }
-
-private:
-    // 重新哈希并扩容
-    void Rehash(State *state);
-
-    // 原始插入逻辑，不检查扩容，返回是否成功（溢出池是否够用）
-    bool InsertRaw(const Var &key, const Var &val, uint32_t hash);
-
-    // 将浮点 key 转换为对应整数 key（若为整数值），用于统一键的存储格式。
-    [[nodiscard]] Var NormalizeTableKey(const Var &key) const;
-
-private:
-    uint32_t count_ = 0;                       // 当前元素数量
-    uint32_t bucket_count_ = 0;                // 桶的数量（必须是 2 的幂）
-    TableNode *nodes_ = nullptr;               // 指向内存块开头（包含主桶节点和溢出池节点）
-    uint32_t *active_list_ = nullptr;          // 活跃索引数组，存储 nodes_ 的下标
-    VarEntry quick_data_[QUICK_DATA_SIZE] = {};// 嵌入式数组（不包含 next 指针）
-    uint32_t free_list_idx_ = INVALID_INDEX;   // 溢出池中的自由节点链表头下标
-    void *spec = nullptr;
-    void *spec_get = nullptr;
-    void *spec_set = nullptr;
-    void *spec_keys = nullptr;
-    void *spec_vals = nullptr;
-    uint32_t spec_count = 0;
+    uint32_t count_;
+    uint32_t bucket_count_;
+    TableNode *nodes_;
+    uint32_t *active_list_;
+    VarEntry quick_data_[QUICK_DATA_SIZE];
+    uint32_t free_list_idx_;
+    void *spec;
+    void *spec_get;
+    void *spec_set;
+    CVar *spec_keys;
+    CVar *spec_vals;
+    uint32_t spec_count;
 };
-
 
 }// namespace fakelua
