@@ -103,7 +103,7 @@ CVar NativeToFakeluaStringView(State *state, const std::string_view &val) {
 }
 
 bool FakeluaToNativeBool(State *state, CVar val) {
-    const auto var_val = reinterpret_cast<Var &>(val);
+    const auto &var_val = AsVar(val);
     if (LIKELY(var_val.Type() == VarType::Bool)) {
         return var_val.GetBool();
     }
@@ -112,7 +112,7 @@ bool FakeluaToNativeBool(State *state, CVar val) {
 
 template<typename T>
 T FakeluaToNativeIntHelper(CVar val, const char *func_name) {
-    const auto &var_val = reinterpret_cast<const Var &>(val);
+    const auto &var_val = AsVar(val);
     if (LIKELY(var_val.Type() == VarType::Int)) {
         return static_cast<T>(var_val.GetInt());
     }
@@ -161,7 +161,7 @@ unsigned long long FakeluaToNativeUlonglong(State *state, CVar val) {
 
 template<typename T>
 T FakeluaToNativeFloatHelper(CVar val, const char *func_name) {
-    const auto &var_val = reinterpret_cast<const Var &>(val);
+    const auto &var_val = AsVar(val);
     if (LIKELY(var_val.Type() == VarType::Float)) {
         return static_cast<T>(var_val.GetFloat());
     }
@@ -180,7 +180,7 @@ double FakeluaToNativeDouble(State *state, CVar val) {
 }
 
 std::string FakeluaToNativeString(State *state, CVar val) {
-    const auto var_val = reinterpret_cast<Var &>(val);
+    const auto &var_val = AsVar(val);
     if (LIKELY(var_val.Type() == VarType::String || var_val.Type() == VarType::StringId)) {
         return std::string(var_val.GetString()->Str());
     }
@@ -188,7 +188,7 @@ std::string FakeluaToNativeString(State *state, CVar val) {
 }
 
 std::string_view FakeluaToNativeStringView(State *state, CVar val) {
-    const auto var_val = reinterpret_cast<Var &>(val);
+    const auto &var_val = AsVar(val);
     if (LIKELY(var_val.Type() == VarType::String || var_val.Type() == VarType::StringId)) {
         return var_val.GetString()->Str();
     }
@@ -198,7 +198,7 @@ std::string_view FakeluaToNativeStringView(State *state, CVar val) {
 // VarToVi: read CVar into VarInterface* bridge type. Tables are read-only —
 // no VarTable methods needed, just direct field access on the C struct.
 static void VarToVi(State *state, CVar src, VarInterface *dst) {
-    const auto var_val = reinterpret_cast<Var &>(src);
+    const auto &var_val = AsVar(src);
     DEBUG_ASSERT(var_val.Type() >= VarType::Min && var_val.Type() <= VarType::Max);
     switch (var_val.Type()) {
         case VarType::Nil:

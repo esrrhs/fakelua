@@ -543,7 +543,7 @@ TEST(vm_cvar_call, multi_return_expansion) {
     // 预期实际参数：int100, int20, Nil
     // echo3 返回第 3 个参数，即 Nil
     CVar r3 = FakeluaCallByName(&s, TEST_JIT_TYPE, "echo3", 2, int100, multi_one);
-    ASSERT_EQ(r3.type_, static_cast<int>(VarType::Nil));
+    ASSERT_EQ(AsVar(r3).Type(), VarType::Nil);
 
     // 5. 超出最大输入限制解包时的保护分支
     // 构造一个长度极大的 Multi
