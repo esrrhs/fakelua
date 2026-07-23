@@ -4,6 +4,7 @@
 #include "util/dispatch_macro.h"
 #include "var/var_multi.h"
 #include "var/var_string.h"
+#include "var/var_table.h"
 
 namespace fakelua {
 
@@ -192,6 +193,80 @@ std::string_view FakeluaToNativeStringView(State *state, CVar val) {
         return var_val.GetString()->Str();
     }
     ThrowFakeluaException(std::format("FakeluaToNativeStringview failed, type is {}", VarTypeToString(var_val.Type())));
+}
+
+// VarToVi: read CVar into VarInterface* bridge type. Tables are read-only —
+// no VarTable methods needed, just direct field access on the C struct.
+static void VarToVi(State *state, CVar src, VarInterface *dst) {
+    const auto var_val = reinterpret_cast<Var &>(src);
+    DEBUG_ASSERT(var_val.Type() >= VarType::Min && var_val.Type() <= VarType::Max);
+    switch (var_val.Type()) {
+        case VarType::Nil:
+            dst->ViSetNil();
+            break;
+        case VarType::Bool:
+            dst->ViSetBool(var_val.GetBool());
+            break;
+        case VarType::Int:
+            dst->ViSetInt(var_val.GetInt());
+            break;
+        case VarType::Float:
+            dst->ViSetFloat(var_val.GetFloat());
+            break;
+        case VarType::String:
+        case VarType::StringId:
+            dst->ViSetString(var_val.GetString()->Str());
+            break;
+        case VarType::Table: {
+            std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
+            const auto table = var_val.GetTable();
+            if (table->spec_count > 0) {
+                const auto *sk = reinterpret_cast<const Var *>(table->spec_keys);
+                const auto *sv = reinterpret_cast<const Var *>(table->spec_vals);
+                for (uint32_t i = 0; i < table->spec_count; ++i) {
+                    auto key_item = GetVarInterfaceNewFunc(state)();
+                    auto val_item = GetVarInterfaceNewFunc(state)();
+                    VarToVi(state, sk[i], key_item);
+                    VarToVi(state, sv[i], val_item);
+                    kvs.emplace_back(key_item, val_item);
+                }
+            }
+            const uint32_t count = table->count_;
+            if (const uint32_t *al = table->active_list_; al == nullptr) {
+                for (uint32_t i = 0; i < count; ++i) {
+                    const auto &e = table->quick_data_[i];
+                    auto key_item = GetVarInterfaceNewFunc(state)();
+                    auto val_item = GetVarInterfaceNewFunc(state)();
+                    VarToVi(state, e.key, key_item);
+                    VarToVi(state, e.val, val_item);
+                    kvs.emplace_back(key_item, val_item);
+                }
+            } else {
+                for (uint32_t i = 0; i < count; ++i) {
+                    const auto &e = table->nodes_[al[i]].entry;
+                    auto key_item = GetVarInterfaceNewFunc(state)();
+                    auto val_item = GetVarInterfaceNewFunc(state)();
+                    VarToVi(state, e.key, key_item);
+                    VarToVi(state, e.val, val_item);
+                    kvs.emplace_back(key_item, val_item);
+                }
+            }
+            dst->ViSetTable(kvs);
+            break;
+        }
+        case VarType::Closure:
+            ThrowFakeluaException("VarToVi failed: Closure type is not supported");
+            break;
+        case VarType::Multi:
+            ThrowFakeluaException("VarToVi failed: Multi-return type is not supported");
+            break;
+    }
+}
+
+VarInterface *FakeluaToNativeObj(State *state, CVar val) {
+    const auto ret = GetVarInterfaceNewFunc(state)();
+    VarToVi(state, val, ret);
+    return ret;
 }
 
 void *GetFuncAddr(State *state, JITType type, const std::string_view &name, int &arg_count, bool &is_vararg) {

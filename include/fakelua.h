@@ -401,6 +401,7 @@ float FakeluaToNativeFloat(State *s, CVar v);
 double FakeluaToNativeDouble(State *s, CVar v);
 std::string FakeluaToNativeString(State *s, CVar v);
 std::string_view FakeluaToNativeStringView(State *s, CVar v);
+VarInterface *FakeluaToNativeObj(State *s, CVar v);
 template<typename T>
 T FakeluaToNative(State *s, const CVar v) {
     if constexpr (std::is_same_v<T, bool>) {
@@ -436,7 +437,9 @@ T FakeluaToNative(State *s, const CVar v) {
     } else if constexpr (std::is_same_v<T, CVar>) {
         return v;
     } else {
-        static_assert(sizeof(T) == 0, "FakeluaToNative: unsupported type T");
+        static_assert(std::is_pointer_v<T>, "T should be pointer");
+        static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
+        return FakeluaToNativeObj(s, v);
     }
 }
 
