@@ -55,9 +55,6 @@ struct VarTable {
     [[nodiscard]] uint32_t GetSpecCount() const { return spec_count; }
     [[nodiscard]] const CVar *GetSpecKeys() const { return spec_keys; }
     [[nodiscard]] const CVar *GetSpecVals() const { return spec_vals; }
-
-private:
-    Var NormalizeTableKey(const Var &key) const;
 };
 
 }// namespace fakelua

@@ -9,24 +9,18 @@ namespace fakelua {
 // C++ accessors for verification.  The full Set/Rehash implementations
 // are no longer needed (production uses the JIT code path).
 
-Var VarTable::NormalizeTableKey(const Var &key) const {
-    if (UNLIKELY(key.Type() != VarType::Float)) {
-        return key;
-    }
-    const auto result = TryConvertDoubleToInt64(key.GetFloat());
-    if (!result) {
-        return key;
-    }
-    Var normalized;
-    normalized.SetInt(*result);
-    return normalized;
-}
-
 Var VarTable::Get(const Var &key) const {
     if (UNLIKELY(key.Type() == VarType::Nil)) {
         ThrowFakeluaException("VarTable Get failed, table index is nil");
     }
-    const Var lookup_key = NormalizeTableKey(key);
+    // Normalize float keys that are actually integer-valued.
+    Var lookup_key = key;
+    if (UNLIKELY(key.Type() == VarType::Float)) {
+        const auto result = TryConvertDoubleToInt64(key.GetFloat());
+        if (result) {
+            lookup_key.SetInt(*result);
+        }
+    }
 
     // Check spec fields first.
     if (spec_count > 0) {
