@@ -12,8 +12,8 @@ typedef CVar (*SpecGetFn)(void *tbl, CVar k, bool *finish);
 typedef void (*SpecSetFn)(void *tbl, CVar k, CVar v, bool *finish);
 
 // VarTable struct layout must match c_runtime_header.h exactly.
-// Methods are declared here; only Get() + NormalizeTableKey() have C++
-// implementations (needed for test verification of JIT-created tables).
+// Only Get() has a C++ implementation (needed for test verification of
+// JIT-created tables). All other methods are provided by c_runtime_header.h.
 // Production code uses c_runtime_header.h inline functions exclusively.
 struct VarTable {
     static constexpr uint32_t QUICK_DATA_SIZE = 8;
