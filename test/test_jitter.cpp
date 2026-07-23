@@ -10,6 +10,22 @@
 
 using namespace fakelua;
 
+// Inline table helpers — VarTable is a pure struct with no methods.
+// All table logic lives in c_runtime_header.h for JIT-compiled C code.
+[[nodiscard]] static inline uint32_t TableSize(const VarTable *t) { return t->count_ + t->spec_count; }
+
+[[nodiscard]] static inline Var TableGet(const VarTable *t, const Var &key) {
+    if (t->count_ == 0) return const_null_var;
+    if (t->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < t->count_; ++i)
+            if (t->quick_data_[i].key.Equal(key)) return t->quick_data_[i].val;
+    } else {
+        for (uint32_t i = 0; i < t->count_; ++i)
+            if (t->nodes_[t->active_list_[i]].entry.key.Equal(key)) return t->nodes_[t->active_list_[i]].entry.val;
+    }
+    return const_null_var;
+}
+
 static std::vector<JITType> GetSupportedJitTypes() {
     return {JIT_TCC, JIT_GCC};
 }
@@ -163,11 +179,11 @@ TEST(jitter, multi_return_table_expand) {
         Call(s, type, "test", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
         VarTable *t = ret.data_.t;
-        ASSERT_EQ(t->Size(), 4);
-        ASSERT_EQ(t->Get(Var(int64_t(1))).GetInt(), 1);
-        ASSERT_EQ(t->Get(Var(int64_t(2))).GetInt(), 2);
-        ASSERT_EQ(t->Get(Var(int64_t(3))).GetInt(), 3);
-        ASSERT_EQ(t->Get(Var(int64_t(4))).GetInt(), 4);
+        ASSERT_EQ(TableSize(t), 4);
+        ASSERT_EQ(TableGet(t, Var(int64_t(1))).GetInt(), 1);
+        ASSERT_EQ(TableGet(t, Var(int64_t(2))).GetInt(), 2);
+        ASSERT_EQ(TableGet(t, Var(int64_t(3))).GetInt(), 3);
+        ASSERT_EQ(TableGet(t, Var(int64_t(4))).GetInt(), 4);
     });
 }
 
@@ -178,11 +194,11 @@ TEST(jitter, multi_return_table_truncate) {
         Call(s, type, "test", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
         VarTable *t = ret.data_.t;
-        ASSERT_EQ(t->Size(), 4);
-        ASSERT_EQ(t->Get(Var(int64_t(1))).GetInt(), 1);
-        ASSERT_EQ(t->Get(Var(int64_t(2))).GetInt(), 2);
-        ASSERT_EQ(t->Get(Var(int64_t(3))).GetInt(), 3);
-        ASSERT_EQ(t->Get(Var(int64_t(4))).GetInt(), 5);
+        ASSERT_EQ(TableSize(t), 4);
+        ASSERT_EQ(TableGet(t, Var(int64_t(1))).GetInt(), 1);
+        ASSERT_EQ(TableGet(t, Var(int64_t(2))).GetInt(), 2);
+        ASSERT_EQ(TableGet(t, Var(int64_t(3))).GetInt(), 3);
+        ASSERT_EQ(TableGet(t, Var(int64_t(4))).GetInt(), 5);
     });
 }
 
@@ -195,10 +211,10 @@ TEST(jitter, multi_return_table_keyed_val) {
         VarTable *t = ret.data_.t;
         Var key_a;
         key_a.SetConstString(s, "a");
-        ASSERT_EQ(t->Get(key_a).GetInt(), 3);
+        ASSERT_EQ(TableGet(t, key_a).GetInt(), 3);
         Var key_b;
         key_b.SetConstString(s, "b");
-        ASSERT_EQ(t->Get(key_b).type_, static_cast<int>(VarType::Nil));
+        ASSERT_EQ(TableGet(t, key_b).type_, static_cast<int>(VarType::Nil));
     });
 }
 
@@ -209,8 +225,8 @@ TEST(jitter, multi_return_table_keyed_exp) {
         Call(s, type, "test", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
         VarTable *t = ret.data_.t;
-        ASSERT_EQ(t->Get(Var(int64_t(3))).GetString()->Str(), "hello");
-        ASSERT_EQ(t->Get(Var(int64_t(4))).type_, static_cast<int>(VarType::Nil));
+        ASSERT_EQ(TableGet(t, Var(int64_t(3))).GetString()->Str(), "hello");
+        ASSERT_EQ(TableGet(t, Var(int64_t(4))).type_, static_cast<int>(VarType::Nil));
     });
 }
 
@@ -225,8 +241,8 @@ TEST(jitter, multi_return_table_indexing) {
         Call(s, type, "test_set", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
         VarTable *t = ret.data_.t;
-        ASSERT_EQ(t->Get(Var(int64_t(3))).GetString()->Str(), "inserted");
-        ASSERT_EQ(t->Get(Var(int64_t(4))).type_, static_cast<int>(VarType::Nil));
+        ASSERT_EQ(TableGet(t, Var(int64_t(3))).GetString()->Str(), "inserted");
+        ASSERT_EQ(TableGet(t, Var(int64_t(4))).type_, static_cast<int>(VarType::Nil));
     });
 }
 
@@ -510,34 +526,34 @@ TEST(jitter, test_const_table) {
         CVar ret1 = m->GetVars()[0];
         ASSERT_EQ(ret1.type_, static_cast<int>(VarType::Table));
         VarTable *t1 = ret1.data_.t;
-        ASSERT_EQ(t1->Size(), 10);
+        ASSERT_EQ(TableSize(t1), 10);
         for (int i = 1; i <= 10; ++i) {
-            ASSERT_EQ(t1->Get(Var(int64_t(i))).GetInt(), i);
+            ASSERT_EQ(TableGet(t1, Var(int64_t(i))).GetInt(), i);
         }
 
         CVar ret2 = m->GetVars()[1];
         ASSERT_EQ(ret2.type_, static_cast<int>(VarType::Table));
         VarTable *t2 = ret2.data_.t;
-        ASSERT_EQ(t2->Size(), 3);
+        ASSERT_EQ(TableSize(t2), 3);
         Var key_a, key_b, key_c;
         key_a.SetConstString(s, "a");
         key_b.SetConstString(s, "b");
         key_c.SetConstString(s, "c");
-        ASSERT_EQ(t2->Get(key_a).GetInt(), 1);
-        ASSERT_EQ(t2->Get(key_b).GetInt(), 2);
-        ASSERT_EQ(t2->Get(key_c).GetInt(), 3);
+        ASSERT_EQ(TableGet(t2, key_a).GetInt(), 1);
+        ASSERT_EQ(TableGet(t2, key_b).GetInt(), 2);
+        ASSERT_EQ(TableGet(t2, key_c).GetInt(), 3);
 
         CVar ret3 = m->GetVars()[2];
         ASSERT_EQ(ret3.type_, static_cast<int>(VarType::Table));
         VarTable *t3 = ret3.data_.t;
-        ASSERT_EQ(t3->Size(), 5);
-        ASSERT_EQ(t3->Get(Var(int64_t(1))).GetInt(), 1);
-        ASSERT_EQ(t3->Get(Var(int64_t(2))).GetInt(), 3);
-        ASSERT_EQ(t3->Get(Var(int64_t(3))).GetInt(), 5);
+        ASSERT_EQ(TableSize(t3), 5);
+        ASSERT_EQ(TableGet(t3, Var(int64_t(1))).GetInt(), 1);
+        ASSERT_EQ(TableGet(t3, Var(int64_t(2))).GetInt(), 3);
+        ASSERT_EQ(TableGet(t3, Var(int64_t(3))).GetInt(), 5);
         Var key_d;
         key_d.SetConstString(s, "d");
-        ASSERT_EQ(t3->Get(key_b).GetInt(), 2);
-        ASSERT_EQ(t3->Get(key_d).GetInt(), 4);
+        ASSERT_EQ(TableGet(t3, key_b).GetInt(), 2);
+        ASSERT_EQ(TableGet(t3, key_d).GetInt(), 4);
     });
 }
 
@@ -552,27 +568,27 @@ TEST(jitter, test_const_nested_table) {
 
         Var key_array;
         key_array.SetConstString(s, "array");
-        Var val_array = t->Get(key_array);
+        Var val_array = TableGet(t, key_array);
         ASSERT_EQ(val_array.Type(), VarType::Table);
         VarTable *t_array = val_array.data_.t;
-        ASSERT_EQ(t_array->Size(), 3);
-        ASSERT_EQ(t_array->Get(Var(int64_t(1))).GetInt(), 1);
-        ASSERT_EQ(t_array->Get(Var(int64_t(2))).GetInt(), 2);
-        ASSERT_EQ(t_array->Get(Var(int64_t(3))).GetInt(), 3);
+        ASSERT_EQ(TableSize(t_array), 3);
+        ASSERT_EQ(TableGet(t_array, Var(int64_t(1))).GetInt(), 1);
+        ASSERT_EQ(TableGet(t_array, Var(int64_t(2))).GetInt(), 2);
+        ASSERT_EQ(TableGet(t_array, Var(int64_t(3))).GetInt(), 3);
 
         Var key_map;
         key_map.SetConstString(s, "map");
-        Var val_map = t->Get(key_map);
+        Var val_map = TableGet(t, key_map);
         ASSERT_EQ(val_map.Type(), VarType::Table);
         VarTable *t_map = val_map.data_.t;
-        ASSERT_EQ(t_map->Size(), 3);
+        ASSERT_EQ(TableSize(t_map), 3);
         Var key_a, key_b, key_c;
         key_a.SetConstString(s, "a");
         key_b.SetConstString(s, "b");
         key_c.SetConstString(s, "c");
-        ASSERT_EQ(t_map->Get(key_a).GetInt(), 1);
-        ASSERT_EQ(t_map->Get(key_b).GetInt(), 2);
-        ASSERT_EQ(t_map->Get(key_c).GetInt(), 3);
+        ASSERT_EQ(TableGet(t_map, key_a).GetInt(), 1);
+        ASSERT_EQ(TableGet(t_map, key_b).GetInt(), 2);
+        ASSERT_EQ(TableGet(t_map, key_c).GetInt(), 3);
     });
 }
 
@@ -1935,8 +1951,8 @@ TEST(jitter, test_table_zero_key) {
         Call(s, type, "test", t);
         ASSERT_EQ(t.type_, static_cast<int>(VarType::Table));
         VarTable *tt = t.data_.t;
-        ASSERT_EQ(tt->Size(), 1);
-        ASSERT_EQ(tt->Get(Var(int64_t(0))).GetInt(), 100);
+        ASSERT_EQ(TableSize(tt), 1);
+        ASSERT_EQ(TableGet(tt, Var(int64_t(0))).GetInt(), 100);
     });
 }
 
@@ -2665,10 +2681,10 @@ TEST(jitter, test_const_complex_expr) {
         // d = { val = -20 }
         ASSERT_EQ(m->GetVars()[3].type_, static_cast<int>(VarType::Table));
         VarTable *t = m->GetVars()[3].data_.t;
-        ASSERT_EQ(t->Size(), 1);
+        ASSERT_EQ(TableSize(t), 1);
         Var key_val;
         key_val.SetConstString(s, "val");
-        ASSERT_EQ(t->Get(key_val).GetInt(), -20);
+        ASSERT_EQ(TableGet(t, key_val).GetInt(), -20);
     });
 }
 
