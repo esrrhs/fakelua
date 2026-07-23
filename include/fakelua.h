@@ -364,9 +364,12 @@ CVar NativeToFakelua(State *s, T v) {
     } else if constexpr (std::is_same_v<T, bool>) {
         return NativeToFakeluaBool(s, v);
     } else if constexpr (std::is_integral_v<T>) {
-        // All integer types (char..unsigned long long) are routed through
-        // NativeToFakeluaInt, which casts to int64_t and sets VAR_INT.
-        return NativeToFakeluaInt(s, static_cast<int>(v));
+        // 整数类型统一通过 int64_t 存储；大于 32 位的类型走 Longlong 避免截断。
+        if constexpr (sizeof(T) > sizeof(int)) {
+            return NativeToFakeluaLonglong(s, static_cast<long long>(v));
+        } else {
+            return NativeToFakeluaInt(s, static_cast<int>(v));
+        }
     } else if constexpr (std::is_floating_point_v<T>) {
         return NativeToFakeluaDouble(s, static_cast<double>(v));
     } else if constexpr (std::is_same_v<T, const char *>) {
@@ -538,15 +541,14 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
 
     // vararg：将多余参数打包为 Multi
     if (__builtin_expect(is_vararg, 0)) {
-        CVar raw_cvars[kMaxFunctionInputParams];
-        for (int i = 0; i < fixed_count; ++i) raw_cvars[i] = call_cvars[i];
         const int vararg_count = user_arg_count - fixed_count;
         CVar multi = inter::AllocMultiCVar(s, vararg_count > 0 ? vararg_count : 0);
         for (int i = 0; i < vararg_count; ++i) {
             inter::SetMultiCVarElement(multi, i, call_cvars[fixed_count + i]);
         }
-        raw_cvars[fixed_count] = multi;
-        for (int i = 0; i < arg_count; ++i) call_cvars[i] = raw_cvars[i];
+        call_cvars[fixed_count] = multi;
+        // 清零 fixed_count 之后的槽位（已移入 multi）
+        for (int i = fixed_count + 1; i < arg_count; ++i) call_cvars[i] = CVar{};
     }
 
     // 分发调用

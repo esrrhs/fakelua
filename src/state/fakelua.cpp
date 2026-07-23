@@ -197,7 +197,7 @@ std::string_view FakeluaToNativeStringView(State *state, CVar val) {
 
 // VarToVi: read CVar into VarInterface* bridge type. Tables are read-only —
 // no VarTable methods needed, just direct field access on the C struct.
-static void VarToVi(State *state, CVar src, VarInterface *dst) {
+static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
     const auto &var_val = AsVar(src);
     DEBUG_ASSERT(var_val.Type() >= VarType::Min && var_val.Type() <= VarType::Max);
     switch (var_val.Type()) {
@@ -218,8 +218,10 @@ static void VarToVi(State *state, CVar src, VarInterface *dst) {
             dst->ViSetString(var_val.GetString()->Str());
             break;
         case VarType::Table: {
-            std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
             const auto table = var_val.GetTable();
+            const uint32_t count = table->count_;
+            std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
+            kvs.reserve(table->spec_count + count);
             if (table->spec_count > 0) {
                 const auto *sk = reinterpret_cast<const Var *>(table->spec_keys);
                 const auto *sv = reinterpret_cast<const Var *>(table->spec_vals);
@@ -231,7 +233,6 @@ static void VarToVi(State *state, CVar src, VarInterface *dst) {
                     kvs.emplace_back(key_item, val_item);
                 }
             }
-            const uint32_t count = table->count_;
             if (const uint32_t *al = table->active_list_; al == nullptr) {
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &e = table->quick_data_[i];
