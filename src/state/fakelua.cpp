@@ -1,6 +1,7 @@
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
+#include "util/dispatch_macro.h"
 #include "var/var_multi.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
@@ -387,153 +388,20 @@ void ThrowIfMultiCVar(const CVar &v) {
 }
 
 CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count) {
-#define DCVAR_0
-#define DCVAR_1 , CVar
-#define DCVAR_2 DCVAR_1, CVar
-#define DCVAR_3 DCVAR_2, CVar
-#define DCVAR_4 DCVAR_3, CVar
-#define DCVAR_5 DCVAR_4, CVar
-#define DCVAR_6 DCVAR_5, CVar
-#define DCVAR_7 DCVAR_6, CVar
-#define DCVAR_8 DCVAR_7, CVar
-#define DCVAR_9 DCVAR_8, CVar
-#define DCVAR_10 DCVAR_9, CVar
-#define DCVAR_11 DCVAR_10, CVar
-#define DCVAR_12 DCVAR_11, CVar
-#define DCVAR_13 DCVAR_12, CVar
-#define DCVAR_14 DCVAR_13, CVar
-#define DCVAR_15 DCVAR_14, CVar
-#define DCVAR_16 DCVAR_15, CVar
-#define DCVAR_17 DCVAR_16, CVar
-#define DCVAR_18 DCVAR_17, CVar
-#define DCVAR_19 DCVAR_18, CVar
-#define DCVAR_20 DCVAR_19, CVar
-#define DCVAR_21 DCVAR_20, CVar
-#define DCVAR_22 DCVAR_21, CVar
-#define DCVAR_23 DCVAR_22, CVar
-#define DCVAR_24 DCVAR_23, CVar
-#define DCVAR_25 DCVAR_24, CVar
-#define DCVAR_26 DCVAR_25, CVar
-#define DCVAR_27 DCVAR_26, CVar
-#define DCVAR_28 DCVAR_27, CVar
-#define DCVAR_29 DCVAR_28, CVar
-#define DCVAR_30 DCVAR_29, CVar
-#define DCVAR_31 DCVAR_30, CVar
-#define DCVAR_32 DCVAR_31, CVar
-
-#define DARG_0
-#define DARG_1 , arg_arr[0]
-#define DARG_2 DARG_1, arg_arr[1]
-#define DARG_3 DARG_2, arg_arr[2]
-#define DARG_4 DARG_3, arg_arr[3]
-#define DARG_5 DARG_4, arg_arr[4]
-#define DARG_6 DARG_5, arg_arr[5]
-#define DARG_7 DARG_6, arg_arr[6]
-#define DARG_8 DARG_7, arg_arr[7]
-#define DARG_9 DARG_8, arg_arr[8]
-#define DARG_10 DARG_9, arg_arr[9]
-#define DARG_11 DARG_10, arg_arr[10]
-#define DARG_12 DARG_11, arg_arr[11]
-#define DARG_13 DARG_12, arg_arr[12]
-#define DARG_14 DARG_13, arg_arr[13]
-#define DARG_15 DARG_14, arg_arr[14]
-#define DARG_16 DARG_15, arg_arr[15]
-#define DARG_17 DARG_16, arg_arr[16]
-#define DARG_18 DARG_17, arg_arr[17]
-#define DARG_19 DARG_18, arg_arr[18]
-#define DARG_20 DARG_19, arg_arr[19]
-#define DARG_21 DARG_20, arg_arr[20]
-#define DARG_22 DARG_21, arg_arr[21]
-#define DARG_23 DARG_22, arg_arr[22]
-#define DARG_24 DARG_23, arg_arr[23]
-#define DARG_25 DARG_24, arg_arr[24]
-#define DARG_26 DARG_25, arg_arr[25]
-#define DARG_27 DARG_26, arg_arr[26]
-#define DARG_28 DARG_27, arg_arr[27]
-#define DARG_29 DARG_28, arg_arr[28]
-#define DARG_30 DARG_29, arg_arr[29]
-#define DARG_31 DARG_30, arg_arr[30]
-#define DARG_32 DARG_31, arg_arr[31]
-
-#define DCASE(N) \
-    case N: return reinterpret_cast<CVar (*)(VarClosure * DCVAR_##N)>(addr)(nullptr DARG_##N);
-
     switch (arg_count) {
+#define DCASE(N) case N: return reinterpret_cast<CVar (*)(VarClosure * DISPATCH_CVAR_##N)>(addr)(nullptr DISPATCH_ARG_##N);
+
         DCASE(0) DCASE(1) DCASE(2) DCASE(3) DCASE(4) DCASE(5)
         DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11)
         DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17)
         DCASE(18) DCASE(19) DCASE(20) DCASE(21) DCASE(22) DCASE(23)
         DCASE(24) DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29)
         DCASE(30) DCASE(31) DCASE(32)
+
+#undef DCASE
+#include "util/dispatch_macro_undef.h"
         default: ThrowFakeluaException(std::format("DispatchCall: arg_count {} out of range", arg_count));
     }
-#undef DCASE
-#undef DCVAR_0
-#undef DCVAR_1
-#undef DCVAR_2
-#undef DCVAR_3
-#undef DCVAR_4
-#undef DCVAR_5
-#undef DCVAR_6
-#undef DCVAR_7
-#undef DCVAR_8
-#undef DCVAR_9
-#undef DCVAR_10
-#undef DCVAR_11
-#undef DCVAR_12
-#undef DCVAR_13
-#undef DCVAR_14
-#undef DCVAR_15
-#undef DCVAR_16
-#undef DCVAR_17
-#undef DCVAR_18
-#undef DCVAR_19
-#undef DCVAR_20
-#undef DCVAR_21
-#undef DCVAR_22
-#undef DCVAR_23
-#undef DCVAR_24
-#undef DCVAR_25
-#undef DCVAR_26
-#undef DCVAR_27
-#undef DCVAR_28
-#undef DCVAR_29
-#undef DCVAR_30
-#undef DCVAR_31
-#undef DCVAR_32
-#undef DARG_0
-#undef DARG_1
-#undef DARG_2
-#undef DARG_3
-#undef DARG_4
-#undef DARG_5
-#undef DARG_6
-#undef DARG_7
-#undef DARG_8
-#undef DARG_9
-#undef DARG_10
-#undef DARG_11
-#undef DARG_12
-#undef DARG_13
-#undef DARG_14
-#undef DARG_15
-#undef DARG_16
-#undef DARG_17
-#undef DARG_18
-#undef DARG_19
-#undef DARG_20
-#undef DARG_21
-#undef DARG_22
-#undef DARG_23
-#undef DARG_24
-#undef DARG_25
-#undef DARG_26
-#undef DARG_27
-#undef DARG_28
-#undef DARG_29
-#undef DARG_30
-#undef DARG_31
-#undef DARG_32
     __builtin_unreachable();
 }
 

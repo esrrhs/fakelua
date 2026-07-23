@@ -141,6 +141,17 @@ private:
     // 编译普通的函数调用表达式并获取其返回值
     std::string CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall);
     // 编译表构造函数（即形如 `{ a = 1, b = 2 }` 的表创建字面量）
+
+    // CompileFunctioncall 的七个子辅助函数
+    std::string TryCompileSpecDirectCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr);
+    std::string TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr);
+    void CompileCallArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr, ArgsKind args_kind, std::vector<std::string> &compiled_args, bool &has_expansion, std::string &expansion_tmp, int &expansion_start_idx);
+    void ResolveCalleeName(const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, std::string &func_name, const SyntaxTreeVar *&var_ptr);
+    std::string BuildLocalFunctionCall(const std::string &func_name, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, int expansion_start_idx);
+    std::string BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp);
+    std::string BuildDynamicCall(const std::string &func_name, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, bool is_local_callee);
+    // EmitSpecAccessorBody：按 key kind 发射 get/set 的 if-else/switch 条件逻辑
+    void EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get);
     std::string CompileTableconstructor(const SyntaxTreeInterfacePtr &tc);
     // 编译二元运算符表达式（如 `a + b`、`a == b` 等）
     std::string CompileBinop(const SyntaxTreeInterfacePtr &exp, const SyntaxTreeInterfacePtr &op);

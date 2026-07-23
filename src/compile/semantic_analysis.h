@@ -33,11 +33,9 @@ private:
     void CheckExp(const SyntaxTreeInterfacePtr &node);
     void CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp);
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
-    std::string LocationStr(const SyntaxTreeInterfacePtr &ptr);
 
     void AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);
     void CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node, std::vector<SyntaxTreeInterfacePtr> &returns);
-    bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node);
     std::string GetCalleeName(const SyntaxTreeInterfacePtr &exp_node);
 
 private:

@@ -1,0 +1,81 @@
+#pragma once
+
+// Shared X-Macro dispatch ladder definitions for calling functions with 0..32 CVar arguments.
+// Eliminates triplication across vm.cpp, fakelua.cpp, and c_runtime_header.h.
+//
+// Usage:
+//   #include "util/dispatch_macro.h"
+//   #define DISPATCH_CASE(N)  case N: return <your cast>;
+//   switch (arg_count) {
+//       DISPATCH_CASE(0) ... DISPATCH_CASE(32)
+//   }
+//   #undef DISPATCH_CASE
+//   #include "util/dispatch_macro_undef.h"
+
+#define DISPATCH_CVAR_0
+#define DISPATCH_CVAR_1 , CVar
+#define DISPATCH_CVAR_2  DISPATCH_CVAR_1, CVar
+#define DISPATCH_CVAR_3  DISPATCH_CVAR_2, CVar
+#define DISPATCH_CVAR_4  DISPATCH_CVAR_3, CVar
+#define DISPATCH_CVAR_5  DISPATCH_CVAR_4, CVar
+#define DISPATCH_CVAR_6  DISPATCH_CVAR_5, CVar
+#define DISPATCH_CVAR_7  DISPATCH_CVAR_6, CVar
+#define DISPATCH_CVAR_8  DISPATCH_CVAR_7, CVar
+#define DISPATCH_CVAR_9  DISPATCH_CVAR_8, CVar
+#define DISPATCH_CVAR_10 DISPATCH_CVAR_9, CVar
+#define DISPATCH_CVAR_11 DISPATCH_CVAR_10, CVar
+#define DISPATCH_CVAR_12 DISPATCH_CVAR_11, CVar
+#define DISPATCH_CVAR_13 DISPATCH_CVAR_12, CVar
+#define DISPATCH_CVAR_14 DISPATCH_CVAR_13, CVar
+#define DISPATCH_CVAR_15 DISPATCH_CVAR_14, CVar
+#define DISPATCH_CVAR_16 DISPATCH_CVAR_15, CVar
+#define DISPATCH_CVAR_17 DISPATCH_CVAR_16, CVar
+#define DISPATCH_CVAR_18 DISPATCH_CVAR_17, CVar
+#define DISPATCH_CVAR_19 DISPATCH_CVAR_18, CVar
+#define DISPATCH_CVAR_20 DISPATCH_CVAR_19, CVar
+#define DISPATCH_CVAR_21 DISPATCH_CVAR_20, CVar
+#define DISPATCH_CVAR_22 DISPATCH_CVAR_21, CVar
+#define DISPATCH_CVAR_23 DISPATCH_CVAR_22, CVar
+#define DISPATCH_CVAR_24 DISPATCH_CVAR_23, CVar
+#define DISPATCH_CVAR_25 DISPATCH_CVAR_24, CVar
+#define DISPATCH_CVAR_26 DISPATCH_CVAR_25, CVar
+#define DISPATCH_CVAR_27 DISPATCH_CVAR_26, CVar
+#define DISPATCH_CVAR_28 DISPATCH_CVAR_27, CVar
+#define DISPATCH_CVAR_29 DISPATCH_CVAR_28, CVar
+#define DISPATCH_CVAR_30 DISPATCH_CVAR_29, CVar
+#define DISPATCH_CVAR_31 DISPATCH_CVAR_30, CVar
+#define DISPATCH_CVAR_32 DISPATCH_CVAR_31, CVar
+
+#define DISPATCH_ARG_0
+#define DISPATCH_ARG_1  , arg_arr[0]
+#define DISPATCH_ARG_2  DISPATCH_ARG_1, arg_arr[1]
+#define DISPATCH_ARG_3  DISPATCH_ARG_2, arg_arr[2]
+#define DISPATCH_ARG_4  DISPATCH_ARG_3, arg_arr[3]
+#define DISPATCH_ARG_5  DISPATCH_ARG_4, arg_arr[4]
+#define DISPATCH_ARG_6  DISPATCH_ARG_5, arg_arr[5]
+#define DISPATCH_ARG_7  DISPATCH_ARG_6, arg_arr[6]
+#define DISPATCH_ARG_8  DISPATCH_ARG_7, arg_arr[7]
+#define DISPATCH_ARG_9  DISPATCH_ARG_8, arg_arr[8]
+#define DISPATCH_ARG_10 DISPATCH_ARG_9, arg_arr[9]
+#define DISPATCH_ARG_11 DISPATCH_ARG_10, arg_arr[10]
+#define DISPATCH_ARG_12 DISPATCH_ARG_11, arg_arr[11]
+#define DISPATCH_ARG_13 DISPATCH_ARG_12, arg_arr[12]
+#define DISPATCH_ARG_14 DISPATCH_ARG_13, arg_arr[13]
+#define DISPATCH_ARG_15 DISPATCH_ARG_14, arg_arr[14]
+#define DISPATCH_ARG_16 DISPATCH_ARG_15, arg_arr[15]
+#define DISPATCH_ARG_17 DISPATCH_ARG_16, arg_arr[16]
+#define DISPATCH_ARG_18 DISPATCH_ARG_17, arg_arr[17]
+#define DISPATCH_ARG_19 DISPATCH_ARG_18, arg_arr[18]
+#define DISPATCH_ARG_20 DISPATCH_ARG_19, arg_arr[19]
+#define DISPATCH_ARG_21 DISPATCH_ARG_20, arg_arr[20]
+#define DISPATCH_ARG_22 DISPATCH_ARG_21, arg_arr[21]
+#define DISPATCH_ARG_23 DISPATCH_ARG_22, arg_arr[22]
+#define DISPATCH_ARG_24 DISPATCH_ARG_23, arg_arr[23]
+#define DISPATCH_ARG_25 DISPATCH_ARG_24, arg_arr[24]
+#define DISPATCH_ARG_26 DISPATCH_ARG_25, arg_arr[25]
+#define DISPATCH_ARG_27 DISPATCH_ARG_26, arg_arr[26]
+#define DISPATCH_ARG_28 DISPATCH_ARG_27, arg_arr[27]
+#define DISPATCH_ARG_29 DISPATCH_ARG_28, arg_arr[28]
+#define DISPATCH_ARG_30 DISPATCH_ARG_29, arg_arr[29]
+#define DISPATCH_ARG_31 DISPATCH_ARG_30, arg_arr[30]
+#define DISPATCH_ARG_32 DISPATCH_ARG_31, arg_arr[31]

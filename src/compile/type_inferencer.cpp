@@ -1693,199 +1693,71 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
         return record_ctor_node(e->Right());
     };
 
-    std::function<void(const SyntaxTreeInterfacePtr &)> walk = [&](const SyntaxTreeInterfacePtr &node) {
+    // 延迟处理：LocalVar / Assign 需要在子节点遍历完毕后才能调用
+    // MergeFieldsInto，因为 ctor_own_fields 由遍历 Exp 子节点时填充。
+    struct PendingVarCtor {
+        std::string var_name;
+        SyntaxTreeInterfacePtr exp;
+        int frame_idx;
+    };
+    std::vector<PendingVarCtor> pending_var_ctors;
+
+    WalkSyntaxTree(chunk, [&](const SyntaxTreeInterfacePtr &node) {
         if (!node) return;
         switch (node->Type()) {
-            case SyntaxTreeType::Block: {
-                auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-                for (const auto &stmt: blk->Stmts()) { walk(stmt); }
-                return;
+            case SyntaxTreeType::TableConstructor:
+                record_ctor_node(node);
+                break;
+            case SyntaxTreeType::Exp: {
+                auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+                if (exp->GetExpKind() == ExpKind::kTableConstructor) {
+                    record_ctor_node(exp->Right());
+                }
+                break;
             }
+            case SyntaxTreeType::Function:
+            case SyntaxTreeType::LocalFunction:
+                push_frame();
+                break;
             case SyntaxTreeType::LocalVar: {
                 auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
                 const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
-                std::vector<SyntaxTreeInterfacePtr> exps;
-                if (auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist())) {
-                    exps = el->Exps();
-                    for (const auto &exp: exps) { walk(exp); }
-                }
-                if (namelist) {
+                const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist());
+                if (namelist && explist) {
                     const auto &names = namelist->Names();
+                    const auto &exps = explist->Exps();
+                    const int frame_idx = static_cast<int>(frames.size()) - 1;
                     for (size_t i = 0; i < names.size() && i < exps.size(); ++i) {
-                        if (const auto *tc_key = record_ctor_exp(exps[i])) {
-                            auto &frame = *frames.back();
-                            frame.ctor_target_vars[tc_key] = names[i];
-                            MergeFieldsInto(frame.var_fields[names[i]], ctor_own_fields[tc_key]);
-                        }
+                        pending_var_ctors.push_back({names[i], exps[i], frame_idx});
                     }
                 }
-                return;
+                break;
             }
             case SyntaxTreeType::Assign: {
                 auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
                 const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
                 const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
-                if (explist) {
-                    for (const auto &exp: explist->Exps()) { walk(exp); }
-                }
-                // 预处理保证 1 var / 1 exp
                 if (varlist && explist && !explist->Exps().empty()) {
                     const auto v = varlist->Vars().empty() ? nullptr : std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
                     if (v && v->GetVarKind() == VarKind::kSimple) {
-                        if (const auto *tc_key = record_ctor_exp(explist->Exps()[0])) {
-                            auto &frame = *frames.back();
-                            frame.ctor_target_vars[tc_key] = v->GetName();
-                            MergeFieldsInto(frame.var_fields[v->GetName()], ctor_own_fields[tc_key]);
-                        }
+                        pending_var_ctors.push_back({v->GetName(), explist->Exps()[0], static_cast<int>(frames.size()) - 1});
                     }
                 }
-                return;
+                break;
             }
-            case SyntaxTreeType::Exp: {
-                auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-                // 表达式本身的 table constructor 子节点也要登记（无目标变量的 ctor）
-                if (exp->GetExpKind() == ExpKind::kTableConstructor) {
-                    record_ctor_node(exp->Right());
-                }
-                walk(exp->Left());
-                walk(exp->Right());
-                return;
-            }
-            case SyntaxTreeType::PrefixExp: {
-                auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
-                walk(pe->GetValue());
-                return;
-            }
-            case SyntaxTreeType::Var: {
-                auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
-                if (var->GetVarKind() != VarKind::kSimple) {
-                    walk(var->GetPrefixexp());
-                }
-                return;
-            }
-            case SyntaxTreeType::TableConstructor:
-                record_ctor_node(node);
-                // Recurse into nested constructors so they are also recorded in
-                // table_spec_infos (e.g. { outer = { inner = 5 } }).
-                if (const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node); tc_ptr->Fieldlist()) {
-                    walk(tc_ptr->Fieldlist());
-                }
-                return;
-            case SyntaxTreeType::While: {
-                auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
-                walk(while_stmt->Exp());
-                walk(while_stmt->Block());
-                return;
-            }
-            case SyntaxTreeType::Repeat: {
-                auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
-                walk(repeat_stmt->Block());
-                walk(repeat_stmt->Exp());
-                return;
-            }
-            case SyntaxTreeType::If: {
-                auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
-                walk(if_stmt->Exp());
-                walk(if_stmt->Block());
-                if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
-                    for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
-                        walk(elseifs->ElseifExp(i));
-                        walk(elseifs->ElseifBlock(i));
-                    }
-                }
-                if (auto else_block = if_stmt->ElseBlock()) { walk(else_block); }
-                return;
-            }
-            case SyntaxTreeType::ForLoop: {
-                auto for_stmt = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
-                if (for_stmt->ExpBegin()) walk(for_stmt->ExpBegin());
-                if (for_stmt->ExpEnd()) walk(for_stmt->ExpEnd());
-                if (for_stmt->ExpStep()) walk(for_stmt->ExpStep());
-                walk(for_stmt->Block());
-                return;
-            }
-            case SyntaxTreeType::ForIn: {
-                auto forin_stmt = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
-                walk(forin_stmt->Explist());
-                walk(forin_stmt->Block());
-                return;
-            }
-            case SyntaxTreeType::Function: {
-                auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
-                // 函数体是变量作用域边界，进入时压栈（不 pop，见 frame 定义注释），
-                // 隔离不同函数的同名局部变量（如各函数的 local t）。
-                push_frame();
-                walk(func->Funcbody());
-                return;
-            }
-            case SyntaxTreeType::LocalFunction: {
-                auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
-                push_frame();
-                walk(lf->Funcbody());
-                return;
-            }
-            case SyntaxTreeType::FuncBody: {
-                auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
-                if (fb->Parlist()) walk(fb->Parlist());
-                walk(fb->Block());
-                return;
-            }
-            case SyntaxTreeType::Return: {
-                auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
-                walk(ret->Explist());
-                return;
-            }
-            case SyntaxTreeType::ExpList: {
-                auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
-                for (const auto &exp: el->Exps()) { walk(exp); }
-                return;
-            }
-            case SyntaxTreeType::FunctionCall: {
-                auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-                walk(fc->prefixexp());
-                walk(fc->Args());
-                return;
-            }
-            case SyntaxTreeType::Args: {
-                auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
-                if (auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(args->Explist())) {
-                    for (const auto &exp: el->Exps()) { walk(exp); }
-                } else if (args->GetArgsKind() == ArgsKind::kTableConstructor) {
-                    walk(args->Tableconstructor());
-                }
-                return;
-            }
-            case SyntaxTreeType::None:
-            case SyntaxTreeType::Empty:
-            case SyntaxTreeType::Label:
-            case SyntaxTreeType::VarList:
-            case SyntaxTreeType::Break:
-            case SyntaxTreeType::Goto:
-            case SyntaxTreeType::ElseIfList:
-            case SyntaxTreeType::NameList:
-            case SyntaxTreeType::FunctionDef:
-            case SyntaxTreeType::FuncNameList:
-            case SyntaxTreeType::FuncName:
-            case SyntaxTreeType::ParList:
-            case SyntaxTreeType::Binop:
-            case SyntaxTreeType::Unop:
-                return;
-            case SyntaxTreeType::FieldList: {
-                const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
-                for (const auto &field: fieldlist->Fields()) { walk(field); }
-                return;
-            }
-            case SyntaxTreeType::Field: {
-                const auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
-                if (field->Key()) walk(field->Key());
-                walk(field->Value());
-                return;
-            }
+            default:
+                break;
         }
-        ThrowFakeluaException("AnalyzeTableShapes: unhandled SyntaxTreeType");
-    };
+    });
 
-    walk(chunk);
+    // 后处理：此时所有子节点已遍历，ctor_own_fields 已填充完毕
+    for (const auto &pending : pending_var_ctors) {
+        if (const auto *tc_key = record_ctor_exp(pending.exp)) {
+            auto &frame = *frames[static_cast<size_t>(pending.frame_idx)];
+            frame.ctor_target_vars[tc_key] = pending.var_name;
+            MergeFieldsInto(frame.var_fields[pending.var_name], ctor_own_fields[tc_key]);
+        }
+    }
 
     // 为每个登记过的 constructor 节点计算其应 emit 的合并字段布局
     for (const auto &[tc_key, own]: ctor_own_fields) {
