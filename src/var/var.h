@@ -8,6 +8,7 @@ namespace fakelua {
 
 class State;
 class VarString;
+class VarTable;
 
 // Var 是 FakeLua 中用于存储各种数据类型的通用变量类。
 // 在JIT中使用的是CVar，Var是同等内存布局的结构，只在JIT之外使用。
@@ -60,6 +61,12 @@ public:
 
     // 获取字符串对象（仅在类型匹配时有效）
     [[nodiscard]] VarString *GetString() const;
+
+    // 获取表对象（仅在类型匹配时有效）
+    [[nodiscard]] VarTable *GetTable() const {
+        DEBUG_ASSERT(type_ == static_cast<int>(VarType::Table));
+        return data_.t;
+    }
 
     // 获取闭包对象（仅在类型匹配时有效）
     [[nodiscard]] VarClosure *GetClosure() const {
