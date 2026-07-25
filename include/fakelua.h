@@ -577,7 +577,7 @@ class NativeObject {
 public:
     // 创建 / 销毁（C++ 堆）
     static NativeObject *Create(std::string type_name);
-    static NativeObject *Create(std::string type_name, int64_t id);
+    static NativeObject *Create(std::string type_name, int64_t id, int64_t group_id = 0);
     static void Destroy(NativeObject *obj);
 
     // 禁止拷贝，防止意外复制游戏数据
@@ -598,6 +598,8 @@ public:
     [[nodiscard]] const std::string &GetTypeName() const;
     [[nodiscard]] int64_t GetId() const;
     void SetId(int64_t id);
+    [[nodiscard]] int64_t GetGroupId() const;
+    void SetGroupId(int64_t group_id);
     [[nodiscard]] size_t Size() const;  // 字段数量
     [[nodiscard]] bool Has(std::string_view key) const;
 
@@ -645,15 +647,22 @@ void RegisterNativeFunction(State *s, const std::string &name,
                             NativeFuncCallback callback);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NativeObjectManager — 原生对象全局注册管理器 (type_name, id) -> NativeObject*
+// NativeObjectManager — 原生对象全局批处理注册管理器 (type_name, id) -> NativeObject*
 // ─────────────────────────────────────────────────────────────────────────────
 class NativeObjectManager {
 public:
     static NativeObjectManager &Instance();
 
-    NativeObject *Create(const std::string &type_name, int64_t id);
+    // 1. 申请/定义组 (Group Arena)
+    int64_t CreateGroup(int64_t specified_group_id = 0);
+
+    // 2. 在指定组内申请 NativeObject
+    NativeObject *Create(const std::string &type_name, int64_t id, int64_t group_id = 0);
     NativeObject *Get(const std::string &type_name, int64_t id) const;
     bool Destroy(const std::string &type_name, int64_t id);
+
+    // 3. 一口气释放此 group 批处理空间下的所有对象
+    size_t DestroyGroup(int64_t group_id);
     void Clear();
 
 private:
@@ -663,13 +672,17 @@ private:
         }
     };
     std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
+    std::unordered_map<int64_t, std::vector<NativeObject *>> group_objects_;
+    int64_t next_auto_group_id_ = 1000000;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RegisterNativeObjectApi — 自动向 State 注册内置原生对象 API：
-//   - new_native_obj(type, id) -> NativeObject (Wrap 壳)
+//   - new_native_group([group_id]) -> group_id (申请/定义一个新的 Group 批处理空间)
+//   - new_native_obj(type, id, [group_id]) -> NativeObject (在指定 group 中申请对象)
 //   - get_native_obj(type, id) -> NativeObject (Wrap 壳) 或 nil
 //   - del_native_obj(type, id) -> bool
+//   - del_native_group(group_id) -> count (一口气注销释放整组空间的所有对象)
 // ─────────────────────────────────────────────────────────────────────────────
 void RegisterNativeObjectApi(State *s);
 

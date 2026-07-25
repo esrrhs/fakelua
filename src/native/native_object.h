@@ -68,6 +68,7 @@ struct NativeObjectSpec {
 struct NativeObject::Impl {
     std::string type_name;
     int64_t id = 0;
+    int64_t group_id = 0;
     std::unordered_map<std::string, NativeField> kv;
 };
 

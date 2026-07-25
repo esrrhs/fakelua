@@ -105,8 +105,8 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
             vararg_cvar.data_.m = m;
             temp_arg_arr[fixed_arg_count] = vararg_cvar;
         } else {
-            if (UNLIKELY(!last_is_multi && flat_count != expected_arg_count)) {
-                ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, flat_count));
+            if (UNLIKELY(!last_is_multi && flat_count > expected_arg_count)) {
+                ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects at most {} argument(s), got {}", name, expected_arg_count, flat_count));
             }
             for (int i = 0; i < expected_arg_count; ++i) {
                 temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};

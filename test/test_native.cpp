@@ -133,3 +133,34 @@ TEST(test_native, test_lua_nested_object) {
     NativeObjectManager::Instance().Clear();
     FakeluaDeleteState(s);
 }
+
+TEST(test_native, test_group_arena_batch_destroy) {
+    auto* s = FakeluaNewState();
+
+    CompileConfig config;
+    CompileFile(s, "./native/test_native_group.lua", config);
+
+    // ── 1. 在 Lua 中创建玩家 1001 以及归属于 1001 的 bag 和 item 对象 ─────────
+    CVar ret1;
+    Call(s, JIT_TCC, "test_group_create", ret1, 1001);
+    std::string weapon_name = inter::FakeluaToNative<std::string>(s, ret1);
+    EXPECT_EQ(weapon_name, "Excalibur");
+
+    // 验证对象存在于管理器中
+    EXPECT_NE(NativeObjectManager::Instance().Get("player", 1001), nullptr);
+    EXPECT_NE(NativeObjectManager::Instance().Get("bag", 10010), nullptr);
+    EXPECT_NE(NativeObjectManager::Instance().Get("item", 100100), nullptr);
+
+    // ── 2. 一口气批处理销毁 1001 组下的所有 NativeObject ────────────────────
+    CVar ret2;
+    Call(s, JIT_TCC, "test_group_destroy", ret2, 1001);
+    int64_t destroyed_count = inter::FakeluaToNative<int64_t>(s, ret2);
+    EXPECT_EQ(destroyed_count, 3); // 3 个对象全部一口气清理
+
+    // 验证销毁后这 3 个对象全部被移除
+    EXPECT_EQ(NativeObjectManager::Instance().Get("player", 1001), nullptr);
+    EXPECT_EQ(NativeObjectManager::Instance().Get("bag", 10010), nullptr);
+    EXPECT_EQ(NativeObjectManager::Instance().Get("item", 100100), nullptr);
+
+    FakeluaDeleteState(s);
+}
