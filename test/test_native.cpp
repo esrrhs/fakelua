@@ -97,3 +97,39 @@ TEST(test_native, test_fully_dynamic_property_and_builtin_api) {
     NativeObjectManager::Instance().Clear();
     FakeluaDeleteState(s);
 }
+
+TEST(test_native, test_lua_nested_object) {
+    auto* s = FakeluaNewState();
+
+    CompileConfig config;
+    CompileFile(s, "./native/test_native_nested.lua", config);
+
+    // ── 1. 执行 test_nested()，在 Lua 中创建 player 与 bag 并绑定嵌套 ────────
+    CVar ret1;
+    Call(s, JIT_TCC, "test_nested", ret1);
+    int64_t sum = inter::FakeluaToNative<int64_t>(s, ret1);
+    EXPECT_EQ(sum, 1049); // 999 + 50 = 1049
+
+    // 校验 C++ 全局管理器与嵌套对象属性
+    NativeObject* player = NativeObjectManager::Instance().Get("player", 2001);
+    ASSERT_NE(player, nullptr);
+    NativeObject* bag = player->GetObject("bag");
+    ASSERT_NE(bag, nullptr);
+    EXPECT_EQ(bag->GetInt("gold"), 999);
+    EXPECT_EQ(bag->GetInt("capacity"), 50);
+
+    // ── 2. 跨帧 Reset 内存 ─────────────────────────────────────────────────
+    s->Reset();
+
+    // ── 3. 再次在 Lua 中通过 get_native_obj 获取 player 并读取 player.bag.gold ─
+    CVar ret2;
+    Call(s, JIT_TCC, "test_nested_fetch", ret2);
+    int64_t remaining_gold = inter::FakeluaToNative<int64_t>(s, ret2);
+    EXPECT_EQ(remaining_gold, 899); // 999 - 100 = 899
+
+    // 校验 C++ 侧底层嵌套数据改变
+    EXPECT_EQ(bag->GetInt("gold"), 899);
+
+    NativeObjectManager::Instance().Clear();
+    FakeluaDeleteState(s);
+}
