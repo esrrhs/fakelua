@@ -1,11 +1,11 @@
-#include <gtest/gtest.h>
 #include "fakelua.h"
 #include "state/state.h"
+#include "gtest/gtest.h"
 #include <unordered_map>
 
 using namespace fakelua;
 
-TEST(NativeObjectTest, BasicKVAndTypes) {
+TEST(test_native, test_basic_kv) {
     auto* obj = NativeObject::Create("player");
     obj->SetInt("hp", 100);
     obj->SetFloat("speed", 5.5);
@@ -22,7 +22,7 @@ TEST(NativeObjectTest, BasicKVAndTypes) {
     NativeObject::Destroy(obj);
 }
 
-TEST(NativeObjectTest, NestedObject) {
+TEST(test_native, test_nested_object) {
     auto* player = NativeObject::Create("player");
     auto* bag = NativeObject::Create("bag");
 
@@ -36,47 +36,36 @@ TEST(NativeObjectTest, NestedObject) {
     NativeObject::Destroy(player);
 }
 
-TEST(NativeObjectTest, FullyDynamicPropertyAndBuiltinApi) {
+TEST(test_native, test_lua_integration_get_set) {
+    auto* s = FakeluaNewState();
+
+    static NativeObject* global_player = nullptr;
+    global_player = NativeObject::Create("player");
+    global_player->SetInt("hp", 100);
+
+    RegisterNativeFunction(s, "get_player", 0, false,
+        [](State* state, CVar* args, int n) -> CVar {
+            return global_player->Wrap(state);
+        });
+
+    CompileConfig config;
+    CompileFile(s, "./native/test_native_get_set.lua", config);
+
+    CVar ret;
+    Call(s, JIT_TCC, "test_get_set", ret);
+
+    EXPECT_EQ(global_player->GetInt("hp"), 150);
+
+    NativeObject::Destroy(global_player);
+    global_player = nullptr;
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native, test_fully_dynamic_property_and_builtin_api) {
     auto* s = FakeluaNewState();
 
     CompileConfig config;
-    CompileString(s, R"(
-        local msg_handlers = {}
-
-        -- 登录：使用内置 new_native_obj(type, id) 创建 C++ 持久对象
-        -- 完全不需要在 C++ 提前定义任何字段，直接点号读写！
-        msg_handlers["on_login"] = function(pid, pname)
-            local player = new_native_obj("player", pid)
-            player.hp = 100
-            player.mp = 200
-            player.name = pname
-            return player.hp
-        end
-
-        -- 业务请求：使用内置 get_native_obj(type, id) 获取对象
-        -- 纯点号赋值/读取：player.hp / player.last_talk
-        msg_handlers["on_talk"] = function(pid, words)
-            local player = get_native_obj("player", pid)
-            if player == nil then
-                return "not_found"
-            end
-
-            -- 扣减 20 点 hp，新增一个动态字段 last_talk
-            player.hp = player.hp - 20
-            player.last_talk = words
-
-            return player.name .. " (" .. player.hp .. "hp): " .. player.last_talk
-        end
-
-        -- 统一消息入口
-        function on_msg(msg_name, ...)
-            local handler = msg_handlers[msg_name]
-            if handler == nil then
-                return "unknown_msg"
-            end
-            return handler(...)
-        end
-    )", config);
+    CompileFile(s, "./native/test_native_on_msg.lua", config);
 
     // ── 1. 模拟登录：Call("on_msg", "on_login", 1001, "Alice") ────────────────
     CVar login_ret;
