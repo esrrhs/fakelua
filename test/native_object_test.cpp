@@ -36,7 +36,7 @@ TEST(NativeObjectTest, NestedObject) {
     NativeObject::Destroy(player);
 }
 
-TEST(NativeObjectTest, FullyDynamicGetterSetterAndBuiltinApi) {
+TEST(NativeObjectTest, FullyDynamicPropertyAndBuiltinApi) {
     auto* s = FakeluaNewState();
 
     CompileConfig config;
@@ -44,29 +44,28 @@ TEST(NativeObjectTest, FullyDynamicGetterSetterAndBuiltinApi) {
         local msg_handlers = {}
 
         -- 登录：使用内置 new_native_obj(type, id) 创建 C++ 持久对象
-        -- 完全不需要在 C++ 定义任何字段，直接调用 player:set_hp(123)、player:set_mp(200)
+        -- 完全不需要在 C++ 提前定义任何字段，直接点号读写！
         msg_handlers["on_login"] = function(pid, pname)
             local player = new_native_obj("player", pid)
-            player:set_hp(100)
-            player:set_mp(200)
-            player:set_name(pname)
-            return player:get_hp()
+            player.hp = 100
+            player.mp = 200
+            player.name = pname
+            return player.hp
         end
 
         -- 业务请求：使用内置 get_native_obj(type, id) 获取对象
-        -- 动态调用 player:get_hp() / player:set_hp()
+        -- 纯点号赋值/读取：player.hp / player.last_talk
         msg_handlers["on_talk"] = function(pid, words)
             local player = get_native_obj("player", pid)
             if player == nil then
                 return "not_found"
             end
 
-            -- 扣减 20 点 hp，新增一个完全动态的字段 log
-            local cur_hp = player:get_hp()
-            player:set_hp(cur_hp - 20)
-            player:set_last_talk(words)
+            -- 扣减 20 点 hp，新增一个动态字段 last_talk
+            player.hp = player.hp - 20
+            player.last_talk = words
 
-            return player:get_name() .. " (" .. player:get_hp() .. "hp): " .. player:get_last_talk()
+            return player.name .. " (" .. player.hp .. "hp): " .. player.last_talk
         end
 
         -- 统一消息入口

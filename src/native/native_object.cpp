@@ -127,39 +127,6 @@ void NativeObjectManager::Clear() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 动态 get_xxx / set_xxx 方法拦截 Helper
-// ─────────────────────────────────────────────────────────────────────────────
-
-extern "C" CVar NativeGetterMethodHelper(VarClosure* cl, CVar self) {
-    CVar nil_res{}; nil_res.type_ = static_cast<int>(VarType::Nil);
-    if (!cl || cl->upvalue_count < 1 || !cl->upvalues[0]) return nil_res;
-
-    // upvalue[0] 记录属性名 (VAR_STRING CVar)
-    CVar field_var = *cl->upvalues[0];
-    const std::string_view field_name = KeyToStringView(field_var);
-
-    NativeObject* obj = NativeObject::Unwrap(self);
-    if (!obj) return nil_res;
-
-    // 从属性读出对应 CVar
-    return obj->GetAsCVar(field_name, nullptr);
-}
-
-extern "C" CVar NativeSetterMethodHelper(VarClosure* cl, CVar self, CVar val) {
-    CVar nil_res{}; nil_res.type_ = static_cast<int>(VarType::Nil);
-    if (!cl || cl->upvalue_count < 1 || !cl->upvalues[0]) return nil_res;
-
-    CVar field_var = *cl->upvalues[0];
-    const std::string_view field_name = KeyToStringView(field_var);
-
-    NativeObject* obj = NativeObject::Unwrap(self);
-    if (obj) {
-        obj->SetFromCVar(field_name, val);
-    }
-    return nil_res;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // spec_get / spec_set 实现
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -175,88 +142,17 @@ CVar NativeSpecGet(VarTable* tbl, CVar k, bool* finish) {
         return {};
     }
 
+    *finish = true;
     const auto& kv = obj->impl_->kv;
     const auto it = kv.find(std::string(key));
     if (it != kv.end()) {
-        // 1. 精确匹配已有的 KV 属性
-        *finish = true;
         return NativeFieldToCVar(it->second, s);
     }
 
-    // 2. 动态拦截 player:get_xxx() / player:set_xxx()
-    // 当 key 为 get_xxx 且 xxx 非空时，动态返回 Getter 闭包
-    if (key.starts_with("get_") && key.size() > 4) {
-        std::string_view field_name = key.substr(4);
-        *finish = true;
-
-        // 在 Arena 中分配 VarClosure 与 upvalue
-        auto& alloc = s->GetHeap().GetAllocator(false);
-        const size_t klen = field_name.size();
-
-        // 构造 field_name VarString
-        auto* vs = static_cast<VarString*>(alloc.Alloc(sizeof(VarString) + klen));
-        *reinterpret_cast<int*>(vs) = static_cast<int>(klen);
-        *reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(vs) + sizeof(int)) = 0u;
-        if (klen > 0) {
-            std::memcpy(reinterpret_cast<char*>(vs) + sizeof(VarString), field_name.data(), klen);
-        }
-
-        // upvalue CVar
-        auto* upval_cvar = static_cast<CVar*>(alloc.Alloc(sizeof(CVar)));
-        upval_cvar->type_ = static_cast<int>(VarType::String);
-        upval_cvar->flag_ = 0;
-        upval_cvar->data_.s = vs;
-
-        // VarClosure
-        auto* cl = static_cast<VarClosure*>(alloc.Alloc(sizeof(VarClosure) + sizeof(CVar*)));
-        cl->func_ptr = reinterpret_cast<void*>(NativeGetterMethodHelper);
-        cl->upvalue_count = 1;
-        cl->expected_arg_count = 1; // self
-        cl->is_vararg = false;
-        cl->upvalues[0] = upval_cvar;
-
-        CVar res{};
-        res.type_ = static_cast<int>(VarType::Closure);
-        res.data_.cl = cl;
-        return res;
-    }
-
-    // 当 key 为 set_xxx 且 xxx 非空时，动态返回 Setter 闭包
-    if (key.starts_with("set_") && key.size() > 4) {
-        std::string_view field_name = key.substr(4);
-        *finish = true;
-
-        auto& alloc = s->GetHeap().GetAllocator(false);
-        const size_t klen = field_name.size();
-
-        auto* vs = static_cast<VarString*>(alloc.Alloc(sizeof(VarString) + klen));
-        *reinterpret_cast<int*>(vs) = static_cast<int>(klen);
-        *reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(vs) + sizeof(int)) = 0u;
-        if (klen > 0) {
-            std::memcpy(reinterpret_cast<char*>(vs) + sizeof(VarString), field_name.data(), klen);
-        }
-
-        auto* upval_cvar = static_cast<CVar*>(alloc.Alloc(sizeof(CVar)));
-        upval_cvar->type_ = static_cast<int>(VarType::String);
-        upval_cvar->flag_ = 0;
-        upval_cvar->data_.s = vs;
-
-        auto* cl = static_cast<VarClosure*>(alloc.Alloc(sizeof(VarClosure) + sizeof(CVar*)));
-        cl->func_ptr = reinterpret_cast<void*>(NativeSetterMethodHelper);
-        cl->upvalue_count = 1;
-        cl->expected_arg_count = 2; // self, val
-        cl->is_vararg = false;
-        cl->upvalues[0] = upval_cvar;
-
-        CVar res{};
-        res.type_ = static_cast<int>(VarType::Closure);
-        res.data_.cl = cl;
-        return res;
-    }
-
-    // 字段不存在且非 get_/set_ 动态方法，回退到 VarTable 哈希表
-    *finish = false;
-    return {};
+    // 字段未在 C++ KV 字典中定义，默认返回 nil
+    CVar nil_cvar{};
+    nil_cvar.type_ = static_cast<int>(VarType::Nil);
+    return nil_cvar;
 }
 
 void NativeSpecSet(VarTable* tbl, CVar k, CVar v, bool* finish) {

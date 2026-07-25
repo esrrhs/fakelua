@@ -71,10 +71,6 @@ struct NativeObject::Impl {
     std::unordered_map<std::string, NativeField> kv;
 };
 
-// C++ 静态闭包 Helper 函数原型（符合 JIT 调用的签名 CVar(*)(VarClosure*, CVar, ...)）
-extern "C" CVar NativeGetterMethodHelper(VarClosure* cl, CVar self);
-extern "C" CVar NativeSetterMethodHelper(VarClosure* cl, CVar self, CVar val);
-
 // spec_get / spec_set 静态实现
 CVar NativeSpecGet(VarTable* tbl, CVar k, bool* finish);
 void NativeSpecSet(VarTable* tbl, CVar k, CVar v, bool* finish);
