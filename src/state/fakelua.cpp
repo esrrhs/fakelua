@@ -334,6 +334,15 @@ void SetDebugLogLevel(int level) {
     SetLogLevel(static_cast<LogLevel>(level));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// RegisterNativeFunction — 注册 C++ 函数供 lua 侧通过名字调用
+// ─────────────────────────────────────────────────────────────────────────────
+void RegisterNativeFunction(State *s, const std::string &name,
+                            int arg_count, bool is_vararg,
+                            NativeFuncCallback callback) {
+    s->GetVM().RegisterNativeFunction(name, arg_count, is_vararg, std::move(callback));
+}
+
 namespace inter {
 
 void ThrowIfMultiCVar(const CVar &v) {

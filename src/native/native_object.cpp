@@ -1,0 +1,513 @@
+#include "native/native_object.h"
+#include "jit/vm.h"
+
+#include <algorithm>
+#include <cstring>
+#include <format>
+
+namespace fakelua {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CVar ↔ NativeField 转换
+// ─────────────────────────────────────────────────────────────────────────────
+
+CVar NativeFieldToCVar(const NativeField& field, State* s) {
+    CVar r{};
+    switch (field.kind) {
+        case NativeField::Kind::Nil:
+            r.type_ = static_cast<int>(VarType::Nil);
+            break;
+        case NativeField::Kind::Int:
+            r.type_ = static_cast<int>(VarType::Int);
+            r.data_.i = field.i;
+            break;
+        case NativeField::Kind::Float:
+            r.type_ = static_cast<int>(VarType::Float);
+            r.data_.f = field.f;
+            break;
+        case NativeField::Kind::Bool:
+            r.type_ = static_cast<int>(VarType::Bool);
+            r.data_.b = field.b;
+            break;
+        case NativeField::Kind::String:
+            // 返回指向 C++ 堆 VarString 缓存的指针；
+            // fakelua 不会释放它（arena 仅管理自己的分配），安全。
+            r.type_ = static_cast<int>(VarType::String);
+            r.data_.s = field.GetVarString();
+            break;
+        case NativeField::Kind::Object:
+            if (field.obj != nullptr && s != nullptr) {
+                r = field.obj->Wrap(s);
+            } else {
+                r.type_ = static_cast<int>(VarType::Nil);
+            }
+            break;
+    }
+    return r;
+}
+
+NativeField CVarToNativeField(CVar v) {
+    NativeField f;
+    const int t = v.type_;
+
+    if (t == static_cast<int>(VarType::Nil)) {
+        f.kind = NativeField::Kind::Nil;
+    } else if (t == static_cast<int>(VarType::Bool)) {
+        f.kind = NativeField::Kind::Bool;
+        f.b = v.data_.b;
+    } else if (t == static_cast<int>(VarType::Int)) {
+        f.kind = NativeField::Kind::Int;
+        f.i = v.data_.i;
+    } else if (t == static_cast<int>(VarType::Float)) {
+        f.kind = NativeField::Kind::Float;
+        f.f = v.data_.f;
+    } else if (t == static_cast<int>(VarType::String) ||
+               t == static_cast<int>(VarType::StringId)) {
+        f.kind = NativeField::Kind::String;
+        const VarString* vs = (t == static_cast<int>(VarType::String))
+                                  ? v.data_.s
+                                  : reinterpret_cast<VarString*>(v.data_.i);
+        f.s = std::string(vs->Str());
+        f.vs_dirty = true;
+    } else if (t == static_cast<int>(VarType::Table)) {
+        // 如果是 NativeObject 的 wrapper，记录引用；否则视为 nil
+        NativeObject* nested = NativeObject::Unwrap(v);
+        if (nested) {
+            f.kind = NativeField::Kind::Object;
+            f.obj = nested;
+        }
+        // 纯 lua table 不做深拷贝，直接忽略
+    }
+    // Multi / Closure 类型不做转换，保持 Nil
+    return f;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NativeObjectManager 实现
+// ─────────────────────────────────────────────────────────────────────────────
+
+NativeObjectManager& NativeObjectManager::Instance() {
+    static NativeObjectManager instance;
+    return instance;
+}
+
+NativeObject* NativeObjectManager::Create(const std::string& type_name, int64_t id) {
+    auto key = std::make_pair(type_name, id);
+    auto it = objects_.find(key);
+    if (it != objects_.end()) {
+        return it->second;
+    }
+    auto* obj = NativeObject::Create(type_name, id);
+    objects_[key] = obj;
+    return obj;
+}
+
+NativeObject* NativeObjectManager::Get(const std::string& type_name, int64_t id) const {
+    auto key = std::make_pair(type_name, id);
+    auto it = objects_.find(key);
+    return (it != objects_.end()) ? it->second : nullptr;
+}
+
+bool NativeObjectManager::Destroy(const std::string& type_name, int64_t id) {
+    auto key = std::make_pair(type_name, id);
+    auto it = objects_.find(key);
+    if (it != objects_.end()) {
+        NativeObject::Destroy(it->second);
+        objects_.erase(it);
+        return true;
+    }
+    return false;
+}
+
+void NativeObjectManager::Clear() {
+    for (auto& [k, v] : objects_) {
+        NativeObject::Destroy(v);
+    }
+    objects_.clear();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 动态 get_xxx / set_xxx 方法拦截 Helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+extern "C" CVar NativeGetterMethodHelper(VarClosure* cl, CVar self) {
+    CVar nil_res{}; nil_res.type_ = static_cast<int>(VarType::Nil);
+    if (!cl || cl->upvalue_count < 1 || !cl->upvalues[0]) return nil_res;
+
+    // upvalue[0] 记录属性名 (VAR_STRING CVar)
+    CVar field_var = *cl->upvalues[0];
+    const std::string_view field_name = KeyToStringView(field_var);
+
+    NativeObject* obj = NativeObject::Unwrap(self);
+    if (!obj) return nil_res;
+
+    // 从属性读出对应 CVar
+    return obj->GetAsCVar(field_name, nullptr);
+}
+
+extern "C" CVar NativeSetterMethodHelper(VarClosure* cl, CVar self, CVar val) {
+    CVar nil_res{}; nil_res.type_ = static_cast<int>(VarType::Nil);
+    if (!cl || cl->upvalue_count < 1 || !cl->upvalues[0]) return nil_res;
+
+    CVar field_var = *cl->upvalues[0];
+    const std::string_view field_name = KeyToStringView(field_var);
+
+    NativeObject* obj = NativeObject::Unwrap(self);
+    if (obj) {
+        obj->SetFromCVar(field_name, val);
+    }
+    return nil_res;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// spec_get / spec_set 实现
+// ─────────────────────────────────────────────────────────────────────────────
+
+CVar NativeSpecGet(VarTable* tbl, CVar k, bool* finish) {
+    auto* spec = static_cast<NativeObjectSpec*>(tbl->spec);
+    NativeObject* obj = spec->obj;
+    State* s = spec->state;
+
+    const std::string_view key = KeyToStringView(k);
+    if (key.empty()) {
+        // key 类型不是字符串，回退到 VarTable 哈希表
+        *finish = false;
+        return {};
+    }
+
+    const auto& kv = obj->impl_->kv;
+    const auto it = kv.find(std::string(key));
+    if (it != kv.end()) {
+        // 1. 精确匹配已有的 KV 属性
+        *finish = true;
+        return NativeFieldToCVar(it->second, s);
+    }
+
+    // 2. 动态拦截 player:get_xxx() / player:set_xxx()
+    // 当 key 为 get_xxx 且 xxx 非空时，动态返回 Getter 闭包
+    if (key.starts_with("get_") && key.size() > 4) {
+        std::string_view field_name = key.substr(4);
+        *finish = true;
+
+        // 在 Arena 中分配 VarClosure 与 upvalue
+        auto& alloc = s->GetHeap().GetAllocator(false);
+        const size_t klen = field_name.size();
+
+        // 构造 field_name VarString
+        auto* vs = static_cast<VarString*>(alloc.Alloc(sizeof(VarString) + klen));
+        *reinterpret_cast<int*>(vs) = static_cast<int>(klen);
+        *reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(vs) + sizeof(int)) = 0u;
+        if (klen > 0) {
+            std::memcpy(reinterpret_cast<char*>(vs) + sizeof(VarString), field_name.data(), klen);
+        }
+
+        // upvalue CVar
+        auto* upval_cvar = static_cast<CVar*>(alloc.Alloc(sizeof(CVar)));
+        upval_cvar->type_ = static_cast<int>(VarType::String);
+        upval_cvar->flag_ = 0;
+        upval_cvar->data_.s = vs;
+
+        // VarClosure
+        auto* cl = static_cast<VarClosure*>(alloc.Alloc(sizeof(VarClosure) + sizeof(CVar*)));
+        cl->func_ptr = reinterpret_cast<void*>(NativeGetterMethodHelper);
+        cl->upvalue_count = 1;
+        cl->expected_arg_count = 1; // self
+        cl->is_vararg = false;
+        cl->upvalues[0] = upval_cvar;
+
+        CVar res{};
+        res.type_ = static_cast<int>(VarType::Closure);
+        res.data_.cl = cl;
+        return res;
+    }
+
+    // 当 key 为 set_xxx 且 xxx 非空时，动态返回 Setter 闭包
+    if (key.starts_with("set_") && key.size() > 4) {
+        std::string_view field_name = key.substr(4);
+        *finish = true;
+
+        auto& alloc = s->GetHeap().GetAllocator(false);
+        const size_t klen = field_name.size();
+
+        auto* vs = static_cast<VarString*>(alloc.Alloc(sizeof(VarString) + klen));
+        *reinterpret_cast<int*>(vs) = static_cast<int>(klen);
+        *reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(vs) + sizeof(int)) = 0u;
+        if (klen > 0) {
+            std::memcpy(reinterpret_cast<char*>(vs) + sizeof(VarString), field_name.data(), klen);
+        }
+
+        auto* upval_cvar = static_cast<CVar*>(alloc.Alloc(sizeof(CVar)));
+        upval_cvar->type_ = static_cast<int>(VarType::String);
+        upval_cvar->flag_ = 0;
+        upval_cvar->data_.s = vs;
+
+        auto* cl = static_cast<VarClosure*>(alloc.Alloc(sizeof(VarClosure) + sizeof(CVar*)));
+        cl->func_ptr = reinterpret_cast<void*>(NativeSetterMethodHelper);
+        cl->upvalue_count = 1;
+        cl->expected_arg_count = 2; // self, val
+        cl->is_vararg = false;
+        cl->upvalues[0] = upval_cvar;
+
+        CVar res{};
+        res.type_ = static_cast<int>(VarType::Closure);
+        res.data_.cl = cl;
+        return res;
+    }
+
+    // 字段不存在且非 get_/set_ 动态方法，回退到 VarTable 哈希表
+    *finish = false;
+    return {};
+}
+
+void NativeSpecSet(VarTable* tbl, CVar k, CVar v, bool* finish) {
+    auto* spec = static_cast<NativeObjectSpec*>(tbl->spec);
+    NativeObject* obj = spec->obj;
+
+    const std::string_view key = KeyToStringView(k);
+    if (key.empty()) {
+        *finish = false;
+        return;
+    }
+
+    *finish = true;
+    const std::string skey(key);
+
+    if (v.type_ == static_cast<int>(VarType::Nil)) {
+        obj->impl_->kv.erase(skey);
+    } else {
+        obj->impl_->kv[skey] = CVarToNativeField(v);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NativeObject 公开实现
+// ─────────────────────────────────────────────────────────────────────────────
+
+NativeObject::NativeObject(std::string type_name)
+    : impl_(new Impl{std::move(type_name)}) {}
+
+NativeObject::~NativeObject() {
+    delete impl_;
+}
+
+NativeObject* NativeObject::Create(std::string type_name) {
+    return Create(std::move(type_name), 0);
+}
+
+NativeObject* NativeObject::Create(std::string type_name, int64_t id) {
+    auto* obj = new NativeObject(std::move(type_name));
+    obj->impl_->id = id;
+    return obj;
+}
+
+void NativeObject::Destroy(NativeObject* obj) {
+    delete obj;
+}
+
+CVar NativeObject::Wrap(State* s) const {
+    auto& alloc = s->GetHeap().GetAllocator(false/* temp */);
+
+    // ── 分发 VarTable 壳（arena，帧内有效）──────────────────────────────────
+    auto* vtbl = static_cast<VarTable*>(alloc.Alloc(sizeof(VarTable)));
+    *vtbl = VarTable{};
+    for (auto& qd: vtbl->quick_data_) {
+        qd.key.type_ = static_cast<int>(VarType::Nil);
+        qd.val.type_ = static_cast<int>(VarType::Nil);
+    }
+    vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
+
+    // ── 分发 NativeObjectSpec（arena，帧内有效）──────────────────────────────
+    auto* spec = static_cast<NativeObjectSpec*>(alloc.Alloc(sizeof(NativeObjectSpec)));
+    spec->obj = const_cast<NativeObject*>(this);   // C++ 堆，跨帧持久
+    spec->state = s;
+
+    vtbl->spec = spec;
+    vtbl->spec_get = reinterpret_cast<void*>(NativeSpecGet);
+    vtbl->spec_set = reinterpret_cast<void*>(NativeSpecSet);
+
+    // ── 填充 spec_keys / spec_vals（供 pairs() 迭代）─────────────────────────
+    const size_t n = impl_->kv.size();
+    if (n > 0) {
+        vtbl->spec_keys = static_cast<CVar*>(alloc.Alloc(sizeof(CVar) * n));
+        vtbl->spec_vals = static_cast<CVar*>(alloc.Alloc(sizeof(CVar) * n));
+        vtbl->spec_count = static_cast<uint32_t>(n);
+
+        size_t i = 0;
+        for (const auto& [k, v]: impl_->kv) {
+            // key：在 arena 中分配 VarString
+            const size_t klen = k.size();
+            auto* vs = static_cast<VarString*>(alloc.Alloc(sizeof(VarString) + klen));
+            // 直接写 POD 字段
+            *reinterpret_cast<int*>(vs) = static_cast<int>(klen);
+            *reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(vs) + sizeof(int)) = 0u;
+            if (klen > 0) {
+                std::memcpy(reinterpret_cast<char*>(vs) + sizeof(VarString), k.data(), klen);
+            }
+
+            vtbl->spec_keys[i].type_ = static_cast<int>(VarType::String);
+            vtbl->spec_keys[i].flag_ = 0;
+            vtbl->spec_keys[i].data_.s = vs;
+
+            vtbl->spec_vals[i] = NativeFieldToCVar(v, s);
+            ++i;
+        }
+    }
+
+    CVar r{};
+    r.type_ = static_cast<int>(VarType::Table);
+    r.data_.t = vtbl;
+    return r;
+}
+
+NativeObject* NativeObject::Unwrap(CVar v) {
+    if (v.type_ != static_cast<int>(VarType::Table)) return nullptr;
+    const VarTable* tbl = v.data_.t;
+    if (!tbl || tbl->spec_get != reinterpret_cast<void*>(NativeSpecGet)) return nullptr;
+    return static_cast<NativeObjectSpec*>(tbl->spec)->obj;
+}
+
+const std::string& NativeObject::GetTypeName() const { return impl_->type_name; }
+bool NativeObject::Has(std::string_view key) const { return impl_->kv.count(std::string(key)) > 0; }
+void NativeObject::Del(std::string_view key) { impl_->kv.erase(std::string(key)); }
+void NativeObject::Clear() { impl_->kv.clear(); }
+size_t NativeObject::Size() const { return impl_->kv.size(); }
+
+// ── Set 系列 ─────────────────────────────────────────────────────────────────
+void NativeObject::SetNil(std::string_view key) {
+    impl_->kv.erase(std::string(key));
+}
+
+void NativeObject::SetInt(std::string_view key, int64_t val) {
+    auto& f = impl_->kv[std::string(key)];
+    f.kind = NativeField::Kind::Int;
+    f.i = val;
+}
+
+void NativeObject::SetFloat(std::string_view key, double val) {
+    auto& f = impl_->kv[std::string(key)];
+    f.kind = NativeField::Kind::Float;
+    f.f = val;
+}
+
+void NativeObject::SetBool(std::string_view key, bool val) {
+    auto& f = impl_->kv[std::string(key)];
+    f.kind = NativeField::Kind::Bool;
+    f.b = val;
+}
+
+void NativeObject::SetString(std::string_view key, std::string_view val) {
+    auto& f = impl_->kv[std::string(key)];
+    f.kind = NativeField::Kind::String;
+    f.s = std::string(val);
+    f.vs_dirty = true;
+}
+
+void NativeObject::SetObject(std::string_view key, NativeObject* obj) {
+    auto& f = impl_->kv[std::string(key)];
+    f.kind = NativeField::Kind::Object;
+    f.obj = obj;
+}
+
+void NativeObject::SetFromCVar(std::string_view key, CVar v) {
+    impl_->kv[std::string(key)] = CVarToNativeField(v);
+}
+
+// ── Get 系列 ─────────────────────────────────────────────────────────────────
+int64_t NativeObject::GetInt(std::string_view key, int64_t def) const {
+    const auto it = impl_->kv.find(std::string(key));
+    if (it == impl_->kv.end()) return def;
+    const auto& f = it->second;
+    if (f.kind == NativeField::Kind::Int) return f.i;
+    if (f.kind == NativeField::Kind::Float) return static_cast<int64_t>(f.f);
+    return def;
+}
+
+double NativeObject::GetFloat(std::string_view key, double def) const {
+    const auto it = impl_->kv.find(std::string(key));
+    if (it == impl_->kv.end()) return def;
+    const auto& f = it->second;
+    if (f.kind == NativeField::Kind::Float) return f.f;
+    if (f.kind == NativeField::Kind::Int) return static_cast<double>(f.i);
+    return def;
+}
+
+bool NativeObject::GetBool(std::string_view key, bool def) const {
+    const auto it = impl_->kv.find(std::string(key));
+    if (it == impl_->kv.end()) return def;
+    const auto& f = it->second;
+    if (f.kind == NativeField::Kind::Bool) return f.b;
+    return def;
+}
+
+std::string NativeObject::GetString(std::string_view key, std::string_view def) const {
+    const auto it = impl_->kv.find(std::string(key));
+    if (it == impl_->kv.end()) return std::string(def);
+    const auto& f = it->second;
+    if (f.kind == NativeField::Kind::String) return f.s;
+    return std::string(def);
+}
+
+NativeObject* NativeObject::GetObject(std::string_view key) const {
+    const auto it = impl_->kv.find(std::string(key));
+    if (it == impl_->kv.end()) return nullptr;
+    const auto& f = it->second;
+    if (f.kind == NativeField::Kind::Object) return f.obj;
+    return nullptr;
+}
+
+CVar NativeObject::GetAsCVar(std::string_view key, State* s) const {
+    const auto it = impl_->kv.find(std::string(key));
+    if (it == impl_->kv.end()) { CVar r{}; r.type_ = static_cast<int>(VarType::Nil); return r; }
+    return NativeFieldToCVar(it->second, s);
+}
+
+int64_t NativeObject::GetId() const { return impl_->id; }
+void NativeObject::SetId(int64_t id) { impl_->id = id; }
+
+// ── Iterate（只读快照）──────────────────────────────────────────────────────
+void NativeObject::ForEach(const std::function<void(std::string_view, NativeObject::FieldKind)>& fn) const {
+    for (const auto& [k, v]: impl_->kv) {
+        fn(k, static_cast<NativeObject::FieldKind>(static_cast<int>(v.kind)));
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RegisterNativeObjectApi — 自动注册 new_native_obj / get_native_obj / del_native_obj
+// ─────────────────────────────────────────────────────────────────────────────
+
+void RegisterNativeObjectApi(State* s) {
+    // new_native_obj(type, id) -> NativeObject (Wrap 壳)
+    RegisterNativeFunction(s, "new_native_obj", 2, false,
+        [](State* state, CVar* args, int n) -> CVar {
+            std::string type_name = inter::FakeluaToNative<std::string>(state, args[0]);
+            int64_t id = inter::FakeluaToNative<int64_t>(state, args[1]);
+
+            NativeObject* obj = NativeObjectManager::Instance().Create(type_name, id);
+            return obj->Wrap(state);
+        });
+
+    // get_native_obj(type, id) -> NativeObject (Wrap 壳) 或 nil
+    RegisterNativeFunction(s, "get_native_obj", 2, false,
+        [](State* state, CVar* args, int n) -> CVar {
+            std::string type_name = inter::FakeluaToNative<std::string>(state, args[0]);
+            int64_t id = inter::FakeluaToNative<int64_t>(state, args[1]);
+
+            NativeObject* obj = NativeObjectManager::Instance().Get(type_name, id);
+            if (!obj) {
+                return inter::NativeToFakeluaNil(state);
+            }
+            return obj->Wrap(state);
+        });
+
+    // del_native_obj(type, id) -> bool
+    RegisterNativeFunction(s, "del_native_obj", 2, false,
+        [](State* state, CVar* args, int n) -> CVar {
+            std::string type_name = inter::FakeluaToNative<std::string>(state, args[0]);
+            int64_t id = inter::FakeluaToNative<int64_t>(state, args[1]);
+
+            bool ok = NativeObjectManager::Instance().Destroy(type_name, id);
+            return inter::NativeToFakeluaBool(state, ok);
+        });
+}
+
+}// namespace fakelua

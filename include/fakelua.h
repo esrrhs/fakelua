@@ -563,4 +563,114 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NativeObject — 完全由 C++ 管理的持久对象，跨帧存活
+//
+// 设计原则：
+//   - 数据存在 C++ 堆，与 fakelua 的 arena（每帧 reset）完全隔离
+//   - 通过 Wrap(State*) 在当前帧内生成一个轻量 VarTable 壳，供 lua 访问
+//   - VarTable 壳帧末自动消亡，NativeObject 本身由用户负责 Create/Destroy
+//   - lua 通过 player.hp / player.hp = 123 读写字段，底层走 spec_get/spec_set
+//   - 嵌套对象：SetObject("inventory", inv_obj)，lua 侧 player.inventory.item 透明访问
+// ─────────────────────────────────────────────────────────────────────────────
+class NativeObject {
+public:
+    // 创建 / 销毁（C++ 堆）
+    static NativeObject *Create(std::string type_name);
+    static NativeObject *Create(std::string type_name, int64_t id);
+    static void Destroy(NativeObject *obj);
+
+    // 禁止拷贝，防止意外复制游戏数据
+    NativeObject(const NativeObject &) = delete;
+    NativeObject &operator=(const NativeObject &) = delete;
+
+    ~NativeObject();
+
+    // ── 边界转换 ─────────────────────────────────────────────────────────────
+    // 在当前帧内生成 VarTable 壳，可直接作为 lua 函数参数传入
+    // 每次调用都分配一个新壳（arena 临时），壳消亡后 NativeObject 仍在
+    [[nodiscard]] CVar Wrap(State *s) const;
+
+    // 从 CVar 反向提取 NativeObject*（非 NativeObject 返回 nullptr）
+    static NativeObject *Unwrap(CVar v);
+
+    // ── 元信息 ───────────────────────────────────────────────────────────────
+    [[nodiscard]] const std::string &GetTypeName() const;
+    [[nodiscard]] int64_t GetId() const;
+    void SetId(int64_t id);
+    [[nodiscard]] size_t Size() const;  // 字段数量
+    [[nodiscard]] bool Has(std::string_view key) const;
+
+    // ── 字段写入 ─────────────────────────────────────────────────────────────
+    void SetNil(std::string_view key);
+    void SetInt(std::string_view key, int64_t val);
+    void SetFloat(std::string_view key, double val);
+    void SetBool(std::string_view key, bool val);
+    void SetString(std::string_view key, std::string_view val);
+    void SetObject(std::string_view key, NativeObject *obj); // 嵌套对象（不拥有）
+    void SetFromCVar(std::string_view key, CVar v);          // 从 lua 值转换后存储
+
+    // ── 字段读取 ─────────────────────────────────────────────────────────────
+    [[nodiscard]] int64_t GetInt(std::string_view key, int64_t default_val = 0) const;
+    [[nodiscard]] double GetFloat(std::string_view key, double default_val = 0.0) const;
+    [[nodiscard]] bool GetBool(std::string_view key, bool default_val = false) const;
+    [[nodiscard]] std::string GetString(std::string_view key, std::string_view default_val = "") const;
+    [[nodiscard]] NativeObject *GetObject(std::string_view key) const;
+    [[nodiscard]] CVar GetAsCVar(std::string_view key, State *s) const; // 读取并转为 CVar
+
+    // ── 批量操作 ─────────────────────────────────────────────────────────────
+    void Del(std::string_view key);
+    void Clear();
+
+    // 枚举所有字段（只读快照）
+    enum class FieldKind { Nil, Int, Float, Bool, String, Object };
+    void ForEach(const std::function<void(std::string_view key, FieldKind kind)> &fn) const;
+
+private:
+    struct Impl;
+    Impl *impl_;
+    explicit NativeObject(std::string type_name);
+
+    friend CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
+    friend void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RegisterNativeFunction — 注册 C++ 函数供 lua 脚本调用
+// ─────────────────────────────────────────────────────────────────────────────
+using NativeFuncCallback = std::function<CVar(State *, CVar *, int)>;
+
+void RegisterNativeFunction(State *s, const std::string &name,
+                            int arg_count, bool is_vararg,
+                            NativeFuncCallback callback);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NativeObjectManager — 原生对象全局注册管理器 (type_name, id) -> NativeObject*
+// ─────────────────────────────────────────────────────────────────────────────
+class NativeObjectManager {
+public:
+    static NativeObjectManager &Instance();
+
+    NativeObject *Create(const std::string &type_name, int64_t id);
+    NativeObject *Get(const std::string &type_name, int64_t id) const;
+    bool Destroy(const std::string &type_name, int64_t id);
+    void Clear();
+
+private:
+    struct PairHash {
+        size_t operator()(const std::pair<std::string, int64_t> &p) const {
+            return std::hash<std::string>()(p.first) ^ (std::hash<int64_t>()(p.second) << 1);
+        }
+    };
+    std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RegisterNativeObjectApi — 自动向 State 注册内置原生对象 API：
+//   - new_native_obj(type, id) -> NativeObject (Wrap 壳)
+//   - get_native_obj(type, id) -> NativeObject (Wrap 壳) 或 nil
+//   - del_native_obj(type, id) -> bool
+// ─────────────────────────────────────────────────────────────────────────────
+void RegisterNativeObjectApi(State *s);
+
 }// namespace fakelua
