@@ -580,10 +580,8 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
 // ─────────────────────────────────────────────────────────────────────────────
 class NativeObject {
 public:
-    // 创建 / 销毁（C++ 堆）
-    static NativeObject *Create(std::string type_name);
-    static NativeObject *Create(std::string type_name, int64_t id, int64_t group_id = 0);
-    static void Destroy(NativeObject *obj);
+    // 申请创建 NativeObject（必须关联归属于指定的 group_id）
+    static NativeObject *Create(int64_t group_id, std::string type_name, int64_t id = 0);
 
     // 禁止拷贝，防止意外复制游戏数据
     NativeObject(const NativeObject &) = delete;
@@ -637,7 +635,9 @@ private:
     struct Impl;
     Impl *impl_;
     explicit NativeObject(std::string type_name);
+    static void Destroy(NativeObject *obj);
 
+    friend class NativeObjectManager;
     friend CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
     friend void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
 };
@@ -685,6 +685,7 @@ void RegisterNativeFunction(State *s, const std::string &name,
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NativeObjectManager — 原生对象全局批处理注册管理器 (type_name, id) -> NativeObject*
+// 所有 NativeObject 必须归属于某一个 Group Arena，释放只能通过 DestroyGroup 统一批处理进行
 // ─────────────────────────────────────────────────────────────────────────────
 class NativeObjectManager {
 public:
@@ -693,12 +694,11 @@ public:
     // 1. 申请/定义组 (Group Arena)
     int64_t CreateGroup(int64_t specified_group_id = 0);
 
-    // 2. 在指定组内申请 NativeObject
-    NativeObject *Create(const std::string &type_name, int64_t id, int64_t group_id = 0);
+    // 2. 在指定组内申请 NativeObject（group_id 必需 != 0）
+    NativeObject *Create(int64_t group_id, const std::string &type_name, int64_t id = 0);
     NativeObject *Get(const std::string &type_name, int64_t id) const;
-    bool Destroy(const std::string &type_name, int64_t id);
 
-    // 3. 一口气释放此 group 批处理空间下的所有对象
+    // 3. 一口气释放此 group 批处理空间下的所有对象（不允许单独销毁单个对象）
     size_t DestroyGroup(int64_t group_id);
     void Clear();
 
@@ -711,14 +711,15 @@ private:
     std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
     std::unordered_map<int64_t, std::vector<NativeObject *>> group_objects_;
     int64_t next_auto_group_id_ = 1000000;
+
+    bool DestroySingle(const std::string &type_name, int64_t id);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RegisterNativeObjectApi — 自动向 State 注册内置原生对象 API：
 //   - new_native_group([group_id]) -> group_id (申请/定义一个新的 Group 批处理空间)
-//   - new_native_obj(type, id, [group_id]) -> NativeObject (在指定 group 中申请对象)
+//   - new_native_obj(group_id, type, id) -> NativeObject (在指定 group 中申请对象)
 //   - get_native_obj(type, id) -> NativeObject (Wrap 壳) 或 nil
-//   - del_native_obj(type, id) -> bool
 //   - del_native_group(group_id) -> count (一口气注销释放整组空间的所有对象)
 // ─────────────────────────────────────────────────────────────────────────────
 void RegisterNativeObjectApi(State *s);

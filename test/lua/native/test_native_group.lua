@@ -3,14 +3,14 @@ function test_group_create(pid)
     local gid = new_native_group(pid)
 
     -- 2. 申请属于这个 group 的全套 obj
-    local player = new_native_obj("player", pid, gid)
+    local player = new_native_obj(gid, "player", pid)
     player.name = "Hero_" .. pid
 
-    local bag = new_native_obj("bag", pid * 10, gid)
+    local bag = new_native_obj(gid, "bag", pid * 10)
     bag.gold = 500
     player.bag = bag
 
-    local item = new_native_obj("item", pid * 100, gid)
+    local item = new_native_obj(gid, "item", pid * 100)
     item.name = "Excalibur"
     bag.weapon = item
 

@@ -1,7 +1,7 @@
 function test_nested()
-    -- 创建 player 对象和 bag 对象
-    local player = new_native_obj("player", 2001)
-    local bag = new_native_obj("bag", 3001)
+    -- 创建 player 对象和 bag 对象（均关联归属于 2001 玩家组）
+    local player = new_native_obj(2001, "player", 2001)
+    local bag = new_native_obj(2001, "bag", 3001)
 
     -- 在 Lua 侧进行对象嵌套赋值：player.bag = bag
     player.bag = bag

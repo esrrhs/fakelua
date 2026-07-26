@@ -1,8 +1,8 @@
 local msg_handlers = {}
 
--- 1. 登录消息处理器：使用内置 new_native_obj(type, id) 创建 C++ 持久对象
+-- 1. 登录消息处理器：使用内置 new_native_obj(group_id, type, id) 创建 C++ 持久对象
 msg_handlers["on_login"] = function(pid, pname)
-    local player = new_native_obj("player", pid)
+    local player = new_native_obj(pid, "player", pid)
     player.hp = 100
     player.mp = 200
     player.name = pname

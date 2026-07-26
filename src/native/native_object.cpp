@@ -100,16 +100,18 @@ int64_t NativeObjectManager::CreateGroup(int64_t specified_group_id) {
     return gid;
 }
 
-NativeObject* NativeObjectManager::Create(const std::string& type_name, int64_t id, int64_t group_id) {
+NativeObject* NativeObjectManager::Create(int64_t group_id, const std::string& type_name, int64_t id) {
+    if (group_id == 0) {
+        ThrowFakeluaException("NativeObjectManager::Create failed: group_id must be specified and non-zero");
+    }
     auto key = std::make_pair(type_name, id);
     auto it = objects_.find(key);
     if (it != objects_.end()) {
         return it->second;
     }
-    int64_t gid = (group_id != 0) ? group_id : id;
-    auto* obj = NativeObject::Create(type_name, id, gid);
+    auto* obj = NativeObject::Create(group_id, type_name, id);
     objects_[key] = obj;
-    group_objects_[gid].push_back(obj);
+    group_objects_[group_id].push_back(obj);
     return obj;
 }
 
@@ -119,14 +121,13 @@ NativeObject* NativeObjectManager::Get(const std::string& type_name, int64_t id)
     return (it != objects_.end()) ? it->second : nullptr;
 }
 
-bool NativeObjectManager::Destroy(const std::string& type_name, int64_t id) {
+bool NativeObjectManager::DestroySingle(const std::string& type_name, int64_t id) {
     auto key = std::make_pair(type_name, id);
     auto it = objects_.find(key);
     if (it != objects_.end()) {
         NativeObject* obj = it->second;
         int64_t gid = obj->GetGroupId();
 
-        // 从 group_objects_ 列表中移除
         auto git = group_objects_.find(gid);
         if (git != group_objects_.end()) {
             std::erase(git->second, obj);
@@ -231,14 +232,13 @@ NativeObject::~NativeObject() {
     delete impl_;
 }
 
-NativeObject* NativeObject::Create(std::string type_name) {
-    return Create(std::move(type_name), 0, 0);
-}
-
-NativeObject* NativeObject::Create(std::string type_name, int64_t id, int64_t group_id) {
+NativeObject* NativeObject::Create(int64_t group_id, std::string type_name, int64_t id) {
+    if (group_id == 0) {
+        ThrowFakeluaException("NativeObject::Create failed: group_id must be specified and non-zero. Objects can only be created within a group.");
+    }
     auto* obj = new NativeObject(std::move(type_name));
     obj->impl_->id = id;
-    obj->impl_->group_id = (group_id != 0) ? group_id : id;
+    obj->impl_->group_id = group_id;
     return obj;
 }
 
@@ -436,20 +436,22 @@ void RegisterNativeObjectApi(State* s) {
             return inter::NativeToFakeluaInt(state, gid);
         });
 
-    // new_native_obj(type, id, [group_id]) -> NativeObject (Wrap 壳)
-    RegisterNativeFunction(s, "new_native_obj", 3, true,
+    // new_native_obj(group_id, type, id) -> NativeObject (Wrap 壳)
+    RegisterNativeFunction(s, "new_native_obj", 3, false,
         [](State* state, CVar* args, int n) -> CVar {
             CVar arg0 = inter::GetNativeArg(state, args, n, 0);
             CVar arg1 = inter::GetNativeArg(state, args, n, 1);
             CVar arg2 = inter::GetNativeArg(state, args, n, 2);
 
-            std::string type_name = inter::FakeluaToNative<std::string>(state, arg0);
-            int64_t id = inter::FakeluaToNative<int64_t>(state, arg1);
-            int64_t group_id = (arg2.type_ != static_cast<int>(VarType::Nil))
-                                   ? inter::FakeluaToNative<int64_t>(state, arg2)
-                                   : id;
+            if (arg0.type_ == static_cast<int>(VarType::Nil)) {
+                ThrowFakeluaException("new_native_obj failed: group_id is required");
+            }
 
-            NativeObject* obj = NativeObjectManager::Instance().Create(type_name, id, group_id);
+            int64_t group_id = inter::FakeluaToNative<int64_t>(state, arg0);
+            std::string type_name = inter::FakeluaToNative<std::string>(state, arg1);
+            int64_t id = inter::FakeluaToNative<int64_t>(state, arg2);
+
+            NativeObject* obj = NativeObjectManager::Instance().Create(group_id, type_name, id);
             return obj->Wrap(state);
         });
 
@@ -473,23 +475,7 @@ void RegisterNativeObjectApi(State* s) {
             return obj->Wrap(state);
         });
 
-    // del_native_obj(type, id) -> bool
-    RegisterNativeFunction(s, "del_native_obj", 2, false,
-        [](State* state, CVar* args, int n) -> CVar {
-            CVar arg0 = inter::GetNativeArg(state, args, n, 0);
-            CVar arg1 = inter::GetNativeArg(state, args, n, 1);
-            if (arg0.type_ == static_cast<int>(VarType::Nil) || arg1.type_ == static_cast<int>(VarType::Nil)) {
-                return inter::NativeToFakeluaBool(state, false);
-            }
-
-            std::string type_name = inter::FakeluaToNative<std::string>(state, arg0);
-            int64_t id = inter::FakeluaToNative<int64_t>(state, arg1);
-
-            bool ok = NativeObjectManager::Instance().Destroy(type_name, id);
-            return inter::NativeToFakeluaBool(state, ok);
-        });
-
-    // del_native_group(group_id) -> count (批处理销毁整个 group_id 下的所有对象)
+    // del_native_group(group_id) -> count (批处理一口气注销释放整个 group_id 下的所有对象)
     RegisterNativeFunction(s, "del_native_group", 1, false,
         [](State* state, CVar* args, int n) -> CVar {
             CVar arg0 = inter::GetNativeArg(state, args, n, 0);

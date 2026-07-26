@@ -5,7 +5,8 @@
 using namespace fakelua;
 
 TEST(test_native, test_basic_kv) {
-    auto* obj = NativeObject::Create("player");
+    int64_t gid = NativeObjectManager::Instance().CreateGroup(1);
+    auto* obj = NativeObjectManager::Instance().Create(gid, "player", 1);
     obj->SetInt("hp", 100);
     obj->SetFloat("speed", 5.5);
     obj->SetBool("alive", true);
@@ -18,12 +19,13 @@ TEST(test_native, test_basic_kv) {
     EXPECT_EQ(obj->GetTypeName(), "player");
     EXPECT_EQ(obj->Size(), 4);
 
-    NativeObject::Destroy(obj);
+    NativeObjectManager::Instance().DestroyGroup(gid);
 }
 
 TEST(test_native, test_nested_object) {
-    auto* player = NativeObject::Create("player");
-    auto* bag = NativeObject::Create("bag");
+    int64_t gid = NativeObjectManager::Instance().CreateGroup(2);
+    auto* player = NativeObjectManager::Instance().Create(gid, "player", 1);
+    auto* bag = NativeObjectManager::Instance().Create(gid, "bag", 2);
 
     bag->SetInt("gold", 999);
     player->SetObject("bag", bag);
@@ -31,15 +33,15 @@ TEST(test_native, test_nested_object) {
     EXPECT_EQ(player->GetObject("bag"), bag);
     EXPECT_EQ(player->GetObject("bag")->GetInt("gold"), 999);
 
-    NativeObject::Destroy(bag);
-    NativeObject::Destroy(player);
+    NativeObjectManager::Instance().DestroyGroup(gid);
 }
 
 TEST(test_native, test_lua_integration_get_set) {
     auto* s = FakeluaNewState();
 
+    int64_t gid = NativeObjectManager::Instance().CreateGroup(100);
     static NativeObject* global_player = nullptr;
-    global_player = NativeObject::Create("player");
+    global_player = NativeObjectManager::Instance().Create(gid, "player", 100);
     global_player->SetInt("hp", 100);
 
     RegisterNativeFunction(s, "get_player", 0, false,
@@ -55,7 +57,7 @@ TEST(test_native, test_lua_integration_get_set) {
 
     EXPECT_EQ(global_player->GetInt("hp"), 150);
 
-    NativeObject::Destroy(global_player);
+    NativeObjectManager::Instance().DestroyGroup(gid);
     global_player = nullptr;
     FakeluaDeleteState(s);
 }
