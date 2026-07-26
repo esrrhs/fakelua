@@ -1,19 +1,8 @@
 #include "fakelua.h"
 #include "gtest/gtest.h"
 #include <unordered_map>
-#include <filesystem>
 
 using namespace fakelua;
-
-static std::string GetNativeLuaPath(const std::string& rel_path) {
-    if (std::filesystem::exists("./test/lua/" + rel_path)) {
-        return "./test/lua/" + rel_path;
-    }
-    if (std::filesystem::exists("../../test/lua/" + rel_path)) {
-        return "../../test/lua/" + rel_path;
-    }
-    return "./test/lua/" + rel_path;
-}
 
 TEST(test_native, test_basic_kv) {
     auto* obj = NativeObject::Create("player");
@@ -59,7 +48,7 @@ TEST(test_native, test_lua_integration_get_set) {
         });
 
     CompileConfig config;
-    CompileFile(s, GetNativeLuaPath("native/test_native_get_set.lua"), config);
+    CompileFile(s, "./native/test_native_get_set.lua", config);
 
     CVar ret;
     Call(s, JIT_TCC, "test_get_set", ret);
@@ -75,7 +64,7 @@ TEST(test_native, test_fully_dynamic_property_and_builtin_api) {
     auto* s = FakeluaNewState();
 
     CompileConfig config;
-    CompileFile(s, GetNativeLuaPath("native/test_native_on_msg.lua"), config);
+    CompileFile(s, "./native/test_native_on_msg.lua", config);
 
     // ── 1. 模拟登录：Call("on_msg", "on_login", 1001, "Alice") ────────────────
     CVar login_ret;
@@ -112,7 +101,7 @@ TEST(test_native, test_lua_nested_object) {
     auto* s = FakeluaNewState();
 
     CompileConfig config;
-    CompileFile(s, GetNativeLuaPath("native/test_native_nested.lua"), config);
+    CompileFile(s, "./native/test_native_nested.lua", config);
 
     // ── 1. 执行 test_nested()，在 Lua 中创建 player 与 bag 并绑定嵌套 ────────
     CVar ret1;
@@ -148,7 +137,7 @@ TEST(test_native, test_group_arena_batch_destroy) {
     auto* s = FakeluaNewState();
 
     CompileConfig config;
-    CompileFile(s, GetNativeLuaPath("native/test_native_group.lua"), config);
+    CompileFile(s, "./native/test_native_group.lua", config);
 
     // ── 1. 在 Lua 中创建玩家 1001 以及归属于 1001 的 bag 和 item 对象 ─────────
     CVar ret1;
