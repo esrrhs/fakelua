@@ -48,7 +48,7 @@ TEST(test_native, test_lua_integration_get_set) {
         });
 
     CompileConfig config;
-    CompileFile(s, "./native/test_native_get_set.lua", config);
+    CompileFile(s, "./test/lua/native/test_native_get_set.lua", config);
 
     CVar ret;
     Call(s, JIT_TCC, "test_get_set", ret);
@@ -64,7 +64,7 @@ TEST(test_native, test_fully_dynamic_property_and_builtin_api) {
     auto* s = FakeluaNewState();
 
     CompileConfig config;
-    CompileFile(s, "./native/test_native_on_msg.lua", config);
+    CompileFile(s, "./test/lua/native/test_native_on_msg.lua", config);
 
     // ── 1. 模拟登录：Call("on_msg", "on_login", 1001, "Alice") ────────────────
     CVar login_ret;
@@ -101,7 +101,7 @@ TEST(test_native, test_lua_nested_object) {
     auto* s = FakeluaNewState();
 
     CompileConfig config;
-    CompileFile(s, "./native/test_native_nested.lua", config);
+    CompileFile(s, "./test/lua/native/test_native_nested.lua", config);
 
     // ── 1. 执行 test_nested()，在 Lua 中创建 player 与 bag 并绑定嵌套 ────────
     CVar ret1;
@@ -137,7 +137,7 @@ TEST(test_native, test_group_arena_batch_destroy) {
     auto* s = FakeluaNewState();
 
     CompileConfig config;
-    CompileFile(s, "./native/test_native_group.lua", config);
+    CompileFile(s, "./test/lua/native/test_native_group.lua", config);
 
     // ── 1. 在 Lua 中创建玩家 1001 以及归属于 1001 的 bag 和 item 对象 ─────────
     CVar ret1;
@@ -160,6 +160,70 @@ TEST(test_native, test_group_arena_batch_destroy) {
     EXPECT_EQ(NativeObjectManager::Instance().Get("player", 1001), nullptr);
     EXPECT_EQ(NativeObjectManager::Instance().Get("bag", 10010), nullptr);
     EXPECT_EQ(NativeObjectManager::Instance().Get("item", 100100), nullptr);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native, test_native_var_interface_callback) {
+    auto* s = FakeluaNewState();
+
+    // 注册以 VarInterface* 向量为入参的 C++ 回调，0 感知 CVar
+    RegisterNativeVarFunction(s, "cpp_process_user", 1, false,
+        NativeVarFuncCallback([](State* state, const std::vector<VarInterface*>& args) -> VarInterface* {
+            EXPECT_GE(args.size(), 1);
+            VarInterface* user_info = args[0];
+            EXPECT_EQ(user_info->ViGetType(), VarInterface::Type::TABLE);
+
+            int64_t score = 0;
+            std::string name;
+            for (size_t i = 0; i < user_info->ViGetTableSize(); ++i) {
+                auto kv = user_info->ViGetTableKv(static_cast<int>(i));
+                if (kv.first->ViGetString() == "name") {
+                    name = kv.second->ViGetString();
+                } else if (kv.first->ViGetString() == "score") {
+                    score = kv.second->ViGetInt();
+                }
+            }
+
+            auto* res = new SimpleVarImpl();
+            res->ViSetString(name + " has score " + std::to_string(score + 100));
+            return res;
+        }));
+
+    CompileConfig config;
+    CompileString(s, R"(
+        function run_test()
+            local user = { name = "Bob", score = 50 }
+            return cpp_process_user(user)
+        end
+    )", config);
+
+    std::string result;
+    Call(s, JIT_TCC, "run_test", result);
+    EXPECT_EQ(result, "Bob has score 150");
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native, test_native_typed_template_callback) {
+    auto* s = FakeluaNewState();
+
+    // 使用强类型 C++ 模板注册 lambda，完全零感知 CVar
+    RegisterNativeFunction(s, "cpp_add_hp", false, std::function<int64_t(State*, int64_t, int64_t)>(
+        [](State* state, int64_t hp, int64_t add) -> int64_t {
+            return hp + add;
+        }));
+
+    CompileConfig config;
+    CompileString(s, R"(
+        function calc()
+            return cpp_add_hp(120, 30)
+        end
+    )", config);
+
+    int64_t res = 0;
+    Call(s, JIT_TCC, "calc", res);
+    EXPECT_EQ(res, 150);
 
     FakeluaDeleteState(s);
 }

@@ -1,5 +1,6 @@
 #include "fakelua.h"
 #include "state/state.h"
+#include "compile/c_runtime_header.h"
 #include "util/common.h"
 #include "util/dispatch_macro.h"
 #include "var/var_multi.h"
@@ -222,12 +223,17 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
             const uint32_t count = table->count_;
             std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
             kvs.reserve(table->spec_count + count);
+            const auto &new_func = GetVarInterfaceNewFunc(state);
+            auto alloc_vi = [&new_func]() -> VarInterface * {
+                return new_func ? new_func() : new SimpleVarImpl();
+            };
+
             if (table->spec_count > 0) {
                 const auto *sk = reinterpret_cast<const Var *>(table->spec_keys);
                 const auto *sv = reinterpret_cast<const Var *>(table->spec_vals);
                 for (uint32_t i = 0; i < table->spec_count; ++i) {
-                    auto key_item = GetVarInterfaceNewFunc(state)();
-                    auto val_item = GetVarInterfaceNewFunc(state)();
+                    auto key_item = alloc_vi();
+                    auto val_item = alloc_vi();
                     VarToVi(state, sk[i], key_item);
                     VarToVi(state, sv[i], val_item);
                     kvs.emplace_back(key_item, val_item);
@@ -236,8 +242,8 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
             if (const uint32_t *al = table->active_list_; al == nullptr) {
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &e = table->quick_data_[i];
-                    auto key_item = GetVarInterfaceNewFunc(state)();
-                    auto val_item = GetVarInterfaceNewFunc(state)();
+                    auto key_item = alloc_vi();
+                    auto val_item = alloc_vi();
                     VarToVi(state, e.key, key_item);
                     VarToVi(state, e.val, val_item);
                     kvs.emplace_back(key_item, val_item);
@@ -245,8 +251,8 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
             } else {
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &e = table->nodes_[al[i]].entry;
-                    auto key_item = GetVarInterfaceNewFunc(state)();
-                    auto val_item = GetVarInterfaceNewFunc(state)();
+                    auto key_item = alloc_vi();
+                    auto val_item = alloc_vi();
                     VarToVi(state, e.key, key_item);
                     VarToVi(state, e.val, val_item);
                     kvs.emplace_back(key_item, val_item);
@@ -265,7 +271,8 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
 }
 
 VarInterface *FakeluaToNativeObj(State *state, CVar val) {
-    const auto ret = GetVarInterfaceNewFunc(state)();
+    const auto &new_func = GetVarInterfaceNewFunc(state);
+    const auto ret = new_func ? new_func() : new SimpleVarImpl();
     VarToVi(state, val, ret);
     return ret;
 }
@@ -343,7 +350,87 @@ void RegisterNativeFunction(State *s, const std::string &name,
     s->GetVM().RegisterNativeFunction(name, arg_count, is_vararg, std::move(callback));
 }
 
+void RegisterNativeVarFunction(State *s, const std::string &name,
+                               int arg_count, bool is_vararg,
+                               NativeVarFuncCallback callback) {
+    auto safe_cb = std::move(callback);
+    RegisterNativeFunction(s, name, arg_count, is_vararg,
+        [safe_cb](State *state, CVar *args, int n) -> CVar {
+            if (!safe_cb) {
+                return inter::NativeToFakeluaNil(state);
+            }
+            std::vector<VarInterface*> vi_args;
+            vi_args.reserve(n);
+            for (int i = 0; i < n; ++i) {
+                CVar arg_i = inter::GetNativeArg(state, args, n, i);
+                vi_args.push_back(inter::FakeluaToNativeObj(state, arg_i));
+            }
+            VarInterface* res_vi = safe_cb(state, vi_args);
+            return inter::NativeToFakeluaVarInterface(state, res_vi);
+        });
+}
+
 namespace inter {
+
+static CVar ViToVar(State *state, VarInterface *src) {
+    if (!src || src->ViGetType() == VarInterface::Type::NIL) {
+        return NativeToFakeluaNil(state);
+    }
+    switch (src->ViGetType()) {
+        case VarInterface::Type::BOOL:
+            return NativeToFakeluaBool(state, src->ViGetBool());
+        case VarInterface::Type::INT:
+            return NativeToFakeluaInt(state, src->ViGetInt());
+        case VarInterface::Type::FLOAT:
+            return NativeToFakeluaDouble(state, src->ViGetFloat());
+        case VarInterface::Type::STRING:
+            return NativeToFakeluaStringView(state, src->ViGetString());
+        case VarInterface::Type::TABLE: {
+            size_t count = src->ViGetTableSize();
+            auto &alloc = state->GetHeap().GetAllocator(false/* temp */);
+            auto *vtbl = static_cast<VarTable *>(alloc.Alloc(sizeof(VarTable)));
+            *vtbl = VarTable{};
+            for (auto &qd: vtbl->quick_data_) {
+                qd.key.type_ = static_cast<int>(VarType::Nil);
+                qd.val.type_ = static_cast<int>(VarType::Nil);
+            }
+            vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
+
+            if (count > 0) {
+                uint32_t bucket_count = 1;
+                while (bucket_count < count) bucket_count <<= 1;
+                vtbl->bucket_count_ = bucket_count;
+                vtbl->nodes_ = static_cast<VarTable::TableNode *>(alloc.Alloc(sizeof(VarTable::TableNode) * bucket_count));
+                vtbl->active_list_ = static_cast<uint32_t *>(alloc.Alloc(sizeof(uint32_t) * bucket_count));
+                for (uint32_t i = 0; i < bucket_count; ++i) {
+                    vtbl->nodes_[i].entry.key.type_ = static_cast<int>(VarType::Nil);
+                    vtbl->nodes_[i].entry.val.type_ = static_cast<int>(VarType::Nil);
+                    vtbl->nodes_[i].next = VarTable::INVALID_INDEX;
+                }
+                for (size_t i = 0; i < count; ++i) {
+                    auto kv = src->ViGetTableKv(static_cast<int>(i));
+                    CVar k = ViToVar(state, kv.first);
+                    CVar v = ViToVar(state, kv.second);
+                    static_cast<CVar&>(vtbl->nodes_[i].entry.key) = k;
+                    static_cast<CVar&>(vtbl->nodes_[i].entry.val) = v;
+                    vtbl->active_list_[i] = static_cast<uint32_t>(i);
+                }
+                vtbl->count_ = static_cast<uint32_t>(count);
+            }
+            CVar tbl_cvar{};
+            tbl_cvar.type_ = static_cast<int>(VarType::Table);
+            tbl_cvar.data_.t = vtbl;
+            return tbl_cvar;
+        }
+        default:
+            break;
+    }
+    return NativeToFakeluaNil(state);
+}
+
+CVar NativeToFakeluaVarInterface(State *state, VarInterface *v) {
+    return ViToVar(state, v);
+}
 
 void ThrowIfMultiCVar(const CVar &v) {
     if (UNLIKELY(v.type_ == static_cast<int>(VarType::Multi))) {

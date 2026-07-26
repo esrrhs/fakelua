@@ -357,6 +357,8 @@ CVar NativeToFakeluaString(State *s, const std::string &v);
 CVar NativeToFakeluaStringView(State *s, const std::string_view &v);
 void ThrowIfMultiCVar(const CVar &v);
 
+CVar NativeToFakeluaVarInterface(State *s, VarInterface *v);
+
 template<typename T>
 CVar NativeToFakelua(State *s, T v) {
     if constexpr (std::is_same_v<T, std::nullptr_t>) {
@@ -383,6 +385,8 @@ CVar NativeToFakelua(State *s, T v) {
     } else if constexpr (std::is_same_v<T, CVar>) {
         ThrowIfMultiCVar(v);
         return v;
+    } else if constexpr (std::is_pointer_v<T> && std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>) {
+        return NativeToFakeluaVarInterface(s, v);
     } else {
         static_assert(sizeof(T) == 0, "NativeToFakelua: unsupported type T");
     }
@@ -642,10 +646,42 @@ private:
 // RegisterNativeFunction — 注册 C++ 函数供 lua 脚本调用
 // ─────────────────────────────────────────────────────────────────────────────
 using NativeFuncCallback = std::function<CVar(State *, CVar *, int)>;
+using NativeVarFuncCallback = std::function<VarInterface*(State *, const std::vector<VarInterface*>&)>;
 
 void RegisterNativeFunction(State *s, const std::string &name,
                             int arg_count, bool is_vararg,
                             NativeFuncCallback callback);
+
+void RegisterNativeVarFunction(State *s, const std::string &name,
+                               int arg_count, bool is_vararg,
+                               NativeVarFuncCallback callback);
+
+template<typename Ret, typename... Args>
+void RegisterNativeFunction(State *s, const std::string &name,
+                            bool is_vararg,
+                            std::function<Ret(State*, Args...)> func) {
+    constexpr int arg_count = static_cast<int>(sizeof...(Args));
+    RegisterNativeFunction(s, name, arg_count, is_vararg,
+        [func](State *state, CVar *args, int n) -> CVar {
+            auto unpack_helper = [state, args, n]<std::size_t... I>(std::index_sequence<I...>) {
+                return std::make_tuple(
+                    inter::FakeluaToNative<std::remove_cvref_t<Args>>(
+                        state, inter::GetNativeArg(state, args, n, static_cast<int>(I)))...);
+            };
+            auto call_tuple = unpack_helper(std::make_index_sequence<sizeof...(Args)>{});
+            if constexpr (std::is_void_v<Ret>) {
+                std::apply([state, &func](auto&&... unpacked_args) {
+                    func(state, std::forward<decltype(unpacked_args)>(unpacked_args)...);
+                }, call_tuple);
+                return inter::NativeToFakeluaNil(state);
+            } else {
+                Ret ret_val = std::apply([state, &func](auto&&... unpacked_args) {
+                    return func(state, std::forward<decltype(unpacked_args)>(unpacked_args)...);
+                }, call_tuple);
+                return inter::NativeToFakelua(state, ret_val);
+            }
+        });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NativeObjectManager — 原生对象全局批处理注册管理器 (type_name, id) -> NativeObject*
