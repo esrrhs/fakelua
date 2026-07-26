@@ -425,32 +425,10 @@ void NativeObject::ForEach(const std::function<void(std::string_view, NativeObje
 // ─────────────────────────────────────────────────────────────────────────────
 
 void RegisterNativeObjectApi(State* s) {
-    auto GetArg = [](CVar* args, int n, int idx) -> CVar {
-        CVar res{static_cast<int>(VarType::Nil)};
-        if (n > 0 && args[0].type_ == static_cast<int>(VarType::Multi)) {
-            VarMulti* m = args[0].data_.m;
-            if (m && idx < static_cast<int>(m->GetCount())) {
-                res = m->GetVars()[idx];
-            }
-        } else if (idx < n) {
-            res = args[idx];
-        }
-        while (res.type_ == static_cast<int>(VarType::Multi)) {
-            VarMulti* m = res.data_.m;
-            if (m && m->GetCount() > 0) {
-                res = m->GetVars()[0];
-            } else {
-                res = CVar{static_cast<int>(VarType::Nil)};
-                break;
-            }
-        }
-        return res;
-    };
-
     // new_native_group([group_id]) -> group_id
     RegisterNativeFunction(s, "new_native_group", 1, false,
-        [GetArg](State* state, CVar* args, int n) -> CVar {
-            CVar arg0 = GetArg(args, n, 0);
+        [](State* state, CVar* args, int n) -> CVar {
+            CVar arg0 = inter::GetNativeArg(state, args, n, 0);
             int64_t specified_gid = (arg0.type_ != static_cast<int>(VarType::Nil))
                                         ? inter::FakeluaToNative<int64_t>(state, arg0)
                                         : 0;
@@ -460,10 +438,10 @@ void RegisterNativeObjectApi(State* s) {
 
     // new_native_obj(type, id, [group_id]) -> NativeObject (Wrap 壳)
     RegisterNativeFunction(s, "new_native_obj", 3, true,
-        [GetArg](State* state, CVar* args, int n) -> CVar {
-            CVar arg0 = GetArg(args, n, 0);
-            CVar arg1 = GetArg(args, n, 1);
-            CVar arg2 = GetArg(args, n, 2);
+        [](State* state, CVar* args, int n) -> CVar {
+            CVar arg0 = inter::GetNativeArg(state, args, n, 0);
+            CVar arg1 = inter::GetNativeArg(state, args, n, 1);
+            CVar arg2 = inter::GetNativeArg(state, args, n, 2);
 
             std::string type_name = inter::FakeluaToNative<std::string>(state, arg0);
             int64_t id = inter::FakeluaToNative<int64_t>(state, arg1);
@@ -477,9 +455,9 @@ void RegisterNativeObjectApi(State* s) {
 
     // get_native_obj(type, id) -> NativeObject (Wrap 壳) 或 nil
     RegisterNativeFunction(s, "get_native_obj", 2, false,
-        [GetArg](State* state, CVar* args, int n) -> CVar {
-            CVar arg0 = GetArg(args, n, 0);
-            CVar arg1 = GetArg(args, n, 1);
+        [](State* state, CVar* args, int n) -> CVar {
+            CVar arg0 = inter::GetNativeArg(state, args, n, 0);
+            CVar arg1 = inter::GetNativeArg(state, args, n, 1);
 
             if (arg0.type_ == static_cast<int>(VarType::Nil) || arg1.type_ == static_cast<int>(VarType::Nil)) {
                 return inter::NativeToFakeluaNil(state);
@@ -497,9 +475,9 @@ void RegisterNativeObjectApi(State* s) {
 
     // del_native_obj(type, id) -> bool
     RegisterNativeFunction(s, "del_native_obj", 2, false,
-        [GetArg](State* state, CVar* args, int n) -> CVar {
-            CVar arg0 = GetArg(args, n, 0);
-            CVar arg1 = GetArg(args, n, 1);
+        [](State* state, CVar* args, int n) -> CVar {
+            CVar arg0 = inter::GetNativeArg(state, args, n, 0);
+            CVar arg1 = inter::GetNativeArg(state, args, n, 1);
             if (arg0.type_ == static_cast<int>(VarType::Nil) || arg1.type_ == static_cast<int>(VarType::Nil)) {
                 return inter::NativeToFakeluaBool(state, false);
             }
@@ -513,8 +491,8 @@ void RegisterNativeObjectApi(State* s) {
 
     // del_native_group(group_id) -> count (批处理销毁整个 group_id 下的所有对象)
     RegisterNativeFunction(s, "del_native_group", 1, false,
-        [GetArg](State* state, CVar* args, int n) -> CVar {
-            CVar arg0 = GetArg(args, n, 0);
+        [](State* state, CVar* args, int n) -> CVar {
+            CVar arg0 = inter::GetNativeArg(state, args, n, 0);
             int64_t group_id = (arg0.type_ != static_cast<int>(VarType::Nil))
                                    ? inter::FakeluaToNative<int64_t>(state, arg0)
                                    : 0;

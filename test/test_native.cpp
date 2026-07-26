@@ -1,5 +1,4 @@
 #include "fakelua.h"
-#include "state/state.h"
 #include "gtest/gtest.h"
 #include <unordered_map>
 
@@ -81,7 +80,7 @@ TEST(test_native, test_fully_dynamic_property_and_builtin_api) {
     EXPECT_EQ(alice->GetString("name"), "Alice");
 
     // ── 2. 模拟跨帧 reset（Arena 内存重置）─────────────────────────────────
-    s->Reset();
+    inter::Reset(s);
 
     // ── 3. 模拟对话：Call("on_msg", "on_talk", 1001, "Hello fakelua!") ─────────
     CVar talk_ret;
@@ -119,7 +118,7 @@ TEST(test_native, test_lua_nested_object) {
     EXPECT_EQ(bag->GetInt("capacity"), 50);
 
     // ── 2. 跨帧 Reset 内存 ─────────────────────────────────────────────────
-    s->Reset();
+    inter::Reset(s);
 
     // ── 3. 再次在 Lua 中通过 get_native_obj 获取 player 并读取 player.bag.gold ─
     CVar ret2;

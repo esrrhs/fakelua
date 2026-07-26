@@ -478,6 +478,7 @@ CVar AllocMultiCVar(State *s, int count);
 void SetMultiCVarElement(CVar &multi, int idx, CVar val);
 CVar GetMultiCVarElement(const CVar &multi, int idx);
 int GetMultiCVarCount(const CVar &multi);
+CVar GetNativeArg(State *s, CVar *args, int n, int idx);
 
 }// namespace inter
 

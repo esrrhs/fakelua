@@ -410,6 +410,29 @@ int GetMultiCVarCount(const CVar &multi) {
     return static_cast<int>(multi.data_.m->GetCount());
 }
 
+CVar GetNativeArg(State *s, CVar *args, int n, int idx) {
+    (void)s;
+    CVar res{static_cast<int>(VarType::Nil)};
+    if (n > 0 && args[0].type_ == static_cast<int>(VarType::Multi)) {
+        VarMulti* m = args[0].data_.m;
+        if (m && idx < static_cast<int>(m->GetCount())) {
+            res = m->GetVars()[idx];
+        }
+    } else if (idx < n) {
+        res = args[idx];
+    }
+    while (res.type_ == static_cast<int>(VarType::Multi)) {
+        VarMulti* m = res.data_.m;
+        if (m && m->GetCount() > 0) {
+            res = m->GetVars()[0];
+        } else {
+            res = CVar{static_cast<int>(VarType::Nil)};
+            break;
+        }
+    }
+    return res;
+}
+
 }// namespace inter
 
 }// namespace fakelua
