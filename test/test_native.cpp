@@ -191,12 +191,7 @@ TEST(test_native, test_native_var_interface_callback) {
         }));
 
     CompileConfig config;
-    CompileString(s, R"(
-        function run_test()
-            local user = { name = "Bob", score = 50 }
-            return cpp_process_user(user)
-        end
-    )", config);
+    CompileFile(s, "./native/test_native_callback.lua", config);
 
     std::string result;
     Call(s, JIT_TCC, "run_test", result);
@@ -215,11 +210,7 @@ TEST(test_native, test_native_typed_template_callback) {
         }));
 
     CompileConfig config;
-    CompileString(s, R"(
-        function calc()
-            return cpp_add_hp(120, 30)
-        end
-    )", config);
+    CompileFile(s, "./native/test_native_callback.lua", config);
 
     int64_t res = 0;
     Call(s, JIT_TCC, "calc", res);
