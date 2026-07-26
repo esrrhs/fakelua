@@ -189,18 +189,18 @@ TEST(runtime, vm_call_by_name_error_cases) {
     CVar a7 = inter::NativeToFakeluaInt(&s, 7);
     CVar a8 = inter::NativeToFakeluaInt(&s, 8);
 
-    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "missing", 0), std::exception);
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "missing", 0), std::exception);
 
-    s.GetVM().RegisterFunction(VmFunction("nulladdr", 0, JIT_TCC, nullptr, {}));
-    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "nulladdr", 0), std::exception);
+    s.GetVM().RegisterFunction(VmFunction("nulladdr", 0, TEST_JIT_TYPE, nullptr, {}));
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "nulladdr", 0), std::exception);
 
     s.GetVM().RegisterFunction(VmFunction("fnv", 8, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho8), {}));
-    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "fnv", 9, a0, a1, a2, a3, a4, a5, a6, a7, a8), std::exception);
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "fnv", 9, a0, a1, a2, a3, a4, a5, a6, a7, a8), std::exception);
 
     // Bug M: 参数个数与函数签名不匹配时必须抛异常（否则会读取未初始化栈内存）。
     // 这里 fnv 要求 8 个参数，分别传 3 个 / 0 个都应抛异常。
-    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "fnv", 3, a0, a1, a2), std::exception);
-    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "fnv", 0), std::exception);
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "fnv", 3, a0, a1, a2), std::exception);
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "fnv", 0), std::exception);
 }
 
 TEST(runtime, vm_helper_functions_throw_and_alloc) {

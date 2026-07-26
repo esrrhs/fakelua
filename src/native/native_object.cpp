@@ -1,5 +1,6 @@
 #include "native/native_object.h"
 #include "jit/vm.h"
+#include "var/var_multi.h"
 
 #include <algorithm>
 #include <cstring>
@@ -424,25 +425,50 @@ void NativeObject::ForEach(const std::function<void(std::string_view, NativeObje
 // ─────────────────────────────────────────────────────────────────────────────
 
 void RegisterNativeObjectApi(State* s) {
+    auto GetArg = [](CVar* args, int n, int idx) -> CVar {
+        CVar res{static_cast<int>(VarType::Nil)};
+        if (n > 0 && args[0].type_ == static_cast<int>(VarType::Multi)) {
+            VarMulti* m = args[0].data_.m;
+            if (m && idx < static_cast<int>(m->GetCount())) {
+                res = m->GetVars()[idx];
+            }
+        } else if (idx < n) {
+            res = args[idx];
+        }
+        while (res.type_ == static_cast<int>(VarType::Multi)) {
+            VarMulti* m = res.data_.m;
+            if (m && m->GetCount() > 0) {
+                res = m->GetVars()[0];
+            } else {
+                res = CVar{static_cast<int>(VarType::Nil)};
+                break;
+            }
+        }
+        return res;
+    };
+
     // new_native_group([group_id]) -> group_id
-    // 申请/定义一个新的 Group 批处理空间，无参或带 1 个参数 group_id
     RegisterNativeFunction(s, "new_native_group", 1, false,
-        [](State* state, CVar* args, int n) -> CVar {
-            int64_t specified_gid = (args[0].type_ != static_cast<int>(VarType::Nil))
-                                        ? inter::FakeluaToNative<int64_t>(state, args[0])
+        [GetArg](State* state, CVar* args, int n) -> CVar {
+            CVar arg0 = GetArg(args, n, 0);
+            int64_t specified_gid = (arg0.type_ != static_cast<int>(VarType::Nil))
+                                        ? inter::FakeluaToNative<int64_t>(state, arg0)
                                         : 0;
             int64_t gid = NativeObjectManager::Instance().CreateGroup(specified_gid);
             return inter::NativeToFakeluaInt(state, gid);
         });
 
     // new_native_obj(type, id, [group_id]) -> NativeObject (Wrap 壳)
-    // 允许 2 个或 3 个参数：不传 group_id 时默认等于 id；如果传入 group_id 则归属于对应的批处理空间
-    RegisterNativeFunction(s, "new_native_obj", 3, false,
-        [](State* state, CVar* args, int n) -> CVar {
-            std::string type_name = inter::FakeluaToNative<std::string>(state, args[0]);
-            int64_t id = inter::FakeluaToNative<int64_t>(state, args[1]);
-            int64_t group_id = (args[2].type_ != static_cast<int>(VarType::Nil))
-                                   ? inter::FakeluaToNative<int64_t>(state, args[2])
+    RegisterNativeFunction(s, "new_native_obj", 3, true,
+        [GetArg](State* state, CVar* args, int n) -> CVar {
+            CVar arg0 = GetArg(args, n, 0);
+            CVar arg1 = GetArg(args, n, 1);
+            CVar arg2 = GetArg(args, n, 2);
+
+            std::string type_name = inter::FakeluaToNative<std::string>(state, arg0);
+            int64_t id = inter::FakeluaToNative<int64_t>(state, arg1);
+            int64_t group_id = (arg2.type_ != static_cast<int>(VarType::Nil))
+                                   ? inter::FakeluaToNative<int64_t>(state, arg2)
                                    : id;
 
             NativeObject* obj = NativeObjectManager::Instance().Create(type_name, id, group_id);
@@ -451,9 +477,16 @@ void RegisterNativeObjectApi(State* s) {
 
     // get_native_obj(type, id) -> NativeObject (Wrap 壳) 或 nil
     RegisterNativeFunction(s, "get_native_obj", 2, false,
-        [](State* state, CVar* args, int n) -> CVar {
-            std::string type_name = inter::FakeluaToNative<std::string>(state, args[0]);
-            int64_t id = inter::FakeluaToNative<int64_t>(state, args[1]);
+        [GetArg](State* state, CVar* args, int n) -> CVar {
+            CVar arg0 = GetArg(args, n, 0);
+            CVar arg1 = GetArg(args, n, 1);
+
+            if (arg0.type_ == static_cast<int>(VarType::Nil) || arg1.type_ == static_cast<int>(VarType::Nil)) {
+                return inter::NativeToFakeluaNil(state);
+            }
+
+            std::string type_name = inter::FakeluaToNative<std::string>(state, arg0);
+            int64_t id = inter::FakeluaToNative<int64_t>(state, arg1);
 
             NativeObject* obj = NativeObjectManager::Instance().Get(type_name, id);
             if (!obj) {
@@ -464,9 +497,15 @@ void RegisterNativeObjectApi(State* s) {
 
     // del_native_obj(type, id) -> bool
     RegisterNativeFunction(s, "del_native_obj", 2, false,
-        [](State* state, CVar* args, int n) -> CVar {
-            std::string type_name = inter::FakeluaToNative<std::string>(state, args[0]);
-            int64_t id = inter::FakeluaToNative<int64_t>(state, args[1]);
+        [GetArg](State* state, CVar* args, int n) -> CVar {
+            CVar arg0 = GetArg(args, n, 0);
+            CVar arg1 = GetArg(args, n, 1);
+            if (arg0.type_ == static_cast<int>(VarType::Nil) || arg1.type_ == static_cast<int>(VarType::Nil)) {
+                return inter::NativeToFakeluaBool(state, false);
+            }
+
+            std::string type_name = inter::FakeluaToNative<std::string>(state, arg0);
+            int64_t id = inter::FakeluaToNative<int64_t>(state, arg1);
 
             bool ok = NativeObjectManager::Instance().Destroy(type_name, id);
             return inter::NativeToFakeluaBool(state, ok);
@@ -474,11 +513,15 @@ void RegisterNativeObjectApi(State* s) {
 
     // del_native_group(group_id) -> count (批处理销毁整个 group_id 下的所有对象)
     RegisterNativeFunction(s, "del_native_group", 1, false,
-        [](State* state, CVar* args, int n) -> CVar {
-            int64_t group_id = inter::FakeluaToNative<int64_t>(state, args[0]);
+        [GetArg](State* state, CVar* args, int n) -> CVar {
+            CVar arg0 = GetArg(args, n, 0);
+            int64_t group_id = (arg0.type_ != static_cast<int>(VarType::Nil))
+                                   ? inter::FakeluaToNative<int64_t>(state, arg0)
+                                   : 0;
+
             size_t count = NativeObjectManager::Instance().DestroyGroup(group_id);
             return inter::NativeToFakeluaInt(state, static_cast<int64_t>(count));
         });
 }
 
-}// namespace fakelua
+} // namespace fakelua
