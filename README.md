@@ -78,6 +78,39 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 
 [VarInterface](file:///home/project/fakelua/include/fakelua.h#L17) 是 Lua table 等复杂类型与宿主之间的抽象接口，宿主可按需实现自己的版本接入原有对象系统。库内附带 [SimpleVarImpl](file:///home/project/fakelua/include/fakelua.h#L61) 开箱即用。
 
+### [NativeObject](file:///home/project/fakelua/include/fakelua.h#L580)：原生对象桥接与组内存池（Group Arena）
+
+提供高性能宿主 C++ 原生对象映射能力：
+
+- **精简宿主公共 API**：在 SDK 头文件中屏蔽底层存储细节（Pimpl），只暴露必要的属性读写（`GetInt`/`SetInt`/`GetFloat`/`SetObject` 等）与迭代方法。
+- **组粒度批次释放（Group Allocation & Arena Destroy）**：禁止单个手动申请或卸载对象。所有 `NativeObject` 均强制在指定的 `group_id` 组池内创建（`NativeObjectManager::Instance().Create(group_id, ...)`），在处理请求或逻辑帧完成后通过 `DestroyGroup(group_id)` 批量一次性释放，与 FakeLua 无 GC、Arena 极速重置的设计哲学高度保持一致。
+- **C++ 函数自动装箱转换**：C++ 侧注册的 Native 回调可以直接返回 `NativeObject*` 指针，`fakelua.h` 的 `inter::NativeToFakelua` 会自动安全打包并转换为 Lua 可识别的装箱对象。
+
+#### Lua 代码示例
+
+```lua
+local group_id = 1001
+
+-- 1. 从组内存池申请 NativeObject (参数: group_id, 类型名, id)
+local player = new_native_obj(group_id, "Player", 1001)
+
+-- 2. 属性读写
+player.hp = 100
+player.name = "Hero"
+player.speed = 1.5
+
+-- 3. 嵌套 NativeObject 关联
+local weapon = new_native_obj(group_id, "Weapon", 5001)
+weapon.damage = 50
+player.weapon = weapon
+
+-- 4. 通过别名/管理器索引获取对象属性
+print("Player HP:", player.hp, "Weapon Damage:", player.weapon.damage)
+
+-- 5. 帧结束/请求结束时批量一键清除该组所有对象
+del_native_group(group_id)
+```
+
 ### 多返回值与可变参数（Multi-Return & Varargs）
 
 - **多返回值**：函数可以通过 `return a, b` 返回多个值，在赋值或返回语句中正确解包。
@@ -187,30 +220,65 @@ ctest --test-dir build -V
 - `--repeat`：重复调用次数（用于性能测量）
 - `--debug`：是否启用调试模式（默认 `false`，若为 `true` 则输出生成的 C 源码）
 
-### C++ 嵌入示例
+### 示例：Lua 脚本与 C++ 宿主嵌入
+
+#### 1. Lua 脚本文件 (`script.lua`)
+
+```lua
+-- 1. 普通数值计算
+function add(a, b)
+    return a + b
+end
+
+-- 2. 可变参数求和
+function sum(...)
+    local total = 0
+    for _, v in ipairs({...}) do
+        total = total + v
+    end
+    return total
+end
+
+-- 3. 多返回值函数
+function multi_return(val)
+    return val, val * 2, "hello"
+end
+```
+
+#### 2. C++ 宿主代码 (`main.cpp`)
 
 ```cpp
 #include "fakelua.h"
+#include <iostream>
+#include <tuple>
+
 using namespace fakelua;
 
 int main() {
+    // 1. 使用 RAII 自动管理 State 生命周期
     FakeluaStateGuard guard;
     State* s = guard.GetState();
 
+    // 2. 编译 Lua 脚本文件
     CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
 
-    // 基本调用
-    int ret = 0;
-    Call(s, JIT_GCC, "add", ret, 1, 2);
+    // 3. 基本函数调用 (原生 C++ 类型与 CVar 自动转换)
+    int res_add = 0;
+    Call(s, JIT_GCC, "add", res_add, 10, 20);
+    std::cout << "add(10, 20) = " << res_add << std::endl; // 30
 
-    // 可变参数调用 — 多余参数自动打包为 Multi
-    int sum = 0;
-    Call(s, JIT_TCC, "sum", sum, 10, 20, 30);
+    // 4. 可变参数调用 — 多余参数自动打包为 Multi
+    int res_sum = 0;
+    Call(s, JIT_TCC, "sum", res_sum, 1, 2, 3, 4, 5);
+    std::cout << "sum(1..5) = " << res_sum << std::endl; // 15
 
-    // 多返回值 — 用 std::tie 自动解包
-    int a = 0, b = 0;
-    std::string c;
-    Call(s, JIT_GCC, "multi_return", std::tie(a, b, c), some_arg);
+    // 5. 多返回值调用 — 使用 std::tie 自动解包接收
+    int x = 0, y = 0;
+    std::string msg;
+    Call(s, JIT_GCC, "multi_return", std::tie(x, y, msg), 42);
+    std::cout << "multi_return(42) = " << x << ", " << y << ", " << msg << std::endl; // 42, 84, hello
+
+    return 0;
 }
 ```
 
