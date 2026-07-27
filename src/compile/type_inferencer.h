@@ -17,7 +17,7 @@ private:
     public:
         struct EnvEntry {
             InferredType type;
-            SyntaxTreeInterface* init_node = nullptr;  // 变量声明时的 initializer node (如 local x = 1 中的 '1' 表达式)
+            SyntaxTreeInterface *init_node = nullptr;// 变量声明时的 initializer node (如 local x = 1 中的 '1' 表达式)
         };
 
         TypeEnvironment();
@@ -26,7 +26,7 @@ private:
 
         void ExitScope();
 
-        void Define(const std::string &name, InferredType type, SyntaxTreeInterface* init_node = nullptr);
+        void Define(const std::string &name, InferredType type, SyntaxTreeInterface *init_node = nullptr);
 
         InferredType Update(const std::string &name, InferredType type, EvalTypeSnapshot &current_map);
 
@@ -34,7 +34,7 @@ private:
 
         [[nodiscard]] InferredType Lookup(const std::string &name) const;
 
-        [[nodiscard]] const SyntaxTreeInterface* LookupInitNode(const std::string &name) const;
+        [[nodiscard]] const SyntaxTreeInterface *LookupInitNode(const std::string &name) const;
 
         [[nodiscard]] bool IsAtFileScope() const {
             return scopes_.size() <= 2;
@@ -73,6 +73,7 @@ private:
         std::vector<std::string> names;
         std::vector<SyntaxTreeInterfacePtr> exps;
     };
+
     static LocalVarUnpack UnpackLocalVar(const SyntaxTreeInterfacePtr &local_var_node);
 
     // 试推断上下文：在 RunTrialInference 中创建，沿调用链传递，
@@ -88,8 +89,8 @@ private:
         EvalTypeSnapshot &current_map;
         TypeEnvironment &env;
         const TrialInferenceContext *ctx = nullptr;
-        std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> &var_define_nodes;
-        std::set<std::pair<const SyntaxTreeInterface*, std::string>> &shadowed_decls;
+        std::unordered_map<const SyntaxTreeInterface *, const SyntaxTreeInterface *> &var_define_nodes;
+        std::set<std::pair<const SyntaxTreeInterface *, std::string>> &shadowed_decls;
 
         [[nodiscard]] bool IsTrialInference() const {
             return ctx != nullptr;
@@ -141,9 +142,8 @@ private:
     // ResolveCallReturnType 将被调函数的特化返回类型注入推断结果，
     // 使函数调用节点及其下游局部变量在快照中获得精确类型。
     EvalTypeSnapshot RunTrialInference(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params, const std::unordered_map<std::string, InferredType> &assumed_types,
-                                  const std::unordered_map<std::string, std::vector<int>> *math_positions,
-                                  const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret, bool skip_post_processing,
-                                  std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> &var_define_nodes);
+                                       const std::unordered_map<std::string, std::vector<int>> *math_positions, const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret,
+                                       bool skip_post_processing, std::unordered_map<const SyntaxTreeInterface *, const SyntaxTreeInterface *> &var_define_nodes);
 
     // 判断 exp 节点是否为算术表达式（结果可为 T_INT/T_FLOAT 的运算符）。
     // 包括算术/位运算二元运算符，以及一元负号 and 按位取反。
@@ -170,7 +170,7 @@ private:
 
     std::vector<int> FindMathParamIndices(const FunctionSpecInfo &info, const EvalTypeSnapshot &baseline, const EvalTypeSnapshot &all_int,
                                           const std::unordered_map<std::string, std::vector<int>> &known_math_positions,
-                                          std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> &var_define_nodes);
+                                          std::unordered_map<const SyntaxTreeInterface *, const SyntaxTreeInterface *> &var_define_nodes);
 
     [[nodiscard]] std::unordered_map<std::string, FuncRetInfo> BuildFunctionReturnCache(const MathFuncInfoMap &math_func_info) const;
 

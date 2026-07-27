@@ -47,8 +47,7 @@ public:
 
     // 注册 C++ 原生函数（可在编译前或编译后调用）
     // 注册后可在 lua 脚本中直接以函数名调用，通过 FakeluaCallByName 分发
-    void RegisterNativeFunction(const std::string &name, int arg_count, bool is_vararg,
-                                NativeFuncCallback callback) {
+    void RegisterNativeFunction(const std::string &name, int arg_count, bool is_vararg, NativeFuncCallback callback) {
         native_functions_[name] = NativeFuncEntry{arg_count, is_vararg, std::move(callback)};
     }
 

@@ -1,6 +1,6 @@
 #include "fakelua.h"
-#include "state/state.h"
 #include "compile/c_runtime_header.h"
+#include "state/state.h"
 #include "util/common.h"
 #include "util/dispatch_macro.h"
 #include "var/var_multi.h"
@@ -224,9 +224,7 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
             std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
             kvs.reserve(table->spec_count + count);
             const auto &new_func = GetVarInterfaceNewFunc(state);
-            auto alloc_vi = [&new_func]() -> VarInterface * {
-                return new_func ? new_func() : new SimpleVarImpl();
-            };
+            auto alloc_vi = [&new_func]() -> VarInterface * { return new_func ? new_func() : new SimpleVarImpl(); };
 
             if (table->spec_count > 0) {
                 const auto *sk = reinterpret_cast<const Var *>(table->spec_keys);
@@ -351,30 +349,25 @@ void SetDebugLogLevel(int level) {
 // ─────────────────────────────────────────────────────────────────────────────
 // RegisterNativeFunction — 注册 C++ 函数供 lua 侧通过名字调用
 // ─────────────────────────────────────────────────────────────────────────────
-void RegisterNativeFunction(State *s, const std::string &name,
-                            int arg_count, bool is_vararg,
-                            NativeFuncCallback callback) {
+void RegisterNativeFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeFuncCallback callback) {
     s->GetVM().RegisterNativeFunction(name, arg_count, is_vararg, std::move(callback));
 }
 
-void RegisterNativeVarFunction(State *s, const std::string &name,
-                               int arg_count, bool is_vararg,
-                               NativeVarFuncCallback callback) {
+void RegisterNativeVarFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeVarFuncCallback callback) {
     auto safe_cb = std::move(callback);
-    RegisterNativeFunction(s, name, arg_count, is_vararg,
-        [safe_cb](State *state, CVar *args, int n) -> CVar {
-            if (!safe_cb) {
-                return inter::NativeToFakeluaNil(state);
-            }
-            std::vector<VarInterface*> vi_args;
-            vi_args.reserve(n);
-            for (int i = 0; i < n; ++i) {
-                CVar arg_i = inter::GetNativeArg(state, args, n, i);
-                vi_args.push_back(inter::FakeluaToNativeObj(state, arg_i));
-            }
-            VarInterface* res_vi = safe_cb(state, vi_args);
-            return inter::NativeToFakeluaVarInterface(state, res_vi);
-        });
+    RegisterNativeFunction(s, name, arg_count, is_vararg, [safe_cb](State *state, CVar *args, int n) -> CVar {
+        if (!safe_cb) {
+            return inter::NativeToFakeluaNil(state);
+        }
+        std::vector<VarInterface *> vi_args;
+        vi_args.reserve(n);
+        for (int i = 0; i < n; ++i) {
+            CVar arg_i = inter::GetNativeArg(state, args, n, i);
+            vi_args.push_back(inter::FakeluaToNativeObj(state, arg_i));
+        }
+        VarInterface *res_vi = safe_cb(state, vi_args);
+        return inter::NativeToFakeluaVarInterface(state, res_vi);
+    });
 }
 
 namespace inter {
@@ -394,7 +387,7 @@ static CVar ViToVar(State *state, VarInterface *src) {
             return NativeToFakeluaStringView(state, src->ViGetString());
         case VarInterface::Type::TABLE: {
             size_t count = src->ViGetTableSize();
-            auto &alloc = state->GetHeap().GetAllocator(false/* temp */);
+            auto &alloc = state->GetHeap().GetAllocator(false /* temp */);
             auto *vtbl = static_cast<VarTable *>(alloc.Alloc(sizeof(VarTable)));
             *vtbl = VarTable{};
             for (auto &qd: vtbl->quick_data_) {
@@ -418,8 +411,8 @@ static CVar ViToVar(State *state, VarInterface *src) {
                     auto kv = src->ViGetTableKv(static_cast<int>(i));
                     CVar k = ViToVar(state, kv.first);
                     CVar v = ViToVar(state, kv.second);
-                    static_cast<CVar&>(vtbl->nodes_[i].entry.key) = k;
-                    static_cast<CVar&>(vtbl->nodes_[i].entry.val) = v;
+                    static_cast<CVar &>(vtbl->nodes_[i].entry.key) = k;
+                    static_cast<CVar &>(vtbl->nodes_[i].entry.val) = v;
                     vtbl->active_list_[i] = static_cast<uint32_t>(i);
                 }
                 vtbl->count_ = static_cast<uint32_t>(count);
@@ -447,18 +440,18 @@ void ThrowIfMultiCVar(const CVar &v) {
 
 CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count) {
     switch (arg_count) {
-#define DCASE(N) case N: return reinterpret_cast<CVar (*)(VarClosure * DISPATCH_CVAR_##N)>(addr)(nullptr DISPATCH_ARG_##N);
+#define DCASE(N)                                                                                                                                                                                       \
+    case N:                                                                                                                                                                                            \
+        return reinterpret_cast<CVar (*)(VarClosure * DISPATCH_CVAR_##N)>(addr)(nullptr DISPATCH_ARG_##N);
 
-        DCASE(0) DCASE(1) DCASE(2) DCASE(3) DCASE(4) DCASE(5)
-        DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11)
-        DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17)
-        DCASE(18) DCASE(19) DCASE(20) DCASE(21) DCASE(22) DCASE(23)
-        DCASE(24) DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29)
-        DCASE(30) DCASE(31) DCASE(32)
+        DCASE(0)
+        DCASE(1)
+        DCASE(2) DCASE(3) DCASE(4) DCASE(5) DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11) DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17) DCASE(18) DCASE(19) DCASE(20) DCASE(21)
+                DCASE(22) DCASE(23) DCASE(24) DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29) DCASE(30) DCASE(31) DCASE(32)
 
 #undef DCASE
 #include "util/dispatch_macro_undef.h"
-        default: ThrowFakeluaException(std::format("DispatchCall: arg_count {} out of range", arg_count));
+                        default : ThrowFakeluaException(std::format("DispatchCall: arg_count {} out of range", arg_count));
     }
     __builtin_unreachable();
 }
@@ -505,10 +498,10 @@ int GetMultiCVarCount(const CVar &multi) {
 }
 
 CVar GetNativeArg(State *s, CVar *args, int n, int idx) {
-    (void)s;
+    (void) s;
     CVar res{static_cast<int>(VarType::Nil)};
     if (n > 0 && args[0].type_ == static_cast<int>(VarType::Multi)) {
-        VarMulti* m = args[0].data_.m;
+        VarMulti *m = args[0].data_.m;
         if (m && idx < static_cast<int>(m->GetCount())) {
             res = m->GetVars()[idx];
         }
@@ -516,7 +509,7 @@ CVar GetNativeArg(State *s, CVar *args, int n, int idx) {
         res = args[idx];
     }
     while (res.type_ == static_cast<int>(VarType::Multi)) {
-        VarMulti* m = res.data_.m;
+        VarMulti *m = res.data_.m;
         if (m && m->GetCount() > 0) {
             res = m->GetVars()[0];
         } else {

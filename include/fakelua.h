@@ -414,6 +414,7 @@ double FakeluaToNativeDouble(State *s, CVar v);
 std::string FakeluaToNativeString(State *s, CVar v);
 std::string_view FakeluaToNativeStringView(State *s, CVar v);
 VarInterface *FakeluaToNativeObj(State *s, CVar v);
+
 template<typename T>
 T FakeluaToNative(State *s, const CVar v) {
     if constexpr (std::is_same_v<T, bool>) {
@@ -497,8 +498,10 @@ CVar GetNativeArg(State *s, CVar *args, int n, int idx);
 
 template<typename T>
 struct is_std_tuple : std::false_type {};
+
 template<typename... Ts>
 struct is_std_tuple<std::tuple<Ts...>> : std::true_type {};
+
 template<typename T>
 inline constexpr bool is_std_tuple_v = is_std_tuple<T>::value;
 
@@ -597,7 +600,7 @@ public:
     void SetId(int64_t id);
     [[nodiscard]] int64_t GetGroupId() const;
     void SetGroupId(int64_t group_id);
-    [[nodiscard]] size_t Size() const;  // 字段数量
+    [[nodiscard]] size_t Size() const;// 字段数量
     [[nodiscard]] bool Has(std::string_view key) const;
 
     // ── 字段写入 ─────────────────────────────────────────────────────────────
@@ -606,7 +609,7 @@ public:
     void SetFloat(std::string_view key, double val);
     void SetBool(std::string_view key, bool val);
     void SetString(std::string_view key, std::string_view val);
-    void SetObject(std::string_view key, NativeObject *obj); // 嵌套对象（不拥有）
+    void SetObject(std::string_view key, NativeObject *obj);// 嵌套对象（不拥有）
 
     // ── 字段读取 ─────────────────────────────────────────────────────────────
     [[nodiscard]] int64_t GetInt(std::string_view key, int64_t default_val = 0) const;
@@ -653,41 +656,28 @@ private:
 // RegisterNativeFunction — 注册 C++ 函数供 lua 脚本调用
 // ─────────────────────────────────────────────────────────────────────────────
 using NativeFuncCallback = std::function<CVar(State *, CVar *, int)>;
-using NativeVarFuncCallback = std::function<VarInterface*(State *, const std::vector<VarInterface*>&)>;
+using NativeVarFuncCallback = std::function<VarInterface *(State *, const std::vector<VarInterface *> &)>;
 
-void RegisterNativeFunction(State *s, const std::string &name,
-                            int arg_count, bool is_vararg,
-                            NativeFuncCallback callback);
+void RegisterNativeFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeFuncCallback callback);
 
-void RegisterNativeVarFunction(State *s, const std::string &name,
-                               int arg_count, bool is_vararg,
-                               NativeVarFuncCallback callback);
+void RegisterNativeVarFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeVarFuncCallback callback);
 
 template<typename Ret, typename... Args>
-void RegisterNativeFunction(State *s, const std::string &name,
-                            bool is_vararg,
-                            std::function<Ret(State*, Args...)> func) {
+void RegisterNativeFunction(State *s, const std::string &name, bool is_vararg, std::function<Ret(State *, Args...)> func) {
     constexpr int arg_count = static_cast<int>(sizeof...(Args));
-    RegisterNativeFunction(s, name, arg_count, is_vararg,
-        [func](State *state, CVar *args, int n) -> CVar {
-            auto unpack_helper = [state, args, n]<std::size_t... I>(std::index_sequence<I...>) {
-                return std::make_tuple(
-                    inter::FakeluaToNative<std::remove_cvref_t<Args>>(
-                        state, inter::GetNativeArg(state, args, n, static_cast<int>(I)))...);
-            };
-            auto call_tuple = unpack_helper(std::make_index_sequence<sizeof...(Args)>{});
-            if constexpr (std::is_void_v<Ret>) {
-                std::apply([state, &func](auto&&... unpacked_args) {
-                    func(state, std::forward<decltype(unpacked_args)>(unpacked_args)...);
-                }, call_tuple);
-                return inter::NativeToFakeluaNil(state);
-            } else {
-                Ret ret_val = std::apply([state, &func](auto&&... unpacked_args) {
-                    return func(state, std::forward<decltype(unpacked_args)>(unpacked_args)...);
-                }, call_tuple);
-                return inter::NativeToFakelua(state, ret_val);
-            }
-        });
+    RegisterNativeFunction(s, name, arg_count, is_vararg, [func](State *state, CVar *args, int n) -> CVar {
+        auto unpack_helper = [state, args, n]<std::size_t... I>(std::index_sequence<I...>) {
+            return std::make_tuple(inter::FakeluaToNative<std::remove_cvref_t<Args>>(state, inter::GetNativeArg(state, args, n, static_cast<int>(I)))...);
+        };
+        auto call_tuple = unpack_helper(std::make_index_sequence<sizeof...(Args)>{});
+        if constexpr (std::is_void_v<Ret>) {
+            std::apply([state, &func](auto &&...unpacked_args) { func(state, std::forward<decltype(unpacked_args)>(unpacked_args)...); }, call_tuple);
+            return inter::NativeToFakeluaNil(state);
+        } else {
+            Ret ret_val = std::apply([state, &func](auto &&...unpacked_args) { return func(state, std::forward<decltype(unpacked_args)>(unpacked_args)...); }, call_tuple);
+            return inter::NativeToFakelua(state, ret_val);
+        }
+    });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -715,6 +705,7 @@ private:
             return std::hash<std::string>()(p.first) ^ (std::hash<int64_t>()(p.second) << 1);
         }
     };
+
     std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
     std::unordered_map<int64_t, std::vector<NativeObject *>> group_objects_;
     int64_t next_auto_group_id_ = 1000000;

@@ -118,10 +118,7 @@ private:
 
     // 若 explist 是 pairs(tbl) 或 ipairs(tbl) 的单调用，返回对应 kind 并通过
     // out_tbl_arg 输出 tbl 表达式节点；否则返回 kNone，out_tbl_arg 不写入。
-    [[nodiscard]] static PairsIpairsKind TryMatchPairsIpairs(
-        const std::shared_ptr<SyntaxTreeExplist> &explist_ptr,
-        const std::vector<std::string> &names,
-        SyntaxTreeInterfacePtr &out_tbl_arg);
+    [[nodiscard]] static PairsIpairsKind TryMatchPairsIpairs(const std::shared_ptr<SyntaxTreeExplist> &explist_ptr, const std::vector<std::string> &names, SyntaxTreeInterfacePtr &out_tbl_arg);
 
     void CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt);
@@ -145,11 +142,14 @@ private:
     // CompileFunctioncall 的七个子辅助函数
     std::string TryCompileSpecDirectCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr);
     std::string TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr);
-    void CompileCallArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr, ArgsKind args_kind, std::vector<std::string> &compiled_args, bool &has_expansion, std::string &expansion_tmp, int &expansion_start_idx);
+    void CompileCallArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr, ArgsKind args_kind, std::vector<std::string> &compiled_args, bool &has_expansion, std::string &expansion_tmp,
+                         int &expansion_start_idx);
     void ResolveCalleeName(const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, std::string &func_name, const SyntaxTreeVar *&var_ptr);
     std::string BuildLocalFunctionCall(const std::string &func_name, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, int expansion_start_idx);
-    std::string BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp);
-    std::string BuildDynamicCall(const std::string &func_name, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, bool is_local_callee);
+    std::string BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr,
+                                const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp);
+    std::string BuildDynamicCall(const std::string &func_name, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var,
+                                 const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, bool is_local_callee);
     // EmitSpecAccessorBody：按 key kind 发射 get/set 的 if-else/switch 条件逻辑
     void EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get);
     std::string CompileTableconstructor(const SyntaxTreeInterfacePtr &tc);
@@ -192,7 +192,7 @@ private:
     [[nodiscard]] InferredType LookupNodeType(SyntaxTreeInterface *node) const;
 
     // 检查变量是否为已知强类型的原生变量
-    [[nodiscard]] bool IsTypedNativeVar(const std::string &name, const SyntaxTreeInterface* var_node) const {
+    [[nodiscard]] bool IsTypedNativeVar(const std::string &name, const SyntaxTreeInterface *var_node) const {
         if (const auto it = var_to_def_map_.find(var_node); it != var_to_def_map_.end()) {
             if (it->second->is_captured) {
                 return false;
@@ -206,14 +206,14 @@ private:
         }
         // 2. 检查变量引用是否有定义节点映射，且该定义节点最终推断为原生数值类型
         if (const auto it = ir().var_define_nodes.find(var_node); it != ir().var_define_nodes.end()) {
-            const auto def_type = LookupNodeType(const_cast<SyntaxTreeInterface*>(it->second));
+            const auto def_type = LookupNodeType(const_cast<SyntaxTreeInterface *>(it->second));
             return def_type == T_INT || def_type == T_FLOAT;
         }
         return false;
     }
 
     // 获取原生强类型变量在作用域中的推断类型
-    [[nodiscard]] InferredType GetNativeVarType(const std::string &name, const SyntaxTreeInterface* var_node) const {
+    [[nodiscard]] InferredType GetNativeVarType(const std::string &name, const SyntaxTreeInterface *var_node) const {
         if (const auto it = var_to_def_map_.find(var_node); it != var_to_def_map_.end()) {
             if (it->second->is_captured) {
                 return T_DYNAMIC;
@@ -225,7 +225,7 @@ private:
             }
         }
         if (const auto it = ir().var_define_nodes.find(var_node); it != ir().var_define_nodes.end()) {
-            return LookupNodeType(const_cast<SyntaxTreeInterface*>(it->second));
+            return LookupNodeType(const_cast<SyntaxTreeInterface *>(it->second));
         }
         return T_DYNAMIC;
     }
@@ -271,7 +271,7 @@ private:
 
     std::array<std::stringstream, static_cast<size_t>(Section::Count)> sections_;// C 代码分区输出流数组
 
-    const struct SpecFuncContext *cur_spec_ctx_ = nullptr;           // 当前特化版本的上下文（func_name/bitmask/snapshot）
+    const struct SpecFuncContext *cur_spec_ctx_ = nullptr;// 当前特化版本的上下文（func_name/bitmask/snapshot）
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
@@ -281,7 +281,7 @@ private:
 
     struct VarDef {
         std::string name;
-        const SyntaxTreeInterface *def_node = nullptr; // local stmt, parameter list, or loop stmt
+        const SyntaxTreeInterface *def_node = nullptr;// local stmt, parameter list, or loop stmt
         FuncInfo *defining_func = nullptr;
         bool is_captured = false;
     };
@@ -292,46 +292,43 @@ private:
     };
 
     struct FuncInfo {
-        const SyntaxTreeInterface *node = nullptr; // Function, LocalFunction, or FunctionDef node
+        const SyntaxTreeInterface *node = nullptr;// Function, LocalFunction, or FunctionDef node
         SyntaxTreeInterfacePtr funcbody;
         FuncInfo *parent = nullptr;
         std::string name;
         std::string unique_c_name;
         std::vector<std::string> params;
         bool is_vararg = false;
-        std::vector<VarDef *> captured_vars; // upvalues captured
+        std::vector<VarDef *> captured_vars;// upvalues captured
         std::unordered_set<VarDef *> captured_set;
     };
+
     std::vector<std::unique_ptr<VarDef>> all_defs_;
     std::vector<std::unique_ptr<FuncInfo>> all_funcs_;
     std::unordered_map<const SyntaxTreeInterface *, FuncInfo *> func_map_;
-    
+
     struct PairHash {
-        template <class T1, class T2>
+        template<class T1, class T2>
         std::size_t operator()(const std::pair<T1, T2> &p) const {
             auto h1 = std::hash<T1>{}(p.first);
             auto h2 = std::hash<T2>{}(p.second);
             return h1 ^ (h2 << 1);
         }
     };
-    
+
     std::unordered_map<std::pair<const SyntaxTreeInterface *, std::string>, VarDef *, PairHash> stmt_var_to_def_;
     std::unordered_map<const SyntaxTreeInterface *, VarDef *> var_to_def_map_;
-    
-    FuncInfo *cur_func_info_ = nullptr; // The function currently being compiled
-    std::string cur_package_name_; // Current package name declared in chunk
 
-    void ResolveScopes(const SyntaxTreeInterfacePtr &node,
-                       std::vector<Scope> &scopes,
-                       std::vector<FuncInfo *> &func_stack,
-                       FuncInfo *cur_func);
+    FuncInfo *cur_func_info_ = nullptr;// The function currently being compiled
+    std::string cur_package_name_;     // Current package name declared in chunk
+
+    void ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vector<Scope> &scopes, std::vector<FuncInfo *> &func_stack, FuncInfo *cur_func);
 
     bool IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const;
     std::string CompileUpvaluePointer(VarDef *def);
 
     // 查询 name 在 stmt_ptr 对应语句节点上是否被标记为 captured
-    [[nodiscard]] bool IsCapturedInStmt(const SyntaxTreeInterface *stmt_ptr,
-                                        const std::string &name) const;
+    [[nodiscard]] bool IsCapturedInStmt(const SyntaxTreeInterface *stmt_ptr, const std::string &name) const;
 
     // 发射 heap-boxed captured var 声明：
     //   CVar *__box_<name> = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);
@@ -346,8 +343,7 @@ private:
     // 构建特化函数调用的实参表达式字符串。
     // math_params 对应参数加 ".data_.f" 或 ".data_.i" 后缀，其余原样传递。
     // 返回例如 "x, y.data_.f, z"
-    [[nodiscard]] static std::string BuildSpecCallArgs(const std::vector<std::string> &params,
-                                                       const std::vector<int> &math_params, int bitmask);
+    [[nodiscard]] static std::string BuildSpecCallArgs(const std::vector<std::string> &params, const std::vector<int> &math_params, int bitmask);
 
     // -----------------------------------------------------------------------
     // Package 探测辅助
@@ -362,19 +358,18 @@ private:
     // 字面量 key 分类辅助
     // -----------------------------------------------------------------------
     struct LiteralKeyInfo {
-        TableKeyKind kind;  // kString / kInt / kFloat / kBool
-        std::string repr;   // 归一化后的字符串，用于 spec 命中判定；
-                            // - kString: 原始字符串内容（不含引号）
-                            // - kInt: 十进制整数字符串
-                            // - kFloat: 浮点数字符串
-                            // - kBool: "true" 或 "false"
+        TableKeyKind kind;// kString / kInt / kFloat / kBool
+        std::string repr; // 归一化后的字符串，用于 spec 命中判定；
+                          // - kString: 原始字符串内容（不含引号）
+                          // - kInt: 十进制整数字符串
+                          // - kFloat: 浮点数字符串
+                          // - kBool: "true" 或 "false"
     };
+
     // 若 exp 是可静态分类的字面量 key，填充 out 并返回 true；否则返回 false。
     // 纯查询函数，不做任何 emit。
     [[nodiscard]] static bool ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo &out);
     void CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt);
-
 };
 
-} // namespace fakelua
-
+}// namespace fakelua

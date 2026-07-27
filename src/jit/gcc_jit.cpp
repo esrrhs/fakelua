@@ -141,7 +141,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     args.emplace_back(so_file);
     args.emplace_back(c_file);
 
-// Helper: build null-terminated argv from std::vector<std::string>.
+    // Helper: build null-terminated argv from std::vector<std::string>.
     auto build_argv = [&]() {
         std::vector<char *> argv;
         argv.reserve(args.size() + 1);
@@ -233,9 +233,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     }
     const auto handle = std::make_shared<GCCHandle>(c_file, so_file, log_file, dl_handle);
 
-    auto dlsym_lambda = [&](const std::string &sym) -> void * {
-        return dlsym(dl_handle, sym.c_str());
-    };
+    auto dlsym_lambda = [&](const std::string &sym) -> void * { return dlsym(dl_handle, sym.c_str()); };
 #endif
 
     // ---- Common post-load: register compiled functions + call init ----

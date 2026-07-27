@@ -1,9 +1,9 @@
-#include "var/var_closure.h"
 #include "vm.h"
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
 #include "util/dispatch_macro.h"
+#include "var/var_closure.h"
 #include "var/var_multi.h"
 #include "var/var_type.h"
 #include <stdarg.h>
@@ -84,7 +84,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
                 }
             } else if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar){static_cast<int>(VarType::Nil)};
+                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)};
             } else {
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
             }
@@ -92,7 +92,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 
         if (UNLIKELY(is_vararg)) {
             for (int i = 0; i < fixed_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
             }
             const int vararg_count = flat_count - fixed_arg_count;
             VarMulti *m = VarMulti::AllocTemp(state, vararg_count > 0 ? vararg_count : 0);
@@ -109,7 +109,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
                 ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, flat_count));
             }
             for (int i = 0; i < expected_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
             }
         }
         arg_arr = temp_arg_arr;
@@ -128,7 +128,9 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     }
 
     switch (expected_arg_count) {
-#define VM_CASE(N) case N: return reinterpret_cast<CVar (*)(VarClosure * DISPATCH_CVAR_##N)>(addr)(nullptr DISPATCH_ARG_##N);
+#define VM_CASE(N)                                                                                                                                                                                     \
+    case N:                                                                                                                                                                                            \
+        return reinterpret_cast<CVar (*)(VarClosure * DISPATCH_CVAR_##N)>(addr)(nullptr DISPATCH_ARG_##N);
 
         VM_CASE(0)
         VM_CASE(1)

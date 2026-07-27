@@ -1,13 +1,13 @@
 #pragma once
 
 #include "fakelua.h"
-#include "state/state.h"
 #include "state/heap.h"
+#include "state/state.h"
+#include "util/common.h"
 #include "var/var_closure.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
 #include "var/var_type.h"
-#include "util/common.h"
 
 #include <cstring>
 #include <functional>
@@ -28,27 +28,27 @@ struct NativeField {
     int64_t i = 0;
     double f = 0.0;
     bool b = false;
-    std::string s;          // Kind::String 时的原始字符串
-    NativeObject* obj = nullptr; // Kind::Object 时的嵌套对象（不拥有）
+    std::string s;              // Kind::String 时的原始字符串
+    NativeObject *obj = nullptr;// Kind::Object 时的嵌套对象（不拥有）
 
     // 惰性构建 VarString 缓存（存在 C++ 堆，供 spec_get 返回 VAR_STRING CVar）
     // 当 s 内容变化时重建；由于 fakelua 是单线程的，此处不加锁。
-    mutable std::vector<char> vs_cache; // [sizeof(VarString) + s.size()] 的 buffer
+    mutable std::vector<char> vs_cache;// [sizeof(VarString) + s.size()] 的 buffer
     mutable bool vs_dirty = true;
 
     // 返回与 VarString 内存布局兼容的指针（data_ 紧跟在结构体后）
-    VarString* GetVarString() const {
-        if (vs_dirty || vs_cache.size() != sizeof(VarString) + static_cast<size_t>(std::max(0, (int)s.size()))) {
+    VarString *GetVarString() const {
+        if (vs_dirty || vs_cache.size() != sizeof(VarString) + static_cast<size_t>(std::max(0, (int) s.size()))) {
             vs_cache.resize(sizeof(VarString) + s.size());
             // 直接写 POD 字段（避免调用构造函数访问 data_[0]）
-            std::memcpy(vs_cache.data(), "\0\0\0\0\0\0\0\0", 8); // size_=0, hash_=0
-            *reinterpret_cast<int*>(vs_cache.data()) = static_cast<int>(s.size());
+            std::memcpy(vs_cache.data(), "\0\0\0\0\0\0\0\0", 8);// size_=0, hash_=0
+            *reinterpret_cast<int *>(vs_cache.data()) = static_cast<int>(s.size());
             if (!s.empty()) {
                 std::memcpy(vs_cache.data() + sizeof(VarString), s.data(), s.size());
             }
             vs_dirty = false;
         }
-        return reinterpret_cast<VarString*>(vs_cache.data());
+        return reinterpret_cast<VarString *>(vs_cache.data());
     }
 };
 
@@ -57,8 +57,8 @@ struct NativeField {
 // VarTable 每帧 reset，但 NativeObjectSpec.obj 和 .state 始终有效
 // ─────────────────────────────────────────────────────────────────────────────
 struct NativeObjectSpec {
-    NativeObject* obj;   // C++ 堆，跨帧持久
-    State* state;        // fakelua 状态（单帧内有效即可）
+    NativeObject *obj;// C++ 堆，跨帧持久
+    State *state;     // fakelua 状态（单帧内有效即可）
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,16 +73,15 @@ struct NativeObject::Impl {
 };
 
 // spec_get / spec_set 静态实现
-CVar NativeSpecGet(VarTable* tbl, CVar k, bool* finish);
-void NativeSpecSet(VarTable* tbl, CVar k, CVar v, bool* finish);
+CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
+void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
 
 // 从 CVar key 提取字符串视图（VAR_STRINGID / VAR_STRING）
 inline std::string_view KeyToStringView(CVar k) {
     const int t = k.type_;
     if (t == static_cast<int>(VarType::StringId)) {
-        const auto* vs = reinterpret_cast<VarString*>(k.data_.i);
-        return {reinterpret_cast<const char*>(vs) + sizeof(VarString),
-                static_cast<size_t>(vs->Size())};
+        const auto *vs = reinterpret_cast<VarString *>(k.data_.i);
+        return {reinterpret_cast<const char *>(vs) + sizeof(VarString), static_cast<size_t>(vs->Size())};
     }
     if (t == static_cast<int>(VarType::String)) {
         return k.data_.s->Str();
@@ -91,7 +90,7 @@ inline std::string_view KeyToStringView(CVar k) {
 }
 
 // NativeField → CVar（需要 State* 以便嵌套对象 Wrap）
-CVar NativeFieldToCVar(const NativeField& field, State* s);
+CVar NativeFieldToCVar(const NativeField &field, State *s);
 
 // CVar → NativeField（将 fakelua 值转为 C++ 持久值）
 NativeField CVarToNativeField(CVar v);
