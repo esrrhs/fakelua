@@ -220,30 +220,65 @@ ctest --test-dir build -V
 - `--repeat`：重复调用次数（用于性能测量）
 - `--debug`：是否启用调试模式（默认 `false`，若为 `true` 则输出生成的 C 源码）
 
-### C++ 嵌入示例
+### 示例：Lua 脚本与 C++ 宿主嵌入
+
+#### 1. Lua 脚本文件 (`script.lua`)
+
+```lua
+-- 1. 普通数值计算
+function add(a, b)
+    return a + b
+end
+
+-- 2. 可变参数求和
+function sum(...)
+    local total = 0
+    for _, v in ipairs({...}) do
+        total = total + v
+    end
+    return total
+end
+
+-- 3. 多返回值函数
+function multi_return(val)
+    return val, val * 2, "hello"
+end
+```
+
+#### 2. C++ 宿主代码 (`main.cpp`)
 
 ```cpp
 #include "fakelua.h"
+#include <iostream>
+#include <tuple>
+
 using namespace fakelua;
 
 int main() {
+    // 1. 使用 RAII 自动管理 State 生命周期
     FakeluaStateGuard guard;
     State* s = guard.GetState();
 
+    // 2. 编译 Lua 脚本文件
     CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
 
-    // 基本调用
-    int ret = 0;
-    Call(s, JIT_GCC, "add", ret, 1, 2);
+    // 3. 基本函数调用 (原生 C++ 类型与 CVar 自动转换)
+    int res_add = 0;
+    Call(s, JIT_GCC, "add", res_add, 10, 20);
+    std::cout << "add(10, 20) = " << res_add << std::endl; // 30
 
-    // 可变参数调用 — 多余参数自动打包为 Multi
-    int sum = 0;
-    Call(s, JIT_TCC, "sum", sum, 10, 20, 30);
+    // 4. 可变参数调用 — 多余参数自动打包为 Multi
+    int res_sum = 0;
+    Call(s, JIT_TCC, "sum", res_sum, 1, 2, 3, 4, 5);
+    std::cout << "sum(1..5) = " << res_sum << std::endl; // 15
 
-    // 多返回值 — 用 std::tie 自动解包
-    int a = 0, b = 0;
-    std::string c;
-    Call(s, JIT_GCC, "multi_return", std::tie(a, b, c), some_arg);
+    // 5. 多返回值调用 — 使用 std::tie 自动解包接收
+    int x = 0, y = 0;
+    std::string msg;
+    Call(s, JIT_GCC, "multi_return", std::tie(x, y, msg), 42);
+    std::cout << "multi_return(42) = " << x << ", " << y << ", " << msg << std::endl; // 42, 84, hello
+
+    return 0;
 }
 ```
 
