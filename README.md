@@ -78,6 +78,14 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 
 [VarInterface](file:///home/project/fakelua/include/fakelua.h#L17) 是 Lua table 等复杂类型与宿主之间的抽象接口，宿主可按需实现自己的版本接入原有对象系统。库内附带 [SimpleVarImpl](file:///home/project/fakelua/include/fakelua.h#L61) 开箱即用。
 
+### [NativeObject](file:///home/project/fakelua/include/fakelua.h#L580)：原生对象桥接与组内存池（Group Arena）
+
+提供高性能宿主 C++ 原生对象映射能力：
+
+- **精简宿主公共 API**：在 SDK 头文件中屏蔽底层存储细节（Pimpl），只暴露必要的属性读写（`GetInt`/`SetInt`/`GetFloat`/`SetObject` 等）与迭代方法。
+- **组粒度批次释放（Group Allocation & Arena Destroy）**：禁止单个手动申请或卸载对象。所有 `NativeObject` 均强制在指定的 `group_id` 组池内创建（`NativeObjectManager::Instance().Create(group_id, ...)`），在处理请求或逻辑帧完成后通过 `DestroyGroup(group_id)` 批量一次性释放，与 FakeLua 无 GC、Arena 极速重置的设计哲学高度保持一致。
+- **C++ 函数自动装箱转换**：C++ 侧注册的 Native 回调可以直接返回 `NativeObject*` 指针，`fakelua.h` 的 `inter::NativeToFakelua` 会自动安全打包并转换为 Lua 可識別的装箱对象。
+
 ### 多返回值与可变参数（Multi-Return & Varargs）
 
 - **多返回值**：函数可以通过 `return a, b` 返回多个值，在赋值或返回语句中正确解包。
