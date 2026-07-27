@@ -334,6 +334,8 @@ std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *s);
 // 0: 关闭, 1: 错误, 2: 信息, 默认为错误。
 void SetDebugLogLevel(int level);
 
+class NativeObject;
+
 namespace inter {
 
 // 原生转 FakeLua
@@ -356,6 +358,9 @@ CVar NativeToFakeluaStr(State *s, char *v);
 CVar NativeToFakeluaString(State *s, const std::string &v);
 CVar NativeToFakeluaStringView(State *s, const std::string_view &v);
 void ThrowIfMultiCVar(const CVar &v);
+
+CVar NativeToFakeluaVarInterface(State *s, VarInterface *v);
+CVar NativeToFakeluaNativeObject(State *s, const NativeObject *obj);
 
 template<typename T>
 CVar NativeToFakelua(State *s, T v) {
@@ -383,6 +388,10 @@ CVar NativeToFakelua(State *s, T v) {
     } else if constexpr (std::is_same_v<T, CVar>) {
         ThrowIfMultiCVar(v);
         return v;
+    } else if constexpr (std::is_same_v<std::remove_cvref_t<T>, NativeObject *>) {
+        return NativeToFakeluaNativeObject(s, v);
+    } else if constexpr (std::is_pointer_v<T> && std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>) {
+        return NativeToFakeluaVarInterface(s, v);
     } else {
         static_assert(sizeof(T) == 0, "NativeToFakelua: unsupported type T");
     }
@@ -405,6 +414,7 @@ double FakeluaToNativeDouble(State *s, CVar v);
 std::string FakeluaToNativeString(State *s, CVar v);
 std::string_view FakeluaToNativeStringView(State *s, CVar v);
 VarInterface *FakeluaToNativeObj(State *s, CVar v);
+
 template<typename T>
 T FakeluaToNative(State *s, const CVar v) {
     if constexpr (std::is_same_v<T, bool>) {
@@ -478,6 +488,7 @@ CVar AllocMultiCVar(State *s, int count);
 void SetMultiCVarElement(CVar &multi, int idx, CVar val);
 CVar GetMultiCVarElement(const CVar &multi, int idx);
 int GetMultiCVarCount(const CVar &multi);
+CVar GetNativeArg(State *s, CVar *args, int n, int idx);
 
 }// namespace inter
 
@@ -487,8 +498,10 @@ int GetMultiCVarCount(const CVar &multi);
 
 template<typename T>
 struct is_std_tuple : std::false_type {};
+
 template<typename... Ts>
 struct is_std_tuple<std::tuple<Ts...>> : std::true_type {};
+
 template<typename T>
 inline constexpr bool is_std_tuple_v = is_std_tuple<T>::value;
 
@@ -562,5 +575,151 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
         ret = inter::FakeluaToNative<RetType>(s, ret_var);
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NativeObject — 完全由 C++ 管理的持久对象，跨帧存活
+//
+// 设计原则：
+//   - 数据存在 C++ 堆，与 fakelua 的 arena（每帧 reset）完全隔离
+//   - 通过 Wrap(State*) 在当前帧内生成一个轻量 VarTable 壳，供 lua 访问
+//   - VarTable 壳帧末自动消亡，NativeObject 本身由用户负责 Create/Destroy
+//   - lua 通过 player.hp / player.hp = 123 读写字段，底层走 spec_get/spec_set
+//   - 嵌套对象：SetObject("inventory", inv_obj)，lua 侧 player.inventory.item 透明访问
+// ─────────────────────────────────────────────────────────────────────────────
+struct NativeField;
+
+class NativeObject {
+public:
+    // 禁止拷贝
+    NativeObject(const NativeObject &) = delete;
+    NativeObject &operator=(const NativeObject &) = delete;
+
+    // ── 元信息读取 ───────────────────────────────────────────────────────────
+    [[nodiscard]] const std::string &GetTypeName() const;
+    [[nodiscard]] int64_t GetId() const;
+    void SetId(int64_t id);
+    [[nodiscard]] int64_t GetGroupId() const;
+    void SetGroupId(int64_t group_id);
+    [[nodiscard]] size_t Size() const;// 字段数量
+    [[nodiscard]] bool Has(std::string_view key) const;
+
+    // ── 字段写入 ─────────────────────────────────────────────────────────────
+    void SetNil(std::string_view key);
+    void SetInt(std::string_view key, int64_t val);
+    void SetFloat(std::string_view key, double val);
+    void SetBool(std::string_view key, bool val);
+    void SetString(std::string_view key, std::string_view val);
+    void SetObject(std::string_view key, NativeObject *obj);// 嵌套对象（不拥有）
+
+    // ── 字段读取 ─────────────────────────────────────────────────────────────
+    [[nodiscard]] int64_t GetInt(std::string_view key, int64_t default_val = 0) const;
+    [[nodiscard]] double GetFloat(std::string_view key, double default_val = 0.0) const;
+    [[nodiscard]] bool GetBool(std::string_view key, bool default_val = false) const;
+    [[nodiscard]] std::string GetString(std::string_view key, std::string_view default_val = "") const;
+    [[nodiscard]] NativeObject *GetObject(std::string_view key) const;
+
+    // ── 批量操作 ─────────────────────────────────────────────────────────────
+    void Del(std::string_view key);
+    void Clear();
+
+    // 枚举所有字段（只读快照）
+    enum class FieldKind { Nil, Int, Float, Bool, String, Object };
+    void ForEach(const std::function<void(std::string_view key, FieldKind kind)> &fn) const;
+
+private:
+    struct Impl;
+    Impl *impl_;
+
+    explicit NativeObject(std::string type_name);
+    ~NativeObject();
+
+    // 内部申请与释放（只能由 NativeObjectManager 管理调配）
+    static NativeObject *Create(int64_t group_id, std::string type_name, int64_t id = 0);
+    static void Destroy(NativeObject *obj);
+
+    // 内部 CVar / 边界转换接口（不对外暴露）
+    [[nodiscard]] CVar Wrap(State *s) const;
+    static NativeObject *Unwrap(CVar v);
+    void SetFromCVar(std::string_view key, CVar v);
+    [[nodiscard]] CVar GetAsCVar(std::string_view key, State *s) const;
+
+    friend class NativeObjectManager;
+    friend CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
+    friend void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
+    friend CVar NativeFieldToCVar(const NativeField &field, State *s);
+    friend NativeField CVarToNativeField(CVar v);
+    friend void RegisterNativeObjectApi(State *s);
+    friend CVar inter::NativeToFakeluaNativeObject(State *s, const NativeObject *obj);
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RegisterNativeFunction — 注册 C++ 函数供 lua 脚本调用
+// ─────────────────────────────────────────────────────────────────────────────
+using NativeFuncCallback = std::function<CVar(State *, CVar *, int)>;
+using NativeVarFuncCallback = std::function<VarInterface *(State *, const std::vector<VarInterface *> &)>;
+
+void RegisterNativeFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeFuncCallback callback);
+
+void RegisterNativeVarFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeVarFuncCallback callback);
+
+template<typename Ret, typename... Args>
+void RegisterNativeFunction(State *s, const std::string &name, bool is_vararg, std::function<Ret(State *, Args...)> func) {
+    constexpr int arg_count = static_cast<int>(sizeof...(Args));
+    RegisterNativeFunction(s, name, arg_count, is_vararg, [func](State *state, CVar *args, int n) -> CVar {
+        auto unpack_helper = [state, args, n]<std::size_t... I>(std::index_sequence<I...>) {
+            return std::make_tuple(inter::FakeluaToNative<std::remove_cvref_t<Args>>(state, inter::GetNativeArg(state, args, n, static_cast<int>(I)))...);
+        };
+        auto call_tuple = unpack_helper(std::make_index_sequence<sizeof...(Args)>{});
+        if constexpr (std::is_void_v<Ret>) {
+            std::apply([state, &func](auto &&...unpacked_args) { func(state, std::forward<decltype(unpacked_args)>(unpacked_args)...); }, call_tuple);
+            return inter::NativeToFakeluaNil(state);
+        } else {
+            Ret ret_val = std::apply([state, &func](auto &&...unpacked_args) { return func(state, std::forward<decltype(unpacked_args)>(unpacked_args)...); }, call_tuple);
+            return inter::NativeToFakelua(state, ret_val);
+        }
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NativeObjectManager — 原生对象全局批处理注册管理器 (type_name, id) -> NativeObject*
+// 所有 NativeObject 必须归属于某一个 Group Arena，释放只能通过 DestroyGroup 统一批处理进行
+// ─────────────────────────────────────────────────────────────────────────────
+class NativeObjectManager {
+public:
+    static NativeObjectManager &Instance();
+
+    // 1. 申请/定义组 (Group Arena)
+    int64_t CreateGroup(int64_t specified_group_id = 0);
+
+    // 2. 在指定组内申请 NativeObject（group_id 必需 != 0）
+    NativeObject *Create(int64_t group_id, const std::string &type_name, int64_t id = 0);
+    NativeObject *Get(const std::string &type_name, int64_t id) const;
+
+    // 3. 一口气释放此 group 批处理空间下的所有对象（不允许单独销毁单个对象）
+    size_t DestroyGroup(int64_t group_id);
+    void Clear();
+
+private:
+    struct PairHash {
+        size_t operator()(const std::pair<std::string, int64_t> &p) const {
+            return std::hash<std::string>()(p.first) ^ (std::hash<int64_t>()(p.second) << 1);
+        }
+    };
+
+    std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
+    std::unordered_map<int64_t, std::vector<NativeObject *>> group_objects_;
+    int64_t next_auto_group_id_ = 1000000;
+
+    bool DestroySingle(const std::string &type_name, int64_t id);
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RegisterNativeObjectApi — 自动向 State 注册内置原生对象 API：
+//   - new_native_group([group_id]) -> group_id (申请/定义一个新的 Group 批处理空间)
+//   - new_native_obj(group_id, type, id) -> NativeObject (在指定 group 中申请对象)
+//   - get_native_obj(type, id) -> NativeObject (Wrap 壳) 或 nil
+//   - del_native_group(group_id) -> count (一口气注销释放整组空间的所有对象)
+// ─────────────────────────────────────────────────────────────────────────────
+void RegisterNativeObjectApi(State *s);
 
 }// namespace fakelua

@@ -7,9 +7,9 @@
 #define LUA_HPP
 
 extern "C" {
+#include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
-#include <lauxlib.h>
 }
 
-#endif // LUA_HPP
+#endif// LUA_HPP

@@ -1,9 +1,9 @@
-#include "var/var_closure.h"
 #include "vm.h"
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
 #include "util/dispatch_macro.h"
+#include "var/var_closure.h"
 #include "var/var_multi.h"
 #include "var/var_type.h"
 #include <stdarg.h>
@@ -18,25 +18,37 @@ extern "C" void FakeluaThrowError(State *state, const char *msg) {
     ThrowFakeluaException(msg);
 }
 
-
-
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
-    const auto func = state->GetVM().GetFunction(std::string(name));
-    if (UNLIKELY(func.Empty())) {
-        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' not found", name));
-    }
-    void *addr = func.GetAddr(static_cast<JITType>(jit_type));
-    if (UNLIKELY(!addr)) {
-        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no address for jit_type {}", name, jit_type));
+    // ── 查找函数：优先 JIT，其次 C++ 原生 ─────────────────────────────────────
+    const std::string func_name(name);
+    const auto jit_func = state->GetVM().GetFunction(func_name);
+    const bool has_jit = !jit_func.Empty();
+
+    // 确定 is_vararg / expected_arg_count / fixed_arg_count
+    bool is_vararg = false;
+    int expected_arg_count = 0;
+    int fixed_arg_count = 0;
+    const NativeFuncEntry *native_entry = nullptr;
+
+    if (has_jit) {
+        is_vararg = jit_func.IsVararg();
+        expected_arg_count = jit_func.GetArgCount();
+        fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
+    } else {
+        native_entry = state->GetVM().FindNativeFunction(func_name);
+        if (UNLIKELY(!native_entry)) {
+            ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' not found", name));
+        }
+        is_vararg = native_entry->is_vararg;
+        expected_arg_count = native_entry->arg_count;
+        fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
     }
 
-    const bool is_vararg = func.IsVararg();
-    const int expected_arg_count = func.GetArgCount();
-    const int fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
     if (UNLIKELY(arg_num > static_cast<int>(kMaxFunctionInputParams))) {
         ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) passed for function '{}', max is {}", arg_num, name, kMaxFunctionInputParams));
     }
 
+    // ── 收集原始参数 ──────────────────────────────────────────────────────────
     CVar raw_arg_arr[kMaxFunctionInputParams];
     va_list args_list;
     va_start(args_list, arg_num);
@@ -53,13 +65,14 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 #endif
     va_end(args_list);
 
+    // ── 展开 Multi / 补齐参数 ─────────────────────────────────────────────────
     const CVar *arg_arr = nullptr;
     const bool last_is_multi = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == static_cast<int>(VarType::Multi));
     CVar temp_arg_arr[kMaxFunctionInputParams];
+
     if (LIKELY(!is_vararg && arg_num == expected_arg_count && !last_is_multi)) {
         arg_arr = raw_arg_arr;
     } else {
-
         // 展开 Multi 参数到 flat_args
         CVar flat_args_buf[kMaxFunctionInputParams];
         int flat_count = 0;
@@ -71,7 +84,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
                 }
             } else if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar){static_cast<int>(VarType::Nil)};
+                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)};
             } else {
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
             }
@@ -79,7 +92,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 
         if (UNLIKELY(is_vararg)) {
             for (int i = 0; i < fixed_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
             }
             const int vararg_count = flat_count - fixed_arg_count;
             VarMulti *m = VarMulti::AllocTemp(state, vararg_count > 0 ? vararg_count : 0);
@@ -96,14 +109,28 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
                 ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, flat_count));
             }
             for (int i = 0; i < expected_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
             }
         }
         arg_arr = temp_arg_arr;
     }
 
+    // ── 分发 ─────────────────────────────────────────────────────────────────
+    // 情形 1：C++ 原生函数
+    if (!has_jit) {
+        return native_entry->callback(state, const_cast<CVar *>(arg_arr), expected_arg_count);
+    }
+
+    // 情形 2：JIT 编译的 lua 函数
+    void *addr = jit_func.GetAddr(static_cast<JITType>(jit_type));
+    if (UNLIKELY(!addr)) {
+        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no address for jit_type {}", name, jit_type));
+    }
+
     switch (expected_arg_count) {
-#define VM_CASE(N) case N: return reinterpret_cast<CVar (*)(VarClosure * DISPATCH_CVAR_##N)>(addr)(nullptr DISPATCH_ARG_##N);
+#define VM_CASE(N)                                                                                                                                                                                     \
+    case N:                                                                                                                                                                                            \
+        return reinterpret_cast<CVar (*)(VarClosure * DISPATCH_CVAR_##N)>(addr)(nullptr DISPATCH_ARG_##N);
 
         VM_CASE(0)
         VM_CASE(1)

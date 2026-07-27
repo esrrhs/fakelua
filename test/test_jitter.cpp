@@ -18,8 +18,7 @@ static VarInterface *TableToVi(State *s, const CVar &cv) {
 static VarInterface *ViFindVal(VarInterface *t, int64_t key) {
     for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
         auto kv = t->ViGetTableKv(i);
-        if (kv.first->ViGetType() == VarInterface::Type::INT && kv.first->ViGetInt() == key)
-            return kv.second;
+        if (kv.first->ViGetType() == VarInterface::Type::INT && kv.first->ViGetInt() == key) return kv.second;
     }
     return nullptr;
 }
@@ -28,8 +27,7 @@ static VarInterface *ViFindVal(VarInterface *t, int64_t key) {
 static VarInterface *ViFindVal(VarInterface *t, const std::string &key) {
     for (size_t i = 0; i < t->ViGetTableSize(); ++i) {
         auto kv = t->ViGetTableKv(i);
-        if (kv.first->ViGetType() == VarInterface::Type::STRING && kv.first->ViGetString() == key)
-            return kv.second;
+        if (kv.first->ViGetType() == VarInterface::Type::STRING && kv.first->ViGetString() == key) return kv.second;
     }
     return nullptr;
 }
@@ -607,8 +605,6 @@ TEST(jitter, test_const_nested_table) {
         ASSERT_EQ(ViTableGetInt(t_map, "c"), 3);
     });
 }
-
-
 
 // Variadic (...) in table constructors is not supported yet, these tests verify the exception is thrown
 TEST(jitter, test_local_table_with_variadic) {
@@ -1896,7 +1892,6 @@ TEST(jitter, test_for_in_key_only) {
     });
 }
 
-
 // T_DYNAMIC unary minus: exercises OpUnaryMinus in CompileExp CVar path
 // (c_gen.cpp line 2497). x is a T_DYNAMIC table lookup; -x uses OpUnaryMinus.
 // -(10) = -10.
@@ -2595,8 +2590,8 @@ TEST(jitter, test_32params) {
 // C++ 直接调用变参 Lua 函数的测试
 //
 // 约定：
-    //   - vararg 参数直接传递，Call() 自动打包
-    //   - 多返回值用 std::tie 自动解包
+//   - vararg 参数直接传递，Call() 自动打包
+//   - 多返回值用 std::tie 自动解包
 //   - 调用使用 Call 而非 FakeluaCallByName
 // ===========================================================================
 
@@ -2666,7 +2661,6 @@ TEST(jitter, vararg_from_cpp_or_default_with_arg) {
     });
 }
 
-
 TEST(jitter, test_const_complex_expr) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_const_complex_expr.lua", {.debug_mode = debug_mode});
@@ -2695,7 +2689,6 @@ TEST(jitter, test_const_complex_expr) {
         ASSERT_EQ(ViTableGetInt(t, "val"), -20);
     });
 }
-
 
 // ============================================================================
 // goto/label 合法场景
@@ -2768,4 +2761,3 @@ TEST(jitter, test_table_negative_int_key) {
         ASSERT_EQ(ret, 1);
     });
 }
-

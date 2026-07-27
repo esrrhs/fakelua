@@ -214,6 +214,7 @@ function bench_vector3(n)
     return sum
 end
 )";
+
 int64_t CppFib(const int64_t n) {
     if (n <= 1) {
         return n;
@@ -261,6 +262,7 @@ int64_t CppVector3(int64_t n) {
         int64_t y;
         int64_t z;
     };
+
     Vector3 v1{10 + g_matmul_nonce, 20, 30};
     Vector3 v2{1, 2, 3};
     int64_t sum = 0;
@@ -432,11 +434,9 @@ struct RuntimeContext {
         lua = luaL_newstate();
         luaL_openlibs(lua);
 
-        const char *lua_scripts[] = {
-                kFibScript,    kGcdScript,    kPowScript,         kSumScript,        kBubbleSortScript,
-                kSieveScript,  kBinarySearchScript, kFastPowScript, kPopcountScript,
-                kInsertionSortScript, kMatMulScript, kVector3Script};
-        for (const char *script : lua_scripts) {
+        const char *lua_scripts[] = {kFibScript,          kGcdScript,     kPowScript,      kSumScript,           kBubbleSortScript, kSieveScript,
+                                     kBinarySearchScript, kFastPowScript, kPopcountScript, kInsertionSortScript, kMatMulScript,     kVector3Script};
+        for (const char *script: lua_scripts) {
             if (luaL_dostring(lua, script) != LUA_OK) {
                 const char *err = lua_tostring(lua, -1);
                 throw std::runtime_error(std::string("init lua scripts failed: ") + (err ? err : "unknown"));
@@ -444,7 +444,7 @@ struct RuntimeContext {
         }
 
         flua = FakeluaNewState();
-        for (const char *script : lua_scripts) {
+        for (const char *script: lua_scripts) {
             CompileString(flua, script, {.debug_mode = false});
         }
 
@@ -496,8 +496,7 @@ RuntimeContext g_ctx;
 
 void VerifyEqual(const int64_t got, const int64_t expected, const char *name) {
     if (got != expected) {
-        throw std::runtime_error(std::string(name) + " wrong result: got " + std::to_string(got) +
-                                 ", expected " + std::to_string(expected));
+        throw std::runtime_error(std::string(name) + " wrong result: got " + std::to_string(got) + ", expected " + std::to_string(expected));
     }
 }
 
@@ -1045,8 +1044,7 @@ static void BM_FakeLua_Vector3_GCC(benchmark::State &state) {
 
 #define FIB_ARGS ->Arg(20)->Arg(25)->Arg(30)->Arg(32)
 #define GCD_ARGS ->Args({832040, 514229})->Args({123456789, 987654321})->Args({2147483647, 1073741823})
-#define POWMOD_ARGS                                                                                                         \
-    ->Args({2, 1000, 1000000007})->Args({7, 1000000, 1000000007})->Args({1234567, 7654321, 1000000007})
+#define POWMOD_ARGS ->Args({2, 1000, 1000000007})->Args({7, 1000000, 1000000007})->Args({1234567, 7654321, 1000000007})
 #define SUM_ARGS ->Arg(10000)->Arg(100000)->Arg(1000000)->Arg(5000000)
 #define BUBBLE_SORT_ARGS ->Arg(50)->Arg(100)->Arg(200)
 #define SIEVE_ARGS ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)

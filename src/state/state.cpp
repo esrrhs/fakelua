@@ -5,6 +5,7 @@
 namespace fakelua {
 
 State::State(const StateConfig &config) : config_(config), compiler_(this), const_string_(this) {
+    RegisterNativeObjectApi(this);
 }
 
 }// namespace fakelua

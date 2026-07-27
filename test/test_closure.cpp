@@ -2,8 +2,8 @@
 #include "fakelua.h"
 #include "gtest/gtest.h"
 
-#include <lua.hpp>
 #include <functional>
+#include <lua.hpp>
 
 using namespace fakelua;
 

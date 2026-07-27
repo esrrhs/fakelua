@@ -212,67 +212,66 @@ struct AnalysisResult {
 };
 
 // ---- 阶段四：类型推断结果 ---------------------------------------------------
-enum class TableKeyKind {
-    kString,
-    kInt,
-    kBool,
-    kFloat
-};
+enum class TableKeyKind { kString, kInt, kBool, kFloat };
 
 // table 特化信息：描述一个 table 的字段结构
 struct TableFieldInfo {
-    std::string key;            // 字段名（静态字符串 key）
-    InferredType type;          // 值的推断类型
+    std::string key;  // 字段名（静态字符串 key）
+    InferredType type;// 值的推断类型
     TableKeyKind key_kind = TableKeyKind::kString;
     std::string c_field_name;
     int64_t int_value = 0;
     bool bool_value = false;
     double float_value = 0.0;
-    bool optional = false;      // Phase 2: 该字段在当前 constructor 字面量中不存在（由合并产生），emit 时需 nil 初始化
+    bool optional = false;// Phase 2: 该字段在当前 constructor 字面量中不存在（由合并产生），emit 时需 nil 初始化
 };
 
 // table 特化信息：table constructor 节点对应的特化描述
 struct TableSpecInfo {
     std::vector<TableFieldInfo> fields;
-    bool can_specialize;  // 所有访问是否已知（可特化）
+    bool can_specialize;// 所有访问是否已知（可特化）
 };
 
 // per-spec-type 字段布局元数据：描述一个 spec 结构体类型（flua_spec_<hex>）的字段布局。
 // 由 TypeInferencer 在 AnalyzeTableShapes 之后预计算，供 CGen 发射 typedef/getter/setter 以及
 // CompileVar 解析字段时按名查询。按 spec 类型名（字段签名哈希）去重——同名类型共享同一布局。
 struct SpecTypeMetadata {
-    std::string name;                         // spec 类型名（flua_spec_<hex>）
-    std::vector<TableFieldInfo> fields;       // 排序后的字段列表（含 c_field_name / key / key_kind / type / optional）
+    std::string name;                  // spec 类型名（flua_spec_<hex>）
+    std::vector<TableFieldInfo> fields;// 排序后的字段列表（含 c_field_name / key / key_kind / type / optional）
     bool has_string_keys = false;
     bool has_int_keys = false;
     bool has_float_keys = false;
     bool has_bool_keys = false;
     // 派生索引：字段 key 描述符 → 各类查询（由 ComputeSpecTypeMetadata 一次性建好）。
-    std::unordered_set<std::string> field_key_descs;                 // IsSpecField 用
-    std::unordered_map<std::string, std::string> c_field_names;      // GetSpecFieldCName 用
-    std::unordered_map<std::string, int> field_indices;              // GetSpecFieldIndex 用
-    std::unordered_map<std::string, InferredType> field_types;       // GetSpecFieldType 用
+    std::unordered_set<std::string> field_key_descs;           // IsSpecField 用
+    std::unordered_map<std::string, std::string> c_field_names;// GetSpecFieldCName 用
+    std::unordered_map<std::string, int> field_indices;        // GetSpecFieldIndex 用
+    std::unordered_map<std::string, InferredType> field_types; // GetSpecFieldType 用
 };
 
 // 数学参数特化上下文：每个 (函数名, bitmask) 对应一个，描述该特化版本的参数类型假设
 // 与节点类型快照。由 TypeInferencer 预计算，供 CGen 的 CompileFuncBody 消费——
 // CGen 不再自行做 MathParamKindOf 推导、snapshot 选择或 param_types 初始填充。
 struct SpecFuncContext {
-    std::string func_name;                                          // 函数名
-    int bitmask = -1;                                               // 特化位掩码
-    const EvalTypeSnapshot *snapshot = nullptr;                     // 该版本所有 AST 节点的推断类型快照
-    std::unordered_map<std::string, InferredType> param_types;      // 参数名 → 初始特化类型（int/float）
-    std::vector<std::string> param_names;                           // 所有参数名（按位置顺序），供 CGen 初始化 spec_param_types_ 使用
+    std::string func_name;                                    // 函数名
+    int bitmask = -1;                                         // 特化位掩码
+    const EvalTypeSnapshot *snapshot = nullptr;               // 该版本所有 AST 节点的推断类型快照
+    std::unordered_map<std::string, InferredType> param_types;// 参数名 → 初始特化类型（int/float）
+    std::vector<std::string> param_names;                     // 所有参数名（按位置顺序），供 CGen 初始化 spec_param_types_ 使用
 };
 
 // 字段 key 描述符（与 CGen::GetKeyDescriptor / TypeInferencer::FieldKeyDescriptor 一致）。
 // 单一事实来源，保证 spec 类型名哈希与 TypeInferencer 去重/并集逻辑使用完全相同的描述符。
 inline std::string TableFieldDescriptor(const TableFieldInfo &f) {
     switch (f.key_kind) {
-        case TableKeyKind::kString: return "S_" + f.key;
-        case TableKeyKind::kInt:    return "I_" + f.key;
-        case TableKeyKind::kBool:   return "B_" + f.key;
-        case TableKeyKind::kFloat:  return "F_" + f.key;
+        case TableKeyKind::kString:
+            return "S_" + f.key;
+        case TableKeyKind::kInt:
+            return "I_" + f.key;
+        case TableKeyKind::kBool:
+            return "B_" + f.key;
+        case TableKeyKind::kFloat:
+            return "F_" + f.key;
     }
     return "";
 }
@@ -357,10 +356,10 @@ struct InferResult {
     std::unordered_map<std::string, std::vector<struct SpecFuncContext>> spec_func_context;
     // 变量定义关联表：从语法树变量引用节点 (SyntaxTreeVar) 指针 → 对应的初始化声明节点 (init_node)。
     // 由 TypeInferencer 填充，供 CGen 直接利用声明节点快照来查询当前物理变量是 native 还是 CVar。
-    std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> var_define_nodes;
+    std::unordered_map<const SyntaxTreeInterface *, const SyntaxTreeInterface *> var_define_nodes;
     // 遮蔽（Shadowing）声明：记录哪些 local 变量声明语句中的哪些变量名遮蔽了外部同名变量。
     // pair 的 first 是 SyntaxTreeLocalVar 节点指针，second 是变量名。
-    std::set<std::pair<const SyntaxTreeInterface*, std::string>> shadowed_decls;
+    std::set<std::pair<const SyntaxTreeInterface *, std::string>> shadowed_decls;
 };
 
 struct JitFunctionInfo {

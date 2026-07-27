@@ -1,8 +1,9 @@
+#include "compile/compiler.h"
 #include "fakelua.h"
 #include "jit/vm.h"
+#include "state/const_string.h"
 #include "state/heap.h"
 #include "state/state.h"
-#include "state/const_string.h"
 #include "util/file_util.h"
 #include "util/os.h"
 #include "var/var.h"
@@ -10,7 +11,6 @@
 #include "var/var_string.h"
 #include "var/var_table.h"
 #include "var/var_type.h"
-#include "compile/compiler.h"
 #include "gtest/gtest.h"
 #include <filesystem>
 
@@ -189,18 +189,18 @@ TEST(runtime, vm_call_by_name_error_cases) {
     CVar a7 = inter::NativeToFakeluaInt(&s, 7);
     CVar a8 = inter::NativeToFakeluaInt(&s, 8);
 
-    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "missing", 0), std::exception);
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "missing", 0), std::exception);
 
-    s.GetVM().RegisterFunction(VmFunction("nulladdr", 0, JIT_TCC, nullptr, {}));
-    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "nulladdr", 0), std::exception);
+    s.GetVM().RegisterFunction(VmFunction("nulladdr", 0, TEST_JIT_TYPE, nullptr, {}));
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "nulladdr", 0), std::exception);
 
     s.GetVM().RegisterFunction(VmFunction("fnv", 8, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho8), {}));
-    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "fnv", 9, a0, a1, a2, a3, a4, a5, a6, a7, a8), std::exception);
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "fnv", 9, a0, a1, a2, a3, a4, a5, a6, a7, a8), std::exception);
 
     // Bug M: 参数个数与函数签名不匹配时必须抛异常（否则会读取未初始化栈内存）。
     // 这里 fnv 要求 8 个参数，分别传 3 个 / 0 个都应抛异常。
-    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "fnv", 3, a0, a1, a2), std::exception);
-    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "fnv", 0), std::exception);
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "fnv", 3, a0, a1, a2), std::exception);
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "fnv", 0), std::exception);
 }
 
 TEST(runtime, vm_helper_functions_throw_and_alloc) {
@@ -317,7 +317,7 @@ TEST(runtime, state_config_is_stored) {
 
 // 使用宏定义 VmFnEcho9 到 VmFnEcho32
 #define DEFINE_ECHO_FN(N)                                                                                                                                                                              \
-    static CVar VmFnEcho##N(VarClosure *_CL, PARAMS_##N) {                                                                                                                                              \
+    static CVar VmFnEcho##N(VarClosure *_CL, PARAMS_##N) {                                                                                                                                             \
         CVar ret;                                                                                                                                                                                      \
         ret.type_ = static_cast<int>(VarType::Int);                                                                                                                                                    \
         ret.data_.i = N;                                                                                                                                                                               \
@@ -643,16 +643,12 @@ TEST(runtime, fakelua_call_by_name_vararg_path) {
     s.GetVM().RegisterFunction(VmFunction("vararg_sum", 2, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnVarargSum), {}, true));
 
     // 场景1：传入 1 个固定参数 + 2 个 vararg 参数（auto-pack 为 Multi）
-    CVar r1 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 3,
-                                inter::NativeToFakeluaInt(&s, 10),
-                                inter::NativeToFakeluaInt(&s, 20),
-                                inter::NativeToFakeluaInt(&s, 30));
+    CVar r1 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 3, inter::NativeToFakeluaInt(&s, 10), inter::NativeToFakeluaInt(&s, 20), inter::NativeToFakeluaInt(&s, 30));
     ASSERT_EQ(r1.type_, static_cast<int>(VarType::Int));
-    ASSERT_EQ(r1.data_.i, 60);  // 10 + 20 + 30
+    ASSERT_EQ(r1.data_.i, 60);// 10 + 20 + 30
 
     // 场景2：只传固定参数，vararg 为空
-    CVar r2 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 1,
-                                inter::NativeToFakeluaInt(&s, 42));
+    CVar r2 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 1, inter::NativeToFakeluaInt(&s, 42));
     ASSERT_EQ(r2.type_, static_cast<int>(VarType::Int));
     ASSERT_EQ(r2.data_.i, 42);
 }

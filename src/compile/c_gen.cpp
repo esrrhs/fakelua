@@ -97,9 +97,7 @@ bool CGen::ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo 
     }
     if (exp_node->GetExpKind() == ExpKind::kNumber) {
         std::string num_str = exp_node->ExpValue();
-        if (num_str.find('.') == std::string::npos &&
-            num_str.find('e') == std::string::npos &&
-            num_str.find('E') == std::string::npos) {
+        if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
             out.kind = TableKeyKind::kInt;
         } else {
             out.kind = TableKeyKind::kFloat;
@@ -156,7 +154,7 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     if (pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block) {
         const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
         const std::vector<SyntaxTreeInterfacePtr> *stmts_to_check = &blk->Stmts();
-        for (const auto &stmt : blk->Stmts()) {
+        for (const auto &stmt: blk->Stmts()) {
             if (stmt && stmt->Type() == SyntaxTreeType::Function) {
                 const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
                 if (func && func->Funcname()) {
@@ -210,7 +208,6 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     return gr;
 }
 
-
 // EmitSpecAccessorBody —— 按 key kind（string / int / float / bool）发射
 // spec get/set 访问器内层的 if-else / switch 条件逻辑。
 // is_get: true 时生成 get 的 match action，false 时生成 set 的 match action。
@@ -225,7 +222,8 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
                 if (is_get) {
                     Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": *__finish = true; return s->" << f.c_field_name << ";\n";
                 } else {
-                    Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return;\n";
+                    Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
+                          << "] = k; *__finish = true; return;\n";
                 }
             }
             f_idx++;
@@ -238,10 +236,12 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
         for (const auto &f: meta.fields) {
             if (f.key_kind == TableKeyKind::kString) {
                 if (is_get) {
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->"
+                          << f.c_field_name << "; }\n";
                 } else {
                     const auto id = s_->GetConstString().Alloc(f.key);
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name
+                          << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
                 }
             }
             f_idx++;
@@ -259,7 +259,8 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
                 if (is_get) {
                     Out() << "            case " << f.int_value << ": *__finish = true; return s->" << f.c_field_name << ";\n";
                 } else {
-                    Out() << "            case " << f.int_value << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return;\n";
+                    Out() << "            case " << f.int_value << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
+                          << "] = k; *__finish = true; return;\n";
                 }
             }
             f_idx++;
@@ -274,7 +275,8 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
                 if (is_get) {
                     Out() << "        if (__fval == (double)" << f.int_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
-                    Out() << "        if (__fval == (double)" << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                    Out() << "        if (__fval == (double)" << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
+                          << "] = k; *__finish = true; return; }\n";
                 }
             }
             f_idx++;
@@ -292,7 +294,8 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
                 if (is_get) {
                     Out() << "        if (__fval == " << f.float_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
-                    Out() << "        if (__fval == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                    Out() << "        if (__fval == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
+                          << "] = k; *__finish = true; return; }\n";
                 }
             }
             f_idx++;
@@ -305,7 +308,8 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
                 if (is_get) {
                     Out() << "        if ((double)__ival == " << f.float_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
-                    Out() << "        if ((double)__ival == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                    Out() << "        if ((double)__ival == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
+                          << "] = k; *__finish = true; return; }\n";
                 }
             }
             f_idx++;
@@ -323,7 +327,8 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
                 if (is_get) {
                     Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
-                    Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                    Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
+                          << "] = k; *__finish = true; return; }\n";
                 }
             }
             f_idx++;
@@ -460,7 +465,7 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     SectionGuard sg(*this, Section::Decls);
     Out() << "\n// ===== Function Declarations =====\n\n";
 
-    for (const auto &func : all_funcs_) {
+    for (const auto &func: all_funcs_) {
         const std::string &name = func->unique_c_name;
         const auto &params = func->params;
 
@@ -619,7 +624,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     };
 
     FuncInfo *init_func = nullptr;
-    for (const auto &func : all_funcs_) {
+    for (const auto &func: all_funcs_) {
         if (func->unique_c_name == kInitFunctionName) {
             init_func = func.get();
             break;
@@ -628,7 +633,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     if (init_func) {
         compile_func(init_func);
     }
-    for (const auto &func : all_funcs_) {
+    for (const auto &func: all_funcs_) {
         if (func.get() == init_func) continue;
         compile_func(func.get());
     }
@@ -716,8 +721,6 @@ std::string CGen::GetKeyDescriptor(const std::string &key, TableKeyKind kind) {
     return "F_" + key;
 }
 
-
-
 std::string CGen::GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const {
     // 从 TypeInferencer 标注的 ir.var_spec_annotations 中获取流敏感 spec 类型名。
     if (const auto it = ir().var_spec_annotations.find(pe.get()); it != ir().var_spec_annotations.end()) {
@@ -787,9 +790,9 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
             const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
             if (fb->Parlist()) parlist_ptr = fb->Parlist().get();
         }
-        
+
         if (parlist_ptr) {
-            for (const auto &pname : cur_func_info_->params) {
+            for (const auto &pname: cur_func_info_->params) {
                 if (IsCapturedInStmt(parlist_ptr, pname)) {
                     func_temp_decls_ << "    CVar *__box_" << pname << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
                     if (cur_spec_ctx_) {
@@ -871,9 +874,9 @@ InferredType CGen::GetType(const SyntaxTreeInterfacePtr &exp) const {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
             if (var && var->GetVarKind() == VarKind::kSimple) {
                 const auto &name = var->GetName();
-                 if (const auto native_type = GetNativeVarType(name, var.get()); native_type == T_INT || native_type == T_FLOAT) {
-                     return native_type;
-                 }
+                if (const auto native_type = GetNativeVarType(name, var.get()); native_type == T_INT || native_type == T_FLOAT) {
+                    return native_type;
+                }
                 if (const auto git = ir().global_const_vars.find(name); git != ir().global_const_vars.end()) {
                     if (git->second == T_INT || git->second == T_FLOAT) {
                         return git->second;
@@ -1331,7 +1334,6 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     }
 }
 
-
 std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix) {
     if (auto native_cond = TryCompileNativeBoolExpr(exp); !native_cond.empty()) {
         return native_cond;
@@ -1643,9 +1645,7 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     Out() << GenTab() << "}\n";
 }
 
-CGen::PairsIpairsKind CGen::TryMatchPairsIpairs(
-    const std::shared_ptr<SyntaxTreeExplist> &explist_ptr, const std::vector<std::string> &names,
-    SyntaxTreeInterfacePtr &out_tbl_arg) {
+CGen::PairsIpairsKind CGen::TryMatchPairsIpairs(const std::shared_ptr<SyntaxTreeExplist> &explist_ptr, const std::vector<std::string> &names, SyntaxTreeInterfacePtr &out_tbl_arg) {
     if (explist_ptr->Exps().size() != 1 || names.size() > 2) return PairsIpairsKind::kNone;
     const auto exp = explist_ptr->Exps()[0];
     if (!exp || exp->Type() != SyntaxTreeType::Exp) return PairsIpairsKind::kNone;
@@ -1849,12 +1849,8 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_mu
         case ExpKind::kFunctionDef: {
             const auto func_def = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(e->Right());
             FuncInfo *func = func_map_[func_def.get()];
-            std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}",
-                                                   func->unique_c_name,
-                                                   func->captured_vars.size(),
-                                                   func->params.size(),
-                                                   func->is_vararg ? "true" : "false");
-            for (VarDef *up : func->captured_vars) {
+            std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}", func->unique_c_name, func->captured_vars.size(), func->params.size(), func->is_vararg ? "true" : "false");
+            for (VarDef *up: func->captured_vars) {
                 closure_expr += ", " + CompileUpvaluePointer(up);
             }
             closure_expr += ")";
@@ -1884,8 +1880,7 @@ std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preser
         // 则取第一个值，等同于函数调用在非末尾位置的处理（FlUnboxMulti(x, 0)）。
         if (!preserve_multi) {
             const auto var_node = std::dynamic_pointer_cast<SyntaxTreeVar>(value);
-            if (var_node && var_node->GetVarKind() == VarKind::kSimple &&
-                var_node->GetName().rfind("__fakelua_vararg_", 0) == 0) {
+            if (var_node && var_node->GetVarKind() == VarKind::kSimple && var_node->GetName().rfind("__fakelua_vararg_", 0) == 0) {
                 return std::format("FlUnboxMulti({}, 0)", var_str);
             }
         }
@@ -1925,8 +1920,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     // table 特化：TypeInferencer 已在 table_spec_infos 中预分类所有静态 key 的构造器
     // （BuildCtorFields 对重复 key 抛出异常；can_specialize 表示可特化）。
     // CGen 直接消费，无需再次遍历 AST。
-    if (const auto spec_it = ir().table_spec_infos.find(tc.get());
-        spec_it != ir().table_spec_infos.end() && spec_it->second.can_specialize && !spec_it->second.fields.empty()) {
+    if (const auto spec_it = ir().table_spec_infos.find(tc.get()); spec_it != ir().table_spec_infos.end() && spec_it->second.can_specialize && !spec_it->second.fields.empty()) {
         const auto &fields = spec_it->second.fields;
         {
             const auto spec_type = ComputeTableSpecName(fields);
@@ -1939,7 +1933,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             // 填充 spec_keys/spec_vals (以正确的左到右语法顺序)
             int cur_array_idx = 1;
             const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
-            for (const auto &field : fieldlist->Fields()) {
+            for (const auto &field: fieldlist->Fields()) {
                 const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
                 if (!fp) continue;
 
@@ -2133,10 +2127,11 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &exp, const SyntaxTr
     // Native arithmetic fast path: both operands must be numeric. The result type
     // (T_INT/T_FLOAT) is derived from the operand types via the canonical type rule.
     if (lt != T_DYNAMIC && rt != T_DYNAMIC) {
-        const auto result_type = (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow)                                              ? T_FLOAT
-                                : (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift)
-                                              ? T_INT
-                                              : (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
+        const auto result_type =
+                (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow)                                                                                                             ? T_FLOAT
+                : (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) ? T_INT
+                : (lt == T_INT && rt == T_INT)                                                                                                                                           ? T_INT
+                                                                                                                                                                                         : T_FLOAT;
         if (auto native_str = CompileNativeArithBinop(left, right, op_kind, result_type); !native_str.empty()) {
             return native_str;
         }
@@ -2204,7 +2199,7 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &exp, const SyntaxTre
     } else if (op_kind == UnOpKind::kBitNot) {
         result_type = (rt == T_INT || rt == T_FLOAT) ? T_INT : T_DYNAMIC;
     } else {
-        result_type = T_DYNAMIC;  // kNumberSign / kNot handled by slow path
+        result_type = T_DYNAMIC;// kNumberSign / kNot handled by slow path
     }
 
     // Native fast path for unary minus and bitwise not when operand is numeric.
@@ -2942,7 +2937,8 @@ std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctio
 }
 
 // 普通路径：将所有参数编译为 CVar。
-void CGen::CompileCallArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr, ArgsKind args_kind, std::vector<std::string> &compiled_args, bool &has_expansion, std::string &expansion_tmp, int &expansion_start_idx) {
+void CGen::CompileCallArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr, ArgsKind args_kind, std::vector<std::string> &compiled_args, bool &has_expansion, std::string &expansion_tmp,
+                           int &expansion_start_idx) {
     if (args_kind == ArgsKind::kExpList) {
         const auto explist = args_ptr->Explist();
         DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
@@ -3016,7 +3012,7 @@ std::string CGen::BuildLocalFunctionCall(const std::string &func_name, const std
                 args.push_back(slice_expr);
             } else if (expansion_start_idx == fixed_param_count) {
                 args.push_back(expansion_tmp);
-            } else { // expansion_start_idx > fixed_param_count
+            } else {// expansion_start_idx > fixed_param_count
                 std::vector<std::string> prefix_args;
                 for (int i = fixed_param_count; i < expansion_start_idx; ++i) {
                     prefix_args.push_back(args[i]);
@@ -3063,7 +3059,8 @@ std::string CGen::BuildLocalFunctionCall(const std::string &func_name, const std
     return call_expr;
 }
 
-std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp) {
+std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr,
+                                  const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp) {
     auto args = compiled_args;
     if (has_expansion) {
         args.push_back(expansion_tmp);
@@ -3095,19 +3092,20 @@ std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> 
 
     std::vector<std::string> final_args;
     final_args.push_back(obj_tmp);
-    for (const auto &arg : args) {
+    for (const auto &arg: args) {
         final_args.push_back(arg);
     }
 
     std::string call_expr = std::format("FlCallClosure(_S, {}, {}", callee_tmp, final_args.size());
-    for (const auto &arg : final_args) {
+    for (const auto &arg: final_args) {
         call_expr += ", " + arg;
     }
     call_expr += ")";
     return call_expr;
 }
 
-std::string CGen::BuildDynamicCall(const std::string &func_name, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, bool is_local_callee) {
+std::string CGen::BuildDynamicCall(const std::string &func_name, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var,
+                                   const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, bool is_local_callee) {
     auto args = compiled_args;
     if (has_expansion) {
         args.push_back(expansion_tmp);
@@ -3135,11 +3133,7 @@ std::string CGen::BuildDynamicCall(const std::string &func_name, SyntaxTreeInter
     return call_expr;
 }
 
-
-void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
-                         std::vector<Scope> &scopes,
-                         std::vector<FuncInfo *> &func_stack,
-                         FuncInfo *cur_func) {
+void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vector<Scope> &scopes, std::vector<FuncInfo *> &func_stack, FuncInfo *cur_func) {
     if (!node) return;
 
     auto enter_scope = [&]() {
@@ -3147,9 +3141,7 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
         s.func = cur_func;
         scopes.push_back(s);
     };
-    auto exit_scope = [&]() {
-        scopes.pop_back();
-    };
+    auto exit_scope = [&]() { scopes.pop_back(); };
     auto define_var = [&](const std::string &name, const SyntaxTreeInterface *def_node) {
         auto def = std::make_unique<VarDef>();
         def->name = name;
@@ -3166,7 +3158,7 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
         case SyntaxTreeType::Block: {
             enter_scope();
             const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-            for (const auto &stmt : block->Stmts()) {
+            for (const auto &stmt: block->Stmts()) {
                 ResolveScopes(stmt, scopes, func_stack, cur_func);
             }
             exit_scope();
@@ -3176,7 +3168,7 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
             const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
             ResolveScopes(lv->Explist(), scopes, func_stack, cur_func);
             if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist())) {
-                for (const auto &name : nl->Names()) {
+                for (const auto &name: nl->Names()) {
                     define_var(name, lv.get());
                 }
             }
@@ -3198,7 +3190,7 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
             ResolveScopes(fi->Explist(), scopes, func_stack, cur_func);
             enter_scope();
             if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(fi->Namelist())) {
-                for (const auto &name : nl->Names()) {
+                for (const auto &name: nl->Names()) {
                     define_var(name, fi.get());
                 }
             }
@@ -3212,7 +3204,7 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
             auto new_func = std::make_unique<FuncInfo>();
             new_func->node = node.get();
             new_func->parent = cur_func;
-            
+
             std::string orig_name = "";
             if (node->Type() == SyntaxTreeType::Function) {
                 orig_name = CompileFuncName(std::dynamic_pointer_cast<SyntaxTreeFunction>(node)->Funcname());
@@ -3222,7 +3214,7 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
                 orig_name = std::format("__fakelua_lambda_{}", all_funcs_.size());
             }
             new_func->name = orig_name;
-            
+
             if (cur_func != nullptr) {
                 new_func->unique_c_name = std::format("__fl_func_{}", all_funcs_.size());
             } else {
@@ -3262,7 +3254,7 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
                 const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
                 if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(fb->Parlist())) {
                     if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
-                        for (const auto &pname : namelist->Names()) {
+                        for (const auto &pname: namelist->Names()) {
                             auto def = std::make_unique<VarDef>();
                             def->name = pname;
                             def->def_node = parlist.get();
@@ -3316,14 +3308,14 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
         }
         case SyntaxTreeType::VarList: {
             const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
-            for (const auto &v : vl->Vars()) {
+            for (const auto &v: vl->Vars()) {
                 ResolveScopes(v, scopes, func_stack, cur_func);
             }
             break;
         }
         case SyntaxTreeType::ExpList: {
             const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
-            for (const auto &exp : el->Exps()) {
+            for (const auto &exp: el->Exps()) {
                 ResolveScopes(exp, scopes, func_stack, cur_func);
             }
             break;
@@ -3353,7 +3345,7 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
         }
         case SyntaxTreeType::FieldList: {
             const auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
-            for (const auto &field : fl->Fields()) {
+            for (const auto &field: fl->Fields()) {
                 ResolveScopes(field, scopes, func_stack, cur_func);
             }
             break;
@@ -3443,12 +3435,8 @@ void CGen::CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt) {
 
     FuncInfo *func = func_map_[lf.get()];
 
-    std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}",
-                                           func->unique_c_name,
-                                           func->captured_vars.size(),
-                                           func->params.size(),
-                                           func->is_vararg ? "true" : "false");
-    for (VarDef *up : func->captured_vars) {
+    std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}", func->unique_c_name, func->captured_vars.size(), func->params.size(), func->is_vararg ? "true" : "false");
+    for (VarDef *up: func->captured_vars) {
         closure_expr += ", " + CompileUpvaluePointer(up);
     }
     closure_expr += ")";

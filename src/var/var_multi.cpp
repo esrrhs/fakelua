@@ -1,5 +1,5 @@
-#include "fakelua.h"
 #include "var/var_multi.h"
+#include "fakelua.h"
 #include "state/state.h"
 
 namespace fakelua {
