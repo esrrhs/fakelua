@@ -84,7 +84,32 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 
 - **精简宿主公共 API**：在 SDK 头文件中屏蔽底层存储细节（Pimpl），只暴露必要的属性读写（`GetInt`/`SetInt`/`GetFloat`/`SetObject` 等）与迭代方法。
 - **组粒度批次释放（Group Allocation & Arena Destroy）**：禁止单个手动申请或卸载对象。所有 `NativeObject` 均强制在指定的 `group_id` 组池内创建（`NativeObjectManager::Instance().Create(group_id, ...)`），在处理请求或逻辑帧完成后通过 `DestroyGroup(group_id)` 批量一次性释放，与 FakeLua 无 GC、Arena 极速重置的设计哲学高度保持一致。
-- **C++ 函数自动装箱转换**：C++ 侧注册的 Native 回调可以直接返回 `NativeObject*` 指针，`fakelua.h` 的 `inter::NativeToFakelua` 会自动安全打包并转换为 Lua 可識別的装箱对象。
+- **C++ 函数自动装箱转换**：C++ 侧注册的 Native 回调可以直接返回 `NativeObject*` 指针，`fakelua.h` 的 `inter::NativeToFakelua` 会自动安全打包并转换为 Lua 可识别的装箱对象。
+
+#### Lua 代码示例
+
+```lua
+local group_id = 1001
+
+-- 1. 从组内存池申请 NativeObject (参数: group_id, 类型名, id)
+local player = new_native_obj(group_id, "Player", 1001)
+
+-- 2. 属性读写
+player.hp = 100
+player.name = "Hero"
+player.speed = 1.5
+
+-- 3. 嵌套 NativeObject 关联
+local weapon = new_native_obj(group_id, "Weapon", 5001)
+weapon.damage = 50
+player.weapon = weapon
+
+-- 4. 通过别名/管理器索引获取对象属性
+print("Player HP:", player.hp, "Weapon Damage:", player.weapon.damage)
+
+-- 5. 帧结束/请求结束时批量一键清除该组所有对象
+del_native_group(group_id)
+```
 
 ### 多返回值与可变参数（Multi-Return & Varargs）
 
