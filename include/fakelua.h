@@ -334,6 +334,8 @@ std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *s);
 // 0: 关闭, 1: 错误, 2: 信息, 默认为错误。
 void SetDebugLogLevel(int level);
 
+class NativeObject;
+
 namespace inter {
 
 // 原生转 FakeLua
@@ -358,6 +360,7 @@ CVar NativeToFakeluaStringView(State *s, const std::string_view &v);
 void ThrowIfMultiCVar(const CVar &v);
 
 CVar NativeToFakeluaVarInterface(State *s, VarInterface *v);
+CVar NativeToFakeluaNativeObject(State *s, const NativeObject *obj);
 
 template<typename T>
 CVar NativeToFakelua(State *s, T v) {
@@ -385,6 +388,8 @@ CVar NativeToFakelua(State *s, T v) {
     } else if constexpr (std::is_same_v<T, CVar>) {
         ThrowIfMultiCVar(v);
         return v;
+    } else if constexpr (std::is_same_v<std::remove_cvref_t<T>, NativeObject *>) {
+        return NativeToFakeluaNativeObject(s, v);
     } else if constexpr (std::is_pointer_v<T> && std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>) {
         return NativeToFakeluaVarInterface(s, v);
     } else {
@@ -578,6 +583,8 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
 //   - lua 通过 player.hp / player.hp = 123 读写字段，底层走 spec_get/spec_set
 //   - 嵌套对象：SetObject("inventory", inv_obj)，lua 侧 player.inventory.item 透明访问
 // ─────────────────────────────────────────────────────────────────────────────
+struct NativeField;
+
 class NativeObject {
 public:
     // 禁止拷贝
@@ -636,6 +643,10 @@ private:
     friend class NativeObjectManager;
     friend CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
     friend void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
+    friend CVar NativeFieldToCVar(const NativeField &field, State *s);
+    friend NativeField CVarToNativeField(CVar v);
+    friend void RegisterNativeObjectApi(State *s);
+    friend CVar inter::NativeToFakeluaNativeObject(State *s, const NativeObject *obj);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

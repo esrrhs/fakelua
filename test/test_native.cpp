@@ -46,7 +46,7 @@ TEST(test_native, test_lua_integration_get_set) {
 
     RegisterNativeFunction(s, "get_player", 0, false,
         [](State* state, CVar* args, int n) -> CVar {
-            return global_player->Wrap(state);
+            return inter::NativeToFakelua(state, global_player);
         });
 
     CompileConfig config;

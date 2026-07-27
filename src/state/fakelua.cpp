@@ -277,6 +277,13 @@ VarInterface *FakeluaToNativeObj(State *state, CVar val) {
     return ret;
 }
 
+CVar NativeToFakeluaNativeObject(State *state, const NativeObject *obj) {
+    if (!obj) {
+        return NativeToFakeluaNil(state);
+    }
+    return obj->Wrap(state);
+}
+
 void *GetFuncAddr(State *state, JITType type, const std::string_view &name, int &arg_count, bool &is_vararg) {
     const auto ret = state->GetVM().GetFunction({name.data(), name.size()});
     if (UNLIKELY(ret.Empty())) {
