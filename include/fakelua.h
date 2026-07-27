@@ -580,24 +580,11 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
 // ─────────────────────────────────────────────────────────────────────────────
 class NativeObject {
 public:
-    // 申请创建 NativeObject（必须关联归属于指定的 group_id）
-    static NativeObject *Create(int64_t group_id, std::string type_name, int64_t id = 0);
-
-    // 禁止拷贝，防止意外复制游戏数据
+    // 禁止拷贝
     NativeObject(const NativeObject &) = delete;
     NativeObject &operator=(const NativeObject &) = delete;
 
-    ~NativeObject();
-
-    // ── 边界转换 ─────────────────────────────────────────────────────────────
-    // 在当前帧内生成 VarTable 壳，可直接作为 lua 函数参数传入
-    // 每次调用都分配一个新壳（arena 临时），壳消亡后 NativeObject 仍在
-    [[nodiscard]] CVar Wrap(State *s) const;
-
-    // 从 CVar 反向提取 NativeObject*（非 NativeObject 返回 nullptr）
-    static NativeObject *Unwrap(CVar v);
-
-    // ── 元信息 ───────────────────────────────────────────────────────────────
+    // ── 元信息读取 ───────────────────────────────────────────────────────────
     [[nodiscard]] const std::string &GetTypeName() const;
     [[nodiscard]] int64_t GetId() const;
     void SetId(int64_t id);
@@ -613,7 +600,6 @@ public:
     void SetBool(std::string_view key, bool val);
     void SetString(std::string_view key, std::string_view val);
     void SetObject(std::string_view key, NativeObject *obj); // 嵌套对象（不拥有）
-    void SetFromCVar(std::string_view key, CVar v);          // 从 lua 值转换后存储
 
     // ── 字段读取 ─────────────────────────────────────────────────────────────
     [[nodiscard]] int64_t GetInt(std::string_view key, int64_t default_val = 0) const;
@@ -621,7 +607,6 @@ public:
     [[nodiscard]] bool GetBool(std::string_view key, bool default_val = false) const;
     [[nodiscard]] std::string GetString(std::string_view key, std::string_view default_val = "") const;
     [[nodiscard]] NativeObject *GetObject(std::string_view key) const;
-    [[nodiscard]] CVar GetAsCVar(std::string_view key, State *s) const; // 读取并转为 CVar
 
     // ── 批量操作 ─────────────────────────────────────────────────────────────
     void Del(std::string_view key);
@@ -634,8 +619,19 @@ public:
 private:
     struct Impl;
     Impl *impl_;
+
     explicit NativeObject(std::string type_name);
+    ~NativeObject();
+
+    // 内部申请与释放（只能由 NativeObjectManager 管理调配）
+    static NativeObject *Create(int64_t group_id, std::string type_name, int64_t id = 0);
     static void Destroy(NativeObject *obj);
+
+    // 内部 CVar / 边界转换接口（不对外暴露）
+    [[nodiscard]] CVar Wrap(State *s) const;
+    static NativeObject *Unwrap(CVar v);
+    void SetFromCVar(std::string_view key, CVar v);
+    [[nodiscard]] CVar GetAsCVar(std::string_view key, State *s) const;
 
     friend class NativeObjectManager;
     friend CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
