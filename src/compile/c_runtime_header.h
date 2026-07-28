@@ -10,6 +10,8 @@ namespace fakelua {
 // The C runtime header content as a raw string literal.
 // The _S (State pointer) is prepended by CGen::GenerateHeader() before this content.
 inline constexpr const char *kCRuntimeHeader = R"(
+#include <math.h>
+
 typedef struct VarString {
     int size_;
     uint32_t hash_;
