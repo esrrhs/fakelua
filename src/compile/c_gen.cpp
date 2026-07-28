@@ -2490,6 +2490,21 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         DEBUG_ASSERT(cur_section_ != Section::Globals);
         const auto pe = v_ptr->GetPrefixexp();
         const auto name = v_ptr->GetName();
+
+        // 拦截 math 静态库常量访问 (math.pi / math.huge)
+        if (pe && pe->Type() == SyntaxTreeType::PrefixExp) {
+            if (const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe); pe_ptr && pe_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
+                if (const auto base_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue()); base_var && base_var->GetVarKind() == VarKind::kSimple && base_var->GetName() == "math") {
+                    if (name == "pi") {
+                        return "(CVar){.type_ = VAR_FLOAT, .data_.f = 3.14159265358979323846}";
+                    }
+                    if (name == "huge") {
+                        return "(CVar){.type_ = VAR_FLOAT, .data_.f = HUGE_VAL}";
+                    }
+                }
+            }
+        }
+
         auto pe_ret = CompilePrefixexp(pe);
 
         const auto spec_type = GetSpecTypeForVar(pe);
@@ -2736,6 +2751,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     DEBUG_ASSERT(pe_pre->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_pre_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe_pre);
 
+    if (auto result = TryCompileBuiltinMathCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        return result;
+    }
+
     if (auto result = TryCompileSpecDirectCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
         return result;
     }
@@ -2802,6 +2821,141 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     Out() << GenTab() << tmp << " = " << call_expr << ";\n";
 
     return tmp;
+}
+
+std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,
+                                            const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
+    if (pe_pre_ptr->GetPrefixKind() != PrefixExpKind::kVar || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+        return {};
+    }
+    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kDot) {
+        return {};
+    }
+    const auto prefix_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(callee_var->GetPrefixexp());
+    if (!prefix_pe || prefix_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+        return {};
+    }
+    const auto prefix_var = std::dynamic_pointer_cast<SyntaxTreeVar>(prefix_pe->GetValue());
+    if (!prefix_var || prefix_var->GetVarKind() != VarKind::kSimple || prefix_var->GetName() != "math") {
+        return {};
+    }
+
+    const std::string method_name = callee_var->GetName();
+    const auto explist_arg = args_ptr->Explist();
+    const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
+    const auto &raw_args = explist_arg_ptr->Exps();
+
+    static const std::unordered_set<std::string> math_builtins = {"abs", "floor", "ceil", "max", "min", "sqrt", "sin", "cos", "tan", "pow", "deg", "rad"};
+
+    if (!math_builtins.contains(method_name)) {
+        return {};
+    }
+
+    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    CVar " << tmp << ";\n";
+
+    if (method_name == "abs" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = llabs(" << arg << ".data_.i)}; } ";
+        Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = fabs(" << arg << ".data_.f)}; } ";
+        Out() << "else { FakeluaThrowError(_S, \"bad argument to math.abs\"); }\n";
+        return tmp;
+    }
+    if (method_name == "floor" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = " << arg << "; } ";
+        Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = floor(" << arg << ".data_.f)}; } ";
+        Out() << "else { FakeluaThrowError(_S, \"bad argument to math.floor\"); }\n";
+        return tmp;
+    }
+    if (method_name == "ceil" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = " << arg << "; } ";
+        Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = ceil(" << arg << ".data_.f)}; } ";
+        Out() << "else { FakeluaThrowError(_S, \"bad argument to math.ceil\"); }\n";
+        return tmp;
+    }
+    if (method_name == "max" && raw_args.size() >= 2) {
+        std::string arg1 = CompileExp(raw_args[0]);
+        std::string arg2 = CompileExp(raw_args[1]);
+        const auto cond_tmp = std::format("flua_cmp_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << cond_tmp << ";\n";
+        Out() << GenTab() << "OpGt((" << arg1 << "), (" << arg2 << "), " << cond_tmp << ");\n";
+        Out() << GenTab() << tmp << " = (" << cond_tmp << ".data_.b ? (" << arg1 << ") : (" << arg2 << "));\n";
+        return tmp;
+    }
+    if (method_name == "min" && raw_args.size() >= 2) {
+        std::string arg1 = CompileExp(raw_args[0]);
+        std::string arg2 = CompileExp(raw_args[1]);
+        const auto cond_tmp = std::format("flua_cmp_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << cond_tmp << ";\n";
+        Out() << GenTab() << "OpLt((" << arg1 << "), (" << arg2 << "), " << cond_tmp << ");\n";
+        Out() << GenTab() << tmp << " = (" << cond_tmp << ".data_.b ? (" << arg1 << ") : (" << arg2 << "));\n";
+        return tmp;
+    }
+    if (method_name == "sqrt" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    double " << val_tmp << ";\n";
+        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
+        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = sqrt(" << val_tmp << ")};\n";
+        return tmp;
+    }
+    if (method_name == "sin" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    double " << val_tmp << ";\n";
+        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
+        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = sin(" << val_tmp << ")};\n";
+        return tmp;
+    }
+    if (method_name == "cos" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    double " << val_tmp << ";\n";
+        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
+        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = cos(" << val_tmp << ")};\n";
+        return tmp;
+    }
+    if (method_name == "tan" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    double " << val_tmp << ";\n";
+        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
+        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = tan(" << val_tmp << ")};\n";
+        return tmp;
+    }
+    if (method_name == "pow" && raw_args.size() >= 2) {
+        std::string arg1 = CompileExp(raw_args[0]);
+        std::string arg2 = CompileExp(raw_args[1]);
+        const auto val1_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        const auto val2_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    double " << val1_tmp << ";\n";
+        func_temp_decls_ << "    double " << val2_tmp << ";\n";
+        Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? (double)" << arg1 << ".data_.i : (" << arg1 << ".type_ == VAR_FLOAT ? " << arg1 << ".data_.f : 0.0));\n";
+        Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? (double)" << arg2 << ".data_.i : (" << arg2 << ".type_ == VAR_FLOAT ? " << arg2 << ".data_.f : 0.0));\n";
+        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = pow(" << val1_tmp << ", " << val2_tmp << ")};\n";
+        return tmp;
+    }
+    if (method_name == "deg" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    double " << val_tmp << ";\n";
+        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
+        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp << " * (180.0 / 3.14159265358979323846)};\n";
+        return tmp;
+    }
+    if (method_name == "rad" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    double " << val_tmp << ";\n";
+        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
+        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp << " * (3.14159265358979323846 / 180.0)};\n";
+        return tmp;
+    }
+
+    return {};
 }
 
 // 尝试直接调用优化：若被调函数是含有数学参数的本地函数，
