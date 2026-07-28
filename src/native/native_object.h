@@ -70,6 +70,7 @@ struct NativeObject::Impl {
     int64_t id = 0;
     int64_t group_id = 0;
     std::unordered_map<std::string, NativeField> kv;
+    std::unordered_map<std::string, NativeMethod> methods;
 };
 
 // spec_get / spec_set 静态实现

@@ -170,6 +170,48 @@ void NativeObjectManager::Clear() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// NativeMethodBridge — 宿主 C++ 成员回调的方法派发桥接
+// ─────────────────────────────────────────────────────────────────────────────
+
+CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar) {
+    if (!cl || cl->upvalue_count < 3) {
+        ThrowFakeluaException("NativeMethodBridge failed: invalid VarClosure metadata");
+    }
+
+    auto *obj = reinterpret_cast<NativeObject *>(cl->upvalues[0]->data_.i);
+    auto *state = reinterpret_cast<State *>(cl->upvalues[1]->data_.i);
+    auto *method_ptr = reinterpret_cast<NativeMethod *>(cl->upvalues[2]->data_.i);
+
+    if (!obj || !method_ptr || !(*method_ptr)) {
+        ThrowFakeluaException("NativeMethodBridge failed: obj or method is null");
+    }
+
+    CVar *all_args = nullptr;
+    int total_arg_count = 0;
+    if (vararg_cvar.type_ == static_cast<int>(VarType::Multi) && vararg_cvar.data_.m) {
+        total_arg_count = static_cast<int>(vararg_cvar.data_.m->GetCount());
+        all_args = vararg_cvar.data_.m->GetVars();
+    }
+
+    // 自动判断 self 传递 (冒号 player:method(...) / 点号 player.method(player, ...) vs fn(...))
+    NativeObject *passed_self = (total_arg_count > 0) ? NativeObject::Unwrap(all_args[0]) : nullptr;
+    NativeObject *actual_self = (passed_self != nullptr) ? passed_self : obj;
+
+    CVar *call_args = nullptr;
+    int call_n = 0;
+
+    if (passed_self != nullptr) {
+        call_args = all_args + 1;
+        call_n = total_arg_count - 1;
+    } else {
+        call_args = all_args;
+        call_n = total_arg_count;
+    }
+
+    return (*method_ptr)(actual_self, state, call_args, call_n);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // spec_get / spec_set 实现
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -186,13 +228,49 @@ CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish) {
     }
 
     *finish = true;
+    const std::string skey(key);
+
+    // 1. 优先查找属性 KV 字段
     const auto &kv = obj->impl_->kv;
-    const auto it = kv.find(std::string(key));
+    const auto it = kv.find(skey);
     if (it != kv.end()) {
         return NativeFieldToCVar(it->second, s);
     }
 
-    // 字段未在 C++ KV 字典中定义，默认返回 nil
+    // 2. 查找绑定的 C++ 成员方法 Methods
+    const auto &methods = obj->impl_->methods;
+    const auto mit = methods.find(skey);
+    if (mit != methods.end()) {
+        auto &alloc = s->GetHeap().GetAllocator(false /* temp */);
+
+        auto *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
+        uv0->type_ = static_cast<int>(VarType::Int);
+        uv0->data_.i = reinterpret_cast<int64_t>(obj);
+
+        auto *uv1 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
+        uv1->type_ = static_cast<int>(VarType::Int);
+        uv1->data_.i = reinterpret_cast<int64_t>(s);
+
+        auto *uv2 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
+        uv2->type_ = static_cast<int>(VarType::Int);
+        uv2->data_.i = reinterpret_cast<int64_t>(&mit->second);
+
+        auto *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 3 * sizeof(CVar *)));
+        cl->func_ptr = reinterpret_cast<void *>(NativeMethodBridge);
+        cl->upvalue_count = 3;
+        cl->expected_arg_count = 1;
+        cl->is_vararg = true;
+        cl->upvalues[0] = uv0;
+        cl->upvalues[1] = uv1;
+        cl->upvalues[2] = uv2;
+
+        CVar res{};
+        res.type_ = static_cast<int>(VarType::Closure);
+        res.data_.cl = cl;
+        return res;
+    }
+
+    // 3. 字段与方法均未定义，默认返回 nil
     CVar nil_cvar{};
     nil_cvar.type_ = static_cast<int>(VarType::Nil);
     return nil_cvar;
@@ -319,6 +397,19 @@ void NativeObject::Del(std::string_view key) {
 
 void NativeObject::Clear() {
     impl_->kv.clear();
+    impl_->methods.clear();
+}
+
+void NativeObject::RegisterMethod(std::string_view name, NativeMethod method) {
+    impl_->methods[std::string(name)] = std::move(method);
+}
+
+bool NativeObject::HasMethod(std::string_view name) const {
+    return impl_->methods.contains(std::string(name));
+}
+
+void NativeObject::UnregisterMethod(std::string_view name) {
+    impl_->methods.erase(std::string(name));
 }
 
 size_t NativeObject::Size() const {
