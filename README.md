@@ -111,6 +111,45 @@ print("Player HP:", player.hp, "Weapon Damage:", player.weapon.damage)
 del_native_group(group_id)
 ```
 
+### Package 包管理机制（Package & Zero-Require Modules）
+
+FakeLua 提供特有的 `package "ModuleName"` 模块化隔离与零 `require` 跨模块互调能力：
+
+- **模块包定义**：在脚本顶部通过 `package "PackageName"` 声明模块归属。当前文件定义的顶层导出函数会自动绑定并挂载到该包的命名空间（如 `Player.AddItem`）下。
+- **跨模块零 `require` 直接互调**：无需显式调用 `require` 加载依赖文件。只要相关包已被编译加载到同一个 `State` 中，跨模块调用（如 `Player.AddItem(...)`）会自动通过动态路由寻址绑定。
+
+#### 模块化代码示例
+
+```lua
+-- player.lua
+package "Player"
+
+local BASE_BONUS = 1 -- 包内私有变量
+
+function AddItem(id, num) -- 导出为 Player.AddItem
+    return id + num + BASE_BONUS
+end
+```
+
+```lua
+-- bag.lua
+package "Bag"
+
+function UseItem(id) -- 导出为 Bag.UseItem
+    -- 零 require 直接跨模块调用 Player 包的函数
+    return Player.AddItem(id, 10)
+end
+```
+
+```lua
+-- main.lua
+function test()
+    local res1 = Player.AddItem(100, 5) -- 106
+    local res2 = Bag.UseItem(200)       -- 211
+    return res1 + res2                  -- 317
+end
+```
+
 ### 多返回值与可变参数（Multi-Return & Varargs）
 
 - **多返回值**：函数可以通过 `return a, b` 返回多个值，在赋值或返回语句中正确解包。
