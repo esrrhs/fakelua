@@ -587,6 +587,7 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
 //   - 嵌套对象：SetObject("inventory", inv_obj)，lua 侧 player.inventory.item 透明访问
 // ─────────────────────────────────────────────────────────────────────────────
 struct NativeField;
+using NativeMethod = std::function<CVar(NativeObject *self, State *s, CVar *args, int n)>;
 
 class NativeObject {
 public:
@@ -602,6 +603,11 @@ public:
     void SetGroupId(int64_t group_id);
     [[nodiscard]] size_t Size() const;// 字段数量
     [[nodiscard]] bool Has(std::string_view key) const;
+
+    // ── 成员方法注册 ─────────────────────────────────────────────────────────
+    void RegisterMethod(std::string_view name, NativeMethod method);
+    [[nodiscard]] bool HasMethod(std::string_view name) const;
+    void UnregisterMethod(std::string_view name);
 
     // ── 字段写入 ─────────────────────────────────────────────────────────────
     void SetNil(std::string_view key);
@@ -647,6 +653,7 @@ private:
     friend CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
     friend void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
     friend CVar NativeFieldToCVar(const NativeField &field, State *s);
+    friend CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar);
     friend NativeField CVarToNativeField(CVar v);
     friend void RegisterNativeObjectApi(State *s);
     friend CVar inter::NativeToFakeluaNativeObject(State *s, const NativeObject *obj);

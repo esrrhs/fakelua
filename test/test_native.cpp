@@ -213,3 +213,44 @@ TEST(test_native, test_native_typed_template_callback) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_native, test_native_object_methods) {
+    auto *s = FakeluaNewState();
+
+    int64_t gid = NativeObjectManager::Instance().CreateGroup(500);
+    auto *player = NativeObjectManager::Instance().Create(gid, "player", 1);
+
+    // 1. 注册 C++ 成员回调 take_damage
+    player->RegisterMethod("take_damage", [](NativeObject *self, State *state, CVar *args, int n) -> CVar {
+        EXPECT_GE(n, 1);
+        int64_t dmg = inter::FakeluaToNative<int64_t>(state, inter::GetNativeArg(state, args, n, 0));
+        self->SetInt("hp", self->GetInt("hp") - dmg);
+        return inter::NativeToFakeluaNil(state);
+    });
+
+    // 2. 注册 C++ 成员回调 is_alive
+    player->RegisterMethod("is_alive", [](NativeObject *self, State *state, CVar *args, int n) -> CVar { return inter::NativeToFakeluaBool(state, self->GetInt("hp") > 0); });
+
+    EXPECT_TRUE(player->HasMethod("take_damage"));
+    EXPECT_TRUE(player->HasMethod("is_alive"));
+
+    CompileConfig config;
+    CompileFile(s, "./native/test_native_method.lua", config);
+
+    // 3. 执行 Lua 侧测试逻辑 (使用 GCC 与 TCC 确保全面覆盖)
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        int64_t result = 0;
+        Call(s, jit_type, "test_methods", result, gid);
+        EXPECT_EQ(result, 1110);
+    }
+
+    // 校验 NativeObject 底层数据
+    EXPECT_EQ(player->GetInt("hp"), 40);
+
+    // 4. 取消注册测试
+    player->UnregisterMethod("is_alive");
+    EXPECT_FALSE(player->HasMethod("is_alive"));
+
+    NativeObjectManager::Instance().DestroyGroup(gid);
+    FakeluaDeleteState(s);
+}

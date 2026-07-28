@@ -154,33 +154,33 @@ SetVarInterfaceNewFunc(s, []() { return new CustomVar(); });
 
 提供高性能宿主 C++ 原生对象映射能力：
 
-- **精简宿主公共 API**：在 SDK 头文件中屏蔽底层存储细节（Pimpl），只暴露必要的属性读写（`GetInt`/`SetInt`/`GetFloat`/`SetObject` 等）与迭代方法。
+- **精简宿主公共 API**：在 SDK 头文件中屏蔽底层存储细节（Pimpl），只暴露必要的属性存取（`GetInt`/`SetInt`/`GetFloat`/`SetObject` 等）与迭代方法。
 - **组粒度批次释放（Group Allocation & Arena Destroy）**：禁止单个手动申请或卸载对象。所有 `NativeObject` 均强制在指定的 `group_id` 组池内创建（`NativeObjectManager::Instance().Create(group_id, ...)`），在处理请求或逻辑帧完成后通过 `DestroyGroup(group_id)` 批量一次性释放，与 FakeLua 无 GC、Arena 极速重置的设计哲学高度保持一致。
+- **C++ 原生成员回调方法绑定 (Member Method Binding)**：支持直接在 `NativeObject` 上通过 `RegisterMethod` 绑定 C++ 函数/Lambda 方法。在 Lua 中可直接使用冒号语法 `obj:method(args...)` 随时调用 C++ 宿主方法。
 - **C++ 函数自动装箱转换**：C++ 侧注册的 Native 回调可以直接返回 `NativeObject*` 指针，`fakelua.h` 的 `inter::NativeToFakelua` 会自动安全打包并转换为 Lua 可识别的装箱对象。
 
-#### Lua 代码示例
+#### C++ 成员回调绑定与 Lua 交互示例
+
+```cpp
+// 1. C++ 宿主侧：在 NativeObject 实例上注册原生成员方法
+player->RegisterMethod("take_damage", [](NativeObject *self, State *s, CVar *args, int n) -> CVar {
+    int64_t dmg = inter::FakeluaToNative<int64_t>(s, inter::GetNativeArg(s, args, n, 0));
+    self->SetInt("hp", self->GetInt("hp") - dmg);
+    return inter::NativeToFakeluaNil(s);
+});
+
+player->RegisterMethod("is_alive", [](NativeObject *self, State *s, CVar *args, int n) -> CVar {
+    return inter::NativeToFakeluaBool(s, self->GetInt("hp") > 0);
+});
+```
 
 ```lua
-local group_id = 1001
+-- 2. Lua 侧：使用冒号语法轻松调用绑定的 C++ 成员方法
+player:take_damage(30) -- 执行 C++ 回调，扣减 hp
 
--- 1. 从组内存池申请 NativeObject (参数: group_id, 类型名, id)
-local player = new_native_obj(group_id, "Player", 1001)
-
--- 2. 属性读写
-player.hp = 100
-player.name = "Hero"
-player.speed = 1.5
-
--- 3. 嵌套 NativeObject 关联
-local weapon = new_native_obj(group_id, "Weapon", 5001)
-weapon.damage = 50
-player.weapon = weapon
-
--- 4. 通过别名/管理器索引获取对象属性
-print("Player HP:", player.hp, "Weapon Damage:", player.weapon.damage)
-
--- 5. 帧结束/请求结束时批量一键清除该组所有对象
-del_native_group(group_id)
+if player:is_alive() then
+    print("Player is still alive, current HP:", player.hp)
+end
 ```
 
 ### Package 包管理机制（Package & Zero-Require Modules）
