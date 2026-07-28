@@ -33,6 +33,13 @@ FakeLua 的设计初衷是为了在**高性能游戏服务器**或类似的实�
 - **JIT_GCC**：调用系统 GCC（`-O3`），生成高质量原生代码。这是 FakeLua 实际运行和生产环境采用的主力后端。
 - **JIT_TCC**：内嵌 TinyCC，编译速度极快。主要用于开发调试和测试验证（TCC 源码在 CMake 配置阶段自动拉取，无需系统预装）。
 
+```cpp
+int ret = 0;
+// 同一套 Call API，可按需指定 JIT_GCC 或 JIT_TCC 后端
+Call(s, JIT_GCC, "add", ret, 10, 20); // 生产环境推荐：GCC 后端 (-O3 高性能)
+Call(s, JIT_TCC, "add", ret, 10, 20); // 开发调试推荐：TCC 后端 (极速编译)
+```
+
 ### 数值参数特化（Numeric Specialization）
 
 编译器对函数的数学参数自动做类型推断与特化：
@@ -40,6 +47,14 @@ FakeLua 的设计初衷是为了在**高性能游戏服务器**或类似的实�
 1. [TypeInferencer](file:///home/project/fakelua/src/compile/type_inferencer.h) 对每个顶层函数运行迭代不动点推断（leave-one-out），识别出真正参与算术运算的参数（math params）。
 2. [CGen](file:///home/project/fakelua/src/compile/c_gen.h) 为每个含数学参数的函数生成 `2^k` 个特化版本（`int64_t` / `double` 组合），以及一个运行时入口分发器，根据实际参数类型路由到对应特化体。
 3. 特化体内的算术运算直接用原生 C 类型（`int64_t`/`double`）计算，比较表达式也生成原生 C `bool` 而非走 [CVar](file:///home/project/fakelua/include/fakelua.h#L198) 装箱路径，彻底消除热路径上的类型判断开销。
+
+```lua
+-- 编译器对数学参数自动识别做 int64_t/double 原生特化，消除装箱与类型判断
+function fib(n)
+    if n <= 1 then return n end
+    return fib(n - 1) + fib(n - 2)
+end
+```
 
 以递归 Fibonacci（n=32）为例，GCC 后端比 Lua 5.4 快 **43.7x**，TCC 后端快 **10.4x**（详见 [benchmark/README.md](benchmark/README.md)）。
 
@@ -51,6 +66,12 @@ FakeLua 的设计初衷是为了在**高性能游戏服务器**或类似的实�
 2. **初始化与去重**：构造函数初始化时，会采用单次遍历在 JIT 特化结构体内进行填充（遵循 Lua 左到右的语法顺序），并进行静态 Key 重复性的检查。如果检测到重复 Key 初始化操作，编译期会抛出异常。
 3. **极速指针偏移读写**：对于特化的 Key 读取和写入操作，直接使用指针偏移宏（`FL_SPEC`/`FL_SET_SPEC`）进行极速读写，彻底避免了哈希查找与键值对比。
 4. **动态降级**：如果读写时使用的 Key 是动态变量，则自动回退到常规运行时动态分发逻辑，通过注册在 Table 上的 `spec_get` / `spec_set` 专有函数指针进行回调查找。
+
+```lua
+-- 编译期静态推断 Key 布局并生成 C 结构体，转换为指针偏移计算
+local point = { x = 10, y = 20 }
+point.x = point.x + 5 -- 生成原生 C 成员指针偏移访问宏 FL_SPEC(point, 0)
+```
 
 ### [CVar](file:///home/project/fakelua/include/fakelua.h#L198)：ABI 安全的跨边界值类型
 
@@ -74,9 +95,22 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 
 [CVar](file:///home/project/fakelua/include/fakelua.h#L198) 是 JIT 代码与 C++ 宿主之间传递值的唯一载体，强制为标准布局（POD），保证 arm64 等平台的 ABI 兼容性。
 
+```cpp
+// 原生 C++ 类型与 JIT ABI 安全载体 CVar 的相互转换
+CVar v_int = inter::NativeToFakelua(s, 42);
+int native_int = inter::FakeluaToNative<int>(s, v_int);
+```
+
 ### [VarInterface](file:///home/project/fakelua/include/fakelua.h#L17)：可扩展的复杂类型桥接
 
 [VarInterface](file:///home/project/fakelua/include/fakelua.h#L17) 是 Lua table 等复杂类型与宿主之间的抽象接口，宿主可按需实现自己的版本接入原有对象系统。库内附带 [SimpleVarImpl](file:///home/project/fakelua/include/fakelua.h#L61) 开箱即用。
+
+```cpp
+class CustomVar : public VarInterface { /* 继承并扩展自定义表实现 */ };
+
+// 注册工厂函数，使 FakeLua 创建的 Table 自动构造为 CustomVar
+SetVarInterfaceNewFunc(s, []() { return new CustomVar(); });
+```
 
 ### [NativeObject](file:///home/project/fakelua/include/fakelua.h#L580)：原生对象桥接与组内存池（Group Arena）
 
@@ -157,11 +191,34 @@ end
 - **可变参数（`...`）**：支持声明和调用 vararg 函数，C++ 侧调用时多余参数自动打包为 Multi，无需手动组装。
 - **C++ 返回值自动解包**：通过 `std::tie(a, b, c)` 接收多返回值，模板自动将 Multi CVar 拆解为各变量。
 
+```lua
+-- Lua 侧：定义支持可变参数与多返回值的函数
+function calc_multi(a, ...)
+    return a, a * 2, "ok"
+end
+```
+
+```cpp
+// C++ 侧：传入变长参数并通过 std::tie 自动解包多返回值
+int x = 0, y = 0;
+std::string msg;
+Call(s, JIT_GCC, "calc_multi", std::tie(x, y, msg), 10, 20, 30); // x=10, y=20, msg="ok"
+```
+
 ### C++ 嵌入 API
 
 - `CompileFile` / `CompileString` / `Call`，RAII 风格 `FakeluaStateGuard`
 - 支持基本类型、对象、以及自定义 VarInterface 实现的高级映射
 - 支持记录编译生成的 C 代码用于调试和性能分析（`CompileConfig::record_c_code`）
+
+```cpp
+FakeluaStateGuard guard;
+State* s = guard.GetState();
+CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
+
+int sum = 0;
+Call(s, JIT_GCC, "add", sum, 10, 20); // 嵌入调用 Lua 函数
+```
 
 ### 闭包与 Upvalue 捕获（Closures & Upvalue Capture）
 
@@ -173,6 +230,21 @@ FakeLua 完整支持 Lua 闭包与 Upvalue 捕获：
 - **冒号方法调用**：完整支持 `obj:method(args)` 冒号方法调用语法糖，在 JIT 代码生成中自动将调用者求值并隐式将 `obj` 作为首个 `self` 参数传递给目标闭包。
 - **通用 `for in` 泛型迭代器**：完整支持 Lua 泛型 `for var1, ..., varn in explist do` 迭代器（既保留了 `pairs`/`ipairs` 的原生 C 语言结构体极速表循环，又全面支持无状态迭代器和闭包生成器等自定义迭代函数）。
 - **循环变量独立捕获**：在 `for` 及 `for in` 循环中，每次迭代自动重新 boxing 循环变量，确保迭代内部创建的闭包绑定独立变量副本。
+
+```lua
+-- 高阶函数与闭包计数器示例
+function make_counter(start)
+    local count = start
+    return function()
+        count = count + 1
+        return count
+    end
+end
+
+local counter = make_counter(10)
+print(counter()) -- 11
+print(counter()) -- 12
+```
 
 ### 全局变量复杂初始化
 
@@ -258,70 +330,6 @@ ctest --test-dir build -V
 - `--jit_type`：`0`=TCC，`1`=GCC
 - `--repeat`：重复调用次数（用于性能测量）
 - `--debug`：是否启用调试模式（默认 `false`，若为 `true` 则输出生成的 C 源码）
-
-### 示例：Lua 脚本与 C++ 宿主嵌入
-
-#### 1. Lua 脚本文件 (`script.lua`)
-
-```lua
--- 1. 普通数值计算
-function add(a, b)
-    return a + b
-end
-
--- 2. 可变参数求和
-function sum(...)
-    local total = 0
-    for _, v in ipairs({...}) do
-        total = total + v
-    end
-    return total
-end
-
--- 3. 多返回值函数
-function multi_return(val)
-    return val, val * 2, "hello"
-end
-```
-
-#### 2. C++ 宿主代码 (`main.cpp`)
-
-```cpp
-#include "fakelua.h"
-#include <iostream>
-#include <tuple>
-
-using namespace fakelua;
-
-int main() {
-    // 1. 使用 RAII 自动管理 State 生命周期
-    FakeluaStateGuard guard;
-    State* s = guard.GetState();
-
-    // 2. 编译 Lua 脚本文件
-    CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
-
-    // 3. 基本函数调用 (原生 C++ 类型与 CVar 自动转换)
-    int res_add = 0;
-    Call(s, JIT_GCC, "add", res_add, 10, 20);
-    std::cout << "add(10, 20) = " << res_add << std::endl; // 30
-
-    // 4. 可变参数调用 — 多余参数自动打包为 Multi
-    int res_sum = 0;
-    Call(s, JIT_TCC, "sum", res_sum, 1, 2, 3, 4, 5);
-    std::cout << "sum(1..5) = " << res_sum << std::endl; // 15
-
-    // 5. 多返回值调用 — 使用 std::tie 自动解包接收
-    int x = 0, y = 0;
-    std::string msg;
-    Call(s, JIT_GCC, "multi_return", std::tie(x, y, msg), 42);
-    std::cout << "multi_return(42) = " << x << ", " << y << ", " << msg << std::endl; // 42, 84, hello
-
-    return 0;
-}
-```
-
-[Call()](file:///home/project/fakelua/include/fakelua.h#L318) 支持最多 32 个参数（受到 [kMaxFunctionInputParams](file:///home/project/fakelua/include/fakelua.h#L13) 的统一限制），参数与返回值在原生 C++ 类型与 [CVar](file:///home/project/fakelua/include/fakelua.h#L198) 之间自动转换。调用 vararg 函数时，超出固定参数的多余参数会自动打包；多返回值函数可通过 `std::tie` 接收。
 
 ## 性能基准
 
