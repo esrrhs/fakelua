@@ -49,11 +49,31 @@ Call(s, JIT_TCC, "add", ret, 10, 20); // 开发调试推荐：TCC 后端 (极速
 3. 特化体内的算术运算直接用原生 C 类型（`int64_t`/`double`）计算，比较表达式也生成原生 C `bool` 而非走 [CVar](file:///home/project/fakelua/include/fakelua.h#L198) 装箱路径，彻底消除热路径上的类型判断开销。
 
 ```lua
--- 编译器对数学参数自动识别做 int64_t/double 原生特化，消除装箱与类型判断
+-- 示例 Lua 函数：递归计算 Fibonacci
 function fib(n)
     if n <= 1 then return n end
     return fib(n - 1) + fib(n - 2)
 end
+```
+
+编译器自动生成的特化 C 代码：
+
+```c
+// 1. 数值参数特化体：形参/返回值直接提升为原生 int64_t，无需 CVar 装箱与运行时类型判断
+static int64_t fib_spec_0(int64_t n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fib_spec_0(n - 1) + fib_spec_0(n - 2);
+}
+
+// 2. 通用入口分发器：快速判断传入类型，零开销路由到原生 C 特化函数
+static CVar fib_dispatcher(CVar n_var) {
+    if (LIKELY(n_var.type_ == VAR_INT)) {
+        return (CVar){.type_ = VAR_INT, .data_.i = fib_spec_0(n_var.data_.i)};
+    }
+    // ... 动态路由至 double 特化体或通用 CVar 分支
+}
 ```
 
 以递归 Fibonacci（n=32）为例，GCC 后端比 Lua 5.4 快 **43.7x**，TCC 后端快 **10.4x**（详见 [benchmark/README.md](benchmark/README.md)）。
@@ -68,9 +88,27 @@ end
 4. **动态降级**：如果读写时使用的 Key 是动态变量，则自动回退到常规运行时动态分发逻辑，通过注册在 Table 上的 `spec_get` / `spec_set` 专有函数指针进行回调查找。
 
 ```lua
--- 编译期静态推断 Key 布局并生成 C 结构体，转换为指针偏移计算
+-- 示例 Lua 代码：定义与读写 Table 字段
 local point = { x = 10, y = 20 }
-point.x = point.x + 5 -- 生成原生 C 成员指针偏移访问宏 FL_SPEC(point, 0)
+point.x = point.x + 5
+```
+
+编译器自动生成的特化 C 结构体与指针偏移访问代码：
+
+```c
+// 1. 编译期推断 Key 布局，自动生成 C 结构体定义
+typedef struct Table_Spec_1 {
+    CVar x;
+    CVar y;
+} Table_Spec_1;
+
+// 2. 初始化 Table 时绑定专有 struct 布局与 spec 读写句柄
+SET_TABLE_SPEC(point, Table_Spec_1, spec_get_fn, spec_set_fn, 2);
+FL_SET_SPEC(Table_Spec_1, point, x, 0, (CVar){.type_ = VAR_INT, .data_.i = 10});
+FL_SET_SPEC(Table_Spec_1, point, y, 1, (CVar){.type_ = VAR_INT, .data_.i = 20});
+
+// 3. 字段读写转换为极速指针成员偏移（彻底免除哈希表查找开销）
+FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CVar){.type_ = VAR_INT, .data_.i = 5});
 ```
 
 ### [CVar](file:///home/project/fakelua/include/fakelua.h#L198)：ABI 安全的跨边界值类型
