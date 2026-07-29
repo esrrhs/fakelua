@@ -777,7 +777,7 @@ void RegisterMathLibraryApi(State *s) {
     });
 }
 
-static bool HelperVarKeyEqualInt(CVar k, int64_t idx) {
+bool TableHelper::VarKeyEqualInt(CVar k, int64_t idx) {
     if (k.type_ == static_cast<int>(VarType::Int)) {
         return k.data_.i == idx;
     }
@@ -787,7 +787,7 @@ static bool HelperVarKeyEqualInt(CVar k, int64_t idx) {
     return false;
 }
 
-static int64_t HelperGetTableLen(CVar tbl) {
+int64_t TableHelper::GetTableLen(CVar tbl) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return 0;
     VarTable *t = tbl.data_.t;
     int64_t max_idx = static_cast<int64_t>(t->spec_count);
@@ -808,20 +808,20 @@ static int64_t HelperGetTableLen(CVar tbl) {
     return max_idx;
 }
 
-static CVar HelperGetTableInt(State *s, CVar tbl, int64_t idx) {
+CVar TableHelper::GetTableInt(State *s, CVar tbl, int64_t idx) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return CVar{static_cast<int>(VarType::Nil)};
     VarTable *t = tbl.data_.t;
 
     if (t->spec_count > 0 && t->spec_vals && t->spec_keys) {
         for (uint32_t i = 0; i < t->spec_count; ++i) {
-            if (HelperVarKeyEqualInt(t->spec_keys[i], idx)) {
+            if (VarKeyEqualInt(t->spec_keys[i], idx)) {
                 return t->spec_vals[i];
             }
         }
     }
 
     for (const auto &qd: t->quick_data_) {
-        if (HelperVarKeyEqualInt(qd.key, idx)) {
+        if (VarKeyEqualInt(qd.key, idx)) {
             return qd.val;
         }
     }
@@ -830,7 +830,7 @@ static CVar HelperGetTableInt(State *s, CVar tbl, int64_t idx) {
         for (uint32_t i = 0; i < t->count_; ++i) {
             uint32_t node_idx = t->active_list_[i];
             const auto &entry = t->nodes_[node_idx].entry;
-            if (HelperVarKeyEqualInt(entry.key, idx)) {
+            if (VarKeyEqualInt(entry.key, idx)) {
                 return entry.val;
             }
         }
@@ -838,7 +838,7 @@ static CVar HelperGetTableInt(State *s, CVar tbl, int64_t idx) {
     return CVar{static_cast<int>(VarType::Nil)};
 }
 
-static void HelperSetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
+void TableHelper::SetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
     VarTable *t = tbl.data_.t;
     CVar key{static_cast<int>(VarType::Int)};
@@ -847,7 +847,7 @@ static void HelperSetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
 
     if (t->spec_count > 0 && t->spec_vals && t->spec_keys) {
         for (uint32_t i = 0; i < t->spec_count; ++i) {
-            if (HelperVarKeyEqualInt(t->spec_keys[i], idx)) {
+            if (VarKeyEqualInt(t->spec_keys[i], idx)) {
                 t->spec_vals[i] = val;
                 return;
             }
@@ -855,7 +855,7 @@ static void HelperSetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
     }
 
     for (auto &qd: t->quick_data_) {
-        if (HelperVarKeyEqualInt(qd.key, idx)) {
+        if (VarKeyEqualInt(qd.key, idx)) {
             static_cast<CVar &>(qd.val) = val;
             qd.hash = hash;
             return;
@@ -873,7 +873,7 @@ static void HelperSetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
     }
 }
 
-static void HelperSetTableStrId(State *s, CVar tbl, const char *str_key, CVar val) {
+void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
     VarTable *t = tbl.data_.t;
     int64_t id = s->GetConstString().Alloc(str_key);
@@ -904,23 +904,24 @@ static void HelperSetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
 void RegisterTableLibraryApi(State *s) {
     if (!s) return;
 
-    RegisterNativeFunction(s, "table.insert", 2, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 2) return inter::NativeToFakeluaNil(state);
+    RegisterNativeFunction(s, "table.insert", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        int64_t len = TableHelper::GetTableLen(tbl);
+
+        if (n == 1) return inter::NativeToFakeluaNil(state);
         if (n == 2) {
             CVar val = inter::GetNativeArg(state, args, n, 1);
-            int64_t len = HelperGetTableLen(tbl);
-            HelperSetTableInt(state, tbl, len + 1, val);
-        } else if (n >= 3) {
+            TableHelper::SetTableInt(state, tbl, len + 1, val);
+        } else {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
             CVar val = inter::GetNativeArg(state, args, n, 2);
             int64_t pos = (pos_var.type_ == static_cast<int>(VarType::Int)) ? pos_var.data_.i : 1;
-            int64_t len = HelperGetTableLen(tbl);
             for (int64_t i = len; i >= pos; --i) {
-                CVar tmp = HelperGetTableInt(state, tbl, i);
-                HelperSetTableInt(state, tbl, i + 1, tmp);
+                CVar item = TableHelper::GetTableInt(state, tbl, i);
+                TableHelper::SetTableInt(state, tbl, i + 1, item);
             }
-            HelperSetTableInt(state, tbl, pos, val);
+            TableHelper::SetTableInt(state, tbl, pos, val);
         }
         return inter::NativeToFakeluaNil(state);
     });
@@ -928,19 +929,20 @@ void RegisterTableLibraryApi(State *s) {
     RegisterNativeFunction(s, "table.remove", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
-        int64_t len = HelperGetTableLen(tbl);
+        int64_t len = TableHelper::GetTableLen(tbl);
         int64_t pos = len;
         if (n >= 2) {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
             if (pos_var.type_ == static_cast<int>(VarType::Int)) pos = pos_var.data_.i;
         }
         if (pos < 1 || pos > len) return inter::NativeToFakeluaNil(state);
-        CVar removed = HelperGetTableInt(state, tbl, pos);
+
+        CVar removed = TableHelper::GetTableInt(state, tbl, pos);
         for (int64_t i = pos; i < len; ++i) {
-            CVar next_val = HelperGetTableInt(state, tbl, i + 1);
-            HelperSetTableInt(state, tbl, i, next_val);
+            CVar next_val = TableHelper::GetTableInt(state, tbl, i + 1);
+            TableHelper::SetTableInt(state, tbl, i, next_val);
         }
-        HelperSetTableInt(state, tbl, len, inter::NativeToFakeluaNil(state));
+        TableHelper::SetTableInt(state, tbl, len, inter::NativeToFakeluaNil(state));
         return removed;
     });
 
@@ -958,16 +960,16 @@ void RegisterTableLibraryApi(State *s) {
             CVar i_var = inter::GetNativeArg(state, args, n, 2);
             if (i_var.type_ == static_cast<int>(VarType::Int)) start_i = i_var.data_.i;
         }
-        int64_t end_j = HelperGetTableLen(tbl);
+        int64_t end_j = TableHelper::GetTableLen(tbl);
         if (n >= 4) {
             CVar j_var = inter::GetNativeArg(state, args, n, 3);
             if (j_var.type_ == static_cast<int>(VarType::Int)) end_j = j_var.data_.i;
         }
 
-        std::string res = "";
+        std::string res;
         for (int64_t idx = start_i; idx <= end_j; ++idx) {
             if (idx > start_i) res += sep;
-            CVar item = HelperGetTableInt(state, tbl, idx);
+            CVar item = TableHelper::GetTableInt(state, tbl, idx);
             if (item.type_ == static_cast<int>(VarType::Int)) {
                 res += std::to_string(item.data_.i);
             } else if (item.type_ == static_cast<int>(VarType::Float)) {
@@ -980,79 +982,80 @@ void RegisterTableLibraryApi(State *s) {
         return inter::NativeToFakeluaStringView(state, res);
     });
 
-        RegisterNativeFunction(s, "table.unpack", 1, true, [](State *state, CVar *args, int n) -> CVar {
-            if (n < 1) return inter::NativeToFakeluaNil(state);
-            CVar tbl = inter::GetNativeArg(state, args, n, 0);
-            int64_t start_i = 1;
-            if (n >= 2) {
-                CVar i_var = inter::GetNativeArg(state, args, n, 1);
-                if (i_var.type_ == static_cast<int>(VarType::Int)) start_i = i_var.data_.i;
-            }
-            int64_t end_j = HelperGetTableLen(tbl);
-            if (n >= 3) {
-                CVar j_var = inter::GetNativeArg(state, args, n, 2);
-                if (j_var.type_ == static_cast<int>(VarType::Int)) end_j = j_var.data_.i;
-            }
-            if (start_i > end_j) return inter::NativeToFakeluaNil(state);
-            int count = static_cast<int>(end_j - start_i + 1);
-            CVar multi = inter::AllocMultiCVar(state, count);
-            for (int i = 0; i < count; ++i) {
-                CVar val = HelperGetTableInt(state, tbl, start_i + i);
-                inter::SetMultiCVarElement(multi, i, val);
-            }
-            return multi;
-        });
+    RegisterNativeFunction(s, "table.unpack", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaNil(state);
+        CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        int64_t start_i = 1;
+        if (n >= 2) {
+            CVar i_var = inter::GetNativeArg(state, args, n, 1);
+            if (i_var.type_ == static_cast<int>(VarType::Int)) start_i = i_var.data_.i;
+        }
+        int64_t end_j = TableHelper::GetTableLen(tbl);
+        if (n >= 3) {
+            CVar j_var = inter::GetNativeArg(state, args, n, 2);
+            if (j_var.type_ == static_cast<int>(VarType::Int)) end_j = j_var.data_.i;
+        }
 
-        RegisterNativeFunction(s, "table.pack", 0, true, [](State *state, CVar *args, int n) -> CVar {
-            VarTable *vtbl = static_cast<VarTable *>(FakeluaAlloc(state, sizeof(VarTable), false));
-            *vtbl = VarTable{};
-            for (auto &qd: vtbl->quick_data_) {
-                qd.key.type_ = static_cast<int>(VarType::Nil);
-                qd.val.type_ = static_cast<int>(VarType::Nil);
-            }
-            vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
+        if (start_i > end_j) return inter::NativeToFakeluaNil(state);
+        int count = static_cast<int>(end_j - start_i + 1);
+        CVar multi = inter::AllocMultiCVar(state, count);
+        for (int i = 0; i < count; ++i) {
+            CVar item = TableHelper::GetTableInt(state, tbl, start_i + i);
+            inter::SetMultiCVarElement(multi, i, item);
+        }
+        return multi;
+    });
 
-            CVar tbl_cvar{};
-            tbl_cvar.type_ = static_cast<int>(VarType::Table);
-            tbl_cvar.data_.t = vtbl;
+    RegisterNativeFunction(s, "table.pack", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        VarTable *vtbl = static_cast<VarTable *>(FakeluaAlloc(state, sizeof(VarTable), false));
+        *vtbl = VarTable{};
+        for (auto &qd: vtbl->quick_data_) {
+            qd.key.type_ = static_cast<int>(VarType::Nil);
+            qd.val.type_ = static_cast<int>(VarType::Nil);
+        }
+        vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
 
-            for (int i = 0; i < n; ++i) {
-                CVar arg_i = inter::GetNativeArg(state, args, n, i);
-                HelperSetTableInt(state, tbl_cvar, i + 1, arg_i);
-            }
+        CVar tbl_cvar{};
+        tbl_cvar.type_ = static_cast<int>(VarType::Table);
+        tbl_cvar.data_.t = vtbl;
 
-            HelperSetTableStrId(state, tbl_cvar, "n", inter::NativeToFakeluaInt(state, n));
-            return tbl_cvar;
-        });
+        for (int i = 0; i < n; ++i) {
+            CVar arg_i = inter::GetNativeArg(state, args, n, i);
+            TableHelper::SetTableInt(state, tbl_cvar, i + 1, arg_i);
+        }
 
-        RegisterNativeFunction(s, "table.move", 4, true, [](State *state, CVar *args, int n) -> CVar {
-            if (n < 4) return inter::NativeToFakeluaNil(state);
-            CVar a1 = inter::GetNativeArg(state, args, n, 0);
-            CVar f_var = inter::GetNativeArg(state, args, n, 1);
-            CVar e_var = inter::GetNativeArg(state, args, n, 2);
-            CVar t_var = inter::GetNativeArg(state, args, n, 3);
-            CVar a2 = (n >= 5) ? inter::GetNativeArg(state, args, n, 4) : a1;
+        TableHelper::SetTableStrId(state, tbl_cvar, "n", inter::NativeToFakeluaInt(state, n));
+        return tbl_cvar;
+    });
 
-            int64_t f = (f_var.type_ == static_cast<int>(VarType::Int)) ? f_var.data_.i : 1;
-            int64_t e = (e_var.type_ == static_cast<int>(VarType::Int)) ? e_var.data_.i : 0;
-            int64_t t = (t_var.type_ == static_cast<int>(VarType::Int)) ? t_var.data_.i : 1;
+    RegisterNativeFunction(s, "table.move", 4, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 4) return inter::NativeToFakeluaNil(state);
+        CVar a1 = inter::GetNativeArg(state, args, n, 0);
+        CVar f_var = inter::GetNativeArg(state, args, n, 1);
+        CVar e_var = inter::GetNativeArg(state, args, n, 2);
+        CVar t_var = inter::GetNativeArg(state, args, n, 3);
+        CVar a2 = (n >= 5) ? inter::GetNativeArg(state, args, n, 4) : a1;
 
-            if (e >= f) {
-                int64_t count = e - f + 1;
-                if (t <= f || t > e) {
-                    for (int64_t i = 0; i < count; ++i) {
-                        CVar val = HelperGetTableInt(state, a1, f + i);
-                        HelperSetTableInt(state, a2, t + i, val);
-                    }
-                } else {
-                    for (int64_t i = count - 1; i >= 0; --i) {
-                        CVar val = HelperGetTableInt(state, a1, f + i);
-                        HelperSetTableInt(state, a2, t + i, val);
-                    }
+        int64_t f = (f_var.type_ == static_cast<int>(VarType::Int)) ? f_var.data_.i : 1;
+        int64_t e = (e_var.type_ == static_cast<int>(VarType::Int)) ? e_var.data_.i : 0;
+        int64_t t = (t_var.type_ == static_cast<int>(VarType::Int)) ? t_var.data_.i : 1;
+
+        if (e >= f) {
+            int64_t count = e - f + 1;
+            if (t <= f || t > e) {
+                for (int64_t i = 0; i < count; ++i) {
+                    CVar val = TableHelper::GetTableInt(state, a1, f + i);
+                    TableHelper::SetTableInt(state, a2, t + i, val);
+                }
+            } else {
+                for (int64_t i = count - 1; i >= 0; --i) {
+                    CVar val = TableHelper::GetTableInt(state, a1, f + i);
+                    TableHelper::SetTableInt(state, a2, t + i, val);
                 }
             }
-            return a2;
-        });
+        }
+        return a2;
+    });
 }
 
 }// namespace fakelua
