@@ -1,6 +1,8 @@
 #include "native/native_math.h"
 #include "var/var.h"
 #include <cmath>
+#include <cstdlib>
+#include <ctime>
 
 namespace fakelua {
 
@@ -181,6 +183,80 @@ void RegisterMathLibraryApi(State *s) {
         uint64_t u0 = (a0.type_ == static_cast<int>(VarType::Int)) ? static_cast<uint64_t>(a0.data_.i) : 0;
         uint64_t u1 = (a1.type_ == static_cast<int>(VarType::Int)) ? static_cast<uint64_t>(a1.data_.i) : 0;
         return inter::NativeToFakeluaBool(state, u0 < u1);
+    });
+
+    RegisterNativeFunction(s, "math.deg", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        double v0 = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float) ? a0.data_.f : 0.0);
+        return inter::NativeToFakeluaFloat(state, v0 * (180.0 / 3.14159265358979323846));
+    });
+
+    RegisterNativeFunction(s, "math.rad", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        double v0 = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float) ? a0.data_.f : 0.0);
+        return inter::NativeToFakeluaFloat(state, v0 * (3.14159265358979323846 / 180.0));
+    });
+
+    RegisterNativeFunction(s, "math.random", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n == 0) {
+            double r = static_cast<double>(std::rand()) / (static_cast<double>(RAND_MAX) + 1.0);
+            return inter::NativeToFakeluaFloat(state, r);
+        } else if (n == 1) {
+            CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            int64_t u = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : static_cast<int64_t>(a0.data_.f);
+            if (u < 1) return inter::NativeToFakeluaInt(state, 0);
+            int64_t r = 1 + (std::rand() % u);
+            return inter::NativeToFakeluaInt(state, r);
+        } else {
+            CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            int64_t l = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : static_cast<int64_t>(a0.data_.f);
+            int64_t u = (a1.type_ == static_cast<int>(VarType::Int)) ? a1.data_.i : static_cast<int64_t>(a1.data_.f);
+            if (l > u) return inter::NativeToFakeluaInt(state, 0);
+            int64_t range = u - l + 1;
+            int64_t r = l + (std::rand() % range);
+            return inter::NativeToFakeluaInt(state, r);
+        }
+    });
+
+    RegisterNativeFunction(s, "math.randomseed", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        unsigned int seed = static_cast<unsigned int>(std::time(nullptr));
+        if (n >= 1) {
+            CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            if (a0.type_ == static_cast<int>(VarType::Int)) seed = static_cast<unsigned int>(a0.data_.i);
+            else if (a0.type_ == static_cast<int>(VarType::Float))
+                seed = static_cast<unsigned int>(a0.data_.f);
+        }
+        std::srand(seed);
+        return inter::NativeToFakeluaNil(state);
+    });
+
+    RegisterNativeFunction(s, "math.modf", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        if (a0.type_ == static_cast<int>(VarType::Int)) {
+            CVar multi = inter::AllocMultiCVar(state, 2);
+            inter::SetMultiCVarElement(multi, 0, a0);
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaFloat(state, 0.0));
+            return multi;
+        }
+        double val = (a0.type_ == static_cast<int>(VarType::Float)) ? a0.data_.f : 0.0;
+        double iptr;
+        double frac = std::modf(val, &iptr);
+        CVar multi = inter::AllocMultiCVar(state, 2);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaFloat(state, iptr));
+        inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaFloat(state, frac));
+        return multi;
+    });
+
+    RegisterNativeFunction(s, "math.frexp", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        double val = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float)) ? a0.data_.f : 0.0;
+        int exp_val = 0;
+        double frac = std::frexp(val, &exp_val);
+        CVar multi = inter::AllocMultiCVar(state, 2);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaFloat(state, frac));
+        inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, exp_val));
+        return multi;
     });
 }
 

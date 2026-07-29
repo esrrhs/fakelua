@@ -63,3 +63,27 @@ TEST(test_math, test_math_utils) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_math, test_math_extended) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_extended.lua", config);
+        int64_t r1 = 0, r2 = 0, r3 = 0, r4 = 0;
+        Call(s, jit_type, "test_math_constants", r1);
+        EXPECT_EQ(r1, 100);
+
+        Call(s, jit_type, "test_math_deg_rad", r2);
+        EXPECT_EQ(r2, 200);
+
+        Call(s, jit_type, "test_math_random", r3);
+        EXPECT_EQ(r3, 300);
+
+        Call(s, jit_type, "test_math_modf_frexp", r4);
+        EXPECT_EQ(r4, 400);
+    }
+
+    FakeluaDeleteState(s);
+}
