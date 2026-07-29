@@ -253,6 +253,7 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
 extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
+extern CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
 
 #define kMaxFunctionInputParams 32
 
@@ -283,7 +284,6 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
     VarClosure *cl = cl_var.data_.cl;
     void *addr = cl->func_ptr;
     if (UNLIKELY(addr == NULL)) {
-        extern CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
         return FlEvalLoadClosure(state, cl, arg_num, cl_var.type_ == VAR_CLOSURE ? (const CVar *)&cl_var : NULL);
     }
     const bool is_vararg = cl->is_vararg;
