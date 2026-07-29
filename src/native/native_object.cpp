@@ -812,6 +812,16 @@ CVar TableHelper::GetTableInt(State *s, CVar tbl, int64_t idx) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return CVar{static_cast<int>(VarType::Nil)};
     VarTable *t = tbl.data_.t;
 
+    if (t->spec_get) {
+        using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
+        auto get_fn = reinterpret_cast<SpecGetFn>(t->spec_get);
+        CVar key_cvar{static_cast<int>(VarType::Int)};
+        key_cvar.data_.i = idx;
+        bool finish = false;
+        CVar r = get_fn(t, key_cvar, &finish);
+        if (finish) return r;
+    }
+
     if (t->spec_count > 0 && t->spec_vals && t->spec_keys) {
         for (uint32_t i = 0; i < t->spec_count; ++i) {
             if (VarKeyEqualInt(t->spec_keys[i], idx)) {
@@ -841,6 +851,17 @@ CVar TableHelper::GetTableInt(State *s, CVar tbl, int64_t idx) {
 void TableHelper::SetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
     VarTable *t = tbl.data_.t;
+
+    if (t->spec_set) {
+        using SpecSetFn = void (*)(VarTable *, CVar, CVar, bool *);
+        auto set_fn = reinterpret_cast<SpecSetFn>(t->spec_set);
+        CVar key_cvar{static_cast<int>(VarType::Int)};
+        key_cvar.data_.i = idx;
+        bool finish = false;
+        set_fn(t, key_cvar, val, &finish);
+        if (finish) return;
+    }
+
     CVar key{static_cast<int>(VarType::Int)};
     key.data_.i = idx;
     uint32_t hash = static_cast<uint32_t>(idx ^ (idx >> 32));
@@ -1055,6 +1076,56 @@ void RegisterTableLibraryApi(State *s) {
             }
         }
         return a2;
+    });
+
+    RegisterNativeFunction(s, "table.sort", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaNil(state);
+        CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        int64_t len = TableHelper::GetTableLen(tbl);
+        if (len <= 1) return inter::NativeToFakeluaNil(state);
+
+        std::vector<CVar> vec(len);
+        for (int64_t i = 0; i < len; ++i) {
+            vec[i] = TableHelper::GetTableInt(state, tbl, i + 1);
+        }
+
+        CVar comp = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
+        if (comp.type_ == static_cast<int>(VarType::Closure) && comp.data_.cl && comp.data_.cl->func_ptr) {
+            auto comp_func = [&](const CVar &a, const CVar &b) -> bool {
+                CVar call_args[2] = {a, b};
+                CVar res = inter::DispatchCall(comp.data_.cl->func_ptr, call_args, 2);
+                bool is_true = !(res.type_ == static_cast<int>(VarType::Nil) || (res.type_ == static_cast<int>(VarType::Bool) && !res.data_.b));
+                return is_true;
+            };
+            std::stable_sort(vec.begin(), vec.end(), comp_func);
+        } else {
+            auto default_comp = [](const CVar &a, const CVar &b) -> bool {
+                if (a.type_ == static_cast<int>(VarType::Int) && b.type_ == static_cast<int>(VarType::Int)) {
+                    return a.data_.i < b.data_.i;
+                }
+                if (a.type_ == static_cast<int>(VarType::Float) && b.type_ == static_cast<int>(VarType::Float)) {
+                    return a.data_.f < b.data_.f;
+                }
+                if (a.type_ == static_cast<int>(VarType::Int) && b.type_ == static_cast<int>(VarType::Float)) {
+                    return static_cast<double>(a.data_.i) < b.data_.f;
+                }
+                if (a.type_ == static_cast<int>(VarType::Float) && b.type_ == static_cast<int>(VarType::Int)) {
+                    return a.data_.f < static_cast<double>(b.data_.i);
+                }
+                auto sa = KeyToStringView(a);
+                auto sb = KeyToStringView(b);
+                if (!sa.empty() || !sb.empty()) {
+                    return sa < sb;
+                }
+                return false;
+            };
+            std::stable_sort(vec.begin(), vec.end(), default_comp);
+        }
+
+        for (int64_t i = 0; i < len; ++i) {
+            TableHelper::SetTableInt(state, tbl, i + 1, vec[i]);
+        }
+        return inter::NativeToFakeluaNil(state);
     });
 }
 
