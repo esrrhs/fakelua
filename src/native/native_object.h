@@ -81,10 +81,13 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
 inline std::string_view KeyToStringView(CVar k) {
     const int t = k.type_;
     if (t == static_cast<int>(VarType::StringId)) {
-        const auto *vs = reinterpret_cast<VarString *>(k.data_.i);
-        return {reinterpret_cast<const char *>(vs) + sizeof(VarString), static_cast<size_t>(vs->Size())};
+        if (!k.data_.i) return {};
+        const char *ptr = reinterpret_cast<const char *>(k.data_.i);
+        int sz = *reinterpret_cast<const int *>(ptr);
+        return {ptr + 8, static_cast<size_t>(sz)};
     }
     if (t == static_cast<int>(VarType::String)) {
+        if (!k.data_.s) return {};
         return k.data_.s->Str();
     }
     return {};
@@ -97,3 +100,6 @@ CVar NativeFieldToCVar(const NativeField &field, State *s);
 NativeField CVarToNativeField(CVar v);
 
 }// namespace fakelua
+
+#include "native/native_math.h"
+#include "native/native_table.h"

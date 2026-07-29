@@ -2761,6 +2761,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         return result;
     }
 
+    if (auto result = TryCompileBuiltinTableCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        return result;
+    }
+
     if (auto result = TryCompileSpecDirectCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
         return result;
     }
@@ -2852,7 +2856,7 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
     const auto &raw_args = explist_arg_ptr->Exps();
 
-    static const std::unordered_set<std::string> math_builtins = {"abs", "floor", "ceil", "max", "min", "sqrt", "sin", "cos", "tan", "pow", "deg", "rad"};
+    static const std::unordered_set<std::string> math_builtins = {"abs", "floor", "ceil", "max", "min", "sqrt", "sin", "cos", "tan", "pow", "deg", "rad", "random", "randomseed", "modf", "frexp"};
 
     if (!math_builtins.contains(method_name)) {
         return {};
@@ -3099,6 +3103,222 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         func_temp_decls_ << "    double " << val_tmp << ";\n";
         Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
         Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp << " * (3.14159265358979323846 / 180.0)};\n";
+        return tmp;
+    }
+    if (method_name == "random") {
+        if (raw_args.empty()) {
+            Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = (double)rand() / ((double)RAND_MAX + 1.0)};\n";
+        } else if (raw_args.size() == 1) {
+            std::string arg = CompileExp(raw_args[0]);
+            const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << val_tmp << ";\n";
+            Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? " << arg << ".data_.i : (int64_t)" << arg << ".data_.f);\n";
+            Out() << GenTab() << tmp << " = (" << val_tmp << " < 1 ? (CVar){.type_ = VAR_INT, .data_.i = 0} : (CVar){.type_ = VAR_INT, .data_.i = 1 + (rand() % " << val_tmp << ")});\n";
+        } else {
+            std::string arg1 = CompileExp(raw_args[0]);
+            std::string arg2 = CompileExp(raw_args[1]);
+            const auto val1_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+            const auto val2_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << val1_tmp << ";\n";
+            func_temp_decls_ << "    int64_t " << val2_tmp << ";\n";
+            Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? " << arg1 << ".data_.i : (int64_t)" << arg1 << ".data_.f);\n";
+            Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? " << arg2 << ".data_.i : (int64_t)" << arg2 << ".data_.f);\n";
+            Out() << GenTab() << tmp << " = (" << val1_tmp << " > " << val2_tmp << " ? (CVar){.type_ = VAR_INT, .data_.i = 0} : (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << " + (rand() % ("
+                  << val2_tmp << " - " << val1_tmp << " + 1))});\n";
+        }
+        return tmp;
+    }
+    if (method_name == "randomseed") {
+        if (raw_args.empty()) {
+            Out() << GenTab() << "srand((unsigned int)time(NULL));\n";
+        } else {
+            std::string arg = CompileExp(raw_args[0]);
+            Out() << GenTab() << "srand((" << arg << ".type_ == VAR_INT ? (unsigned int)" << arg << ".data_.i : (unsigned int)" << arg << ".data_.f));\n";
+        }
+        Out() << GenTab() << tmp << " = kNil;\n";
+        return tmp;
+    }
+    if (method_name == "modf" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        const auto iptr_tmp = std::format("flua_iptr_{}", tmp_var_counter_++);
+        const auto frac_tmp = std::format("flua_frac_{}", tmp_var_counter_++);
+        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    double " << iptr_tmp << ";\n";
+        func_temp_decls_ << "    double " << frac_tmp << ";\n";
+        func_temp_decls_ << "    double " << val_tmp << ";\n";
+        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << iptr_tmp << " = (double)" << arg << ".data_.i; " << frac_tmp << " = 0.0; } else { " << val_tmp << " = (" << arg
+              << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0); " << frac_tmp << " = modf(" << val_tmp << ", &" << iptr_tmp << "); }\n";
+        Out() << GenTab() << tmp << " = FlAllocMulti(_S, 2);\n";
+        Out() << GenTab() << tmp << ".data_.m->vars[0] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << iptr_tmp << "};\n";
+        Out() << GenTab() << tmp << ".data_.m->vars[1] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << frac_tmp << "};\n";
+        return tmp;
+    }
+    if (method_name == "frexp" && raw_args.size() == 1) {
+        std::string arg = CompileExp(raw_args[0]);
+        const auto exp_tmp = std::format("flua_exp_{}", tmp_var_counter_++);
+        const auto frac_tmp = std::format("flua_frac_{}", tmp_var_counter_++);
+        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    int " << exp_tmp << " = 0;\n";
+        func_temp_decls_ << "    double " << frac_tmp << ";\n";
+        func_temp_decls_ << "    double " << val_tmp << ";\n";
+        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
+        Out() << GenTab() << frac_tmp << " = frexp(" << val_tmp << ", &" << exp_tmp << ");\n";
+        Out() << GenTab() << tmp << " = FlAllocMulti(_S, 2);\n";
+        Out() << GenTab() << tmp << ".data_.m->vars[0] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << frac_tmp << "};\n";
+        Out() << GenTab() << tmp << ".data_.m->vars[1] = (CVar){.type_ = VAR_INT, .data_.i = " << exp_tmp << "};\n";
+        return tmp;
+    }
+
+    return {};
+}
+
+std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,
+                                             const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
+    if (pe_pre_ptr->GetPrefixKind() != PrefixExpKind::kVar || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+        return {};
+    }
+
+    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kDot) {
+        return {};
+    }
+
+    const auto base_pe = callee_var->GetPrefixexp();
+    if (!base_pe || base_pe->Type() != SyntaxTreeType::PrefixExp) {
+        return {};
+    }
+    const auto base_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(base_pe);
+    if (!base_pe_ptr || base_pe_ptr->GetPrefixKind() != PrefixExpKind::kVar || !base_pe_ptr->GetValue()) {
+        return {};
+    }
+    const auto base_var = std::dynamic_pointer_cast<SyntaxTreeVar>(base_pe_ptr->GetValue());
+    if (!base_var || base_var->GetVarKind() != VarKind::kSimple || base_var->GetName() != "table") {
+        return {};
+    }
+
+    const bool is_base_local = var_to_def_map_.contains(base_var.get());
+    if (is_base_local) {
+        return {};
+    }
+
+    const std::string method_name = callee_var->GetName();
+    const auto explist_arg = args_ptr->Explist();
+    const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
+    const auto &raw_args = explist_arg_ptr->Exps();
+
+    static const std::unordered_set<std::string> table_builtins = {"insert", "remove", "unpack", "create"};
+    if (!table_builtins.contains(method_name)) {
+        return {};
+    }
+
+    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    CVar " << tmp << ";\n";
+
+    if (method_name == "create" && !raw_args.empty()) {
+        std::string seq_arg = CompileExp(raw_args[0]);
+        std::string val_arg = (raw_args.size() >= 2) ? CompileExp(raw_args[1]) : "kNil";
+        const auto count_tmp = std::format("flua_crt_c_{}", tmp_var_counter_++);
+        const auto idx_tmp = std::format("flua_crt_i_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    int64_t " << count_tmp << ";\n";
+        func_temp_decls_ << "    int64_t " << idx_tmp << ";\n";
+
+        Out() << GenTab() << count_tmp << " = (" << seq_arg << ".type_ == VAR_INT) ? " << seq_arg << ".data_.i : 0;\n";
+        Out() << GenTab() << "SET_TABLE(" << tmp << ");\n";
+        Out() << GenTab() << "if (" << val_arg << ".type_ != VAR_NIL) {\n";
+        Out() << GenTab() << "    for (" << idx_tmp << " = 1; " << idx_tmp << " <= " << count_tmp << "; " << idx_tmp << "++) {\n";
+        Out() << GenTab() << "        FlSetTableInt(" << tmp << ", " << idx_tmp << ", " << val_arg << ");\n";
+        Out() << GenTab() << "    }\n";
+        Out() << GenTab() << "}\n";
+        return tmp;
+    }
+
+    if (method_name == "insert" && !raw_args.empty()) {
+        if (raw_args.size() == 2) {
+            std::string tbl_arg = CompileExp(raw_args[0]);
+            std::string val_arg = CompileExp(raw_args[1]);
+            const auto len_tmp = std::format("flua_tbl_len_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << len_tmp << ";\n";
+            Out() << GenTab() << "FlLenInt(" << tbl_arg << ", " << len_tmp << ");\n";
+            Out() << GenTab() << "FlSetTableInt(" << tbl_arg << ", " << len_tmp << " + 1, " << val_arg << ");\n";
+            Out() << GenTab() << tmp << " = kNil;\n";
+            return tmp;
+        } else if (raw_args.size() >= 3) {
+            std::string tbl_arg = CompileExp(raw_args[0]);
+            std::string pos_arg = CompileExp(raw_args[1]);
+            std::string val_arg = CompileExp(raw_args[2]);
+            const auto len_tmp = std::format("flua_tbl_len_{}", tmp_var_counter_++);
+            const auto pos_tmp = std::format("flua_tbl_pos_{}", tmp_var_counter_++);
+            const auto idx_tmp = std::format("flua_tbl_idx_{}", tmp_var_counter_++);
+            const auto item_tmp = std::format("flua_tbl_item_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << len_tmp << ";\n";
+            func_temp_decls_ << "    int64_t " << pos_tmp << ";\n";
+            func_temp_decls_ << "    int64_t " << idx_tmp << ";\n";
+            func_temp_decls_ << "    CVar " << item_tmp << ";\n";
+            Out() << GenTab() << "FlLenInt(" << tbl_arg << ", " << len_tmp << ");\n";
+            Out() << GenTab() << pos_tmp << " = (" << pos_arg << ".type_ == VAR_INT) ? " << pos_arg << ".data_.i : 1;\n";
+            Out() << GenTab() << "for (" << idx_tmp << " = " << len_tmp << "; " << idx_tmp << " >= " << pos_tmp << "; " << idx_tmp << "--) {\n";
+            Out() << GenTab() << "    " << item_tmp << " = FlGetTableInt(" << tbl_arg << ", " << idx_tmp << ");\n";
+            Out() << GenTab() << "    FlSetTableInt(" << tbl_arg << ", " << idx_tmp << " + 1, " << item_tmp << ");\n";
+            Out() << GenTab() << "}\n";
+            Out() << GenTab() << "FlSetTableInt(" << tbl_arg << ", " << pos_tmp << ", " << val_arg << ");\n";
+            Out() << GenTab() << tmp << " = kNil;\n";
+            return tmp;
+        }
+    }
+    if (method_name == "remove" && !raw_args.empty()) {
+        std::string tbl_arg = CompileExp(raw_args[0]);
+        std::string pos_arg = (raw_args.size() >= 2) ? CompileExp(raw_args[1]) : "kNil";
+        const auto len_tmp = std::format("flua_tbl_len_{}", tmp_var_counter_++);
+        const auto pos_tmp = std::format("flua_tbl_pos_{}", tmp_var_counter_++);
+        const auto idx_tmp = std::format("flua_tbl_idx_{}", tmp_var_counter_++);
+        const auto item_tmp = std::format("flua_tbl_item_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    int64_t " << len_tmp << ";\n";
+        func_temp_decls_ << "    int64_t " << pos_tmp << ";\n";
+        func_temp_decls_ << "    int64_t " << idx_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << item_tmp << ";\n";
+        Out() << GenTab() << "FlLenInt(" << tbl_arg << ", " << len_tmp << ");\n";
+        Out() << GenTab() << pos_tmp << " = (" << pos_arg << ".type_ == VAR_INT) ? " << pos_arg << ".data_.i : " << len_tmp << ";\n";
+        Out() << GenTab() << "if (" << pos_tmp << " >= 1 && " << pos_tmp << " <= " << len_tmp << ") {\n";
+        Out() << GenTab() << "    " << tmp << " = FlGetTableInt(" << tbl_arg << ", " << pos_tmp << ");\n";
+        Out() << GenTab() << "    for (" << idx_tmp << " = " << pos_tmp << "; " << idx_tmp << " < " << len_tmp << "; " << idx_tmp << "++) {\n";
+        Out() << GenTab() << "        " << item_tmp << " = FlGetTableInt(" << tbl_arg << ", " << idx_tmp << " + 1);\n";
+        Out() << GenTab() << "        FlSetTableInt(" << tbl_arg << ", " << idx_tmp << ", " << item_tmp << ");\n";
+        Out() << GenTab() << "    }\n";
+        Out() << GenTab() << "    FlSetTableInt(" << tbl_arg << ", " << len_tmp << ", kNil);\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = kNil;\n";
+        Out() << GenTab() << "}\n";
+        return tmp;
+    }
+    if (method_name == "unpack" && !raw_args.empty()) {
+        std::string tbl_arg = CompileExp(raw_args[0]);
+        std::string i_arg = (raw_args.size() >= 2) ? CompileExp(raw_args[1]) : "kNil";
+        std::string j_arg = (raw_args.size() >= 3) ? CompileExp(raw_args[2]) : "kNil";
+
+        const auto start_tmp = std::format("flua_unp_s_{}", tmp_var_counter_++);
+        const auto end_tmp = std::format("flua_unp_e_{}", tmp_var_counter_++);
+        const auto count_tmp = std::format("flua_unp_c_{}", tmp_var_counter_++);
+        const auto idx_tmp = std::format("flua_unp_i_{}", tmp_var_counter_++);
+        const auto item_tmp = std::format("flua_unp_val_{}", tmp_var_counter_++);
+
+        func_temp_decls_ << "    int64_t " << start_tmp << ";\n";
+        func_temp_decls_ << "    int64_t " << end_tmp << ";\n";
+        func_temp_decls_ << "    int64_t " << count_tmp << ";\n";
+        func_temp_decls_ << "    int64_t " << idx_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << item_tmp << ";\n";
+
+        Out() << GenTab() << start_tmp << " = (" << i_arg << ".type_ == VAR_INT) ? " << i_arg << ".data_.i : 1;\n";
+        Out() << GenTab() << "if (" << j_arg << ".type_ == VAR_INT) { " << end_tmp << " = " << j_arg << ".data_.i; } else { FlLenInt(" << tbl_arg << ", " << end_tmp << "); }\n";
+        Out() << GenTab() << "if (" << start_tmp << " <= " << end_tmp << ") {\n";
+        Out() << GenTab() << "    " << count_tmp << " = " << end_tmp << " - " << start_tmp << " + 1;\n";
+        Out() << GenTab() << "    " << tmp << " = FlAllocMulti(_S, (uint32_t)" << count_tmp << ");\n";
+        Out() << GenTab() << "    for (" << idx_tmp << " = 0; " << idx_tmp << " < " << count_tmp << "; " << idx_tmp << "++) {\n";
+        Out() << GenTab() << "        " << item_tmp << " = FlGetTableInt(" << tbl_arg << ", " << start_tmp << " + " << idx_tmp << ");\n";
+        Out() << GenTab() << "        " << tmp << ".data_.m->vars[" << idx_tmp << "] = " << item_tmp << ";\n";
+        Out() << GenTab() << "    }\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = kNil;\n";
+        Out() << GenTab() << "}\n";
         return tmp;
     }
 

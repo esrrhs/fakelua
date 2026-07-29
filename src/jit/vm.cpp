@@ -33,7 +33,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     if (has_jit) {
         is_vararg = jit_func.IsVararg();
         expected_arg_count = jit_func.GetArgCount();
-        fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
+        fixed_arg_count = is_vararg ? std::max(0, expected_arg_count - 1) : expected_arg_count;
     } else {
         native_entry = state->GetVM().FindNativeFunction(func_name);
         if (UNLIKELY(!native_entry)) {
@@ -41,7 +41,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
         }
         is_vararg = native_entry->is_vararg;
         expected_arg_count = native_entry->arg_count;
-        fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
+        fixed_arg_count = is_vararg ? std::max(0, expected_arg_count - 1) : expected_arg_count;
     }
 
     if (UNLIKELY(arg_num > static_cast<int>(kMaxFunctionInputParams))) {
@@ -94,8 +94,8 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
             for (int i = 0; i < fixed_arg_count; ++i) {
                 temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
             }
-            const int vararg_count = flat_count - fixed_arg_count;
-            VarMulti *m = VarMulti::AllocTemp(state, vararg_count > 0 ? vararg_count : 0);
+            const int vararg_count = std::max(0, flat_count - fixed_arg_count);
+            VarMulti *m = VarMulti::AllocTemp(state, vararg_count);
             for (int i = 0; i < vararg_count; ++i) {
                 m->GetVars()[i] = flat_args_buf[fixed_arg_count + i];
             }
@@ -118,7 +118,22 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     // ── 分发 ─────────────────────────────────────────────────────────────────
     // 情形 1：C++ 原生函数
     if (!has_jit) {
-        return native_entry->callback(state, const_cast<CVar *>(arg_arr), expected_arg_count);
+        CVar flat_args_buf[kMaxFunctionInputParams];
+        int flat_count = 0;
+        for (int i = 0; i < arg_num && flat_count < static_cast<int>(kMaxFunctionInputParams); ++i) {
+            if (i == arg_num - 1 && raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
+                VarMulti *m = raw_arg_arr[i].data_.m;
+                for (uint32_t j = 0; j < m->GetCount() && flat_count < static_cast<int>(kMaxFunctionInputParams); ++j) {
+                    flat_args_buf[flat_count++] = m->GetVars()[j];
+                }
+            } else if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
+                VarMulti *m = raw_arg_arr[i].data_.m;
+                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)};
+            } else {
+                flat_args_buf[flat_count++] = raw_arg_arr[i];
+            }
+        }
+        return native_entry->callback(state, flat_args_buf, flat_count);
     }
 
     // 情形 2：JIT 编译的 lua 函数
