@@ -1128,6 +1128,36 @@ void RegisterTableLibraryApi(State *s) {
         }
         return inter::NativeToFakeluaNil(state);
     });
+
+    RegisterNativeFunction(s, "table.create", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        auto create_table = [state]() -> CVar {
+            VarTable *vtbl = static_cast<VarTable *>(FakeluaAlloc(state, sizeof(VarTable), false));
+            *vtbl = VarTable{};
+            for (auto &qd: vtbl->quick_data_) {
+                qd.key.type_ = static_cast<int>(VarType::Nil);
+                qd.val.type_ = static_cast<int>(VarType::Nil);
+            }
+            vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
+            CVar tbl_cvar{};
+            tbl_cvar.type_ = static_cast<int>(VarType::Table);
+            tbl_cvar.data_.t = vtbl;
+            return tbl_cvar;
+        };
+
+        if (n < 1) return create_table();
+        CVar seq_var = inter::GetNativeArg(state, args, n, 0);
+        int64_t count = (seq_var.type_ == static_cast<int>(VarType::Int)) ? seq_var.data_.i : 0;
+        if (count < 0) count = 0;
+
+        CVar val = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
+        CVar tbl_cvar = create_table();
+        if (val.type_ != static_cast<int>(VarType::Nil)) {
+            for (int64_t i = 1; i <= count; ++i) {
+                TableHelper::SetTableInt(state, tbl_cvar, i, val);
+            }
+        }
+        return tbl_cvar;
+    });
 }
 
 }// namespace fakelua

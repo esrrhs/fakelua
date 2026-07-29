@@ -3143,13 +3143,31 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
     const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
     const auto &raw_args = explist_arg_ptr->Exps();
 
-    static const std::unordered_set<std::string> table_builtins = {"insert", "remove", "unpack"};
+    static const std::unordered_set<std::string> table_builtins = {"insert", "remove", "unpack", "create"};
     if (!table_builtins.contains(method_name)) {
         return {};
     }
 
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    CVar " << tmp << ";\n";
+
+    if (method_name == "create" && !raw_args.empty()) {
+        std::string seq_arg = CompileExp(raw_args[0]);
+        std::string val_arg = (raw_args.size() >= 2) ? CompileExp(raw_args[1]) : "kNil";
+        const auto count_tmp = std::format("flua_crt_c_{}", tmp_var_counter_++);
+        const auto idx_tmp = std::format("flua_crt_i_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    int64_t " << count_tmp << ";\n";
+        func_temp_decls_ << "    int64_t " << idx_tmp << ";\n";
+
+        Out() << GenTab() << count_tmp << " = (" << seq_arg << ".type_ == VAR_INT) ? " << seq_arg << ".data_.i : 0;\n";
+        Out() << GenTab() << "SET_TABLE(" << tmp << ");\n";
+        Out() << GenTab() << "if (" << val_arg << ".type_ != VAR_NIL) {\n";
+        Out() << GenTab() << "    for (" << idx_tmp << " = 1; " << idx_tmp << " <= " << count_tmp << "; " << idx_tmp << "++) {\n";
+        Out() << GenTab() << "        FlSetTableInt(" << tmp << ", " << idx_tmp << ", " << val_arg << ");\n";
+        Out() << GenTab() << "    }\n";
+        Out() << GenTab() << "}\n";
+        return tmp;
+    }
 
     if (method_name == "insert" && !raw_args.empty()) {
         if (raw_args.size() == 2) {
