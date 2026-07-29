@@ -271,9 +271,11 @@ void RegisterStringLibraryApi(State *s) {
         std::string code = cl->code_str ? std::string(cl->code_str) : "";
         std::string payload = "\x1bLua";
         payload.push_back(static_cast<char>(cl->upvalue_count));
+        payload.push_back(static_cast<char>(cl->expected_arg_count));
+        payload.push_back(cl->is_vararg ? 1 : 0);
 
         for (int i = 0; i < cl->upvalue_count; ++i) {
-            if (cl->upvalues && cl->upvalues[i]) {
+            if (cl->upvalues[i]) {
                 CVar uv = *cl->upvalues[i];
                 payload.push_back(static_cast<char>(uv.type_));
                 if (uv.type_ == static_cast<int>(VarType::Int)) {
@@ -290,6 +292,10 @@ void RegisterStringLibraryApi(State *s) {
             }
         }
 
+        // 保存静态闭包原生的 func_ptr
+        uint64_t ptr_val = reinterpret_cast<uint64_t>(cl->func_ptr);
+        payload.append(reinterpret_cast<const char *>(&ptr_val), sizeof(ptr_val));
+
         payload += code;
         return inter::NativeToFakeluaStringView(state, payload);
     });
@@ -301,13 +307,19 @@ void RegisterStringLibraryApi(State *s) {
         if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
         int upval_cnt = 0;
+        int exp_arg_cnt = 0;
+        bool is_varg = true;
+        void *restored_func_ptr = nullptr;
         std::string code;
         std::vector<CVar> saved_upvalues;
 
         if (sv.size() >= 4 && sv.substr(0, 4) == "\x1bLua") {
             size_t idx = 4;
-            if (idx < sv.size()) {
+            if (idx + 3 <= sv.size()) {
                 upval_cnt = static_cast<unsigned char>(sv[idx++]);
+                exp_arg_cnt = static_cast<unsigned char>(sv[idx++]);
+                is_varg = (sv[idx++] != 0);
+
                 for (int i = 0; i < upval_cnt && idx < sv.size(); ++i) {
                     int type = static_cast<unsigned char>(sv[idx++]);
                     CVar uv{};
@@ -323,6 +335,13 @@ void RegisterStringLibraryApi(State *s) {
                     }
                     saved_upvalues.push_back(uv);
                 }
+
+                if (idx + sizeof(uint64_t) <= sv.size()) {
+                    uint64_t ptr_val = 0;
+                    std::memcpy(&ptr_val, sv.data() + idx, sizeof(uint64_t));
+                    idx += sizeof(uint64_t);
+                    restored_func_ptr = reinterpret_cast<void *>(ptr_val);
+                }
             }
             code = std::string(sv.substr(idx));
         } else {
@@ -332,21 +351,26 @@ void RegisterStringLibraryApi(State *s) {
         try {
             CompileConfig config;
             std::string wrapper_code;
-            if (code.find("function") == std::string::npos && code.find("return") == std::string::npos) {
-                wrapper_code = "return " + code;
-            } else {
-                wrapper_code = code;
+            if (!code.empty()) {
+                if (code.find("function") == std::string::npos && code.find("return") == std::string::npos) {
+                    wrapper_code = "return " + code;
+                } else {
+                    wrapper_code = code;
+                }
             }
 
             auto &alloc = state->GetHeap().GetAllocator(false);
-            char *saved_code = static_cast<char *>(alloc.Alloc(wrapper_code.size() + 1));
-            std::memcpy(saved_code, wrapper_code.c_str(), wrapper_code.size() + 1);
+            char *saved_code = nullptr;
+            if (!wrapper_code.empty()) {
+                saved_code = static_cast<char *>(alloc.Alloc(wrapper_code.size() + 1));
+                std::memcpy(saved_code, wrapper_code.c_str(), wrapper_code.size() + 1);
+            }
 
             VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + static_cast<size_t>(upval_cnt) * sizeof(CVar *)));
-            cl->func_ptr = nullptr;
+            cl->func_ptr = restored_func_ptr;
             cl->upvalue_count = upval_cnt;
-            cl->expected_arg_count = 0;
-            cl->is_vararg = true;
+            cl->expected_arg_count = exp_arg_cnt;
+            cl->is_vararg = is_varg;
             cl->code_str = saved_code;
 
             for (int i = 0; i < upval_cnt; ++i) {
@@ -382,7 +406,7 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
 
     std::string upval_decls;
     for (int i = 0; i < cl->upvalue_count; ++i) {
-        if (cl->upvalues && cl->upvalues[i]) {
+        if (cl->upvalues[i]) {
             CVar uv = *cl->upvalues[i];
             if (uv.type_ == static_cast<int>(VarType::Int)) {
                 upval_decls += "local x = " + std::to_string(uv.data_.i) + "\n";

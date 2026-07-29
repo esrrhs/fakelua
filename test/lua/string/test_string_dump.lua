@@ -1,5 +1,5 @@
 function test_string_dump()
-    -- Case 1: 无闭包/普通表达式的 string.dump -> load -> 运行校验返回值
+    -- Case 1: 表达式 load -> dump -> load -> 运行校验返回值
     local code1 = "123 + 456"
     local fn1 = load(code1)
     if fn1 == nil then return 10 end
@@ -13,7 +13,7 @@ function test_string_dump()
     local res1 = fn1_restore()
     if res1 ~= 579 then return 40 end
 
-    -- Case 2: 包含局部作用域与嵌套子函数的闭包的 string.dump -> load -> 运行校验返回值
+    -- Case 2: 作用域子函数 load -> dump -> load -> 运行校验返回值
     local code2 = "local x = 100\nlocal function add_up(y) return x + y end\nreturn add_up(50)"
     local fn2 = load(code2)
     if fn2 == nil then return 50 end
@@ -26,6 +26,20 @@ function test_string_dump()
 
     local res2 = fn2_restore()
     if res2 ~= 150 then return 80 end
+
+    -- Case 3: 静态编译的闭包函数 (直接声明，无先 load)，直接传给 string.dump -> load -> 运行校验返回值
+    local static_closure = function(a, b)
+        return a * 10 + b
+    end
+
+    local dumped3 = string.dump(static_closure)
+    if string.sub(dumped3, 1, 4) ~= "\027Lua" then return 90 end
+
+    local static_restore = load(dumped3)
+    if static_restore == nil then return 100 end
+
+    local res3 = static_restore(7, 8)
+    if res3 ~= 78 then return 110 end
 
     return 700
 end
