@@ -3406,7 +3406,7 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
     }
 
     const std::string method_name = callee_var->GetName();
-    static const std::unordered_set<std::string> string_builtins = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char"};
+    static const std::unordered_set<std::string> string_builtins = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char", "format"};
     if (!string_builtins.contains(method_name)) {
         return {};
     }

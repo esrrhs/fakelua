@@ -78,3 +78,18 @@ TEST(test_string, test_string_byte_char) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, test_string_format) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_format.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_string_format", res);
+        EXPECT_EQ(res, 600);
+    }
+
+    FakeluaDeleteState(s);
+}

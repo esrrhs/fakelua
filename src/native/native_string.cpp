@@ -155,6 +155,111 @@ void RegisterStringLibraryApi(State *s) {
         }
         return inter::NativeToFakeluaStringView(state, res);
     });
+
+    RegisterNativeFunction(s, "string.format", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaStringView(state, "");
+        CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
+        std::string_view fmt = KeyToStringView(fmt_var);
+
+        std::string res;
+        res.reserve(fmt.size() + 32);
+
+        int arg_idx = 1;
+        size_t i = 0;
+        size_t len = fmt.size();
+
+        while (i < len) {
+            if (fmt[i] != '%') {
+                res.push_back(fmt[i++]);
+                continue;
+            }
+
+            i++;
+            if (i >= len) {
+                res.push_back('%');
+                break;
+            }
+
+            if (fmt[i] == '%') {
+                res.push_back('%');
+                i++;
+                continue;
+            }
+
+            size_t spec_start = i - 1;
+            while (i < len && (std::isdigit(static_cast<unsigned char>(fmt[i])) || fmt[i] == '-' || fmt[i] == '+' || fmt[i] == ' ' || fmt[i] == '#' || fmt[i] == '.' || fmt[i] == '0')) {
+                i++;
+            }
+
+            if (i >= len) {
+                res.append(fmt.substr(spec_start));
+                break;
+            }
+
+            char spec = fmt[i++];
+            std::string spec_str(fmt.substr(spec_start, i - spec_start));
+
+            CVar curr_arg = (arg_idx < n) ? inter::GetNativeArg(state, args, n, arg_idx++) : CVar{static_cast<int>(VarType::Nil)};
+
+            if (spec == 'q') {
+                std::string_view sval = KeyToStringView(curr_arg);
+                res.push_back('"');
+                for (char c: sval) {
+                    if (c == '"') res.append("\\\"");
+                    else if (c == '\\')
+                        res.append("\\\\");
+                    else if (c == '\n')
+                        res.append("\\n");
+                    else if (c == '\r')
+                        res.append("\\r");
+                    else
+                        res.push_back(c);
+                }
+                res.push_back('"');
+            } else if (spec == 's') {
+                std::string sval;
+                if (curr_arg.type_ == static_cast<int>(VarType::String) || curr_arg.type_ == static_cast<int>(VarType::StringId)) {
+                    sval = std::string(KeyToStringView(curr_arg));
+                } else if (curr_arg.type_ == static_cast<int>(VarType::Int)) {
+                    sval = std::to_string(curr_arg.data_.i);
+                } else if (curr_arg.type_ == static_cast<int>(VarType::Float)) {
+                    sval = std::to_string(curr_arg.data_.f);
+                } else if (curr_arg.type_ == static_cast<int>(VarType::Bool)) {
+                    sval = curr_arg.data_.b ? "true" : "false";
+                }
+                char buf[1024];
+                snprintf(buf, sizeof(buf), spec_str.c_str(), sval.c_str());
+                res.append(buf);
+            } else if (spec == 'd' || spec == 'i') {
+                int64_t ival =
+                        (curr_arg.type_ == static_cast<int>(VarType::Int)) ? curr_arg.data_.i : (curr_arg.type_ == static_cast<int>(VarType::Float) ? static_cast<int64_t>(curr_arg.data_.f) : 0);
+                std::string llspec = spec_str;
+                llspec.insert(llspec.size() - 1, "ll");
+                char buf[128];
+                snprintf(buf, sizeof(buf), llspec.c_str(), ival);
+                res.append(buf);
+            } else if (spec == 'u' || spec == 'x' || spec == 'X' || spec == 'o') {
+                uint64_t uval = (curr_arg.type_ == static_cast<int>(VarType::Int)) ? static_cast<uint64_t>(curr_arg.data_.i) : 0;
+                std::string llspec = spec_str;
+                llspec.insert(llspec.size() - 1, "ll");
+                char buf[128];
+                snprintf(buf, sizeof(buf), llspec.c_str(), uval);
+                res.append(buf);
+            } else if (spec == 'f' || spec == 'e' || spec == 'E' || spec == 'g' || spec == 'G') {
+                double fval =
+                        (curr_arg.type_ == static_cast<int>(VarType::Float)) ? curr_arg.data_.f : (curr_arg.type_ == static_cast<int>(VarType::Int) ? static_cast<double>(curr_arg.data_.i) : 0.0);
+                char buf[128];
+                snprintf(buf, sizeof(buf), spec_str.c_str(), fval);
+                res.append(buf);
+            } else if (spec == 'c') {
+                int64_t cval = (curr_arg.type_ == static_cast<int>(VarType::Int)) ? curr_arg.data_.i : 0;
+                res.push_back(static_cast<char>(cval));
+            } else {
+                res.append(spec_str);
+            }
+        }
+        return inter::NativeToFakeluaStringView(state, res);
+    });
 }
 
 }// namespace fakelua
