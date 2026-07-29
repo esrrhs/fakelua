@@ -282,6 +282,10 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
     }
     VarClosure *cl = cl_var.data_.cl;
     void *addr = cl->func_ptr;
+    if (UNLIKELY(addr == NULL)) {
+        extern CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
+        return FlEvalLoadClosure(state, cl, arg_num, cl_var.type_ == VAR_CLOSURE ? (const CVar *)&cl_var : NULL);
+    }
     const bool is_vararg = cl->is_vararg;
     const int expected_arg_count = cl->expected_arg_count;
     const int fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
