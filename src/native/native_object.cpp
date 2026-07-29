@@ -1091,9 +1091,10 @@ void RegisterTableLibraryApi(State *s) {
 
         CVar comp = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
         if (comp.type_ == static_cast<int>(VarType::Closure) && comp.data_.cl && comp.data_.cl->func_ptr) {
+            VarClosure *cl = comp.data_.cl;
             auto comp_func = [&](const CVar &a, const CVar &b) -> bool {
-                CVar call_args[2] = {a, b};
-                CVar res = inter::DispatchCall(comp.data_.cl->func_ptr, call_args, 2);
+                void *addr = cl->func_ptr;
+                CVar res = reinterpret_cast<CVar (*)(VarClosure *, CVar, CVar)>(addr)(cl, a, b);
                 bool is_true = !(res.type_ == static_cast<int>(VarType::Nil) || (res.type_ == static_cast<int>(VarType::Bool) && !res.data_.b));
                 return is_true;
             };
