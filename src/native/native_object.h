@@ -99,16 +99,7 @@ CVar NativeFieldToCVar(const NativeField &field, State *s);
 // CVar → NativeField（将 fakelua 值转为 C++ 持久值）
 NativeField CVarToNativeField(CVar v);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TableHelper: 表操作辅助类（供 Native Table 库及相关 Native API 使用）
-// ─────────────────────────────────────────────────────────────────────────────
-class TableHelper {
-public:
-    static bool VarKeyEqualInt(CVar k, int64_t idx);
-    static int64_t GetTableLen(CVar tbl);
-    static CVar GetTableInt(State *s, CVar tbl, int64_t idx);
-    static void SetTableInt(State *s, CVar tbl, int64_t idx, CVar val);
-    static void SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val);
-};
-
 }// namespace fakelua
+
+#include "native/native_math.h"
+#include "native/native_table.h"
