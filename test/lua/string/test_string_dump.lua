@@ -41,5 +41,20 @@ function test_string_dump()
     local res3 = static_restore(7, 8)
     if res3 ~= 78 then return 110 end
 
+    -- Case 4: 静态编译且带 Upvalue 捕获的闭包函数，直接传给 string.dump -> load -> 运行校验返回值
+    local base_val = 200
+    local static_closure_with_upvalue = function(a)
+        return base_val + a
+    end
+
+    local dumped4 = string.dump(static_closure_with_upvalue)
+    if string.sub(dumped4, 1, 4) ~= "\027Lua" then return 120 end
+
+    local static_upval_restore = load(dumped4)
+    if static_upval_restore == nil then return 130 end
+
+    local res4 = static_upval_restore(30)
+    if res4 ~= 230 then return 140 end
+
     return 700
 end
