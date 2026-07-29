@@ -64,25 +64,61 @@ TEST(test_math, test_math_utils) {
     FakeluaDeleteState(s);
 }
 
-TEST(test_math, test_math_extended) {
+TEST(test_math, test_math_constants) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
     for (auto jit_type: {JIT_TCC, JIT_GCC}) {
-        CompileFile(s, "./math/test_math_extended.lua", config);
-        int64_t r1 = 0, r2 = 0, r3 = 0, r4 = 0;
-        Call(s, jit_type, "test_math_constants", r1);
-        EXPECT_EQ(r1, 100);
+        CompileFile(s, "./math/test_math_constants.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_constants", res);
+        EXPECT_EQ(res, 100);
+    }
 
-        Call(s, jit_type, "test_math_deg_rad", r2);
-        EXPECT_EQ(r2, 200);
+    FakeluaDeleteState(s);
+}
 
-        Call(s, jit_type, "test_math_random", r3);
-        EXPECT_EQ(r3, 300);
+TEST(test_math, test_math_deg_rad) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
 
-        Call(s, jit_type, "test_math_modf_frexp", r4);
-        EXPECT_EQ(r4, 400);
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_deg_rad.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_deg_rad", res);
+        EXPECT_EQ(res, 200);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_random) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_random.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_random", res);
+        EXPECT_EQ(res, 300);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_modf_frexp) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_modf_frexp.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_modf_frexp", res);
+        EXPECT_EQ(res, 400);
     }
 
     FakeluaDeleteState(s);
