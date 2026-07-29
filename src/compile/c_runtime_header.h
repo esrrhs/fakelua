@@ -41,6 +41,7 @@ typedef struct VarClosure {
     int upvalue_count;
     int expected_arg_count;
     bool is_vararg;
+    const char *code_str;
     CVar *upvalues[0];
 } VarClosure;
 
@@ -261,6 +262,7 @@ static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count
     cl->upvalue_count = upvalue_count;
     cl->expected_arg_count = expected_arg_count;
     cl->is_vararg = is_vararg;
+    cl->code_str = NULL;
     va_list args_list;
     va_start(args_list, is_vararg);
     for (int i = 0; i < upvalue_count; ++i) {

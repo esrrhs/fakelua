@@ -260,6 +260,59 @@ void RegisterStringLibraryApi(State *s) {
         }
         return inter::NativeToFakeluaStringView(state, res);
     });
+
+    RegisterNativeFunction(s, "string.dump", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaNil(state);
+        CVar fn_var = inter::GetNativeArg(state, args, n, 0);
+        if (fn_var.type_ != static_cast<int>(VarType::Closure) || !fn_var.data_.cl) {
+            return inter::NativeToFakeluaNil(state);
+        }
+        VarClosure *cl = fn_var.data_.cl;
+        std::string code = cl->code_str ? std::string(cl->code_str) : "";
+        std::string payload = "\x1bLua" + code;
+        return inter::NativeToFakeluaStringView(state, payload);
+    });
+
+    auto load_impl = [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaNil(state);
+        CVar code_var = inter::GetNativeArg(state, args, n, 0);
+        std::string_view sv = KeyToStringView(code_var);
+        if (sv.empty()) return inter::NativeToFakeluaNil(state);
+
+        std::string code;
+        if (sv.size() >= 4 && sv.substr(0, 4) == "\x1bLua") {
+            code = std::string(sv.substr(4));
+        } else {
+            code = std::string(sv);
+        }
+
+        try {
+            CompileConfig config;
+            CompileString(state, code, config);
+
+            // 编译成功后构造 Closure 保存源码
+            auto &alloc = state->GetHeap().GetAllocator(false);
+            char *saved_code = static_cast<char *>(alloc.Alloc(code.size() + 1));
+            std::memcpy(saved_code, code.c_str(), code.size() + 1);
+
+            VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure)));
+            cl->func_ptr = nullptr;
+            cl->upvalue_count = 0;
+            cl->expected_arg_count = 0;
+            cl->is_vararg = true;
+            cl->code_str = saved_code;
+
+            CVar res{};
+            res.type_ = static_cast<int>(VarType::Closure);
+            res.data_.cl = cl;
+            return res;
+        } catch (...) {
+            return inter::NativeToFakeluaNil(state);
+        }
+    };
+
+    RegisterNativeFunction(s, "load", 1, true, load_impl);
+    RegisterNativeFunction(s, "loadstring", 1, true, load_impl);
 }
 
 }// namespace fakelua

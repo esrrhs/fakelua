@@ -13,6 +13,7 @@ public:
     int upvalue_count;
     int expected_arg_count;
     bool is_vararg;
+    const char *code_str;
     CVar *upvalues[0];
 };
 
