@@ -657,6 +657,7 @@ private:
     friend NativeField CVarToNativeField(CVar v);
     friend void RegisterNativeObjectApi(State *s);
     friend void RegisterMathLibraryApi(State *s);
+    friend void RegisterTableLibraryApi(State *s);
     friend CVar inter::NativeToFakeluaNativeObject(State *s, const NativeObject *obj);
 };
 
@@ -669,6 +670,7 @@ using NativeVarFuncCallback = std::function<VarInterface *(State *, const std::v
 void RegisterNativeFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeFuncCallback callback);
 
 void RegisterMathLibraryApi(State *s);
+void RegisterTableLibraryApi(State *s);
 
 void RegisterNativeVarFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeVarFuncCallback callback);
 

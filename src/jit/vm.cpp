@@ -118,7 +118,22 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     // ── 分发 ─────────────────────────────────────────────────────────────────
     // 情形 1：C++ 原生函数
     if (!has_jit) {
-        return native_entry->callback(state, const_cast<CVar *>(arg_arr), expected_arg_count);
+        CVar flat_args_buf[kMaxFunctionInputParams];
+        int flat_count = 0;
+        for (int i = 0; i < arg_num && flat_count < static_cast<int>(kMaxFunctionInputParams); ++i) {
+            if (i == arg_num - 1 && raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
+                VarMulti *m = raw_arg_arr[i].data_.m;
+                for (uint32_t j = 0; j < m->GetCount() && flat_count < static_cast<int>(kMaxFunctionInputParams); ++j) {
+                    flat_args_buf[flat_count++] = m->GetVars()[j];
+                }
+            } else if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
+                VarMulti *m = raw_arg_arr[i].data_.m;
+                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)};
+            } else {
+                flat_args_buf[flat_count++] = raw_arg_arr[i];
+            }
+        }
+        return native_entry->callback(state, flat_args_buf, flat_count);
     }
 
     // 情形 2：JIT 编译的 lua 函数

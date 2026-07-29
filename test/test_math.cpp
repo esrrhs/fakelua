@@ -43,7 +43,7 @@ TEST(test_math, test_math_exp_log) {
         CompileFile(s, "./math/test_math_exp_log.lua", config);
         double res = 0.0;
         Call(s, jit_type, "test_math_exp_log", res);
-        EXPECT_NEAR(res, 7.6051701903343201, 1e-4);
+        EXPECT_NEAR(res, 5.0, 1e-4);
     }
 
     FakeluaDeleteState(s);

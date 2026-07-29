@@ -86,7 +86,6 @@ typedef struct State State;
 
 #define STR_SIZE(s) ((s)->size_)
 #define STR_DATA(s) ((s)->data_)
-#define TABLE_SIZE(t) ((t)->count_ + (t)->spec_count)
 
 enum {
     VAR_NIL = 0,
@@ -100,12 +99,54 @@ enum {
     VAR_CLOSURE = 8,
 };
 
+static inline int64_t FlGetTableSeqLen(VarTable *t) {
+    if (!t) return 0;
+    int64_t max_i = (int64_t)t->spec_count;
+    while (1) {
+        bool found = false;
+        if (LIKELY(t->bucket_count_ == 0)) {
+            for (uint32_t i = 0; i < t->count_; ++i) {
+                if (t->quick_data_[i].key.type_ == VAR_INT && t->quick_data_[i].key.data_.i == max_i + 1 && t->quick_data_[i].val.type_ != VAR_NIL) {
+                    found = true; break;
+                }
+            }
+        } else {
+            int64_t target_k = max_i + 1;
+            uint32_t h = (uint32_t)(target_k ^ (target_k >> 32));
+            uint32_t mask = t->bucket_count_ - 1;
+            uint32_t idx = h & mask;
+            TableNode *curr = &t->nodes_[idx];
+            while (curr) {
+                if (curr->entry.key.type_ == VAR_INT && curr->entry.key.data_.i == target_k && curr->entry.val.type_ != VAR_NIL) {
+                    found = true; break;
+                }
+                if (curr->next == 0xFFFFFFFF) break;
+                curr = &t->nodes_[curr->next];
+            }
+        }
+        if (found) { max_i++; } else { break; }
+    }
+    return max_i;
+}
+
+#define TABLE_SIZE(t) ((t)->count_ + (t)->spec_count)
+
 typedef struct VarMulti {
     uint32_t count;
     CVar vars[0];
 } VarMulti;
 
 extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
+
+static inline CVar FlAllocMulti(State *state, uint32_t count) {
+    VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
+    m->count = count;
+    CVar res;
+    res.type_ = VAR_MULTI;
+    res.flag_ = 0;
+    res.data_.m = m;
+    return res;
+}
 
 static inline CVar FlMakeMulti(State *state, uint32_t count, ...) {
     VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
@@ -530,8 +571,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
             (__b.type_ == VAR_STRING || __b.type_ == VAR_STRINGID)) { \
             VarString *__sa = (__a.type_ == VAR_STRING) ? __a.data_.s : (VarString *)__a.data_.i; \
             VarString *__sb = (__b.type_ == VAR_STRING) ? __b.data_.s : (VarString *)__b.data_.i; \
-            if (__sa == __sb) { (result) = true; break; } \
-            (result) = (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0); \
+            (result) = (__sa == __sb) || (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0); \
         } else if (__a.type_ == VAR_INT && __b.type_ == VAR_FLOAT) { \
             (result) = ((double)__a.data_.i == __b.data_.f); \
         } else if (__a.type_ == VAR_FLOAT && __b.type_ == VAR_INT) { \
@@ -551,7 +591,13 @@ static inline uint32_t FlHashString(const char *str, int len) {
             (result) = (__a.data_.s->size_ == __b.data_.s->size_ && memcmp(__a.data_.s->data_, __b.data_.s->data_, __a.data_.s->size_) == 0); \
             break; \
         } \
-        case VAR_STRINGID: (result) = (__a.data_.i == __b.data_.i); break; \
+        case VAR_STRINGID: { \
+            if (__a.data_.i == __b.data_.i) { (result) = true; break; } \
+            VarString *__sa = (VarString *)__a.data_.i; \
+            VarString *__sb = (VarString *)__b.data_.i; \
+            (result) = (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0); \
+            break; \
+        } \
         case VAR_TABLE: (result) = (__a.data_.t == __b.data_.t); break; \
         case VAR_CLOSURE: (result) = (__a.data_.cl == __b.data_.cl); break; \
         default: (result) = false; break; \
@@ -1041,7 +1087,7 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
     CVar _lv = (a); \
     if (LIKELY(_lv.type_ == VAR_STRING)) { SET_INT(res, STR_SIZE(_lv.data_.s)); } \
     else if (_lv.type_ == VAR_STRINGID) { SET_INT(res, STR_SIZE((VarString *)_lv.data_.i)); } \
-    else if (_lv.type_ == VAR_TABLE) { SET_INT(res, TABLE_SIZE(_lv.data_.t)); } \
+    else if (_lv.type_ == VAR_TABLE) { SET_INT(res, FlGetTableSeqLen(_lv.data_.t)); } \
     else { FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); } \
 } while(0)
 
@@ -1157,7 +1203,7 @@ static inline CVar FlConcat(CVar a, CVar b) {
     } else if (UNLIKELY(__fl_v.type_ == VAR_STRINGID)) { \
         (result) = (int64_t)STR_SIZE((VarString *)__fl_v.data_.i); \
     } else if (UNLIKELY(__fl_v.type_ == VAR_TABLE)) { \
-        (result) = (int64_t)TABLE_SIZE(__fl_v.data_.t); \
+        (result) = (int64_t)FlGetTableSeqLen(__fl_v.data_.t); \
     } else { \
         FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); \
         (result) = 0; \
