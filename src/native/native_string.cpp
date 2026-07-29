@@ -269,7 +269,10 @@ void RegisterStringLibraryApi(State *s) {
         }
         VarClosure *cl = fn_var.data_.cl;
         std::string code = cl->code_str ? std::string(cl->code_str) : "";
-        std::string payload = "\x1bLua" + code;
+        std::string payload = "\x1bLua";
+        // 编码 upvalue_count
+        payload.push_back(static_cast<char>(cl->upvalue_count));
+        payload += code;
         return inter::NativeToFakeluaStringView(state, payload);
     });
 
@@ -279,28 +282,50 @@ void RegisterStringLibraryApi(State *s) {
         std::string_view sv = KeyToStringView(code_var);
         if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
+        int upval_cnt = 0;
         std::string code;
         if (sv.size() >= 4 && sv.substr(0, 4) == "\x1bLua") {
-            code = std::string(sv.substr(4));
+            if (sv.size() >= 5) {
+                upval_cnt = static_cast<unsigned char>(sv[4]);
+                code = std::string(sv.substr(5));
+            } else {
+                code = std::string(sv.substr(4));
+            }
         } else {
             code = std::string(sv);
         }
 
+        static uint64_t load_cnt = 0;
+        std::string fn_name = "__flua_ld_" + std::to_string(++load_cnt);
+
         try {
             CompileConfig config;
-            CompileString(state, code, config);
+            std::string wrapper_code;
+            if (code.find("function") == std::string::npos && code.find("return") == std::string::npos) {
+                wrapper_code = "function " + fn_name + "(...)\nreturn " + code + "\nend";
+            } else if (code.find("function") == std::string::npos) {
+                wrapper_code = "function " + fn_name + "(...)\n" + code + "\nend";
+            } else {
+                wrapper_code = code;
+            }
+            CompileString(state, wrapper_code, config);
 
-            // 编译成功后构造 Closure 保存源码
             auto &alloc = state->GetHeap().GetAllocator(false);
             char *saved_code = static_cast<char *>(alloc.Alloc(code.size() + 1));
             std::memcpy(saved_code, code.c_str(), code.size() + 1);
 
-            VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure)));
+            VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + static_cast<size_t>(upval_cnt) * sizeof(CVar *)));
             cl->func_ptr = nullptr;
-            cl->upvalue_count = 0;
+            cl->upvalue_count = upval_cnt;
             cl->expected_arg_count = 0;
             cl->is_vararg = true;
             cl->code_str = saved_code;
+
+            for (int i = 0; i < upval_cnt; ++i) {
+                CVar *u = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
+                u->type_ = static_cast<int>(VarType::Nil);
+                cl->upvalues[i] = u;
+            }
 
             CVar res{};
             res.type_ = static_cast<int>(VarType::Closure);
@@ -313,6 +338,29 @@ void RegisterStringLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "load", 1, true, load_impl);
     RegisterNativeFunction(s, "loadstring", 1, true, load_impl);
+}
+
+extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args) {
+    if (!state || !cl || !cl->code_str) {
+        return inter::NativeToFakeluaNil(state);
+    }
+    std::string code = cl->code_str;
+    if (code.size() >= 4 && code.substr(0, 4) == "\x1bLua") {
+        code = (code.size() >= 5) ? code.substr(5) : code.substr(4);
+    }
+
+    static uint64_t eval_counter = 0;
+    std::string eval_fn_name = "__flua_eval_ld_" + std::to_string(++eval_counter);
+    std::string full_code = "function " + eval_fn_name + "()\n return (" + code + ")\nend";
+
+    try {
+        CompileConfig config;
+        CompileString(state, full_code, config);
+        CVar res = FakeluaCallByName(state, JIT_TCC, eval_fn_name.c_str(), 0);
+        return res;
+    } catch (...) {
+        return inter::NativeToFakeluaNil(state);
+    }
 }
 
 }// namespace fakelua
