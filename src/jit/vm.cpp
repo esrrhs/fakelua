@@ -33,7 +33,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     if (has_jit) {
         is_vararg = jit_func.IsVararg();
         expected_arg_count = jit_func.GetArgCount();
-        fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
+        fixed_arg_count = is_vararg ? std::max(0, expected_arg_count - 1) : expected_arg_count;
     } else {
         native_entry = state->GetVM().FindNativeFunction(func_name);
         if (UNLIKELY(!native_entry)) {
@@ -41,7 +41,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
         }
         is_vararg = native_entry->is_vararg;
         expected_arg_count = native_entry->arg_count;
-        fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
+        fixed_arg_count = is_vararg ? std::max(0, expected_arg_count - 1) : expected_arg_count;
     }
 
     if (UNLIKELY(arg_num > static_cast<int>(kMaxFunctionInputParams))) {
@@ -94,8 +94,8 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
             for (int i = 0; i < fixed_arg_count; ++i) {
                 temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
             }
-            const int vararg_count = flat_count - fixed_arg_count;
-            VarMulti *m = VarMulti::AllocTemp(state, vararg_count > 0 ? vararg_count : 0);
+            const int vararg_count = std::max(0, flat_count - fixed_arg_count);
+            VarMulti *m = VarMulti::AllocTemp(state, vararg_count);
             for (int i = 0; i < vararg_count; ++i) {
                 m->GetVars()[i] = flat_args_buf[fixed_arg_count + i];
             }
