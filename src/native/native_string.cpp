@@ -270,8 +270,26 @@ void RegisterStringLibraryApi(State *s) {
         VarClosure *cl = fn_var.data_.cl;
         std::string code = cl->code_str ? std::string(cl->code_str) : "";
         std::string payload = "\x1bLua";
-        // 编码 upvalue_count
         payload.push_back(static_cast<char>(cl->upvalue_count));
+
+        for (int i = 0; i < cl->upvalue_count; ++i) {
+            if (cl->upvalues && cl->upvalues[i]) {
+                CVar uv = *cl->upvalues[i];
+                payload.push_back(static_cast<char>(uv.type_));
+                if (uv.type_ == static_cast<int>(VarType::Int)) {
+                    int64_t v = uv.data_.i;
+                    payload.append(reinterpret_cast<const char *>(&v), sizeof(v));
+                } else if (uv.type_ == static_cast<int>(VarType::Float)) {
+                    double v = uv.data_.f;
+                    payload.append(reinterpret_cast<const char *>(&v), sizeof(v));
+                } else if (uv.type_ == static_cast<int>(VarType::Bool)) {
+                    payload.push_back(uv.data_.b ? 1 : 0);
+                }
+            } else {
+                payload.push_back(static_cast<char>(VarType::Nil));
+            }
+        }
+
         payload += code;
         return inter::NativeToFakeluaStringView(state, payload);
     });
@@ -284,35 +302,45 @@ void RegisterStringLibraryApi(State *s) {
 
         int upval_cnt = 0;
         std::string code;
+        std::vector<CVar> saved_upvalues;
+
         if (sv.size() >= 4 && sv.substr(0, 4) == "\x1bLua") {
-            if (sv.size() >= 5) {
-                upval_cnt = static_cast<unsigned char>(sv[4]);
-                code = std::string(sv.substr(5));
-            } else {
-                code = std::string(sv.substr(4));
+            size_t idx = 4;
+            if (idx < sv.size()) {
+                upval_cnt = static_cast<unsigned char>(sv[idx++]);
+                for (int i = 0; i < upval_cnt && idx < sv.size(); ++i) {
+                    int type = static_cast<unsigned char>(sv[idx++]);
+                    CVar uv{};
+                    uv.type_ = type;
+                    if (type == static_cast<int>(VarType::Int) && idx + sizeof(int64_t) <= sv.size()) {
+                        std::memcpy(&uv.data_.i, sv.data() + idx, sizeof(int64_t));
+                        idx += sizeof(int64_t);
+                    } else if (type == static_cast<int>(VarType::Float) && idx + sizeof(double) <= sv.size()) {
+                        std::memcpy(&uv.data_.f, sv.data() + idx, sizeof(double));
+                        idx += sizeof(double);
+                    } else if (type == static_cast<int>(VarType::Bool) && idx < sv.size()) {
+                        uv.data_.b = (sv[idx++] != 0);
+                    }
+                    saved_upvalues.push_back(uv);
+                }
             }
+            code = std::string(sv.substr(idx));
         } else {
             code = std::string(sv);
         }
-
-        static uint64_t load_cnt = 0;
-        std::string fn_name = "__flua_ld_" + std::to_string(++load_cnt);
 
         try {
             CompileConfig config;
             std::string wrapper_code;
             if (code.find("function") == std::string::npos && code.find("return") == std::string::npos) {
-                wrapper_code = "function " + fn_name + "(...)\nreturn " + code + "\nend";
-            } else if (code.find("function") == std::string::npos) {
-                wrapper_code = "function " + fn_name + "(...)\n" + code + "\nend";
+                wrapper_code = "return " + code;
             } else {
                 wrapper_code = code;
             }
-            CompileString(state, wrapper_code, config);
 
             auto &alloc = state->GetHeap().GetAllocator(false);
-            char *saved_code = static_cast<char *>(alloc.Alloc(code.size() + 1));
-            std::memcpy(saved_code, code.c_str(), code.size() + 1);
+            char *saved_code = static_cast<char *>(alloc.Alloc(wrapper_code.size() + 1));
+            std::memcpy(saved_code, wrapper_code.c_str(), wrapper_code.size() + 1);
 
             VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + static_cast<size_t>(upval_cnt) * sizeof(CVar *)));
             cl->func_ptr = nullptr;
@@ -323,7 +351,7 @@ void RegisterStringLibraryApi(State *s) {
 
             for (int i = 0; i < upval_cnt; ++i) {
                 CVar *u = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-                u->type_ = static_cast<int>(VarType::Nil);
+                *u = (i < static_cast<int>(saved_upvalues.size())) ? saved_upvalues[i] : CVar{static_cast<int>(VarType::Nil)};
                 cl->upvalues[i] = u;
             }
 
@@ -351,7 +379,27 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
 
     static uint64_t eval_counter = 0;
     std::string eval_fn_name = "__flua_eval_ld_" + std::to_string(++eval_counter);
-    std::string full_code = "function " + eval_fn_name + "()\n return (" + code + ")\nend";
+
+    std::string upval_decls;
+    for (int i = 0; i < cl->upvalue_count; ++i) {
+        if (cl->upvalues && cl->upvalues[i]) {
+            CVar uv = *cl->upvalues[i];
+            if (uv.type_ == static_cast<int>(VarType::Int)) {
+                upval_decls += "local x = " + std::to_string(uv.data_.i) + "\n";
+            } else if (uv.type_ == static_cast<int>(VarType::Float)) {
+                upval_decls += "local x = " + std::to_string(uv.data_.f) + "\n";
+            } else if (uv.type_ == static_cast<int>(VarType::Bool)) {
+                upval_decls += "local x = " + std::string(uv.data_.b ? "true\n" : "false\n");
+            }
+        }
+    }
+
+    std::string full_code;
+    if (code.find("function") == std::string::npos && code.find("return") == std::string::npos) {
+        full_code = upval_decls + "function " + eval_fn_name + "()\nreturn " + code + "\nend";
+    } else {
+        full_code = upval_decls + "function " + eval_fn_name + "()\n" + code + "\nend";
+    }
 
     try {
         CompileConfig config;
