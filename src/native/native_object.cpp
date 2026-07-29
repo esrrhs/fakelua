@@ -599,6 +599,7 @@ void RegisterNativeObjectApi(State *s) {
     // 自动注册内置标准库 API
     RegisterMathLibraryApi(s);
     RegisterTableLibraryApi(s);
+    RegisterStringLibraryApi(s);
 }
 
 }// namespace fakelua
