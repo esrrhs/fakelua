@@ -243,6 +243,41 @@ std::string msg;
 Call(s, JIT_GCC, "calc_multi", std::tie(x, y, msg), 10, 20, 30); // x=10, y=20, msg="ok"
 ```
 
+### 标准内置扩展库（Built-in Standard Libraries）
+
+FakeLua 提供完整的核心标准库（`math`、`table`、`string`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
+
+- **Math 数学库 (`math.*`)**：
+  - **基础与三角函数**：`math.abs`, `math.floor`, `math.ceil`, `math.min`, `math.max`, `math.sqrt`, `math.sin`, `math.cos`, `math.tan`, `math.asin`, `math.acos`, `math.atan`, `math.sinh`, `math.cosh`, `math.tanh`
+  - **指数、对数与分解**：`math.exp`, `math.log`, `math.log10`, `math.deg`, `math.rad`, `math.modf`, `math.frexp`
+  - **随机数与数值常量**：`math.random`, `math.randomseed`, 以及数值常量 `math.pi`, `math.huge`, `math.maxinteger`, `math.mininteger`
+- **Table 表操作库 (`table.*`)**：
+  - `table.concat(list [, sep [, i [, j]]])`：列表元素格式化拼接
+  - `table.insert(list [, pos], value)` & `table.remove(list [, pos])`：快速数组插入与删除
+  - `table.pack(...)` & `table.unpack(list [, i [, j]])`：变长参数打包与数组元素解包
+  - `table.sort(list [, comp])`：列表高效排序（支持默认比较及自定义 Lua 比较闭包函数）
+  - `table.create(seq_size [, hash_size])`：预分配容量构造优化 Table 结构
+- **String 字符串处理库 (`string.*`)**：
+  - `string.len(s)`：计算字符串长度
+  - `string.sub(s, i [, j])`：子串提取（支持 Lua 1-indexed 正负索引切片）
+  - `string.rep(s, n [, sep])`：重复生成并拼接字符串
+  - `string.reverse(s)`：反转字符序列
+  - `string.lower(s)` & `string.upper(s)`：ASCII 字符大小写转换
+  - `string.byte(s [, i [, j]])` & `string.char(...)`：ASCII 字符编码解包与字符串构建
+  - `string.format(fmt, ...)`：C 语言 `sprintf` 风格格式化（支持 `%d`, `%f`, `%s`, `%q` 转义等）
+  - `string.dump(func)` 与全局 `load` / `loadstring`：运行时闭包字节/代码序列化与动态编译加载
+
+```lua
+-- 示例：使用标准库完成排序、格式化与数学计算
+local scores = { 85, 92, 78, 95 }
+table.sort(scores, function(a, b) return a > b end) -- 降序排序
+
+local top_student = string.format("Top score: %d, Angle Rad: %.2f", scores[1], math.rad(180))
+local info = table.concat(scores, ", ")
+-- top_student => "Top score: 95, Angle Rad: 3.14"
+-- info        => "95, 92, 85, 78"
+```
+
 ### C++ 嵌入 API
 
 - `CompileFile` / `CompileString` / `Call`，RAII 风格 `FakeluaStateGuard`
