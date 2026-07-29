@@ -292,10 +292,6 @@ void RegisterStringLibraryApi(State *s) {
             }
         }
 
-        // 保存静态闭包原生的 func_ptr
-        uint64_t ptr_val = reinterpret_cast<uint64_t>(cl->func_ptr);
-        payload.append(reinterpret_cast<const char *>(&ptr_val), sizeof(ptr_val));
-
         payload += code;
         return inter::NativeToFakeluaStringView(state, payload);
     });
@@ -309,7 +305,6 @@ void RegisterStringLibraryApi(State *s) {
         int upval_cnt = 0;
         int exp_arg_cnt = 0;
         bool is_varg = true;
-        void *restored_func_ptr = nullptr;
         std::string code;
         std::vector<CVar> saved_upvalues;
 
@@ -334,13 +329,6 @@ void RegisterStringLibraryApi(State *s) {
                         uv.data_.b = (sv[idx++] != 0);
                     }
                     saved_upvalues.push_back(uv);
-                }
-
-                if (idx + sizeof(uint64_t) <= sv.size()) {
-                    uint64_t ptr_val = 0;
-                    std::memcpy(&ptr_val, sv.data() + idx, sizeof(uint64_t));
-                    idx += sizeof(uint64_t);
-                    restored_func_ptr = reinterpret_cast<void *>(ptr_val);
                 }
             }
             code = std::string(sv.substr(idx));
@@ -367,7 +355,7 @@ void RegisterStringLibraryApi(State *s) {
             }
 
             VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + static_cast<size_t>(upval_cnt) * sizeof(CVar *)));
-            cl->func_ptr = restored_func_ptr;
+            cl->func_ptr = nullptr;
             cl->upvalue_count = upval_cnt;
             cl->expected_arg_count = exp_arg_cnt;
             cl->is_vararg = is_varg;
