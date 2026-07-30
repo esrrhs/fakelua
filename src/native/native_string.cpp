@@ -30,7 +30,7 @@ struct GMatchState {
 // ─── gmatch 迭代器原生函数 ───
 // 闭包签名：CVar (*)(VarClosure *cl, CVar s, CVar var)
 // upvalues[0] = State* (as int)
-// upvalues[1] = GMatchState* (as int)
+// upvalues[1] = GMatchState* (as int，由 arena 分配，无需手动释放)
 extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     if (!cl || cl->upvalue_count < 2) {
         return CVar{static_cast<int>(VarType::Nil)};
@@ -42,8 +42,6 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     }
 
     if (gs->pos >= gs->text.size()) {
-        delete gs;
-        cl->upvalues[1]->data_.i = 0;
         return inter::NativeToFakeluaNil(iter_state);
     }
 
@@ -52,8 +50,6 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         std::smatch match;
         std::string sub = gs->text.substr(gs->pos);
         if (!std::regex_search(sub, match, re)) {
-            delete gs;
-            cl->upvalues[1]->data_.i = 0;
             return inter::NativeToFakeluaNil(iter_state);
         }
 
@@ -73,8 +69,6 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         }
         return inter::NativeToFakeluaStringView(iter_state, match[0].str());
     } catch (const std::regex_error &) {
-        delete gs;
-        cl->upvalues[1]->data_.i = 0;
         return inter::NativeToFakeluaNil(iter_state);
     }
 }
@@ -434,10 +428,10 @@ void RegisterStringLibraryApi(State *s) {
         std::string text(KeyToStringView(a0));
         std::string pattern(KeyToStringView(a1));
 
-        // 在 C++ 堆上分配迭代器状态（生命周期与闭包一致）
-        GMatchState *gs = new GMatchState{text, pattern, 0};
-
+        // 使用 arena 分配器分配迭代器状态（生命周期由 arena 管理，无需手动释放）
+        // 注意：alloc.Alloc 只分配原始内存，需要用 placement new 构造含 std::string 的成员
         auto &alloc = state->GetHeap().GetAllocator(false);
+        GMatchState *gs = new (alloc.Alloc(sizeof(GMatchState))) GMatchState{std::move(text), std::move(pattern), 0};
 
         // upvalue 0: State* (用于分配返回值等)
         CVar *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
