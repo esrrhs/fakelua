@@ -1,4 +1,5 @@
 #include "native/native_object.h"
+#include "native/native_basic.h"
 #include "jit/vm.h"
 #include "var/var_multi.h"
 
@@ -600,6 +601,7 @@ void RegisterNativeObjectApi(State *s) {
     RegisterMathLibraryApi(s);
     RegisterTableLibraryApi(s);
     RegisterStringLibraryApi(s);
+    RegisterBasicLibraryApi(s);
 }
 
 }// namespace fakelua
