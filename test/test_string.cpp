@@ -108,3 +108,63 @@ TEST(test_string, test_string_dump) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, test_string_find) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_find.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_string_find", res);
+        EXPECT_EQ(res, 1000);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_string_match) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_match.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_string_match", res);
+        EXPECT_EQ(res, 2000);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_string_gmatch) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_gmatch.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_string_gmatch", res);
+        EXPECT_EQ(res, 3000);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_string_gsub) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_gsub.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_string_gsub", res);
+        EXPECT_EQ(res, 4000);
+    }
+
+    FakeluaDeleteState(s);
+}
