@@ -265,7 +265,18 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`），完全
   - `string.lower(s)` & `string.upper(s)`：ASCII 字符大小写转换
   - `string.byte(s [, i [, j]])` & `string.char(...)`：ASCII 字符编码解包与字符串构建
   - `string.format(fmt, ...)`：C 语言 `sprintf` 风格格式化（支持 `%d`, `%f`, `%s`, `%q` 转义等）
+  - `string.find`, `string.match`, `string.gmatch`, `string.gsub`：模式匹配（类 Lua 5.3，基于 ECMAScript 正则）
   - `string.dump(func)` 与全局 `load` / `loadstring`：运行时闭包字节/代码序列化与动态编译加载
+  - `string.pack(fmt, ...)` / `string.packsize(fmt)` / `string.unpack(fmt, s [, pos])`：Lua 5.3 二进制序列化
+- **Basic 全局函数**：
+  - `type(v)`：返回值类型名字符串（`"nil"`, `"boolean"`, `"number"`, `"string"`, `"table"`, `"function"`）
+  - `tostring(v)`：值转字符串
+  - `tonumber(e [, base])`：字符串转数字（支持 2-36 进制）
+  - `print(...)`：输出到 stdout，tab 分隔
+  - `select(n, ...)`：选择从第 n 个开始的参数，`select("#", ...)` 返回总数
+  - `error(msg)` / `assert(v [, msg])`：错误处理与断言
+  - `pcall(f, ...)` / `xpcall(f, err, ...)`：保护调用
+  - `next(t [, index])` / `pairs(t)` / `ipairs(t)`：表迭代
 
 ```lua
 -- 示例：使用标准库完成排序、格式化与数学计算
@@ -342,10 +353,9 @@ local z = (x + y) / 2.0
 ### 语言特性缺失
 - 不支持协程（coroutine）
 - 不支持元表（metatable）
-- 不支持 `pcall` / `xpcall` 错误处理
-- 不支持 `require` / `module` 模块系统
-- 不支持 `string.*` / `math.*` 等标准库函数
-- 不支持 `assert` / `error` 等调试函数
+- 不支持 `require` / `module` 模块系统（注：fakelua 有独立的 `package "Name"` 模块化机制）
+- 不支持 `rawequal` / `rawget` / `rawset` / `rawlen`（因无元表，这些函数无意义）
+- 不支持 utf8 / io / os / debug 标准库
 
 ## 快速上手
 
