@@ -41,6 +41,7 @@ typedef struct VarClosure {
     int upvalue_count;
     int expected_arg_count;
     bool is_vararg;
+    const char *code_str;
     CVar *upvalues[0];
 } VarClosure;
 
@@ -249,9 +250,16 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
     __k; \
 })
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
+extern CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
+#ifdef __cplusplus
+}
+#endif
 
 #define kMaxFunctionInputParams 32
 
@@ -261,6 +269,7 @@ static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count
     cl->upvalue_count = upvalue_count;
     cl->expected_arg_count = expected_arg_count;
     cl->is_vararg = is_vararg;
+    cl->code_str = NULL;
     va_list args_list;
     va_start(args_list, is_vararg);
     for (int i = 0; i < upvalue_count; ++i) {
@@ -280,6 +289,9 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
     }
     VarClosure *cl = cl_var.data_.cl;
     void *addr = cl->func_ptr;
+    if (UNLIKELY(addr == NULL)) {
+        return FlEvalLoadClosure(state, cl, arg_num, cl_var.type_ == VAR_CLOSURE ? (const CVar *)&cl_var : NULL);
+    }
     const bool is_vararg = cl->is_vararg;
     const int expected_arg_count = cl->expected_arg_count;
     const int fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;

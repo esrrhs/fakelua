@@ -2765,6 +2765,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         return result;
     }
 
+    if (auto result = TryCompileBuiltinStringCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        return result;
+    }
+
     if (auto result = TryCompileSpecDirectCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
         return result;
     }
@@ -3375,6 +3379,41 @@ std::string CGen::TryCompileSpecDirectCall(const std::shared_ptr<SyntaxTreeFunct
         }
     }
     return "";
+}
+
+std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,
+                                              const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
+    if (pe_pre_ptr->GetPrefixKind() != PrefixExpKind::kVar || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+        return {};
+    }
+
+    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kDot) {
+        return {};
+    }
+
+    const auto base_pe = callee_var->GetPrefixexp();
+    if (!base_pe || base_pe->Type() != SyntaxTreeType::PrefixExp) {
+        return {};
+    }
+    const auto base_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(base_pe);
+    if (!base_pe_ptr || base_pe_ptr->GetPrefixKind() != PrefixExpKind::kVar || !base_pe_ptr->GetValue()) {
+        return {};
+    }
+    const auto base_var = std::dynamic_pointer_cast<SyntaxTreeVar>(base_pe_ptr->GetValue());
+    if (!base_var || base_var->GetVarKind() != VarKind::kSimple || base_var->GetName() != "string") {
+        return {};
+    }
+
+    const std::string method_name = callee_var->GetName();
+    static const std::unordered_set<std::string> string_builtins = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char", "format", "dump"};
+    if (!string_builtins.contains(method_name)) {
+        return {};
+    }
+
+    // string.len, string.sub, string.rep, string.reverse, string.lower, string.upper, string.byte, string.char
+    // Fallback to NativeFunction VM call via slow path, or inline if appropriate
+    return {};
 }
 
 // FAKELUA_SET_TABLE fast path: detect early before compiling all args to CVar,

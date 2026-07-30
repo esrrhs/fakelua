@@ -1,6 +1,7 @@
 #include "jit/tcc_handle.h"
 #include "state/state.h"
 #include "util/logging.h"
+#include "jit/vm.h"
 #include <libtcc.h>
 
 namespace fakelua {
@@ -30,6 +31,7 @@ TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
     tcc_add_symbol(tcc_state_, "FakeluaAlloc", reinterpret_cast<void *>(FakeluaAlloc));
     tcc_add_symbol(tcc_state_, "FakeluaThrowError", reinterpret_cast<void *>(FakeluaThrowError));
     tcc_add_symbol(tcc_state_, "FakeluaCallByName", reinterpret_cast<void *>(FakeluaCallByName));
+    tcc_add_symbol(tcc_state_, "FlEvalLoadClosure", reinterpret_cast<void *>(FlEvalLoadClosure));
     tcc_define_symbol(tcc_state_, "FAKELUA_JIT_TYPE", std::to_string(static_cast<int>(JIT_TCC)).c_str());
 }
 

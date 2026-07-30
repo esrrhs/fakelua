@@ -74,4 +74,6 @@ extern "C" void FakeluaThrowError(State *state, const char *msg);
 
 extern "C" CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...);
 
+extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
+
 }// namespace fakelua
