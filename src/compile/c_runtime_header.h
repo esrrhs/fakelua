@@ -250,10 +250,16 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
     __k; \
 })
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 extern CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
+#ifdef __cplusplus
+}
+#endif
 
 #define kMaxFunctionInputParams 32
 

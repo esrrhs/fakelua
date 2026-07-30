@@ -1,9 +1,8 @@
 #include "jit/tcc_handle.h"
 #include "state/state.h"
 #include "util/logging.h"
+#include "jit/vm.h"
 #include <libtcc.h>
-
-extern "C" fakelua::CVar FlEvalLoadClosure(fakelua::State *state, fakelua::VarClosure *cl, int arg_num, const fakelua::CVar *args);
 
 namespace fakelua {
 
