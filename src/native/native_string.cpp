@@ -1,11 +1,14 @@
 #include "native/native_string.h"
 #include "native/native_object.h"
+#include "compile/c_runtime_header.h"
 #include "state/state.h"
 #include "var/var.h"
 #include <algorithm>
 #include <cctype>
+#include <regex>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace fakelua {
@@ -15,6 +18,65 @@ static int64_t NormalizePos(int64_t pos, int64_t len) {
         return pos;
     }
     return len + pos + 1;
+}
+
+// ─── gmatch 迭代器状态（存储在闭包 upvalue 中） ───
+struct GMatchState {
+    std::string text;
+    std::string pattern;
+    size_t pos = 0;
+};
+
+// ─── gmatch 迭代器原生函数 ───
+// 闭包签名：CVar (*)(VarClosure *cl, CVar s, CVar var)
+// upvalues[0] = State* (as int)
+// upvalues[1] = GMatchState* (as int)
+extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
+    if (!cl || cl->upvalue_count < 2) {
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+    State *iter_state = reinterpret_cast<State *>(cl->upvalues[0]->data_.i);
+    GMatchState *gs = reinterpret_cast<GMatchState *>(cl->upvalues[1]->data_.i);
+    if (!iter_state || !gs) {
+        return inter::NativeToFakeluaNil(iter_state);
+    }
+
+    if (gs->pos >= gs->text.size()) {
+        delete gs;
+        cl->upvalues[1]->data_.i = 0;
+        return inter::NativeToFakeluaNil(iter_state);
+    }
+
+    try {
+        std::regex re(gs->pattern, std::regex::ECMAScript);
+        std::smatch match;
+        std::string sub = gs->text.substr(gs->pos);
+        if (!std::regex_search(sub, match, re)) {
+            delete gs;
+            cl->upvalues[1]->data_.i = 0;
+            return inter::NativeToFakeluaNil(iter_state);
+        }
+
+        gs->pos += match.position() + match.length();
+        if (match.length() == 0) {
+            // 零宽匹配：前进一位避免死循环
+            gs->pos += 1;
+        }
+
+        if (match.size() > 1) {
+            int groups = static_cast<int>(match.size()) - 1;
+            CVar multi = inter::AllocMultiCVar(iter_state, groups);
+            for (int i = 0; i < groups; ++i) {
+                inter::SetMultiCVarElement(multi, i, inter::NativeToFakeluaStringView(iter_state, match[i + 1].str()));
+            }
+            return multi;
+        }
+        return inter::NativeToFakeluaStringView(iter_state, match[0].str());
+    } catch (const std::regex_error &) {
+        delete gs;
+        cl->upvalues[1]->data_.i = 0;
+        return inter::NativeToFakeluaNil(iter_state);
+    }
 }
 
 void RegisterStringLibraryApi(State *s) {
@@ -259,6 +321,296 @@ void RegisterStringLibraryApi(State *s) {
             }
         }
         return inter::NativeToFakeluaStringView(state, res);
+    });
+
+    // ─── string.find(s, pattern [, init [, plain]]) ───
+    // 在 s 中查找 pattern（ECMAScript 正则），返回起始位置与结束位置（1-based）。
+    // 若 pattern 含捕获组，则后续返回值依次为各捕获。
+    // 若 plain 为 true，则退化为纯子串查找（忽略正则元字符）。
+    // 找不到时返回 nil。
+    RegisterNativeFunction(s, "string.find", 2, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 2) return inter::NativeToFakeluaNil(state);
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        std::string_view sv = KeyToStringView(a0);
+        std::string_view pat_view = KeyToStringView(a1);
+        int64_t len = static_cast<int64_t>(sv.size());
+
+        int64_t init_pos = 1;
+        if (n >= 3) {
+            CVar a2 = inter::GetNativeArg(state, args, n, 2);
+            if (a2.type_ == static_cast<int>(VarType::Int)) init_pos = a2.data_.i;
+        }
+        init_pos = NormalizePos(init_pos, len);
+        if (init_pos < 1) init_pos = 1;
+
+        bool plain = false;
+        if (n >= 4) {
+            CVar a3 = inter::GetNativeArg(state, args, n, 3);
+            plain = (a3.type_ == static_cast<int>(VarType::Bool) && a3.data_.b);
+        }
+
+        std::string sub = std::string(sv.substr(static_cast<size_t>(init_pos - 1)));
+
+        if (plain) {
+            // 纯子串查找
+            size_t pos = sub.find(std::string(pat_view));
+            if (pos == std::string::npos) return inter::NativeToFakeluaNil(state);
+            int64_t start = init_pos + static_cast<int64_t>(pos);
+            int64_t end = start + static_cast<int64_t>(pat_view.size()) - 1;
+            CVar multi = inter::AllocMultiCVar(state, 2);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaInt(state, start));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, end));
+            return multi;
+        }
+
+        try {
+            std::regex re(std::string(pat_view), std::regex::ECMAScript);
+            std::smatch match;
+            if (!std::regex_search(sub, match, re)) return inter::NativeToFakeluaNil(state);
+
+            int64_t start = init_pos + static_cast<int64_t>(match.position());
+            int64_t end = start + static_cast<int64_t>(match.length()) - 1;
+            int captures = static_cast<int>(match.size()) - 1;// 捕获组数
+            int total = 2 + captures;                        // start, end, + 捕获
+            CVar multi = inter::AllocMultiCVar(state, total);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaInt(state, start));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, end));
+            for (int i = 0; i < captures; ++i) {
+                inter::SetMultiCVarElement(multi, i + 2, inter::NativeToFakeluaStringView(state, match[i + 1].str()));
+            }
+            return multi;
+        } catch (const std::regex_error &) {
+            return inter::NativeToFakeluaNil(state);
+        }
+    });
+
+    // ─── string.match(s, pattern [, init]) ───
+    // 与 string.find 相似，但不返回位置；仅返回捕获（或整个匹配，若无捕获组）。
+    RegisterNativeFunction(s, "string.match", 2, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 2) return inter::NativeToFakeluaNil(state);
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        std::string_view sv = KeyToStringView(a0);
+        std::string_view pat_view = KeyToStringView(a1);
+        int64_t len = static_cast<int64_t>(sv.size());
+
+        int64_t init_pos = 1;
+        if (n >= 3) {
+            CVar a2 = inter::GetNativeArg(state, args, n, 2);
+            if (a2.type_ == static_cast<int>(VarType::Int)) init_pos = a2.data_.i;
+        }
+        init_pos = NormalizePos(init_pos, len);
+        if (init_pos < 1) init_pos = 1;
+        std::string sub = std::string(sv.substr(static_cast<size_t>(init_pos - 1)));
+
+        try {
+            std::regex re(std::string(pat_view), std::regex::ECMAScript);
+            std::smatch match;
+            if (!std::regex_search(sub, match, re)) return inter::NativeToFakeluaNil(state);
+
+            if (match.size() > 1) {
+                // 有捕获组：返回所有捕获
+                int groups = static_cast<int>(match.size()) - 1;
+                CVar multi = inter::AllocMultiCVar(state, groups);
+                for (int i = 0; i < groups; ++i) {
+                    inter::SetMultiCVarElement(multi, i, inter::NativeToFakeluaStringView(state, match[i + 1].str()));
+                }
+                return multi;
+            }
+            // 无捕获组：返回整个匹配
+            return inter::NativeToFakeluaStringView(state, match[0].str());
+        } catch (const std::regex_error &) {
+            return inter::NativeToFakeluaNil(state);
+        }
+    });
+
+    // ─── string.gmatch(s, pattern) ───
+    // 返回一个迭代器闭包；每次调用返回下一个匹配（或捕获）。
+    RegisterNativeFunction(s, "string.gmatch", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 2) return inter::NativeToFakeluaNil(state);
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        std::string text(KeyToStringView(a0));
+        std::string pattern(KeyToStringView(a1));
+
+        // 在 C++ 堆上分配迭代器状态（生命周期与闭包一致）
+        GMatchState *gs = new GMatchState{text, pattern, 0};
+
+        auto &alloc = state->GetHeap().GetAllocator(false);
+
+        // upvalue 0: State* (用于分配返回值等)
+        CVar *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
+        uv0->type_ = static_cast<int>(VarType::Int);
+        uv0->flag_ = 0;
+        uv0->data_.i = reinterpret_cast<int64_t>(state);
+
+        // upvalue 1: GMatchState* (迭代器状态)
+        CVar *uv1 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
+        uv1->type_ = static_cast<int>(VarType::Int);
+        uv1->flag_ = 0;
+        uv1->data_.i = reinterpret_cast<int64_t>(gs);
+
+        // 分配闭包：sizeof(VarClosure) + 2 * sizeof(CVar *)
+        VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 2 * sizeof(CVar *)));
+        cl->func_ptr = reinterpret_cast<void *>(GMatchIterator);
+        cl->upvalue_count = 2;
+        // for-in 循环会以 (s, var) 两个参数调用迭代器，所以 expected_arg_count = 2
+        cl->expected_arg_count = 2;
+        cl->is_vararg = false;
+        cl->code_str = nullptr;
+        cl->upvalues[0] = uv0;
+        cl->upvalues[1] = uv1;
+
+        CVar res{};
+        res.type_ = static_cast<int>(VarType::Closure);
+        res.flag_ = 0;
+        res.data_.cl = cl;
+        return res;
+    });
+
+    // ─── string.gsub(s, pattern, repl [, n]) ───
+    // 全局替换。repl 可以是字符串、表或函数。
+    // 返回：替换后的字符串 与 替换次数。
+    RegisterNativeFunction(s, "string.gsub", 3, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 3) return inter::NativeToFakeluaNil(state);
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CVar repl_var = inter::GetNativeArg(state, args, n, 2);
+        std::string_view sv = KeyToStringView(a0);
+        std::string_view pat_view = KeyToStringView(a1);
+
+        int64_t max_replace = -1;
+        if (n >= 4) {
+            CVar a3 = inter::GetNativeArg(state, args, n, 3);
+            if (a3.type_ == static_cast<int>(VarType::Int)) max_replace = a3.data_.i;
+        }
+
+        bool repl_is_table = (repl_var.type_ == static_cast<int>(VarType::Table) && repl_var.data_.t);
+        bool repl_is_closure = (repl_var.type_ == static_cast<int>(VarType::Closure) && repl_var.data_.cl);
+
+        try {
+            std::regex re(std::string(pat_view), std::regex::ECMAScript);
+            std::string input(sv);
+            std::string result;
+            result.reserve(input.size());
+            int64_t count = 0;
+
+            auto it = std::sregex_iterator(input.begin(), input.end(), re);
+            auto end = std::sregex_iterator();
+            size_t last_pos = 0;
+
+            for (; it != end; ++it) {
+                if (max_replace >= 0 && count >= max_replace) break;
+                const std::smatch &match = *it;
+                result.append(input, last_pos, match.position() - last_pos);
+
+                std::string replacement;
+                if (repl_is_closure) {
+                    // 调用 repl 函数，参数为匹配（+ 捕获）
+                    VarClosure *cl = repl_var.data_.cl;
+                    void *addr = cl->func_ptr;
+                    int arg_count = static_cast<int>(match.size());
+                    if (arg_count == 0) {
+                        replacement = match[0].str();
+                    } else {
+                        // 准备参数数组（最多 3 个）
+                        CVar call_args[3];
+                        int call_arg_count = std::min(arg_count, 3);
+                        for (int i = 0; i < call_arg_count; ++i) {
+                            call_args[i] = inter::NativeToFakeluaStringView(state, match[i].str());
+                        }
+
+                        CVar fn_res;
+                        if (addr != nullptr) {
+                            // JIT 已编译：直接通过 func_ptr 调用
+                            fn_res = inter::DispatchCall(addr, call_args, call_arg_count);
+                        } else {
+                            // func_ptr 为空：通过 FlEvalLoadClosure 动态编译并执行
+                            fn_res = FlEvalLoadClosure(state, cl, call_arg_count, call_args);
+                        }
+                        replacement = std::string(KeyToStringView(fn_res));
+                    }
+                } else if (repl_is_table) {
+                    // 用表查找：以整个匹配为 key
+                    std::string key = match[0].str();
+                    CVar val{static_cast<int>(VarType::Nil)};
+
+                    // 尝试 spec 快速路径（仅当表是 NativeObject 包装时）
+                    VarTable *tbl = repl_var.data_.t;
+                    if (tbl->spec_get) {
+                        using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
+                        auto get_fn = reinterpret_cast<SpecGetFn>(tbl->spec_get);
+                        bool finish = false;
+                        CVar key_cvar = inter::NativeToFakeluaStringView(state, key);
+                        val = get_fn(tbl, key_cvar, &finish);
+                        if (!finish) val = CVar{static_cast<int>(VarType::Nil)};
+                    }
+
+                    // 回退到 quick_data 线性查找
+                    if (val.type_ == static_cast<int>(VarType::Nil)) {
+                        CVar key_cvar = inter::NativeToFakeluaStringView(state, key);
+                        for (const auto &qd: tbl->quick_data_) {
+                            auto sv = KeyToStringView(qd.key);
+                            if (sv == key) {
+                                val = qd.val;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (val.type_ == static_cast<int>(VarType::Nil)) {
+                        replacement = match[0].str();
+                    } else {
+                        replacement = std::string(KeyToStringView(val));
+                    }
+                } else {
+                    // 字符串替换：支持 $1 $2 ... $& $` $' $$
+                    std::string repl_str(KeyToStringView(repl_var));
+                    replacement.clear();
+                    for (size_t i = 0; i < repl_str.size(); ++i) {
+                        if (repl_str[i] == '$' && i + 1 < repl_str.size()) {
+                            char next = repl_str[i + 1];
+                            if (next == '$') {
+                                replacement.push_back('$');
+                                i++;
+                            } else if (next == '&') {
+                                replacement += match[0].str();
+                                i++;
+                            } else if (next == '`') {
+                                replacement += match.prefix().str();
+                                i++;
+                            } else if (next == '\'') {
+                                replacement += match.suffix().str();
+                                i++;
+                            } else if (next >= '1' && next <= '9') {
+                                int idx = next - '1' + 1;
+                                if (idx < static_cast<int>(match.size())) {
+                                    replacement += match[idx].str();
+                                }
+                                i++;
+                            } else {
+                                replacement.push_back(repl_str[i]);
+                            }
+                        } else {
+                            replacement.push_back(repl_str[i]);
+                        }
+                    }
+                }
+
+                result += replacement;
+                last_pos = match.position() + match.length();
+                count++;
+            }
+            result.append(input, last_pos, std::string::npos);
+
+            CVar multi = inter::AllocMultiCVar(state, 2);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaStringView(state, result));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, count));
+            return multi;
+        } catch (const std::regex_error &) {
+            return inter::NativeToFakeluaNil(state);
+        }
     });
 
     RegisterNativeFunction(s, "string.dump", 1, true, [](State *state, CVar *args, int n) -> CVar {
