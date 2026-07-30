@@ -32,6 +32,19 @@ struct IpairsState {
 // 闭包签名：CVar (*)(VarClosure *cl, CVar s, CVar var)
 // upvalues[0] = State* (as int)
 // upvalues[1] = PairIterState* (as int)
+// 辅助：比较 key 是否相等
+static bool keys_equal(CVar a, CVar b) {
+    if (a.type_ != b.type_) return false;
+    if (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Bool)) return a.data_.i == b.data_.i;
+    if (b.type_ == static_cast<int>(VarType::Float)) return a.data_.f == b.data_.f;
+    if (b.type_ == static_cast<int>(VarType::StringId)) return a.data_.i == b.data_.i;
+    if (b.type_ == static_cast<int>(VarType::String)) {
+        if (!a.data_.s || !b.data_.s) return a.data_.s == b.data_.s;
+        return a.data_.s->Str() == b.data_.s->Str();
+    }
+    return a.data_.i == b.data_.i;
+}
+
 extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     if (!cl || cl->upvalue_count < 2) {
         return CVar{static_cast<int>(VarType::Nil)};
@@ -50,93 +63,54 @@ extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     }
     VarTable *t = tbl.data_.t;
 
-    constexpr int kMaxKeys = 256;
-    CVar keys[kMaxKeys];
-    int key_count = 0;
+    // 遍历查找 last_key 的下一个
+    bool found_last = (last.type_ == static_cast<int>(VarType::Nil)); // nil 表示刚开始
+    CVar next_key{static_cast<int>(VarType::Nil)};
+    CVar next_val{static_cast<int>(VarType::Nil)};
+    bool has_next = false;
 
-    // 收集 spec_keys (typed fields)
-    if (t->spec_keys && t->spec_count > 0) {
-        for (uint32_t i = 0; i < t->spec_count && key_count < kMaxKeys; ++i) {
+    // 遍历 spec_keys
+    if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
+        for (uint32_t i = 0; i < t->spec_count && !has_next; ++i) {
             if (t->spec_keys[i].type_ == static_cast<int>(VarType::Nil)) continue;
-            keys[key_count++] = t->spec_keys[i];
+            if (found_last) {
+                next_key = t->spec_keys[i]; next_val = t->spec_vals[i]; has_next = true;
+            } else if (keys_equal(t->spec_keys[i], last)) {
+                found_last = true;
+            }
         }
     }
-    // 收集 quick_data
+    // 遍历 quick_data
     for (const auto &qd: t->quick_data_) {
+        if (has_next) break;
         if (qd.key.type_ == static_cast<int>(VarType::Nil)) continue;
-        if (key_count >= kMaxKeys) break;
-        keys[key_count++] = qd.key;
+        if (found_last) {
+            next_key = qd.key; next_val = qd.val; has_next = true;
+        } else if (keys_equal(qd.key, last)) {
+            found_last = true;
+        }
     }
-    // 收集 nodes
+    // 遍历 nodes
     if (t->nodes_ && t->bucket_count_ > 0) {
-        for (uint32_t i = 0; i < t->count_ && key_count < kMaxKeys; ++i) {
+        for (uint32_t i = 0; i < t->count_ && !has_next; ++i) {
             uint32_t node_idx = t->active_list_[i];
             const auto &entry = t->nodes_[node_idx].entry;
             if (entry.key.type_ == static_cast<int>(VarType::Nil)) continue;
-            keys[key_count++] = entry.key;
-        }
-    }
-
-    if (key_count == 0) return inter::NativeToFakeluaNil(state);
-
-    int start = 0;
-    if (last.type_ != static_cast<int>(VarType::Nil)) {
-        bool found = false;
-        for (int i = 0; i < key_count; ++i) {
-            if (keys[i].type_ == last.type_ &&
-                ((keys[i].type_ == static_cast<int>(VarType::Int) && keys[i].data_.i == last.data_.i) ||
-                 (keys[i].type_ == static_cast<int>(VarType::StringId) && keys[i].data_.i == last.data_.i))) {
-                start = i + 1;
-                found = true;
-                break;
-            }
-        }
-        if (!found || start >= key_count) return inter::NativeToFakeluaNil(state);
-    }
-
-    CVar k = keys[start];
-    CVar v{static_cast<int>(VarType::Nil)};
-
-    if (k.type_ == static_cast<int>(VarType::Int)) {
-        v = TableHelper::GetTableInt(state, tbl, k.data_.i);
-    } else if (k.type_ == static_cast<int>(VarType::StringId)) {
-        int64_t id = k.data_.i;
-        // 先在 spec_keys 中查找
-        if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
-            for (uint32_t i = 0; i < t->spec_count; ++i) {
-                if (t->spec_keys[i].type_ == static_cast<int>(VarType::StringId) && t->spec_keys[i].data_.i == id) {
-                    v = t->spec_vals[i];
-                    break;
-                }
-            }
-        }
-        // 再在 quick_data 中查找
-        if (v.type_ == static_cast<int>(VarType::Nil)) {
-            for (const auto &qd: t->quick_data_) {
-                if (qd.key.type_ == static_cast<int>(VarType::StringId) && qd.key.data_.i == id) {
-                    v = qd.val;
-                    break;
-                }
-            }
-        }
-        // 最后在 nodes 中查找
-        if (v.type_ == static_cast<int>(VarType::Nil) && t->nodes_ && t->bucket_count_ > 0) {
-            for (uint32_t i = 0; i < t->count_; ++i) {
-                uint32_t node_idx = t->active_list_[i];
-                const auto &entry = t->nodes_[node_idx].entry;
-                if (entry.key.type_ == static_cast<int>(VarType::StringId) && entry.key.data_.i == id) {
-                    v = entry.val;
-                    break;
-                }
+            if (found_last) {
+                next_key = entry.key; next_val = entry.val; has_next = true;
+            } else if (keys_equal(entry.key, last)) {
+                found_last = true;
             }
         }
     }
 
-    st->last_key = k;
+    if (!has_next) return inter::NativeToFakeluaNil(state);
+
+    st->last_key = next_key;
 
     CVar multi = inter::AllocMultiCVar(state, 2);
-    inter::SetMultiCVarElement(multi, 0, k);
-    inter::SetMultiCVarElement(multi, 1, v);
+    inter::SetMultiCVarElement(multi, 0, next_key);
+    inter::SetMultiCVarElement(multi, 1, next_val);
     return multi;
 }
 
@@ -513,88 +487,95 @@ void RegisterBasicLibraryApi(State *s) {
     // 注意：fakelua 没有元表，所以 rawequal/rawget/rawset/rawlen 不需要实现
 
     // ─── next(table [, index]) ───
-    RegisterNativeFunction(s, "next", 1, true, [](State *state, CVar *args, int n) -> CVar {
+    // 辅助：在表中查找 key 是否匹配
+    auto key_matches = [](CVar key, CVar target) -> bool {
+        if (key.type_ != target.type_) return false;
+        if (target.type_ == static_cast<int>(VarType::Int)) return key.data_.i == target.data_.i;
+        if (target.type_ == static_cast<int>(VarType::Float)) return key.data_.f == target.data_.f;
+        if (target.type_ == static_cast<int>(VarType::StringId)) return key.data_.i == target.data_.i;
+        if (target.type_ == static_cast<int>(VarType::Bool)) return key.data_.i == target.data_.i;
+        if (target.type_ == static_cast<int>(VarType::String)) {
+            if (!key.data_.s || !target.data_.s) return key.data_.s == target.data_.s;
+            return key.data_.s->Str() == target.data_.s->Str();
+        }
+        return key.data_.i == target.data_.i; // table/closure: compare pointer
+    };
+
+    // 辅助：遍历回调函数
+    using NextCallback = std::function<void(CVar key, CVar val)>;
+    auto traverse_table = [](VarTable *t, NextCallback cb) {
+        // 遍历 spec_keys/spec_vals
+        if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
+            for (uint32_t i = 0; i < t->spec_count; ++i) {
+                if (t->spec_keys[i].type_ != static_cast<int>(VarType::Nil)) {
+                    cb(t->spec_keys[i], t->spec_vals[i]);
+                }
+            }
+        }
+        // 遍历 quick_data
+        for (const auto &qd: t->quick_data_) {
+            if (qd.key.type_ != static_cast<int>(VarType::Nil)) {
+                cb(qd.key, qd.val);
+            }
+        }
+        // 遍历 nodes
+        if (t->nodes_ && t->bucket_count_ > 0) {
+            for (uint32_t i = 0; i < t->count_; ++i) {
+                uint32_t node_idx = t->active_list_[i];
+                const auto &entry = t->nodes_[node_idx].entry;
+                if (entry.key.type_ != static_cast<int>(VarType::Nil)) {
+                    cb(entry.key, entry.val);
+                }
+            }
+        }
+    };
+
+    RegisterNativeFunction(s, "next", 1, true, [&](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             return inter::NativeToFakeluaNil(state);
         }
         VarTable *t = tbl.data_.t;
 
-        struct KvPair {
-            CVar key;
-            CVar val;
-        };
-        constexpr int kMaxPairs = 256;
-        KvPair pairs[kMaxPairs];
-        int pair_count = 0;
-
-        // 收集 spec_keys/spec_vals (typed fields)
-        if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
-            for (uint32_t i = 0; i < t->spec_count && pair_count < kMaxPairs; ++i) {
-                if (t->spec_keys[i].type_ == static_cast<int>(VarType::Nil)) continue;
-                pairs[pair_count].key = t->spec_keys[i];
-                pairs[pair_count].val = t->spec_vals[i];
-                pair_count++;
-            }
-        }
-        // 收集 quick_data
-        for (const auto &qd: t->quick_data_) {
-            if (qd.key.type_ == static_cast<int>(VarType::Nil)) continue;
-            if (pair_count >= kMaxPairs) break;
-            pairs[pair_count].key = qd.key;
-            pairs[pair_count].val = qd.val;
-            pair_count++;
-        }
-        // 收集 nodes (hash table)
-        if (t->nodes_ && t->bucket_count_ > 0) {
-            for (uint32_t i = 0; i < t->count_ && pair_count < kMaxPairs; ++i) {
-                uint32_t node_idx = t->active_list_[i];
-                const auto &entry = t->nodes_[node_idx].entry;
-                if (entry.key.type_ == static_cast<int>(VarType::Nil)) continue;
-                pairs[pair_count].key = entry.key;
-                pairs[pair_count].val = entry.val;
-                pair_count++;
-            }
-        }
-
-        if (pair_count == 0) {
-            return inter::NativeToFakeluaNil(state);
-        }
-
         bool has_index = (n >= 2);
         CVar index = has_index ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
 
+        // 空表或 nil index 时返回第一个 key
         if (!has_index || index.type_ == static_cast<int>(VarType::Nil)) {
+            CVar first_key{static_cast<int>(VarType::Nil)};
+            CVar first_val{static_cast<int>(VarType::Nil)};
+            bool found = false;
+            traverse_table(t, [&](CVar k, CVar v) {
+                if (!found) { first_key = k; first_val = v; found = true; }
+            });
+            if (!found) return inter::NativeToFakeluaNil(state);
             CVar multi = inter::AllocMultiCVar(state, 2);
-            inter::SetMultiCVarElement(multi, 0, pairs[0].key);
-            inter::SetMultiCVarElement(multi, 1, pairs[0].val);
+            inter::SetMultiCVarElement(multi, 0, first_key);
+            inter::SetMultiCVarElement(multi, 1, first_val);
             return multi;
         }
 
-        int found_pos = -1;
-        for (int i = 0; i < pair_count; ++i) {
-            if (pairs[i].key.type_ == index.type_) {
-                if (index.type_ == static_cast<int>(VarType::Int) && pairs[i].key.data_.i == index.data_.i) {
-                    found_pos = i;
-                    break;
-                } else if (index.type_ == static_cast<int>(VarType::Float) && pairs[i].key.data_.f == index.data_.f) {
-                    found_pos = i;
-                    break;
-                } else if (index.type_ == static_cast<int>(VarType::StringId) && pairs[i].key.data_.i == index.data_.i) {
-                    found_pos = i;
-                    break;
-                }
+        // 查找 index 的下一个
+        bool found_index = false;
+        CVar next_key{static_cast<int>(VarType::Nil)};
+        CVar next_val{static_cast<int>(VarType::Nil)};
+        bool has_next = false;
+        traverse_table(t, [&](CVar k, CVar v) {
+            if (has_next) return; // 已经找到下一个
+            if (found_index) {
+                next_key = k; next_val = v; has_next = true;
+                return;
             }
-        }
+            if (key_matches(k, index)) {
+                found_index = true;
+            }
+        });
 
-        if (found_pos >= 0 && found_pos + 1 < pair_count) {
-            CVar multi = inter::AllocMultiCVar(state, 2);
-            inter::SetMultiCVarElement(multi, 0, pairs[found_pos + 1].key);
-            inter::SetMultiCVarElement(multi, 1, pairs[found_pos + 1].val);
-            return multi;
-        }
-
-        return inter::NativeToFakeluaNil(state);
+        if (!has_next) return inter::NativeToFakeluaNil(state);
+        CVar multi = inter::AllocMultiCVar(state, 2);
+        inter::SetMultiCVarElement(multi, 0, next_key);
+        inter::SetMultiCVarElement(multi, 1, next_val);
+        return multi;
     });
 
     // ─── pairs(t) ───
