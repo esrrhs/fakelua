@@ -2517,6 +2517,14 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                             return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc("[^%z]"));
                         }
                     }
+                    // 拦截 utf8 静态库常量访问 (utf8.charpattern)
+                    if (base_var->GetName() == "utf8") {
+                        if (name == "charpattern") {
+                            // Lua utf8.charpattern: [\0-\x7F\xC2-\xF4][\x80-\xBF]*
+                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}",
+                                               s_->GetConstString().Alloc("[\\x00-\\x7F\\xC2-\\xF4][\\x80-\\xBF]*"));
+                        }
+                    }
                 }
             }
         }
