@@ -252,33 +252,20 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`），完全
   - **指数、对数与分解**：`math.exp`, `math.log`, `math.log10`, `math.deg`, `math.rad`, `math.modf`, `math.frexp`, `math.atan2`, `math.copysign`
   - **随机数与数值常量**：`math.random`, `math.randomseed`, 以及数值常量 `math.pi`, `math.huge`, `math.maxinteger`, `math.mininteger`
 - **Table 表操作库 (`table.*`)**：
-  - `table.concat(list [, sep [, i [, j]]])`：列表元素格式化拼接
-  - `table.insert(list [, pos], value)` & `table.remove(list [, pos])`：快速数组插入与删除
-  - `table.pack(...)` & `table.unpack(list [, i [, j]])`：变长参数打包与数组元素解包
-  - `table.sort(list [, comp])`：列表高效排序（支持默认比较及自定义 Lua 比较闭包函数）
-  - `table.create(seq_size [, hash_size])`：预分配容量构造优化 Table 结构
+  - **数组操作**：`table.insert(list [, pos], value)`、`table.remove(list [, pos])`、`table.concat(list [, sep [, i [, j]]])`、`table.sort(list [, comp])`
+  - **打包与解包**：`table.pack(...)`、`table.unpack(list [, i [, j]])`
+  - **预分配构造**：`table.create(seq_size [, hash_size])`
 - **String 字符串处理库 (`string.*`)**：
-  - `string.len(s)`：计算字符串长度
-  - `string.sub(s, i [, j])`：子串提取（支持 Lua 1-indexed 正负索引切片）
-  - `string.rep(s, n [, sep])`：重复生成并拼接字符串
-  - `string.reverse(s)`：反转字符序列
-  - `string.lower(s)` & `string.upper(s)`：ASCII 字符大小写转换
-  - `string.byte(s [, i [, j]])` & `string.char(...)`：ASCII 字符编码解包与字符串构建
-  - `string.format(fmt, ...)`：C 语言 `sprintf` 风格格式化（支持 `%d`, `%f`, `%s`, `%q` 转义等）
-  - `string.find`, `string.match`, `string.gmatch`, `string.gsub`：模式匹配（类 Lua 5.3，基于 ECMAScript 正则）
-  - `string.dump(func)` 与全局 `load` / `loadstring`：运行时闭包字节/代码序列化与动态编译加载
-  - `string.pack(fmt, ...)` / `string.packsize(fmt)` / `string.unpack(fmt, s [, pos])`：Lua 5.3 二进制序列化
-  - `string.charpattern`：匹配任意字符的模式常量（等同于 `"[^%z]"`）
-  - `loadfile([filename [, mode [, env]]])`：从文件加载 Lua 源码并编译为闭包，文件中定义的顶层函数注册为全局函数
+  - **基础操作**：`string.len`、`string.sub`、`string.rep`、`string.reverse`、`string.lower`、`string.upper`
+  - **编码转换**：`string.byte`、`string.char`、`string.charpattern`
+  - **格式化**：`string.format`
+  - **模式匹配**：`string.find`、`string.match`、`string.gmatch`、`string.gsub`
+  - **序列化与加载**：`string.pack`、`string.packsize`、`string.unpack`、`string.dump`、`load`、`loadstring`、`loadfile`
 - **Basic 全局函数**：
-  - `type(v)`：返回值类型名字符串（`"nil"`, `"boolean"`, `"number"`, `"string"`, `"table"`, `"function"`）
-  - `tostring(v)`：值转字符串
-  - `tonumber(e [, base])`：字符串转数字（支持 2-36 进制）
-  - `print(...)`：输出到 stdout，tab 分隔
-  - `select(n, ...)`：选择从第 n 个开始的参数，`select("#", ...)` 返回总数
-  - `error(msg)` / `assert(v [, msg])`：错误处理与断言
-  - `pcall(f, ...)` / `xpcall(f, err, ...)`：保护调用
-  - `next(t [, index])` / `pairs(t)` / `ipairs(t)`：表迭代
+  - **类型与转换**：`type`、`tostring`、`tonumber`
+  - **输入输出**：`print`、`select`
+  - **错误处理**：`error`、`assert`、`pcall`、`xpcall`
+  - **表迭代**：`next`、`pairs`、`ipairs`
 
 ```lua
 -- 示例：使用标准库完成排序、格式化与数学计算
