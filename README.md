@@ -252,6 +252,9 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **输入输出**：`print`、`select`
   - **错误处理**：`error`、`assert`、`pcall`、`xpcall`
   - **表迭代**：`next`、`pairs`、`ipairs`
+  - **文件加载**：`loadfile`、`dofile`（加载文件并编译，顶层函数注册为全局）
+  - **垃圾回收**：`collectgarbage([opt])`（仅支持 `"count"` 返回内存 KB，其他选项为 no-op）
+  - **版本常量**：`_VERSION`（返回 `"Fakelua 5.3"`）
 - **Math 数学库 (`math.*`)**：
   - **基础与三角函数**：`math.abs`, `math.floor`, `math.ceil`, `math.min`, `math.max`, `math.sqrt`, `math.sin`, `math.cos`, `math.tan`, `math.asin`, `math.acos`, `math.atan`, `math.sinh`, `math.cosh`, `math.tanh`
   - **指数、对数与分解**：`math.exp`, `math.log`, `math.log10`, `math.deg`, `math.rad`, `math.modf`, `math.frexp`, `math.atan2`, `math.copysign`
@@ -276,7 +279,7 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **长度与偏移**：`utf8.len(s [, i [, j]])`、`utf8.offset(s, n [, i])`
   - **模式常量**：`utf8.charpattern`
 - **IO 文件库 (`io.*`)**：
-  - **文件打开/关闭**：`io.open(filename [, mode])`、`io.close([file])`、`io.tmpfile()`
+  - **文件打开/关闭**：`io.open(filename [, mode])`、`io.close([file])`、`io.tmpfile()`、`io.popen(command [, mode])`（管道执行外部命令）
   - **读写操作**：`io.read([format])`、`io.write(...)`、`io.flush()`
   - **文件定位**：`file:seek([whence [, offset]])`、`file:setvbuf(mode [, size])`
   - **类型检查**：`io.type(v)`

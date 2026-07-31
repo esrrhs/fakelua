@@ -1077,6 +1077,29 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaNil(state);
     });
 
+    // ─── dofile([filename]) ───
+    // fakelua 中 dofile 等价于 loadfile：加载文件、编译、顶层函数注册为全局，
+    // 编译器 __fakelua_init 自动执行文件级初始化。成功返回 nil，失败返回 nil。
+    RegisterNativeFunction(s, "dofile", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaNil(state);
+        CVar filename_var = inter::GetNativeArg(state, args, n, 0);
+        std::string_view filename_sv = KeyToStringView(filename_var);
+        if (filename_sv.empty()) return inter::NativeToFakeluaNil(state);
+
+        std::ifstream ifs(std::string(filename_sv), std::ios::in | std::ios::binary);
+        if (!ifs.is_open()) return inter::NativeToFakeluaNil(state);
+        std::string source((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        ifs.close();
+
+        try {
+            CompileConfig config;
+            CompileString(state, source, config);
+        } catch (...) {
+            return inter::NativeToFakeluaNil(state);
+        }
+        return inter::NativeToFakeluaNil(state);
+    });
+
     // ─── string.pack (Lua 5.3 binary serialization) ───
     // 注册的签名是 (fmt, ...) 即 arg_count=1, is_vararg=true
     // 调用时：args[0]=fmt, args[1]=Multi(剩余参数)

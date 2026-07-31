@@ -2447,6 +2447,11 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                 return BoxNativeValue(name, git->second);
             }
         }
+        // 拦截 _VERSION 全局常量（编译期替换为版本字符串）
+        if (name == "_VERSION") {
+            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}",
+                               s_->GetConstString().Alloc("Fakelua 5.3"));
+        }
         return name;
     } else if (var_kind == VarKind::kSquare) {
         DEBUG_ASSERT(cur_section_ != Section::Globals);
