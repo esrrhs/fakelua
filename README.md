@@ -245,7 +245,7 @@ Call(s, JIT_GCC, "calc_multi", std::tie(x, y, msg), 10, 20, 30); // x=10, y=20, 
 
 ### 标准内置扩展库（Built-in Standard Libraries）
 
-FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string` / `native_os`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
+FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`utf8`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string` / `native_os` / `native_utf8`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
 
 - **Basic 全局函数**：
   - **类型与转换**：`type`、`tostring`、`tonumber`
@@ -271,6 +271,10 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`）�
   - **环境执行**：`os.execute([command])`、`os.exit([code[, close]])`、`os.getenv(varname)`
   - **文件操作**：`os.remove(filename)`、`os.rename(oldname, newname)`、`os.tmpname()`
   - **区域设置**：`os.setlocale(locale[, category])`
+- **UTF-8 编码库 (`utf8.*`)**：
+  - **编解码**：`utf8.char(...)`、`utf8.codepoint(s [, i [, j]])`、`utf8.codes(s)`
+  - **长度与偏移**：`utf8.len(s [, i [, j]])`、`utf8.offset(s, n [, i])`
+  - **模式常量**：`utf8.charpattern`
 
 ```lua
 -- 示例：使用标准库完成排序、格式化与数学计算
@@ -349,7 +353,7 @@ local z = (x + y) / 2.0
 - 不支持元表（metatable）
 - 不支持 `require` / `module` 模块系统（注：fakelua 有独立的 `package "Name"` 模块化机制）
 - 不支持 `rawequal` / `rawget` / `rawset` / `rawlen`（因无元表，这些函数无意义）
-- 不支持 utf8 / io / debug 标准库
+- 不支持 io / debug 标准库
 
 ## 快速上手
 

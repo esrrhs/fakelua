@@ -2,6 +2,7 @@
 #include "fakelua.h"
 #include "jit/tcc_jit.h"
 #include "native/native_os.h"
+#include "native/native_utf8.h"
 
 namespace fakelua {
 
@@ -10,6 +11,7 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     RegisterMathLibraryApi(this);
     RegisterTableLibraryApi(this);
     RegisterOsLibraryApi(this);
+    RegisterUtf8LibraryApi(this);
 }
 
 }// namespace fakelua
