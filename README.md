@@ -260,7 +260,7 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`），完全
   - **编码转换**：`string.byte`、`string.char`、`string.charpattern`
   - **格式化**：`string.format`
   - **模式匹配**：`string.find`、`string.match`、`string.gmatch`、`string.gsub`
-  - **序列化与加载**：`string.pack`、`string.packsize`、`string.unpack`、`string.dump`、`load`、`loadstring`、`loadfile`
+  - **序列化与加载**：`string.pack`、`string.packsize`、`string.unpack`、`string.dump`、`load`、`loadstring`、`loadfile`（直接编译文件，顶层函数注册为全局，无需调用闭包）
 - **Basic 全局函数**：
   - **类型与转换**：`type`、`tostring`、`tonumber`
   - **输入输出**：`print`、`select`

@@ -1052,9 +1052,9 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "loadstring", 1, true, load_impl);
 
     // ─── loadfile([filename [, mode [, env]]]) ───
-    // 从文件加载 Lua 源码并编译为闭包。mode/env 参数被忽略（fakelua 无环境概念）。
-    // 与 load/loadstring 不同，loadfile 直接编译文件内容（不包裹在 function 中），
-    // 使得文件中定义的顶层函数注册为全局函数，调用闭包即执行文件顶层代码。
+    // 从文件加载 Lua 源码并编译。mode/env 参数被忽略（fakelua 无环境概念）。
+    // 编译后文件中定义的顶层函数直接注册为全局函数，编译器的 __fakelua_init
+    // 会自动执行文件级常量/变量初始化。成功返回 nil，失败返回 nil。
     RegisterNativeFunction(s, "loadfile", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar filename_var = inter::GetNativeArg(state, args, n, 0);
@@ -1067,39 +1067,14 @@ void RegisterStringLibraryApi(State *s) {
         std::string source((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
         ifs.close();
 
-        if (source.empty()) return inter::NativeToFakeluaNil(state);
-
-        // 编译文件内容，使顶层函数注册为全局
+        // 编译文件内容，顶层函数注册为全局，编译器自动执行 __fakelua_init
         try {
             CompileConfig config;
             CompileString(state, source, config);
         } catch (...) {
             return inter::NativeToFakeluaNil(state);
         }
-
-        // 构造一个闭包，调用时执行已编译文件的 __fakelua_init 函数
-        // 使用特殊的 code_str 标记（以 "\x1bLoadFile" 开头）告知 FlEvalLoadClosure 直接调用 init
-        try {
-            auto &alloc = state->GetHeap().GetAllocator(false);
-            std::string marker = "\x1bLoadFile";
-            size_t len = marker.size() + 1;
-            char *saved_code = static_cast<char *>(alloc.Alloc(len));
-            std::memcpy(saved_code, marker.c_str(), len);
-
-            VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure)));
-            cl->func_ptr = nullptr;
-            cl->upvalue_count = 0;
-            cl->expected_arg_count = 0;
-            cl->is_vararg = true;
-            cl->code_str = saved_code;
-
-            CVar res{};
-            res.type_ = static_cast<int>(VarType::Closure);
-            res.data_.cl = cl;
-            return res;
-        } catch (...) {
-            return inter::NativeToFakeluaNil(state);
-        }
+        return inter::NativeToFakeluaNil(state);
     });
 
     // ─── string.pack (Lua 5.3 binary serialization) ───
@@ -1578,15 +1553,6 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
         return inter::NativeToFakeluaNil(state);
     }
     std::string code = cl->code_str;
-
-    // loadfile 特殊标记：直接执行已编译文件的 __fakelua_init 函数
-    if (code.size() >= 10 && code.substr(0, 10) == "\x1bLoadFile") {
-        try {
-            return FakeluaCallByName(state, JIT_TCC, "__fakelua_init", 0);
-        } catch (...) {
-            return inter::NativeToFakeluaNil(state);
-        }
-    }
 
     if (code.size() >= 4 && code.substr(0, 4) == "\x1bLua") {
         code = (code.size() >= 5) ? code.substr(5) : code.substr(4);
