@@ -284,7 +284,7 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **文件定位**：`file:seek([whence [, offset]])`、`file:setvbuf(mode [, size])`
   - **类型检查**：`io.type(v)`
   - **标准流**：`io.stdin`、`io.stdout`、`io.stderr`
-  - **文件方法**：`file:read([format])`、`file:write(...)`、`file:flush()`、`file:close()`、`file:seek(...)`、`file:setvbuf(...)`
+  - **文件方法**：`file:read([format])`、`file:write(...)`、`file:flush()`、`file:close()`、`file:seek(...)`、`file:setvbuf(...)`、`file:lines()`（逐行迭代器，用于 `for line in file:lines() do ... end`）
 
 ```lua
 -- 示例：使用标准库完成排序、格式化与数学计算
