@@ -123,3 +123,34 @@ TEST(test_math, test_math_modf_frexp) {
 
     FakeluaDeleteState(s);
 }
+
+
+TEST(test_math, test_math_atan2) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_atan2.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_atan2", res);
+        EXPECT_NEAR(res, 6000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_copysign) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_copysign.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_copysign", res);
+        EXPECT_NEAR(res, 7000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}

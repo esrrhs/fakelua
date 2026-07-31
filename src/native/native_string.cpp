@@ -1,4 +1,5 @@
 #include "native/native_string.h"
+#include <fstream>
 #include "native/native_object.h"
 #include "compile/c_runtime_header.h"
 #include "state/state.h"
@@ -1050,6 +1051,32 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "load", 1, true, load_impl);
     RegisterNativeFunction(s, "loadstring", 1, true, load_impl);
 
+    // ─── loadfile([filename [, mode [, env]]]) ───
+    // 从文件加载 Lua 源码并编译。mode/env 参数被忽略（fakelua 无环境概念）。
+    // 编译后文件中定义的顶层函数直接注册为全局函数，编译器的 __fakelua_init
+    // 会自动执行文件级常量/变量初始化。成功返回 nil，失败返回 nil。
+    RegisterNativeFunction(s, "loadfile", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaNil(state);
+        CVar filename_var = inter::GetNativeArg(state, args, n, 0);
+        std::string_view filename_sv = KeyToStringView(filename_var);
+        if (filename_sv.empty()) return inter::NativeToFakeluaNil(state);
+
+        // 读取文件内容
+        std::ifstream ifs(std::string(filename_sv), std::ios::in | std::ios::binary);
+        if (!ifs.is_open()) return inter::NativeToFakeluaNil(state);
+        std::string source((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        ifs.close();
+
+        // 编译文件内容，顶层函数注册为全局，编译器自动执行 __fakelua_init
+        try {
+            CompileConfig config;
+            CompileString(state, source, config);
+        } catch (...) {
+            return inter::NativeToFakeluaNil(state);
+        }
+        return inter::NativeToFakeluaNil(state);
+    });
+
     // ─── string.pack (Lua 5.3 binary serialization) ───
     // 注册的签名是 (fmt, ...) 即 arg_count=1, is_vararg=true
     // 调用时：args[0]=fmt, args[1]=Multi(剩余参数)
@@ -1526,6 +1553,7 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
         return inter::NativeToFakeluaNil(state);
     }
     std::string code = cl->code_str;
+
     if (code.size() >= 4 && code.substr(0, 4) == "\x1bLua") {
         code = (code.size() >= 5) ? code.substr(5) : code.substr(4);
     }

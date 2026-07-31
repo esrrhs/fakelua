@@ -183,3 +183,34 @@ TEST(test_string, test_string_pack_unpack) {
 
     FakeluaDeleteState(s);
 }
+
+
+TEST(test_string, test_string_charpattern) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_charpattern.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_string_charpattern", res);
+        EXPECT_NEAR(res, 6000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_string_loadfile) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_loadfile.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_string_loadfile", res);
+        EXPECT_NEAR(res, 7000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
