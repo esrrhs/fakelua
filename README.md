@@ -247,6 +247,11 @@ Call(s, JIT_GCC, "calc_multi", std::tie(x, y, msg), 10, 20, 30); // x=10, y=20, 
 
 FakeLua 提供完整的核心标准库（`math`、`table`、`string`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
 
+- **Basic 全局函数**：
+  - **类型与转换**：`type`、`tostring`、`tonumber`
+  - **输入输出**：`print`、`select`
+  - **错误处理**：`error`、`assert`、`pcall`、`xpcall`
+  - **表迭代**：`next`、`pairs`、`ipairs`
 - **Math 数学库 (`math.*`)**：
   - **基础与三角函数**：`math.abs`, `math.floor`, `math.ceil`, `math.min`, `math.max`, `math.sqrt`, `math.sin`, `math.cos`, `math.tan`, `math.asin`, `math.acos`, `math.atan`, `math.sinh`, `math.cosh`, `math.tanh`
   - **指数、对数与分解**：`math.exp`, `math.log`, `math.log10`, `math.deg`, `math.rad`, `math.modf`, `math.frexp`, `math.atan2`, `math.copysign`
@@ -261,11 +266,6 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`），完全
   - **格式化**：`string.format`
   - **模式匹配**：`string.find`、`string.match`、`string.gmatch`、`string.gsub`
   - **序列化与加载**：`string.pack`、`string.packsize`、`string.unpack`、`string.dump`、`load`、`loadstring`、`loadfile`（直接编译文件，顶层函数注册为全局，无需调用闭包）
-- **Basic 全局函数**：
-  - **类型与转换**：`type`、`tostring`、`tonumber`
-  - **输入输出**：`print`、`select`
-  - **错误处理**：`error`、`assert`、`pcall`、`xpcall`
-  - **表迭代**：`next`、`pairs`、`ipairs`
 
 ```lua
 -- 示例：使用标准库完成排序、格式化与数学计算
