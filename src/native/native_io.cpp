@@ -18,12 +18,15 @@ namespace fakelua {
 // ─────────────────────────────────────────────────────────────────────────────
 
 static constexpr const char *kFpKey = "__fp__";
+static constexpr const char *kPopenKey = "__popen__";
 static constexpr int64_t kIoFileGroup = 999999;// 专用 group，0 不允许
 
 // 创建一个 IoFile NativeObject 壳，内部 FILE* 存为 Int 字段
-static NativeObject *MakeIoFile(State *s, FILE *fp) {
+// is_popen=true 时用 pclose 而非 fclose 关闭
+static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
     auto *obj = NativeObjectManager::Instance().Create(kIoFileGroup, "iofile");
     obj->SetInt(kFpKey, reinterpret_cast<int64_t>(fp));
+    obj->SetBool(kPopenKey, is_popen);
 
     // ── file:read([format]) ──
     obj->RegisterMethod("read", [](NativeObject *self, State *state, CVar *args, int n) -> CVar {
@@ -161,7 +164,8 @@ static NativeObject *MakeIoFile(State *s, FILE *fp) {
         if (fp == stdin || fp == stdout || fp == stderr) {
             return inter::NativeToFakeluaBool(state, true);
         }
-        int ret = std::fclose(fp);
+        bool is_popen = self->GetBool(kPopenKey, false);
+        int ret = is_popen ? ::pclose(fp) : std::fclose(fp);
         self->SetInt(kFpKey, 0);
         if (ret == 0) {
             return inter::NativeToFakeluaBool(state, true);
@@ -315,7 +319,8 @@ void RegisterIoLibraryApi(State *s) {
         if (fp == stdin || fp == stdout || fp == stderr) {
             return inter::NativeToFakeluaBool(state, true);
         }
-        int ret = std::fclose(fp);
+        bool is_popen = obj->GetBool(kPopenKey, false);
+        int ret = is_popen ? ::pclose(fp) : std::fclose(fp);
         obj->SetInt(kFpKey, 0);
         return ret == 0 ? inter::NativeToFakeluaBool(state, true) : inter::NativeToFakeluaNil(state);
     });
@@ -430,6 +435,35 @@ void RegisterIoLibraryApi(State *s) {
         FILE *fp = std::tmpfile();
         if (!fp) return inter::NativeToFakeluaNil(state);
         auto *obj = MakeIoFile(state, fp);
+        return inter::NativeToFakeluaNativeObject(state, obj);
+    });
+
+    // ─── io.popen(command [, mode]) → file | nil, err ───
+    // 执行外部命令并打开管道。读模式 "r" 读取命令输出，写模式 "w" 向命令写入。
+    // 关闭时使用 pclose（由 __popen__ 标志自动区分）。
+    RegisterNativeFunction(s, "io.popen", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        std::string_view command = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+        if (command.empty()) {
+            auto multi = inter::AllocMultiCVar(state, 2);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaString(state, "missing command"));
+            return multi;
+        }
+        std::string mode = "r";
+        if (n >= 2) {
+            CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            if (a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
+                mode = std::string(KeyToStringView(a1));
+            }
+        }
+        FILE *fp = ::popen(std::string(command).c_str(), mode.c_str());
+        if (!fp) {
+            auto multi = inter::AllocMultiCVar(state, 2);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaString(state, std::strerror(errno)));
+            return multi;
+        }
+        auto *obj = MakeIoFile(state, fp, true /* is_popen */);
         return inter::NativeToFakeluaNativeObject(state, obj);
     });
 

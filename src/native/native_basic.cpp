@@ -656,6 +656,29 @@ void RegisterBasicLibraryApi(State *s) {
         return multi;
     });
 
+    // ─── collectgarbage([opt [, arg]]) ───
+    // fakelua 使用 Arena 分配器，无标准 GC。目前仅支持 "count"：
+    //   返回当前临时 + 常量分配器总使用量（单位 KB，与 Lua 一致）。
+    // 其他选项（"collect"/"step"/"stop"/"restart" 等）为 no-op，返回 0。
+    RegisterNativeFunction(s, "collectgarbage", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        std::string_view opt = "count";
+        if (n >= 1) {
+            CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+                opt = KeyToStringView(a0);
+            }
+        }
+        if (opt == "count") {
+            // 返回内存使用量（KB）= (temp + const allocator bytes) / 1024
+            const size_t total_bytes = state->GetHeap().GetAllocator(false /* temp */).Size()
+                                     + state->GetHeap().GetAllocator(true /* const */).Size();
+            double kb = static_cast<double>(total_bytes) / 1024.0;
+            return inter::NativeToFakeluaDouble(state, kb);
+        }
+        // 其他选项：no-op，返回 0
+        return inter::NativeToFakeluaInt(state, 0);
+    });
+
 }
 
 }// namespace fakelua

@@ -10,6 +10,12 @@
 
 namespace fakelua {
 
+// 版本号定义（主版本.次版本.patch），_VERSION 字符串在此基础上生成
+#define FAKELUA_VERSION_MAJOR 0
+#define FAKELUA_VERSION_MINOR 1
+#define FAKELUA_VERSION_PATCH 0
+#define FAKELUA_VERSION_STRING "0.1.0"
+
 constexpr size_t kMaxFunctionInputParams = 32;
 constexpr size_t kMaxMathSpecializedParams = 8;
 

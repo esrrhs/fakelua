@@ -138,3 +138,48 @@ TEST(test_basic, test_basic_print) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_basic, test_basic_dofile) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./basic/test_basic_dofile.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_basic_dofile", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, test_basic_version) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./basic/test_basic_version.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_basic_version", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, test_basic_collectgarbage) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./basic/test_basic_collectgarbage.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_basic_collectgarbage", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
