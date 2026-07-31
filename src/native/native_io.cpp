@@ -21,6 +21,34 @@ static constexpr const char *kFpKey = "__fp__";
 static constexpr const char *kPopenKey = "__popen__";
 static constexpr int64_t kIoFileGroup = 999999;// 专用 group，0 不允许
 
+// ─── file:lines() 迭代器原生函数 ───
+// 闭包签名：CVar (*)(VarClosure *cl, CVar s, CVar var)
+// upvalues[0] = State* (as int)
+// upvalues[1] = FILE* (as int，从 iofile 对象获取)
+extern "C" CVar FileLinesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
+    if (!cl || cl->upvalue_count < 2) {
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+    State *iter_state = reinterpret_cast<State *>(cl->upvalues[0]->data_.i);
+    FILE *fp = reinterpret_cast<FILE *>(cl->upvalues[1]->data_.i);
+    if (!iter_state || !fp) {
+        return inter::NativeToFakeluaNil(iter_state);
+    }
+
+    // 读一行（去掉换行），与 file:read("*l") 逻辑一致
+    std::string result;
+    char buf[4096];
+    bool got_any = false;
+    while (std::fgets(buf, sizeof(buf), fp)) {
+        result += buf;
+        got_any = true;
+        if (!result.empty() && result.back() == '\n') break;
+    }
+    if (!got_any) return inter::NativeToFakeluaNil(iter_state);
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
+    return inter::NativeToFakeluaString(iter_state, result);
+}
+
 // 创建一个 IoFile NativeObject 壳，内部 FILE* 存为 Int 字段
 // is_popen=true 时用 pclose 而非 fclose 关闭
 static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
@@ -233,6 +261,44 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
             return inter::NativeToFakeluaNil(state);
         }
         return inter::NativeToFakeluaBool(state, true);
+    });
+
+    // ── file:lines() → iterator closure ───
+    // 返回一个闭包，用于 for line in file:lines() do ... end
+    // 迭代器逐行读取，到文件末尾时返回 nil（for-in 循环自动结束）
+    obj->RegisterMethod("lines", [](NativeObject *self, State *state, CVar *args, int n) -> CVar {
+        auto *fp = reinterpret_cast<FILE *>(self->GetInt(kFpKey, 0));
+
+        auto &alloc = state->GetHeap().GetAllocator(false /* temp */);
+
+        // upvalue 0: State* (用于分配返回值等)
+        CVar *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
+        uv0->type_ = static_cast<int>(VarType::Int);
+        uv0->flag_ = 0;
+        uv0->data_.i = reinterpret_cast<int64_t>(state);
+
+        // upvalue 1: FILE* (迭代器要读取的文件句柄)
+        CVar *uv1 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
+        uv1->type_ = static_cast<int>(VarType::Int);
+        uv1->flag_ = 0;
+        uv1->data_.i = reinterpret_cast<int64_t>(fp);
+
+        // 分配闭包：sizeof(VarClosure) + 2 * sizeof(CVar *)
+        VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 2 * sizeof(CVar *)));
+        cl->func_ptr = reinterpret_cast<void *>(FileLinesIterator);
+        cl->upvalue_count = 2;
+        // for-in 循环会以 (s, var) 两个参数调用迭代器，所以 expected_arg_count = 2
+        cl->expected_arg_count = 2;
+        cl->is_vararg = false;
+        cl->code_str = nullptr;
+        cl->upvalues[0] = uv0;
+        cl->upvalues[1] = uv1;
+
+        CVar res{};
+        res.type_ = static_cast<int>(VarType::Closure);
+        res.flag_ = 0;
+        res.data_.cl = cl;
+        return res;
     });
 
     return obj;
