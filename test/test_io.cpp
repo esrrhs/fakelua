@@ -78,3 +78,18 @@ TEST(test_io, test_io_tmpfile) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_io, test_io_long_line) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_io_long_line.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_io_long_line", res);
+        EXPECT_NEAR(res, 6000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}

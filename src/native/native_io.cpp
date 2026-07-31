@@ -32,32 +32,46 @@ static NativeObject *MakeIoFile(State *s, FILE *fp) {
 
         // 默认 "*l"：读一行（去掉换行）
         if (n < 1) {
+            std::string result;
             char buf[4096];
-            if (std::fgets(buf, sizeof(buf), fp)) {
-                std::string result = buf;
-                while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
-                return inter::NativeToFakeluaString(state, result);
+            bool got_any = false;
+            while (std::fgets(buf, sizeof(buf), fp)) {
+                result += buf;
+                got_any = true;
+                // 如果读到换行说明一行结束
+                if (!result.empty() && result.back() == '\n') break;
             }
-            return inter::NativeToFakeluaNil(state);
+            if (!got_any) return inter::NativeToFakeluaNil(state);
+            while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
+            return inter::NativeToFakeluaString(state, result);
         }
 
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
             std::string_view fmt = KeyToStringView(a0);
             if (fmt == "*l") {
+                std::string result;
                 char buf[4096];
-                if (std::fgets(buf, sizeof(buf), fp)) {
-                    std::string result = buf;
-                    while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
-                    return inter::NativeToFakeluaString(state, result);
+                bool got_any = false;
+                while (std::fgets(buf, sizeof(buf), fp)) {
+                    result += buf;
+                    got_any = true;
+                    if (!result.empty() && result.back() == '\n') break;
                 }
-                return inter::NativeToFakeluaNil(state);
+                if (!got_any) return inter::NativeToFakeluaNil(state);
+                while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
+                return inter::NativeToFakeluaString(state, result);
             } else if (fmt == "*L") {
+                std::string result;
                 char buf[4096];
-                if (std::fgets(buf, sizeof(buf), fp)) {
-                    return inter::NativeToFakeluaString(state, std::string(buf));
+                bool got_any = false;
+                while (std::fgets(buf, sizeof(buf), fp)) {
+                    result += buf;
+                    got_any = true;
+                    if (!result.empty() && result.back() == '\n') break;
                 }
-                return inter::NativeToFakeluaNil(state);
+                if (!got_any) return inter::NativeToFakeluaNil(state);
+                return inter::NativeToFakeluaString(state, result);
             } else if (fmt == "*a") {
                 std::string result;
                 char chunk[4096];
@@ -310,32 +324,45 @@ void RegisterIoLibraryApi(State *s) {
     // 从 stdin 读取
     RegisterNativeFunction(s, "io.read", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) {
-            // 默认 "*l"
+            // 默认 "*l"：循环读取直到换行或 EOF，支持超长行
+            std::string result;
             char buf[4096];
-            if (std::fgets(buf, sizeof(buf), stdin)) {
-                std::string result = buf;
-                while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
-                return inter::NativeToFakeluaString(state, result);
+            bool got_any = false;
+            while (std::fgets(buf, sizeof(buf), stdin)) {
+                result += buf;
+                got_any = true;
+                if (!result.empty() && result.back() == '\n') break;
             }
-            return inter::NativeToFakeluaNil(state);
+            if (!got_any) return inter::NativeToFakeluaNil(state);
+            while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
+            return inter::NativeToFakeluaString(state, result);
         }
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
             std::string_view fmt = KeyToStringView(a0);
             if (fmt == "*l") {
+                std::string result;
                 char buf[4096];
-                if (std::fgets(buf, sizeof(buf), stdin)) {
-                    std::string result = buf;
-                    while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
-                    return inter::NativeToFakeluaString(state, result);
+                bool got_any = false;
+                while (std::fgets(buf, sizeof(buf), stdin)) {
+                    result += buf;
+                    got_any = true;
+                    if (!result.empty() && result.back() == '\n') break;
                 }
-                return inter::NativeToFakeluaNil(state);
+                if (!got_any) return inter::NativeToFakeluaNil(state);
+                while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
+                return inter::NativeToFakeluaString(state, result);
             } else if (fmt == "*L") {
+                std::string result;
                 char buf[4096];
-                if (std::fgets(buf, sizeof(buf), stdin)) {
-                    return inter::NativeToFakeluaString(state, std::string(buf));
+                bool got_any = false;
+                while (std::fgets(buf, sizeof(buf), stdin)) {
+                    result += buf;
+                    got_any = true;
+                    if (!result.empty() && result.back() == '\n') break;
                 }
-                return inter::NativeToFakeluaNil(state);
+                if (!got_any) return inter::NativeToFakeluaNil(state);
+                return inter::NativeToFakeluaString(state, result);
             } else if (fmt == "*a") {
                 std::string result;
                 char chunk[4096];
