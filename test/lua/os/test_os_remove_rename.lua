@@ -3,8 +3,8 @@ function test_os_remove_rename()
     local tmp = os.tmpname()
     if type(tmp) ~= "string" then return 0 end
 
-    -- write to it via execute (create the file)
-    os.execute("touch " .. tmp)
+    -- create the file (echo. > file works on both Windows and Unix)
+    os.execute("echo. > " .. tmp)
 
     -- rename it
     local newname = tmp .. ".renamed"

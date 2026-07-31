@@ -7,6 +7,10 @@
 #include <ctime>
 #include <string_view>
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 namespace fakelua {
 
 // ─── Helper: extract int64 from CVar arg, return default if not numeric ───
@@ -279,16 +283,25 @@ void RegisterOsLibraryApi(State *s) {
 
     // ─── os.tmpname() ───
     RegisterNativeFunction(s, "os.tmpname", 0, false, [](State *state, CVar *args, int n) -> CVar {
-        char tmpname[] = "/tmp/lua_XXXXXX";
 #if defined(_WIN32)
-        char *result = _mktemp(tmpname);
-        if (!result) return inter::NativeToFakeluaNil(state);
+        // Windows: use GetTempPath + GetTempFileName for a safe temp file name
+        char temp_path[MAX_PATH];
+        char temp_file[MAX_PATH];
+        if (GetTempPathA(MAX_PATH, temp_path) == 0) {
+            return inter::NativeToFakeluaNil(state);
+        }
+        if (GetTempFileNameA(temp_path, "lua", 0, temp_file) == 0) {
+            return inter::NativeToFakeluaNil(state);
+        }
+        return inter::NativeToFakeluaStringView(state, std::string_view(temp_file));
 #else
+        // POSIX: use mkstemp for a safe temp file name
+        char tmpname[] = "/tmp/lua_XXXXXX";
         int fd = mkstemp(tmpname);
         if (fd < 0) return inter::NativeToFakeluaNil(state);
         close(fd);
-#endif
         return inter::NativeToFakeluaStringView(state, std::string_view(tmpname));
+#endif
     });
 }
 
