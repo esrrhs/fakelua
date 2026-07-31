@@ -2494,18 +2494,28 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         // 拦截 math 静态库常量访问 (math.pi / math.huge)
         if (pe && pe->Type() == SyntaxTreeType::PrefixExp) {
             if (const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe); pe_ptr && pe_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
-                if (const auto base_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue()); base_var && base_var->GetVarKind() == VarKind::kSimple && base_var->GetName() == "math") {
-                    if (name == "pi") {
-                        return "(CVar){.type_ = VAR_FLOAT, .data_.f = 3.14159265358979323846}";
+                const auto base_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue());
+                if (base_var && base_var->GetVarKind() == VarKind::kSimple) {
+                    // 拦截 math 静态库常量访问 (math.pi / math.huge / math.maxinteger / math.mininteger)
+                    if (base_var->GetName() == "math") {
+                        if (name == "pi") {
+                            return "(CVar){.type_ = VAR_FLOAT, .data_.f = 3.14159265358979323846}";
+                        }
+                        if (name == "huge") {
+                            return "(CVar){.type_ = VAR_FLOAT, .data_.f = HUGE_VAL}";
+                        }
+                        if (name == "maxinteger") {
+                            return "(CVar){.type_ = VAR_INT, .data_.i = 9223372036854775807LL}";
+                        }
+                        if (name == "mininteger") {
+                            return "(CVar){.type_ = VAR_INT, .data_.i = (-9223372036854775807LL - 1LL)}";
+                        }
                     }
-                    if (name == "huge") {
-                        return "(CVar){.type_ = VAR_FLOAT, .data_.f = HUGE_VAL}";
-                    }
-                    if (name == "maxinteger") {
-                        return "(CVar){.type_ = VAR_INT, .data_.i = 9223372036854775807LL}";
-                    }
-                    if (name == "mininteger") {
-                        return "(CVar){.type_ = VAR_INT, .data_.i = (-9223372036854775807LL - 1LL)}";
+                    // 拦截 string 静态库常量访问 (string.charpattern)
+                    if (base_var->GetName() == "string") {
+                        if (name == "charpattern") {
+                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc("[^%z]"));
+                        }
                     }
                 }
             }

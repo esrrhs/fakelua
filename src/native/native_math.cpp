@@ -101,6 +101,23 @@ void RegisterMathLibraryApi(State *s) {
         return inter::NativeToFakeluaFloat(state, std::atan(v0));
     });
 
+    RegisterNativeFunction(s, "math.atan2", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        double v0 = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float) ? a0.data_.f : 0.0);
+        double v1 = (a1.type_ == static_cast<int>(VarType::Int)) ? a1.data_.i : (a1.type_ == static_cast<int>(VarType::Float) ? a1.data_.f : 0.0);
+        return inter::NativeToFakeluaFloat(state, std::atan2(v0, v1));
+    });
+
+    RegisterNativeFunction(s, "math.copysign", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        double v0 = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float) ? a0.data_.f : 0.0);
+        double v1 = (a1.type_ == static_cast<int>(VarType::Int)) ? a1.data_.i : (a1.type_ == static_cast<int>(VarType::Float) ? a1.data_.f : 0.0);
+        return inter::NativeToFakeluaFloat(state, std::copysign(v0, v1));
+    });
+
+
     RegisterNativeFunction(s, "math.exp", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         double v0 = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float) ? a0.data_.f : 0.0);

@@ -249,7 +249,7 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`），完全
 
 - **Math 数学库 (`math.*`)**：
   - **基础与三角函数**：`math.abs`, `math.floor`, `math.ceil`, `math.min`, `math.max`, `math.sqrt`, `math.sin`, `math.cos`, `math.tan`, `math.asin`, `math.acos`, `math.atan`, `math.sinh`, `math.cosh`, `math.tanh`
-  - **指数、对数与分解**：`math.exp`, `math.log`, `math.log10`, `math.deg`, `math.rad`, `math.modf`, `math.frexp`
+  - **指数、对数与分解**：`math.exp`, `math.log`, `math.log10`, `math.deg`, `math.rad`, `math.modf`, `math.frexp`, `math.atan2`, `math.copysign`
   - **随机数与数值常量**：`math.random`, `math.randomseed`, 以及数值常量 `math.pi`, `math.huge`, `math.maxinteger`, `math.mininteger`
 - **Table 表操作库 (`table.*`)**：
   - `table.concat(list [, sep [, i [, j]]])`：列表元素格式化拼接
@@ -268,6 +268,8 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`），完全
   - `string.find`, `string.match`, `string.gmatch`, `string.gsub`：模式匹配（类 Lua 5.3，基于 ECMAScript 正则）
   - `string.dump(func)` 与全局 `load` / `loadstring`：运行时闭包字节/代码序列化与动态编译加载
   - `string.pack(fmt, ...)` / `string.packsize(fmt)` / `string.unpack(fmt, s [, pos])`：Lua 5.3 二进制序列化
+  - `string.charpattern`：匹配任意字符的模式常量（等同于 `"[^%z]"`）
+  - `loadfile([filename [, mode [, env]]])`：从文件加载 Lua 源码并编译为闭包，文件中定义的顶层函数注册为全局函数
 - **Basic 全局函数**：
   - `type(v)`：返回值类型名字符串（`"nil"`, `"boolean"`, `"number"`, `"string"`, `"table"`, `"function"`）
   - `tostring(v)`：值转字符串
