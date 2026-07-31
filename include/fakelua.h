@@ -658,6 +658,7 @@ private:
     friend void RegisterNativeObjectApi(State *s);
     friend void RegisterMathLibraryApi(State *s);
     friend void RegisterTableLibraryApi(State *s);
+    friend void RegisterIoLibraryApi(State *s);
     friend CVar inter::NativeToFakeluaNativeObject(State *s, const NativeObject *obj);
 };
 
