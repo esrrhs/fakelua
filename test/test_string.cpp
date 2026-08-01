@@ -214,3 +214,18 @@ TEST(test_string, test_string_loadfile) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, test_string_format_p) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_format_p.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_string_format_p", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}

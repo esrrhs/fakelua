@@ -49,6 +49,66 @@ extern "C" CVar FileLinesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     return inter::NativeToFakeluaString(iter_state, result);
 }
 
+// ─── 单格式读取辅助函数 ───
+// 从 fp 读取一个格式（* *l *L *a *n 或数字字节数），返回 CVar（可能为 nil）
+static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var) {
+    if (fmt_var.type_ == static_cast<int>(VarType::String) || fmt_var.type_ == static_cast<int>(VarType::StringId)) {
+        std::string_view fmt = KeyToStringView(fmt_var);
+        if (fmt == "*l") {
+            std::string result;
+            char buf[4096];
+            bool got_any = false;
+            while (std::fgets(buf, sizeof(buf), fp)) {
+                result += buf;
+                got_any = true;
+                if (!result.empty() && result.back() == '\n') break;
+            }
+            if (!got_any) return inter::NativeToFakeluaNil(state);
+            while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
+            return inter::NativeToFakeluaString(state, result);
+        } else if (fmt == "*L") {
+            std::string result;
+            char buf[4096];
+            bool got_any = false;
+            while (std::fgets(buf, sizeof(buf), fp)) {
+                result += buf;
+                got_any = true;
+                if (!result.empty() && result.back() == '\n') break;
+            }
+            if (!got_any) return inter::NativeToFakeluaNil(state);
+            return inter::NativeToFakeluaString(state, result);
+        } else if (fmt == "*a") {
+            std::string result;
+            char chunk[4096];
+            size_t nread;
+            while ((nread = std::fread(chunk, 1, sizeof(chunk), fp)) > 0) {
+                result.append(chunk, nread);
+            }
+            if (result.empty()) return inter::NativeToFakeluaNil(state);
+            return inter::NativeToFakeluaString(state, result);
+        } else if (fmt == "*n") {
+            double val;
+            if (std::fscanf(fp, "%lf", &val) == 1) {
+                if (val == static_cast<int64_t>(val) && std::isfinite(val)) {
+                    return inter::NativeToFakeluaLonglong(state, static_cast<long long>(val));
+                }
+                return inter::NativeToFakeluaDouble(state, val);
+            }
+            return inter::NativeToFakeluaNil(state);
+        }
+        return inter::NativeToFakeluaNil(state);
+    } else if (fmt_var.type_ == static_cast<int>(VarType::Int) || fmt_var.type_ == static_cast<int>(VarType::Float)) {
+        int64_t count = (fmt_var.type_ == static_cast<int>(VarType::Int)) ? fmt_var.data_.i : static_cast<int64_t>(fmt_var.data_.f);
+        if (count <= 0) return inter::NativeToFakeluaStringView(state, std::string_view(""));
+        std::string result(static_cast<size_t>(count), '\0');
+        size_t nread = std::fread(result.data(), 1, static_cast<size_t>(count), fp);
+        result.resize(nread);
+        if (nread == 0) return inter::NativeToFakeluaNil(state);
+        return inter::NativeToFakeluaString(state, result);
+    }
+    return inter::NativeToFakeluaNil(state);
+}
+
 // 创建一个 IoFile NativeObject 壳，内部 FILE* 存为 Int 字段
 // is_popen=true 时用 pclose 而非 fclose 关闭
 static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
@@ -61,80 +121,27 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         auto *fp = reinterpret_cast<FILE *>(self->GetInt(kFpKey, 0));
         if (!fp) return inter::NativeToFakeluaNil(state);
 
-        // 默认 "*l"：读一行（去掉换行）
+        // 无参数：默认 "*l"
         if (n < 1) {
-            std::string result;
-            char buf[4096];
-            bool got_any = false;
-            while (std::fgets(buf, sizeof(buf), fp)) {
-                result += buf;
-                got_any = true;
-                // 如果读到换行说明一行结束
-                if (!result.empty() && result.back() == '\n') break;
-            }
-            if (!got_any) return inter::NativeToFakeluaNil(state);
-            while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
-            return inter::NativeToFakeluaString(state, result);
+            CVar fake_fmt{static_cast<int>(VarType::StringId)};
+            fake_fmt.data_.i = state->GetConstString().Alloc("*l");
+            return ReadOneFormat(fp, state, fake_fmt);
         }
 
-        CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            std::string_view fmt = KeyToStringView(a0);
-            if (fmt == "*l") {
-                std::string result;
-                char buf[4096];
-                bool got_any = false;
-                while (std::fgets(buf, sizeof(buf), fp)) {
-                    result += buf;
-                    got_any = true;
-                    if (!result.empty() && result.back() == '\n') break;
-                }
-                if (!got_any) return inter::NativeToFakeluaNil(state);
-                while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
-                return inter::NativeToFakeluaString(state, result);
-            } else if (fmt == "*L") {
-                std::string result;
-                char buf[4096];
-                bool got_any = false;
-                while (std::fgets(buf, sizeof(buf), fp)) {
-                    result += buf;
-                    got_any = true;
-                    if (!result.empty() && result.back() == '\n') break;
-                }
-                if (!got_any) return inter::NativeToFakeluaNil(state);
-                return inter::NativeToFakeluaString(state, result);
-            } else if (fmt == "*a") {
-                std::string result;
-                char chunk[4096];
-                size_t nread;
-                while ((nread = std::fread(chunk, 1, sizeof(chunk), fp)) > 0) {
-                    result.append(chunk, nread);
-                }
-                if (result.empty()) return inter::NativeToFakeluaNil(state);
-                return inter::NativeToFakeluaString(state, result);
-            } else if (fmt == "*n") {
-                double val;
-                if (std::fscanf(fp, "%lf", &val) == 1) {
-                    if (val == static_cast<int64_t>(val) && std::isfinite(val)) {
-                        return inter::NativeToFakeluaLonglong(state, static_cast<long long>(val));
-                    }
-                    return inter::NativeToFakeluaDouble(state, val);
-                }
-                return inter::NativeToFakeluaNil(state);
+        // 多格式参数：逐个读取，返回 multi-value
+        if (n >= 2) {
+            auto multi = inter::AllocMultiCVar(state, n);
+            for (int i = 0; i < n; ++i) {
+                CVar fmt_var = inter::GetNativeArg(state, args, n, i);
+                CVar res = ReadOneFormat(fp, state, fmt_var);
+                inter::SetMultiCVarElement(multi, i, res);
             }
-            // 未知格式返回 nil
-            return inter::NativeToFakeluaNil(state);
-        } else if (a0.type_ == static_cast<int>(VarType::Int) || a0.type_ == static_cast<int>(VarType::Float)) {
-            // 数字参数：读取指定字节数
-            int64_t count = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : static_cast<int64_t>(a0.data_.f);
-            if (count <= 0) return inter::NativeToFakeluaStringView(state, std::string_view(""));
-            std::string result(static_cast<size_t>(count), '\0');
-            size_t nread = std::fread(result.data(), 1, static_cast<size_t>(count), fp);
-            result.resize(nread);
-            if (nread == 0) return inter::NativeToFakeluaNil(state);
-            return inter::NativeToFakeluaString(state, result);
+            return multi;
         }
-        return inter::NativeToFakeluaNil(state);
+
+        // 单格式参数
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        return ReadOneFormat(fp, state, a0);
     });
 
     // ── file:write(...) ──
@@ -233,7 +240,9 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         return inter::NativeToFakeluaLonglong(state, static_cast<long long>(pos));
     });
 
-    // ── file:setvbuf(mode [, size]) ──（简化实现，仅标记）──
+    // ── file:setvbuf(mode [, size]) ──
+    // mode: "no" 无缓冲, "full" 全缓冲, "line" 行缓冲
+    // 成功返回 file，失败返回 nil, errmsg
     obj->RegisterMethod("setvbuf", [](NativeObject *self, State *state, CVar *args, int n) -> CVar {
         auto *fp = reinterpret_cast<FILE *>(self->GetInt(kFpKey, 0));
         if (!fp) return inter::NativeToFakeluaNil(state);
@@ -257,10 +266,22 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         else if (mode == "line") bufmode = _IOLBF;
         else bufmode = _IOFBF;
 
-        if (std::setvbuf(fp, nullptr, bufmode, size) != 0) {
-            return inter::NativeToFakeluaNil(state);
+        // 分配缓冲区（setvbuf 需要一块稳定的内存直到下次 setvbuf/fclose）
+        // 对于无缓冲模式不需要缓冲区；全缓冲/行缓冲使用临时分配器
+        char *buf = nullptr;
+        if (bufmode != _IONBF) {
+            auto &alloc = state->GetHeap().GetAllocator(false);
+            buf = static_cast<char *>(alloc.Alloc(size > 0 ? size : BUFSIZ));
         }
-        return inter::NativeToFakeluaBool(state, true);
+
+        if (std::setvbuf(fp, buf, bufmode, size > 0 ? size : BUFSIZ) != 0) {
+            auto multi = inter::AllocMultiCVar(state, 2);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "setvbuf failed"));
+            return multi;
+        }
+        // 成功返回 file 对象自身
+        return inter::NativeToFakeluaNativeObject(state, self);
     });
 
     // ── file:lines() → iterator closure ───
@@ -391,77 +412,27 @@ void RegisterIoLibraryApi(State *s) {
         return ret == 0 ? inter::NativeToFakeluaBool(state, true) : inter::NativeToFakeluaNil(state);
     });
 
-    // ─── io.read([format]) → string|number|nil ───
-    // 从 stdin 读取
+    // ─── io.read([format ...]) → string|number|nil ───
+    // 从 stdin 读取，支持多格式参数（返回 multi-value）
     RegisterNativeFunction(s, "io.read", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) {
-            // 默认 "*l"：循环读取直到换行或 EOF，支持超长行
-            std::string result;
-            char buf[4096];
-            bool got_any = false;
-            while (std::fgets(buf, sizeof(buf), stdin)) {
-                result += buf;
-                got_any = true;
-                if (!result.empty() && result.back() == '\n') break;
-            }
-            if (!got_any) return inter::NativeToFakeluaNil(state);
-            while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
-            return inter::NativeToFakeluaString(state, result);
+            CVar fake_fmt{static_cast<int>(VarType::StringId)};
+            fake_fmt.data_.i = state->GetConstString().Alloc("*l");
+            return ReadOneFormat(stdin, state, fake_fmt);
         }
+        // 多格式参数：逐个读取，返回 multi-value
+        if (n >= 2) {
+            auto multi = inter::AllocMultiCVar(state, n);
+            for (int i = 0; i < n; ++i) {
+                CVar fmt_var = inter::GetNativeArg(state, args, n, i);
+                CVar res = ReadOneFormat(stdin, state, fmt_var);
+                inter::SetMultiCVarElement(multi, i, res);
+            }
+            return multi;
+        }
+        // 单格式参数
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            std::string_view fmt = KeyToStringView(a0);
-            if (fmt == "*l") {
-                std::string result;
-                char buf[4096];
-                bool got_any = false;
-                while (std::fgets(buf, sizeof(buf), stdin)) {
-                    result += buf;
-                    got_any = true;
-                    if (!result.empty() && result.back() == '\n') break;
-                }
-                if (!got_any) return inter::NativeToFakeluaNil(state);
-                while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
-                return inter::NativeToFakeluaString(state, result);
-            } else if (fmt == "*L") {
-                std::string result;
-                char buf[4096];
-                bool got_any = false;
-                while (std::fgets(buf, sizeof(buf), stdin)) {
-                    result += buf;
-                    got_any = true;
-                    if (!result.empty() && result.back() == '\n') break;
-                }
-                if (!got_any) return inter::NativeToFakeluaNil(state);
-                return inter::NativeToFakeluaString(state, result);
-            } else if (fmt == "*a") {
-                std::string result;
-                char chunk[4096];
-                size_t nread;
-                while ((nread = std::fread(chunk, 1, sizeof(chunk), stdin)) > 0) {
-                    result.append(chunk, nread);
-                }
-                return result.empty() ? inter::NativeToFakeluaNil(state) : inter::NativeToFakeluaString(state, result);
-            } else if (fmt == "*n") {
-                double val;
-                if (std::fscanf(stdin, "%lf", &val) == 1) {
-                    if (val == static_cast<int64_t>(val) && std::isfinite(val)) {
-                        return inter::NativeToFakeluaLonglong(state, static_cast<long long>(val));
-                    }
-                    return inter::NativeToFakeluaDouble(state, val);
-                }
-                return inter::NativeToFakeluaNil(state);
-            }
-        } else if (a0.type_ == static_cast<int>(VarType::Int) || a0.type_ == static_cast<int>(VarType::Float)) {
-            int64_t count = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : static_cast<int64_t>(a0.data_.f);
-            if (count <= 0) return inter::NativeToFakeluaStringView(state, std::string_view(""));
-            std::string result(static_cast<size_t>(count), '\0');
-            size_t nread = std::fread(result.data(), 1, static_cast<size_t>(count), stdin);
-            result.resize(nread);
-            if (nread == 0) return inter::NativeToFakeluaNil(state);
-            return inter::NativeToFakeluaString(state, result);
-        }
-        return inter::NativeToFakeluaNil(state);
+        return ReadOneFormat(stdin, state, a0);
     });
 
     // ─── io.write(...) → true ───
