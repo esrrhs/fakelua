@@ -1339,10 +1339,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     } else {
         const std::string rhs = CompileExp(exps[0]);
         Out() << GenTab() << CompileVar(v_ptr) << " = " << rhs << ";\n";
-        // 全局非数值变量在 init 函数中完成赋值后，打上 CONST_FLAG 防止后续修改
-        // 注意：只有 original_init_ 为非空表构造器的全局变量才需要标记
-        // 空表 {} 不标记，允许作为可变存储容器使用（如注册函数表）
-        // CONST_FLAG 注入已移至 init 函数末尾（CompileFuncBody 中处理）
+        // 全局非数值变量的 CONST_FLAG 注入已移至 init 函数末尾（CompileFuncBody 中处理）
     }
 }
 
