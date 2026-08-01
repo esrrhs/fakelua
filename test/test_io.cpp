@@ -123,3 +123,78 @@ TEST(test_io, test_io_long_line) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_io, test_os_date_table) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_os_date_table.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_os_date_table", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, test_os_execute) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_os_execute.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_os_execute", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, test_io_read_multi) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_io_read_multi.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_io_read_multi", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, test_string_format_p) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_string_format_p.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_string_format_p", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, test_file_setvbuf) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_file_setvbuf.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_file_setvbuf", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}

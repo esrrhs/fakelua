@@ -2,6 +2,7 @@
 #include "native/native_object.h"
 #include "native/native_table.h"
 #include "var/var.h"
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -9,6 +10,8 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+#else
+#include <sys/wait.h>
 #endif
 
 namespace fakelua {
@@ -67,11 +70,6 @@ void RegisterOsLibraryApi(State *s) {
             fmt.remove_prefix(1);
         }
 
-        // Default format if needed
-        if (use_default_format) {
-            fmt = "%c";
-        }
-
         // Get the time
         if (!has_time) {
             t_val = std::time(nullptr);
@@ -92,6 +90,47 @@ void RegisterOsLibraryApi(State *s) {
             localtime_r(&t_val, &tm_buf);
         }
 #endif
+
+        // "*t" format: return a table with date fields
+        if (fmt == "*t") {
+            // 分配带 bucket 的表（9 个字段 > quick_data_ 的 8 槽）
+            auto &alloc = state->GetHeap().GetAllocator(false);
+            auto *vtbl = static_cast<VarTable *>(alloc.Alloc(sizeof(VarTable)));
+            *vtbl = VarTable{};
+            for (auto &qd: vtbl->quick_data_) {
+                qd.key.type_ = static_cast<int>(VarType::Nil);
+                qd.val.type_ = static_cast<int>(VarType::Nil);
+            }
+            vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
+            // 预分配 bucket（16 = 最小 2 的幂 ≥ 9）
+            const uint32_t bucket_count = 16;
+            vtbl->bucket_count_ = bucket_count;
+            vtbl->nodes_ = static_cast<VarTable::TableNode *>(alloc.Alloc(sizeof(VarTable::TableNode) * bucket_count));
+            vtbl->active_list_ = static_cast<uint32_t *>(alloc.Alloc(sizeof(uint32_t) * bucket_count));
+            for (uint32_t i = 0; i < bucket_count; ++i) {
+                vtbl->nodes_[i].entry.key.type_ = static_cast<int>(VarType::Nil);
+                vtbl->nodes_[i].entry.val.type_ = static_cast<int>(VarType::Nil);
+                vtbl->nodes_[i].next = VarTable::INVALID_INDEX;
+            }
+            CVar tbl_cvar{};
+            tbl_cvar.type_ = static_cast<int>(VarType::Table);
+            tbl_cvar.data_.t = vtbl;
+            TableHelper::SetTableStrId(state, tbl_cvar, "year", inter::NativeToFakeluaInt(state, tm_buf.tm_year + 1900));
+            TableHelper::SetTableStrId(state, tbl_cvar, "month", inter::NativeToFakeluaInt(state, tm_buf.tm_mon + 1));
+            TableHelper::SetTableStrId(state, tbl_cvar, "day", inter::NativeToFakeluaInt(state, tm_buf.tm_mday));
+            TableHelper::SetTableStrId(state, tbl_cvar, "hour", inter::NativeToFakeluaInt(state, tm_buf.tm_hour));
+            TableHelper::SetTableStrId(state, tbl_cvar, "min", inter::NativeToFakeluaInt(state, tm_buf.tm_min));
+            TableHelper::SetTableStrId(state, tbl_cvar, "sec", inter::NativeToFakeluaInt(state, tm_buf.tm_sec));
+            TableHelper::SetTableStrId(state, tbl_cvar, "wday", inter::NativeToFakeluaInt(state, tm_buf.tm_wday + 1));
+            TableHelper::SetTableStrId(state, tbl_cvar, "yday", inter::NativeToFakeluaInt(state, tm_buf.tm_yday + 1));
+            TableHelper::SetTableStrId(state, tbl_cvar, "isdst", inter::NativeToFakeluaBool(state, tm_buf.tm_isdst > 0));
+            return tbl_cvar;
+        }
+
+        // Default format if needed
+        if (use_default_format) {
+            fmt = "%c";
+        }
 
         // Format
         char buf[256];
@@ -114,22 +153,82 @@ void RegisterOsLibraryApi(State *s) {
     RegisterNativeFunction(s, "os.execute", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) {
             // No command: check if shell is available
-            return inter::NativeToFakeluaBool(state, true);
+            CVar multi = inter::AllocMultiCVar(state, 3);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
+            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
+            return multi;
         }
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         if (a0.type_ == static_cast<int>(VarType::Nil)) {
-            return inter::NativeToFakeluaBool(state, true);
+            CVar multi = inter::AllocMultiCVar(state, 3);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
+            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
+            return multi;
         }
         std::string_view cmd_sv = KeyToStringView(a0);
         if (cmd_sv.empty()) {
-            return inter::NativeToFakeluaBool(state, true);
+            CVar multi = inter::AllocMultiCVar(state, 3);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
+            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
+            return multi;
         }
         int ret = std::system(std::string(cmd_sv).c_str());
+#if defined(_WIN32)
         if (ret == 0) {
-            return inter::NativeToFakeluaBool(state, true);
+            CVar multi = inter::AllocMultiCVar(state, 3);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
+            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
+            return multi;
         }
-        // Return the exit status code
-        return inter::NativeToFakeluaInt(state, ret);
+        // Return (nil, "exit", code)
+        CVar multi = inter::AllocMultiCVar(state, 3);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
+        inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
+        inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, ret));
+        return multi;
+#else
+        if (ret == -1) {
+            // Failed to spawn shell
+            CVar multi = inter::AllocMultiCVar(state, 3);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "error"));
+            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, errno));
+            return multi;
+        }
+        if (WIFEXITED(ret)) {
+            int code = WEXITSTATUS(ret);
+            if (code == 0) {
+                CVar multi = inter::AllocMultiCVar(state, 3);
+                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+                inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
+                inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
+                return multi;
+            }
+            CVar multi = inter::AllocMultiCVar(state, 3);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
+            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, code));
+            return multi;
+        }
+        if (WIFSIGNALED(ret)) {
+            int sig = WTERMSIG(ret);
+            CVar multi = inter::AllocMultiCVar(state, 3);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "signal"));
+            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, sig));
+            return multi;
+        }
+        // Fallback
+        CVar multi = inter::AllocMultiCVar(state, 3);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
+        inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
+        inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, ret));
+        return multi;
+#endif
     });
 
     // ─── os.exit([code[, close]]) ───

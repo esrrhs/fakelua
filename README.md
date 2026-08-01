@@ -266,12 +266,12 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
 - **String 字符串处理库 (`string.*`)**：
   - **基础操作**：`string.len`、`string.sub`、`string.rep`、`string.reverse`、`string.lower`、`string.upper`
   - **编码转换**：`string.byte`、`string.char`、`string.charpattern`
-  - **格式化**：`string.format`
+  - **格式化**：`string.format`（支持 `%s` `%d` `%i` `%u` `%x` `%X` `%o` `%f` `%e` `%E` `%g` `%G` `%c` `%q` `%p`）
   - **模式匹配**：`string.find`、`string.match`、`string.gmatch`、`string.gsub`
   - **序列化与加载**：`string.pack`、`string.packsize`、`string.unpack`、`string.dump`、`load`、`loadstring`、`loadfile`（直接编译文件，顶层函数注册为全局，无需调用闭包）
 - **OS 系统库 (`os.*`)**：
-  - **时间日期**：`os.clock()`、`os.date([format[, time]]])`、`os.difftime(t2, t1)`、`os.time([table])`
-  - **环境执行**：`os.execute([command])`、`os.exit([code[, close]])`、`os.getenv(varname)`
+  - **时间日期**：`os.clock()`、`os.date([format[, time]]])`（支持 `"*t"` 返回时间表 `{year=, month=, day=, hour=, min=, sec=, wday=, yday=, isdst=}`）、`os.difftime(t2, t1)`、`os.time([table])`
+  - **环境执行**：`os.execute([command])`（返回 `(bool|nil, "exit"|"signal"|"error", code)` 三元组）、`os.exit([code[, close]])`、`os.getenv(varname)`
   - **文件操作**：`os.remove(filename)`、`os.rename(oldname, newname)`、`os.tmpname()`
   - **区域设置**：`os.setlocale(locale[, category])`
 - **UTF-8 编码库 (`utf8.*`)**：
@@ -280,8 +280,8 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **模式常量**：`utf8.charpattern`
 - **IO 文件库 (`io.*`)**：
   - **文件打开/关闭**：`io.open(filename [, mode])`、`io.close([file])`、`io.tmpfile()`、`io.popen(command [, mode])`（管道执行外部命令）
-  - **读写操作**：`io.read([format])`、`io.write(...)`、`io.flush()`
-  - **文件定位**：`file:seek([whence [, offset]])`、`file:setvbuf(mode [, size])`
+  - **读写操作**：`io.read([format ...])`（支持多格式参数，返回多值）、`io.write(...)`、`io.flush()`
+  - **文件定位**：`file:seek([whence [, offset]])`、`file:setvbuf(mode [, size])`（成功返回 file，失败返回 nil+errmsg）
   - **类型检查**：`io.type(v)`
   - **标准流**：`io.stdin`、`io.stdout`、`io.stderr`
   - **文件方法**：`file:read([format])`、`file:write(...)`、`file:flush()`、`file:close()`、`file:seek(...)`、`file:setvbuf(...)`、`file:lines()`（逐行迭代器，用于 `for line in file:lines() do ... end`）

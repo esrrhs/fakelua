@@ -138,6 +138,53 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
     CVar key{static_cast<int>(VarType::StringId)};
     key.data_.i = id;
 
+    // 当 bucket_count_ > 0 时，FlGetTableStrId 只查找 nodes_，所以也直接写 nodes_
+    if (t->bucket_count_ > 0 && t->nodes_) {
+        uint32_t mask = t->bucket_count_ - 1;
+        uint32_t idx = hash & mask;
+        // 检查桶头
+        if (t->nodes_[idx].entry.key.type_ == static_cast<int>(VarType::StringId) &&
+            t->nodes_[idx].entry.hash == hash) {
+            static_cast<CVar &>(t->nodes_[idx].entry.val) = val;
+            return;
+        }
+        if (t->nodes_[idx].entry.key.type_ == static_cast<int>(VarType::Nil)) {
+            // 桶头为空，直接放入
+            static_cast<CVar &>(t->nodes_[idx].entry.key) = key;
+            static_cast<CVar &>(t->nodes_[idx].entry.val) = val;
+            t->nodes_[idx].entry.hash = hash;
+            t->nodes_[idx].next = VarTable::INVALID_INDEX;
+            t->count_++;
+            return;
+        }
+        // 遍历链表查找相同 key
+        uint32_t cur = idx;
+        while (t->nodes_[cur].next != VarTable::INVALID_INDEX) {
+            uint32_t nxt = t->nodes_[cur].next;
+            if (t->nodes_[nxt].entry.key.type_ == static_cast<int>(VarType::StringId) &&
+                t->nodes_[nxt].entry.hash == hash) {
+                static_cast<CVar &>(t->nodes_[nxt].entry.val) = val;
+                return;
+            }
+            cur = nxt;
+        }
+        // 找空槽插入
+        for (uint32_t probe = 1; probe < t->bucket_count_; ++probe) {
+            uint32_t i = (idx + probe) & mask;
+            if (t->nodes_[i].entry.key.type_ == static_cast<int>(VarType::Nil)) {
+                static_cast<CVar &>(t->nodes_[i].entry.key) = key;
+                static_cast<CVar &>(t->nodes_[i].entry.val) = val;
+                t->nodes_[i].entry.hash = hash;
+                t->nodes_[i].next = VarTable::INVALID_INDEX;
+                t->nodes_[cur].next = i;
+                t->count_++;
+                return;
+            }
+        }
+        return; // 表满
+    }
+
+    // bucket_count_ == 0：使用 quick_data_
     for (auto &qd: t->quick_data_) {
         if (qd.key.type_ == static_cast<int>(VarType::StringId) && qd.key.data_.i == id) {
             static_cast<CVar &>(qd.val) = val;
