@@ -22,7 +22,7 @@ end
 -- 处理器映射表（只读，通过 local function 引用）
 local msg_handlers = {
     on_login = on_login,
-    on_talk = on_talk,
+    on_talk = on_talk
 }
 
 -- C++ 调用的统一事件入口：on_msg(msg_name, ...)
