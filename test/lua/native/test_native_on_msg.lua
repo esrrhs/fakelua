@@ -1,7 +1,5 @@
-local msg_handlers = {}
-
--- 1. 登录消息处理器：使用内置 new_native_obj(group_id, type, id) 创建 C++ 持久对象
-msg_handlers["on_login"] = function(pid, pname)
+-- 使用 local function 定义处理器，避免修改全局表
+local function on_login(pid, pname)
     local player = new_native_obj(pid, "player", pid)
     player.hp = 100
     player.mp = 200
@@ -9,8 +7,7 @@ msg_handlers["on_login"] = function(pid, pname)
     return player.hp
 end
 
--- 2. 对话消息处理器：使用内置 get_native_obj(type, id) 获取已有 C++ 原生对象
-msg_handlers["on_talk"] = function(pid, words)
+local function on_talk(pid, words)
     local player = get_native_obj("player", pid)
     if player == nil then
         return "not_found"
@@ -21,6 +18,12 @@ msg_handlers["on_talk"] = function(pid, words)
 
     return player.name .. " (" .. player.hp .. "hp): " .. player.last_talk
 end
+
+-- 处理器映射表（只读，通过 local function 引用）
+local msg_handlers = {
+    on_login = on_login,
+    on_talk = on_talk,
+}
 
 -- C++ 调用的统一事件入口：on_msg(msg_name, ...)
 function on_msg(msg_name, ...)

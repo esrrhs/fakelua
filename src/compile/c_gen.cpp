@@ -455,6 +455,8 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                     // CONST_FLAG 会在 init 函数赋值后由 CompileStmtAssign 注入。
                     const std::string cvar_init = exp ? CompileExp(exp) : "(CVar){.type_ = VAR_NIL}";
                     Out() << "static CVar " << name << " = " << cvar_init << ";\n";
+                    // 全局非数值变量（表/闭包）记录到集合，后续在 init 函数赋值后注入 CONST_FLAG
+                    global_const_table_vars_.insert(name);
                 }
             }
         }
@@ -821,6 +823,10 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
     out << func_temp_decls_.str();
     out << body_ss.str();
     if (func_name == kInitFunctionName) {
+        // 在 init 函数末尾注入 CONST_FLAG，确保全局表已完全初始化后再标记为只读
+        for (const auto &name : global_const_table_vars_) {
+            out << "    " << name << ".flag_ = CONST_FLAG;\n";
+        }
         out << "    __fakelua_init_flag__ = true;\n";
     }
 
@@ -1333,16 +1339,10 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     } else {
         const std::string rhs = CompileExp(exps[0]);
         Out() << GenTab() << CompileVar(v_ptr) << " = " << rhs << ";\n";
-        // 如果赋值目标是全局非数值变量（表/闭包），打上 CONST_FLAG 防止后续修改
-        const auto &var_name = v_ptr->GetName();
-        if (const auto git = ir().global_const_vars.find(var_name); git != ir().global_const_vars.end()) {
-            if (git->second != T_INT && git->second != T_FLOAT) {
-                // 只在 init 函数中注入 CONST_FLAG（避免影响函数内的局部变量）
-                if (cur_func_info_ && cur_func_info_->unique_c_name == kInitFunctionName) {
-                    Out() << GenTab() << var_name << ".flag_ = CONST_FLAG;\n";
-                }
-            }
-        }
+        // 全局非数值变量在 init 函数中完成赋值后，打上 CONST_FLAG 防止后续修改
+        // 注意：只有 original_init_ 为非空表构造器的全局变量才需要标记
+        // 空表 {} 不标记，允许作为可变存储容器使用（如注册函数表）
+        // CONST_FLAG 注入已移至 init 函数末尾（CompileFuncBody 中处理）
     }
 }
 
