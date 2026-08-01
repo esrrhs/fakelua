@@ -451,6 +451,8 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                     }
                 } else {
                     // 非数值字面量：保留 static CVar 形式。
+                    // 注意：这里不能加 const，因为 init 函数里需要赋值。
+                    // CONST_FLAG 会在 init 函数赋值后由 CompileStmtAssign 注入。
                     const std::string cvar_init = exp ? CompileExp(exp) : "(CVar){.type_ = VAR_NIL}";
                     Out() << "static CVar " << name << " = " << cvar_init << ";\n";
                 }
@@ -1331,6 +1333,16 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     } else {
         const std::string rhs = CompileExp(exps[0]);
         Out() << GenTab() << CompileVar(v_ptr) << " = " << rhs << ";\n";
+        // 如果赋值目标是全局非数值变量（表/闭包），打上 CONST_FLAG 防止后续修改
+        const auto &var_name = v_ptr->GetName();
+        if (const auto git = ir().global_const_vars.find(var_name); git != ir().global_const_vars.end()) {
+            if (git->second != T_INT && git->second != T_FLOAT) {
+                // 只在 init 函数中注入 CONST_FLAG（避免影响函数内的局部变量）
+                if (cur_func_info_ && cur_func_info_->unique_c_name == kInitFunctionName) {
+                    Out() << GenTab() << var_name << ".flag_ = CONST_FLAG;\n";
+                }
+            }
+        }
     }
 }
 
