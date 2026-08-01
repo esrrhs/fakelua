@@ -7,6 +7,7 @@
 #include "var/var_multi.h"
 #include <algorithm>
 #include <cctype>
+#include <cinttypes>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -640,13 +641,14 @@ void RegisterStringLibraryApi(State *s) {
                 res.push_back(static_cast<char>(cval));
             } else if (spec == 'p') {
                 // 指针地址：格式化为 0x 前缀的十六进制（始终输出 0x...，即使值为 0）
+                // 使用 uintptr_t 保证 64 位指针不截断（Windows 上 unsigned long 仅 32 位）
                 if (curr_arg.type_ == static_cast<int>(VarType::Int)) {
                     char buf[64];
                     auto val = static_cast<uintptr_t>(curr_arg.data_.i);
                     if (val == 0) {
                         res.append("0x0");
                     } else {
-                        std::snprintf(buf, sizeof(buf), "0x%lx", static_cast<unsigned long>(val));
+                        std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
                         res.append(buf);
                     }
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Float)) {
@@ -655,13 +657,13 @@ void RegisterStringLibraryApi(State *s) {
                     if (val == 0) {
                         res.append("0x0");
                     } else {
-                        std::snprintf(buf, sizeof(buf), "0x%lx", static_cast<unsigned long>(val));
+                        std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
                         res.append(buf);
                     }
                 } else {
                     // 非数值类型：输出 CVar 自身地址
                     char buf[64];
-                    std::snprintf(buf, sizeof(buf), "0x%lx", reinterpret_cast<unsigned long>(&curr_arg));
+                    std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, reinterpret_cast<uintptr_t>(&curr_arg));
                     res.append(buf);
                 }
             } else {

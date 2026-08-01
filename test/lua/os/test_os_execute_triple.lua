@@ -1,4 +1,4 @@
-function test_os_execute()
+function test_os_execute_triple()
     -- 测试 os.execute(nil) —— 检查 shell 是否可用
     local ok = os.execute(nil)
     if type(ok) ~= "boolean" then return 0 end
