@@ -1256,3 +1256,19 @@ TEST(exception, no_arg_call) {
         ASSERT_TRUE(std::string(e.what()).find("wrong number of arguments") != std::string::npos);
     }
 }
+
+TEST(exception, const_table_modify_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    CompileFile(s, "./exception/test_const_table_modify_error.lua", {});
+
+    for (auto jit_type : {JIT_TCC, JIT_GCC}) {
+        double res = 0;
+        Call(s, jit_type, "test_modify_const", res);
+        EXPECT_NEAR(res, 5000, 0.5) << "const table modification should be silently ignored for JIT type "
+                                    << (jit_type == JIT_TCC ? "TCC" : "GCC");
+    }
+}
