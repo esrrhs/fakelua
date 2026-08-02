@@ -325,6 +325,9 @@ private:
     FuncInfo *cur_func_info_ = nullptr;// The function currently being compiled
     std::string cur_package_name_;     // Current package name declared in chunk
 
+    // 需要打 CONST_FLAG 的全局变量集合（初始化为非空表构造器的全局表/闭包）
+    std::unordered_set<std::string> global_const_table_vars_;
+
     void ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vector<Scope> &scopes, std::vector<FuncInfo *> &func_stack, FuncInfo *cur_func);
 
     bool IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const;

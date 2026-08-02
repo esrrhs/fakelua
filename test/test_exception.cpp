@@ -1256,3 +1256,16 @@ TEST(exception, no_arg_call) {
         ASSERT_TRUE(std::string(e.what()).find("wrong number of arguments") != std::string::npos);
     }
 }
+
+TEST(exception, const_table_modify_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    CompileFile(s, "./exception/test_const_table_modify_error.lua", {});
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_modify_const", res), std::exception);
+}
