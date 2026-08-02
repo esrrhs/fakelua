@@ -1057,6 +1057,9 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
         case SyntaxTreeType::Break:
             CompileStmtBreak(stmt);
             break;
+        case SyntaxTreeType::Continue:
+            CompileStmtContinue(stmt);
+            break;
         case SyntaxTreeType::ForLoop:
             CompileStmtForLoop(stmt);
             break;
@@ -1383,16 +1386,20 @@ void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Repeat);
     const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
 
+    int my_depth = ++repeat_depth_;
     Out() << GenTab() << "do {\n";
     // Lua 语义：until 条件可访问块内声明的 local 变量 —— 先编译块，再编译条件。
     cur_tab_++;
 
     CompileStmtBlock(repeat_stmt->Block());
+    // until 条件检查处：continue 会跳转到此 label，而非跳过 until 条件
+    Out() << "flua_until_" << my_depth << ": ;\n";
     const auto cond_bool = CompileCondBoolExpr(repeat_stmt->Exp(), "flua_rbt");
     Out() << GenTab() << std::format("if ({}) break;\n", cond_bool);
 
     cur_tab_--;
     Out() << GenTab() << "} while (1);\n";
+    repeat_depth_ = my_depth - 1;
 }
 
 void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
@@ -1445,6 +1452,15 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
 
 void CGen::CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt) {
     Out() << GenTab() << "break;\n";
+}
+
+void CGen::CompileStmtContinue(const SyntaxTreeInterfacePtr &stmt) {
+    if (repeat_depth_ > 0) {
+        // 在 repeat-until 循环内，continue 应跳转到 until 条件检查处，而非 C 的 continue（会跳过 until 条件）
+        Out() << GenTab() << "goto flua_until_" << repeat_depth_ << ";\n";
+    } else {
+        Out() << GenTab() << "continue;\n";
+    }
 }
 
 void CGen::CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt) {

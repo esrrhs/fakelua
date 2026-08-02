@@ -1,8 +1,5 @@
-%require "3.2"
+%require "3.0"
 %language "c++"
-%header
-
-%define api.token.raw
 
 %define api.token.constructor
 %define api.value.type variant
@@ -28,8 +25,7 @@ namespace fakelua {
 %locations
 
 %define parse.trace
-%define parse.error detailed
-%define parse.lac full
+%define parse.error verbose
 
 %code {
 #include "compile/my_flexer.h"
@@ -40,7 +36,7 @@ yy::parser::symbol_type yylex(fakelua::MyFlexer* l) {
     auto ret = l->MyYylex();
     std::stringstream ss;
     ss << ret.location;
-    LOG_INFO("[bison]: bison get token: {} loc: {}", ret.name(), ss.str());
+    LOG_INFO("[bison]: bison get token loc: {}", ss.str());
     return ret;
 }
 
@@ -63,6 +59,7 @@ int yyFlexLexer::yylex() { return -1; }
   RSQUARE       "]"
   AND           "and"
   BREAK         "break"
+  CONTINUE      "continue"
   DO            "do"
   ELSE          "else"
   ELSEIF        "elseif"
@@ -245,6 +242,12 @@ stmt:
     {
         LOG_INFO("[bison]: stmt: BREAK");
         $$ = std::make_shared<fakelua::SyntaxTreeBreak>(@1);
+    }
+    |
+    CONTINUE
+    {
+        LOG_INFO("[bison]: stmt: CONTINUE");
+        $$ = std::make_shared<fakelua::SyntaxTreeContinue>(@1);
     }
     |
     GOTO IDENTIFIER

@@ -104,6 +104,8 @@ private:
     void CompileStmtIf(const SyntaxTreeInterfacePtr &stmt);
     // 编译 break 退出循环语句
     void CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt);
+    // 编译 continue 跳过当前迭代语句
+    void CompileStmtContinue(const SyntaxTreeInterfacePtr &stmt);
     // 编译 for 数值循环语句（根据控制变量的类型分发至特化循环编译）
     void CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt);
     // 编译控制变量特化为数值的高效原生 for 循环
@@ -278,6 +280,7 @@ private:
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
+    int repeat_depth_ = 0;             // repeat-until 循环嵌套深度（0 表示不在 repeat 内）
 
 private:
     struct FuncInfo;

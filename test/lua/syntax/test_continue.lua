@@ -1,3 +1,3 @@
-local a = { b = 1, c = "2" }
-goto continue
-:: continue ::
+for i = 1, 3 do
+    continue
+end

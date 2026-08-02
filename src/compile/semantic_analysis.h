@@ -24,6 +24,7 @@ private:
     void CheckNode(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
     void CheckGotoOrLabel(const SyntaxTreeInterfacePtr &node);
     void ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels);
+    void ValidateLoopStmts(const SyntaxTreeInterfacePtr &node, int loop_depth);
     void CollectBlockLabels(const SyntaxTreeInterfacePtr &block, std::unordered_map<std::string, SyntaxTreeInterfacePtr> &labels);
     void CheckFunctionCall(const SyntaxTreeInterfacePtr &node);
     void CheckParList(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);

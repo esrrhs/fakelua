@@ -161,6 +161,7 @@ void SemanticAnalysis::CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node
         case SyntaxTreeType::Assign:
         case SyntaxTreeType::FunctionCall:
         case SyntaxTreeType::Break:
+        case SyntaxTreeType::Continue:
         case SyntaxTreeType::Goto:
         case SyntaxTreeType::LocalVar: {
             // These are valid statement types but do not contain return statements that belong to the current function scope.
@@ -257,6 +258,75 @@ void SemanticAnalysis::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chun
     WalkSyntaxTree(chunk, [this, &ar](const SyntaxTreeInterfacePtr &node) { CheckNode(node, ar); });
     std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels;
     ValidateGotoInBlock(chunk, visible_labels);
+    ValidateLoopStmts(chunk, 0);
+}
+
+void SemanticAnalysis::ValidateLoopStmts(const SyntaxTreeInterfacePtr &node, int loop_depth) {
+    if (!node) return;
+    switch (node->Type()) {
+        case SyntaxTreeType::Continue: {
+            if (loop_depth <= 0) {
+                ThrowError("'continue' statement not inside a loop", node);
+            }
+            break;
+        }
+        case SyntaxTreeType::While: {
+            const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+            ValidateLoopStmts(while_node->Block(), loop_depth + 1);
+            break;
+        }
+        case SyntaxTreeType::Repeat: {
+            const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+            ValidateLoopStmts(rep->Block(), loop_depth + 1);
+            break;
+        }
+        case SyntaxTreeType::ForLoop: {
+            const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+            ValidateLoopStmts(for_loop->Block(), loop_depth + 1);
+            break;
+        }
+        case SyntaxTreeType::ForIn: {
+            const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+            ValidateLoopStmts(for_in->Block(), loop_depth + 1);
+            break;
+        }
+        case SyntaxTreeType::Block: {
+            const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+            for (const auto &stmt: blk->Stmts()) {
+                ValidateLoopStmts(stmt, loop_depth);
+            }
+            break;
+        }
+        case SyntaxTreeType::If: {
+            const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+            ValidateLoopStmts(if_node->Block(), loop_depth);
+            if (if_node->ElseIfs()) {
+                const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_node->ElseIfs());
+                if (elseif_list) {
+                    for (const auto &elseif_blk: elseif_list->ElseifBlocks()) {
+                        ValidateLoopStmts(elseif_blk, loop_depth);
+                    }
+                }
+            }
+            if (if_node->ElseBlock()) ValidateLoopStmts(if_node->ElseBlock(), loop_depth);
+            break;
+        }
+        case SyntaxTreeType::Function: {
+            // Function starts a new scope — loop_depth resets to 0
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(func->Funcbody());
+            if (fb) ValidateLoopStmts(fb->Block(), 0);
+            break;
+        }
+        case SyntaxTreeType::LocalFunction: {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
+            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(func->Funcbody());
+            if (fb) ValidateLoopStmts(fb->Block(), 0);
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar) {
@@ -304,6 +374,7 @@ void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const Analy
         case SyntaxTreeType::FieldList:
         case SyntaxTreeType::Field:
         case SyntaxTreeType::Break:
+        case SyntaxTreeType::Continue:
         case SyntaxTreeType::While:
         case SyntaxTreeType::Repeat:
         case SyntaxTreeType::If:
