@@ -571,10 +571,9 @@ static inline uint32_t FlHashString(const char *str, int len) {
 #define FL_SPEC(SpecType, v, field) (((SpecType *)(v).data_.t->spec)->field)
 #define FL_SET_SPEC(SpecType, v, field, index, val) do { \
     CVar __flsv = (val); \
-    if (LIKELY(!((v).flag_ & CONST_FLAG))) { \
-        FL_SPEC(SpecType, (v), field) = __flsv; \
-        (v).data_.t->spec_vals[(index)] = __flsv; \
-    } \
+    if (UNLIKELY((v).flag_ & CONST_FLAG)) { FakeluaThrowError(_S, "attempt to modify a const table"); } \
+    FL_SPEC(SpecType, (v), field) = __flsv; \
+    (v).data_.t->spec_vals[(index)] = __flsv; \
 } while(0)
 
 #define IsTrue(v, result) do { \
@@ -854,7 +853,7 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
 
 static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
-    if (UNLIKELY(t.flag_ & CONST_FLAG)) { return; } // 静默忽略对 const 表的修改
+    if (UNLIKELY(t.flag_ & CONST_FLAG)) { FakeluaThrowError(_S, "attempt to modify a const table"); }
     VarTable *tbl = t.data_.t;
     if (tbl->spec_set) {
         CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
@@ -939,7 +938,7 @@ static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
 
 static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
-    if (UNLIKELY(t.flag_ & CONST_FLAG)) { return; } // 静默忽略对 const 表的修改
+    if (UNLIKELY(t.flag_ & CONST_FLAG)) { FakeluaThrowError(_S, "attempt to modify a const table"); }
     VarTable *tbl = t.data_.t;
     if (tbl->spec_set) {
         CVar k; k.type_ = VAR_STRINGID; k.data_.i = str_id;
