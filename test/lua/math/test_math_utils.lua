@@ -4,6 +4,8 @@ function test_math_utils()
     local t_int = (math.type(10) == "integer") and 1.0 or 0.0
     local t_flt = (math.type(10.5) == "float") and 1.0 or 0.0
     local to_i = math.tointeger(15.0) or 0
+    local to_i_str = math.tointeger("100")
+    if to_i_str ~= 100 then return 0 end
     local ult_res = math.ult("10", 20) and 1.0 or 0.0
     local max_i = (math.maxinteger > 0) and 1.0 or 0.0
     local min_i = (math.mininteger < 0) and 1.0 or 0.0
