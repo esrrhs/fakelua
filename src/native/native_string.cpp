@@ -429,6 +429,7 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         std::smatch match;
         std::string sub = gs->text.substr(gs->pos);
         if (!std::regex_search(sub, match, re)) {
+            gs->pos = gs->text.size();
             return inter::NativeToFakeluaNil(iter_state);
         }
 
