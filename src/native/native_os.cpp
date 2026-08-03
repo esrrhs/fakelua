@@ -334,55 +334,46 @@ void RegisterOsLibraryApi(State *s) {
         }
 
         // Helper: read a string-keyed field from a table
-        auto get_field = [&](const char *key_name) -> int64_t {
+        auto get_field = [&](const char *key_name, int64_t default_val) -> int64_t {
             VarTable *t = tbl.data_.t;
-            if (!t) return 0;
+            if (!t) return default_val;
             int64_t id = state->GetConstString().Alloc(key_name);
             CVar key{static_cast<int>(VarType::StringId)};
             key.data_.i = id;
-            // Try spec_get first
             if (t->spec_get) {
                 using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
                 auto get_fn = reinterpret_cast<SpecGetFn>(t->spec_get);
                 bool finish = false;
                 CVar r = get_fn(t, key, &finish);
                 if (finish) {
-                    if (r.type_ == static_cast<int>(VarType::Int)) return r.data_.i;
-                    if (r.type_ == static_cast<int>(VarType::Float)) return static_cast<int64_t>(r.data_.f);
-                    return 0;
+                    return inter::CVarToInteger(r, default_val);
                 }
             }
-            // Search quick_data_
             for (const auto &qd: t->quick_data_) {
                 if (qd.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(qd.key) == key_name) {
-                    if (qd.val.type_ == static_cast<int>(VarType::Int)) return qd.val.data_.i;
-                    if (qd.val.type_ == static_cast<int>(VarType::Float)) return static_cast<int64_t>(qd.val.data_.f);
-                    return 0;
+                    return inter::CVarToInteger(qd.val, default_val);
                 }
             }
-            // Search nodes_
             if (t->nodes_ && t->bucket_count_ > 0) {
                 for (uint32_t i = 0; i < t->count_; ++i) {
                     uint32_t node_idx = t->active_list_[i];
                     const auto &entry = t->nodes_[node_idx].entry;
                     if (entry.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(entry.key) == key_name) {
-                        if (entry.val.type_ == static_cast<int>(VarType::Int)) return entry.val.data_.i;
-                        if (entry.val.type_ == static_cast<int>(VarType::Float)) return static_cast<int64_t>(entry.val.data_.f);
-                        return 0;
+                        return inter::CVarToInteger(entry.val, default_val);
                     }
                 }
             }
-            return 0;
+            return default_val;
         };
 
         std::tm tm_buf{};
-        tm_buf.tm_year = static_cast<int>(get_field("year") - 1900);
-        tm_buf.tm_mon = static_cast<int>(get_field("month") - 1);
-        tm_buf.tm_mday = static_cast<int>(get_field("day"));
-        tm_buf.tm_hour = static_cast<int>(get_field("hour"));
-        tm_buf.tm_min = static_cast<int>(get_field("min"));
-        tm_buf.tm_sec = static_cast<int>(get_field("sec"));
-        tm_buf.tm_isdst = -1;
+        tm_buf.tm_year = static_cast<int>(get_field("year", 1900) - 1900);
+        tm_buf.tm_mon = static_cast<int>(get_field("month", 1) - 1);
+        tm_buf.tm_mday = static_cast<int>(get_field("day", 1));
+        tm_buf.tm_hour = static_cast<int>(get_field("hour", 12));
+        tm_buf.tm_min = static_cast<int>(get_field("min", 0));
+        tm_buf.tm_sec = static_cast<int>(get_field("sec", 0));
+        tm_buf.tm_isdst = static_cast<int>(get_field("isdst", -1));
 
         std::time_t t = std::mktime(&tm_buf);
         if (t == -1) {
