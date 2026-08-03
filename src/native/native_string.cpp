@@ -805,11 +805,13 @@ void RegisterStringLibraryApi(State *s) {
 
         int64_t init_pos = 1;
         if (n >= 3) {
-            CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            if (a2.type_ == static_cast<int>(VarType::Int)) init_pos = a2.data_.i;
+            init_pos = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), 1);
         }
         init_pos = NormalizePos(init_pos, len);
         if (init_pos < 1) init_pos = 1;
+        if (init_pos > len + 1) {
+            return inter::NativeToFakeluaNil(state);
+        }
         std::string sub = std::string(sv.substr(static_cast<size_t>(init_pos - 1)));
 
         try {
@@ -842,28 +844,26 @@ void RegisterStringLibraryApi(State *s) {
         std::string text(KeyToStringView(a0));
         std::string pattern(KeyToStringView(a1));
 
-        // 使用 arena 分配器分配迭代器状态（生命周期由 arena 管理，无需手动释放）
-        // 注意：alloc.Alloc 只分配原始内存，需要用 placement new 构造含 std::string 的成员
+        // 使用 arena 分配器分配迭代器状态
         auto &alloc = state->GetHeap().GetAllocator(false);
         GMatchState *gs = new (alloc.Alloc(sizeof(GMatchState))) GMatchState{std::move(text), std::move(pattern), 0};
 
-        // upvalue 0: State* (用于分配返回值等)
+        // upvalue 0: State*
         CVar *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
         uv0->type_ = static_cast<int>(VarType::Int);
         uv0->flag_ = 0;
         uv0->data_.i = reinterpret_cast<int64_t>(state);
 
-        // upvalue 1: GMatchState* (迭代器状态)
+        // upvalue 1: GMatchState*
         CVar *uv1 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
         uv1->type_ = static_cast<int>(VarType::Int);
         uv1->flag_ = 0;
         uv1->data_.i = reinterpret_cast<int64_t>(gs);
 
-        // 分配闭包：sizeof(VarClosure) + 2 * sizeof(CVar *)
+        // 分配闭包
         VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 2 * sizeof(CVar *)));
         cl->func_ptr = reinterpret_cast<void *>(GMatchIterator);
         cl->upvalue_count = 2;
-        // for-in 循环会以 (s, var) 两个参数调用迭代器，所以 expected_arg_count = 2
         cl->expected_arg_count = 2;
         cl->is_vararg = false;
         cl->code_str = nullptr;
@@ -878,8 +878,6 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     // ─── string.gsub(s, pattern, repl [, n]) ───
-    // 全局替换。repl 可以是字符串、表或函数。
-    // 返回：替换后的字符串 与 替换次数。
     RegisterNativeFunction(s, "string.gsub", 3, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 3) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
@@ -891,7 +889,7 @@ void RegisterStringLibraryApi(State *s) {
         int64_t max_replace = -1;
         if (n >= 4) {
             CVar a3 = inter::GetNativeArg(state, args, n, 3);
-            if (a3.type_ == static_cast<int>(VarType::Int)) max_replace = a3.data_.i;
+            max_replace = inter::CVarToInteger(a3, -1);
         }
 
         bool repl_is_table = (repl_var.type_ == static_cast<int>(VarType::Table) && repl_var.data_.t);
@@ -915,33 +913,23 @@ void RegisterStringLibraryApi(State *s) {
 
                 std::string replacement;
                 if (repl_is_closure) {
-                    // 调用 repl 函数，参数为匹配（+ 捕获）
                     VarClosure *cl = repl_var.data_.cl;
                     void *addr = cl->func_ptr;
-                    int arg_count = static_cast<int>(match.size());
-                    if (arg_count == 0) {
-                        replacement = match[0].str();
-                    } else {
-                        // 准备参数数组（最多 3 个）
-                        CVar call_args[3];
-                        int call_arg_count = std::min(arg_count, 3);
+                    if (match.size() > 1) {
+                        int call_arg_count = std::min(static_cast<int>(match.size()) - 1, 16);
+                        CVar call_args[16];
                         for (int i = 0; i < call_arg_count; ++i) {
-                            call_args[i] = inter::NativeToFakeluaStringView(state, match[i].str());
+                            call_args[i] = inter::NativeToFakeluaStringView(state, match[i + 1].str());
                         }
-
-                        CVar fn_res;
-                        if (addr != nullptr) {
-                            // JIT 已编译：直接通过 func_ptr 调用
-                            fn_res = inter::DispatchCall(addr, call_args, call_arg_count);
-                        } else {
-                            // func_ptr 为空：通过 FlEvalLoadClosure 动态编译并执行
-                            fn_res = FlEvalLoadClosure(state, cl, call_arg_count, call_args);
-                        }
+                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, call_args, call_arg_count) : FlEvalLoadClosure(state, cl, call_arg_count, call_args);
+                        replacement = std::string(KeyToStringView(fn_res));
+                    } else {
+                        CVar call_arg = inter::NativeToFakeluaStringView(state, match[0].str());
+                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, &call_arg, 1) : FlEvalLoadClosure(state, cl, 1, &call_arg);
                         replacement = std::string(KeyToStringView(fn_res));
                     }
                 } else if (repl_is_table) {
-                    // 用表查找：以整个匹配为 key
-                    std::string key = match[0].str();
+                    std::string key = (match.size() > 1) ? match[1].str() : match[0].str();
                     CVar val{static_cast<int>(VarType::Nil)};
 
                     // 尝试 spec 快速路径（仅当表是 NativeObject 包装时）
