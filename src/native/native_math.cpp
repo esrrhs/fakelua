@@ -222,16 +222,17 @@ void RegisterMathLibraryApi(State *s) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
             int64_t u = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : static_cast<int64_t>(a0.data_.f);
             if (u < 1) return inter::NativeToFakeluaInt(state, 0);
-            int64_t r = 1 + (std::rand() % u);
+            int64_t r = 1 + (static_cast<int64_t>(std::rand()) % u);
             return inter::NativeToFakeluaInt(state, r);
         } else {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             int64_t l = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : static_cast<int64_t>(a0.data_.f);
             int64_t u = (a1.type_ == static_cast<int>(VarType::Int)) ? a1.data_.i : static_cast<int64_t>(a1.data_.f);
-            if (l > u) return inter::NativeToFakeluaInt(state, 0);
+            if (l >= u) return inter::NativeToFakeluaInt(state, l);
             int64_t range = u - l + 1;
-            int64_t r = l + (std::rand() % range);
+            if (range <= 0) return inter::NativeToFakeluaInt(state, l);
+            int64_t r = l + (static_cast<int64_t>(std::rand()) % range);
             return inter::NativeToFakeluaInt(state, r);
         }
     });

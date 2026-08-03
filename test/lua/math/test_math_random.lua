@@ -8,5 +8,13 @@ function test_math_random()
 
     local r3 = math.random(50, 100)
     if not (r3 >= 50 and r3 <= 100) then return 0 end
+
+    -- 极值边界测试：l >= u
+    local r4 = math.random(100, 100)
+    if r4 ~= 100 then return 0 end
+
+    local r5 = math.random(50, 50)
+    if r5 ~= 50 then return 0 end
+
     return 300
 end
