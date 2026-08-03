@@ -256,13 +256,11 @@ void RegisterTableLibraryApi(State *s) {
         }
         int64_t start_i = 1;
         if (n >= 3) {
-            CVar i_var = inter::GetNativeArg(state, args, n, 2);
-            if (i_var.type_ == static_cast<int>(VarType::Int)) start_i = i_var.data_.i;
+            start_i = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), 1);
         }
         int64_t end_j = TableHelper::GetTableLen(tbl);
         if (n >= 4) {
-            CVar j_var = inter::GetNativeArg(state, args, n, 3);
-            if (j_var.type_ == static_cast<int>(VarType::Int)) end_j = j_var.data_.i;
+            end_j = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 3), end_j);
         }
 
         std::string res;
@@ -286,13 +284,11 @@ void RegisterTableLibraryApi(State *s) {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         int64_t start_i = 1;
         if (n >= 2) {
-            CVar i_var = inter::GetNativeArg(state, args, n, 1);
-            if (i_var.type_ == static_cast<int>(VarType::Int)) start_i = i_var.data_.i;
+            start_i = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 1);
         }
         int64_t end_j = TableHelper::GetTableLen(tbl);
         if (n >= 3) {
-            CVar j_var = inter::GetNativeArg(state, args, n, 2);
-            if (j_var.type_ == static_cast<int>(VarType::Int)) end_j = j_var.data_.i;
+            end_j = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), end_j);
         }
 
         if (start_i > end_j) return inter::NativeToFakeluaNil(state);
@@ -335,9 +331,9 @@ void RegisterTableLibraryApi(State *s) {
         CVar t_var = inter::GetNativeArg(state, args, n, 3);
         CVar a2 = (n >= 5) ? inter::GetNativeArg(state, args, n, 4) : a1;
 
-        int64_t f = (f_var.type_ == static_cast<int>(VarType::Int)) ? f_var.data_.i : 1;
-        int64_t e = (e_var.type_ == static_cast<int>(VarType::Int)) ? e_var.data_.i : 0;
-        int64_t t = (t_var.type_ == static_cast<int>(VarType::Int)) ? t_var.data_.i : 1;
+        int64_t f = inter::CVarToInteger(f_var, 1);
+        int64_t e = inter::CVarToInteger(e_var, 0);
+        int64_t t = inter::CVarToInteger(t_var, 1);
 
         if (e >= f) {
             int64_t count = e - f + 1;

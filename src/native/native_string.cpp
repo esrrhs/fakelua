@@ -452,14 +452,6 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     }
 }
 
-static int64_t GetIntOrFloatArg(State *state, CVar *args, int n, int index, int64_t default_val) {
-    if (index >= n) return default_val;
-    CVar a = inter::GetNativeArg(state, args, n, index);
-    if (a.type_ == static_cast<int>(VarType::Int)) return a.data_.i;
-    if (a.type_ == static_cast<int>(VarType::Float)) return static_cast<int64_t>(a.data_.f);
-    return default_val;
-}
-
 void RegisterStringLibraryApi(State *s) {
     if (!s) return;
 
@@ -476,10 +468,10 @@ void RegisterStringLibraryApi(State *s) {
         std::string_view sv = KeyToStringView(a0);
         int64_t len = static_cast<int64_t>(sv.size());
 
-        int64_t start_pos = GetIntOrFloatArg(state, args, n, 1, 1);
+        int64_t start_pos = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 1);
         int64_t end_pos = len;
         if (n >= 3) {
-            end_pos = GetIntOrFloatArg(state, args, n, 2, len);
+            end_pos = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), len);
         }
 
         start_pos = NormalizePos(start_pos, len);
@@ -500,7 +492,7 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 2) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         std::string_view sv = KeyToStringView(a0);
-        int64_t rep_cnt = GetIntOrFloatArg(state, args, n, 1, 0);
+        int64_t rep_cnt = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 0);
         if (rep_cnt <= 0) return inter::NativeToFakeluaStringView(state, "");
 
         std::string sep = "";
