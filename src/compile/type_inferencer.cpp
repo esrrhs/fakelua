@@ -49,6 +49,7 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
         case SyntaxTreeType::Empty:
         case SyntaxTreeType::Label:
         case SyntaxTreeType::Break:
+        case SyntaxTreeType::Continue:
         case SyntaxTreeType::Goto:
         case SyntaxTreeType::Binop:
         case SyntaxTreeType::Unop:
@@ -518,6 +519,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
         case SyntaxTreeType::Empty:
         case SyntaxTreeType::Label:
         case SyntaxTreeType::Break:
+        case SyntaxTreeType::Continue:
         case SyntaxTreeType::Goto:
         case SyntaxTreeType::NameList: {
             // 这些节点是语句或辅助结构，没有表达式类型
@@ -1342,6 +1344,7 @@ bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) co
         case SyntaxTreeType::ForLoop:
         case SyntaxTreeType::ForIn:
         case SyntaxTreeType::Break:
+        case SyntaxTreeType::Continue:
         case SyntaxTreeType::Goto:
         case SyntaxTreeType::Label:
         case SyntaxTreeType::Empty:

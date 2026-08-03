@@ -102,6 +102,7 @@ number   {num1}|{num2}
 "]"             return yy::parser::make_RSQUARE(loc);
 "and"           return yy::parser::make_AND(loc);
 "break"         return yy::parser::make_BREAK(loc);
+"continue"      return yy::parser::make_CONTINUE(loc);
 "do"            return yy::parser::make_DO(loc);
 "else"          return yy::parser::make_ELSE(loc);
 "elseif"        return yy::parser::make_ELSEIF(loc);
@@ -132,6 +133,6 @@ number   {num1}|{num2}
 
 .               { throw yy::parser::syntax_error(loc, "invalid character: [" + std::string(yytext) + "]"); }
 
-<<EOF>>         return yy::parser::make_YYEOF (loc);
+<<EOF>>         return yy::parser::symbol_type(static_cast<yy::parser::token::yytokentype>(0), loc);
 
 %%

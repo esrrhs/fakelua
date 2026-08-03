@@ -851,6 +851,29 @@ TEST(exception, test_break_error) {
     }
 }
 
+TEST(exception, test_continue_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_continue_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("continue") != std::string::npos);
+    }
+}
+
+TEST(exception, test_continue_skip_local) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_continue_skip_local.lua", {}), std::exception);
+}
+
 TEST(exception, function_too_many_params) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();

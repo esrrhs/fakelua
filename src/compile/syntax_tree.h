@@ -97,6 +97,7 @@ enum class SyntaxTreeType {
     FieldList,
     Field,
     Break,
+    Continue,
     Goto,
     While,
     Repeat,
@@ -151,6 +152,8 @@ inline std::string SyntaxTreeTypeToString(SyntaxTreeType type) {
             return "Field";
         case SyntaxTreeType::Break:
             return "Break";
+        case SyntaxTreeType::Continue:
+            return "Continue";
         case SyntaxTreeType::Goto:
             return "Goto";
         case SyntaxTreeType::While:
@@ -697,6 +700,21 @@ public:
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::Break;
+    }
+
+    // 转储节点信息
+    [[nodiscard]] std::string Dump(int tab) const override;
+};
+
+// continue 语句节点
+class SyntaxTreeContinue final : public SyntaxTreeInterface {
+public:
+    explicit SyntaxTreeContinue(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
+    }
+
+    // 获取节点类型
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Continue;
     }
 
     // 转储节点信息

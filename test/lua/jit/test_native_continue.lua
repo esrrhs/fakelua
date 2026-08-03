@@ -1,12 +1,11 @@
--- goto 模拟 continue：跳过循环体剩余部分
-function test_goto_continue()
+-- 使用原生 continue 语句：跳过循环体剩余部分
+function test_native_continue()
     local sum = 0
     for i = 1, 10 do
         if i % 2 == 0 then
-            goto next
+            continue
         end
         sum = sum + i
-        ::next::
     end
     return sum
 end

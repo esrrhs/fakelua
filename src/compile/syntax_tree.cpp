@@ -143,6 +143,13 @@ std::string SyntaxTreeBreak::Dump(int tab) const {
     return str;
 }
 
+// 转储 continue 语句
+std::string SyntaxTreeContinue::Dump(int tab) const {
+    std::string str;
+    str += GenTab(tab) + "(continue)[" + LocStr() + "]\n";
+    return str;
+}
+
 // 转储 goto 语句及目标标签
 std::string SyntaxTreeGoto::Dump(int tab) const {
     std::string str;
@@ -398,6 +405,7 @@ void WalkSyntaxTreePruned(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTr
         case SyntaxTreeType::Empty:
         case SyntaxTreeType::Label:
         case SyntaxTreeType::Break:
+        case SyntaxTreeType::Continue:
         case SyntaxTreeType::Goto:
         case SyntaxTreeType::NameList:
         case SyntaxTreeType::FuncNameList:

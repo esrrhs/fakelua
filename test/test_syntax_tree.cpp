@@ -281,8 +281,36 @@ TEST(syntax_tree, continue) {
                          "                type: string\n"
                          "                value: 2\n"
                          "  (goto)[2:6]\n"
-                         "    label: continue\n"
-                         "  continue(label)[3:4]\n";
+                         "    label: skip\n"
+                         "  skip(label)[3:4]\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
+TEST(syntax_tree, native_continue) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    const auto chunk = c.CompileFile("./syntax/test_native_continue.lua", {true}).chunk;
+    ASSERT_NE(chunk, nullptr);
+
+    auto dumpstr = chunk->Dump(0);
+    LOG_INFO("{}", dumpstr);
+
+    const auto wantstr = ""
+                         "(block)[1:1]\n"
+                         "  (for_loop)[1:1]\n"
+                         "    name: i\n"
+                         "    (exp)[1:9]\n"
+                         "      type: number\n"
+                         "      value: 1\n"
+                         "    (exp)[1:12]\n"
+                         "      type: number\n"
+                         "      value: 3\n"
+                         "    (block)[2:5]\n"
+                         "      (continue)[2:5]\n";
 
     ASSERT_EQ(dumpstr, wantstr);
 }
