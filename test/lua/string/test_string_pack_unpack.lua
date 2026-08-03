@@ -117,5 +117,10 @@ function test_string_pack_unpack()
     if cs ~= "hello!" then return 45 end
     if cpos ~= 7 then return 46 end
 
+    -- 对齐格式 !4 结合 offset 解包验证 (遵循 relative alignment 规范)
+    local p_align = string.pack("!4b i4", 1, 100)
+    local un_val, un_pos = string.unpack("!4i4", p_align, 5)
+    if un_val ~= 100 then return 47 end
+
     return 5000
 end
