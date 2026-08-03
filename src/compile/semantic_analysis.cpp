@@ -257,76 +257,7 @@ void SemanticAnalysis::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chun
 
     WalkSyntaxTree(chunk, [this, &ar](const SyntaxTreeInterfacePtr &node) { CheckNode(node, ar); });
     std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels;
-    ValidateGotoInBlock(chunk, visible_labels);
-    ValidateLoopStmts(chunk, 0);
-}
-
-void SemanticAnalysis::ValidateLoopStmts(const SyntaxTreeInterfacePtr &node, int loop_depth) {
-    if (!node) return;
-    switch (node->Type()) {
-        case SyntaxTreeType::Continue: {
-            if (loop_depth <= 0) {
-                ThrowError("'continue' statement not inside a loop", node);
-            }
-            break;
-        }
-        case SyntaxTreeType::While: {
-            const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
-            ValidateLoopStmts(while_node->Block(), loop_depth + 1);
-            break;
-        }
-        case SyntaxTreeType::Repeat: {
-            const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
-            ValidateLoopStmts(rep->Block(), loop_depth + 1);
-            break;
-        }
-        case SyntaxTreeType::ForLoop: {
-            const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
-            ValidateLoopStmts(for_loop->Block(), loop_depth + 1);
-            break;
-        }
-        case SyntaxTreeType::ForIn: {
-            const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
-            ValidateLoopStmts(for_in->Block(), loop_depth + 1);
-            break;
-        }
-        case SyntaxTreeType::Block: {
-            const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-            for (const auto &stmt: blk->Stmts()) {
-                ValidateLoopStmts(stmt, loop_depth);
-            }
-            break;
-        }
-        case SyntaxTreeType::If: {
-            const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
-            ValidateLoopStmts(if_node->Block(), loop_depth);
-            if (if_node->ElseIfs()) {
-                const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_node->ElseIfs());
-                if (elseif_list) {
-                    for (const auto &elseif_blk: elseif_list->ElseifBlocks()) {
-                        ValidateLoopStmts(elseif_blk, loop_depth);
-                    }
-                }
-            }
-            if (if_node->ElseBlock()) ValidateLoopStmts(if_node->ElseBlock(), loop_depth);
-            break;
-        }
-        case SyntaxTreeType::Function: {
-            // Function starts a new scope — loop_depth resets to 0
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
-            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(func->Funcbody());
-            if (fb) ValidateLoopStmts(fb->Block(), 0);
-            break;
-        }
-        case SyntaxTreeType::LocalFunction: {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
-            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(func->Funcbody());
-            if (fb) ValidateLoopStmts(fb->Block(), 0);
-            break;
-        }
-        default:
-            break;
-    }
+    ValidateGotoInBlock(chunk, visible_labels, 0);
 }
 
 void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar) {
@@ -413,7 +344,9 @@ void SemanticAnalysis::CollectBlockLabels(const SyntaxTreeInterfacePtr &block, s
     }
 }
 
-void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels) {
+void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk,
+                                            std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels,
+                                            int loop_depth) {
     const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
     if (!blk) return;
 
@@ -428,7 +361,7 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
         }
     }
 
-    // 检查 goto
+    // 检查 goto 和 continue
     for (size_t i = 0; i < blk->Stmts().size(); ++i) {
         const auto &stmt = blk->Stmts()[i];
         if (stmt->Type() == SyntaxTreeType::Goto) {
@@ -453,41 +386,46 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
                     }
                 }
             }
+        } else if (stmt->Type() == SyntaxTreeType::Continue) {
+            // continue 等价于 goto 到循环体末尾，必须在循环内
+            if (loop_depth <= 0) {
+                ThrowError("'continue' statement not inside a loop", stmt);
+            }
         }
     }
 
-    // 递归检查嵌套 block，传递可见 label 集合
+    // 递归检查嵌套 block，传递可见 label 集合和循环深度
     for (const auto &stmt: blk->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::Block) {
-            ValidateGotoInBlock(stmt, visible_labels);
+            ValidateGotoInBlock(stmt, visible_labels, loop_depth);
         } else if (stmt->Type() == SyntaxTreeType::While) {
-            ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt)->Block(), visible_labels);
+            ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt)->Block(), visible_labels, loop_depth + 1);
         } else if (stmt->Type() == SyntaxTreeType::Repeat) {
-            ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt)->Block(), visible_labels);
+            ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt)->Block(), visible_labels, loop_depth + 1);
         } else if (stmt->Type() == SyntaxTreeType::If) {
             const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
-            ValidateGotoInBlock(if_stmt->Block(), visible_labels);
+            ValidateGotoInBlock(if_stmt->Block(), visible_labels, loop_depth);
             if (if_stmt->ElseIfs()) {
                 const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs());
                 if (elseif_list) {
                     for (const auto &elseif_blk: elseif_list->ElseifBlocks()) {
-                        ValidateGotoInBlock(elseif_blk, visible_labels);
+                        ValidateGotoInBlock(elseif_blk, visible_labels, loop_depth);
                     }
                 }
             }
-            if (if_stmt->ElseBlock()) ValidateGotoInBlock(if_stmt->ElseBlock(), visible_labels);
+            if (if_stmt->ElseBlock()) ValidateGotoInBlock(if_stmt->ElseBlock(), visible_labels, loop_depth);
         } else if (stmt->Type() == SyntaxTreeType::ForLoop) {
-            ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt)->Block(), visible_labels);
+            ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt)->Block(), visible_labels, loop_depth + 1);
         } else if (stmt->Type() == SyntaxTreeType::ForIn) {
-            ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt)->Block(), visible_labels);
+            ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt)->Block(), visible_labels, loop_depth + 1);
         } else if (stmt->Type() == SyntaxTreeType::Function) {
             std::unordered_map<std::string, SyntaxTreeInterfacePtr> func_labels;
             const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt)->Funcbody());
-            if (fb) ValidateGotoInBlock(fb->Block(), func_labels);
+            if (fb) ValidateGotoInBlock(fb->Block(), func_labels, 0);
         } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
             std::unordered_map<std::string, SyntaxTreeInterfacePtr> func_labels;
             const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt)->Funcbody());
-            if (fb) ValidateGotoInBlock(fb->Block(), func_labels);
+            if (fb) ValidateGotoInBlock(fb->Block(), func_labels, 0);
         }
     }
 }
