@@ -2731,6 +2731,16 @@ TEST(jitter, goto_continue_simulation) {
     });
 }
 
+TEST(jitter, native_continue) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_native_continue.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_native_continue", ret);
+        // 奇数之和 1+3+5+7+9 = 25
+        ASSERT_EQ(ret, 25);
+    });
+}
+
 TEST(jitter, goto_break_out_of_nested_loops) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_goto_break_out.lua", {.debug_mode = debug_mode});

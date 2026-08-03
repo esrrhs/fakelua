@@ -1,3 +1,3 @@
-for i = 1, 3 do
-    continue
-end
+local a = { b = 1, c = "2" }
+goto skip
+:: skip ::
