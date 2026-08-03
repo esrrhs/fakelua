@@ -215,7 +215,7 @@ void RegisterTableLibraryApi(State *s) {
         } else {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
             CVar val = inter::GetNativeArg(state, args, n, 2);
-            int64_t pos = (pos_var.type_ == static_cast<int>(VarType::Int)) ? pos_var.data_.i : 1;
+            int64_t pos = inter::CVarToInteger(pos_var, 1);
             for (int64_t i = len; i >= pos; --i) {
                 CVar item = TableHelper::GetTableInt(state, tbl, i);
                 TableHelper::SetTableInt(state, tbl, i + 1, item);
@@ -232,7 +232,7 @@ void RegisterTableLibraryApi(State *s) {
         int64_t pos = len;
         if (n >= 2) {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
-            if (pos_var.type_ == static_cast<int>(VarType::Int)) pos = pos_var.data_.i;
+            pos = inter::CVarToInteger(pos_var, len);
         }
         if (pos < 1 || pos > len) return inter::NativeToFakeluaNil(state);
 

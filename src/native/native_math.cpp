@@ -30,20 +30,46 @@ void RegisterMathLibraryApi(State *s) {
         return inter::NativeToFakeluaNil(state);
     });
 
-    RegisterNativeFunction(s, "math.max", 2, false, [](State *state, CVar *args, int n) -> CVar {
-        CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        double v0 = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float) ? a0.data_.f : 0.0);
-        double v1 = (a1.type_ == static_cast<int>(VarType::Int)) ? a1.data_.i : (a1.type_ == static_cast<int>(VarType::Float) ? a1.data_.f : 0.0);
-        return (v0 >= v1) ? a0 : a1;
+    RegisterNativeFunction(s, "math.max", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaNil(state);
+        CVar max_cvar = inter::GetNativeArg(state, args, n, 0);
+        double max_v = inter::CVarToNumber(max_cvar, -std::numeric_limits<double>::infinity());
+        for (int i = 1; i < n; ++i) {
+            CVar arg_i = inter::GetNativeArg(state, args, n, i);
+            double v_i = inter::CVarToNumber(arg_i, -std::numeric_limits<double>::infinity());
+            if (v_i > max_v) {
+                max_v = v_i;
+                max_cvar = arg_i;
+            }
+        }
+        if (max_cvar.type_ == static_cast<int>(VarType::String) || max_cvar.type_ == static_cast<int>(VarType::StringId)) {
+            if (static_cast<double>(static_cast<int64_t>(max_v)) == max_v) {
+                return inter::NativeToFakeluaInt(state, static_cast<int64_t>(max_v));
+            }
+            return inter::NativeToFakeluaFloat(state, max_v);
+        }
+        return max_cvar;
     });
 
-    RegisterNativeFunction(s, "math.min", 2, false, [](State *state, CVar *args, int n) -> CVar {
-        CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        double v0 = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float) ? a0.data_.f : 0.0);
-        double v1 = (a1.type_ == static_cast<int>(VarType::Int)) ? a1.data_.i : (a1.type_ == static_cast<int>(VarType::Float) ? a1.data_.f : 0.0);
-        return (v0 <= v1) ? a0 : a1;
+    RegisterNativeFunction(s, "math.min", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaNil(state);
+        CVar min_cvar = inter::GetNativeArg(state, args, n, 0);
+        double min_v = inter::CVarToNumber(min_cvar, std::numeric_limits<double>::infinity());
+        for (int i = 1; i < n; ++i) {
+            CVar arg_i = inter::GetNativeArg(state, args, n, i);
+            double v_i = inter::CVarToNumber(arg_i, std::numeric_limits<double>::infinity());
+            if (v_i < min_v) {
+                min_v = v_i;
+                min_cvar = arg_i;
+            }
+        }
+        if (min_cvar.type_ == static_cast<int>(VarType::String) || min_cvar.type_ == static_cast<int>(VarType::StringId)) {
+            if (static_cast<double>(static_cast<int64_t>(min_v)) == min_v) {
+                return inter::NativeToFakeluaInt(state, static_cast<int64_t>(min_v));
+            }
+            return inter::NativeToFakeluaFloat(state, min_v);
+        }
+        return min_cvar;
     });
 
     RegisterNativeFunction(s, "math.sqrt", 1, false, [](State *state, CVar *args, int n) -> CVar {
@@ -197,20 +223,20 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.ult", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        uint64_t u0 = (a0.type_ == static_cast<int>(VarType::Int)) ? static_cast<uint64_t>(a0.data_.i) : 0;
-        uint64_t u1 = (a1.type_ == static_cast<int>(VarType::Int)) ? static_cast<uint64_t>(a1.data_.i) : 0;
+        uint64_t u0 = static_cast<uint64_t>(inter::CVarToInteger(a0, 0));
+        uint64_t u1 = static_cast<uint64_t>(inter::CVarToInteger(a1, 0));
         return inter::NativeToFakeluaBool(state, u0 < u1);
     });
 
     RegisterNativeFunction(s, "math.deg", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        double v0 = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float) ? a0.data_.f : 0.0);
+        double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, v0 * (180.0 / 3.14159265358979323846));
     });
 
     RegisterNativeFunction(s, "math.rad", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        double v0 = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float) ? a0.data_.f : 0.0);
+        double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, v0 * (3.14159265358979323846 / 180.0));
     });
 
