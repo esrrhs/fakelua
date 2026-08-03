@@ -13,8 +13,21 @@ function test_os_time()
     -- os.time with table: 2024-01-15 10:30:00
     local t3 = os.time({year = 2024, month = 1, day = 15, hour = 10, min = 30, sec = 0})
     if type(t3) ~= "number" then return 0 end
-    -- should be a reasonable value
     if t3 < 1700000000 then return 0 end
+
+    -- 动态 Key (VarType::String) 传入 os.time 验证
+    local y_key = "ye" .. "ar"
+    local m_key = "mon" .. "th"
+    local d_key = "d" .. "ay"
+    local dyn_tbl = {}
+    dyn_tbl[y_key] = 2024
+    dyn_tbl[m_key] = 1
+    dyn_tbl[d_key] = 15
+    dyn_tbl["hour"] = 10
+    dyn_tbl["min"] = 30
+    dyn_tbl["sec"] = 0
+    local t4 = os.time(dyn_tbl)
+    if t4 ~= t3 then return 0 end
 
     return 6000
 end
