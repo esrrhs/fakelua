@@ -258,9 +258,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         }
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a1.type_ == static_cast<int>(VarType::Int)) offset = a1.data_.i;
-            else if (a1.type_ == static_cast<int>(VarType::Float))
-                offset = static_cast<int64_t>(a1.data_.f);
+            offset = inter::CVarToInteger(a1, 0);
         }
 
         int whence;
@@ -294,9 +292,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         }
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a1.type_ == static_cast<int>(VarType::Int)) size = static_cast<size_t>(a1.data_.i);
-            else if (a1.type_ == static_cast<int>(VarType::Float))
-                size = static_cast<size_t>(a1.data_.f);
+            size = static_cast<size_t>(inter::CVarToInteger(a1, BUFSIZ));
         }
 
         int bufmode;

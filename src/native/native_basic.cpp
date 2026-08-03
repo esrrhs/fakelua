@@ -223,13 +223,14 @@ void RegisterBasicLibraryApi(State *s) {
         bool has_custom_base = false;
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a1.type_ == static_cast<int>(VarType::Int)) {
-                base = static_cast<int>(a1.data_.i);
-                has_custom_base = true;
-            } else if (a1.type_ == static_cast<int>(VarType::Float)) {
-                base = static_cast<int>(a1.data_.f);
+            if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                base = static_cast<int>(inter::CVarToInteger(a1, 10));
                 has_custom_base = true;
             }
+        }
+
+        if (has_custom_base && (base < 2 || base > 36)) {
+            return inter::NativeToFakeluaNil(state);
         }
 
         // Auto-detect 0x/0X prefix when no custom base is provided
