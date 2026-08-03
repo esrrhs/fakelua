@@ -15,6 +15,10 @@ function test_os_time()
     if type(t3) ~= "number" then return 0 end
     if t3 < 1700000000 then return 0 end
 
+    -- 字符串与数字混合字段表验证
+    local t3_str = os.time({year = "2024", month = "1", day = "15", hour = "10", min = "30", sec = "0"})
+    if t3_str ~= t3 then return 0 end
+
     -- 动态 Key (VarType::String) 传入 os.time 验证
     local y_key = "ye" .. "ar"
     local m_key = "mon" .. "th"
