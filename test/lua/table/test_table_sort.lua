@@ -31,5 +31,24 @@ function test_table_sort()
         return 4.0
     end
 
+    -- 5. 动态 load 比较闭包排序
+    local dyn_comp = load("return function(a, b) return a > b end")()
+    if dyn_comp ~= nil then
+        local t5 = { 10, 50, 30 }
+        table.sort(t5, dyn_comp)
+        if t5[1] ~= 50 or t5[2] ~= 30 or t5[3] ~= 10 then
+            return 5.0
+        end
+    end
+
+    -- 6. 超过 8 个元素的连续 table.insert 写入与读取
+    local t6 = {}
+    for i = 1, 20 do
+        table.insert(t6, i * 10)
+    end
+    if #t6 ~= 20 or t6[15] ~= 150 or t6[20] ~= 200 then
+        return 6.0
+    end
+
     return 100.0
 end

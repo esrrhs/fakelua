@@ -1,5 +1,7 @@
 #include "native/native_table.h"
+#include "compile/c_runtime_header.h"
 #include "native/native_object.h"
+#include "native/native_string.h"
 #include "state/state.h"
 #include "var/var.h"
 #include "var/var_closure.h"
@@ -126,6 +128,9 @@ void TableHelper::SetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
             return;
         }
     }
+
+    std::string key_str = std::to_string(idx);
+    SetTableStrId(s, tbl, key_str.c_str(), val);
 }
 
 void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val) {
@@ -138,18 +143,14 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
     CVar key{static_cast<int>(VarType::StringId)};
     key.data_.i = id;
 
-    // 当 bucket_count_ > 0 时，FlGetTableStrId 只查找 nodes_，所以也直接写 nodes_
     if (t->bucket_count_ > 0 && t->nodes_) {
         uint32_t mask = t->bucket_count_ - 1;
         uint32_t idx = hash & mask;
-        // 检查桶头
-        if (t->nodes_[idx].entry.key.type_ == static_cast<int>(VarType::StringId) &&
-            t->nodes_[idx].entry.hash == hash) {
+        if (t->nodes_[idx].entry.key.type_ == static_cast<int>(VarType::StringId) && t->nodes_[idx].entry.hash == hash) {
             static_cast<CVar &>(t->nodes_[idx].entry.val) = val;
             return;
         }
         if (t->nodes_[idx].entry.key.type_ == static_cast<int>(VarType::Nil)) {
-            // 桶头为空，直接放入
             static_cast<CVar &>(t->nodes_[idx].entry.key) = key;
             static_cast<CVar &>(t->nodes_[idx].entry.val) = val;
             t->nodes_[idx].entry.hash = hash;
@@ -157,18 +158,15 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
             t->count_++;
             return;
         }
-        // 遍历链表查找相同 key
         uint32_t cur = idx;
         while (t->nodes_[cur].next != VarTable::INVALID_INDEX) {
             uint32_t nxt = t->nodes_[cur].next;
-            if (t->nodes_[nxt].entry.key.type_ == static_cast<int>(VarType::StringId) &&
-                t->nodes_[nxt].entry.hash == hash) {
+            if (t->nodes_[nxt].entry.key.type_ == static_cast<int>(VarType::StringId) && t->nodes_[nxt].entry.hash == hash) {
                 static_cast<CVar &>(t->nodes_[nxt].entry.val) = val;
                 return;
             }
             cur = nxt;
         }
-        // 找空槽插入
         for (uint32_t probe = 1; probe < t->bucket_count_; ++probe) {
             uint32_t i = (idx + probe) & mask;
             if (t->nodes_[i].entry.key.type_ == static_cast<int>(VarType::Nil)) {
@@ -181,10 +179,9 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
                 return;
             }
         }
-        return; // 表满
+        return;
     }
 
-    // bucket_count_ == 0：使用 quick_data_
     for (auto &qd: t->quick_data_) {
         if (qd.key.type_ == static_cast<int>(VarType::StringId) && qd.key.data_.i == id) {
             static_cast<CVar &>(qd.val) = val;
@@ -371,11 +368,17 @@ void RegisterTableLibraryApi(State *s) {
         }
 
         CVar comp = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
-        if (comp.type_ == static_cast<int>(VarType::Closure) && comp.data_.cl && comp.data_.cl->func_ptr) {
+        if (comp.type_ == static_cast<int>(VarType::Closure) && comp.data_.cl) {
             VarClosure *cl = comp.data_.cl;
             auto comp_func = [&](const CVar &a, const CVar &b) -> bool {
-                void *addr = cl->func_ptr;
-                CVar res = reinterpret_cast<CVar (*)(VarClosure *, CVar, CVar)>(addr)(cl, a, b);
+                CVar res{static_cast<int>(VarType::Nil)};
+                if (cl->func_ptr) {
+                    void *addr = cl->func_ptr;
+                    res = reinterpret_cast<CVar (*)(VarClosure *, CVar, CVar)>(addr)(cl, a, b);
+                } else if (cl->code_str) {
+                    CVar args_arr[2] = {a, b};
+                    res = FlEvalLoadClosure(state, cl, 2, args_arr);
+                }
                 bool is_true = !(res.type_ == static_cast<int>(VarType::Nil) || (res.type_ == static_cast<int>(VarType::Bool) && !res.data_.b));
                 return is_true;
             };
