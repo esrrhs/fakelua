@@ -343,7 +343,7 @@ void RegisterOsLibraryApi(State *s) {
             }
             // Search quick_data_
             for (const auto &qd: t->quick_data_) {
-                if (qd.key.type_ == static_cast<int>(VarType::StringId) && qd.key.data_.i == id) {
+                if (qd.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(qd.key) == key_name) {
                     if (qd.val.type_ == static_cast<int>(VarType::Int)) return qd.val.data_.i;
                     if (qd.val.type_ == static_cast<int>(VarType::Float)) return static_cast<int64_t>(qd.val.data_.f);
                     return 0;
@@ -354,7 +354,7 @@ void RegisterOsLibraryApi(State *s) {
                 for (uint32_t i = 0; i < t->count_; ++i) {
                     uint32_t node_idx = t->active_list_[i];
                     const auto &entry = t->nodes_[node_idx].entry;
-                    if (entry.key.type_ == static_cast<int>(VarType::StringId) && entry.key.data_.i == id) {
+                    if (entry.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(entry.key) == key_name) {
                         if (entry.val.type_ == static_cast<int>(VarType::Int)) return entry.val.data_.i;
                         if (entry.val.type_ == static_cast<int>(VarType::Float)) return static_cast<int64_t>(entry.val.data_.f);
                         return 0;
@@ -404,4 +404,4 @@ void RegisterOsLibraryApi(State *s) {
     });
 }
 
-}  // namespace fakelua
+}// namespace fakelua
