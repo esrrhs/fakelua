@@ -271,9 +271,11 @@ void RegisterTableLibraryApi(State *s) {
                 res += std::to_string(item.data_.i);
             } else if (item.type_ == static_cast<int>(VarType::Float)) {
                 res += std::to_string(item.data_.f);
-            } else {
+            } else if (item.type_ == static_cast<int>(VarType::String) || item.type_ == static_cast<int>(VarType::StringId)) {
                 auto sv = KeyToStringView(item);
-                if (!sv.empty()) res += std::string(sv);
+                res += std::string(sv);
+            } else {
+                res += AsVar(item).ToString(/*has_quote=*/false, /*has_postfix=*/false);
             }
         }
         return inter::NativeToFakeluaStringView(state, res);

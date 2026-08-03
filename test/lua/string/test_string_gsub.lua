@@ -8,7 +8,7 @@ function test_string_gsub()
     if s2 ~= "a_a_a" or cnt2 ~= 2 then return 0 end
 
     -- 限制替换次数
-    local s3, cnt3 = string.gsub("a a a a", " ", "_", 2)
+    local s3, cnt3 = string.gsub("a a a a", " ", "_", "2")
     if s3 ~= "a_a_a a" or cnt3 ~= 2 then return 0 end
 
     -- 无匹配
@@ -24,9 +24,9 @@ function test_string_gsub()
     local s6 = string.gsub("a b c", "[a-z]", t)
     if s6 ~= "A B c" then return 0 end
 
-    -- 函数替换 (ECMAScript 语法)
-    local s7 = string.gsub("hello 123 world", "\\d+", function(s)
-        return "[" .. s .. "]"
+    -- 函数替换 + 捕获组正确传递测试
+    local s7 = string.gsub("hello 123 world", "(\\d+)", function(cap1)
+        return "[" .. cap1 .. "]"
     end)
     if s7 ~= "hello [123] world" then return 0 end
 
