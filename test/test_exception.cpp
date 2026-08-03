@@ -866,6 +866,14 @@ TEST(exception, test_continue_error) {
     }
 }
 
+TEST(exception, test_continue_skip_local) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_continue_skip_local.lua", {}), std::exception);
+}
+
 TEST(exception, function_too_many_params) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();

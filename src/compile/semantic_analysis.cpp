@@ -391,6 +391,12 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk,
             if (loop_depth <= 0) {
                 ThrowError("'continue' statement not inside a loop", stmt);
             }
+            // 检查 continue 是否跳过局部变量声明（与 goto 到 block 末尾等价）
+            for (auto lp: local_positions) {
+                if (lp > i) {
+                    ThrowError("'continue' jumps over local variable declaration", stmt);
+                }
+            }
         }
     }
 
