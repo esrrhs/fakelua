@@ -36,31 +36,42 @@ void RegisterOsLibraryApi(State *s) {
 
     // ─── os.date([format[, time]]]) ───
     RegisterNativeFunction(s, "os.date", 0, true, [](State *state, CVar *args, int n) -> CVar {
-        // Determine time value
         std::time_t t_val = 0;
         bool has_time = false;
-        if (n >= 2) {
-            int64_t t = get_int_arg(state, args, n, 1, 0);
-            t_val = static_cast<std::time_t>(t);
-            has_time = true;
-        }
-
-        // Determine format string
         std::string_view fmt;
         bool use_default_format = false;
 
-        if (n < 1) {
-            use_default_format = true;
-        } else {
+        if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::Nil)) {
+            if (a0.type_ == static_cast<int>(VarType::Int) || a0.type_ == static_cast<int>(VarType::Float)) {
+                // os.date(time) -> single numeric time argument
+                t_val = static_cast<std::time_t>(inter::CVarToInteger(a0, 0));
+                has_time = true;
                 use_default_format = true;
+            } else if (a0.type_ == static_cast<int>(VarType::Nil)) {
+                use_default_format = true;
+                if (n >= 2) {
+                    CVar a1 = inter::GetNativeArg(state, args, n, 1);
+                    if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                        t_val = static_cast<std::time_t>(inter::CVarToInteger(a1, 0));
+                        has_time = true;
+                    }
+                }
             } else {
                 fmt = KeyToStringView(a0);
                 if (fmt.empty()) {
                     use_default_format = true;
                 }
+                if (n >= 2) {
+                    CVar a1 = inter::GetNativeArg(state, args, n, 1);
+                    if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                        t_val = static_cast<std::time_t>(inter::CVarToInteger(a1, 0));
+                        has_time = true;
+                    }
+                }
             }
+        } else {
+            use_default_format = true;
         }
 
         // Check for ! prefix (UTC)
@@ -70,7 +81,7 @@ void RegisterOsLibraryApi(State *s) {
             fmt.remove_prefix(1);
         }
 
-        // Get the time
+        // Get current time if not provided
         if (!has_time) {
             t_val = std::time(nullptr);
         }
