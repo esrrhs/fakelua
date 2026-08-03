@@ -498,8 +498,11 @@ void RegisterStringLibraryApi(State *s) {
         std::string sep = "";
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            std::string_view sep_sv = KeyToStringView(a2);
-            sep = std::string(sep_sv);
+            if (a2.type_ == static_cast<int>(VarType::String) || a2.type_ == static_cast<int>(VarType::StringId)) {
+                sep = std::string(KeyToStringView(a2));
+            } else {
+                sep = AsVar(a2).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+            }
         }
 
         std::string res;

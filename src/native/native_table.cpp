@@ -337,7 +337,8 @@ void RegisterTableLibraryApi(State *s) {
 
         if (e >= f) {
             int64_t count = e - f + 1;
-            if (t <= f || t > e) {
+            bool same_table = (a1.type_ == static_cast<int>(VarType::Table) && a2.type_ == static_cast<int>(VarType::Table) && a1.data_.t == a2.data_.t);
+            if (!same_table || t <= f || t > e) {
                 for (int64_t i = 0; i < count; ++i) {
                     CVar val = TableHelper::GetTableInt(state, a1, f + i);
                     TableHelper::SetTableInt(state, a2, t + i, val);
