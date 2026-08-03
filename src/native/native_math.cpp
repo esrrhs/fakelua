@@ -277,7 +277,7 @@ void RegisterMathLibraryApi(State *s) {
             inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaFloat(state, 0.0));
             return multi;
         }
-        double val = (a0.type_ == static_cast<int>(VarType::Float)) ? a0.data_.f : 0.0;
+        double val = inter::CVarToNumber(a0, 0.0);
         double iptr;
         double frac = std::modf(val, &iptr);
         CVar multi = inter::AllocMultiCVar(state, 2);
@@ -288,7 +288,7 @@ void RegisterMathLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "math.frexp", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        double val = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float)) ? a0.data_.f : 0.0;
+        double val = inter::CVarToNumber(a0, 0.0);
         int exp_val = 0;
         double frac = std::frexp(val, &exp_val);
         CVar multi = inter::AllocMultiCVar(state, 2);

@@ -548,13 +548,13 @@ void RegisterStringLibraryApi(State *s) {
         int64_t start_pos = 1;
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a1.type_ == static_cast<int>(VarType::Int)) start_pos = a1.data_.i;
+            start_pos = inter::CVarToInteger(a1, 1);
         }
 
         int64_t end_pos = start_pos;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            if (a2.type_ == static_cast<int>(VarType::Int)) end_pos = a2.data_.i;
+            end_pos = inter::CVarToInteger(a2, start_pos);
         }
 
         start_pos = NormalizePos(start_pos, len);
