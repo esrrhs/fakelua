@@ -376,9 +376,10 @@ void RegisterIoLibraryApi(State *s) {
     RegisterNativeFunction(s, "io.open", 1, true, [](State *state, CVar *args, int n) -> CVar {
         std::string_view filename = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
         if (filename.empty()) {
-            auto multi = inter::AllocMultiCVar(state, 2);
+            auto multi = inter::AllocMultiCVar(state, 3);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
             inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaString(state, "missing filename"));
+            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, EINVAL));
             return multi;
         }
         std::string mode = "r";
@@ -390,9 +391,10 @@ void RegisterIoLibraryApi(State *s) {
         }
         FILE *fp = std::fopen(std::string(filename).c_str(), mode.c_str());
         if (!fp) {
-            auto multi = inter::AllocMultiCVar(state, 2);
+            auto multi = inter::AllocMultiCVar(state, 3);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
             inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaString(state, std::strerror(errno)));
+            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, errno));
             return multi;
         }
         auto *obj = MakeIoFile(state, fp);
