@@ -203,13 +203,18 @@ int64_t CVarToInteger(const CVar &v, int64_t default_val) {
     if (var.Type() == VarType::String || var.Type() == VarType::StringId) {
         std::string_view sv = var.GetString()->Str();
         if (!sv.empty()) {
-            int64_t ival = 0;
-            auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), ival);
-            if (ec == std::errc{} && ptr == sv.data() + sv.size()) return ival;
             try {
                 size_t pos = 0;
-                double dval = std::stod(std::string(sv), &pos);
-                if (pos == sv.size()) return static_cast<int64_t>(dval);
+                std::string s(sv);
+                int64_t ival = std::stoll(s, &pos, 0);
+                if (pos == s.size()) return ival;
+            } catch (...) {
+            }
+            try {
+                size_t pos = 0;
+                std::string s(sv);
+                double dval = std::stod(s, &pos);
+                if (pos == s.size()) return static_cast<int64_t>(dval);
             } catch (...) {
             }
         }
