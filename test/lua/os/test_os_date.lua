@@ -23,5 +23,9 @@ function test_os_date()
     local d4 = os.date(nil)
     if type(d4) ~= "string" then return 0 end
 
+    -- 单个数字时间戳参数 os.date(time) (Lua 标准规范)
+    local d5 = os.date(1700000000)
+    if type(d5) ~= "string" or #d5 == 0 then return 0 end
+
     return 6000
 end
