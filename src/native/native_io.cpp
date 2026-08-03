@@ -109,6 +109,40 @@ static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var) {
     return inter::NativeToFakeluaNil(state);
 }
 
+// Helper: create a file:lines() iterator closure
+static CVar MakeFileLinesClosure(State *state, FILE *fp) {
+    if (!state || !fp) return inter::NativeToFakeluaNil(state);
+    auto &alloc = state->GetHeap().GetAllocator(false /* temp */);
+
+    // upvalue 0: State* (用于分配返回值等)
+    CVar *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
+    uv0->type_ = static_cast<int>(VarType::Int);
+    uv0->flag_ = 0;
+    uv0->data_.i = reinterpret_cast<int64_t>(state);
+
+    // upvalue 1: FILE* (迭代器要读取的文件句柄)
+    CVar *uv1 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
+    uv1->type_ = static_cast<int>(VarType::Int);
+    uv1->flag_ = 0;
+    uv1->data_.i = reinterpret_cast<int64_t>(fp);
+
+    // 分配闭包：sizeof(VarClosure) + 2 * sizeof(CVar *)
+    VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 2 * sizeof(CVar *)));
+    cl->func_ptr = reinterpret_cast<void *>(FileLinesIterator);
+    cl->upvalue_count = 2;
+    cl->expected_arg_count = 2;
+    cl->is_vararg = false;
+    cl->code_str = nullptr;
+    cl->upvalues[0] = uv0;
+    cl->upvalues[1] = uv1;
+
+    CVar res{};
+    res.type_ = static_cast<int>(VarType::Closure);
+    res.flag_ = 0;
+    res.data_.cl = cl;
+    return res;
+}
+
 // 创建一个 IoFile NativeObject 壳，内部 FILE* 存为 Int 字段
 // is_popen=true 时用 pclose 而非 fclose 关闭
 static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
@@ -225,13 +259,16 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ == static_cast<int>(VarType::Int)) offset = a1.data_.i;
-            else if (a1.type_ == static_cast<int>(VarType::Float)) offset = static_cast<int64_t>(a1.data_.f);
+            else if (a1.type_ == static_cast<int>(VarType::Float))
+                offset = static_cast<int64_t>(a1.data_.f);
         }
 
         int whence;
         if (whence_str == "set") whence = SEEK_SET;
-        else if (whence_str == "end") whence = SEEK_END;
-        else whence = SEEK_CUR;
+        else if (whence_str == "end")
+            whence = SEEK_END;
+        else
+            whence = SEEK_CUR;
 
         if (std::fseek(fp, static_cast<long>(offset), whence) != 0) {
             return inter::NativeToFakeluaNil(state);
@@ -258,13 +295,16 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ == static_cast<int>(VarType::Int)) size = static_cast<size_t>(a1.data_.i);
-            else if (a1.type_ == static_cast<int>(VarType::Float)) size = static_cast<size_t>(a1.data_.f);
+            else if (a1.type_ == static_cast<int>(VarType::Float))
+                size = static_cast<size_t>(a1.data_.f);
         }
 
         int bufmode;
         if (mode == "no") bufmode = _IONBF;
-        else if (mode == "line") bufmode = _IOLBF;
-        else bufmode = _IOFBF;
+        else if (mode == "line")
+            bufmode = _IOLBF;
+        else
+            bufmode = _IOFBF;
 
         // 分配缓冲区（setvbuf 需要一块稳定的内存直到下次 setvbuf/fclose）
         // 对于无缓冲模式不需要缓冲区；全缓冲/行缓冲使用临时分配器
@@ -289,37 +329,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
     // 迭代器逐行读取，到文件末尾时返回 nil（for-in 循环自动结束）
     obj->RegisterMethod("lines", [](NativeObject *self, State *state, CVar *args, int n) -> CVar {
         auto *fp = reinterpret_cast<FILE *>(self->GetInt(kFpKey, 0));
-
-        auto &alloc = state->GetHeap().GetAllocator(false /* temp */);
-
-        // upvalue 0: State* (用于分配返回值等)
-        CVar *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-        uv0->type_ = static_cast<int>(VarType::Int);
-        uv0->flag_ = 0;
-        uv0->data_.i = reinterpret_cast<int64_t>(state);
-
-        // upvalue 1: FILE* (迭代器要读取的文件句柄)
-        CVar *uv1 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-        uv1->type_ = static_cast<int>(VarType::Int);
-        uv1->flag_ = 0;
-        uv1->data_.i = reinterpret_cast<int64_t>(fp);
-
-        // 分配闭包：sizeof(VarClosure) + 2 * sizeof(CVar *)
-        VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 2 * sizeof(CVar *)));
-        cl->func_ptr = reinterpret_cast<void *>(FileLinesIterator);
-        cl->upvalue_count = 2;
-        // for-in 循环会以 (s, var) 两个参数调用迭代器，所以 expected_arg_count = 2
-        cl->expected_arg_count = 2;
-        cl->is_vararg = false;
-        cl->code_str = nullptr;
-        cl->upvalues[0] = uv0;
-        cl->upvalues[1] = uv1;
-
-        CVar res{};
-        res.type_ = static_cast<int>(VarType::Closure);
-        res.flag_ = 0;
-        res.data_.cl = cl;
-        return res;
+        return MakeFileLinesClosure(state, fp);
     });
 
     return obj;
@@ -461,8 +471,7 @@ void RegisterIoLibraryApi(State *s) {
         NativeObject *obj = NativeObject::Unwrap(a0);
         if (obj && obj->GetTypeName() == "iofile") {
             auto *fp = reinterpret_cast<FILE *>(obj->GetInt(kFpKey, 0));
-            return fp ? inter::NativeToFakeluaStringView(state, std::string_view("file"))
-                      : inter::NativeToFakeluaStringView(state, std::string_view("closed file"));
+            return fp ? inter::NativeToFakeluaStringView(state, std::string_view("file")) : inter::NativeToFakeluaStringView(state, std::string_view("closed file"));
         }
         return inter::NativeToFakeluaNil(state);
     });
@@ -546,8 +555,7 @@ void RegisterIoLibraryApi(State *s) {
         if (filename.empty()) return inter::NativeToFakeluaNil(state);
         FILE *fp = std::fopen(std::string(filename).c_str(), "r");
         if (!fp) return inter::NativeToFakeluaNil(state);
-        auto *obj = MakeIoFile(state, fp);
-        return inter::NativeToFakeluaNativeObject(state, obj);
+        return MakeFileLinesClosure(state, fp);
     });
 
     // ─── io.stdin / io.stdout / io.stderr 文件对象 ───
@@ -556,16 +564,10 @@ void RegisterIoLibraryApi(State *s) {
         static NativeObject *obj_in = MakeIoFile(s, stdin);
         static NativeObject *obj_out = MakeIoFile(s, stdout);
         static NativeObject *obj_err = MakeIoFile(s, stderr);
-        RegisterNativeFunction(s, "io.stdin", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar {
-            return inter::NativeToFakeluaNativeObject(state, obj_in);
-        });
-        RegisterNativeFunction(s, "io.stdout", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar {
-            return inter::NativeToFakeluaNativeObject(state, obj_out);
-        });
-        RegisterNativeFunction(s, "io.stderr", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar {
-            return inter::NativeToFakeluaNativeObject(state, obj_err);
-        });
+        RegisterNativeFunction(s, "io.stdin", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar { return inter::NativeToFakeluaNativeObject(state, obj_in); });
+        RegisterNativeFunction(s, "io.stdout", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar { return inter::NativeToFakeluaNativeObject(state, obj_out); });
+        RegisterNativeFunction(s, "io.stderr", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar { return inter::NativeToFakeluaNativeObject(state, obj_err); });
     }
 }
 
-}  // namespace fakelua
+}// namespace fakelua

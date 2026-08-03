@@ -30,6 +30,13 @@ function test_io_file_lines()
 
     f2:close()
 
+    -- 验证直接使用 io.lines(filename) 迭代器
+    local lines2 = {}
+    for line in io.lines("test_file_lines_tmp.txt") do
+        table.insert(lines2, line)
+    end
+    if #lines2 ~= 4 or lines2[2] ~= "beta" then return 0 end
+
     -- 验证关闭后类型
     if io.type(f2) ~= "closed file" then return 0 end
 
