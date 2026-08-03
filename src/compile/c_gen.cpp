@@ -824,7 +824,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
     out << body_ss.str();
     if (func_name == kInitFunctionName) {
         // 在 init 函数末尾注入 CONST_FLAG，确保全局表已完全初始化后再标记为只读
-        for (const auto &name : global_const_table_vars_) {
+        for (const auto &name: global_const_table_vars_) {
             out << "    " << name << ".flag_ = CONST_FLAG;\n";
         }
         out << "    __fakelua_init_flag__ = true;\n";
@@ -2475,8 +2475,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         // 拦截 _VERSION 全局常量（编译期替换为 "Fakelua x.y.z"）
         if (name == "_VERSION") {
             std::string ver = std::string("Fakelua ") + FAKELUA_VERSION_STRING;
-            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}",
-                               s_->GetConstString().Alloc(ver));
+            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc(ver));
         }
         return name;
     } else if (var_kind == VarKind::kSquare) {
@@ -2552,8 +2551,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                     if (base_var->GetName() == "utf8") {
                         if (name == "charpattern") {
                             // Lua utf8.charpattern: [\0-\x7F\xC2-\xF4][\x80-\xBF]*
-                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}",
-                                               s_->GetConstString().Alloc("[\\x00-\\x7F\\xC2-\\xF4][\\x80-\\xBF]*"));
+                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc("[\\x00-\\x7F\\xC2-\\xF4][\\x80-\\xBF]*"));
                         }
                     }
                 }
@@ -2939,7 +2937,7 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         Out() << "else { FakeluaThrowError(_S, \"bad argument to math.ceil\"); }\n";
         return tmp;
     }
-    if (method_name == "max" && raw_args.size() >= 2) {
+    if (method_name == "max" && raw_args.size() == 2) {
         std::string arg1 = CompileExp(raw_args[0]);
         std::string arg2 = CompileExp(raw_args[1]);
         const auto cond_tmp = std::format("flua_cmp_{}", tmp_var_counter_++);
@@ -2948,7 +2946,7 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         Out() << GenTab() << tmp << " = (" << cond_tmp << ".data_.b ? (" << arg1 << ") : (" << arg2 << "));\n";
         return tmp;
     }
-    if (method_name == "min" && raw_args.size() >= 2) {
+    if (method_name == "min" && raw_args.size() == 2) {
         std::string arg1 = CompileExp(raw_args[0]);
         std::string arg2 = CompileExp(raw_args[1]);
         const auto cond_tmp = std::format("flua_cmp_{}", tmp_var_counter_++);

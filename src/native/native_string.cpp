@@ -581,9 +581,11 @@ void RegisterStringLibraryApi(State *s) {
         res.reserve(static_cast<size_t>(n));
         for (int i = 0; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
-            if (arg_i.type_ == static_cast<int>(VarType::Int)) {
-                res.push_back(static_cast<char>(arg_i.data_.i));
+            int64_t c = inter::CVarToInteger(arg_i, -1);
+            if (c < 0 || c > 255) {
+                return inter::NativeToFakeluaNil(state);
             }
+            res.push_back(static_cast<char>(c));
         }
         return inter::NativeToFakeluaStringView(state, res);
     });
