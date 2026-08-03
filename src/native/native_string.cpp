@@ -612,9 +612,16 @@ void RegisterStringLibraryApi(State *s) {
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Bool)) {
                     sval = curr_arg.data_.b ? "true" : "false";
                 }
-                char buf[1024];
-                snprintf(buf, sizeof(buf), spec_str.c_str(), sval.c_str());
-                res.append(buf);
+                if (spec_str == "%s") {
+                    res.append(sval);
+                } else {
+                    int needed = snprintf(nullptr, 0, spec_str.c_str(), sval.c_str());
+                    if (needed > 0) {
+                        std::vector<char> buf(static_cast<size_t>(needed) + 1);
+                        snprintf(buf.data(), buf.size(), spec_str.c_str(), sval.c_str());
+                        res.append(buf.data());
+                    }
+                }
             } else if (spec == 'd' || spec == 'i') {
                 int64_t ival =
                         (curr_arg.type_ == static_cast<int>(VarType::Int)) ? curr_arg.data_.i : (curr_arg.type_ == static_cast<int>(VarType::Float) ? static_cast<int64_t>(curr_arg.data_.f) : 0);
