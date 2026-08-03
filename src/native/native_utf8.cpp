@@ -47,13 +47,13 @@ static int64_t DecodeUtf8(const std::string_view &sv, size_t &pos) {
 
     int cp;
     size_t len;
-    if ((c >> 5) == 0x06) {  // 110xxxxx → 2 bytes
+    if ((c >> 5) == 0x06) {// 110xxxxx → 2 bytes
         cp = c & 0x1F;
         len = 2;
-    } else if ((c >> 4) == 0x0E) {  // 1110xxxx → 3 bytes
+    } else if ((c >> 4) == 0x0E) {// 1110xxxx → 3 bytes
         cp = c & 0x0F;
         len = 3;
-    } else if ((c >> 3) == 0x1E) {  // 11110xxx → 4 bytes
+    } else if ((c >> 3) == 0x1E) {// 11110xxx → 4 bytes
         cp = c & 0x07;
         len = 4;
     } else {
@@ -69,7 +69,7 @@ static int64_t DecodeUtf8(const std::string_view &sv, size_t &pos) {
 
     for (size_t i = 1; i < len; ++i) {
         unsigned char next = static_cast<unsigned char>(sv[pos + i]);
-        if ((next >> 6) != 0x02) {  // must be 10xxxxxx
+        if ((next >> 6) != 0x02) {// must be 10xxxxxx
             pos += 1;
             return -1;
         }
@@ -77,11 +77,26 @@ static int64_t DecodeUtf8(const std::string_view &sv, size_t &pos) {
     }
 
     // Validate: reject overlong encodings and surrogate range
-    if (cp > 0x10FFFF) { pos += 1; return -1; }
-    if (cp >= 0xD800 && cp <= 0xDFFF) { pos += 1; return -1; }
-    if (len == 2 && cp < 0x80) { pos += 1; return -1; }
-    if (len == 3 && cp < 0x800) { pos += 1; return -1; }
-    if (len == 4 && cp < 0x10000) { pos += 1; return -1; }
+    if (cp > 0x10FFFF) {
+        pos += 1;
+        return -1;
+    }
+    if (cp >= 0xD800 && cp <= 0xDFFF) {
+        pos += 1;
+        return -1;
+    }
+    if (len == 2 && cp < 0x80) {
+        pos += 1;
+        return -1;
+    }
+    if (len == 3 && cp < 0x800) {
+        pos += 1;
+        return -1;
+    }
+    if (len == 4 && cp < 0x10000) {
+        pos += 1;
+        return -1;
+    }
 
     pos += len;
     return static_cast<int64_t>(cp);
@@ -129,14 +144,16 @@ static CVar Utf8Codepoint(State *state, CVar *args, int n) {
     if (n >= 2) {
         CVar a = inter::GetNativeArg(state, args, n, 1);
         if (a.type_ == static_cast<int>(VarType::Int)) i = a.data_.i;
-        else if (a.type_ == static_cast<int>(VarType::Float)) i = static_cast<int64_t>(a.data_.f);
+        else if (a.type_ == static_cast<int>(VarType::Float))
+            i = static_cast<int64_t>(a.data_.f);
     }
     // Parse j (default i)
     int64_t j = i;
     if (n >= 3) {
         CVar a = inter::GetNativeArg(state, args, n, 2);
         if (a.type_ == static_cast<int>(VarType::Int)) j = a.data_.i;
-        else if (a.type_ == static_cast<int>(VarType::Float)) j = static_cast<int64_t>(a.data_.f);
+        else if (a.type_ == static_cast<int>(VarType::Float))
+            j = static_cast<int64_t>(a.data_.f);
     }
 
     // Handle negative indices (relative to end)
@@ -146,21 +163,21 @@ static CVar Utf8Codepoint(State *state, CVar *args, int n) {
     if (j > len) j = len;
     if (i > j) return inter::NativeToFakeluaNil(state);
 
-    // Collect code points
+    // Collect code points using byte-position semantics per Lua 5.3+ spec
     std::vector<int64_t> codepoints;
     size_t pos = 0;
-    int64_t current_pos = 1;  // 1-based character position
 
-    while (pos < sv.size() && current_pos <= j) {
+    while (pos < sv.size()) {
+        int64_t byte_pos = static_cast<int64_t>(pos + 1);
+        if (byte_pos > j) break;
         int64_t cp = DecodeUtf8(sv, pos);
         if (cp < 0) {
             // Invalid byte sequence
             return inter::NativeToFakeluaNil(state);
         }
-        if (current_pos >= i) {
+        if (byte_pos >= i) {
             codepoints.push_back(cp);
         }
-        current_pos++;
     }
 
     if (codepoints.empty()) return inter::NativeToFakeluaNil(state);
@@ -261,14 +278,16 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
     if (n >= 2) {
         CVar a = inter::GetNativeArg(state, args, n, 1);
         if (a.type_ == static_cast<int>(VarType::Int)) i = a.data_.i;
-        else if (a.type_ == static_cast<int>(VarType::Float)) i = static_cast<int64_t>(a.data_.f);
+        else if (a.type_ == static_cast<int>(VarType::Float))
+            i = static_cast<int64_t>(a.data_.f);
     }
     // Parse j (default -1, meaning end of string)
     int64_t j = -1;
     if (n >= 3) {
         CVar a = inter::GetNativeArg(state, args, n, 2);
         if (a.type_ == static_cast<int>(VarType::Int)) j = a.data_.i;
-        else if (a.type_ == static_cast<int>(VarType::Float)) j = static_cast<int64_t>(a.data_.f);
+        else if (a.type_ == static_cast<int>(VarType::Float))
+            j = static_cast<int64_t>(a.data_.f);
     }
 
     // Handle negative indices (relative to end)
@@ -281,13 +300,14 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
         return inter::NativeToFakeluaInt(state, 0);
     }
 
-    // Count characters and check for invalid bytes
+    // Count characters and check for invalid bytes using byte position
     size_t pos = 0;
-    int64_t char_pos = 1;
     int64_t count = 0;
 
-    while (pos < sv.size() && char_pos <= j) {
+    while (pos < sv.size()) {
         size_t start = pos;
+        int64_t byte_pos = static_cast<int64_t>(start + 1);
+        if (byte_pos > j) break;
         int64_t cp = DecodeUtf8(sv, pos);
         if (cp < 0) {
             // Invalid byte sequence - return nil + byte position
@@ -296,10 +316,9 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
             inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(start + 1)));
             return multi;
         }
-        if (char_pos >= i) {
+        if (byte_pos >= i) {
             count++;
         }
-        char_pos++;
     }
 
     return inter::NativeToFakeluaLonglong(state, count);
@@ -320,16 +339,20 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     CVar a_n = inter::GetNativeArg(state, args, n, 1);
     int64_t target_n = 0;
     if (a_n.type_ == static_cast<int>(VarType::Int)) target_n = a_n.data_.i;
-    else if (a_n.type_ == static_cast<int>(VarType::Float)) target_n = static_cast<int64_t>(a_n.data_.f);
-    else return inter::NativeToFakeluaNil(state);
+    else if (a_n.type_ == static_cast<int>(VarType::Float))
+        target_n = static_cast<int64_t>(a_n.data_.f);
+    else
+        return inter::NativeToFakeluaNil(state);
 
     // Parse i (starting byte position, default 1 if n>=0, len+1 if n<0)
     int64_t start_i;
     if (n >= 3) {
         CVar a = inter::GetNativeArg(state, args, n, 2);
         if (a.type_ == static_cast<int>(VarType::Int)) start_i = a.data_.i;
-        else if (a.type_ == static_cast<int>(VarType::Float)) start_i = static_cast<int64_t>(a.data_.f);
-        else return inter::NativeToFakeluaNil(state);
+        else if (a.type_ == static_cast<int>(VarType::Float))
+            start_i = static_cast<int64_t>(a.data_.f);
+        else
+            return inter::NativeToFakeluaNil(state);
     } else {
         start_i = (target_n >= 0) ? 1 : byte_len + 1;
     }
@@ -385,29 +408,19 @@ void RegisterUtf8LibraryApi(State *s) {
     if (!s) return;
 
     // ─── utf8.char(...) ───
-    RegisterNativeFunction(s, "utf8.char", 0, true, [](State *state, CVar *args, int n) -> CVar {
-        return Utf8Char(state, args, n);
-    });
+    RegisterNativeFunction(s, "utf8.char", 0, true, [](State *state, CVar *args, int n) -> CVar { return Utf8Char(state, args, n); });
 
     // ─── utf8.codepoint(s [, i [, j]]) ───
-    RegisterNativeFunction(s, "utf8.codepoint", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        return Utf8Codepoint(state, args, n);
-    });
+    RegisterNativeFunction(s, "utf8.codepoint", 1, true, [](State *state, CVar *args, int n) -> CVar { return Utf8Codepoint(state, args, n); });
 
     // ─── utf8.codes(s) ───
-    RegisterNativeFunction(s, "utf8.codes", 1, false, [](State *state, CVar *args, int n) -> CVar {
-        return Utf8Codes(state, args, n);
-    });
+    RegisterNativeFunction(s, "utf8.codes", 1, false, [](State *state, CVar *args, int n) -> CVar { return Utf8Codes(state, args, n); });
 
     // ─── utf8.len(s [, i [, j]]) ───
-    RegisterNativeFunction(s, "utf8.len", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        return Utf8Len(state, args, n);
-    });
+    RegisterNativeFunction(s, "utf8.len", 1, true, [](State *state, CVar *args, int n) -> CVar { return Utf8Len(state, args, n); });
 
     // ─── utf8.offset(s, n [, i]) ───
-    RegisterNativeFunction(s, "utf8.offset", 2, true, [](State *state, CVar *args, int n) -> CVar {
-        return Utf8Offset(state, args, n);
-    });
+    RegisterNativeFunction(s, "utf8.offset", 2, true, [](State *state, CVar *args, int n) -> CVar { return Utf8Offset(state, args, n); });
 }
 
-}  // namespace fakelua
+}// namespace fakelua
