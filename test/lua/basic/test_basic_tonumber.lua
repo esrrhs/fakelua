@@ -15,12 +15,14 @@ function test_basic_tonumber()
 
     -- 带 base 参数
     if tonumber("ff", 16) ~= 255 then return 9 end
+    if tonumber("ff", "16") ~= 255 then return 9.5 end
     if tonumber("1010", 2) ~= 10 then return 10 end
     if tonumber("z", 36) ~= 35 then return 11 end
 
-    -- 非法 base
+    -- 非法 base 范围 [2..36]
     if tonumber("123", 1) ~= nil then return 12 end
     if tonumber("123", 37) ~= nil then return 13 end
+    if tonumber("123", 100) ~= nil then return 13.5 end
 
     -- 自动 0x/0X 16 进制解析 (Lua 5.1+ 标准规范)
     if tonumber("0x10") ~= 16 then return 14 end

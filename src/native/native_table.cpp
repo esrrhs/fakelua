@@ -426,7 +426,7 @@ void RegisterTableLibraryApi(State *s) {
 
         if (n < 1) return create_table();
         CVar seq_var = inter::GetNativeArg(state, args, n, 0);
-        int64_t count = (seq_var.type_ == static_cast<int>(VarType::Int)) ? seq_var.data_.i : 0;
+        int64_t count = inter::CVarToInteger(seq_var, 0);
         if (count < 0) count = 0;
 
         CVar val = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};

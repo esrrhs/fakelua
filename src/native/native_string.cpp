@@ -1550,7 +1550,7 @@ void RegisterStringLibraryApi(State *s) {
         int start_pos = 1;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            if (a2.type_ == static_cast<int>(VarType::Int)) start_pos = static_cast<int>(a2.data_.i);
+            start_pos = static_cast<int>(inter::CVarToInteger(a2, 1));
         }
         start_pos = NormalizePos(start_pos, static_cast<int64_t>(data.size()));
         if (start_pos < 1 || start_pos > static_cast<int64_t>(data.size())) {
