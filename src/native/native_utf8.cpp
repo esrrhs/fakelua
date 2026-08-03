@@ -114,15 +114,8 @@ static CVar Utf8Char(State *state, CVar *args, int n) {
     out.reserve(static_cast<size_t>(n) * 3);
     for (int i = 0; i < n; ++i) {
         CVar a = inter::GetNativeArg(state, args, n, i);
-        int64_t cp = 0;
-        if (a.type_ == static_cast<int>(VarType::Int)) {
-            cp = a.data_.i;
-        } else if (a.type_ == static_cast<int>(VarType::Float)) {
-            cp = static_cast<int64_t>(a.data_.f);
-        } else {
-            return inter::NativeToFakeluaNil(state);
-        }
-        if (!EncodeUtf8(cp, out)) {
+        int64_t cp = inter::CVarToInteger(a, -1);
+        if (cp < 0 || !EncodeUtf8(cp, out)) {
             return inter::NativeToFakeluaNil(state);
         }
     }
@@ -140,21 +133,9 @@ static CVar Utf8Codepoint(State *state, CVar *args, int n) {
     int64_t len = static_cast<int64_t>(sv.size());
 
     // Parse i (default 1)
-    int64_t i = 1;
-    if (n >= 2) {
-        CVar a = inter::GetNativeArg(state, args, n, 1);
-        if (a.type_ == static_cast<int>(VarType::Int)) i = a.data_.i;
-        else if (a.type_ == static_cast<int>(VarType::Float))
-            i = static_cast<int64_t>(a.data_.f);
-    }
+    int64_t i = (n >= 2) ? inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 1) : 1;
     // Parse j (default i)
-    int64_t j = i;
-    if (n >= 3) {
-        CVar a = inter::GetNativeArg(state, args, n, 2);
-        if (a.type_ == static_cast<int>(VarType::Int)) j = a.data_.i;
-        else if (a.type_ == static_cast<int>(VarType::Float))
-            j = static_cast<int64_t>(a.data_.f);
-    }
+    int64_t j = (n >= 3) ? inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), i) : i;
 
     // Handle negative indices (relative to end)
     if (i < 1) i = len + i + 1;
@@ -274,25 +255,14 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
     int64_t byte_len = static_cast<int64_t>(sv.size());
 
     // Parse i (default 1)
-    int64_t i = 1;
-    if (n >= 2) {
-        CVar a = inter::GetNativeArg(state, args, n, 1);
-        if (a.type_ == static_cast<int>(VarType::Int)) i = a.data_.i;
-        else if (a.type_ == static_cast<int>(VarType::Float))
-            i = static_cast<int64_t>(a.data_.f);
-    }
+    int64_t i = (n >= 2) ? inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 1) : 1;
     // Parse j (default -1, meaning end of string)
-    int64_t j = -1;
-    if (n >= 3) {
-        CVar a = inter::GetNativeArg(state, args, n, 2);
-        if (a.type_ == static_cast<int>(VarType::Int)) j = a.data_.i;
-        else if (a.type_ == static_cast<int>(VarType::Float))
-            j = static_cast<int64_t>(a.data_.f);
-    }
+    int64_t j = (n >= 3) ? inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), -1) : -1;
 
     // Handle negative indices (relative to end)
     if (i < 1) i = byte_len + i + 1;
     if (j < 1) j = byte_len + j + 1;
+
     if (i < 1) i = 1;
     if (j > byte_len) j = byte_len;
 
@@ -300,14 +270,12 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
         return inter::NativeToFakeluaInt(state, 0);
     }
 
-    // Count characters and check for invalid bytes using byte position
-    size_t pos = 0;
     int64_t count = 0;
+    size_t pos = static_cast<size_t>(i - 1);
+    size_t end_pos = static_cast<size_t>(j);
 
-    while (pos < sv.size()) {
+    while (pos < end_pos) {
         size_t start = pos;
-        int64_t byte_pos = static_cast<int64_t>(start + 1);
-        if (byte_pos > j) break;
         int64_t cp = DecodeUtf8(sv, pos);
         if (cp < 0) {
             // Invalid byte sequence - return nil + byte position
@@ -316,7 +284,7 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
             inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(start + 1)));
             return multi;
         }
-        if (byte_pos >= i) {
+        if (static_cast<int64_t>(start + 1) >= i) {
             count++;
         }
     }
@@ -336,26 +304,10 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     int64_t byte_len = static_cast<int64_t>(sv.size());
 
     // Parse n (which character)
-    CVar a_n = inter::GetNativeArg(state, args, n, 1);
-    int64_t target_n = 0;
-    if (a_n.type_ == static_cast<int>(VarType::Int)) target_n = a_n.data_.i;
-    else if (a_n.type_ == static_cast<int>(VarType::Float))
-        target_n = static_cast<int64_t>(a_n.data_.f);
-    else
-        return inter::NativeToFakeluaNil(state);
+    int64_t target_n = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 0);
 
     // Parse i (starting byte position, default 1 if n>=0, len+1 if n<0)
-    int64_t start_i;
-    if (n >= 3) {
-        CVar a = inter::GetNativeArg(state, args, n, 2);
-        if (a.type_ == static_cast<int>(VarType::Int)) start_i = a.data_.i;
-        else if (a.type_ == static_cast<int>(VarType::Float))
-            start_i = static_cast<int64_t>(a.data_.f);
-        else
-            return inter::NativeToFakeluaNil(state);
-    } else {
-        start_i = (target_n >= 0) ? 1 : byte_len + 1;
-    }
+    int64_t start_i = (n >= 3) ? inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), 1) : ((target_n >= 0) ? 1 : byte_len + 1);
 
     // Handle negative start_i
     if (start_i < 1) start_i = byte_len + start_i + 1;
