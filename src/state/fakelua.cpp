@@ -196,6 +196,45 @@ std::string_view FakeluaToNativeStringView(State *state, CVar val) {
     ThrowFakeluaException(std::format("FakeluaToNativeStringview failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
+int64_t CVarToInteger(const CVar &v, int64_t default_val) {
+    const auto &var = AsVar(v);
+    if (var.Type() == VarType::Int) return var.GetInt();
+    if (var.Type() == VarType::Float) return static_cast<int64_t>(var.GetFloat());
+    if (var.Type() == VarType::String || var.Type() == VarType::StringId) {
+        std::string_view sv = var.GetString()->Str();
+        if (!sv.empty()) {
+            int64_t ival = 0;
+            auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), ival);
+            if (ec == std::errc{} && ptr == sv.data() + sv.size()) return ival;
+            try {
+                size_t pos = 0;
+                double dval = std::stod(std::string(sv), &pos);
+                if (pos == sv.size()) return static_cast<int64_t>(dval);
+            } catch (...) {
+            }
+        }
+    }
+    return default_val;
+}
+
+double CVarToNumber(const CVar &v, double default_val) {
+    const auto &var = AsVar(v);
+    if (var.Type() == VarType::Float) return var.GetFloat();
+    if (var.Type() == VarType::Int) return static_cast<double>(var.GetInt());
+    if (var.Type() == VarType::String || var.Type() == VarType::StringId) {
+        std::string_view sv = var.GetString()->Str();
+        if (!sv.empty()) {
+            try {
+                size_t pos = 0;
+                double dval = std::stod(std::string(sv), &pos);
+                if (pos == sv.size()) return dval;
+            } catch (...) {
+            }
+        }
+    }
+    return default_val;
+}
+
 // VarToVi: read CVar into VarInterface* bridge type. Tables are read-only —
 // no VarTable methods needed, just direct field access on the C struct.
 static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
@@ -448,8 +487,9 @@ CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count) {
         DCASE(1)
         DCASE(2)
         DCASE(3)
-        DCASE(4) DCASE(5) DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11) DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17) DCASE(18) DCASE(19) DCASE(20) DCASE(21) DCASE(22)
-                DCASE(23) DCASE(24) DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29) DCASE(30) DCASE(31) DCASE(32)
+        DCASE(4)
+        DCASE(5) DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11) DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17) DCASE(18) DCASE(19) DCASE(20) DCASE(21) DCASE(22) DCASE(23)
+                DCASE(24) DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29) DCASE(30) DCASE(31) DCASE(32)
 
 #undef DCASE
 #include "util/dispatch_macro_undef.h"
