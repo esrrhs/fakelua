@@ -3,6 +3,9 @@ function test_string_charpattern()
     local pat = string.charpattern
     if type(pat) ~= "string" then return 0 end
 
+    -- utf8.charpattern 也应当符合标准并存在
+    if type(utf8.charpattern) ~= "string" then return 0 end
+
     -- 用 string.match + charpattern 匹配单个字符
     local matched = string.match("hello", pat)
     if matched ~= "h" then return 0 end

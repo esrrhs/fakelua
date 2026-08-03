@@ -139,8 +139,8 @@ static CVar Utf8Codepoint(State *state, CVar *args, int n) {
 
     // Handle negative indices (relative to end)
     if (i < 1) i = len + i + 1;
-    if (j < 1) j = len + j + 1;
     if (i < 1) i = 1;
+    if (i > len) return inter::NativeToFakeluaNil(state);
     if (j > len) j = len;
     if (i > j) return inter::NativeToFakeluaNil(state);
 
