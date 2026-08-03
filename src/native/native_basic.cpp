@@ -1,7 +1,7 @@
 #include "native/native_basic.h"
+#include "compile/c_runtime_header.h"
 #include "native/native_object.h"
 #include "native/native_table.h"
-#include "compile/c_runtime_header.h"
 #include "state/state.h"
 #include "var/var.h"
 #include "var/var_closure.h"
@@ -19,7 +19,7 @@ namespace fakelua {
 // ─── pairs 迭代器状态 ───
 struct PairIterState {
     CVar table;
-    CVar last_key; // nil 表示刚开始
+    CVar last_key;// nil 表示刚开始
 };
 
 // ─── ipairs 迭代器状态 ───
@@ -64,7 +64,7 @@ extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     VarTable *t = tbl.data_.t;
 
     // 遍历查找 last_key 的下一个
-    bool found_last = (last.type_ == static_cast<int>(VarType::Nil)); // nil 表示刚开始
+    bool found_last = (last.type_ == static_cast<int>(VarType::Nil));// nil 表示刚开始
     CVar next_key{static_cast<int>(VarType::Nil)};
     CVar next_val{static_cast<int>(VarType::Nil)};
     bool has_next = false;
@@ -74,7 +74,9 @@ extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         for (uint32_t i = 0; i < t->spec_count && !has_next; ++i) {
             if (t->spec_keys[i].type_ == static_cast<int>(VarType::Nil)) continue;
             if (found_last) {
-                next_key = t->spec_keys[i]; next_val = t->spec_vals[i]; has_next = true;
+                next_key = t->spec_keys[i];
+                next_val = t->spec_vals[i];
+                has_next = true;
             } else if (keys_equal(t->spec_keys[i], last)) {
                 found_last = true;
             }
@@ -85,7 +87,9 @@ extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         if (has_next) break;
         if (qd.key.type_ == static_cast<int>(VarType::Nil)) continue;
         if (found_last) {
-            next_key = qd.key; next_val = qd.val; has_next = true;
+            next_key = qd.key;
+            next_val = qd.val;
+            has_next = true;
         } else if (keys_equal(qd.key, last)) {
             found_last = true;
         }
@@ -97,7 +101,9 @@ extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
             const auto &entry = t->nodes_[node_idx].entry;
             if (entry.key.type_ == static_cast<int>(VarType::Nil)) continue;
             if (found_last) {
-                next_key = entry.key; next_val = entry.val; has_next = true;
+                next_key = entry.key;
+                next_val = entry.val;
+                has_next = true;
             } else if (keys_equal(entry.key, last)) {
                 found_last = true;
             }
@@ -207,16 +213,28 @@ void RegisterBasicLibraryApi(State *s) {
         }
 
         std::string str(v.GetString()->Str());
-        if (str.empty()) return inter::NativeToFakeluaNil(state);
+        // Trim leading and trailing whitespace per Lua spec
+        size_t start = str.find_first_not_of(" \t\n\r\f\v");
+        if (start == std::string::npos) return inter::NativeToFakeluaNil(state);
+        size_t end = str.find_last_not_of(" \t\n\r\f\v");
+        str = str.substr(start, end - start + 1);
 
         int base = 10;
+        bool has_custom_base = false;
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ == static_cast<int>(VarType::Int)) {
                 base = static_cast<int>(a1.data_.i);
+                has_custom_base = true;
             } else if (a1.type_ == static_cast<int>(VarType::Float)) {
                 base = static_cast<int>(a1.data_.f);
+                has_custom_base = true;
             }
+        }
+
+        // Auto-detect 0x/0X prefix when no custom base is provided
+        if (!has_custom_base && (str.rfind("0x", 0) == 0 || str.rfind("0X", 0) == 0 || str.rfind("-0x", 0) == 0 || str.rfind("-0X", 0) == 0 || str.rfind("+0x", 0) == 0 || str.rfind("+0X", 0) == 0)) {
+            base = 16;
         }
 
         if (base == 10) {
@@ -231,7 +249,7 @@ void RegisterBasicLibraryApi(State *s) {
                 size_t pos = 0;
                 double dval = std::stod(str, &pos);
                 if (pos == str.size()) {
-                    return inter::NativeToFakeluaFloat(state, static_cast<float>(dval));
+                    return inter::NativeToFakeluaDouble(state, dval);
                 }
             } catch (...) {
             }
@@ -247,12 +265,19 @@ void RegisterBasicLibraryApi(State *s) {
             } else if (str[0] == '+') {
                 i = 1;
             }
+            // Skip 0x/0X prefix for base 16
+            if (base == 16 && i + 2 <= str.size() && str[i] == '0' && (str[i + 1] == 'x' || str[i + 1] == 'X')) {
+                i += 2;
+            }
+            if (i >= str.size()) return inter::NativeToFakeluaNil(state);
             for (; i < str.size(); ++i) {
                 char c = str[i];
                 int digit = -1;
                 if (c >= '0' && c <= '9') digit = c - '0';
-                else if (c >= 'a' && c <= 'z') digit = c - 'a' + 10;
-                else if (c >= 'A' && c <= 'Z') digit = c - 'A' + 10;
+                else if (c >= 'a' && c <= 'z')
+                    digit = c - 'a' + 10;
+                else if (c >= 'A' && c <= 'Z')
+                    digit = c - 'A' + 10;
                 if (digit < 0 || digit >= base) return inter::NativeToFakeluaNil(state);
                 result = result * base + digit;
             }
@@ -271,9 +296,7 @@ void RegisterBasicLibraryApi(State *s) {
                 return inter::NativeToFakeluaInt(state, n - 1);
             }
         }
-        int64_t idx = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i
-                     : (a0.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(a0.data_.f)
-                     : 1;
+        int64_t idx = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(a0.data_.f) : 1;
         if (idx < 1) idx = 1;
         int start = static_cast<int>(idx);
         int count = n - start;
@@ -498,7 +521,7 @@ void RegisterBasicLibraryApi(State *s) {
             if (!key.data_.s || !target.data_.s) return key.data_.s == target.data_.s;
             return key.data_.s->Str() == target.data_.s->Str();
         }
-        return key.data_.i == target.data_.i; // table/closure: compare pointer
+        return key.data_.i == target.data_.i;// table/closure: compare pointer
     };
 
     // 辅助：遍历回调函数
@@ -546,7 +569,11 @@ void RegisterBasicLibraryApi(State *s) {
             CVar first_val{static_cast<int>(VarType::Nil)};
             bool found = false;
             traverse_table(t, [&](CVar k, CVar v) {
-                if (!found) { first_key = k; first_val = v; found = true; }
+                if (!found) {
+                    first_key = k;
+                    first_val = v;
+                    found = true;
+                }
             });
             if (!found) return inter::NativeToFakeluaNil(state);
             CVar multi = inter::AllocMultiCVar(state, 2);
@@ -561,9 +588,11 @@ void RegisterBasicLibraryApi(State *s) {
         CVar next_val{static_cast<int>(VarType::Nil)};
         bool has_next = false;
         traverse_table(t, [&](CVar k, CVar v) {
-            if (has_next) return; // 已经找到下一个
+            if (has_next) return;// 已经找到下一个
             if (found_index) {
-                next_key = k; next_val = v; has_next = true;
+                next_key = k;
+                next_val = v;
+                has_next = true;
                 return;
             }
             if (key_matches(k, index)) {
@@ -670,15 +699,13 @@ void RegisterBasicLibraryApi(State *s) {
         }
         if (opt == "count") {
             // 返回内存使用量（KB）= (temp + const allocator bytes) / 1024
-            const size_t total_bytes = state->GetHeap().GetAllocator(false /* temp */).Size()
-                                     + state->GetHeap().GetAllocator(true /* const */).Size();
+            const size_t total_bytes = state->GetHeap().GetAllocator(false /* temp */).Size() + state->GetHeap().GetAllocator(true /* const */).Size();
             double kb = static_cast<double>(total_bytes) / 1024.0;
             return inter::NativeToFakeluaDouble(state, kb);
         }
         // 其他选项：no-op，返回 0
         return inter::NativeToFakeluaInt(state, 0);
     });
-
 }
 
 }// namespace fakelua

@@ -22,5 +22,14 @@ function test_basic_tonumber()
     if tonumber("123", 1) ~= nil then return 12 end
     if tonumber("123", 37) ~= nil then return 13 end
 
+    -- 自动 0x/0X 16 进制解析 (Lua 5.1+ 标准规范)
+    if tonumber("0x10") ~= 16 then return 14 end
+    if tonumber("0XFF") ~= 255 then return 15 end
+    if tonumber("-0x10") ~= -16 then return 16 end
+
+    -- 首尾空白符包含（Trim）
+    if tonumber("   123   ") ~= 123 then return 17 end
+    if tonumber("\t0x20\n") ~= 32 then return 18 end
+
     return 5000
 end
