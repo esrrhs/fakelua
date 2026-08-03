@@ -296,7 +296,7 @@ void RegisterBasicLibraryApi(State *s) {
                 return inter::NativeToFakeluaInt(state, n - 1);
             }
         }
-        int64_t idx = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(a0.data_.f) : 1;
+        int64_t idx = inter::CVarToInteger(a0, 1);
         int var_count = n - 1;
         if (idx < 0) {
             idx = var_count + idx + 1;
@@ -409,14 +409,27 @@ void RegisterBasicLibraryApi(State *s) {
             err_msg = "unknown error";
         }
 
-        CVar multi = inter::AllocMultiCVar(state, 2);
-        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, success));
         if (success) {
-            inter::SetMultiCVarElement(multi, 1, result);
+            if (result.type_ == static_cast<int>(VarType::Multi) && result.data_.m) {
+                int count = result.data_.m->GetCount();
+                CVar multi = inter::AllocMultiCVar(state, 1 + count);
+                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+                for (int i = 0; i < count; ++i) {
+                    inter::SetMultiCVarElement(multi, i + 1, inter::GetMultiCVarElement(result, i));
+                }
+                return multi;
+            } else {
+                CVar multi = inter::AllocMultiCVar(state, 2);
+                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+                inter::SetMultiCVarElement(multi, 1, result);
+                return multi;
+            }
         } else {
+            CVar multi = inter::AllocMultiCVar(state, 2);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, false));
             inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaString(state, err_msg));
+            return multi;
         }
-        return multi;
     });
 
     // ─── xpcall(f, err [, arg1, ...]) ───
@@ -475,10 +488,20 @@ void RegisterBasicLibraryApi(State *s) {
         }
 
         if (success) {
-            CVar multi = inter::AllocMultiCVar(state, 2);
-            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
-            inter::SetMultiCVarElement(multi, 1, result);
-            return multi;
+            if (result.type_ == static_cast<int>(VarType::Multi) && result.data_.m) {
+                int count = result.data_.m->GetCount();
+                CVar multi = inter::AllocMultiCVar(state, 1 + count);
+                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+                for (int i = 0; i < count; ++i) {
+                    inter::SetMultiCVarElement(multi, i + 1, inter::GetMultiCVarElement(result, i));
+                }
+                return multi;
+            } else {
+                CVar multi = inter::AllocMultiCVar(state, 2);
+                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+                inter::SetMultiCVarElement(multi, 1, result);
+                return multi;
+            }
         }
 
         // 调用错误处理函数
