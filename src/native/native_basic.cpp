@@ -297,9 +297,15 @@ void RegisterBasicLibraryApi(State *s) {
             }
         }
         int64_t idx = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(a0.data_.f) : 1;
-        if (idx < 1) idx = 1;
+        int var_count = n - 1;
+        if (idx < 0) {
+            idx = var_count + idx + 1;
+        }
+        if (idx < 1 || idx > var_count) {
+            return inter::NativeToFakeluaNil(state);
+        }
         int start = static_cast<int>(idx);
-        int count = n - start;
+        int count = var_count - start + 1;
         if (count <= 0) return inter::NativeToFakeluaNil(state);
         if (count == 1) {
             return inter::GetNativeArg(state, args, n, start);
