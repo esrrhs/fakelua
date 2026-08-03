@@ -494,6 +494,9 @@ CVar AllocMultiCVar(State *s, int count);
 void SetMultiCVarElement(CVar &multi, int idx, CVar val);
 CVar GetMultiCVarElement(const CVar &multi, int idx);
 int GetMultiCVarCount(const CVar &multi);
+int64_t CVarToInteger(const CVar &v, int64_t default_val = 0);
+double CVarToNumber(const CVar &v, double default_val = 0.0);
+
 CVar GetNativeArg(State *s, CVar *args, int n, int idx);
 
 }// namespace inter
