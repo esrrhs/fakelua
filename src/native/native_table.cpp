@@ -293,7 +293,7 @@ void RegisterTableLibraryApi(State *s) {
             end_j = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), end_j);
         }
 
-        if (start_i > end_j) return inter::NativeToFakeluaNil(state);
+        if (start_i > end_j) return inter::AllocMultiCVar(state, 0);
         int count = static_cast<int>(end_j - start_i + 1);
         CVar multi = inter::AllocMultiCVar(state, count);
         for (int i = 0; i < count; ++i) {

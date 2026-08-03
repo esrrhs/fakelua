@@ -196,8 +196,8 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.ldexp", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        double v0 = (a0.type_ == static_cast<int>(VarType::Int)) ? a0.data_.i : (a0.type_ == static_cast<int>(VarType::Float) ? a0.data_.f : 0.0);
-        int v1 = (a1.type_ == static_cast<int>(VarType::Int)) ? a1.data_.i : (a1.type_ == static_cast<int>(VarType::Float) ? static_cast<int>(a1.data_.f) : 0);
+        double v0 = inter::CVarToNumber(a0, 0.0);
+        int v1 = static_cast<int>(inter::CVarToInteger(a1, 0));
         return inter::NativeToFakeluaFloat(state, std::ldexp(v0, v1));
     });
 
@@ -211,11 +211,9 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.tointeger", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         if (a0.type_ == static_cast<int>(VarType::Int)) return a0;
-        if (a0.type_ == static_cast<int>(VarType::Float)) {
-            double f = a0.data_.f;
-            if (static_cast<double>(static_cast<int64_t>(f)) == f) {
-                return inter::NativeToFakeluaInt(state, static_cast<int64_t>(f));
-            }
+        double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
+        if (!std::isnan(f) && static_cast<double>(static_cast<int64_t>(f)) == f) {
+            return inter::NativeToFakeluaInt(state, static_cast<int64_t>(f));
         }
         return inter::NativeToFakeluaNil(state);
     });
