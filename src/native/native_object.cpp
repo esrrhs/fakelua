@@ -69,9 +69,13 @@ NativeField CVarToNativeField(CVar v) {
         f.f = v.data_.f;
     } else if (t == static_cast<int>(VarType::String) || t == static_cast<int>(VarType::StringId)) {
         f.kind = NativeField::Kind::String;
-        const VarString *vs = (t == static_cast<int>(VarType::String)) ? v.data_.s : reinterpret_cast<VarString *>(v.data_.i);
-        f.s = std::string(vs->Str());
-        f.vs_dirty = true;
+        const VarString *vs = (t == static_cast<int>(VarType::String)) ? v.data_.s : reinterpret_cast<const VarString *>(v.data_.i);
+        if (vs) {
+            f.s = std::string(vs->Str());
+            f.vs_dirty = true;
+        } else {
+            f.kind = NativeField::Kind::Nil;
+        }
     } else if (t == static_cast<int>(VarType::Table)) {
         // 如果是 NativeObject 的 wrapper，记录引用；否则视为 nil
         NativeObject *nested = NativeObject::Unwrap(v);
@@ -358,13 +362,15 @@ CVar NativeObject::Wrap(State *s) const {
         for (const auto &[k, v]: impl_->kv) {
             // key：在 arena 中分配 VarString
             const size_t klen = k.size();
-            auto *vs = static_cast<VarString *>(alloc.Alloc(sizeof(VarString) + klen));
+            auto *vs = static_cast<VarString *>(alloc.Alloc(sizeof(VarString) + klen + 1));
             // 直接写 POD 字段
             *reinterpret_cast<int *>(vs) = static_cast<int>(klen);
             *reinterpret_cast<uint32_t *>(reinterpret_cast<char *>(vs) + sizeof(int)) = 0u;
+            char *buf = reinterpret_cast<char *>(vs) + sizeof(VarString);
             if (klen > 0) {
-                std::memcpy(reinterpret_cast<char *>(vs) + sizeof(VarString), k.data(), klen);
+                std::memcpy(buf, k.data(), klen);
             }
+            buf[klen] = '\0';
 
             vtbl->spec_keys[i].type_ = static_cast<int>(VarType::String);
             vtbl->spec_keys[i].flag_ = 0;

@@ -42,7 +42,6 @@ void RegisterOsLibraryApi(State *s) {
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
             if (a0.type_ == static_cast<int>(VarType::Int) || a0.type_ == static_cast<int>(VarType::Float)) {
-                // os.date(time) -> single numeric time argument
                 t_val = static_cast<std::time_t>(inter::CVarToInteger(a0, 0));
                 has_time = true;
                 use_default_format = true;
@@ -56,15 +55,30 @@ void RegisterOsLibraryApi(State *s) {
                     }
                 }
             } else {
-                fmt = KeyToStringView(a0);
-                if (fmt.empty()) {
-                    use_default_format = true;
+                std::string_view candidate_fmt = KeyToStringView(a0);
+                // Check if candidate_fmt is purely a numeric timestamp string (e.g. "1700000000")
+                bool is_num = !candidate_fmt.empty();
+                for (char c: candidate_fmt) {
+                    if (!std::isdigit(static_cast<unsigned char>(c)) && c != '-') {
+                        is_num = false;
+                        break;
+                    }
                 }
-                if (n >= 2) {
-                    CVar a1 = inter::GetNativeArg(state, args, n, 1);
-                    if (a1.type_ != static_cast<int>(VarType::Nil)) {
-                        t_val = static_cast<std::time_t>(inter::CVarToInteger(a1, 0));
-                        has_time = true;
+                if (is_num) {
+                    t_val = static_cast<std::time_t>(inter::CVarToInteger(a0, 0));
+                    has_time = true;
+                    use_default_format = true;
+                } else {
+                    fmt = candidate_fmt;
+                    if (fmt.empty()) {
+                        use_default_format = true;
+                    }
+                    if (n >= 2) {
+                        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+                        if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                            t_val = static_cast<std::time_t>(inter::CVarToInteger(a1, 0));
+                            has_time = true;
+                        }
                     }
                 }
             }
