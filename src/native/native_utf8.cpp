@@ -127,14 +127,7 @@ static CVar Utf8Char(State *state, CVar *args, int n) {
 static CVar Utf8Codepoint(State *state, CVar *args, int n) {
     if (n < 1) return inter::NativeToFakeluaNil(state);
 
-    CVar s_arg = inter::GetNativeArg(state, args, n, 0);
-    std::string s_str;
-    if (s_arg.type_ == static_cast<int>(VarType::String) || s_arg.type_ == static_cast<int>(VarType::StringId)) {
-        s_str = std::string(KeyToStringView(s_arg));
-    } else if (s_arg.type_ != static_cast<int>(VarType::Nil)) {
-        s_str = AsVar(s_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-    }
-    std::string_view sv = s_str;
+    std::string_view sv = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
     if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
     int64_t len = static_cast<int64_t>(sv.size());
@@ -256,14 +249,7 @@ static CVar Utf8Codes(State *state, CVar *args, int n) {
 static CVar Utf8Len(State *state, CVar *args, int n) {
     if (n < 1) return inter::NativeToFakeluaNil(state);
 
-    CVar s_arg = inter::GetNativeArg(state, args, n, 0);
-    std::string s_str;
-    if (s_arg.type_ == static_cast<int>(VarType::String) || s_arg.type_ == static_cast<int>(VarType::StringId)) {
-        s_str = std::string(KeyToStringView(s_arg));
-    } else if (s_arg.type_ != static_cast<int>(VarType::Nil)) {
-        s_str = AsVar(s_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-    }
-    std::string_view sv = s_str;
+    std::string_view sv = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
     if (sv.empty()) return inter::NativeToFakeluaInt(state, 0);
 
     int64_t byte_len = static_cast<int64_t>(sv.size());
@@ -295,7 +281,7 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
             // Invalid byte sequence - return nil + byte position
             CVar multi = inter::AllocMultiCVar(state, 2);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, static_cast<int64_t>(start + 1)));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(start + 1)));
             return multi;
         }
         if (static_cast<int64_t>(start + 1) >= i) {
@@ -303,7 +289,7 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
         }
     }
 
-    return inter::NativeToFakeluaInt(state, count);
+    return inter::NativeToFakeluaLonglong(state, count);
 }
 
 // ─── utf8.offset(s, n [, i]) ───
@@ -312,14 +298,15 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
 static CVar Utf8Offset(State *state, CVar *args, int n) {
     if (n < 2) return inter::NativeToFakeluaNil(state);
 
-    CVar s_arg = inter::GetNativeArg(state, args, n, 0);
-    std::string s_str;
-    if (s_arg.type_ == static_cast<int>(VarType::String) || s_arg.type_ == static_cast<int>(VarType::StringId)) {
-        s_str = std::string(KeyToStringView(s_arg));
-    } else if (s_arg.type_ != static_cast<int>(VarType::Nil)) {
-        s_str = AsVar(s_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+    CVar a0 = inter::GetNativeArg(state, args, n, 0);
+    std::string s_sv;
+    std::string_view sv;
+    if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+        sv = KeyToStringView(a0);
+    } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
+        s_sv = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        sv = s_sv;
     }
-    std::string_view sv = s_str;
     if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
     int64_t byte_len = static_cast<int64_t>(sv.size());
@@ -336,22 +323,13 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     if (start_i > byte_len + 1) start_i = byte_len + 1;
 
     if (target_n == 0) {
-        // Find the start of the UTF-8 character that contains position start_i
-        size_t pos = 0;
-        while (pos < sv.size()) {
-            size_t char_start = pos;
-            int64_t cp = DecodeUtf8(sv, pos);
-            if (cp < 0) return inter::NativeToFakeluaNil(state);
-            int64_t c_start = static_cast<int64_t>(char_start) + 1;
-            int64_t c_end = static_cast<int64_t>(pos);
-            if (start_i >= c_start && start_i <= c_end) {
-                return inter::NativeToFakeluaInt(state, c_start);
-            }
+        // Return the byte position of the character starting at or before start_i
+        if (start_i > byte_len) return inter::NativeToFakeluaLonglong(state, start_i);
+        size_t pos = static_cast<size_t>(start_i - 1);
+        while (pos > 0 && (static_cast<unsigned char>(sv[pos]) & 0xC0) == 0x80) {
+            --pos;
         }
-        if (start_i == byte_len + 1) {
-            return inter::NativeToFakeluaInt(state, start_i);
-        }
-        return inter::NativeToFakeluaNil(state);
+        return inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(pos + 1));
     }
 
     if (target_n > 0) {
@@ -365,7 +343,7 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
             if (cp < 0) return inter::NativeToFakeluaNil(state);
             char_count++;
             if (char_count == target_n) {
-                return inter::NativeToFakeluaInt(state, static_cast<int64_t>(char_start) + 1);
+                return inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(char_start) + 1);
             }
         }
         return inter::NativeToFakeluaNil(state);
@@ -387,7 +365,7 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
 
         // The byte position of the (idx+1)-th character (0-indexed idx)
         size_t byte_pos = char_positions[static_cast<size_t>(idx)];
-        return inter::NativeToFakeluaInt(state, static_cast<int64_t>(byte_pos) + 1);
+        return inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(byte_pos) + 1);
     }
 }
 
