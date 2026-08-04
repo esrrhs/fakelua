@@ -1245,17 +1245,11 @@ void RegisterStringLibraryApi(State *s) {
                 align_up(static_cast<size_t>(sz));
 
                 if (is_unsigned) {
-                    uint64_t v = 0;
-                    if (val.type_ == static_cast<int>(VarType::Int)) v = static_cast<uint64_t>(val.data_.i);
-                    else if (val.type_ == static_cast<int>(VarType::Float))
-                        v = static_cast<uint64_t>(val.data_.f);
+                    uint64_t v = static_cast<uint64_t>(inter::CVarToInteger(val, 0));
                     if (sz < 8) v &= ((uint64_t{1} << (sz * 8)) - 1);
                     PackMachine::WriteVal(result, &v, static_cast<size_t>(sz), pm.big_endian);
                 } else {
-                    int64_t v = 0;
-                    if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                    else if (val.type_ == static_cast<int>(VarType::Float))
-                        v = static_cast<int64_t>(val.data_.f);
+                    int64_t v = inter::CVarToInteger(val, 0);
                     uint64_t uv = static_cast<uint64_t>(v);
                     if (sz < 8) uv &= ((uint64_t{1} << (sz * 8)) - 1);
                     PackMachine::WriteVal(result, &uv, static_cast<size_t>(sz), pm.big_endian);
@@ -1268,78 +1262,85 @@ void RegisterStringLibraryApi(State *s) {
 
             switch (c) {
                 case 'b': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     result.push_back(static_cast<char>(v));
                     break;
                 }
                 case 'B': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     result.push_back(static_cast<char>(static_cast<unsigned char>(v)));
                     break;
                 }
                 case 'h': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(2);
                     int16_t sv = static_cast<int16_t>(v);
                     PackMachine::WriteVal(result, &sv, 2, pm.big_endian);
                     break;
                 }
                 case 'H': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(2);
                     uint16_t sv = static_cast<uint16_t>(v);
                     PackMachine::WriteVal(result, &sv, 2, pm.big_endian);
                     break;
                 }
                 case 'l': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(4);
                     int32_t sv = static_cast<int32_t>(v);
                     PackMachine::WriteVal(result, &sv, 4, pm.big_endian);
                     break;
                 }
                 case 'L': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(4);
                     uint32_t sv = static_cast<uint32_t>(v);
                     PackMachine::WriteVal(result, &sv, 4, pm.big_endian);
                     break;
                 }
                 case 'j': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(8);
                     PackMachine::WriteVal(result, &v, 8, pm.big_endian);
                     break;
                 }
                 case 'J': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(8);
                     uint64_t uv = static_cast<uint64_t>(v);
                     PackMachine::WriteVal(result, &uv, 8, pm.big_endian);
                     break;
                 }
                 case 'T': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(8);
                     uint64_t uv = static_cast<uint64_t>(v);
                     PackMachine::WriteVal(result, &uv, 8, pm.big_endian);
                     break;
                 }
                 case 'f': {
-                    double dv = (val.type_ == static_cast<int>(VarType::Float)) ? val.data_.f : (val.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(val.data_.i) : 0.0;
+                    double dv = inter::CVarToNumber(val, 0.0);
                     align_up(4);
                     float fv = static_cast<float>(dv);
                     PackMachine::WriteVal(result, &fv, 4, pm.big_endian);
                     break;
                 }
                 case 'd': {
-                    double dv = (val.type_ == static_cast<int>(VarType::Float)) ? val.data_.f : (val.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(val.data_.i) : 0.0;
+                    double dv = inter::CVarToNumber(val, 0.0);
                     align_up(8);
                     PackMachine::WriteVal(result, &dv, 8, pm.big_endian);
                     break;
                 }
                 case 'z': {
-                    std::string_view sv = KeyToStringView(val);
+                    std::string s_val;
+                    std::string_view sv;
+                    if (val.type_ == static_cast<int>(VarType::String) || val.type_ == static_cast<int>(VarType::StringId)) {
+                        sv = KeyToStringView(val);
+                    } else if (val.type_ != static_cast<int>(VarType::Nil)) {
+                        s_val = AsVar(val).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+                        sv = s_val;
+                    }
                     result.append(sv.data(), sv.size());
                     result.push_back('\0');
                     break;
