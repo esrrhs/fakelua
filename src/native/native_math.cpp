@@ -250,7 +250,8 @@ void RegisterMathLibraryApi(State *s) {
         } else {
             int64_t l = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 0), 0);
             int64_t u = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 0);
-            if (l >= u) return inter::NativeToFakeluaInt(state, l);
+            if (l > u) return inter::NativeToFakeluaNil(state);
+            if (l == u) return inter::NativeToFakeluaInt(state, l);
             int64_t range = u - l + 1;
             if (range <= 0) return inter::NativeToFakeluaInt(state, l);
             int64_t r = l + (static_cast<int64_t>(std::rand()) % range);
