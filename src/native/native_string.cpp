@@ -146,24 +146,14 @@ int PackMachine::PackSpec(std::string &out, const char *fmt, const char *end, St
             PadToMultiple(out, static_cast<size_t>(sz));
 
             if (is_unsigned) {
-                uint64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) {
-                    v = static_cast<uint64_t>(val.data_.i);
-                } else if (val.type_ == static_cast<int>(VarType::Float)) {
-                    v = static_cast<uint64_t>(val.data_.f);
-                }
+                uint64_t v = static_cast<uint64_t>(inter::CVarToInteger(val, 0));
                 if (sz < 8) {
                     uint64_t mask = (uint64_t{1} << (sz * 8)) - 1;
                     v &= mask;
                 }
                 WriteVal(out, &v, static_cast<size_t>(sz), big_endian);
             } else {
-                int64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) {
-                    v = val.data_.i;
-                } else if (val.type_ == static_cast<int>(VarType::Float)) {
-                    v = static_cast<int64_t>(val.data_.f);
-                }
+                int64_t v = inter::CVarToInteger(val, 0);
                 uint64_t uv = static_cast<uint64_t>(v);
                 if (sz < 8) {
                     uint64_t mask = (uint64_t{1} << (sz * 8)) - 1;
@@ -181,107 +171,74 @@ int PackMachine::PackSpec(std::string &out, const char *fmt, const char *end, St
 
         switch (c) {
             case 'b': {// signed char
-                int64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                else if (val.type_ == static_cast<int>(VarType::Float))
-                    v = static_cast<int64_t>(val.data_.f);
+                int64_t v = inter::CVarToInteger(val, 0);
                 char b = static_cast<char>(v);
                 out.push_back(b);
                 break;
             }
             case 'B': {// unsigned char
-                int64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                else if (val.type_ == static_cast<int>(VarType::Float))
-                    v = static_cast<int64_t>(val.data_.f);
+                int64_t v = inter::CVarToInteger(val, 0);
                 unsigned char b = static_cast<unsigned char>(v);
                 out.push_back(static_cast<char>(b));
                 break;
             }
             case 'h': {// signed short
-                int64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                else if (val.type_ == static_cast<int>(VarType::Float))
-                    v = static_cast<int64_t>(val.data_.f);
+                int64_t v = inter::CVarToInteger(val, 0);
                 PadToMultiple(out, 2);
                 int16_t sv = static_cast<int16_t>(v);
                 WriteVal(out, &sv, 2, big_endian);
                 break;
             }
             case 'H': {// unsigned short
-                int64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                else if (val.type_ == static_cast<int>(VarType::Float))
-                    v = static_cast<int64_t>(val.data_.f);
+                int64_t v = inter::CVarToInteger(val, 0);
                 PadToMultiple(out, 2);
                 uint16_t sv = static_cast<uint16_t>(v);
                 WriteVal(out, &sv, 2, big_endian);
                 break;
             }
             case 'l': {// signed long (4 bytes in Lua)
-                int64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                else if (val.type_ == static_cast<int>(VarType::Float))
-                    v = static_cast<int64_t>(val.data_.f);
+                int64_t v = inter::CVarToInteger(val, 0);
                 PadToMultiple(out, 4);
                 int32_t sv = static_cast<int32_t>(v);
                 WriteVal(out, &sv, 4, big_endian);
                 break;
             }
             case 'L': {// unsigned long (4 bytes in Lua)
-                int64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                else if (val.type_ == static_cast<int>(VarType::Float))
-                    v = static_cast<int64_t>(val.data_.f);
+                int64_t v = inter::CVarToInteger(val, 0);
                 PadToMultiple(out, 4);
                 uint32_t sv = static_cast<uint32_t>(v);
                 WriteVal(out, &sv, 4, big_endian);
                 break;
             }
             case 'j': {// lua_integer (int64)
-                int64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                else if (val.type_ == static_cast<int>(VarType::Float))
-                    v = static_cast<int64_t>(val.data_.f);
+                int64_t v = inter::CVarToInteger(val, 0);
                 PadToMultiple(out, 8);
                 WriteVal(out, &v, 8, big_endian);
                 break;
             }
             case 'J': {// lua_unsigned (uint64)
-                int64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                else if (val.type_ == static_cast<int>(VarType::Float))
-                    v = static_cast<int64_t>(val.data_.f);
+                int64_t v = inter::CVarToInteger(val, 0);
                 PadToMultiple(out, 8);
                 uint64_t uv = static_cast<uint64_t>(v);
                 WriteVal(out, &uv, 8, big_endian);
                 break;
             }
             case 'T': {// size_t (8 bytes)
-                int64_t v = 0;
-                if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                else if (val.type_ == static_cast<int>(VarType::Float))
-                    v = static_cast<int64_t>(val.data_.f);
+                int64_t v = inter::CVarToInteger(val, 0);
                 PadToMultiple(out, 8);
                 uint64_t uv = static_cast<uint64_t>(v);
                 WriteVal(out, &uv, 8, big_endian);
                 break;
             }
             case 'f': {// float (4 bytes)
-                double dv = 0.0;
-                if (val.type_ == static_cast<int>(VarType::Float)) dv = val.data_.f;
-                else if (val.type_ == static_cast<int>(VarType::Int))
-                    dv = static_cast<double>(val.data_.i);
+                double dv = inter::CVarToNumber(val, 0.0);
                 PadToMultiple(out, 4);
                 float fv = static_cast<float>(dv);
                 WriteVal(out, &fv, 4, big_endian);
                 break;
             }
             case 'd': {// double (8 bytes)
-                double dv = 0.0;
-                if (val.type_ == static_cast<int>(VarType::Float)) dv = val.data_.f;
-                else if (val.type_ == static_cast<int>(VarType::Int))
-                    dv = static_cast<double>(val.data_.i);
+                double dv = inter::CVarToNumber(val, 0.0);
                 PadToMultiple(out, 8);
                 WriteVal(out, &dv, 8, big_endian);
                 break;
