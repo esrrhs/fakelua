@@ -371,20 +371,16 @@ void RegisterBasicLibraryApi(State *s) {
         int call_arg_count = n - 1;
         if (call_arg_count < 0) call_arg_count = 0;
 
-        constexpr int kMaxArgs = 16;
-        CVar call_args[kMaxArgs];
-        int actual_arg_count = 0;
-        for (int i = 0; i < call_arg_count && i < kMaxArgs; ++i) {
+        std::vector<CVar> call_args(call_arg_count);
+        for (int i = 0; i < call_arg_count; ++i) {
             call_args[i] = inter::GetNativeArg(state, args, n, i + 1);
-            actual_arg_count++;
         }
 
         int expected = cl->expected_arg_count;
         if (cl->is_vararg) {
             int fixed = std::max(0, expected - 1);
-            for (int i = actual_arg_count; i < fixed && i < kMaxArgs; ++i) {
-                call_args[i] = inter::NativeToFakeluaNil(state);
-                actual_arg_count++;
+            while (static_cast<int>(call_args.size()) < fixed) {
+                call_args.push_back(inter::NativeToFakeluaNil(state));
             }
         }
 
@@ -395,9 +391,9 @@ void RegisterBasicLibraryApi(State *s) {
         try {
             void *addr = cl->func_ptr;
             if (addr != nullptr) {
-                result = inter::DispatchCall(addr, call_args, actual_arg_count);
+                result = inter::DispatchCall(addr, call_args.data(), static_cast<int>(call_args.size()));
             } else if (cl->code_str) {
-                result = FlEvalLoadClosure(state, cl, actual_arg_count, call_args);
+                result = FlEvalLoadClosure(state, cl, static_cast<int>(call_args.size()), call_args.data());
             } else {
                 ThrowFakeluaException("pcall: closure has no code");
             }
