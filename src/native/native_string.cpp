@@ -449,7 +449,15 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.rep", 2, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string_view sv = KeyToStringView(a0);
+        std::string s_sv;
+        std::string_view sv;
+        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+            sv = KeyToStringView(a0);
+        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
+            s_sv = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+            sv = s_sv;
+        }
+
         int64_t rep_cnt = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 0);
         if (rep_cnt <= 0) return inter::NativeToFakeluaStringView(state, "");
 
@@ -458,7 +466,7 @@ void RegisterStringLibraryApi(State *s) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
             if (a2.type_ == static_cast<int>(VarType::String) || a2.type_ == static_cast<int>(VarType::StringId)) {
                 sep = std::string(KeyToStringView(a2));
-            } else {
+            } else if (a2.type_ != static_cast<int>(VarType::Nil)) {
                 sep = AsVar(a2).ToString(/*has_quote=*/false, /*has_postfix=*/false);
             }
         }
@@ -475,9 +483,14 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.reverse", 1, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string res(KeyToStringView(a0));
-        std::reverse(res.begin(), res.end());
-        return inter::NativeToFakeluaStringView(state, res);
+        std::string str_val;
+        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+            str_val = std::string(KeyToStringView(a0));
+        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
+            str_val = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        }
+        std::reverse(str_val.begin(), str_val.end());
+        return inter::NativeToFakeluaStringView(state, str_val);
     });
 
     RegisterNativeFunction(s, "string.lower", 1, false, [](State *state, CVar *args, int n) -> CVar {
@@ -633,28 +646,26 @@ void RegisterStringLibraryApi(State *s) {
                     }
                 }
             } else if (spec == 'd' || spec == 'i') {
-                int64_t ival =
-                        (curr_arg.type_ == static_cast<int>(VarType::Int)) ? curr_arg.data_.i : (curr_arg.type_ == static_cast<int>(VarType::Float) ? static_cast<int64_t>(curr_arg.data_.f) : 0);
+                int64_t ival = inter::CVarToInteger(curr_arg, 0);
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
                 char buf[128];
                 snprintf(buf, sizeof(buf), llspec.c_str(), ival);
                 res.append(buf);
             } else if (spec == 'u' || spec == 'x' || spec == 'X' || spec == 'o') {
-                uint64_t uval = (curr_arg.type_ == static_cast<int>(VarType::Int)) ? static_cast<uint64_t>(curr_arg.data_.i) : 0;
+                uint64_t uval = static_cast<uint64_t>(inter::CVarToInteger(curr_arg, 0));
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
                 char buf[128];
                 snprintf(buf, sizeof(buf), llspec.c_str(), uval);
                 res.append(buf);
             } else if (spec == 'f' || spec == 'e' || spec == 'E' || spec == 'g' || spec == 'G') {
-                double fval =
-                        (curr_arg.type_ == static_cast<int>(VarType::Float)) ? curr_arg.data_.f : (curr_arg.type_ == static_cast<int>(VarType::Int) ? static_cast<double>(curr_arg.data_.i) : 0.0);
+                double fval = inter::CVarToNumber(curr_arg, 0.0);
                 char buf[128];
                 snprintf(buf, sizeof(buf), spec_str.c_str(), fval);
                 res.append(buf);
             } else if (spec == 'c') {
-                int64_t cval = (curr_arg.type_ == static_cast<int>(VarType::Int)) ? curr_arg.data_.i : 0;
+                int64_t cval = inter::CVarToInteger(curr_arg, 0);
                 res.push_back(static_cast<char>(cval));
             } else if (spec == 'p') {
                 // 指针地址：格式化为 0x 前缀的十六进制（始终输出 0x...，即使值为 0）
