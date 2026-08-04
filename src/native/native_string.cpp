@@ -410,20 +410,32 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     }
 }
 
+static std::string_view GetStringArgView(CVar a, std::string &temp) {
+    if (a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) {
+        return KeyToStringView(a);
+    } else if (a.type_ != static_cast<int>(VarType::Nil)) {
+        temp = AsVar(a).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        return temp;
+    }
+    return {};
+}
+
 void RegisterStringLibraryApi(State *s) {
     if (!s) return;
 
     RegisterNativeFunction(s, "string.len", 1, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaInt(state, 0);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string_view sv = KeyToStringView(a0);
+        std::string temp;
+        std::string_view sv = GetStringArgView(a0, temp);
         return inter::NativeToFakeluaInt(state, static_cast<int64_t>(sv.size()));
     });
 
     RegisterNativeFunction(s, "string.sub", 2, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string_view sv = KeyToStringView(a0);
+        std::string temp;
+        std::string_view sv = GetStringArgView(a0, temp);
         int64_t len = static_cast<int64_t>(sv.size());
 
         int64_t start_pos = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 1);
@@ -449,14 +461,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.rep", 2, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string s_sv;
-        std::string_view sv;
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            sv = KeyToStringView(a0);
-        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
-            s_sv = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-            sv = s_sv;
-        }
+        std::string temp;
+        std::string_view sv = GetStringArgView(a0, temp);
 
         int64_t rep_cnt = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 0);
         if (rep_cnt <= 0) return inter::NativeToFakeluaStringView(state, "");
@@ -483,12 +489,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.reverse", 1, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string str_val;
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            str_val = std::string(KeyToStringView(a0));
-        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
-            str_val = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-        }
+        std::string temp;
+        std::string str_val(GetStringArgView(a0, temp));
         std::reverse(str_val.begin(), str_val.end());
         return inter::NativeToFakeluaStringView(state, str_val);
     });
@@ -496,7 +498,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.lower", 1, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string res(KeyToStringView(a0));
+        std::string temp;
+        std::string res(GetStringArgView(a0, temp));
         std::transform(res.begin(), res.end(), res.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         return inter::NativeToFakeluaStringView(state, res);
     });
@@ -504,7 +507,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.upper", 1, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string res(KeyToStringView(a0));
+        std::string temp;
+        std::string res(GetStringArgView(a0, temp));
         std::transform(res.begin(), res.end(), res.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
         return inter::NativeToFakeluaStringView(state, res);
     });
@@ -512,7 +516,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.byte", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string_view sv = KeyToStringView(a0);
+        std::string temp;
+        std::string_view sv = GetStringArgView(a0, temp);
         int64_t len = static_cast<int64_t>(sv.size());
         if (len == 0) return inter::NativeToFakeluaNil(state);
 
@@ -532,7 +537,7 @@ void RegisterStringLibraryApi(State *s) {
         end_pos = NormalizePos(end_pos, len);
 
         if (start_pos < 1 || start_pos > len || end_pos < start_pos) {
-            return inter::NativeToFakeluaNil(state);
+            return inter::AllocMultiCVar(state, 0);
         }
 
         if (end_pos > len) end_pos = len;
@@ -710,8 +715,9 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        std::string_view sv = KeyToStringView(a0);
-        std::string_view pat_view = KeyToStringView(a1);
+        std::string temp0, temp1;
+        std::string_view sv = GetStringArgView(a0, temp0);
+        std::string_view pat_view = GetStringArgView(a1, temp1);
         int64_t len = static_cast<int64_t>(sv.size());
 
         int64_t init_pos = 1;
@@ -771,8 +777,9 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        std::string_view sv = KeyToStringView(a0);
-        std::string_view pat_view = KeyToStringView(a1);
+        std::string temp0, temp1;
+        std::string_view sv = GetStringArgView(a0, temp0);
+        std::string_view pat_view = GetStringArgView(a1, temp1);
         int64_t len = static_cast<int64_t>(sv.size());
 
         int64_t init_pos = 1;
@@ -1019,7 +1026,8 @@ void RegisterStringLibraryApi(State *s) {
     auto load_impl = [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar code_var = inter::GetNativeArg(state, args, n, 0);
-        std::string_view sv = KeyToStringView(code_var);
+        std::string temp;
+        std::string_view sv = GetStringArgView(code_var, temp);
         if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
         int upval_cnt = 0;
@@ -1106,7 +1114,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "loadfile", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar filename_var = inter::GetNativeArg(state, args, n, 0);
-        std::string_view filename_sv = KeyToStringView(filename_var);
+        std::string temp;
+        std::string_view filename_sv = GetStringArgView(filename_var, temp);
         if (filename_sv.empty()) return inter::NativeToFakeluaNil(state);
 
         // 读取文件内容
@@ -1131,7 +1140,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "dofile", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar filename_var = inter::GetNativeArg(state, args, n, 0);
-        std::string_view filename_sv = KeyToStringView(filename_var);
+        std::string temp;
+        std::string_view filename_sv = GetStringArgView(filename_var, temp);
         if (filename_sv.empty()) return inter::NativeToFakeluaNil(state);
 
         std::ifstream ifs(std::string(filename_sv), std::ios::in | std::ios::binary);
@@ -1504,8 +1514,9 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
         CVar str_var = inter::GetNativeArg(state, args, n, 1);
-        std::string_view fmt = KeyToStringView(fmt_var);
-        std::string_view data = KeyToStringView(str_var);
+        std::string temp_fmt, temp_data;
+        std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
+        std::string_view data = GetStringArgView(str_var, temp_data);
         if (fmt.empty() || data.empty()) return inter::NativeToFakeluaNil(state);
 
         int start_pos = 1;
