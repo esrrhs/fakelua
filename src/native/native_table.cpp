@@ -84,6 +84,60 @@ CVar TableHelper::GetTableInt(State *s, CVar tbl, int64_t idx) {
     return CVar{static_cast<int>(VarType::Nil)};
 }
 
+CVar TableHelper::GetTableStrId(State *s, CVar tbl, const char *str_key) {
+    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t || !str_key) return CVar{static_cast<int>(VarType::Nil)};
+    VarTable *t = tbl.data_.t;
+    std::string_view target_key(str_key);
+
+    auto var_key_match_str = [](CVar k, std::string_view target) -> bool {
+        if (k.type_ == static_cast<int>(VarType::StringId)) {
+            if (!k.data_.i) return false;
+            const char *ptr = reinterpret_cast<const char *>(k.data_.i);
+            int sz = *reinterpret_cast<const int *>(ptr);
+            return static_cast<size_t>(sz) == target.size() && std::memcmp(ptr + 8, target.data(), target.size()) == 0;
+        }
+        if (k.type_ == static_cast<int>(VarType::String)) {
+            if (!k.data_.s) return false;
+            return k.data_.s->Str() == target;
+        }
+        return false;
+    };
+
+    if (t->spec_get) {
+        using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
+        auto get_fn = reinterpret_cast<SpecGetFn>(t->spec_get);
+        CVar key_cvar = inter::NativeToFakeluaString(s, std::string(target_key));
+        bool finish = false;
+        CVar r = get_fn(t, key_cvar, &finish);
+        if (finish && r.type_ != static_cast<int>(VarType::Nil)) return r;
+    }
+
+    if (t->spec_count > 0 && t->spec_vals && t->spec_keys) {
+        for (uint32_t i = 0; i < t->spec_count; ++i) {
+            if (var_key_match_str(t->spec_keys[i], target_key)) {
+                return t->spec_vals[i];
+            }
+        }
+    }
+
+    for (const auto &qd: t->quick_data_) {
+        if (var_key_match_str(qd.key, target_key)) {
+            return qd.val;
+        }
+    }
+
+    if (t->nodes_ && t->bucket_count_ > 0) {
+        for (uint32_t i = 0; i < t->count_; ++i) {
+            uint32_t node_idx = t->active_list_[i];
+            const auto &entry = t->nodes_[node_idx].entry;
+            if (var_key_match_str(entry.key, target_key)) {
+                return entry.val;
+            }
+        }
+    }
+    return CVar{static_cast<int>(VarType::Nil)};
+}
+
 void TableHelper::SetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
     VarTable *t = tbl.data_.t;
@@ -216,6 +270,7 @@ void RegisterTableLibraryApi(State *s) {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
             CVar val = inter::GetNativeArg(state, args, n, 2);
             int64_t pos = inter::CVarToInteger(pos_var, 1);
+            if (pos < 1 || pos > len + 1) return inter::NativeToFakeluaNil(state);
             for (int64_t i = len; i >= pos; --i) {
                 CVar item = TableHelper::GetTableInt(state, tbl, i);
                 TableHelper::SetTableInt(state, tbl, i + 1, item);
@@ -272,8 +327,6 @@ void RegisterTableLibraryApi(State *s) {
             CVar item = TableHelper::GetTableInt(state, tbl, idx);
             if (item.type_ == static_cast<int>(VarType::Int)) {
                 res += std::to_string(item.data_.i);
-            } else if (item.type_ == static_cast<int>(VarType::Float)) {
-                res += std::to_string(item.data_.f);
             } else if (item.type_ == static_cast<int>(VarType::String) || item.type_ == static_cast<int>(VarType::StringId)) {
                 auto sv = KeyToStringView(item);
                 res += std::string(sv);
@@ -335,6 +388,9 @@ void RegisterTableLibraryApi(State *s) {
         CVar e_var = inter::GetNativeArg(state, args, n, 2);
         CVar t_var = inter::GetNativeArg(state, args, n, 3);
         CVar a2 = (n >= 5) ? inter::GetNativeArg(state, args, n, 4) : a1;
+        if (a2.type_ == static_cast<int>(VarType::Nil)) {
+            a2 = a1;
+        }
 
         int64_t f = inter::CVarToInteger(f_var, 1);
         int64_t e = inter::CVarToInteger(e_var, 0);
@@ -399,12 +455,11 @@ void RegisterTableLibraryApi(State *s) {
                 if (a.type_ == static_cast<int>(VarType::Float) && b.type_ == static_cast<int>(VarType::Int)) {
                     return a.data_.f < static_cast<double>(b.data_.i);
                 }
-                auto sa = KeyToStringView(a);
-                auto sb = KeyToStringView(b);
-                if (!sa.empty() || !sb.empty()) {
-                    return sa < sb;
-                }
-                return false;
+                std::string sa = (a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) ? std::string(KeyToStringView(a))
+                                                                                                                                  : AsVar(a).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+                std::string sb = (b.type_ == static_cast<int>(VarType::String) || b.type_ == static_cast<int>(VarType::StringId)) ? std::string(KeyToStringView(b))
+                                                                                                                                  : AsVar(b).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+                return sa < sb;
             };
             std::stable_sort(vec.begin(), vec.end(), default_comp);
         }

@@ -20,5 +20,11 @@ function test_string_format()
         return 0
     end
 
+    -- 验证 %c, %x, %f 等的数字字符串与浮点数隐式转换
+    if string.format("%c", "65") ~= "A" then return 0 end
+    if string.format("%c", 65.0) ~= "A" then return 0 end
+    if string.format("%x", "255") ~= "ff" then return 0 end
+    if string.format("%.2f", "3.14") ~= "3.14" then return 0 end
+
     return 600
 end

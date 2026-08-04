@@ -25,5 +25,9 @@ function test_string_match()
     local m4 = string.match(s, "xyz")
     if m4 ~= nil then return 6 end
 
+    -- 数字参数隐式转换 (Lua 标准规范)
+    local m5 = string.match(12345, "34")
+    if m5 ~= "34" then return 7 end
+
     return 2000
 end

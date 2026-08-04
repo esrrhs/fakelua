@@ -295,7 +295,7 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
             // Invalid byte sequence - return nil + byte position
             CVar multi = inter::AllocMultiCVar(state, 2);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(start + 1)));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, static_cast<int64_t>(start + 1)));
             return multi;
         }
         if (static_cast<int64_t>(start + 1) >= i) {
@@ -303,7 +303,7 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
         }
     }
 
-    return inter::NativeToFakeluaLonglong(state, count);
+    return inter::NativeToFakeluaInt(state, count);
 }
 
 // ─── utf8.offset(s, n [, i]) ───
@@ -336,8 +336,22 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     if (start_i > byte_len + 1) start_i = byte_len + 1;
 
     if (target_n == 0) {
-        // Return the byte position of the first character in the range
-        return inter::NativeToFakeluaLonglong(state, start_i);
+        // Find the start of the UTF-8 character that contains position start_i
+        size_t pos = 0;
+        while (pos < sv.size()) {
+            size_t char_start = pos;
+            int64_t cp = DecodeUtf8(sv, pos);
+            if (cp < 0) return inter::NativeToFakeluaNil(state);
+            int64_t c_start = static_cast<int64_t>(char_start) + 1;
+            int64_t c_end = static_cast<int64_t>(pos);
+            if (start_i >= c_start && start_i <= c_end) {
+                return inter::NativeToFakeluaInt(state, c_start);
+            }
+        }
+        if (start_i == byte_len + 1) {
+            return inter::NativeToFakeluaInt(state, start_i);
+        }
+        return inter::NativeToFakeluaNil(state);
     }
 
     if (target_n > 0) {
@@ -351,7 +365,7 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
             if (cp < 0) return inter::NativeToFakeluaNil(state);
             char_count++;
             if (char_count == target_n) {
-                return inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(char_start) + 1);
+                return inter::NativeToFakeluaInt(state, static_cast<int64_t>(char_start) + 1);
             }
         }
         return inter::NativeToFakeluaNil(state);
@@ -373,7 +387,7 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
 
         // The byte position of the (idx+1)-th character (0-indexed idx)
         size_t byte_pos = char_positions[static_cast<size_t>(idx)];
-        return inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(byte_pos) + 1);
+        return inter::NativeToFakeluaInt(state, static_cast<int64_t>(byte_pos) + 1);
     }
 }
 

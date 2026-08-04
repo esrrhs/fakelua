@@ -24,5 +24,9 @@ function test_utf8_offset()
     local o6 = utf8.offset("abc", -1)
     if o6 ~= 3 then return 0 end
 
+    -- n = 0: 寻址包含字节 i 的字符首字节位置 ("中文" = 6 字节，第 2 字节包含在 "中")
+    local o7 = utf8.offset("中文", 0, 2)
+    if o7 ~= 1 then return 0 end
+
     return 6000
 end

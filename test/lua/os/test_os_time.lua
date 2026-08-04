@@ -33,5 +33,9 @@ function test_os_time()
     local t4 = os.time(dyn_tbl)
     if t4 ~= t3 then return 0 end
 
+    -- os.difftime 支持数字字符串参数测试 (Lua 兼容)
+    local diff = os.difftime("200", "100")
+    if diff ~= 100.0 then return 0 end
+
     return 6000
 end

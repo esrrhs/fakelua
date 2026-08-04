@@ -122,5 +122,13 @@ function test_string_pack_unpack()
     local un_val, un_pos = string.unpack("!4i4", p_align, 5)
     if un_val ~= 100 then return 47 end
 
+    -- 数字字符串与数字数据隐式转换打包与解包测试 (Lua 5.3+ 规范)
+    local p_str_num = string.pack("d", "3.14")
+    local d_str_num = string.unpack("d", p_str_num)
+    if math.abs(d_str_num - 3.14) > 0.0001 then return 48 end
+
+    local un_num_data = string.unpack("b", 12345)
+    if un_num_data == nil then return 49 end
+
     return 5000
 end

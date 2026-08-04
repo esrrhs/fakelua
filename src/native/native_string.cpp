@@ -456,17 +456,27 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
 void RegisterStringLibraryApi(State *s) {
     if (!s) return;
 
-    RegisterNativeFunction(s, "string.len", 1, false, [](State *state, CVar *args, int n) -> CVar {
+    auto get_str_arg = [](CVar a) -> std::string {
+        if (a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) {
+            return std::string(KeyToStringView(a));
+        } else if (a.type_ != static_cast<int>(VarType::Nil)) {
+            return AsVar(a).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        }
+        return "";
+    };
+
+    RegisterNativeFunction(s, "string.len", 1, false, [get_str_arg](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaInt(state, 0);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string_view sv = KeyToStringView(a0);
-        return inter::NativeToFakeluaInt(state, static_cast<int64_t>(sv.size()));
+        std::string s_str = get_str_arg(a0);
+        return inter::NativeToFakeluaInt(state, static_cast<int64_t>(s_str.size()));
     });
 
-    RegisterNativeFunction(s, "string.sub", 2, true, [](State *state, CVar *args, int n) -> CVar {
+    RegisterNativeFunction(s, "string.sub", 2, true, [get_str_arg](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string_view sv = KeyToStringView(a0);
+        std::string s_str = get_str_arg(a0);
+        std::string_view sv = s_str;
         int64_t len = static_cast<int64_t>(sv.size());
 
         int64_t start_pos = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 1);
@@ -489,23 +499,20 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaStringView(state, sv.substr(static_cast<size_t>(start_pos - 1), sub_len));
     });
 
-    RegisterNativeFunction(s, "string.rep", 2, true, [](State *state, CVar *args, int n) -> CVar {
+    RegisterNativeFunction(s, "string.rep", 2, true, [get_str_arg](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string_view sv = KeyToStringView(a0);
         int64_t rep_cnt = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 0);
         if (rep_cnt <= 0) return inter::NativeToFakeluaStringView(state, "");
 
         std::string sep = "";
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            if (a2.type_ == static_cast<int>(VarType::String) || a2.type_ == static_cast<int>(VarType::StringId)) {
-                sep = std::string(KeyToStringView(a2));
-            } else {
-                sep = AsVar(a2).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-            }
+            sep = get_str_arg(a2);
         }
 
+        std::string s_str = get_str_arg(a0);
+        std::string_view sv = s_str;
         std::string res;
         res.reserve((sv.size() + sep.size()) * static_cast<size_t>(rep_cnt));
         for (int64_t i = 0; i < rep_cnt; ++i) {
@@ -515,36 +522,37 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaStringView(state, res);
     });
 
-    RegisterNativeFunction(s, "string.reverse", 1, false, [](State *state, CVar *args, int n) -> CVar {
+    RegisterNativeFunction(s, "string.reverse", 1, false, [get_str_arg](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string res(KeyToStringView(a0));
+        std::string res = get_str_arg(a0);
         std::reverse(res.begin(), res.end());
         return inter::NativeToFakeluaStringView(state, res);
     });
 
-    RegisterNativeFunction(s, "string.lower", 1, false, [](State *state, CVar *args, int n) -> CVar {
+    RegisterNativeFunction(s, "string.lower", 1, false, [get_str_arg](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string res(KeyToStringView(a0));
+        std::string res = get_str_arg(a0);
         std::transform(res.begin(), res.end(), res.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         return inter::NativeToFakeluaStringView(state, res);
     });
 
-    RegisterNativeFunction(s, "string.upper", 1, false, [](State *state, CVar *args, int n) -> CVar {
+    RegisterNativeFunction(s, "string.upper", 1, false, [get_str_arg](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string res(KeyToStringView(a0));
+        std::string res = get_str_arg(a0);
         std::transform(res.begin(), res.end(), res.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
         return inter::NativeToFakeluaStringView(state, res);
     });
 
-    RegisterNativeFunction(s, "string.byte", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaNil(state);
+    RegisterNativeFunction(s, "string.byte", 1, true, [get_str_arg](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::AllocMultiCVar(state, 0);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string_view sv = KeyToStringView(a0);
+        std::string s_str = get_str_arg(a0);
+        std::string_view sv = s_str;
         int64_t len = static_cast<int64_t>(sv.size());
-        if (len == 0) return inter::NativeToFakeluaNil(state);
+        if (len == 0) return inter::AllocMultiCVar(state, 0);
 
         int64_t start_pos = 1;
         if (n >= 2) {
@@ -562,7 +570,7 @@ void RegisterStringLibraryApi(State *s) {
         end_pos = NormalizePos(end_pos, len);
 
         if (start_pos < 1 || start_pos > len || end_pos < start_pos) {
-            return inter::NativeToFakeluaNil(state);
+            return inter::AllocMultiCVar(state, 0);
         }
 
         if (end_pos > len) end_pos = len;
@@ -676,28 +684,26 @@ void RegisterStringLibraryApi(State *s) {
                     }
                 }
             } else if (spec == 'd' || spec == 'i') {
-                int64_t ival =
-                        (curr_arg.type_ == static_cast<int>(VarType::Int)) ? curr_arg.data_.i : (curr_arg.type_ == static_cast<int>(VarType::Float) ? static_cast<int64_t>(curr_arg.data_.f) : 0);
+                int64_t ival = inter::CVarToInteger(curr_arg, 0);
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
                 char buf[128];
                 snprintf(buf, sizeof(buf), llspec.c_str(), ival);
                 res.append(buf);
             } else if (spec == 'u' || spec == 'x' || spec == 'X' || spec == 'o') {
-                uint64_t uval = (curr_arg.type_ == static_cast<int>(VarType::Int)) ? static_cast<uint64_t>(curr_arg.data_.i) : 0;
+                uint64_t uval = static_cast<uint64_t>(inter::CVarToInteger(curr_arg, 0));
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
                 char buf[128];
                 snprintf(buf, sizeof(buf), llspec.c_str(), uval);
                 res.append(buf);
             } else if (spec == 'f' || spec == 'e' || spec == 'E' || spec == 'g' || spec == 'G') {
-                double fval =
-                        (curr_arg.type_ == static_cast<int>(VarType::Float)) ? curr_arg.data_.f : (curr_arg.type_ == static_cast<int>(VarType::Int) ? static_cast<double>(curr_arg.data_.i) : 0.0);
+                double fval = inter::CVarToNumber(curr_arg, 0.0);
                 char buf[128];
                 snprintf(buf, sizeof(buf), spec_str.c_str(), fval);
                 res.append(buf);
             } else if (spec == 'c') {
-                int64_t cval = (curr_arg.type_ == static_cast<int>(VarType::Int)) ? curr_arg.data_.i : 0;
+                int64_t cval = inter::CVarToInteger(curr_arg, 0);
                 res.push_back(static_cast<char>(cval));
             } else if (spec == 'p') {
                 // 指针地址：格式化为 0x 前缀的十六进制（始终输出 0x...，即使值为 0）
@@ -738,12 +744,14 @@ void RegisterStringLibraryApi(State *s) {
     // 若 pattern 含捕获组，则后续返回值依次为各捕获。
     // 若 plain 为 true，则退化为纯子串查找（忽略正则元字符）。
     // 找不到时返回 nil。
-    RegisterNativeFunction(s, "string.find", 2, true, [](State *state, CVar *args, int n) -> CVar {
+    RegisterNativeFunction(s, "string.find", 2, true, [get_str_arg](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        std::string_view sv = KeyToStringView(a0);
-        std::string_view pat_view = KeyToStringView(a1);
+        std::string s_str = get_str_arg(a0);
+        std::string pat_str = get_str_arg(a1);
+        std::string_view sv = s_str;
+        std::string_view pat_view = pat_str;
         int64_t len = static_cast<int64_t>(sv.size());
 
         int64_t init_pos = 1;
@@ -799,12 +807,14 @@ void RegisterStringLibraryApi(State *s) {
 
     // ─── string.match(s, pattern [, init]) ───
     // 与 string.find 相似，但不返回位置；仅返回捕获（或整个匹配，若无捕获组）。
-    RegisterNativeFunction(s, "string.match", 2, true, [](State *state, CVar *args, int n) -> CVar {
+    RegisterNativeFunction(s, "string.match", 2, true, [get_str_arg](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        std::string_view sv = KeyToStringView(a0);
-        std::string_view pat_view = KeyToStringView(a1);
+        std::string s_str = get_str_arg(a0);
+        std::string pat_str = get_str_arg(a1);
+        std::string_view sv = s_str;
+        std::string_view pat_view = pat_str;
         int64_t len = static_cast<int64_t>(sv.size());
 
         int64_t init_pos = 1;
@@ -942,14 +952,12 @@ void RegisterStringLibraryApi(State *s) {
                         using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
                         auto get_fn = reinterpret_cast<SpecGetFn>(tbl->spec_get);
                         bool finish = false;
-                        CVar key_cvar = inter::NativeToFakeluaStringView(state, key);
-                        val = get_fn(tbl, key_cvar, &finish);
+                        val = get_fn(tbl, inter::NativeToFakeluaStringView(state, key), &finish);
                         if (!finish) val = CVar{static_cast<int>(VarType::Nil)};
                     }
 
                     // 回退到 quick_data 线性查找
                     if (val.type_ == static_cast<int>(VarType::Nil)) {
-                        CVar key_cvar = inter::NativeToFakeluaStringView(state, key);
                         for (const auto &qd: tbl->quick_data_) {
                             auto sv = KeyToStringView(qd.key);
                             if (sv == key) {
@@ -1048,10 +1056,11 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaStringView(state, payload);
     });
 
-    auto load_impl = [](State *state, CVar *args, int n) -> CVar {
+    auto load_impl = [get_str_arg](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar code_var = inter::GetNativeArg(state, args, n, 0);
-        std::string_view sv = KeyToStringView(code_var);
+        std::string code_arg = get_str_arg(code_var);
+        std::string_view sv = code_arg;
         if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
         int upval_cnt = 0;
@@ -1288,17 +1297,11 @@ void RegisterStringLibraryApi(State *s) {
                 align_up(static_cast<size_t>(sz));
 
                 if (is_unsigned) {
-                    uint64_t v = 0;
-                    if (val.type_ == static_cast<int>(VarType::Int)) v = static_cast<uint64_t>(val.data_.i);
-                    else if (val.type_ == static_cast<int>(VarType::Float))
-                        v = static_cast<uint64_t>(val.data_.f);
+                    uint64_t v = static_cast<uint64_t>(inter::CVarToInteger(val, 0));
                     if (sz < 8) v &= ((uint64_t{1} << (sz * 8)) - 1);
                     PackMachine::WriteVal(result, &v, static_cast<size_t>(sz), pm.big_endian);
                 } else {
-                    int64_t v = 0;
-                    if (val.type_ == static_cast<int>(VarType::Int)) v = val.data_.i;
-                    else if (val.type_ == static_cast<int>(VarType::Float))
-                        v = static_cast<int64_t>(val.data_.f);
+                    int64_t v = inter::CVarToInteger(val, 0);
                     uint64_t uv = static_cast<uint64_t>(v);
                     if (sz < 8) uv &= ((uint64_t{1} << (sz * 8)) - 1);
                     PackMachine::WriteVal(result, &uv, static_cast<size_t>(sz), pm.big_endian);
@@ -1311,72 +1314,76 @@ void RegisterStringLibraryApi(State *s) {
 
             switch (c) {
                 case 'b': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
-                    result.push_back(static_cast<char>(v));
+                    int64_t v = inter::CVarToInteger(val, 0);
+                    align_up(1);
+                    int8_t sv = static_cast<int8_t>(v);
+                    PackMachine::WriteVal(result, &sv, 1, pm.big_endian);
                     break;
                 }
                 case 'B': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
-                    result.push_back(static_cast<char>(static_cast<unsigned char>(v)));
+                    int64_t v = inter::CVarToInteger(val, 0);
+                    align_up(1);
+                    uint8_t sv = static_cast<uint8_t>(v);
+                    PackMachine::WriteVal(result, &sv, 1, pm.big_endian);
                     break;
                 }
                 case 'h': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(2);
                     int16_t sv = static_cast<int16_t>(v);
                     PackMachine::WriteVal(result, &sv, 2, pm.big_endian);
                     break;
                 }
                 case 'H': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(2);
                     uint16_t sv = static_cast<uint16_t>(v);
                     PackMachine::WriteVal(result, &sv, 2, pm.big_endian);
                     break;
                 }
                 case 'l': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(4);
                     int32_t sv = static_cast<int32_t>(v);
                     PackMachine::WriteVal(result, &sv, 4, pm.big_endian);
                     break;
                 }
                 case 'L': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(4);
                     uint32_t sv = static_cast<uint32_t>(v);
                     PackMachine::WriteVal(result, &sv, 4, pm.big_endian);
                     break;
                 }
                 case 'j': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(8);
                     PackMachine::WriteVal(result, &v, 8, pm.big_endian);
                     break;
                 }
                 case 'J': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(8);
                     uint64_t uv = static_cast<uint64_t>(v);
                     PackMachine::WriteVal(result, &uv, 8, pm.big_endian);
                     break;
                 }
                 case 'T': {
-                    int64_t v = (val.type_ == static_cast<int>(VarType::Int)) ? val.data_.i : (val.type_ == static_cast<int>(VarType::Float)) ? static_cast<int64_t>(val.data_.f) : 0;
+                    int64_t v = inter::CVarToInteger(val, 0);
                     align_up(8);
                     uint64_t uv = static_cast<uint64_t>(v);
                     PackMachine::WriteVal(result, &uv, 8, pm.big_endian);
                     break;
                 }
                 case 'f': {
-                    double dv = (val.type_ == static_cast<int>(VarType::Float)) ? val.data_.f : (val.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(val.data_.i) : 0.0;
+                    double dv = inter::CVarToNumber(val, 0.0);
                     align_up(4);
                     float fv = static_cast<float>(dv);
                     PackMachine::WriteVal(result, &fv, 4, pm.big_endian);
                     break;
                 }
                 case 'd': {
-                    double dv = (val.type_ == static_cast<int>(VarType::Float)) ? val.data_.f : (val.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(val.data_.i) : 0.0;
+                    double dv = inter::CVarToNumber(val, 0.0);
                     align_up(8);
                     PackMachine::WriteVal(result, &dv, 8, pm.big_endian);
                     break;
@@ -1531,12 +1538,14 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     // ─── string.unpack ───
-    RegisterNativeFunction(s, "string.unpack", 2, true, [](State *state, CVar *args, int n) -> CVar {
+    RegisterNativeFunction(s, "string.unpack", 2, true, [get_str_arg](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
         CVar str_var = inter::GetNativeArg(state, args, n, 1);
-        std::string_view fmt = KeyToStringView(fmt_var);
-        std::string_view data = KeyToStringView(str_var);
+        std::string fmt_str = get_str_arg(fmt_var);
+        std::string data_str = get_str_arg(str_var);
+        std::string_view fmt = fmt_str;
+        std::string_view data = data_str;
         if (fmt.empty() || data.empty()) return inter::NativeToFakeluaNil(state);
 
         int start_pos = 1;
