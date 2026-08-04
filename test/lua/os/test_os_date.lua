@@ -7,7 +7,6 @@ function test_os_date()
     -- os.date("%Y-%m-%d") returns formatted date
     local d2 = os.date("%Y-%m-%d")
     if type(d2) ~= "string" then return 0 end
-    -- format: YYYY-MM-DD (10 chars)
     if #d2 ~= 10 then return 0 end
 
     -- os.date("%Y") returns 4-digit year
@@ -26,6 +25,10 @@ function test_os_date()
     -- 单个数字时间戳参数 os.date(time) (Lua 标准规范)
     local d5 = os.date(1700000000)
     if type(d5) ~= "string" or #d5 == 0 then return 0 end
+
+    -- 单个数字字符串时间戳参数 os.date("1700000000")
+    local d6 = os.date("1700000000")
+    if type(d6) ~= "string" or #d6 == 0 then return 0 end
 
     return 6000
 end
