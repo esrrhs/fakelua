@@ -34,15 +34,15 @@ struct IpairsState {
 // upvalues[1] = PairIterState* (as int)
 // 辅助：比较 key 是否相等
 static bool keys_equal(CVar a, CVar b) {
-    if (a.type_ != b.type_) return false;
-    if (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Bool)) return a.data_.i == b.data_.i;
-    if (b.type_ == static_cast<int>(VarType::Float)) return a.data_.f == b.data_.f;
-    if (b.type_ == static_cast<int>(VarType::StringId)) return a.data_.i == b.data_.i;
-    if (b.type_ == static_cast<int>(VarType::String)) {
-        if (!a.data_.s || !b.data_.s) return a.data_.s == b.data_.s;
-        return a.data_.s->Str() == b.data_.s->Str();
+    if (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Bool)) return a.type_ == b.type_ && a.data_.i == b.data_.i;
+    if (b.type_ == static_cast<int>(VarType::Float)) return a.type_ == b.type_ && a.data_.f == b.data_.f;
+    if (a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId) || b.type_ == static_cast<int>(VarType::String) ||
+        b.type_ == static_cast<int>(VarType::StringId)) {
+        auto sa = KeyToStringView(a);
+        auto sb = KeyToStringView(b);
+        return sa == sb;
     }
-    return a.data_.i == b.data_.i;
+    return a.type_ == b.type_ && a.data_.i == b.data_.i;
 }
 
 extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
@@ -239,10 +239,14 @@ void RegisterBasicLibraryApi(State *s) {
         }
 
         if (base == 10) {
+            std::string_view parse_str(str);
+            if (!parse_str.empty() && parse_str[0] == '+') {
+                parse_str.remove_prefix(1);
+            }
             // 尝试整数解析
             int64_t ival = 0;
-            auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), ival);
-            if (ec == std::errc{} && ptr == str.data() + str.size()) {
+            auto [ptr, ec] = std::from_chars(parse_str.data(), parse_str.data() + parse_str.size(), ival);
+            if (ec == std::errc{} && ptr == parse_str.data() + parse_str.size()) {
                 return inter::NativeToFakeluaInt(state, ival);
             }
             // 尝试浮点解析
@@ -537,18 +541,7 @@ void RegisterBasicLibraryApi(State *s) {
 
     // ─── next(table [, index]) ───
     // 辅助：在表中查找 key 是否匹配
-    auto key_matches = [](CVar key, CVar target) -> bool {
-        if (key.type_ != target.type_) return false;
-        if (target.type_ == static_cast<int>(VarType::Int)) return key.data_.i == target.data_.i;
-        if (target.type_ == static_cast<int>(VarType::Float)) return key.data_.f == target.data_.f;
-        if (target.type_ == static_cast<int>(VarType::StringId)) return key.data_.i == target.data_.i;
-        if (target.type_ == static_cast<int>(VarType::Bool)) return key.data_.i == target.data_.i;
-        if (target.type_ == static_cast<int>(VarType::String)) {
-            if (!key.data_.s || !target.data_.s) return key.data_.s == target.data_.s;
-            return key.data_.s->Str() == target.data_.s->Str();
-        }
-        return key.data_.i == target.data_.i;// table/closure: compare pointer
-    };
+    auto key_matches = [](CVar key, CVar target) -> bool { return keys_equal(key, target); };
 
     // 辅助：遍历回调函数
     using NextCallback = std::function<void(CVar key, CVar val)>;

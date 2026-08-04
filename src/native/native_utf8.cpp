@@ -127,7 +127,14 @@ static CVar Utf8Char(State *state, CVar *args, int n) {
 static CVar Utf8Codepoint(State *state, CVar *args, int n) {
     if (n < 1) return inter::NativeToFakeluaNil(state);
 
-    std::string_view sv = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+    CVar s_arg = inter::GetNativeArg(state, args, n, 0);
+    std::string s_str;
+    if (s_arg.type_ == static_cast<int>(VarType::String) || s_arg.type_ == static_cast<int>(VarType::StringId)) {
+        s_str = std::string(KeyToStringView(s_arg));
+    } else if (s_arg.type_ != static_cast<int>(VarType::Nil)) {
+        s_str = AsVar(s_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+    }
+    std::string_view sv = s_str;
     if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
     int64_t len = static_cast<int64_t>(sv.size());
@@ -249,7 +256,14 @@ static CVar Utf8Codes(State *state, CVar *args, int n) {
 static CVar Utf8Len(State *state, CVar *args, int n) {
     if (n < 1) return inter::NativeToFakeluaNil(state);
 
-    std::string_view sv = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+    CVar s_arg = inter::GetNativeArg(state, args, n, 0);
+    std::string s_str;
+    if (s_arg.type_ == static_cast<int>(VarType::String) || s_arg.type_ == static_cast<int>(VarType::StringId)) {
+        s_str = std::string(KeyToStringView(s_arg));
+    } else if (s_arg.type_ != static_cast<int>(VarType::Nil)) {
+        s_str = AsVar(s_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+    }
+    std::string_view sv = s_str;
     if (sv.empty()) return inter::NativeToFakeluaInt(state, 0);
 
     int64_t byte_len = static_cast<int64_t>(sv.size());
@@ -298,7 +312,14 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
 static CVar Utf8Offset(State *state, CVar *args, int n) {
     if (n < 2) return inter::NativeToFakeluaNil(state);
 
-    std::string_view sv = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+    CVar s_arg = inter::GetNativeArg(state, args, n, 0);
+    std::string s_str;
+    if (s_arg.type_ == static_cast<int>(VarType::String) || s_arg.type_ == static_cast<int>(VarType::StringId)) {
+        s_str = std::string(KeyToStringView(s_arg));
+    } else if (s_arg.type_ != static_cast<int>(VarType::Nil)) {
+        s_str = AsVar(s_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+    }
+    std::string_view sv = s_str;
     if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
     int64_t byte_len = static_cast<int64_t>(sv.size());

@@ -4,6 +4,10 @@ function test_basic_tonumber()
     if math.abs(tonumber("3.14") - 3.14) > 0.001 then return 2 end
     if tonumber("-100") ~= -100 then return 3 end
 
+    -- 正号前缀解析
+    if tonumber("+123") ~= 123 then return 3.1 end
+    if math.abs(tonumber("+3.14") - 3.14) > 0.001 then return 3.2 end
+
     -- 已经是数字
     if tonumber(42) ~= 42 then return 4 end
     if math.abs(tonumber(3.14) - 3.14) > 0.001 then return 5 end

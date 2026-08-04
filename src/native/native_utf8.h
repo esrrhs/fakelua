@@ -6,4 +6,4 @@ namespace fakelua {
 
 void RegisterUtf8LibraryApi(State *s);
 
-}  // namespace fakelua
+}// namespace fakelua

@@ -2920,21 +2920,21 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         std::string arg = CompileExp(raw_args[0]);
         Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = llabs(" << arg << ".data_.i)}; } ";
         Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = fabs(" << arg << ".data_.f)}; } ";
-        Out() << "else { FakeluaThrowError(_S, \"bad argument to math.abs\"); }\n";
+        Out() << "else { " << tmp << " = FakeluaCallByName(_S, 0, \"math.abs\", 1, " << arg << "); }\n";
         return tmp;
     }
     if (method_name == "floor" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
         Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = " << arg << "; } ";
         Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = floor(" << arg << ".data_.f)}; } ";
-        Out() << "else { FakeluaThrowError(_S, \"bad argument to math.floor\"); }\n";
+        Out() << "else { " << tmp << " = FakeluaCallByName(_S, 0, \"math.floor\", 1, " << arg << "); }\n";
         return tmp;
     }
     if (method_name == "ceil" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
         Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = " << arg << "; } ";
         Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = ceil(" << arg << ".data_.f)}; } ";
-        Out() << "else { FakeluaThrowError(_S, \"bad argument to math.ceil\"); }\n";
+        Out() << "else { " << tmp << " = FakeluaCallByName(_S, 0, \"math.ceil\", 1, " << arg << "); }\n";
         return tmp;
     }
     if (method_name == "max" && raw_args.size() == 2) {
@@ -3174,8 +3174,8 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             func_temp_decls_ << "    int64_t " << val2_tmp << ";\n";
             Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? " << arg1 << ".data_.i : (int64_t)" << arg1 << ".data_.f);\n";
             Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? " << arg2 << ".data_.i : (int64_t)" << arg2 << ".data_.f);\n";
-            Out() << GenTab() << tmp << " = (" << val1_tmp << " > " << val2_tmp << " ? (CVar){.type_ = VAR_INT, .data_.i = 0} : (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << " + (rand() % ("
-                  << val2_tmp << " - " << val1_tmp << " + 1))});\n";
+            Out() << GenTab() << tmp << " = (" << val1_tmp << " > " << val2_tmp << " ? kNil : (" << val1_tmp << " == " << val2_tmp << " ? (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp
+                  << "} : (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << " + (rand() % (" << val2_tmp << " - " << val1_tmp << " + 1))}));\n";
         }
         return tmp;
     }

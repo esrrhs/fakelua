@@ -13,6 +13,13 @@ void RegisterMathLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         if (a0.type_ == static_cast<int>(VarType::Int)) return inter::NativeToFakeluaInt(state, std::abs(a0.data_.i));
         if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::abs(a0.data_.f));
+        double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
+        if (!std::isnan(f)) {
+            if (static_cast<double>(static_cast<int64_t>(f)) == f) {
+                return inter::NativeToFakeluaInt(state, std::abs(static_cast<int64_t>(f)));
+            }
+            return inter::NativeToFakeluaFloat(state, std::abs(f));
+        }
         return inter::NativeToFakeluaNil(state);
     });
 
@@ -20,6 +27,8 @@ void RegisterMathLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         if (a0.type_ == static_cast<int>(VarType::Int)) return a0;
         if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::floor(a0.data_.f));
+        double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
+        if (!std::isnan(f)) return inter::NativeToFakeluaFloat(state, std::floor(f));
         return inter::NativeToFakeluaNil(state);
     });
 
@@ -27,6 +36,8 @@ void RegisterMathLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         if (a0.type_ == static_cast<int>(VarType::Int)) return a0;
         if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::ceil(a0.data_.f));
+        double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
+        if (!std::isnan(f)) return inter::NativeToFakeluaFloat(state, std::ceil(f));
         return inter::NativeToFakeluaNil(state);
     });
 
@@ -250,7 +261,8 @@ void RegisterMathLibraryApi(State *s) {
         } else {
             int64_t l = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 0), 0);
             int64_t u = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 0);
-            if (l >= u) return inter::NativeToFakeluaInt(state, l);
+            if (l > u) return inter::NativeToFakeluaNil(state);
+            if (l == u) return inter::NativeToFakeluaInt(state, l);
             int64_t range = u - l + 1;
             if (range <= 0) return inter::NativeToFakeluaInt(state, l);
             int64_t r = l + (static_cast<int64_t>(std::rand()) % range);

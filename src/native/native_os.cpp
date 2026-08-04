@@ -20,9 +20,7 @@ namespace fakelua {
 static int64_t get_int_arg(State *state, CVar *args, int n, int index, int64_t default_val) {
     if (index >= n) return default_val;
     CVar a = inter::GetNativeArg(state, args, n, index);
-    if (a.type_ == static_cast<int>(VarType::Int)) return a.data_.i;
-    if (a.type_ == static_cast<int>(VarType::Float)) return static_cast<int64_t>(a.data_.f);
-    return default_val;
+    return inter::CVarToInteger(a, default_val);
 }
 
 void RegisterOsLibraryApi(State *s) {

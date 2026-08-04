@@ -25,5 +25,8 @@ function test_utf8_len()
     local l6 = utf8.len("aé€", 2, 6)
     if l6 ~= 2 then return 0 end
 
+    -- 数字隐式转字符串
+    if utf8.len(12345) ~= 5 then return 0 end
+
     return 6000
 end

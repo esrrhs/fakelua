@@ -31,5 +31,10 @@ function test_basic_next()
     local k4, v4 = next(t3, 3)
     if k4 ~= nil then return 6 end
 
+    -- 动态拼接 key (VAR_STRING 与 VAR_STRINGID 跨类型比对)
+    local dyn_key = "a" .. ""
+    local nk, nv = next(t2, dyn_key)
+    if nk == nil then return 7 end
+
     return 5000
 end

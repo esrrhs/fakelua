@@ -251,8 +251,11 @@ void RegisterTableLibraryApi(State *s) {
         std::string sep = "";
         if (n >= 2) {
             CVar sep_var = inter::GetNativeArg(state, args, n, 1);
-            auto sv = KeyToStringView(sep_var);
-            if (!sv.empty()) sep = std::string(sv);
+            if (sep_var.type_ == static_cast<int>(VarType::String) || sep_var.type_ == static_cast<int>(VarType::StringId)) {
+                sep = std::string(KeyToStringView(sep_var));
+            } else if (sep_var.type_ != static_cast<int>(VarType::Nil)) {
+                sep = AsVar(sep_var).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+            }
         }
         int64_t start_i = 1;
         if (n >= 3) {
