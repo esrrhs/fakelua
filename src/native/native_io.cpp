@@ -52,9 +52,16 @@ extern "C" CVar FileLinesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
 // ─── 单格式读取辅助函数 ───
 // 从 fp 读取一个格式（* *l *L *a *n 或数字字节数），返回 CVar（可能为 nil）
 static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var) {
+    std::string s_fmt;
     if (fmt_var.type_ == static_cast<int>(VarType::String) || fmt_var.type_ == static_cast<int>(VarType::StringId)) {
-        std::string_view fmt = KeyToStringView(fmt_var);
-        if (fmt == "*l") {
+        s_fmt = std::string(KeyToStringView(fmt_var));
+    } else if (fmt_var.type_ != static_cast<int>(VarType::Nil) && fmt_var.type_ != static_cast<int>(VarType::Int) && fmt_var.type_ != static_cast<int>(VarType::Float)) {
+        s_fmt = AsVar(fmt_var).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+    }
+
+    if (!s_fmt.empty()) {
+        std::string_view fmt = s_fmt;
+        if (fmt == "*l" || fmt == "l") {
             std::string result;
             char buf[4096];
             bool got_any = false;
@@ -66,7 +73,7 @@ static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var) {
             if (!got_any) return inter::NativeToFakeluaNil(state);
             while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
             return inter::NativeToFakeluaString(state, result);
-        } else if (fmt == "*L") {
+        } else if (fmt == "*L" || fmt == "L") {
             std::string result;
             char buf[4096];
             bool got_any = false;
@@ -77,16 +84,15 @@ static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var) {
             }
             if (!got_any) return inter::NativeToFakeluaNil(state);
             return inter::NativeToFakeluaString(state, result);
-        } else if (fmt == "*a") {
+        } else if (fmt == "*a" || fmt == "a") {
             std::string result;
             char chunk[4096];
             size_t nread;
             while ((nread = std::fread(chunk, 1, sizeof(chunk), fp)) > 0) {
                 result.append(chunk, nread);
             }
-            if (result.empty()) return inter::NativeToFakeluaNil(state);
             return inter::NativeToFakeluaString(state, result);
-        } else if (fmt == "*n") {
+        } else if (fmt == "*n" || fmt == "n") {
             double val;
             if (std::fscanf(fp, "%lf", &val) == 1) {
                 if (val == static_cast<int64_t>(val) && std::isfinite(val)) {
@@ -96,10 +102,35 @@ static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var) {
             }
             return inter::NativeToFakeluaNil(state);
         }
+        // 数字字符串表示读取指定字节数（例如 "10"）
+        int64_t num_count = 0;
+        try {
+            num_count = std::stoll(s_fmt);
+            if (num_count == 0) {
+                int c = std::fgetc(fp);
+                if (c == EOF) return inter::NativeToFakeluaNil(state);
+                std::ungetc(c, fp);
+                return inter::NativeToFakeluaStringView(state, std::string_view(""));
+            }
+            if (num_count > 0) {
+                std::string result(static_cast<size_t>(num_count), '\0');
+                size_t nread = std::fread(result.data(), 1, static_cast<size_t>(num_count), fp);
+                result.resize(nread);
+                if (nread == 0) return inter::NativeToFakeluaNil(state);
+                return inter::NativeToFakeluaString(state, result);
+            }
+        } catch (...) {
+        }
         return inter::NativeToFakeluaNil(state);
     } else if (fmt_var.type_ == static_cast<int>(VarType::Int) || fmt_var.type_ == static_cast<int>(VarType::Float)) {
         int64_t count = (fmt_var.type_ == static_cast<int>(VarType::Int)) ? fmt_var.data_.i : static_cast<int64_t>(fmt_var.data_.f);
-        if (count <= 0) return inter::NativeToFakeluaStringView(state, std::string_view(""));
+        if (count == 0) {
+            int c = std::fgetc(fp);
+            if (c == EOF) return inter::NativeToFakeluaNil(state);
+            std::ungetc(c, fp);
+            return inter::NativeToFakeluaStringView(state, std::string_view(""));
+        }
+        if (count < 0) return inter::NativeToFakeluaNil(state);
         std::string result(static_cast<size_t>(count), '\0');
         size_t nread = std::fread(result.data(), 1, static_cast<size_t>(count), fp);
         result.resize(nread);
@@ -370,7 +401,14 @@ void RegisterIoLibraryApi(State *s) {
 
     // ─── io.open(filename [, mode]) → file | nil, err ───
     RegisterNativeFunction(s, "io.open", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        std::string_view filename = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+        CVar fn_arg = inter::GetNativeArg(state, args, n, 0);
+        std::string fn_str;
+        if (fn_arg.type_ == static_cast<int>(VarType::String) || fn_arg.type_ == static_cast<int>(VarType::StringId)) {
+            fn_str = std::string(KeyToStringView(fn_arg));
+        } else if (fn_arg.type_ != static_cast<int>(VarType::Nil)) {
+            fn_str = AsVar(fn_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        }
+        std::string_view filename = fn_str;
         if (filename.empty()) {
             auto multi = inter::AllocMultiCVar(state, 3);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
@@ -486,7 +524,14 @@ void RegisterIoLibraryApi(State *s) {
     // 执行外部命令并打开管道。读模式 "r" 读取命令输出，写模式 "w" 向命令写入。
     // 关闭时使用 pclose（由 __popen__ 标志自动区分）。
     RegisterNativeFunction(s, "io.popen", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        std::string_view command = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+        CVar cmd_arg = inter::GetNativeArg(state, args, n, 0);
+        std::string cmd_str;
+        if (cmd_arg.type_ == static_cast<int>(VarType::String) || cmd_arg.type_ == static_cast<int>(VarType::StringId)) {
+            cmd_str = std::string(KeyToStringView(cmd_arg));
+        } else if (cmd_arg.type_ != static_cast<int>(VarType::Nil)) {
+            cmd_str = AsVar(cmd_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        }
+        std::string_view command = cmd_str;
         if (command.empty()) {
             auto multi = inter::AllocMultiCVar(state, 2);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
