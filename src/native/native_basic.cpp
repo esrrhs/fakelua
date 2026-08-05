@@ -1,6 +1,7 @@
 #include "native/native_basic.h"
 #include "compile/c_runtime_header.h"
 #include "native/native_object.h"
+#include "native/native_string.h"
 #include "native/native_table.h"
 #include "state/state.h"
 #include "var/var.h"
@@ -723,11 +724,11 @@ void RegisterBasicLibraryApi(State *s) {
     // 其他选项（"collect"/"step"/"stop"/"restart" 等）为 no-op，返回 0。
     RegisterNativeFunction(s, "collectgarbage", 0, true, [](State *state, CVar *args, int n) -> CVar {
         std::string_view opt = "count";
+        std::string temp_opt;
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-                opt = KeyToStringView(a0);
-            }
+            opt = GetStringArgView(a0, temp_opt);
+            if (opt.empty()) opt = "count";
         }
         if (opt == "count") {
             // 返回内存使用量（KB）= (temp + const allocator bytes) / 1024

@@ -410,7 +410,7 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     }
 }
 
-static std::string_view GetStringArgView(CVar a, std::string &temp) {
+std::string_view GetStringArgView(CVar a, std::string &temp) {
     if (a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) {
         return KeyToStringView(a);
     } else if (a.type_ != static_cast<int>(VarType::Nil)) {
