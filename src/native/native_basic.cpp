@@ -554,18 +554,7 @@ void RegisterBasicLibraryApi(State *s) {
 
     // ─── next(table [, index]) ───
     // 辅助：在表中查找 key 是否匹配
-    auto key_matches = [](CVar key, CVar target) -> bool {
-        if (key.type_ != target.type_) return false;
-        if (target.type_ == static_cast<int>(VarType::Int)) return key.data_.i == target.data_.i;
-        if (target.type_ == static_cast<int>(VarType::Float)) return key.data_.f == target.data_.f;
-        if (target.type_ == static_cast<int>(VarType::StringId)) return key.data_.i == target.data_.i;
-        if (target.type_ == static_cast<int>(VarType::Bool)) return key.data_.i == target.data_.i;
-        if (target.type_ == static_cast<int>(VarType::String)) {
-            if (!key.data_.s || !target.data_.s) return key.data_.s == target.data_.s;
-            return key.data_.s->Str() == target.data_.s->Str();
-        }
-        return key.data_.i == target.data_.i;// table/closure: compare pointer
-    };
+    auto key_matches = [](CVar key, CVar target) -> bool { return keys_equal(key, target); };
 
     // 辅助：遍历回调函数
     using NextCallback = std::function<void(CVar key, CVar val)>;
