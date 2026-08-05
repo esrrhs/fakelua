@@ -273,7 +273,15 @@ void RegisterOsLibraryApi(State *s) {
 
     // ─── os.getenv(varname) ───
     RegisterNativeFunction(s, "os.getenv", 1, false, [](State *state, CVar *args, int n) -> CVar {
-        std::string_view varname = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        std::string s_var;
+        std::string_view varname;
+        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+            varname = KeyToStringView(a0);
+        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
+            s_var = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+            varname = s_var;
+        }
         if (varname.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -286,7 +294,15 @@ void RegisterOsLibraryApi(State *s) {
 
     // ─── os.remove(filename) ───
     RegisterNativeFunction(s, "os.remove", 1, false, [](State *state, CVar *args, int n) -> CVar {
-        std::string_view filename = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        std::string s_fn;
+        std::string_view filename;
+        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+            filename = KeyToStringView(a0);
+        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
+            s_fn = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+            filename = s_fn;
+        }
         if (filename.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
