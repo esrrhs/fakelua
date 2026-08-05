@@ -127,7 +127,15 @@ static CVar Utf8Char(State *state, CVar *args, int n) {
 static CVar Utf8Codepoint(State *state, CVar *args, int n) {
     if (n < 1) return inter::NativeToFakeluaNil(state);
 
-    std::string_view sv = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+    CVar a0 = inter::GetNativeArg(state, args, n, 0);
+    std::string s_sv;
+    std::string_view sv;
+    if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+        sv = KeyToStringView(a0);
+    } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
+        s_sv = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        sv = s_sv;
+    }
     if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
     int64_t len = static_cast<int64_t>(sv.size());
@@ -249,7 +257,15 @@ static CVar Utf8Codes(State *state, CVar *args, int n) {
 static CVar Utf8Len(State *state, CVar *args, int n) {
     if (n < 1) return inter::NativeToFakeluaNil(state);
 
-    std::string_view sv = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+    CVar a0 = inter::GetNativeArg(state, args, n, 0);
+    std::string s_sv;
+    std::string_view sv;
+    if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+        sv = KeyToStringView(a0);
+    } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
+        s_sv = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        sv = s_sv;
+    }
     if (sv.empty()) return inter::NativeToFakeluaInt(state, 0);
 
     int64_t byte_len = static_cast<int64_t>(sv.size());
@@ -298,7 +314,15 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
 static CVar Utf8Offset(State *state, CVar *args, int n) {
     if (n < 2) return inter::NativeToFakeluaNil(state);
 
-    std::string_view sv = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+    CVar a0 = inter::GetNativeArg(state, args, n, 0);
+    std::string s_sv;
+    std::string_view sv;
+    if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+        sv = KeyToStringView(a0);
+    } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
+        s_sv = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        sv = s_sv;
+    }
     if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
     int64_t byte_len = static_cast<int64_t>(sv.size());
@@ -315,8 +339,13 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     if (start_i > byte_len + 1) start_i = byte_len + 1;
 
     if (target_n == 0) {
-        // Return the byte position of the first character in the range
-        return inter::NativeToFakeluaLonglong(state, start_i);
+        // Return the byte position of the character starting at or before start_i
+        if (start_i > byte_len) return inter::NativeToFakeluaLonglong(state, start_i);
+        size_t pos = static_cast<size_t>(start_i - 1);
+        while (pos > 0 && (static_cast<unsigned char>(sv[pos]) & 0xC0) == 0x80) {
+            --pos;
+        }
+        return inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(pos + 1));
     }
 
     if (target_n > 0) {

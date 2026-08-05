@@ -50,5 +50,10 @@ function test_table_sort()
         return 6.0
     end
 
+    -- 7. 数字与数字字符串混存元素的默认排序测试
+    local t7 = {10, "5", 2, "20"}
+    table.sort(t7)
+    if #t7 ~= 4 then return 7.0 end
+
     return 100.0
 end

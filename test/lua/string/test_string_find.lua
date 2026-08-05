@@ -28,5 +28,9 @@ function test_string_find()
     local l, m, c1, c2 = string.find(s, "([a-zA-Z]+) ([a-zA-Z]+)")
     if l ~= 1 or m ~= 11 or c1 ~= "hello" or c2 ~= "world" then return 5 end
 
+    -- 数字参数隐式转换 (Lua 标准规范)
+    local n1, n2 = string.find(12345, 34)
+    if n1 ~= 3 or n2 ~= 4 then return 6 end
+
     return 1000
 end

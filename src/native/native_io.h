@@ -6,4 +6,4 @@ namespace fakelua {
 
 void RegisterIoLibraryApi(State *s);
 
-}  // namespace fakelua
+}// namespace fakelua

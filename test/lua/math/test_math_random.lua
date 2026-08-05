@@ -16,5 +16,8 @@ function test_math_random()
     local r5 = math.random(50, 50)
     if r5 ~= 50 then return 0 end
 
+    -- 反向无效区间 l > u 应返回 nil
+    if math.random(100, 50) ~= nil then return 0 end
+
     return 300
 end

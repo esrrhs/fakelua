@@ -34,15 +34,28 @@ struct IpairsState {
 // upvalues[1] = PairIterState* (as int)
 // 辅助：比较 key 是否相等
 static bool keys_equal(CVar a, CVar b) {
-    if (a.type_ != b.type_) return false;
-    if (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Bool)) return a.data_.i == b.data_.i;
-    if (b.type_ == static_cast<int>(VarType::Float)) return a.data_.f == b.data_.f;
-    if (b.type_ == static_cast<int>(VarType::StringId)) return a.data_.i == b.data_.i;
-    if (b.type_ == static_cast<int>(VarType::String)) {
-        if (!a.data_.s || !b.data_.s) return a.data_.s == b.data_.s;
-        return a.data_.s->Str() == b.data_.s->Str();
+    if (a.type_ == b.type_) {
+        if (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Bool)) return a.data_.i == b.data_.i;
+        if (b.type_ == static_cast<int>(VarType::Float)) return a.data_.f == b.data_.f;
+        if (b.type_ == static_cast<int>(VarType::StringId)) return a.data_.i == b.data_.i;
+        if (b.type_ == static_cast<int>(VarType::String)) {
+            if (!a.data_.s || !b.data_.s) return a.data_.s == b.data_.s;
+            return a.data_.s->Str() == b.data_.s->Str();
+        }
+        return a.data_.i == b.data_.i;
     }
-    return a.data_.i == b.data_.i;
+    // 跨 Int 和 Float 比较
+    if ((a.type_ == static_cast<int>(VarType::Int) || a.type_ == static_cast<int>(VarType::Float)) && (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Float))) {
+        double va = (a.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(a.data_.i) : a.data_.f;
+        double vb = (b.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(b.data_.i) : b.data_.f;
+        return va == vb;
+    }
+    // 跨 String 和 StringId 比较
+    if ((a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) &&
+        (b.type_ == static_cast<int>(VarType::String) || b.type_ == static_cast<int>(VarType::StringId))) {
+        return KeyToStringView(a) == KeyToStringView(b);
+    }
+    return false;
 }
 
 extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
@@ -239,10 +252,14 @@ void RegisterBasicLibraryApi(State *s) {
         }
 
         if (base == 10) {
-            // 尝试整数解析
+            // 尝试整数解析 (先去除领先正号)
+            std::string_view s_view = str;
+            if (!s_view.empty() && s_view[0] == '+') {
+                s_view.remove_prefix(1);
+            }
             int64_t ival = 0;
-            auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), ival);
-            if (ec == std::errc{} && ptr == str.data() + str.size()) {
+            auto [ptr, ec] = std::from_chars(s_view.data(), s_view.data() + s_view.size(), ival);
+            if (ec == std::errc{} && ptr == s_view.data() + s_view.size()) {
                 return inter::NativeToFakeluaInt(state, ival);
             }
             // 尝试浮点解析
@@ -537,18 +554,7 @@ void RegisterBasicLibraryApi(State *s) {
 
     // ─── next(table [, index]) ───
     // 辅助：在表中查找 key 是否匹配
-    auto key_matches = [](CVar key, CVar target) -> bool {
-        if (key.type_ != target.type_) return false;
-        if (target.type_ == static_cast<int>(VarType::Int)) return key.data_.i == target.data_.i;
-        if (target.type_ == static_cast<int>(VarType::Float)) return key.data_.f == target.data_.f;
-        if (target.type_ == static_cast<int>(VarType::StringId)) return key.data_.i == target.data_.i;
-        if (target.type_ == static_cast<int>(VarType::Bool)) return key.data_.i == target.data_.i;
-        if (target.type_ == static_cast<int>(VarType::String)) {
-            if (!key.data_.s || !target.data_.s) return key.data_.s == target.data_.s;
-            return key.data_.s->Str() == target.data_.s->Str();
-        }
-        return key.data_.i == target.data_.i;// table/closure: compare pointer
-    };
+    auto key_matches = [](CVar key, CVar target) -> bool { return keys_equal(key, target); };
 
     // 辅助：遍历回调函数
     using NextCallback = std::function<void(CVar key, CVar val)>;
