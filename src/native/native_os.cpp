@@ -315,8 +315,22 @@ void RegisterOsLibraryApi(State *s) {
 
     // ─── os.rename(oldname, newname) ───
     RegisterNativeFunction(s, "os.rename", 2, false, [](State *state, CVar *args, int n) -> CVar {
-        std::string_view oldname = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
-        std::string_view newname = KeyToStringView(inter::GetNativeArg(state, args, n, 1));
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        std::string s_old, s_new;
+        std::string_view oldname, newname;
+        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+            oldname = KeyToStringView(a0);
+        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
+            s_old = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+            oldname = s_old;
+        }
+        if (a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
+            newname = KeyToStringView(a1);
+        } else if (a1.type_ != static_cast<int>(VarType::Nil)) {
+            s_new = AsVar(a1).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+            newname = s_new;
+        }
         if (oldname.empty() || newname.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
