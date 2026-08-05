@@ -391,6 +391,8 @@ void RegisterTableLibraryApi(State *s) {
         if (a2.type_ == static_cast<int>(VarType::Nil)) {
             a2 = a1;
         }
+        if (a1.type_ != static_cast<int>(VarType::Table) || !a1.data_.t) return inter::NativeToFakeluaNil(state);
+        if (a2.type_ != static_cast<int>(VarType::Table) || !a2.data_.t) return inter::NativeToFakeluaNil(state);
 
         int64_t f = inter::CVarToInteger(f_var, 1);
         int64_t e = inter::CVarToInteger(e_var, 0);
