@@ -924,7 +924,6 @@ void RegisterStringLibraryApi(State *s) {
 
                     // 回退到 quick_data 线性查找
                     if (val.type_ == static_cast<int>(VarType::Nil)) {
-                        CVar key_cvar = inter::NativeToFakeluaStringView(state, key);
                         for (const auto &qd: tbl->quick_data_) {
                             auto sv = KeyToStringView(qd.key);
                             if (sv == key) {
