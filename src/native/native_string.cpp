@@ -1461,7 +1461,8 @@ void RegisterStringLibraryApi(State *s) {
             if (c == 'z') {
                 ++fmt_p;
                 if (str_arg_idx < values.size()) {
-                    std::string_view sv = KeyToStringView(values[str_arg_idx]);
+                    std::string temp;
+                    std::string_view sv = GetStringArgView(values[str_arg_idx], temp);
                     total += sv.size() + 1;// string + null
                     ++str_arg_idx;
                 } else {
