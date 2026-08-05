@@ -572,7 +572,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.format", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
-        std::string_view fmt = KeyToStringView(fmt_var);
+        std::string temp_fmt;
+        std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
 
         std::string res;
         res.reserve(fmt.size() + 32);
@@ -615,7 +616,8 @@ void RegisterStringLibraryApi(State *s) {
             CVar curr_arg = (arg_idx < n) ? inter::GetNativeArg(state, args, n, arg_idx++) : CVar{static_cast<int>(VarType::Nil)};
 
             if (spec == 'q') {
-                std::string_view sval = KeyToStringView(curr_arg);
+                std::string temp_q;
+                std::string_view sval = GetStringArgView(curr_arg, temp_q);
                 res.push_back('"');
                 for (char c: sval) {
                     if (c == '"') res.append("\\\"");
@@ -639,6 +641,8 @@ void RegisterStringLibraryApi(State *s) {
                     sval = std::to_string(curr_arg.data_.f);
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Bool)) {
                     sval = curr_arg.data_.b ? "true" : "false";
+                } else {
+                    sval = AsVar(curr_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
                 }
                 if (spec_str == "%s") {
                     res.append(sval);

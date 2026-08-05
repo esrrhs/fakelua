@@ -30,5 +30,9 @@ function test_string_format()
     if string.format("%x", "255") ~= "ff" then return 0 end
     if string.format("%.2f", "3.14") ~= "3.14" then return 0 end
 
+    -- string.format 首参数数字 & %q 数字隐式转换验证
+    if string.format(12345) ~= "12345" then return 0 end
+    if string.format("%q", 123) ~= "\"123\"" then return 0 end
+
     return 600
 end
