@@ -239,10 +239,14 @@ void RegisterBasicLibraryApi(State *s) {
         }
 
         if (base == 10) {
-            // 尝试整数解析
+            // 尝试整数解析 (先去除领先正号)
+            std::string_view s_view = str;
+            if (!s_view.empty() && s_view[0] == '+') {
+                s_view.remove_prefix(1);
+            }
             int64_t ival = 0;
-            auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), ival);
-            if (ec == std::errc{} && ptr == str.data() + str.size()) {
+            auto [ptr, ec] = std::from_chars(s_view.data(), s_view.data() + s_view.size(), ival);
+            if (ec == std::errc{} && ptr == s_view.data() + s_view.size()) {
                 return inter::NativeToFakeluaInt(state, ival);
             }
             // 尝试浮点解析
