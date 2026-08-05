@@ -55,5 +55,9 @@ function test_table_sort()
     table.sort(t7)
     if #t7 ~= 4 then return 7.0 end
 
+    -- 非法比较器参数测试 (传入非 closure 不崩溃)
+    local invalid_sort = table.sort(t1, 123)
+    if invalid_sort ~= nil then return 8.0 end
+
     return 100.0
 end
