@@ -29,5 +29,9 @@ function test_string_match()
     local m5 = string.match(12345, "34")
     if m5 ~= "34" then return 7 end
 
+    -- string.gsub 数字隐式转换断言
+    local sub_res, count = string.gsub(12345, "3", "9")
+    if sub_res ~= "12945" or count ~= 1 then return 8 end
+
     return 2000
 end
