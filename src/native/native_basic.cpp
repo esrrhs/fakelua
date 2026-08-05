@@ -34,15 +34,28 @@ struct IpairsState {
 // upvalues[1] = PairIterState* (as int)
 // 辅助：比较 key 是否相等
 static bool keys_equal(CVar a, CVar b) {
-    if (a.type_ != b.type_) return false;
-    if (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Bool)) return a.data_.i == b.data_.i;
-    if (b.type_ == static_cast<int>(VarType::Float)) return a.data_.f == b.data_.f;
-    if (b.type_ == static_cast<int>(VarType::StringId)) return a.data_.i == b.data_.i;
-    if (b.type_ == static_cast<int>(VarType::String)) {
-        if (!a.data_.s || !b.data_.s) return a.data_.s == b.data_.s;
-        return a.data_.s->Str() == b.data_.s->Str();
+    if (a.type_ == b.type_) {
+        if (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Bool)) return a.data_.i == b.data_.i;
+        if (b.type_ == static_cast<int>(VarType::Float)) return a.data_.f == b.data_.f;
+        if (b.type_ == static_cast<int>(VarType::StringId)) return a.data_.i == b.data_.i;
+        if (b.type_ == static_cast<int>(VarType::String)) {
+            if (!a.data_.s || !b.data_.s) return a.data_.s == b.data_.s;
+            return a.data_.s->Str() == b.data_.s->Str();
+        }
+        return a.data_.i == b.data_.i;
     }
-    return a.data_.i == b.data_.i;
+    // 跨 Int 和 Float 比较
+    if ((a.type_ == static_cast<int>(VarType::Int) || a.type_ == static_cast<int>(VarType::Float)) && (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Float))) {
+        double va = (a.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(a.data_.i) : a.data_.f;
+        double vb = (b.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(b.data_.i) : b.data_.f;
+        return va == vb;
+    }
+    // 跨 String 和 StringId 比较
+    if ((a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) &&
+        (b.type_ == static_cast<int>(VarType::String) || b.type_ == static_cast<int>(VarType::StringId))) {
+        return KeyToStringView(a) == KeyToStringView(b);
+    }
+    return false;
 }
 
 extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
