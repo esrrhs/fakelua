@@ -858,6 +858,10 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table) || a1.type_ == static_cast<int>(VarType::Bool) ||
+            a1.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument to 'string.gmatch' (string expected)");
+        }
         std::string temp0, temp1;
         std::string text(GetStringArgView(a0, temp0));
         std::string pattern(GetStringArgView(a1, temp1));
@@ -901,6 +905,11 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 3) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table) || a1.type_ == static_cast<int>(VarType::Bool) ||
+            a1.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument to 'string.gsub' (string expected)");
+        }
+
         CVar repl_var = inter::GetNativeArg(state, args, n, 2);
         std::string temp0, temp1;
         std::string_view sv = GetStringArgView(a0, temp0);
