@@ -341,6 +341,7 @@ void RegisterTableLibraryApi(State *s) {
     RegisterNativeFunction(s, "table.unpack", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return inter::NativeToFakeluaNil(state);
         int64_t start_i = 1;
         if (n >= 2) {
             start_i = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 1);
