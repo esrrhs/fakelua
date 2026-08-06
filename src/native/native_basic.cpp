@@ -455,6 +455,9 @@ void RegisterBasicLibraryApi(State *s) {
     RegisterNativeFunction(s, "xpcall", 2, true, [](State *state, CVar *args, int n) -> CVar {
         CVar func = inter::GetNativeArg(state, args, n, 0);
         CVar err_func = inter::GetNativeArg(state, args, n, 1);
+        if (err_func.type_ != static_cast<int>(VarType::Closure) || !err_func.data_.cl) {
+            ThrowFakeluaException("bad argument #2 to 'xpcall' (function expected)");
+        }
 
         if (func.type_ != static_cast<int>(VarType::Closure) || !func.data_.cl) {
             CVar multi = inter::AllocMultiCVar(state, 2);

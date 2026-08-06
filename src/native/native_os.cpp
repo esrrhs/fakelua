@@ -378,8 +378,8 @@ void RegisterOsLibraryApi(State *s) {
             std::time_t now = std::time(nullptr);
             return inter::NativeToFakeluaInt(state, static_cast<int64_t>(now));
         }
-        if (tbl.type_ != static_cast<int>(VarType::Table)) {
-            return inter::NativeToFakeluaNil(state);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'os.time' (table expected)");
         }
 
         // Helper: read a string-keyed field from a table
