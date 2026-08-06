@@ -470,11 +470,8 @@ void RegisterStringLibraryApi(State *s) {
         std::string sep = "";
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            if (a2.type_ == static_cast<int>(VarType::String) || a2.type_ == static_cast<int>(VarType::StringId)) {
-                sep = std::string(KeyToStringView(a2));
-            } else if (a2.type_ != static_cast<int>(VarType::Nil)) {
-                sep = AsVar(a2).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-            }
+            std::string temp_sep;
+            sep = std::string(GetStringArgView(a2, temp_sep));
         }
 
         size_t unit_len = sv.size() + sep.size();
