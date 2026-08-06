@@ -565,6 +565,11 @@ void RegisterStringLibraryApi(State *s) {
         res.reserve(static_cast<size_t>(n));
         for (int i = 0; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
+            if (arg_i.type_ == static_cast<int>(VarType::Float)) {
+                if (static_cast<double>(static_cast<int64_t>(arg_i.data_.f)) != arg_i.data_.f) {
+                    return inter::NativeToFakeluaNil(state);
+                }
+            }
             int64_t c = inter::CVarToInteger(arg_i, -1);
             if (c < 0 || c > 255) {
                 return inter::NativeToFakeluaNil(state);
