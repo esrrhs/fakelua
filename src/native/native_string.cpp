@@ -744,6 +744,10 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table) || a1.type_ == static_cast<int>(VarType::Bool) ||
+            a1.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument to 'string.find' (string expected)");
+        }
         std::string temp0, temp1;
         std::string_view sv = GetStringArgView(a0, temp0);
         std::string_view pat_view = GetStringArgView(a1, temp1);
@@ -806,6 +810,11 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table) || a1.type_ == static_cast<int>(VarType::Bool) ||
+            a1.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument to 'string.match' (string expected)");
+        }
+
         std::string temp0, temp1;
         std::string_view sv = GetStringArgView(a0, temp0);
         std::string_view pat_view = GetStringArgView(a1, temp1);
