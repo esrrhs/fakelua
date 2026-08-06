@@ -477,8 +477,13 @@ void RegisterStringLibraryApi(State *s) {
             }
         }
 
+        size_t unit_len = sv.size() + sep.size();
+        if (unit_len > 0 && static_cast<uint64_t>(rep_cnt) > (1073741824ULL / unit_len)) {
+            return inter::NativeToFakeluaNil(state);
+        }
+
         std::string res;
-        res.reserve((sv.size() + sep.size()) * static_cast<size_t>(rep_cnt));
+        res.reserve(unit_len * static_cast<size_t>(rep_cnt));
         for (int64_t i = 0; i < rep_cnt; ++i) {
             if (i > 0 && !sep.empty()) res += sep;
             res += sv;
