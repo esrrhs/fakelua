@@ -596,7 +596,7 @@ void RegisterBasicLibraryApi(State *s) {
     RegisterNativeFunction(s, "next", 1, true, [&](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
-            return inter::NativeToFakeluaNil(state);
+            ThrowFakeluaException("bad argument #1 to 'next' (table expected)");
         }
         VarTable *t = tbl.data_.t;
 
@@ -650,6 +650,9 @@ void RegisterBasicLibraryApi(State *s) {
     // ─── pairs(t) ───
     RegisterNativeFunction(s, "pairs", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'pairs' (table expected)");
+        }
         auto &alloc = state->GetHeap().GetAllocator(false);
 
         // 分配迭代器状态
@@ -691,6 +694,9 @@ void RegisterBasicLibraryApi(State *s) {
     // ─── ipairs(t) ───
     RegisterNativeFunction(s, "ipairs", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'ipairs' (table expected)");
+        }
         auto &alloc = state->GetHeap().GetAllocator(false);
 
         auto *st = static_cast<IpairsState *>(alloc.Alloc(sizeof(IpairsState)));
