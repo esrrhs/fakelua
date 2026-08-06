@@ -518,6 +518,9 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.byte", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'string.byte' (string expected)");
+        }
         std::string temp;
         std::string_view sv = GetStringArgView(a0, temp);
         int64_t len = static_cast<int64_t>(sv.size());
