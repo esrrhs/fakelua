@@ -314,11 +314,10 @@ void RegisterBasicLibraryApi(State *s) {
     RegisterNativeFunction(s, "select", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         // 支持 select("#", ...) 返回总数
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            std::string_view sv = KeyToStringView(a0);
-            if (sv == "#") {
-                return inter::NativeToFakeluaInt(state, n - 1);
-            }
+        std::string temp;
+        std::string_view sv = GetStringArgView(a0, temp);
+        if (sv == "#") {
+            return inter::NativeToFakeluaInt(state, n - 1);
         }
         int64_t idx = inter::CVarToInteger(a0, 1);
         int var_count = n - 1;

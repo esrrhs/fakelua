@@ -1184,7 +1184,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.pack", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
-        std::string_view fmt = KeyToStringView(fmt_var);
+        std::string temp_fmt;
+        std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
         if (fmt.empty()) return inter::NativeToFakeluaStringView(state, "");
 
         // 收集所有值参数：
@@ -1399,7 +1400,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.packsize", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaInt(state, 0);
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
-        std::string_view fmt = KeyToStringView(fmt_var);
+        std::string temp_fmt;
+        std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
         if (fmt.empty()) return inter::NativeToFakeluaInt(state, 0);
 
         PackMachine pm;

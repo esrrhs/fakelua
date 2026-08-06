@@ -24,5 +24,9 @@ function test_basic_select()
     local sub1, sub2 = select(-2, 10, 20, 30)
     if sub1 ~= 20 or sub2 ~= 30 then return 6 end
 
+    -- select("#", ...) 返回参数总数
+    local count2 = select(tostring("#"), 10, 20, 30)
+    if count2 ~= 3 then return 7 end
+
     return 5000
 end

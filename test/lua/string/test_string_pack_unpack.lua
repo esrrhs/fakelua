@@ -49,6 +49,8 @@ function test_string_pack_unpack()
     if string.packsize("z", "hello") ~= 6 then return 23 end  -- 5 chars + null
     if string.packsize("BH") ~= 3 then return 24 end
     if string.packsize("j") ~= 8 then return 25 end
+    if string.packsize(123) ~= nil then return 26 end
+    if string.pack(123) ~= nil then return 27 end
 
     -- === string.unpack ===
 
