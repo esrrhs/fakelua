@@ -284,8 +284,9 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
     if (i < 1) i = byte_len + i + 1;
     if (j < 1) j = byte_len + j + 1;
 
-    if (i < 1) i = 1;
-    if (j > byte_len) j = byte_len;
+    if (i < 1 || i > byte_len + 1 || j < 0 || j > byte_len) {
+        return inter::NativeToFakeluaNil(state);
+    }
 
     if (i > j) {
         return inter::NativeToFakeluaInt(state, 0);
