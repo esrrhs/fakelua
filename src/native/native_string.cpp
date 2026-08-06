@@ -1037,6 +1037,10 @@ void RegisterStringLibraryApi(State *s) {
     auto load_impl = [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar code_var = inter::GetNativeArg(state, args, n, 0);
+        if (code_var.type_ != static_cast<int>(VarType::String) && code_var.type_ != static_cast<int>(VarType::StringId) && code_var.type_ != static_cast<int>(VarType::Int) &&
+            code_var.type_ != static_cast<int>(VarType::Float)) {
+            return inter::NativeToFakeluaNil(state);
+        }
         std::string temp;
         std::string_view sv = GetStringArgView(code_var, temp);
         if (sv.empty()) return inter::NativeToFakeluaNil(state);
