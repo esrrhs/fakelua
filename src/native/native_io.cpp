@@ -386,10 +386,9 @@ static std::string_view ArgToStringView(CVar a, State *state, std::string &temp)
         return temp;
     } else if (a.type_ == static_cast<int>(VarType::Bool)) {
         return a.data_.b ? "true" : "false";
-    } else if (a.type_ == static_cast<int>(VarType::Nil)) {
-        return "nil";
+    } else {
+        return {};
     }
-    return {};
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
