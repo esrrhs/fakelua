@@ -562,14 +562,17 @@ void RegisterStringLibraryApi(State *s) {
         res.reserve(static_cast<size_t>(n));
         for (int i = 0; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
+            if (arg_i.type_ == static_cast<int>(VarType::Bool) || arg_i.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument to 'string.char' (number expected)");
+            }
             if (arg_i.type_ == static_cast<int>(VarType::Float)) {
                 if (static_cast<double>(static_cast<int64_t>(arg_i.data_.f)) != arg_i.data_.f) {
-                    return inter::NativeToFakeluaNil(state);
+                    ThrowFakeluaException("bad argument to 'string.char' (number has no integer representation)");
                 }
             }
             int64_t c = inter::CVarToInteger(arg_i, -1);
             if (c < 0 || c > 255) {
-                return inter::NativeToFakeluaNil(state);
+                ThrowFakeluaException("bad argument to 'string.char' (value out of range)");
             }
             res.push_back(static_cast<char>(c));
         }
