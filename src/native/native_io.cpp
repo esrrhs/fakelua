@@ -1,5 +1,6 @@
 #include "native/native_io.h"
 #include "native/native_object.h"
+#include "native/native_string.h"
 #include "var/var.h"
 
 #include <cerrno>
@@ -280,13 +281,13 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (!fp) return inter::NativeToFakeluaNil(state);
 
         std::string_view whence_str = "cur";
+        std::string temp_whence;
         int64_t offset = 0;
 
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-                whence_str = KeyToStringView(a0);
-            }
+            whence_str = GetStringArgView(a0, temp_whence);
+            if (whence_str.empty()) whence_str = "cur";
         }
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
@@ -315,12 +316,12 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (!fp) return inter::NativeToFakeluaNil(state);
 
         std::string_view mode = "full";
+        std::string temp_mode;
         size_t size = BUFSIZ;
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-                mode = KeyToStringView(a0);
-            }
+            mode = GetStringArgView(a0, temp_mode);
+            if (mode.empty()) mode = "full";
         }
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
