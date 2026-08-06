@@ -260,6 +260,9 @@ void RegisterTableLibraryApi(State *s) {
     RegisterNativeFunction(s, "table.insert", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'table.insert' (table expected)");
+        }
         int64_t len = TableHelper::GetTableLen(tbl);
 
         if (n == 1) return inter::NativeToFakeluaNil(state);
@@ -283,6 +286,9 @@ void RegisterTableLibraryApi(State *s) {
     RegisterNativeFunction(s, "table.remove", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'table.remove' (table expected)");
+        }
         int64_t len = TableHelper::GetTableLen(tbl);
         int64_t pos = len;
         if (n >= 2) {
@@ -307,11 +313,8 @@ void RegisterTableLibraryApi(State *s) {
         std::string sep = "";
         if (n >= 2) {
             CVar sep_var = inter::GetNativeArg(state, args, n, 1);
-            if (sep_var.type_ == static_cast<int>(VarType::String) || sep_var.type_ == static_cast<int>(VarType::StringId)) {
-                sep = std::string(KeyToStringView(sep_var));
-            } else if (sep_var.type_ != static_cast<int>(VarType::Nil)) {
-                sep = AsVar(sep_var).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-            }
+            std::string temp_sep;
+            sep = std::string(GetStringArgView(sep_var, temp_sep));
         }
         int64_t start_i = 1;
         if (n >= 3) {

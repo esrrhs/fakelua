@@ -404,13 +404,8 @@ void RegisterIoLibraryApi(State *s) {
     // ─── io.open(filename [, mode]) → file | nil, err ───
     RegisterNativeFunction(s, "io.open", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar fn_arg = inter::GetNativeArg(state, args, n, 0);
-        std::string fn_str;
-        if (fn_arg.type_ == static_cast<int>(VarType::String) || fn_arg.type_ == static_cast<int>(VarType::StringId)) {
-            fn_str = std::string(KeyToStringView(fn_arg));
-        } else if (fn_arg.type_ != static_cast<int>(VarType::Nil)) {
-            fn_str = AsVar(fn_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-        }
-        std::string_view filename = fn_str;
+        std::string temp_fn;
+        std::string_view filename = GetStringArgView(fn_arg, temp_fn);
         if (filename.empty()) {
             auto multi = inter::AllocMultiCVar(state, 3);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
