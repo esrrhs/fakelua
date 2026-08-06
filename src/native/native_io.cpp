@@ -54,10 +54,11 @@ extern "C" CVar FileLinesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
 // 从 fp 读取一个格式（* *l *L *a *n 或数字字节数），返回 CVar（可能为 nil）
 static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var) {
     std::string s_fmt;
-    if (fmt_var.type_ == static_cast<int>(VarType::String) || fmt_var.type_ == static_cast<int>(VarType::StringId)) {
-        s_fmt = std::string(KeyToStringView(fmt_var));
-    } else if (fmt_var.type_ != static_cast<int>(VarType::Nil) && fmt_var.type_ != static_cast<int>(VarType::Int) && fmt_var.type_ != static_cast<int>(VarType::Float)) {
-        s_fmt = AsVar(fmt_var).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+    if (fmt_var.type_ == static_cast<int>(VarType::Int) || fmt_var.type_ == static_cast<int>(VarType::Float)) {
+        s_fmt = std::to_string(inter::CVarToInteger(fmt_var, 0));
+    } else {
+        std::string temp_fmt;
+        s_fmt = std::string(GetStringArgView(fmt_var, temp_fmt));
     }
 
     if (!s_fmt.empty()) {
