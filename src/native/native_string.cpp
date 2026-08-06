@@ -1391,12 +1391,9 @@ void RegisterStringLibraryApi(State *s) {
                 }
                 case 'z': {
                     std::string s_val;
-                    std::string_view sv;
-                    if (val.type_ == static_cast<int>(VarType::String) || val.type_ == static_cast<int>(VarType::StringId)) {
-                        sv = KeyToStringView(val);
-                    } else if (val.type_ != static_cast<int>(VarType::Nil)) {
-                        s_val = AsVar(val).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-                        sv = s_val;
+                    std::string_view sv = GetStringArgView(val, s_val);
+                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
+                        ThrowFakeluaException("bad argument to 'pack' (string expected)");
                     }
                     result.append(sv.data(), sv.size());
                     result.push_back('\0');
