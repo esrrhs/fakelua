@@ -201,6 +201,9 @@ void RegisterMathLibraryApi(State *s) {
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
         double v0 = inter::CVarToNumber(a0, 0.0);
         double v1 = inter::CVarToNumber(a1, 0.0);
+        if (v1 == 0.0) {
+            return inter::NativeToFakeluaFloat(state, std::numeric_limits<double>::quiet_NaN());
+        }
         return inter::NativeToFakeluaFloat(state, std::fmod(v0, v1));
     });
 

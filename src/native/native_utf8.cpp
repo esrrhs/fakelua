@@ -114,6 +114,11 @@ static CVar Utf8Char(State *state, CVar *args, int n) {
     out.reserve(static_cast<size_t>(n) * 3);
     for (int i = 0; i < n; ++i) {
         CVar a = inter::GetNativeArg(state, args, n, i);
+        if (a.type_ == static_cast<int>(VarType::Float)) {
+            if (static_cast<double>(static_cast<int64_t>(a.data_.f)) != a.data_.f) {
+                return inter::NativeToFakeluaNil(state);
+            }
+        }
         int64_t cp = inter::CVarToInteger(a, -1);
         if (cp < 0 || !EncodeUtf8(cp, out)) {
             return inter::NativeToFakeluaNil(state);
@@ -279,8 +284,9 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
     if (i < 1) i = byte_len + i + 1;
     if (j < 1) j = byte_len + j + 1;
 
-    if (i < 1) i = 1;
-    if (j > byte_len) j = byte_len;
+    if (i < 1 || i > byte_len + 1 || j < 0 || j > byte_len) {
+        return inter::NativeToFakeluaNil(state);
+    }
 
     if (i > j) {
         return inter::NativeToFakeluaInt(state, 0);

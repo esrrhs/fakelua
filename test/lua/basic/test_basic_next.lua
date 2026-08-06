@@ -36,5 +36,9 @@ function test_basic_next()
     local nk, nv = next(t2, dyn_key)
     if nk == nil then return 7 end
 
+    -- collectgarbage 参数防护测试
+    local gc_res = collectgarbage("stop")
+    if gc_res ~= 0 then return 8 end
+
     return 5000
 end

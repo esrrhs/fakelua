@@ -1,5 +1,6 @@
 #include "native/native_io.h"
 #include "native/native_object.h"
+#include "native/native_string.h"
 #include "var/var.h"
 
 #include <cerrno>
@@ -200,6 +201,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
                 CVar fmt_var = inter::GetNativeArg(state, args, n, i);
                 CVar res = ReadOneFormat(fp, state, fmt_var);
                 inter::SetMultiCVarElement(multi, i, res);
+                if (res.type_ == static_cast<int>(VarType::Nil)) break;
             }
             return multi;
         }
@@ -279,13 +281,13 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (!fp) return inter::NativeToFakeluaNil(state);
 
         std::string_view whence_str = "cur";
+        std::string temp_whence;
         int64_t offset = 0;
 
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-                whence_str = KeyToStringView(a0);
-            }
+            whence_str = GetStringArgView(a0, temp_whence);
+            if (whence_str.empty()) whence_str = "cur";
         }
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
@@ -314,12 +316,12 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (!fp) return inter::NativeToFakeluaNil(state);
 
         std::string_view mode = "full";
+        std::string temp_mode;
         size_t size = BUFSIZ;
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-                mode = KeyToStringView(a0);
-            }
+            mode = GetStringArgView(a0, temp_mode);
+            if (mode.empty()) mode = "full";
         }
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
@@ -594,7 +596,14 @@ void RegisterIoLibraryApi(State *s) {
             // stdin 迭代不支持（需要维护跨调用的 FILE* 状态）
             return inter::NativeToFakeluaNil(state);
         }
-        std::string_view filename = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+        CVar fn_arg = inter::GetNativeArg(state, args, n, 0);
+        std::string fn_str;
+        if (fn_arg.type_ == static_cast<int>(VarType::String) || fn_arg.type_ == static_cast<int>(VarType::StringId)) {
+            fn_str = std::string(KeyToStringView(fn_arg));
+        } else if (fn_arg.type_ != static_cast<int>(VarType::Nil)) {
+            fn_str = AsVar(fn_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        }
+        std::string_view filename = fn_str;
         if (filename.empty()) return inter::NativeToFakeluaNil(state);
         FILE *fp = std::fopen(std::string(filename).c_str(), "r");
         if (!fp) return inter::NativeToFakeluaNil(state);

@@ -37,5 +37,8 @@ function test_os_time()
     local diff = os.difftime("200", "100")
     if diff ~= 100.0 then return 0 end
 
+    -- os.getenv 参数隐式转换测试 (非 nil 均不崩溃)
+    local _ = os.getenv(12345)
+
     return 6000
 end

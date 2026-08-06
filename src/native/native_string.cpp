@@ -410,7 +410,7 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     }
 }
 
-static std::string_view GetStringArgView(CVar a, std::string &temp) {
+std::string_view GetStringArgView(CVar a, std::string &temp) {
     if (a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) {
         return KeyToStringView(a);
     } else if (a.type_ != static_cast<int>(VarType::Nil)) {
@@ -477,8 +477,13 @@ void RegisterStringLibraryApi(State *s) {
             }
         }
 
+        size_t unit_len = sv.size() + sep.size();
+        if (unit_len > 0 && static_cast<uint64_t>(rep_cnt) > (1073741824ULL / unit_len)) {
+            return inter::NativeToFakeluaNil(state);
+        }
+
         std::string res;
-        res.reserve((sv.size() + sep.size()) * static_cast<size_t>(rep_cnt));
+        res.reserve(unit_len * static_cast<size_t>(rep_cnt));
         for (int64_t i = 0; i < rep_cnt; ++i) {
             if (i > 0 && !sep.empty()) res += sep;
             res += sv;
@@ -560,6 +565,11 @@ void RegisterStringLibraryApi(State *s) {
         res.reserve(static_cast<size_t>(n));
         for (int i = 0; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
+            if (arg_i.type_ == static_cast<int>(VarType::Float)) {
+                if (static_cast<double>(static_cast<int64_t>(arg_i.data_.f)) != arg_i.data_.f) {
+                    return inter::NativeToFakeluaNil(state);
+                }
+            }
             int64_t c = inter::CVarToInteger(arg_i, -1);
             if (c < 0 || c > 255) {
                 return inter::NativeToFakeluaNil(state);
@@ -572,7 +582,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.format", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
-        std::string_view fmt = KeyToStringView(fmt_var);
+        std::string temp_fmt;
+        std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
 
         std::string res;
         res.reserve(fmt.size() + 32);
@@ -615,7 +626,8 @@ void RegisterStringLibraryApi(State *s) {
             CVar curr_arg = (arg_idx < n) ? inter::GetNativeArg(state, args, n, arg_idx++) : CVar{static_cast<int>(VarType::Nil)};
 
             if (spec == 'q') {
-                std::string_view sval = KeyToStringView(curr_arg);
+                std::string temp_q;
+                std::string_view sval = GetStringArgView(curr_arg, temp_q);
                 res.push_back('"');
                 for (char c: sval) {
                     if (c == '"') res.append("\\\"");
@@ -639,6 +651,8 @@ void RegisterStringLibraryApi(State *s) {
                     sval = std::to_string(curr_arg.data_.f);
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Bool)) {
                     sval = curr_arg.data_.b ? "true" : "false";
+                } else {
+                    sval = AsVar(curr_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
                 }
                 if (spec_str == "%s") {
                     res.append(sval);
@@ -820,8 +834,10 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        std::string text(KeyToStringView(a0));
-        std::string pattern(KeyToStringView(a1));
+        std::string temp0, temp1;
+        std::string text(GetStringArgView(a0, temp0));
+        std::string pattern(GetStringArgView(a1, temp1));
+        if (text.empty() || pattern.empty()) return inter::NativeToFakeluaNil(state);
 
         // 使用 arena 分配器分配迭代器状态
         auto &alloc = state->GetHeap().GetAllocator(false);
@@ -862,8 +878,9 @@ void RegisterStringLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
         CVar repl_var = inter::GetNativeArg(state, args, n, 2);
-        std::string_view sv = KeyToStringView(a0);
-        std::string_view pat_view = KeyToStringView(a1);
+        std::string temp0, temp1;
+        std::string_view sv = GetStringArgView(a0, temp0);
+        std::string_view pat_view = GetStringArgView(a1, temp1);
 
         int64_t max_replace = -1;
         if (n >= 4) {
@@ -924,7 +941,6 @@ void RegisterStringLibraryApi(State *s) {
 
                     // 回退到 quick_data 线性查找
                     if (val.type_ == static_cast<int>(VarType::Nil)) {
-                        CVar key_cvar = inter::NativeToFakeluaStringView(state, key);
                         for (const auto &qd: tbl->quick_data_) {
                             auto sv = KeyToStringView(qd.key);
                             if (sv == key) {
@@ -1026,6 +1042,10 @@ void RegisterStringLibraryApi(State *s) {
     auto load_impl = [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar code_var = inter::GetNativeArg(state, args, n, 0);
+        if (code_var.type_ != static_cast<int>(VarType::String) && code_var.type_ != static_cast<int>(VarType::StringId) && code_var.type_ != static_cast<int>(VarType::Int) &&
+            code_var.type_ != static_cast<int>(VarType::Float)) {
+            return inter::NativeToFakeluaNil(state);
+        }
         std::string temp;
         std::string_view sv = GetStringArgView(code_var, temp);
         if (sv.empty()) return inter::NativeToFakeluaNil(state);
@@ -1462,7 +1482,8 @@ void RegisterStringLibraryApi(State *s) {
             if (c == 'z') {
                 ++fmt_p;
                 if (str_arg_idx < values.size()) {
-                    std::string_view sv = KeyToStringView(values[str_arg_idx]);
+                    std::string temp;
+                    std::string_view sv = GetStringArgView(values[str_arg_idx], temp);
                     total += sv.size() + 1;// string + null
                     ++str_arg_idx;
                 } else {
