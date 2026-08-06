@@ -238,6 +238,9 @@ void RegisterBasicLibraryApi(State *s) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument #2 to 'tonumber' (number expected)");
+                }
                 if (a1.type_ == static_cast<int>(VarType::Float)) {
                     if (static_cast<double>(static_cast<int64_t>(a1.data_.f)) != a1.data_.f) {
                         return inter::NativeToFakeluaNil(state);
