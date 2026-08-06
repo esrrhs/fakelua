@@ -1041,7 +1041,7 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar fn_var = inter::GetNativeArg(state, args, n, 0);
         if (fn_var.type_ != static_cast<int>(VarType::Closure) || !fn_var.data_.cl) {
-            return inter::NativeToFakeluaNil(state);
+            ThrowFakeluaException("bad argument #1 to 'string.dump' (function expected)");
         }
         VarClosure *cl = fn_var.data_.cl;
         std::string code = cl->code_str ? std::string(cl->code_str) : "";
@@ -1567,6 +1567,10 @@ void RegisterStringLibraryApi(State *s) {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
         CVar str_var = inter::GetNativeArg(state, args, n, 1);
+        if (fmt_var.type_ == static_cast<int>(VarType::Bool) || fmt_var.type_ == static_cast<int>(VarType::Table) || str_var.type_ == static_cast<int>(VarType::Bool) ||
+            str_var.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument to 'string.unpack' (string expected)");
+        }
         std::string temp_fmt, temp_data;
         std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
         std::string_view data = GetStringArgView(str_var, temp_data);
