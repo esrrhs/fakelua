@@ -351,7 +351,9 @@ void RegisterTableLibraryApi(State *s) {
         }
 
         if (start_i > end_j) return inter::AllocMultiCVar(state, 0);
-        int count = static_cast<int>(end_j - start_i + 1);
+        int64_t diff = end_j - start_i + 1;
+        if (diff <= 0 || diff > 1000000) return inter::AllocMultiCVar(state, 0);
+        int count = static_cast<int>(diff);
         CVar multi = inter::AllocMultiCVar(state, count);
         for (int i = 0; i < count; ++i) {
             CVar item = TableHelper::GetTableInt(state, tbl, start_i + i);
@@ -400,15 +402,17 @@ void RegisterTableLibraryApi(State *s) {
         int64_t t = inter::CVarToInteger(t_var, 1);
 
         if (e >= f) {
-            int64_t count = e - f + 1;
+            uint64_t count = static_cast<uint64_t>(e) - static_cast<uint64_t>(f) + 1;
+            if (count > 10000000ULL) return a2;
+            int64_t icount = static_cast<int64_t>(count);
             bool same_table = (a1.type_ == static_cast<int>(VarType::Table) && a2.type_ == static_cast<int>(VarType::Table) && a1.data_.t == a2.data_.t);
             if (!same_table || t <= f || t > e) {
-                for (int64_t i = 0; i < count; ++i) {
+                for (int64_t i = 0; i < icount; ++i) {
                     CVar val = TableHelper::GetTableInt(state, a1, f + i);
                     TableHelper::SetTableInt(state, a2, t + i, val);
                 }
             } else {
-                for (int64_t i = count - 1; i >= 0; --i) {
+                for (int64_t i = icount - 1; i >= 0; --i) {
                     CVar val = TableHelper::GetTableInt(state, a1, f + i);
                     TableHelper::SetTableInt(state, a2, t + i, val);
                 }
