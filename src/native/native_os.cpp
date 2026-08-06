@@ -190,7 +190,14 @@ void RegisterOsLibraryApi(State *s) {
             inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
             return multi;
         }
-        std::string_view cmd_sv = KeyToStringView(a0);
+        std::string s_cmd;
+        std::string_view cmd_sv;
+        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+            cmd_sv = KeyToStringView(a0);
+        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
+            s_cmd = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+            cmd_sv = s_cmd;
+        }
         if (cmd_sv.empty()) {
             CVar multi = inter::AllocMultiCVar(state, 3);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
