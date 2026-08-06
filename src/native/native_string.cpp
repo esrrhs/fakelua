@@ -662,6 +662,9 @@ void RegisterStringLibraryApi(State *s) {
                     }
                 }
             } else if (spec == 'd' || spec == 'i') {
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument to 'format' (number expected)");
+                }
                 int64_t ival = inter::CVarToInteger(curr_arg, 0);
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
@@ -669,6 +672,9 @@ void RegisterStringLibraryApi(State *s) {
                 snprintf(buf, sizeof(buf), llspec.c_str(), ival);
                 res.append(buf);
             } else if (spec == 'u' || spec == 'x' || spec == 'X' || spec == 'o') {
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument to 'format' (number expected)");
+                }
                 uint64_t uval = static_cast<uint64_t>(inter::CVarToInteger(curr_arg, 0));
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
@@ -676,11 +682,17 @@ void RegisterStringLibraryApi(State *s) {
                 snprintf(buf, sizeof(buf), llspec.c_str(), uval);
                 res.append(buf);
             } else if (spec == 'f' || spec == 'e' || spec == 'E' || spec == 'g' || spec == 'G') {
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument to 'format' (number expected)");
+                }
                 double fval = inter::CVarToNumber(curr_arg, 0.0);
                 char buf[128];
                 snprintf(buf, sizeof(buf), spec_str.c_str(), fval);
                 res.append(buf);
             } else if (spec == 'c') {
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument to 'format' (number expected)");
+                }
                 int64_t cval = inter::CVarToInteger(curr_arg, 0);
                 res.push_back(static_cast<char>(cval));
             } else if (spec == 'p') {
