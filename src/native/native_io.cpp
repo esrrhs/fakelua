@@ -52,7 +52,11 @@ extern "C" CVar FileLinesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
 
 // ─── 单格式读取辅助函数 ───
 // 从 fp 读取一个格式（* *l *L *a *n 或数字字节数），返回 CVar（可能为 nil）
-static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var) {
+static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var, int argno, const char *fname) {
+    if (fmt_var.type_ == static_cast<int>(VarType::Bool) || fmt_var.type_ == static_cast<int>(VarType::Table)) {
+        std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (string expected)";
+        ThrowFakeluaException(msg.c_str());
+    }
     std::string s_fmt;
     if (fmt_var.type_ == static_cast<int>(VarType::Int) || fmt_var.type_ == static_cast<int>(VarType::Float)) {
         s_fmt = std::to_string(inter::CVarToInteger(fmt_var, 0));
@@ -176,6 +180,34 @@ static CVar MakeFileLinesClosure(State *state, FILE *fp) {
     return res;
 }
 
+// 将 CVar 参数转为字符串视图，用于 fwrite 等
+// 标准 Lua 的 io.write/file:write 仅接受字符串或数字（内部走 luaL_checklstring，
+// 数字会被自动转换为字符串），Bool/Table 等类型一律报错，而不是静默转换/跳过。
+static std::string_view ArgToStringView(CVar a, State * /*state*/, std::string &temp, int argno, const char *fname) {
+    if (a.type_ == static_cast<int>(VarType::String)) {
+        return a.data_.s->Str();
+    } else if (a.type_ == static_cast<int>(VarType::StringId)) {
+        if (a.data_.i) {
+            const char *ptr = reinterpret_cast<const char *>(a.data_.i);
+            int sz = *reinterpret_cast<const int *>(ptr);
+            return {ptr + 8, static_cast<size_t>(sz)};
+        }
+        return {};
+    } else if (a.type_ == static_cast<int>(VarType::Int)) {
+        temp = std::to_string(a.data_.i);
+        return temp;
+    } else if (a.type_ == static_cast<int>(VarType::Float)) {
+        temp = std::to_string(a.data_.f);
+        while (temp.size() > 1 && temp.back() == '0') temp.pop_back();
+        if (temp.size() > 1 && temp.back() == '.') temp.push_back('0');
+        return temp;
+    } else {
+        std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (string expected)";
+        ThrowFakeluaException(msg.c_str());
+        return {};
+    }
+}
+
 // 创建一个 IoFile NativeObject 壳，内部 FILE* 存为 Int 字段
 // is_popen=true 时用 pclose 而非 fclose 关闭
 static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
@@ -192,7 +224,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (n < 1) {
             CVar fake_fmt{static_cast<int>(VarType::StringId)};
             fake_fmt.data_.i = state->GetConstString().Alloc("*l");
-            return ReadOneFormat(fp, state, fake_fmt);
+            return ReadOneFormat(fp, state, fake_fmt, 1, "file:read");
         }
 
         // 多格式参数：逐个读取，返回 multi-value
@@ -200,7 +232,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
             auto multi = inter::AllocMultiCVar(state, n);
             for (int i = 0; i < n; ++i) {
                 CVar fmt_var = inter::GetNativeArg(state, args, n, i);
-                CVar res = ReadOneFormat(fp, state, fmt_var);
+                CVar res = ReadOneFormat(fp, state, fmt_var, i + 1, "file:read");
                 inter::SetMultiCVarElement(multi, i, res);
                 if (res.type_ == static_cast<int>(VarType::Nil)) break;
             }
@@ -209,7 +241,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
 
         // 单格式参数
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        return ReadOneFormat(fp, state, a0);
+        return ReadOneFormat(fp, state, a0, 1, "file:read");
     });
 
     // ── file:write(...) ──
@@ -217,32 +249,10 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         auto *fp = reinterpret_cast<FILE *>(self->GetInt(kFpKey, 0));
         if (!fp) return inter::NativeToFakeluaNil(state);
 
+        std::string temp;
         for (int i = 0; i < n; i++) {
             CVar a = inter::GetNativeArg(state, args, n, i);
-            std::string temp;
-            std::string_view sv;
-            if (a.type_ == static_cast<int>(VarType::String)) {
-                sv = a.data_.s->Str();
-            } else if (a.type_ == static_cast<int>(VarType::StringId)) {
-                if (a.data_.i) {
-                    const char *ptr = reinterpret_cast<const char *>(a.data_.i);
-                    int sz = *reinterpret_cast<const int *>(ptr);
-                    sv = {ptr + 8, static_cast<size_t>(sz)};
-                }
-            } else if (a.type_ == static_cast<int>(VarType::Int)) {
-                temp = std::to_string(a.data_.i);
-                sv = temp;
-            } else if (a.type_ == static_cast<int>(VarType::Float)) {
-                temp = std::to_string(a.data_.f);
-                // 去掉末尾 0，保持最短表示
-                while (temp.size() > 1 && temp.back() == '0') temp.pop_back();
-                if (temp.size() > 1 && temp.back() == '.') temp.push_back('0');
-                sv = temp;
-            } else if (a.type_ == static_cast<int>(VarType::Bool)) {
-                sv = a.data_.b ? "true" : "false";
-            } else {
-                continue;
-            }
+            std::string_view sv = ArgToStringView(a, state, temp, i + 1, "file:write");
             if (!sv.empty()) {
                 std::fwrite(sv.data(), 1, sv.size(), fp);
             }
@@ -287,11 +297,19 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
 
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            whence_str = GetStringArgView(a0, temp_whence);
-            if (whence_str.empty()) whence_str = "cur";
+            if (a0.type_ != static_cast<int>(VarType::Nil)) {
+                if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument #1 to 'file:seek' (string expected)");
+                }
+                whence_str = GetStringArgView(a0, temp_whence);
+                if (whence_str.empty()) whence_str = "cur";
+            }
         }
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #2 to 'file:seek' (number expected)");
+            }
             offset = inter::CVarToInteger(a1, 0);
         }
 
@@ -321,11 +339,17 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         size_t size = BUFSIZ;
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #1 to 'file:setvbuf' (string expected)");
+            }
             mode = GetStringArgView(a0, temp_mode);
             if (mode.empty()) mode = "full";
         }
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #2 to 'file:setvbuf' (number expected)");
+            }
             size = static_cast<size_t>(inter::CVarToInteger(a1, BUFSIZ));
         }
 
@@ -365,32 +389,6 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
     return obj;
 }
 
-// 将 CVar 参数转为字符串视图，用于 fwrite 等
-static std::string_view ArgToStringView(CVar a, State *state, std::string &temp) {
-    if (a.type_ == static_cast<int>(VarType::String)) {
-        return a.data_.s->Str();
-    } else if (a.type_ == static_cast<int>(VarType::StringId)) {
-        if (a.data_.i) {
-            const char *ptr = reinterpret_cast<const char *>(a.data_.i);
-            int sz = *reinterpret_cast<const int *>(ptr);
-            return {ptr + 8, static_cast<size_t>(sz)};
-        }
-        return {};
-    } else if (a.type_ == static_cast<int>(VarType::Int)) {
-        temp = std::to_string(a.data_.i);
-        return temp;
-    } else if (a.type_ == static_cast<int>(VarType::Float)) {
-        temp = std::to_string(a.data_.f);
-        while (temp.size() > 1 && temp.back() == '0') temp.pop_back();
-        if (temp.size() > 1 && temp.back() == '.') temp.push_back('0');
-        return temp;
-    } else if (a.type_ == static_cast<int>(VarType::Bool)) {
-        return a.data_.b ? "true" : "false";
-    } else {
-        return {};
-    }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // io 库注册
 // ─────────────────────────────────────────────────────────────────────────────
@@ -404,6 +402,9 @@ void RegisterIoLibraryApi(State *s) {
     // ─── io.open(filename [, mode]) → file | nil, err ───
     RegisterNativeFunction(s, "io.open", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar fn_arg = inter::GetNativeArg(state, args, n, 0);
+        if (fn_arg.type_ == static_cast<int>(VarType::Bool) || fn_arg.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'io.open' (string expected)");
+        }
         std::string temp_fn;
         std::string_view filename = GetStringArgView(fn_arg, temp_fn);
         if (filename.empty()) {
@@ -416,7 +417,10 @@ void RegisterIoLibraryApi(State *s) {
         std::string mode = "r";
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
+            if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                if (a1.type_ != static_cast<int>(VarType::String) && a1.type_ != static_cast<int>(VarType::StringId)) {
+                    ThrowFakeluaException("bad argument #2 to 'io.open' (string expected)");
+                }
                 mode = std::string(KeyToStringView(a1));
             }
         }
@@ -442,7 +446,7 @@ void RegisterIoLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         NativeObject *obj = NativeObject::Unwrap(a0);
         if (!obj || obj->GetTypeName() != "iofile") {
-            return inter::NativeToFakeluaNil(state);
+            ThrowFakeluaException("bad argument #1 to 'io.close' (FILE* expected)");
         }
         auto *fp = reinterpret_cast<FILE *>(obj->GetInt(kFpKey, 0));
         if (!fp) return inter::NativeToFakeluaBool(state, true);
@@ -461,21 +465,21 @@ void RegisterIoLibraryApi(State *s) {
         if (n < 1) {
             CVar fake_fmt{static_cast<int>(VarType::StringId)};
             fake_fmt.data_.i = state->GetConstString().Alloc("*l");
-            return ReadOneFormat(stdin, state, fake_fmt);
+            return ReadOneFormat(stdin, state, fake_fmt, 1, "io.read");
         }
         // 多格式参数：逐个读取，返回 multi-value
         if (n >= 2) {
             auto multi = inter::AllocMultiCVar(state, n);
             for (int i = 0; i < n; ++i) {
                 CVar fmt_var = inter::GetNativeArg(state, args, n, i);
-                CVar res = ReadOneFormat(stdin, state, fmt_var);
+                CVar res = ReadOneFormat(stdin, state, fmt_var, i + 1, "io.read");
                 inter::SetMultiCVarElement(multi, i, res);
             }
             return multi;
         }
         // 单格式参数
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        return ReadOneFormat(stdin, state, a0);
+        return ReadOneFormat(stdin, state, a0, 1, "io.read");
     });
 
     // ─── io.write(...) → true ───
@@ -484,7 +488,7 @@ void RegisterIoLibraryApi(State *s) {
         std::string temp;
         for (int i = 0; i < n; i++) {
             CVar a = inter::GetNativeArg(state, args, n, i);
-            std::string_view sv = ArgToStringView(a, state, temp);
+            std::string_view sv = ArgToStringView(a, state, temp, i + 1, "io.write");
             if (!sv.empty()) {
                 std::fwrite(sv.data(), 1, sv.size(), stdout);
             }
@@ -522,13 +526,11 @@ void RegisterIoLibraryApi(State *s) {
     // 关闭时使用 pclose（由 __popen__ 标志自动区分）。
     RegisterNativeFunction(s, "io.popen", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar cmd_arg = inter::GetNativeArg(state, args, n, 0);
-        std::string cmd_str;
-        if (cmd_arg.type_ == static_cast<int>(VarType::String) || cmd_arg.type_ == static_cast<int>(VarType::StringId)) {
-            cmd_str = std::string(KeyToStringView(cmd_arg));
-        } else if (cmd_arg.type_ != static_cast<int>(VarType::Nil)) {
-            cmd_str = AsVar(cmd_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        if (cmd_arg.type_ == static_cast<int>(VarType::Bool) || cmd_arg.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'io.popen' (string expected)");
         }
-        std::string_view command = cmd_str;
+        std::string cmd_str;
+        std::string_view command = GetStringArgView(cmd_arg, cmd_str);
         if (command.empty()) {
             auto multi = inter::AllocMultiCVar(state, 2);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
@@ -538,7 +540,10 @@ void RegisterIoLibraryApi(State *s) {
         std::string mode = "r";
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
+            if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                if (a1.type_ != static_cast<int>(VarType::String) && a1.type_ != static_cast<int>(VarType::StringId)) {
+                    ThrowFakeluaException("bad argument #2 to 'io.popen' (string expected)");
+                }
                 mode = std::string(KeyToStringView(a1));
             }
         }
@@ -592,13 +597,11 @@ void RegisterIoLibraryApi(State *s) {
             return inter::NativeToFakeluaNil(state);
         }
         CVar fn_arg = inter::GetNativeArg(state, args, n, 0);
-        std::string fn_str;
-        if (fn_arg.type_ == static_cast<int>(VarType::String) || fn_arg.type_ == static_cast<int>(VarType::StringId)) {
-            fn_str = std::string(KeyToStringView(fn_arg));
-        } else if (fn_arg.type_ != static_cast<int>(VarType::Nil)) {
-            fn_str = AsVar(fn_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        if (fn_arg.type_ == static_cast<int>(VarType::Bool) || fn_arg.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'io.lines' (string expected)");
         }
-        std::string_view filename = fn_str;
+        std::string fn_str;
+        std::string_view filename = GetStringArgView(fn_arg, fn_str);
         if (filename.empty()) return inter::NativeToFakeluaNil(state);
         FILE *fp = std::fopen(std::string(filename).c_str(), "r");
         if (!fp) return inter::NativeToFakeluaNil(state);

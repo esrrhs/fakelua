@@ -3,9 +3,11 @@
 #include "native/native_table.h"
 #include "var/var.h"
 #include <cerrno>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <limits>
 #include <string_view>
 
 #if defined(_WIN32)
@@ -33,62 +35,39 @@ void RegisterOsLibraryApi(State *s) {
     });
 
     // ─── os.date([format[, time]]]) ───
+    // Standard Lua: format = luaL_optstring(L, 1, "%c"); time = luaL_opt(L, checktime, 2, time(NULL));
+    // format must be string (or number, coerced) or nil/absent; anything else (bool/table) errors.
+    // time must be number (or numeric string, coerced) or nil/absent; anything else errors.
     RegisterNativeFunction(s, "os.date", 0, true, [](State *state, CVar *args, int n) -> CVar {
         std::time_t t_val = 0;
         bool has_time = false;
-        std::string_view fmt;
-        bool use_default_format = false;
+        std::string_view fmt = "%c";
+        std::string temp_fmt;
 
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::Int) || a0.type_ == static_cast<int>(VarType::Float)) {
-                t_val = static_cast<std::time_t>(inter::CVarToInteger(a0, 0));
-                has_time = true;
-                use_default_format = true;
-            } else if (a0.type_ == static_cast<int>(VarType::Nil)) {
-                use_default_format = true;
-                if (n >= 2) {
-                    CVar a1 = inter::GetNativeArg(state, args, n, 1);
-                    if (a1.type_ != static_cast<int>(VarType::Nil)) {
-                        t_val = static_cast<std::time_t>(inter::CVarToInteger(a1, 0));
-                        has_time = true;
-                    }
+            if (a0.type_ != static_cast<int>(VarType::Nil)) {
+                if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument #1 to 'os.date' (string expected)");
                 }
-            } else {
-                std::string_view candidate_fmt = KeyToStringView(a0);
-                // Check if candidate_fmt is purely a numeric timestamp string (e.g. "1700000000")
-                bool is_num = !candidate_fmt.empty();
-                for (char c: candidate_fmt) {
-                    if (!std::isdigit(static_cast<unsigned char>(c)) && c != '-') {
-                        is_num = false;
-                        break;
-                    }
-                }
-                if (is_num) {
-                    t_val = static_cast<std::time_t>(inter::CVarToInteger(a0, 0));
-                    has_time = true;
-                    use_default_format = true;
-                } else {
-                    fmt = candidate_fmt;
-                    if (fmt.empty()) {
-                        use_default_format = true;
-                    }
-                    if (n >= 2) {
-                        CVar a1 = inter::GetNativeArg(state, args, n, 1);
-                        if (a1.type_ != static_cast<int>(VarType::Nil)) {
-                            t_val = static_cast<std::time_t>(inter::CVarToInteger(a1, 0));
-                            has_time = true;
-                        }
-                    }
-                }
+                fmt = GetStringArgView(a0, temp_fmt);
             }
-        } else {
-            use_default_format = true;
+        }
+
+        if (n >= 2) {
+            CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument #2 to 'os.date' (number expected)");
+                }
+                t_val = static_cast<std::time_t>(inter::CVarToInteger(a1, 0));
+                has_time = true;
+            }
         }
 
         // Check for ! prefix (UTC)
         bool use_utc = false;
-        if (!use_default_format && fmt.size() >= 1 && fmt[0] == '!') {
+        if (fmt.size() >= 1 && fmt[0] == '!') {
             use_utc = true;
             fmt.remove_prefix(1);
         }
@@ -150,11 +129,6 @@ void RegisterOsLibraryApi(State *s) {
             return tbl_cvar;
         }
 
-        // Default format if needed
-        if (use_default_format) {
-            fmt = "%c";
-        }
-
         // Format
         char buf[256];
         size_t len = std::strftime(buf, sizeof(buf), std::string(fmt).c_str(), &tm_buf);
@@ -166,8 +140,16 @@ void RegisterOsLibraryApi(State *s) {
 
     // ─── os.difftime(t2, t1) ───
     RegisterNativeFunction(s, "os.difftime", 2, false, [](State *state, CVar *args, int n) -> CVar {
-        int64_t t2 = get_int_arg(state, args, n, 0, 0);
-        int64_t t1 = get_int_arg(state, args, n, 1, 0);
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'os.difftime' (number expected)");
+        }
+        if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #2 to 'os.difftime' (number expected)");
+        }
+        int64_t t2 = inter::CVarToInteger(a0, 0);
+        int64_t t1 = inter::CVarToInteger(a1, 0);
         double diff = static_cast<double>(t2) - static_cast<double>(t1);
         return inter::NativeToFakeluaFloat(state, diff);
     });
@@ -190,14 +172,11 @@ void RegisterOsLibraryApi(State *s) {
             inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
             return multi;
         }
-        std::string s_cmd;
-        std::string_view cmd_sv;
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            cmd_sv = KeyToStringView(a0);
-        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
-            s_cmd = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-            cmd_sv = s_cmd;
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'os.execute' (string expected)");
         }
+        std::string s_cmd;
+        std::string_view cmd_sv = GetStringArgView(a0, s_cmd);
         if (cmd_sv.empty()) {
             CVar multi = inter::AllocMultiCVar(state, 3);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
@@ -268,10 +247,20 @@ void RegisterOsLibraryApi(State *s) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
             if (a0.type_ == static_cast<int>(VarType::Bool)) {
                 code = a0.data_.b ? 0 : 1;
+            } else if (a0.type_ == static_cast<int>(VarType::Nil)) {
+                code = 0;
             } else if (a0.type_ == static_cast<int>(VarType::Int)) {
                 code = static_cast<int>(a0.data_.i);
             } else if (a0.type_ == static_cast<int>(VarType::Float)) {
                 code = static_cast<int>(a0.data_.f);
+            } else if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+                double d = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
+                if (std::isnan(d)) {
+                    ThrowFakeluaException("bad argument #1 to 'os.exit' (number expected)");
+                }
+                code = static_cast<int>(d);
+            } else {
+                ThrowFakeluaException("bad argument #1 to 'os.exit' (number expected)");
             }
         }
         std::exit(code);
@@ -337,17 +326,46 @@ void RegisterOsLibraryApi(State *s) {
 
 
     // ─── os.setlocale(locale[, category]) ───
+    // Standard Lua: category = luaL_checkoption(L, 2, "all", catnames), locale = luaL_optstring(L, 1, NULL).
     RegisterNativeFunction(s, "os.setlocale", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        std::string_view locale = KeyToStringView(inter::GetNativeArg(state, args, n, 0));
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'os.setlocale' (string expected)");
+        }
+        std::string s_locale;
+        std::string_view locale = GetStringArgView(a0, s_locale);
+
+        int category = LC_ALL;
+        if (n >= 2) {
+            CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument #2 to 'os.setlocale' (string expected)");
+                }
+                std::string s_cat;
+                std::string_view cat = GetStringArgView(a1, s_cat);
+                if (cat == "all") category = LC_ALL;
+                else if (cat == "collate") category = LC_COLLATE;
+                else if (cat == "ctype") category = LC_CTYPE;
+                else if (cat == "monetary") category = LC_MONETARY;
+                else if (cat == "numeric") category = LC_NUMERIC;
+                else if (cat == "time") category = LC_TIME;
+                else {
+                    std::string msg = "bad argument #2 to 'os.setlocale' (invalid option '" + std::string(cat) + "')";
+                    ThrowFakeluaException(msg.c_str());
+                }
+            }
+        }
+
         if (locale.empty()) {
             // query current locale
-            const char *cur = std::setlocale(LC_ALL, nullptr);
+            const char *cur = std::setlocale(category, nullptr);
             if (cur) {
                 return inter::NativeToFakeluaStringView(state, std::string_view(cur));
             }
             return inter::NativeToFakeluaNil(state);
         }
-        const char *prev = std::setlocale(LC_ALL, std::string(locale).c_str());
+        const char *prev = std::setlocale(category, std::string(locale).c_str());
         if (prev) {
             return inter::NativeToFakeluaStringView(state, std::string_view(prev));
         }

@@ -3,10 +3,10 @@ function test_io_read_write()
     local f = io.open("test_io_rw.txt", "w")
     if f == nil then return 0 end
 
+    -- 标准 Lua 的 file:write 只接受字符串或数字，布尔值应报错，这里不再测试写入 true
     f:write("abc")
     f:write(123)
     f:write(45.67)
-    f:write(true)
     f:close()
 
     -- 读取验证
@@ -14,11 +14,10 @@ function test_io_read_write()
     if f2 == nil then return 0 end
 
     local content = f2:read("*a")
-    -- 内容应该是 "abc12345.67true"
-    if content ~= "abc12345.67true" then
+    -- 内容应该是 "abc12345.67"
+    if content ~= "abc12345.67" then
         -- 浮点格式可能不同，检查前缀
         if string.sub(content, 1, 10) ~= "abc12345.6" then return 0 end
-        if string.sub(content, -4) ~= "true" then return 0 end
     end
 
     f2:close()

@@ -10,8 +10,10 @@
 #include "var/var_string.h"
 #include "var/var_table.h"
 #include <charconv>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <string_view>
 
@@ -246,7 +248,15 @@ void RegisterBasicLibraryApi(State *s) {
                         return inter::NativeToFakeluaNil(state);
                     }
                 }
-                base = static_cast<int>(inter::CVarToInteger(a1, 10));
+                if (a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
+                    double d = inter::CVarToNumber(a1, std::numeric_limits<double>::quiet_NaN());
+                    if (std::isnan(d)) {
+                        ThrowFakeluaException("bad argument #2 to 'tonumber' (number expected)");
+                    }
+                    base = static_cast<int>(d);
+                } else {
+                    base = static_cast<int>(inter::CVarToInteger(a1, 10));
+                }
                 has_custom_base = true;
             }
         }
@@ -322,7 +332,20 @@ void RegisterBasicLibraryApi(State *s) {
         if (sv == "#") {
             return inter::NativeToFakeluaInt(state, n - 1);
         }
-        int64_t idx = inter::CVarToInteger(a0, 1);
+        // 参数必须是数字，Bool/Table 不合法
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'select' (number expected)");
+        }
+        int64_t idx;
+        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+            double d = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
+            if (std::isnan(d)) {
+                ThrowFakeluaException("bad argument #1 to 'select' (number expected)");
+            }
+            idx = static_cast<int64_t>(d);
+        } else {
+            idx = inter::CVarToInteger(a0, 1);
+        }
         int var_count = n - 1;
         if (idx < 0) {
             idx = var_count + idx + 1;

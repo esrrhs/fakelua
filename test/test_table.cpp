@@ -64,6 +64,20 @@ TEST(test_table, test_table_sort) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_table, test_table_sort_invalid_comparator) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./table/test_table_sort_bad_cmp.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_sort_bad_cmp", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_table, test_table_create) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
