@@ -47,9 +47,7 @@ void RegisterOsLibraryApi(State *s) {
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
             if (a0.type_ != static_cast<int>(VarType::Nil)) {
-                if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
-                    ThrowFakeluaException("bad argument #1 to 'os.date' (string expected)");
-                }
+                CheckStringArg(a0, 1, "os.date");
                 fmt = GetStringArgView(a0, temp_fmt);
             }
         }
@@ -172,9 +170,7 @@ void RegisterOsLibraryApi(State *s) {
             inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
             return multi;
         }
-        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #1 to 'os.execute' (string expected)");
-        }
+        CheckStringArg(a0, 1, "os.execute");
         std::string s_cmd;
         std::string_view cmd_sv = GetStringArgView(a0, s_cmd);
         if (cmd_sv.empty()) {
@@ -270,9 +266,7 @@ void RegisterOsLibraryApi(State *s) {
     // ─── os.getenv(varname) ───
     RegisterNativeFunction(s, "os.getenv", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #1 to 'os.getenv' (string expected)");
-        }
+        CheckStringArg(a0, 1, "os.getenv");
         std::string s_var;
         std::string_view varname = GetStringArgView(a0, s_var);
         if (varname.empty()) {
@@ -288,9 +282,7 @@ void RegisterOsLibraryApi(State *s) {
     // ─── os.remove(filename) ───
     RegisterNativeFunction(s, "os.remove", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #1 to 'os.remove' (string expected)");
-        }
+        CheckStringArg(a0, 1, "os.remove");
         std::string s_fn;
         std::string_view filename = GetStringArgView(a0, s_fn);
         if (filename.empty()) {
@@ -307,10 +299,8 @@ void RegisterOsLibraryApi(State *s) {
     RegisterNativeFunction(s, "os.rename", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table) || a1.type_ == static_cast<int>(VarType::Bool) ||
-            a1.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument to 'os.rename' (string expected)");
-        }
+        CheckStringArg(a0, 1, "os.rename");
+        CheckStringArg(a1, 2, "os.rename");
         std::string s_old, s_new;
         std::string_view oldname = GetStringArgView(a0, s_old);
         std::string_view newname = GetStringArgView(a1, s_new);
@@ -329,9 +319,7 @@ void RegisterOsLibraryApi(State *s) {
     // Standard Lua: category = luaL_checkoption(L, 2, "all", catnames), locale = luaL_optstring(L, 1, NULL).
     RegisterNativeFunction(s, "os.setlocale", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #1 to 'os.setlocale' (string expected)");
-        }
+        CheckStringArg(a0, 1, "os.setlocale");
         std::string s_locale;
         std::string_view locale = GetStringArgView(a0, s_locale);
 
@@ -339,9 +327,7 @@ void RegisterOsLibraryApi(State *s) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ != static_cast<int>(VarType::Nil)) {
-                if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
-                    ThrowFakeluaException("bad argument #2 to 'os.setlocale' (string expected)");
-                }
+                CheckStringArg(a1, 2, "os.setlocale");
                 std::string s_cat;
                 std::string_view cat = GetStringArgView(a1, s_cat);
                 if (cat == "all") category = LC_ALL;
