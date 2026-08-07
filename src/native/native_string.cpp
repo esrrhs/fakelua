@@ -666,6 +666,9 @@ void RegisterStringLibraryApi(State *s) {
             CVar curr_arg = (arg_idx < n) ? inter::GetNativeArg(state, args, n, arg_idx++) : CVar{static_cast<int>(VarType::Nil)};
 
             if (spec == 'q') {
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument to 'format' (string expected)");
+                }
                 std::string temp_q;
                 std::string_view sval = GetStringArgView(curr_arg, temp_q);
                 res.push_back('"');
@@ -1333,6 +1336,9 @@ void RegisterStringLibraryApi(State *s) {
                 if (count <= 0) return inter::NativeToFakeluaNil(state);
                 if (val_idx >= values.size()) return inter::NativeToFakeluaNil(state);
                 CVar val = values[val_idx++];
+                if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument to 'pack' (string expected)");
+                }
                 std::string_view sv = KeyToStringView(val);
                 size_t copy_len = sv.size() < static_cast<size_t>(count) ? sv.size() : static_cast<size_t>(count);
                 result.append(sv.data(), copy_len);
@@ -1361,6 +1367,9 @@ void RegisterStringLibraryApi(State *s) {
                 if (sz <= 0) return inter::NativeToFakeluaNil(state);
                 if (val_idx >= values.size()) return inter::NativeToFakeluaNil(state);
                 CVar val = values[val_idx++];
+                if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument to 'pack' (number expected)");
+                }
                 align_up(static_cast<size_t>(sz));
 
                 if (is_unsigned) {
@@ -1592,8 +1601,12 @@ void RegisterStringLibraryApi(State *s) {
             if (c == 'z') {
                 ++fmt_p;
                 if (str_arg_idx < values.size()) {
+                    CVar val = values[str_arg_idx];
+                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
+                        ThrowFakeluaException("bad argument to 'packsize' (string expected)");
+                    }
                     std::string temp;
-                    std::string_view sv = GetStringArgView(values[str_arg_idx], temp);
+                    std::string_view sv = GetStringArgView(val, temp);
                     total += sv.size() + 1;// string + null
                     ++str_arg_idx;
                 } else {
