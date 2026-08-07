@@ -6,11 +6,20 @@
 
 namespace fakelua {
 
+// Helper: throw if arg is Bool or Table (not a number type)
+static inline void CheckMathNumberArg(const CVar &a, int argno, const char *fname) {
+    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table)) {
+        std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (number expected)";
+        ThrowFakeluaException(msg.c_str());
+    }
+}
+
 void RegisterMathLibraryApi(State *s) {
     if (!s) return;
 
     RegisterNativeFunction(s, "math.abs", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.abs");
         if (a0.type_ == static_cast<int>(VarType::Int)) return inter::NativeToFakeluaInt(state, std::abs(a0.data_.i));
         if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::abs(a0.data_.f));
         double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
@@ -25,6 +34,7 @@ void RegisterMathLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "math.floor", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.floor");
         if (a0.type_ == static_cast<int>(VarType::Int)) return a0;
         if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::floor(a0.data_.f));
         double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
@@ -34,6 +44,7 @@ void RegisterMathLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "math.ceil", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.ceil");
         if (a0.type_ == static_cast<int>(VarType::Int)) return a0;
         if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::ceil(a0.data_.f));
         double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
@@ -44,9 +55,11 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.max", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar max_cvar = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(max_cvar, 1, "math.max");
         double max_v = inter::CVarToNumber(max_cvar, -std::numeric_limits<double>::infinity());
         for (int i = 1; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
+            CheckMathNumberArg(arg_i, i + 1, "math.max");
             double v_i = inter::CVarToNumber(arg_i, -std::numeric_limits<double>::infinity());
             if (v_i > max_v) {
                 max_v = v_i;
@@ -65,9 +78,11 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.min", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar min_cvar = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(min_cvar, 1, "math.min");
         double min_v = inter::CVarToNumber(min_cvar, std::numeric_limits<double>::infinity());
         for (int i = 1; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
+            CheckMathNumberArg(arg_i, i + 1, "math.min");
             double v_i = inter::CVarToNumber(arg_i, std::numeric_limits<double>::infinity());
             if (v_i < min_v) {
                 min_v = v_i;
@@ -85,24 +100,28 @@ void RegisterMathLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "math.sqrt", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.sqrt");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::sqrt(v0));
     });
 
     RegisterNativeFunction(s, "math.sin", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.sin");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::sin(v0));
     });
 
     RegisterNativeFunction(s, "math.cos", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.cos");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::cos(v0));
     });
 
     RegisterNativeFunction(s, "math.tan", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.tan");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::tan(v0));
     });
@@ -110,6 +129,8 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.pow", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckMathNumberArg(a0, 1, "math.pow");
+        CheckMathNumberArg(a1, 2, "math.pow");
         double v0 = inter::CVarToNumber(a0, 0.0);
         double v1 = inter::CVarToNumber(a1, 0.0);
         return inter::NativeToFakeluaFloat(state, std::pow(v0, v1));
@@ -117,21 +138,25 @@ void RegisterMathLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "math.asin", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.asin");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::asin(v0));
     });
 
     RegisterNativeFunction(s, "math.acos", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.acos");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::acos(v0));
     });
 
     RegisterNativeFunction(s, "math.atan", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.atan");
         double v0 = inter::CVarToNumber(a0, 0.0);
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            CheckMathNumberArg(a1, 2, "math.atan");
             double v1 = inter::CVarToNumber(a1, 0.0);
             return inter::NativeToFakeluaFloat(state, std::atan2(v0, v1));
         }
@@ -141,6 +166,8 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.atan2", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckMathNumberArg(a0, 1, "math.atan2");
+        CheckMathNumberArg(a1, 2, "math.atan2");
         double v0 = inter::CVarToNumber(a0, 0.0);
         double v1 = inter::CVarToNumber(a1, 0.0);
         return inter::NativeToFakeluaFloat(state, std::atan2(v0, v1));
@@ -149,23 +176,27 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.copysign", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckMathNumberArg(a0, 1, "math.copysign");
+        CheckMathNumberArg(a1, 2, "math.copysign");
         double v0 = inter::CVarToNumber(a0, 0.0);
         double v1 = inter::CVarToNumber(a1, 0.0);
         return inter::NativeToFakeluaFloat(state, std::copysign(v0, v1));
     });
 
-
     RegisterNativeFunction(s, "math.exp", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.exp");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::exp(v0));
     });
 
     RegisterNativeFunction(s, "math.log", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.log");
         double v0 = inter::CVarToNumber(a0, 0.0);
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            CheckMathNumberArg(a1, 2, "math.log");
             double base = inter::CVarToNumber(a1, 1.0);
             return inter::NativeToFakeluaFloat(state, std::log(v0) / std::log(base));
         }
@@ -174,24 +205,28 @@ void RegisterMathLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "math.log10", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.log10");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::log10(v0));
     });
 
     RegisterNativeFunction(s, "math.sinh", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.sinh");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::sinh(v0));
     });
 
     RegisterNativeFunction(s, "math.cosh", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.cosh");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::cosh(v0));
     });
 
     RegisterNativeFunction(s, "math.tanh", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.tanh");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, std::tanh(v0));
     });
@@ -199,6 +234,8 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.fmod", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckMathNumberArg(a0, 1, "math.fmod");
+        CheckMathNumberArg(a1, 2, "math.fmod");
         double v0 = inter::CVarToNumber(a0, 0.0);
         double v1 = inter::CVarToNumber(a1, 0.0);
         if (v1 == 0.0) {
@@ -210,6 +247,8 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.ldexp", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckMathNumberArg(a0, 1, "math.ldexp");
+        CheckMathNumberArg(a1, 2, "math.ldexp");
         double v0 = inter::CVarToNumber(a0, 0.0);
         int v1 = static_cast<int>(inter::CVarToInteger(a1, 0));
         return inter::NativeToFakeluaFloat(state, std::ldexp(v0, v1));
@@ -235,6 +274,8 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.ult", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckMathNumberArg(a0, 1, "math.ult");
+        CheckMathNumberArg(a1, 2, "math.ult");
         uint64_t u0 = static_cast<uint64_t>(inter::CVarToInteger(a0, 0));
         uint64_t u1 = static_cast<uint64_t>(inter::CVarToInteger(a1, 0));
         return inter::NativeToFakeluaBool(state, u0 < u1);
@@ -242,12 +283,14 @@ void RegisterMathLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "math.deg", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.deg");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, v0 * (180.0 / 3.14159265358979323846));
     });
 
     RegisterNativeFunction(s, "math.rad", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.rad");
         double v0 = inter::CVarToNumber(a0, 0.0);
         return inter::NativeToFakeluaFloat(state, v0 * (3.14159265358979323846 / 180.0));
     });
@@ -298,6 +341,7 @@ void RegisterMathLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "math.modf", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.modf");
         if (a0.type_ == static_cast<int>(VarType::Int)) {
             CVar multi = inter::AllocMultiCVar(state, 2);
             inter::SetMultiCVarElement(multi, 0, a0);
@@ -315,6 +359,7 @@ void RegisterMathLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "math.frexp", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckMathNumberArg(a0, 1, "math.frexp");
         double val = inter::CVarToNumber(a0, 0.0);
         int exp_val = 0;
         double frac = std::frexp(val, &exp_val);
