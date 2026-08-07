@@ -154,6 +154,20 @@ TEST(test_basic, test_basic_dofile) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_basic, test_basic_dofile_bad_arg) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./basic/test_dofile_bad_arg.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_dofile_bad_arg", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_basic, test_basic_version) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);

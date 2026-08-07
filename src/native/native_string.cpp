@@ -497,6 +497,9 @@ void RegisterStringLibraryApi(State *s) {
         std::string sep = "";
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
+            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #3 to 'string.rep' (string expected)");
+            }
             std::string temp_sep;
             sep = std::string(GetStringArgView(a2, temp_sep));
         }
@@ -1129,6 +1132,9 @@ void RegisterStringLibraryApi(State *s) {
     auto load_impl = [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar code_var = inter::GetNativeArg(state, args, n, 0);
+        if (code_var.type_ == static_cast<int>(VarType::Bool) || code_var.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'load' (string expected)");
+        }
         if (code_var.type_ != static_cast<int>(VarType::String) && code_var.type_ != static_cast<int>(VarType::StringId) && code_var.type_ != static_cast<int>(VarType::Int) &&
             code_var.type_ != static_cast<int>(VarType::Float)) {
             return inter::NativeToFakeluaNil(state);
@@ -1221,6 +1227,9 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "loadfile", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar filename_var = inter::GetNativeArg(state, args, n, 0);
+        if (filename_var.type_ == static_cast<int>(VarType::Bool) || filename_var.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'loadfile' (string expected)");
+        }
         std::string temp;
         std::string_view filename_sv = GetStringArgView(filename_var, temp);
         if (filename_sv.empty()) return inter::NativeToFakeluaNil(state);
@@ -1247,6 +1256,9 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "dofile", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar filename_var = inter::GetNativeArg(state, args, n, 0);
+        if (filename_var.type_ == static_cast<int>(VarType::Bool) || filename_var.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'dofile' (string expected)");
+        }
         std::string temp;
         std::string_view filename_sv = GetStringArgView(filename_var, temp);
         if (filename_sv.empty()) return inter::NativeToFakeluaNil(state);

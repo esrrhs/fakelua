@@ -229,3 +229,45 @@ TEST(test_string, test_string_format_p) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, test_string_rep_bad_sep) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./string/test_string_rep_bad_sep.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_string_rep_bad_sep", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_load_bad_arg) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./string/test_load_bad_arg.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_load_bad_arg", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_loadfile_bad_arg) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./string/test_loadfile_bad_arg.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_loadfile_bad_arg", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
