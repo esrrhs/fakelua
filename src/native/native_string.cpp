@@ -426,6 +426,9 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.len", 1, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaInt(state, 0);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'string.len' (string expected)");
+        }
         std::string temp;
         std::string_view sv = GetStringArgView(a0, temp);
         return inter::NativeToFakeluaInt(state, static_cast<int64_t>(sv.size()));
@@ -434,6 +437,9 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.sub", 2, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'string.sub' (string expected)");
+        }
         std::string temp;
         std::string_view sv = GetStringArgView(a0, temp);
         int64_t len = static_cast<int64_t>(sv.size());
@@ -461,6 +467,9 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.rep", 2, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'string.rep' (string expected)");
+        }
         std::string temp;
         std::string_view sv = GetStringArgView(a0, temp);
 
@@ -491,6 +500,9 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.reverse", 1, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'string.reverse' (string expected)");
+        }
         std::string temp;
         std::string str_val(GetStringArgView(a0, temp));
         std::reverse(str_val.begin(), str_val.end());
@@ -500,6 +512,9 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.lower", 1, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'string.lower' (string expected)");
+        }
         std::string temp;
         std::string res(GetStringArgView(a0, temp));
         std::transform(res.begin(), res.end(), res.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -509,11 +524,15 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.upper", 1, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'string.upper' (string expected)");
+        }
         std::string temp;
         std::string res(GetStringArgView(a0, temp));
         std::transform(res.begin(), res.end(), res.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
         return inter::NativeToFakeluaStringView(state, res);
     });
+
 
     RegisterNativeFunction(s, "string.byte", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
