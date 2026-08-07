@@ -238,6 +238,9 @@ void RegisterBasicLibraryApi(State *s) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument #2 to 'tonumber' (number expected)");
+                }
                 if (a1.type_ == static_cast<int>(VarType::Float)) {
                     if (static_cast<double>(static_cast<int64_t>(a1.data_.f)) != a1.data_.f) {
                         return inter::NativeToFakeluaNil(state);
@@ -314,11 +317,10 @@ void RegisterBasicLibraryApi(State *s) {
     RegisterNativeFunction(s, "select", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         // 支持 select("#", ...) 返回总数
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            std::string_view sv = KeyToStringView(a0);
-            if (sv == "#") {
-                return inter::NativeToFakeluaInt(state, n - 1);
-            }
+        std::string temp;
+        std::string_view sv = GetStringArgView(a0, temp);
+        if (sv == "#") {
+            return inter::NativeToFakeluaInt(state, n - 1);
         }
         int64_t idx = inter::CVarToInteger(a0, 1);
         int var_count = n - 1;
@@ -456,6 +458,9 @@ void RegisterBasicLibraryApi(State *s) {
     RegisterNativeFunction(s, "xpcall", 2, true, [](State *state, CVar *args, int n) -> CVar {
         CVar func = inter::GetNativeArg(state, args, n, 0);
         CVar err_func = inter::GetNativeArg(state, args, n, 1);
+        if (err_func.type_ != static_cast<int>(VarType::Closure) || !err_func.data_.cl) {
+            ThrowFakeluaException("bad argument #2 to 'xpcall' (function expected)");
+        }
 
         if (func.type_ != static_cast<int>(VarType::Closure) || !func.data_.cl) {
             CVar multi = inter::AllocMultiCVar(state, 2);
@@ -594,7 +599,7 @@ void RegisterBasicLibraryApi(State *s) {
     RegisterNativeFunction(s, "next", 1, true, [&](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
-            return inter::NativeToFakeluaNil(state);
+            ThrowFakeluaException("bad argument #1 to 'next' (table expected)");
         }
         VarTable *t = tbl.data_.t;
 
@@ -648,6 +653,9 @@ void RegisterBasicLibraryApi(State *s) {
     // ─── pairs(t) ───
     RegisterNativeFunction(s, "pairs", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'pairs' (table expected)");
+        }
         auto &alloc = state->GetHeap().GetAllocator(false);
 
         // 分配迭代器状态
@@ -689,6 +697,9 @@ void RegisterBasicLibraryApi(State *s) {
     // ─── ipairs(t) ───
     RegisterNativeFunction(s, "ipairs", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'ipairs' (table expected)");
+        }
         auto &alloc = state->GetHeap().GetAllocator(false);
 
         auto *st = static_cast<IpairsState *>(alloc.Alloc(sizeof(IpairsState)));
@@ -732,6 +743,9 @@ void RegisterBasicLibraryApi(State *s) {
         std::string temp_opt;
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #1 to 'collectgarbage' (string expected)");
+            }
             opt = GetStringArgView(a0, temp_opt);
             if (opt.empty()) opt = "count";
         }

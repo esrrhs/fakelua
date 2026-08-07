@@ -257,13 +257,23 @@ void RegisterMathLibraryApi(State *s) {
             double r = static_cast<double>(std::rand()) / (static_cast<double>(RAND_MAX) + 1.0);
             return inter::NativeToFakeluaFloat(state, r);
         } else if (n == 1) {
-            int64_t u = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 0), 0);
+            CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #1 to 'math.random' (number expected)");
+            }
+            int64_t u = inter::CVarToInteger(a0, 0);
             if (u < 1) return inter::NativeToFakeluaInt(state, 0);
             int64_t r = 1 + (static_cast<int64_t>(std::rand()) % u);
             return inter::NativeToFakeluaInt(state, r);
         } else {
-            int64_t l = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 0), 0);
-            int64_t u = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 0);
+            CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table) || a1.type_ == static_cast<int>(VarType::Bool) ||
+                a1.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument to 'math.random' (number expected)");
+            }
+            int64_t l = inter::CVarToInteger(a0, 0);
+            int64_t u = inter::CVarToInteger(a1, 0);
             if (l > u) return inter::NativeToFakeluaNil(state);
             if (l == u) return inter::NativeToFakeluaInt(state, l);
             int64_t range = u - l + 1;
@@ -276,7 +286,11 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.randomseed", 0, true, [](State *state, CVar *args, int n) -> CVar {
         unsigned int seed = static_cast<unsigned int>(std::time(nullptr));
         if (n >= 1) {
-            seed = static_cast<unsigned int>(inter::CVarToInteger(inter::GetNativeArg(state, args, n, 0), seed));
+            CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #1 to 'math.randomseed' (number expected)");
+            }
+            seed = static_cast<unsigned int>(inter::CVarToInteger(a0, seed));
         }
         std::srand(seed);
         return inter::NativeToFakeluaNil(state);

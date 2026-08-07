@@ -281,14 +281,11 @@ void RegisterOsLibraryApi(State *s) {
     // ─── os.getenv(varname) ───
     RegisterNativeFunction(s, "os.getenv", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string s_var;
-        std::string_view varname;
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            varname = KeyToStringView(a0);
-        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
-            s_var = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-            varname = s_var;
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'os.getenv' (string expected)");
         }
+        std::string s_var;
+        std::string_view varname = GetStringArgView(a0, s_var);
         if (varname.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -302,14 +299,11 @@ void RegisterOsLibraryApi(State *s) {
     // ─── os.remove(filename) ───
     RegisterNativeFunction(s, "os.remove", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        std::string s_fn;
-        std::string_view filename;
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            filename = KeyToStringView(a0);
-        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
-            s_fn = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-            filename = s_fn;
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'os.remove' (string expected)");
         }
+        std::string s_fn;
+        std::string_view filename = GetStringArgView(a0, s_fn);
         if (filename.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -324,20 +318,13 @@ void RegisterOsLibraryApi(State *s) {
     RegisterNativeFunction(s, "os.rename", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table) || a1.type_ == static_cast<int>(VarType::Bool) ||
+            a1.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument to 'os.rename' (string expected)");
+        }
         std::string s_old, s_new;
-        std::string_view oldname, newname;
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            oldname = KeyToStringView(a0);
-        } else if (a0.type_ != static_cast<int>(VarType::Nil)) {
-            s_old = AsVar(a0).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-            oldname = s_old;
-        }
-        if (a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
-            newname = KeyToStringView(a1);
-        } else if (a1.type_ != static_cast<int>(VarType::Nil)) {
-            s_new = AsVar(a1).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-            newname = s_new;
-        }
+        std::string_view oldname = GetStringArgView(a0, s_old);
+        std::string_view newname = GetStringArgView(a1, s_new);
         if (oldname.empty() || newname.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -347,6 +334,7 @@ void RegisterOsLibraryApi(State *s) {
         }
         return inter::NativeToFakeluaNil(state);
     });
+
 
     // ─── os.setlocale(locale[, category]) ───
     RegisterNativeFunction(s, "os.setlocale", 1, true, [](State *state, CVar *args, int n) -> CVar {
@@ -378,8 +366,8 @@ void RegisterOsLibraryApi(State *s) {
             std::time_t now = std::time(nullptr);
             return inter::NativeToFakeluaInt(state, static_cast<int64_t>(now));
         }
-        if (tbl.type_ != static_cast<int>(VarType::Table)) {
-            return inter::NativeToFakeluaNil(state);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'os.time' (table expected)");
         }
 
         // Helper: read a string-keyed field from a table
