@@ -254,6 +254,15 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
     }
 }
 
+// Helper: reject Bool/Table where a number is expected, matching real Lua's
+// luaL_checkinteger/luaL_checknumber behavior (throws instead of silently defaulting).
+static inline void CheckTableNumberArg(const CVar &a, int argno, const char *fname) {
+    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table)) {
+        std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (number expected)";
+        ThrowFakeluaException(msg.c_str());
+    }
+}
+
 void RegisterTableLibraryApi(State *s) {
     if (!s) return;
 
@@ -272,6 +281,7 @@ void RegisterTableLibraryApi(State *s) {
         } else {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
             CVar val = inter::GetNativeArg(state, args, n, 2);
+            CheckTableNumberArg(pos_var, 2, "table.insert");
             int64_t pos = inter::CVarToInteger(pos_var, 1);
             if (pos < 1 || pos > len + 1) return inter::NativeToFakeluaNil(state);
             for (int64_t i = len; i >= pos; --i) {
@@ -293,6 +303,7 @@ void RegisterTableLibraryApi(State *s) {
         int64_t pos = len;
         if (n >= 2) {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
+            CheckTableNumberArg(pos_var, 2, "table.remove");
             pos = inter::CVarToInteger(pos_var, len);
         }
         if (pos < 1 || pos > len) return inter::NativeToFakeluaNil(state);
@@ -321,11 +332,15 @@ void RegisterTableLibraryApi(State *s) {
         }
         int64_t start_i = 1;
         if (n >= 3) {
-            start_i = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), 1);
+            CVar start_var = inter::GetNativeArg(state, args, n, 2);
+            CheckTableNumberArg(start_var, 3, "table.concat");
+            start_i = inter::CVarToInteger(start_var, 1);
         }
         int64_t end_j = TableHelper::GetTableLen(tbl);
         if (n >= 4) {
-            end_j = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 3), end_j);
+            CVar end_var = inter::GetNativeArg(state, args, n, 3);
+            CheckTableNumberArg(end_var, 4, "table.concat");
+            end_j = inter::CVarToInteger(end_var, end_j);
         }
 
         std::string res;
@@ -352,11 +367,15 @@ void RegisterTableLibraryApi(State *s) {
         }
         int64_t start_i = 1;
         if (n >= 2) {
-            start_i = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 1);
+            CVar start_var = inter::GetNativeArg(state, args, n, 1);
+            CheckTableNumberArg(start_var, 2, "table.unpack");
+            start_i = inter::CVarToInteger(start_var, 1);
         }
         int64_t end_j = TableHelper::GetTableLen(tbl);
         if (n >= 3) {
-            end_j = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), end_j);
+            CVar end_var = inter::GetNativeArg(state, args, n, 2);
+            CheckTableNumberArg(end_var, 3, "table.unpack");
+            end_j = inter::CVarToInteger(end_var, end_j);
         }
 
         if (start_i > end_j) return inter::AllocMultiCVar(state, 0);
@@ -406,7 +425,9 @@ void RegisterTableLibraryApi(State *s) {
         if (a1.type_ != static_cast<int>(VarType::Table) || !a1.data_.t || a2.type_ != static_cast<int>(VarType::Table) || !a2.data_.t) {
             ThrowFakeluaException("bad argument to 'move' (table expected)");
         }
-
+        CheckTableNumberArg(f_var, 2, "table.move");
+        CheckTableNumberArg(e_var, 3, "table.move");
+        CheckTableNumberArg(t_var, 4, "table.move");
 
         int64_t f = inter::CVarToInteger(f_var, 1);
         int64_t e = inter::CVarToInteger(e_var, 0);
@@ -435,6 +456,9 @@ void RegisterTableLibraryApi(State *s) {
     RegisterNativeFunction(s, "table.sort", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'table.sort' (table expected)");
+        }
         int64_t len = TableHelper::GetTableLen(tbl);
         if (len <= 1) return inter::NativeToFakeluaNil(state);
 

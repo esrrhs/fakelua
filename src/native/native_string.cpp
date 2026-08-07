@@ -1485,6 +1485,9 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.packsize", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaInt(state, 0);
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
+        if (fmt_var.type_ == static_cast<int>(VarType::Bool) || fmt_var.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'string.packsize' (string expected)");
+        }
         std::string temp_fmt;
         std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
         if (fmt.empty()) return inter::NativeToFakeluaInt(state, 0);
