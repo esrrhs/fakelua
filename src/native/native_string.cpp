@@ -142,6 +142,9 @@ int PackMachine::PackSpec(std::string &out, const char *fmt, const char *end, St
             if (sz <= 0) return -1;
             if (arg_idx >= total_args) return -1;
             CVar val = inter::GetNativeArg(state, args, total_args, arg_idx);
+            if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument to 'string.pack' (number expected)");
+            }
             ++arg_idx;
             PadToMultiple(out, static_cast<size_t>(sz));
 
@@ -167,6 +170,9 @@ int PackMachine::PackSpec(std::string &out, const char *fmt, const char *end, St
         // Fixed-size specifiers
         if (arg_idx >= total_args) return -1;
         CVar val = inter::GetNativeArg(state, args, total_args, arg_idx);
+        if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument to 'string.pack' (number expected)");
+        }
         ++arg_idx;
 
         switch (c) {
@@ -444,10 +450,18 @@ void RegisterStringLibraryApi(State *s) {
         std::string_view sv = GetStringArgView(a0, temp);
         int64_t len = static_cast<int64_t>(sv.size());
 
-        int64_t start_pos = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 1);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #2 to 'string.sub' (number expected)");
+        }
+        int64_t start_pos = inter::CVarToInteger(a1, 1);
         int64_t end_pos = len;
         if (n >= 3) {
-            end_pos = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), len);
+            CVar a2 = inter::GetNativeArg(state, args, n, 2);
+            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #3 to 'string.sub' (number expected)");
+            }
+            end_pos = inter::CVarToInteger(a2, len);
         }
 
         start_pos = NormalizePos(start_pos, len);
@@ -473,7 +487,11 @@ void RegisterStringLibraryApi(State *s) {
         std::string temp;
         std::string_view sv = GetStringArgView(a0, temp);
 
-        int64_t rep_cnt = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 1), 0);
+        CVar rep_var = inter::GetNativeArg(state, args, n, 1);
+        if (rep_var.type_ == static_cast<int>(VarType::Bool) || rep_var.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #2 to 'string.rep' (number expected)");
+        }
+        int64_t rep_cnt = inter::CVarToInteger(rep_var, 0);
         if (rep_cnt <= 0) return inter::NativeToFakeluaStringView(state, "");
 
         std::string sep = "";
@@ -548,12 +566,18 @@ void RegisterStringLibraryApi(State *s) {
         int64_t start_pos = 1;
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #2 to 'string.byte' (number expected)");
+            }
             start_pos = inter::CVarToInteger(a1, 1);
         }
 
         int64_t end_pos = start_pos;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
+            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #3 to 'string.byte' (number expected)");
+            }
             end_pos = inter::CVarToInteger(a2, start_pos);
         }
 
@@ -774,7 +798,11 @@ void RegisterStringLibraryApi(State *s) {
 
         int64_t init_pos = 1;
         if (n >= 3) {
-            init_pos = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), 1);
+            CVar a2 = inter::GetNativeArg(state, args, n, 2);
+            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #3 to 'string.find' (number expected)");
+            }
+            init_pos = inter::CVarToInteger(a2, 1);
         }
         init_pos = NormalizePos(init_pos, len);
         if (init_pos < 1) init_pos = 1;
@@ -841,7 +869,11 @@ void RegisterStringLibraryApi(State *s) {
 
         int64_t init_pos = 1;
         if (n >= 3) {
-            init_pos = inter::CVarToInteger(inter::GetNativeArg(state, args, n, 2), 1);
+            CVar a2 = inter::GetNativeArg(state, args, n, 2);
+            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #3 to 'string.match' (number expected)");
+            }
+            init_pos = inter::CVarToInteger(a2, 1);
         }
         init_pos = NormalizePos(init_pos, len);
         if (init_pos < 1) init_pos = 1;
@@ -937,6 +969,9 @@ void RegisterStringLibraryApi(State *s) {
         int64_t max_replace = -1;
         if (n >= 4) {
             CVar a3 = inter::GetNativeArg(state, args, n, 3);
+            if (a3.type_ == static_cast<int>(VarType::Bool) || a3.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #4 to 'string.gsub' (number expected)");
+            }
             max_replace = inter::CVarToInteger(a3, -1);
         }
 
@@ -1637,6 +1672,9 @@ void RegisterStringLibraryApi(State *s) {
         int start_pos = 1;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
+            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #3 to 'string.unpack' (number expected)");
+            }
             start_pos = static_cast<int>(inter::CVarToInteger(a2, 1));
         }
         start_pos = NormalizePos(start_pos, static_cast<int64_t>(data.size()));
