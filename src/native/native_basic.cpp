@@ -743,6 +743,9 @@ void RegisterBasicLibraryApi(State *s) {
         std::string temp_opt;
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #1 to 'collectgarbage' (string expected)");
+            }
             opt = GetStringArgView(a0, temp_opt);
             if (opt.empty()) opt = "count";
         }
