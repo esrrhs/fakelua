@@ -53,10 +53,7 @@ extern "C" CVar FileLinesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
 // ─── 单格式读取辅助函数 ───
 // 从 fp 读取一个格式（* *l *L *a *n 或数字字节数），返回 CVar（可能为 nil）
 static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var, int argno, const char *fname) {
-    if (fmt_var.type_ == static_cast<int>(VarType::Bool) || fmt_var.type_ == static_cast<int>(VarType::Table)) {
-        std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (string expected)";
-        ThrowFakeluaException(msg.c_str());
-    }
+    CheckStringArg(fmt_var, argno, fname);
     std::string s_fmt;
     if (fmt_var.type_ == static_cast<int>(VarType::Int) || fmt_var.type_ == static_cast<int>(VarType::Float)) {
         s_fmt = std::to_string(inter::CVarToInteger(fmt_var, 0));
@@ -202,8 +199,7 @@ static std::string_view ArgToStringView(CVar a, State * /*state*/, std::string &
         if (temp.size() > 1 && temp.back() == '.') temp.push_back('0');
         return temp;
     } else {
-        std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (string expected)";
-        ThrowFakeluaException(msg.c_str());
+        CheckStringArg(a, argno, fname);
         return {};
     }
 }
@@ -298,9 +294,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
             if (a0.type_ != static_cast<int>(VarType::Nil)) {
-                if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
-                    ThrowFakeluaException("bad argument #1 to 'file:seek' (string expected)");
-                }
+                CheckStringArg(a0, 1, "file:seek");
                 whence_str = GetStringArgView(a0, temp_whence);
                 if (whence_str.empty()) whence_str = "cur";
             }
@@ -339,9 +333,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         size_t size = BUFSIZ;
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
-                ThrowFakeluaException("bad argument #1 to 'file:setvbuf' (string expected)");
-            }
+            CheckStringArg(a0, 1, "file:setvbuf");
             mode = GetStringArgView(a0, temp_mode);
             if (mode.empty()) mode = "full";
         }
@@ -402,9 +394,7 @@ void RegisterIoLibraryApi(State *s) {
     // ─── io.open(filename [, mode]) → file | nil, err ───
     RegisterNativeFunction(s, "io.open", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar fn_arg = inter::GetNativeArg(state, args, n, 0);
-        if (fn_arg.type_ == static_cast<int>(VarType::Bool) || fn_arg.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #1 to 'io.open' (string expected)");
-        }
+        CheckStringArg(fn_arg, 1, "io.open");
         std::string temp_fn;
         std::string_view filename = GetStringArgView(fn_arg, temp_fn);
         if (filename.empty()) {
@@ -526,9 +516,7 @@ void RegisterIoLibraryApi(State *s) {
     // 关闭时使用 pclose（由 __popen__ 标志自动区分）。
     RegisterNativeFunction(s, "io.popen", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar cmd_arg = inter::GetNativeArg(state, args, n, 0);
-        if (cmd_arg.type_ == static_cast<int>(VarType::Bool) || cmd_arg.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #1 to 'io.popen' (string expected)");
-        }
+        CheckStringArg(cmd_arg, 1, "io.popen");
         std::string cmd_str;
         std::string_view command = GetStringArgView(cmd_arg, cmd_str);
         if (command.empty()) {
@@ -597,9 +585,7 @@ void RegisterIoLibraryApi(State *s) {
             return inter::NativeToFakeluaNil(state);
         }
         CVar fn_arg = inter::GetNativeArg(state, args, n, 0);
-        if (fn_arg.type_ == static_cast<int>(VarType::Bool) || fn_arg.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #1 to 'io.lines' (string expected)");
-        }
+        CheckStringArg(fn_arg, 1, "io.lines");
         std::string fn_str;
         std::string_view filename = GetStringArgView(fn_arg, fn_str);
         if (filename.empty()) return inter::NativeToFakeluaNil(state);

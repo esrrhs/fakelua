@@ -1,5 +1,6 @@
 #include "native/native_utf8.h"
 #include "native/native_object.h"
+#include "native/native_string.h"
 #include "var/var.h"
 #include <cstdint>
 #include <string>
@@ -116,14 +117,6 @@ static inline void CheckUtf8NumberArg(const CVar &a, int argno, const char *fnam
     }
 }
 
-// Helper: reject Bool/Table where a string is expected, matching real Lua's
-// luaL_checkstring/luaL_checklstring behavior.
-static inline void CheckUtf8StringArg(const CVar &a, int argno, const char *fname) {
-    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table)) {
-        std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (string expected)";
-        ThrowFakeluaException(msg.c_str());
-    }
-}
 
 // ─── utf8.char(...) ───
 // Takes zero or more integers, returns a UTF-8 string.
@@ -152,7 +145,7 @@ static CVar Utf8Codepoint(State *state, CVar *args, int n) {
     if (n < 1) return inter::NativeToFakeluaNil(state);
 
     CVar a0 = inter::GetNativeArg(state, args, n, 0);
-    CheckUtf8StringArg(a0, 1, "utf8.codepoint");
+    CheckStringArg(a0, 1, "utf8.codepoint");
     std::string s_sv;
     std::string_view sv = GetStringArgView(a0, s_sv);
     if (sv.empty()) return inter::NativeToFakeluaNil(state);
@@ -266,7 +259,7 @@ static CVar Utf8Codes(State *state, CVar *args, int n) {
     if (n < 1) return inter::NativeToFakeluaNil(state);
 
     CVar a0 = inter::GetNativeArg(state, args, n, 0);
-    CheckUtf8StringArg(a0, 1, "utf8.codes");
+    CheckStringArg(a0, 1, "utf8.codes");
     std::string_view sv = KeyToStringView(a0);
     if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
@@ -283,7 +276,7 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
     if (n < 1) return inter::NativeToFakeluaNil(state);
 
     CVar a0 = inter::GetNativeArg(state, args, n, 0);
-    CheckUtf8StringArg(a0, 1, "utf8.len");
+    CheckStringArg(a0, 1, "utf8.len");
     std::string s_sv;
     std::string_view sv = GetStringArgView(a0, s_sv);
     if (sv.empty()) return inter::NativeToFakeluaInt(state, 0);
@@ -340,7 +333,7 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     if (n < 2) return inter::NativeToFakeluaNil(state);
 
     CVar a0 = inter::GetNativeArg(state, args, n, 0);
-    CheckUtf8StringArg(a0, 1, "utf8.offset");
+    CheckStringArg(a0, 1, "utf8.offset");
     std::string s_sv;
     std::string_view sv = GetStringArgView(a0, s_sv);
     if (sv.empty()) return inter::NativeToFakeluaNil(state);
