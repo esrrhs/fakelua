@@ -313,6 +313,9 @@ void RegisterTableLibraryApi(State *s) {
         std::string sep = "";
         if (n >= 2) {
             CVar sep_var = inter::GetNativeArg(state, args, n, 1);
+            if (sep_var.type_ == static_cast<int>(VarType::Bool) || sep_var.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument #2 to 'table.concat' (string expected)");
+            }
             std::string temp_sep;
             sep = std::string(GetStringArgView(sep_var, temp_sep));
         }
@@ -442,7 +445,7 @@ void RegisterTableLibraryApi(State *s) {
 
         CVar comp = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
         if (comp.type_ != static_cast<int>(VarType::Nil) && comp.type_ != static_cast<int>(VarType::Closure)) {
-            return inter::NativeToFakeluaNil(state);
+            ThrowFakeluaException("bad argument #2 to 'table.sort' (function expected)");
         }
 
         if (comp.type_ == static_cast<int>(VarType::Closure) && comp.data_.cl) {
@@ -506,6 +509,9 @@ void RegisterTableLibraryApi(State *s) {
 
         if (n < 1) return create_table();
         CVar seq_var = inter::GetNativeArg(state, args, n, 0);
+        if (seq_var.type_ == static_cast<int>(VarType::Bool) || seq_var.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'table.create' (number expected)");
+        }
         int64_t count = inter::CVarToInteger(seq_var, 0);
         if (count < 0) count = 0;
 

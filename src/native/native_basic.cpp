@@ -322,6 +322,10 @@ void RegisterBasicLibraryApi(State *s) {
         if (sv == "#") {
             return inter::NativeToFakeluaInt(state, n - 1);
         }
+        // 参数必须是数字，Bool/Table 不合法
+        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            ThrowFakeluaException("bad argument #1 to 'select' (number or string expected)");
+        }
         int64_t idx = inter::CVarToInteger(a0, 1);
         int var_count = n - 1;
         if (idx < 0) {
