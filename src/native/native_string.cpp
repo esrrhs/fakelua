@@ -964,6 +964,10 @@ void RegisterStringLibraryApi(State *s) {
             max_replace = inter::CVarToInteger(a3, -1);
         }
 
+        // 标准 Lua：gsub 的替换参数必须是 string/function/table，Bool 不合法
+        if (repl_var.type_ == static_cast<int>(VarType::Bool)) {
+            ThrowFakeluaException("bad argument #3 to 'string.gsub' (string/function/table expected, got boolean)");
+        }
         bool repl_is_table = (repl_var.type_ == static_cast<int>(VarType::Table) && repl_var.data_.t);
         bool repl_is_closure = (repl_var.type_ == static_cast<int>(VarType::Closure) && repl_var.data_.cl);
 
@@ -994,10 +998,16 @@ void RegisterStringLibraryApi(State *s) {
                             call_args[i] = inter::NativeToFakeluaStringView(state, match[i + 1].str());
                         }
                         CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, call_args, call_arg_count) : FlEvalLoadClosure(state, cl, call_arg_count, call_args);
+                        if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
+                            ThrowFakeluaException("invalid replacement value (boolean)");
+                        }
                         replacement = std::string(KeyToStringView(fn_res));
                     } else {
                         CVar call_arg = inter::NativeToFakeluaStringView(state, match[0].str());
                         CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, &call_arg, 1) : FlEvalLoadClosure(state, cl, 1, &call_arg);
+                        if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
+                            ThrowFakeluaException("invalid replacement value (boolean)");
+                        }
                         replacement = std::string(KeyToStringView(fn_res));
                     }
                 } else if (repl_is_table) {
@@ -1028,6 +1038,8 @@ void RegisterStringLibraryApi(State *s) {
 
                     if (val.type_ == static_cast<int>(VarType::Nil)) {
                         replacement = match[0].str();
+                    } else if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
+                        ThrowFakeluaException("invalid replacement value (boolean)");
                     } else {
                         replacement = std::string(KeyToStringView(val));
                     }

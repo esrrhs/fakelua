@@ -327,3 +327,45 @@ TEST(test_string, test_format_q_bad_arg) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, test_gsub_bad_repl_bool) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./string/test_gsub_bad_repl_bool.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_gsub_bad_repl_bool", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_gsub_bad_table_value_bool) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./string/test_gsub_bad_table_value_bool.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_gsub_bad_table_value_bool", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_gsub_bad_func_return_bool) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./string/test_gsub_bad_func_return_bool.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_gsub_bad_func_return_bool", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
