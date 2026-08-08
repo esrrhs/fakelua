@@ -121,6 +121,10 @@ int PackMachine::PackSpec(std::string &out, const char *fmt, const char *end, St
             if (count <= 0) return -1;
             if (arg_idx >= total_args) return -1;
             CVar val = inter::GetNativeArg(state, args, total_args, arg_idx);
+            // 标准 Lua：c[n] 的参数必须是 string，Bool/Table 不合法
+            if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
+                ThrowFakeluaException("bad argument to 'pack' (string expected)");
+            }
             ++arg_idx;
             std::string_view sv = KeyToStringView(val);
             size_t copy_len = sv.size() < static_cast<size_t>(count) ? sv.size() : static_cast<size_t>(count);
@@ -744,6 +748,10 @@ void RegisterStringLibraryApi(State *s) {
                 int64_t cval = inter::CVarToInteger(curr_arg, 0);
                 res.push_back(static_cast<char>(cval));
             } else if (spec == 'p') {
+                // 标准 Lua：%p 的参数必须是 number，Bool/Table 不合法
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument to 'format' (number expected)");
+                }
                 // 指针地址：格式化为 0x 前缀的十六进制（始终输出 0x...，即使值为 0）
                 // 使用 uintptr_t 保证 64 位指针不截断（Windows 上 unsigned long 仅 32 位）
                 if (curr_arg.type_ == static_cast<int>(VarType::Int)) {
