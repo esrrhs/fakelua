@@ -7,6 +7,7 @@
 namespace fakelua {
 
 // Helper: throw if arg is Bool or Table (not a number type)
+// Standard Lua 5.3: luaL_checknumber converts numeric strings to numbers, so we allow strings
 static inline void CheckMathNumberArg(const CVar &a, int argno, const char *fname) {
     if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table)) {
         std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (number expected)";
@@ -303,7 +304,8 @@ void RegisterMathLibraryApi(State *s) {
             return inter::NativeToFakeluaFloat(state, r);
         } else if (n == 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            // 标准 Lua：math.random 要求 number 参数，Bool/Table/String/Nil 不合法
+            if (a0.type_ != static_cast<int>(VarType::Int) && a0.type_ != static_cast<int>(VarType::Float)) {
                 ThrowFakeluaException("bad argument #1 to 'math.random' (number expected)");
             }
             int64_t u = inter::CVarToInteger(a0, 0);
@@ -313,9 +315,12 @@ void RegisterMathLibraryApi(State *s) {
         } else {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table) || a1.type_ == static_cast<int>(VarType::Bool) ||
-                a1.type_ == static_cast<int>(VarType::Table)) {
-                ThrowFakeluaException("bad argument to 'math.random' (number expected)");
+            // 标准 Lua：math.random 要求 number 参数，Bool/Table/String/Nil 不合法
+            if (a0.type_ != static_cast<int>(VarType::Int) && a0.type_ != static_cast<int>(VarType::Float)) {
+                ThrowFakeluaException("bad argument #1 to 'math.random' (number expected)");
+            }
+            if (a1.type_ != static_cast<int>(VarType::Int) && a1.type_ != static_cast<int>(VarType::Float)) {
+                ThrowFakeluaException("bad argument #2 to 'math.random' (number expected)");
             }
             int64_t l = inter::CVarToInteger(a0, 0);
             int64_t u = inter::CVarToInteger(a1, 0);
@@ -332,7 +337,8 @@ void RegisterMathLibraryApi(State *s) {
         unsigned int seed = static_cast<unsigned int>(std::time(nullptr));
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            // 标准 Lua：math.randomseed 要求 number 参数，Bool/Table/String/Nil 不合法
+            if (a0.type_ != static_cast<int>(VarType::Int) && a0.type_ != static_cast<int>(VarType::Float)) {
                 ThrowFakeluaException("bad argument #1 to 'math.randomseed' (number expected)");
             }
             seed = static_cast<unsigned int>(inter::CVarToInteger(a0, seed));

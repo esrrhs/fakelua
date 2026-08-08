@@ -431,7 +431,10 @@ std::string_view GetStringArgView(CVar a, std::string &temp) {
 }
 
 void CheckStringArg(const CVar &a, int argno, const char *fname) {
-    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table)) {
+    // Standard Lua 5.3: luaL_checkstring converts numbers to strings, so we allow Int/Float
+    // Reject Bool, Table, Nil, and other non-string/number types
+    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table) ||
+        a.type_ == static_cast<int>(VarType::Nil)) {
         std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (string expected)";
         ThrowFakeluaException(msg.c_str());
     }
@@ -493,7 +496,9 @@ void RegisterStringLibraryApi(State *s) {
         std::string_view sv = GetStringArgView(a0, temp);
 
         CVar rep_var = inter::GetNativeArg(state, args, n, 1);
-        if (rep_var.type_ == static_cast<int>(VarType::Bool) || rep_var.type_ == static_cast<int>(VarType::Table)) {
+        // 标准 Lua 5.3：string.rep 的 count 接受 number 或 numeric string
+        if (rep_var.type_ == static_cast<int>(VarType::Bool) || rep_var.type_ == static_cast<int>(VarType::Table) ||
+            rep_var.type_ == static_cast<int>(VarType::Nil)) {
             ThrowFakeluaException("bad argument #2 to 'string.rep' (number expected)");
         }
         int64_t rep_cnt = inter::CVarToInteger(rep_var, 0);
@@ -606,7 +611,8 @@ void RegisterStringLibraryApi(State *s) {
         res.reserve(static_cast<size_t>(n));
         for (int i = 0; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
-            if (arg_i.type_ == static_cast<int>(VarType::Bool) || arg_i.type_ == static_cast<int>(VarType::Table)) {
+            // 标准 Lua：string.char 要求 number 参数，Bool/Table/String/Nil 不合法
+            if (arg_i.type_ != static_cast<int>(VarType::Int) && arg_i.type_ != static_cast<int>(VarType::Float)) {
                 ThrowFakeluaException("bad argument to 'string.char' (number expected)");
             }
             if (arg_i.type_ == static_cast<int>(VarType::Float)) {
@@ -714,7 +720,9 @@ void RegisterStringLibraryApi(State *s) {
                     }
                 }
             } else if (spec == 'd' || spec == 'i') {
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                // 标准 Lua 5.3：整数格式接受 number 或 numeric string
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) ||
+                    curr_arg.type_ == static_cast<int>(VarType::Nil)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
                 int64_t ival = inter::CVarToInteger(curr_arg, 0);
@@ -724,7 +732,9 @@ void RegisterStringLibraryApi(State *s) {
                 snprintf(buf, sizeof(buf), llspec.c_str(), ival);
                 res.append(buf);
             } else if (spec == 'u' || spec == 'x' || spec == 'X' || spec == 'o') {
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                // 标准 Lua 5.3：无符号整数格式接受 number 或 numeric string
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) ||
+                    curr_arg.type_ == static_cast<int>(VarType::Nil)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
                 uint64_t uval = static_cast<uint64_t>(inter::CVarToInteger(curr_arg, 0));
@@ -734,7 +744,9 @@ void RegisterStringLibraryApi(State *s) {
                 snprintf(buf, sizeof(buf), llspec.c_str(), uval);
                 res.append(buf);
             } else if (spec == 'f' || spec == 'e' || spec == 'E' || spec == 'g' || spec == 'G') {
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                // 标准 Lua 5.3：浮点格式接受 number 或 numeric string
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) ||
+                    curr_arg.type_ == static_cast<int>(VarType::Nil)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
                 double fval = inter::CVarToNumber(curr_arg, 0.0);
@@ -742,13 +754,15 @@ void RegisterStringLibraryApi(State *s) {
                 snprintf(buf, sizeof(buf), spec_str.c_str(), fval);
                 res.append(buf);
             } else if (spec == 'c') {
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                // 标准 Lua 5.3：%c 接受 number 或 numeric string
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) ||
+                    curr_arg.type_ == static_cast<int>(VarType::Nil)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
                 int64_t cval = inter::CVarToInteger(curr_arg, 0);
                 res.push_back(static_cast<char>(cval));
             } else if (spec == 'p') {
-                // 标准 Lua：%p 的参数必须是 number，Bool/Table 不合法
+                // fakelua 扩展：%p 接受 number 或 nil（输出指针地址），Bool/Table/String 不合法
                 if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
@@ -773,7 +787,7 @@ void RegisterStringLibraryApi(State *s) {
                         res.append(buf);
                     }
                 } else {
-                    // 非数值类型：输出 CVar 自身地址
+                    // 非数值类型（nil 等）：输出 CVar 自身地址
                     char buf[64];
                     std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, reinterpret_cast<uintptr_t>(&curr_arg));
                     res.append(buf);
