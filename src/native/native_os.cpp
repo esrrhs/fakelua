@@ -47,15 +47,42 @@ void RegisterOsLibraryApi(State *s) {
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
             if (a0.type_ != static_cast<int>(VarType::Nil)) {
-                CheckStringArg(a0, 1, "os.date");
-                fmt = GetStringArgView(a0, temp_fmt);
+                // fakelua 扩展：os.date 的第一个参数可以是 string（格式）或 number/string（时间戳）
+                // 标准 Lua 5.3 只接受 string，但 fakelua 支持 number 和 numeric string
+                if (a0.type_ == static_cast<int>(VarType::Int) || a0.type_ == static_cast<int>(VarType::Float)) {
+                    // 数字时间戳：os.date(1700000000)
+                    t_val = static_cast<std::time_t>(inter::CVarToInteger(a0, 0));
+                    has_time = true;
+                } else if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+                    // 字符串：可能是格式或时间戳
+                    std::string temp_fmt_str;
+                    std::string_view sv = GetStringArgView(a0, temp_fmt_str);
+                    // 尝试解析为数字时间戳
+                    try {
+                        size_t pos = 0;
+                        int64_t ts = std::stoll(std::string(sv), &pos, 10);
+                        if (pos == sv.size()) {
+                            // 纯数字字符串，视为时间戳
+                            t_val = static_cast<std::time_t>(ts);
+                            has_time = true;
+                        } else {
+                            // 非纯数字，视为格式
+                            fmt = sv;
+                        }
+                    } catch (...) {
+                        fmt = sv;
+                    }
+                } else {
+                    ThrowFakeluaException("bad argument #1 to 'os.date' (string expected)");
+                }
             }
         }
 
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ != static_cast<int>(VarType::Nil)) {
-                if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+                // 标准 Lua：os.date 的 time 参数必须是 number，String/Bool/Table 不合法
+                if (a1.type_ != static_cast<int>(VarType::Int) && a1.type_ != static_cast<int>(VarType::Float)) {
                     ThrowFakeluaException("bad argument #2 to 'os.date' (number expected)");
                 }
                 t_val = static_cast<std::time_t>(inter::CVarToInteger(a1, 0));
@@ -140,6 +167,7 @@ void RegisterOsLibraryApi(State *s) {
     RegisterNativeFunction(s, "os.difftime", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        // fakelua 扩展：os.difftime 接受 number 或 numeric string
         if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
             ThrowFakeluaException("bad argument #1 to 'os.difftime' (number expected)");
         }
@@ -249,13 +277,8 @@ void RegisterOsLibraryApi(State *s) {
                 code = static_cast<int>(a0.data_.i);
             } else if (a0.type_ == static_cast<int>(VarType::Float)) {
                 code = static_cast<int>(a0.data_.f);
-            } else if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-                double d = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
-                if (std::isnan(d)) {
-                    ThrowFakeluaException("bad argument #1 to 'os.exit' (number expected)");
-                }
-                code = static_cast<int>(d);
             } else {
+                // 标准 Lua：os.exit 的 code 参数必须是 number（或 nil/true/false），String 不合法
                 ThrowFakeluaException("bad argument #1 to 'os.exit' (number expected)");
             }
         }
@@ -266,9 +289,17 @@ void RegisterOsLibraryApi(State *s) {
     // ─── os.getenv(varname) ───
     RegisterNativeFunction(s, "os.getenv", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        CheckStringArg(a0, 1, "os.getenv");
+        // fakelua 扩展：os.getenv 接受 string 或 number（转换为 string）
         std::string s_var;
-        std::string_view varname = GetStringArgView(a0, s_var);
+        std::string_view varname;
+        if (a0.type_ == static_cast<int>(VarType::Int) || a0.type_ == static_cast<int>(VarType::Float)) {
+            s_var = std::to_string(inter::CVarToInteger(a0, 0));
+            varname = s_var;
+        } else if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+            varname = GetStringArgView(a0, s_var);
+        } else {
+            ThrowFakeluaException("bad argument #1 to 'os.getenv' (string expected)");
+        }
         if (varname.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -375,6 +406,7 @@ void RegisterOsLibraryApi(State *s) {
         }
 
         // Helper: read a string-keyed field from a table
+        // fakelua 扩展：os.time 的 table 字段可以是 number 或 numeric string（自动转换）
         auto get_field = [&](const char *key_name, int64_t default_val) -> int64_t {
             VarTable *t = tbl.data_.t;
             if (!t) return default_val;

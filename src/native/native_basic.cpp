@@ -240,6 +240,7 @@ void RegisterBasicLibraryApi(State *s) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                // 标准 Lua 5.3：tonumber 的 base 可以是 number 或可转换为 number 的 string
                 if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
                     ThrowFakeluaException("bad argument #2 to 'tonumber' (number expected)");
                 }
@@ -332,19 +333,12 @@ void RegisterBasicLibraryApi(State *s) {
         if (sv == "#") {
             return inter::NativeToFakeluaInt(state, n - 1);
         }
-        // 参数必须是数字，Bool/Table 不合法
-        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #1 to 'select' (number expected)");
-        }
+        // 标准 Lua：select 的参数必须是 number，Bool/Table/String/Nil 不合法
         int64_t idx;
-        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
-            double d = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
-            if (std::isnan(d)) {
-                ThrowFakeluaException("bad argument #1 to 'select' (number expected)");
-            }
-            idx = static_cast<int64_t>(d);
-        } else {
+        if (a0.type_ == static_cast<int>(VarType::Int) || a0.type_ == static_cast<int>(VarType::Float)) {
             idx = inter::CVarToInteger(a0, 1);
+        } else {
+            ThrowFakeluaException("bad argument #1 to 'select' (number expected)");
         }
         int var_count = n - 1;
         if (idx < 0) {
@@ -370,12 +364,11 @@ void RegisterBasicLibraryApi(State *s) {
     RegisterNativeFunction(s, "error", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         const auto &v = AsVar(a0);
-        std::string msg;
-        if (v.Type() == VarType::String || v.Type() == VarType::StringId) {
-            msg = std::string(v.GetString()->Str());
-        } else {
-            msg = v.ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        // 标准 Lua：error 的 message 必须是 string，其他类型抛出异常
+        if (v.Type() != VarType::String && v.Type() != VarType::StringId) {
+            ThrowFakeluaException("bad argument #1 to 'error' (string expected)");
         }
+        std::string msg = std::string(v.GetString()->Str());
         ThrowFakeluaException(msg);
     });
 
@@ -396,11 +389,11 @@ void RegisterBasicLibraryApi(State *s) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             const auto &m = AsVar(a1);
-            if (m.Type() == VarType::String || m.Type() == VarType::StringId) {
-                msg = std::string(m.GetString()->Str());
-            } else {
-                msg = m.ToString(/*has_quote=*/false, /*has_postfix=*/false);
+            // 标准 Lua：assert 的 message 必须是 string，其他类型抛出异常
+            if (m.Type() != VarType::String && m.Type() != VarType::StringId) {
+                ThrowFakeluaException("bad argument #2 to 'assert' (string expected)");
             }
+            msg = std::string(m.GetString()->Str());
         }
         ThrowFakeluaException(msg);
     });
@@ -766,7 +759,9 @@ void RegisterBasicLibraryApi(State *s) {
         std::string temp_opt;
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
-            if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
+            // 标准 Lua：collectgarbage 的 opt 必须是 string（nil 使用默认值 "count"）
+            if (a0.type_ != static_cast<int>(VarType::Nil) && a0.type_ != static_cast<int>(VarType::String) &&
+                a0.type_ != static_cast<int>(VarType::StringId)) {
                 ThrowFakeluaException("bad argument #1 to 'collectgarbage' (string expected)");
             }
             opt = GetStringArgView(a0, temp_opt);

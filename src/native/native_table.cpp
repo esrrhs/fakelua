@@ -256,6 +256,7 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
 
 // Helper: reject Bool/Table where a number is expected, matching real Lua's
 // luaL_checkinteger/luaL_checknumber behavior (throws instead of silently defaulting).
+// Standard Lua 5.3: luaL_checkinteger converts numeric strings, so we allow strings.
 static inline void CheckTableNumberArg(const CVar &a, int argno, const char *fname) {
     if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table)) {
         std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (number expected)";
@@ -320,11 +321,16 @@ void RegisterTableLibraryApi(State *s) {
     RegisterNativeFunction(s, "table.concat", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaStringView(state, "");
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
-        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return inter::NativeToFakeluaNil(state);
+        // 标准 Lua：table.concat 第一个参数必须是 table，否则抛出异常
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'table.concat' (table expected)");
+        }
         std::string sep = "";
         if (n >= 2) {
             CVar sep_var = inter::GetNativeArg(state, args, n, 1);
-            if (sep_var.type_ == static_cast<int>(VarType::Bool) || sep_var.type_ == static_cast<int>(VarType::Table)) {
+            // 标准 Lua：table.concat 的 sep 必须是 string（数字会被转换为字符串，这是标准行为）
+            if (sep_var.type_ != static_cast<int>(VarType::String) && sep_var.type_ != static_cast<int>(VarType::StringId) &&
+                sep_var.type_ != static_cast<int>(VarType::Int) && sep_var.type_ != static_cast<int>(VarType::Float)) {
                 ThrowFakeluaException("bad argument #2 to 'table.concat' (string expected)");
             }
             std::string temp_sep;
@@ -349,6 +355,9 @@ void RegisterTableLibraryApi(State *s) {
             CVar item = TableHelper::GetTableInt(state, tbl, idx);
             if (item.type_ == static_cast<int>(VarType::Int)) {
                 res += std::to_string(item.data_.i);
+            } else if (item.type_ == static_cast<int>(VarType::Float)) {
+                // 标准 Lua：table.concat 会将 float 转换为字符串
+                res += std::format("{}", item.data_.f);
             } else if (item.type_ == static_cast<int>(VarType::String) || item.type_ == static_cast<int>(VarType::StringId)) {
                 auto sv = KeyToStringView(item);
                 res += std::string(sv);
@@ -501,11 +510,24 @@ void RegisterTableLibraryApi(State *s) {
                 if (a.type_ == static_cast<int>(VarType::Float) && b.type_ == static_cast<int>(VarType::Int)) {
                     return a.data_.f < static_cast<double>(b.data_.i);
                 }
-                std::string sa = (a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) ? std::string(KeyToStringView(a))
-                                                                                                                                  : AsVar(a).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-                std::string sb = (b.type_ == static_cast<int>(VarType::String) || b.type_ == static_cast<int>(VarType::StringId)) ? std::string(KeyToStringView(b))
-                                                                                                                                  : AsVar(b).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-                return sa < sb;
+                // fakelua 扩展：允许 number 与 string 混合比较（转换为 string）
+                // 标准 Lua 5.3 只允许 string-string 或 number-number，但 fakelua 支持混合
+                bool a_is_str = (a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId));
+                bool b_is_str = (b.type_ == static_cast<int>(VarType::String) || b.type_ == static_cast<int>(VarType::StringId));
+                bool a_is_num = (a.type_ == static_cast<int>(VarType::Int) || a.type_ == static_cast<int>(VarType::Float));
+                bool b_is_num = (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Float));
+                if (a_is_str && b_is_str) {
+                    return std::string(KeyToStringView(a)) < std::string(KeyToStringView(b));
+                }
+                // number 与 string 混合：都转换为 string比较（fakelua 扩展）
+                if ((a_is_num && b_is_str) || (a_is_str && b_is_num)) {
+                    std::string sa = a_is_str ? std::string(KeyToStringView(a)) : AsVar(a).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+                    std::string sb = b_is_str ? std::string(KeyToStringView(b)) : AsVar(b).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+                    return sa < sb;
+                }
+                // 其他类型组合（bool 等）抛出异常
+                ThrowFakeluaException("attempt to compare two values");
+                return false; // unreachable
             };
             std::stable_sort(vec.begin(), vec.end(), default_comp);
         }
