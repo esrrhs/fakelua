@@ -263,6 +263,8 @@ void RegisterMathLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "math.tointeger", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        // 标准 Lua：math.tointeger 的参数必须是 number，Bool/Table 不合法
+        CheckMathNumberArg(a0, 1, "math.tointeger");
         if (a0.type_ == static_cast<int>(VarType::Int)) return a0;
         double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
         if (!std::isnan(f) && static_cast<double>(static_cast<int64_t>(f)) == f) {
