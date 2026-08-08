@@ -685,6 +685,10 @@ void RegisterStringLibraryApi(State *s) {
                 }
                 res.push_back('"');
             } else if (spec == 's') {
+                // 标准 Lua：%s 的参数必须是 string/number，Bool/Table 不合法
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument to 'format' (string expected)");
+                }
                 std::string sval;
                 if (curr_arg.type_ == static_cast<int>(VarType::String) || curr_arg.type_ == static_cast<int>(VarType::StringId)) {
                     sval = std::string(KeyToStringView(curr_arg));
@@ -692,8 +696,6 @@ void RegisterStringLibraryApi(State *s) {
                     sval = std::to_string(curr_arg.data_.i);
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Float)) {
                     sval = std::to_string(curr_arg.data_.f);
-                } else if (curr_arg.type_ == static_cast<int>(VarType::Bool)) {
-                    sval = curr_arg.data_.b ? "true" : "false";
                 } else {
                     sval = AsVar(curr_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
                 }
