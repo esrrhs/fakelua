@@ -452,16 +452,12 @@ void RegisterStringLibraryApi(State *s) {
         int64_t len = static_cast<int64_t>(sv.size());
 
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #2 to 'string.sub' (number expected)");
-        }
+        CheckNumberArg(a1, 2, "string.sub");
         int64_t start_pos = inter::CVarToInteger(a1, 1);
         int64_t end_pos = len;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
-                ThrowFakeluaException("bad argument #3 to 'string.sub' (number expected)");
-            }
+            CheckNumberArg(a2, 3, "string.sub");
             end_pos = inter::CVarToInteger(a2, len);
         }
 
@@ -488,10 +484,10 @@ void RegisterStringLibraryApi(State *s) {
 
         CVar rep_var = inter::GetNativeArg(state, args, n, 1);
         // 标准 Lua 5.3：string.rep 的 count 接受 number 或 numeric string
-        if (rep_var.type_ == static_cast<int>(VarType::Bool) || rep_var.type_ == static_cast<int>(VarType::Table) ||
-            rep_var.type_ == static_cast<int>(VarType::Nil)) {
+        if (rep_var.type_ == static_cast<int>(VarType::Nil)) {
             ThrowFakeluaException("bad argument #2 to 'string.rep' (number expected)");
         }
+        CheckNumberArg(rep_var, 2, "string.rep");
         int64_t rep_cnt = inter::CVarToInteger(rep_var, 0);
         if (rep_cnt <= 0) return inter::NativeToFakeluaStringView(state, "");
 
@@ -560,18 +556,14 @@ void RegisterStringLibraryApi(State *s) {
         int64_t start_pos = 1;
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
-                ThrowFakeluaException("bad argument #2 to 'string.byte' (number expected)");
-            }
+            CheckNumberArg(a1, 2, "string.byte");
             start_pos = inter::CVarToInteger(a1, 1);
         }
 
         int64_t end_pos = start_pos;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
-                ThrowFakeluaException("bad argument #3 to 'string.byte' (number expected)");
-            }
+            CheckNumberArg(a2, 3, "string.byte");
             end_pos = inter::CVarToInteger(a2, start_pos);
         }
 
@@ -809,9 +801,7 @@ void RegisterStringLibraryApi(State *s) {
         int64_t init_pos = 1;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
-                ThrowFakeluaException("bad argument #3 to 'string.find' (number expected)");
-            }
+            CheckNumberArg(a2, 3, "string.find");
             init_pos = inter::CVarToInteger(a2, 1);
         }
         init_pos = NormalizePos(init_pos, len);
@@ -878,9 +868,7 @@ void RegisterStringLibraryApi(State *s) {
         int64_t init_pos = 1;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
-                ThrowFakeluaException("bad argument #3 to 'string.match' (number expected)");
-            }
+            CheckNumberArg(a2, 3, "string.match");
             init_pos = inter::CVarToInteger(a2, 1);
         }
         init_pos = NormalizePos(init_pos, len);
@@ -1363,9 +1351,7 @@ void RegisterStringLibraryApi(State *s) {
                 if (count <= 0) return inter::NativeToFakeluaNil(state);
                 if (val_idx >= values.size()) return inter::NativeToFakeluaNil(state);
                 CVar val = values[val_idx++];
-                if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                    ThrowFakeluaException("bad argument to 'pack' (string expected)");
-                }
+                CheckStringArg(val, val_idx, "string.pack");
                 std::string_view sv = KeyToStringView(val);
                 size_t copy_len = sv.size() < static_cast<size_t>(count) ? sv.size() : static_cast<size_t>(count);
                 result.append(sv.data(), copy_len);
@@ -1394,9 +1380,7 @@ void RegisterStringLibraryApi(State *s) {
                 if (sz <= 0) return inter::NativeToFakeluaNil(state);
                 if (val_idx >= values.size()) return inter::NativeToFakeluaNil(state);
                 CVar val = values[val_idx++];
-                if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                    ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                }
+                CheckNumberArg(val, val_idx, "string.pack");
                 align_up(static_cast<size_t>(sz));
 
                 if (is_unsigned) {
@@ -1417,25 +1401,19 @@ void RegisterStringLibraryApi(State *s) {
 
             switch (c) {
                 case 'b': {
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                    }
+                    CheckNumberArg(val, val_idx, "string.pack");
                     int64_t v = inter::CVarToInteger(val, 0);
                     result.push_back(static_cast<char>(v));
                     break;
                 }
                 case 'B': {
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                    }
+                    CheckNumberArg(val, val_idx, "string.pack");
                     int64_t v = inter::CVarToInteger(val, 0);
                     result.push_back(static_cast<char>(static_cast<unsigned char>(v)));
                     break;
                 }
                 case 'h': {
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                    }
+                    CheckNumberArg(val, val_idx, "string.pack");
                     int64_t v = inter::CVarToInteger(val, 0);
                     align_up(2);
                     int16_t sv = static_cast<int16_t>(v);
@@ -1453,9 +1431,7 @@ void RegisterStringLibraryApi(State *s) {
                     break;
                 }
                 case 'l': {
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                    }
+                    CheckNumberArg(val, val_idx, "string.pack");
                     int64_t v = inter::CVarToInteger(val, 0);
                     align_up(4);
                     int32_t sv = static_cast<int32_t>(v);
@@ -1463,9 +1439,7 @@ void RegisterStringLibraryApi(State *s) {
                     break;
                 }
                 case 'L': {
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                    }
+                    CheckNumberArg(val, val_idx, "string.pack");
                     int64_t v = inter::CVarToInteger(val, 0);
                     align_up(4);
                     uint32_t sv = static_cast<uint32_t>(v);
@@ -1473,18 +1447,14 @@ void RegisterStringLibraryApi(State *s) {
                     break;
                 }
                 case 'j': {
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                    }
+                    CheckNumberArg(val, val_idx, "string.pack");
                     int64_t v = inter::CVarToInteger(val, 0);
                     align_up(8);
                     PackMachine::WriteVal(result, &v, 8, pm.big_endian);
                     break;
                 }
                 case 'J': {
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                    }
+                    CheckNumberArg(val, val_idx, "string.pack");
                     int64_t v = inter::CVarToInteger(val, 0);
                     align_up(8);
                     uint64_t uv = static_cast<uint64_t>(v);
@@ -1492,9 +1462,7 @@ void RegisterStringLibraryApi(State *s) {
                     break;
                 }
                 case 'T': {
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                    }
+                    CheckNumberArg(val, val_idx, "string.pack");
                     int64_t v = inter::CVarToInteger(val, 0);
                     align_up(8);
                     uint64_t uv = static_cast<uint64_t>(v);
@@ -1502,9 +1470,7 @@ void RegisterStringLibraryApi(State *s) {
                     break;
                 }
                 case 'f': {
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                    }
+                    CheckNumberArg(val, val_idx, "string.pack");
                     double dv = inter::CVarToNumber(val, 0.0);
                     align_up(4);
                     float fv = static_cast<float>(dv);
@@ -1512,9 +1478,7 @@ void RegisterStringLibraryApi(State *s) {
                     break;
                 }
                 case 'd': {
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("bad argument to 'pack' (number expected)");
-                    }
+                    CheckNumberArg(val, val_idx, "string.pack");
                     double dv = inter::CVarToNumber(val, 0.0);
                     align_up(8);
                     PackMachine::WriteVal(result, &dv, 8, pm.big_endian);
