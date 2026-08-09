@@ -210,6 +210,9 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
             static_cast<CVar &>(t->nodes_[idx].entry.val) = val;
             t->nodes_[idx].entry.hash = hash;
             t->nodes_[idx].next = VarTable::INVALID_INDEX;
+            if (t->active_list_) {
+                t->active_list_[t->count_] = idx;
+            }
             t->count_++;
             return;
         }
@@ -230,6 +233,9 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
                 t->nodes_[i].entry.hash = hash;
                 t->nodes_[i].next = VarTable::INVALID_INDEX;
                 t->nodes_[cur].next = i;
+                if (t->active_list_) {
+                    t->active_list_[t->count_] = i;
+                }
                 t->count_++;
                 return;
             }
