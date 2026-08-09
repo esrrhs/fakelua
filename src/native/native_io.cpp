@@ -1,4 +1,5 @@
 #include "native/native_io.h"
+#include "native/native_common.h"
 #include "native/native_object.h"
 #include "native/native_string.h"
 #include "var/var.h"
@@ -22,6 +23,22 @@ static constexpr const char *kFpKey = "__fp__";
 static constexpr const char *kPopenKey = "__popen__";
 static constexpr int64_t kIoFileGroup = 999999;// 专用 group，0 不允许
 
+// ─── 行读取辅助函数 ───
+// 从 fp 读取一行（去掉换行），返回是否读到内容。与 file:read("*l") 逻辑一致。
+static bool ReadLine(FILE *fp, std::string &result) {
+    result.clear();
+    char buf[4096];
+    bool got_any = false;
+    while (std::fgets(buf, sizeof(buf), fp)) {
+        result += buf;
+        got_any = true;
+        if (!result.empty() && result.back() == '\n') break;
+    }
+    if (!got_any) return false;
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
+    return true;
+}
+
 // ─── file:lines() 迭代器原生函数 ───
 // 闭包签名：CVar (*)(VarClosure *cl, CVar s, CVar var)
 // upvalues[0] = State* (as int)
@@ -36,17 +53,8 @@ extern "C" CVar FileLinesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         return inter::NativeToFakeluaNil(iter_state);
     }
 
-    // 读一行（去掉换行），与 file:read("*l") 逻辑一致
     std::string result;
-    char buf[4096];
-    bool got_any = false;
-    while (std::fgets(buf, sizeof(buf), fp)) {
-        result += buf;
-        got_any = true;
-        if (!result.empty() && result.back() == '\n') break;
-    }
-    if (!got_any) return inter::NativeToFakeluaNil(iter_state);
-    while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
+    if (!ReadLine(fp, result)) return inter::NativeToFakeluaNil(iter_state);
     return inter::NativeToFakeluaString(iter_state, result);
 }
 
@@ -71,15 +79,7 @@ static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var, int argno, const
         std::string_view fmt = s_fmt;
         if (fmt == "*l" || fmt == "l") {
             std::string result;
-            char buf[4096];
-            bool got_any = false;
-            while (std::fgets(buf, sizeof(buf), fp)) {
-                result += buf;
-                got_any = true;
-                if (!result.empty() && result.back() == '\n') break;
-            }
-            if (!got_any) return inter::NativeToFakeluaNil(state);
-            while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) result.pop_back();
+            if (!ReadLine(fp, result)) return inter::NativeToFakeluaNil(state);
             return inter::NativeToFakeluaString(state, result);
         } else if (fmt == "*L" || fmt == "L") {
             std::string result;
@@ -186,29 +186,14 @@ static CVar MakeFileLinesClosure(State *state, FILE *fp) {
 // 标准 Lua 的 io.write/file:write 仅接受字符串或数字（内部走 luaL_checklstring，
 // 数字会被自动转换为字符串），Bool/Table 等类型一律报错，而不是静默转换/跳过。
 static std::string_view ArgToStringView(CVar a, State * /*state*/, std::string &temp, int argno, const char *fname) {
-    if (a.type_ == static_cast<int>(VarType::String)) {
-        return a.data_.s->Str();
-    } else if (a.type_ == static_cast<int>(VarType::StringId)) {
-        if (a.data_.i) {
-            const char *ptr = reinterpret_cast<const char *>(a.data_.i);
-            int sz = *reinterpret_cast<const int *>(ptr);
-            return {ptr + 8, static_cast<size_t>(sz)};
-        }
-        return {};
-    } else if (a.type_ == static_cast<int>(VarType::Int)) {
-        temp = std::to_string(a.data_.i);
-        return temp;
-    } else if (a.type_ == static_cast<int>(VarType::Float)) {
-        temp = std::to_string(a.data_.f);
-        while (temp.size() > 1 && temp.back() == '0') temp.pop_back();
-        if (temp.size() > 1 && temp.back() == '.') temp.push_back('0');
-        return temp;
-    } else {
-        // 标准 Lua：io.write/file:write 仅接受 string 或 number，其他类型抛出异常
-        // CheckStringArg 已拒绝非 string 类型（包括 nil/bool/table）
+    // 先做类型检查：标准 Lua 仅接受 string 或 number
+    if (a.type_ != static_cast<int>(VarType::String) && a.type_ != static_cast<int>(VarType::StringId) &&
+        a.type_ != static_cast<int>(VarType::Int) && a.type_ != static_cast<int>(VarType::Float)) {
         CheckStringArg(a, argno, fname);
         return {};
     }
+    // 复用 GetStringArgView 处理 String/StringId/Int/Float 的转换
+    return GetStringArgView(a, temp);
 }
 
 // 创建一个 IoFile NativeObject 壳，内部 FILE* 存为 Int 字段

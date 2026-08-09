@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stdexcept>
+#include <string>
+
 namespace fakelua {
 
 class FakeluaException : public std::runtime_error {
