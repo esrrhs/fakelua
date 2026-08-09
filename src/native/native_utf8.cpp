@@ -110,6 +110,7 @@ static int Utf16Units(int64_t cp) {
 
 // Helper: reject Bool/Table where a number is expected, matching real Lua's
 // luaL_checkinteger behavior (throws instead of silently defaulting).
+// Standard Lua 5.3: luaL_checkinteger converts numeric strings, so we allow strings.
 static inline void CheckUtf8NumberArg(const CVar &a, int argno, const char *fname) {
     if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table)) {
         std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (number expected)";

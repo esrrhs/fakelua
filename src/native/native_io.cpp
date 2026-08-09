@@ -52,8 +52,13 @@ extern "C" CVar FileLinesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
 
 // ─── 单格式读取辅助函数 ───
 // 从 fp 读取一个格式（* *l *L *a *n 或数字字节数），返回 CVar（可能为 nil）
+// 标准 Lua：file:read 接受 string（格式）或 number（字节数），Bool/Table 不合法
 static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var, int argno, const char *fname) {
-    CheckStringArg(fmt_var, argno, fname);
+    // 标准 Lua：file:read 接受 string 或 number，Bool/Table/Nil 不合法
+    if (fmt_var.type_ != static_cast<int>(VarType::String) && fmt_var.type_ != static_cast<int>(VarType::StringId) &&
+        fmt_var.type_ != static_cast<int>(VarType::Int) && fmt_var.type_ != static_cast<int>(VarType::Float)) {
+        ThrowFakeluaException(std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (string or number expected)");
+    }
     std::string s_fmt;
     if (fmt_var.type_ == static_cast<int>(VarType::Int) || fmt_var.type_ == static_cast<int>(VarType::Float)) {
         s_fmt = std::to_string(inter::CVarToInteger(fmt_var, 0));
@@ -199,6 +204,8 @@ static std::string_view ArgToStringView(CVar a, State * /*state*/, std::string &
         if (temp.size() > 1 && temp.back() == '.') temp.push_back('0');
         return temp;
     } else {
+        // 标准 Lua：io.write/file:write 仅接受 string 或 number，其他类型抛出异常
+        // CheckStringArg 已拒绝非 string 类型（包括 nil/bool/table）
         CheckStringArg(a, argno, fname);
         return {};
     }
@@ -294,6 +301,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
             if (a0.type_ != static_cast<int>(VarType::Nil)) {
+                // 标准 Lua：file:seek 的 whence 必须是 string（CheckStringArg 已拒绝非 string）
                 CheckStringArg(a0, 1, "file:seek");
                 whence_str = GetStringArgView(a0, temp_whence);
                 if (whence_str.empty()) whence_str = "cur";
@@ -301,7 +309,8 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         }
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+            // 标准 Lua：file:seek 的 offset 必须是 number
+            if (a1.type_ != static_cast<int>(VarType::Int) && a1.type_ != static_cast<int>(VarType::Float)) {
                 ThrowFakeluaException("bad argument #2 to 'file:seek' (number expected)");
             }
             offset = inter::CVarToInteger(a1, 0);
@@ -339,7 +348,8 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         }
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
+            // 标准 Lua：file:setvbuf 的 size 必须是 number
+            if (a1.type_ != static_cast<int>(VarType::Int) && a1.type_ != static_cast<int>(VarType::Float)) {
                 ThrowFakeluaException("bad argument #2 to 'file:setvbuf' (number expected)");
             }
             size = static_cast<size_t>(inter::CVarToInteger(a1, BUFSIZ));
