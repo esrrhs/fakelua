@@ -25,6 +25,15 @@ static int64_t get_int_arg(State *state, CVar *args, int n, int index, int64_t d
     return inter::CVarToInteger(a, default_val);
 }
 
+// ─── Helper: build a 3-value shell result (status, how, code) ───
+static CVar MakeShellResult(State *state, CVar status, const char *how, int code) {
+    CVar multi = inter::AllocMultiCVar(state, 3);
+    inter::SetMultiCVarElement(multi, 0, status);
+    inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, how));
+    inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, code));
+    return multi;
+}
+
 void RegisterOsLibraryApi(State *s) {
     if (!s) return;
 
@@ -82,9 +91,7 @@ void RegisterOsLibraryApi(State *s) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ != static_cast<int>(VarType::Nil)) {
                 // 标准 Lua：os.date 的 time 参数必须是 number，String/Bool/Table 不合法
-                if (a1.type_ != static_cast<int>(VarType::Int) && a1.type_ != static_cast<int>(VarType::Float)) {
-                    ThrowFakeluaException("bad argument #2 to 'os.date' (number expected)");
-                }
+                CheckNumberArg(a1, 2, "os.date");
                 t_val = static_cast<std::time_t>(inter::CVarToInteger(a1, 0));
                 has_time = true;
             }
@@ -168,12 +175,8 @@ void RegisterOsLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
         // fakelua 扩展：os.difftime 接受 number 或 numeric string
-        if (a0.type_ == static_cast<int>(VarType::Bool) || a0.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #1 to 'os.difftime' (number expected)");
-        }
-        if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #2 to 'os.difftime' (number expected)");
-        }
+        CheckNumberArg(a0, 1, "os.difftime");
+        CheckNumberArg(a1, 2, "os.difftime");
         int64_t t2 = inter::CVarToInteger(a0, 0);
         int64_t t1 = inter::CVarToInteger(a1, 0);
         double diff = static_cast<double>(t2) - static_cast<double>(t1);
@@ -184,83 +187,43 @@ void RegisterOsLibraryApi(State *s) {
     RegisterNativeFunction(s, "os.execute", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) {
             // No command: check if shell is available
-            CVar multi = inter::AllocMultiCVar(state, 3);
-            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
-            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
-            return multi;
+            return MakeShellResult(state, inter::NativeToFakeluaBool(state, true), "exit", 0);
         }
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         if (a0.type_ == static_cast<int>(VarType::Nil)) {
-            CVar multi = inter::AllocMultiCVar(state, 3);
-            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
-            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
-            return multi;
+            return MakeShellResult(state, inter::NativeToFakeluaBool(state, true), "exit", 0);
         }
         CheckStringArg(a0, 1, "os.execute");
         std::string s_cmd;
         std::string_view cmd_sv = GetStringArgView(a0, s_cmd);
         if (cmd_sv.empty()) {
-            CVar multi = inter::AllocMultiCVar(state, 3);
-            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
-            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
-            return multi;
+            return MakeShellResult(state, inter::NativeToFakeluaBool(state, true), "exit", 0);
         }
         int ret = std::system(std::string(cmd_sv).c_str());
 #if defined(_WIN32)
         if (ret == 0) {
-            CVar multi = inter::AllocMultiCVar(state, 3);
-            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
-            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
-            return multi;
+            return MakeShellResult(state, inter::NativeToFakeluaBool(state, true), "exit", 0);
         }
         // Return (nil, "exit", code)
-        CVar multi = inter::AllocMultiCVar(state, 3);
-        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
-        inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
-        inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, ret));
-        return multi;
+        return MakeShellResult(state, inter::NativeToFakeluaNil(state), "exit", ret);
 #else
         if (ret == -1) {
             // Failed to spawn shell
-            CVar multi = inter::AllocMultiCVar(state, 3);
-            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "error"));
-            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, errno));
-            return multi;
+            return MakeShellResult(state, inter::NativeToFakeluaNil(state), "error", errno);
         }
         if (WIFEXITED(ret)) {
             int code = WEXITSTATUS(ret);
             if (code == 0) {
-                CVar multi = inter::AllocMultiCVar(state, 3);
-                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
-                inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
-                inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
-                return multi;
+                return MakeShellResult(state, inter::NativeToFakeluaBool(state, true), "exit", 0);
             }
-            CVar multi = inter::AllocMultiCVar(state, 3);
-            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
-            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, code));
-            return multi;
+            return MakeShellResult(state, inter::NativeToFakeluaNil(state), "exit", code);
         }
         if (WIFSIGNALED(ret)) {
             int sig = WTERMSIG(ret);
-            CVar multi = inter::AllocMultiCVar(state, 3);
-            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "signal"));
-            inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, sig));
-            return multi;
+            return MakeShellResult(state, inter::NativeToFakeluaNil(state), "signal", sig);
         }
         // Fallback
-        CVar multi = inter::AllocMultiCVar(state, 3);
-        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
-        inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaCstr(state, "exit"));
-        inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, ret));
-        return multi;
+        return MakeShellResult(state, inter::NativeToFakeluaNil(state), "exit", ret);
 #endif
     });
 

@@ -19,6 +19,47 @@
 
 namespace fakelua {
 
+// ─── Helper: call a closure, capturing any exception into err_msg ───
+// Returns true on success (result written to 'result'), false on failure.
+static bool CallClosure(State *state, VarClosure *cl, CVar *args, int n, CVar &result, std::string &err_msg) {
+    try {
+        void *addr = cl->func_ptr;
+        if (addr != nullptr) {
+            result = inter::DispatchCall(addr, args, n);
+        } else if (cl->code_str) {
+            result = FlEvalLoadClosure(state, cl, n, args);
+        } else {
+            ThrowFakeluaException("closure has no code");
+        }
+        return true;
+    } catch (const FakeluaException &e) {
+        err_msg = e.what();
+    } catch (const std::exception &e) {
+        err_msg = e.what();
+    } catch (...) {
+        err_msg = "unknown error";
+    }
+    return false;
+}
+
+// ─── Helper: build a success result, flattening Multi returns ───
+static CVar MakeSuccessResult(State *state, CVar result) {
+    if (result.type_ == static_cast<int>(VarType::Multi) && result.data_.m) {
+        int count = result.data_.m->GetCount();
+        CVar multi = inter::AllocMultiCVar(state, 1 + count);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+        for (int i = 0; i < count; ++i) {
+            inter::SetMultiCVarElement(multi, i + 1, inter::GetMultiCVarElement(result, i));
+        }
+        return multi;
+    } else {
+        CVar multi = inter::AllocMultiCVar(state, 2);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+        inter::SetMultiCVarElement(multi, 1, result);
+        return multi;
+    }
+}
+
 // ─── pairs 迭代器状态 ───
 struct PairIterState {
     CVar table;
@@ -241,9 +282,7 @@ void RegisterBasicLibraryApi(State *s) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ != static_cast<int>(VarType::Nil)) {
                 // 标准 Lua 5.3：tonumber 的 base 可以是 number 或可转换为 number 的 string
-                if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table)) {
-                    ThrowFakeluaException("bad argument #2 to 'tonumber' (number expected)");
-                }
+                CheckNumberArg(a1, 2, "tonumber");
                 if (a1.type_ == static_cast<int>(VarType::Float)) {
                     if (static_cast<double>(static_cast<int64_t>(a1.data_.f)) != a1.data_.f) {
                         return inter::NativeToFakeluaNil(state);
@@ -334,12 +373,8 @@ void RegisterBasicLibraryApi(State *s) {
             return inter::NativeToFakeluaInt(state, n - 1);
         }
         // 标准 Lua：select 的参数必须是 number，Bool/Table/String/Nil 不合法
-        int64_t idx;
-        if (a0.type_ == static_cast<int>(VarType::Int) || a0.type_ == static_cast<int>(VarType::Float)) {
-            idx = inter::CVarToInteger(a0, 1);
-        } else {
-            ThrowFakeluaException("bad argument #1 to 'select' (number expected)");
-        }
+        CheckNumberArg(a0, 1, "select");
+        int64_t idx = inter::CVarToInteger(a0, 1);
         int var_count = n - 1;
         if (idx < 0) {
             idx = var_count + idx + 1;
@@ -426,42 +461,10 @@ void RegisterBasicLibraryApi(State *s) {
         }
 
         CVar result{static_cast<int>(VarType::Nil)};
-        bool success = false;
         std::string err_msg;
 
-        try {
-            void *addr = cl->func_ptr;
-            if (addr != nullptr) {
-                result = inter::DispatchCall(addr, call_args.data(), static_cast<int>(call_args.size()));
-            } else if (cl->code_str) {
-                result = FlEvalLoadClosure(state, cl, static_cast<int>(call_args.size()), call_args.data());
-            } else {
-                ThrowFakeluaException("pcall: closure has no code");
-            }
-            success = true;
-        } catch (const FakeluaException &e) {
-            err_msg = e.what();
-        } catch (const std::exception &e) {
-            err_msg = e.what();
-        } catch (...) {
-            err_msg = "unknown error";
-        }
-
-        if (success) {
-            if (result.type_ == static_cast<int>(VarType::Multi) && result.data_.m) {
-                int count = result.data_.m->GetCount();
-                CVar multi = inter::AllocMultiCVar(state, 1 + count);
-                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
-                for (int i = 0; i < count; ++i) {
-                    inter::SetMultiCVarElement(multi, i + 1, inter::GetMultiCVarElement(result, i));
-                }
-                return multi;
-            } else {
-                CVar multi = inter::AllocMultiCVar(state, 2);
-                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
-                inter::SetMultiCVarElement(multi, 1, result);
-                return multi;
-            }
+        if (CallClosure(state, cl, call_args.data(), static_cast<int>(call_args.size()), result, err_msg)) {
+            return MakeSuccessResult(state, result);
         } else {
             CVar multi = inter::AllocMultiCVar(state, 2);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, false));
@@ -507,42 +510,10 @@ void RegisterBasicLibraryApi(State *s) {
         }
 
         CVar result{static_cast<int>(VarType::Nil)};
-        bool success = false;
         std::string err_msg;
 
-        try {
-            void *addr = cl->func_ptr;
-            if (addr != nullptr) {
-                result = inter::DispatchCall(addr, call_args, actual_arg_count);
-            } else if (cl->code_str) {
-                result = FlEvalLoadClosure(state, cl, actual_arg_count, call_args);
-            } else {
-                ThrowFakeluaException("xpcall: closure has no code");
-            }
-            success = true;
-        } catch (const FakeluaException &e) {
-            err_msg = e.what();
-        } catch (const std::exception &e) {
-            err_msg = e.what();
-        } catch (...) {
-            err_msg = "unknown error";
-        }
-
-        if (success) {
-            if (result.type_ == static_cast<int>(VarType::Multi) && result.data_.m) {
-                int count = result.data_.m->GetCount();
-                CVar multi = inter::AllocMultiCVar(state, 1 + count);
-                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
-                for (int i = 0; i < count; ++i) {
-                    inter::SetMultiCVarElement(multi, i + 1, inter::GetMultiCVarElement(result, i));
-                }
-                return multi;
-            } else {
-                CVar multi = inter::AllocMultiCVar(state, 2);
-                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
-                inter::SetMultiCVarElement(multi, 1, result);
-                return multi;
-            }
+        if (CallClosure(state, cl, call_args, actual_arg_count, result, err_msg)) {
+            return MakeSuccessResult(state, result);
         }
 
         // 调用错误处理函数
@@ -760,9 +731,8 @@ void RegisterBasicLibraryApi(State *s) {
         if (n >= 1) {
             CVar a0 = inter::GetNativeArg(state, args, n, 0);
             // 标准 Lua：collectgarbage 的 opt 必须是 string（nil 使用默认值 "count"）
-            if (a0.type_ != static_cast<int>(VarType::Nil) && a0.type_ != static_cast<int>(VarType::String) &&
-                a0.type_ != static_cast<int>(VarType::StringId)) {
-                ThrowFakeluaException("bad argument #1 to 'collectgarbage' (string expected)");
+            if (a0.type_ != static_cast<int>(VarType::Nil)) {
+                CheckStringArg(a0, 1, "collectgarbage");
             }
             opt = GetStringArgView(a0, temp_opt);
             if (opt.empty()) opt = "count";

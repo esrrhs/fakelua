@@ -257,6 +257,21 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
 
 // Use shared CheckNumberArg from native_common.h
 
+// ─── Helper: create an empty table with arena allocator ───
+static CVar CreateEmptyTable(State *state) {
+    VarTable *vtbl = static_cast<VarTable *>(FakeluaAlloc(state, sizeof(VarTable), false));
+    *vtbl = VarTable{};
+    for (auto &qd: vtbl->quick_data_) {
+        qd.key.type_ = static_cast<int>(VarType::Nil);
+        qd.val.type_ = static_cast<int>(VarType::Nil);
+    }
+    vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
+    CVar tbl_cvar{};
+    tbl_cvar.type_ = static_cast<int>(VarType::Table);
+    tbl_cvar.data_.t = vtbl;
+    return tbl_cvar;
+}
+
 void RegisterTableLibraryApi(State *s) {
     if (!s) return;
 
@@ -322,10 +337,7 @@ void RegisterTableLibraryApi(State *s) {
         if (n >= 2) {
             CVar sep_var = inter::GetNativeArg(state, args, n, 1);
             // 标准 Lua：table.concat 的 sep 必须是 string（数字会被转换为字符串，这是标准行为）
-            if (sep_var.type_ != static_cast<int>(VarType::String) && sep_var.type_ != static_cast<int>(VarType::StringId) &&
-                sep_var.type_ != static_cast<int>(VarType::Int) && sep_var.type_ != static_cast<int>(VarType::Float)) {
-                ThrowFakeluaException("bad argument #2 to 'table.concat' (string expected)");
-            }
+            CheckStringArg(sep_var, 2, "table.concat");
             std::string temp_sep;
             sep = std::string(GetStringArgView(sep_var, temp_sep));
         }
@@ -393,17 +405,7 @@ void RegisterTableLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "table.pack", 0, true, [](State *state, CVar *args, int n) -> CVar {
-        VarTable *vtbl = static_cast<VarTable *>(FakeluaAlloc(state, sizeof(VarTable), false));
-        *vtbl = VarTable{};
-        for (auto &qd: vtbl->quick_data_) {
-            qd.key.type_ = static_cast<int>(VarType::Nil);
-            qd.val.type_ = static_cast<int>(VarType::Nil);
-        }
-        vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
-
-        CVar tbl_cvar{};
-        tbl_cvar.type_ = static_cast<int>(VarType::Table);
-        tbl_cvar.data_.t = vtbl;
+        CVar tbl_cvar = CreateEmptyTable(state);
 
         for (int i = 0; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
@@ -425,7 +427,7 @@ void RegisterTableLibraryApi(State *s) {
             a2 = a1;
         }
         if (a1.type_ != static_cast<int>(VarType::Table) || !a1.data_.t || a2.type_ != static_cast<int>(VarType::Table) || !a2.data_.t) {
-            ThrowFakeluaException("bad argument to 'move' (table expected)");
+            ThrowFakeluaException("bad argument to 'table.move' (table expected)");
         }
         CheckNumberArg(f_var, 2, "table.move");
         CheckNumberArg(e_var, 3, "table.move");
@@ -471,7 +473,7 @@ void RegisterTableLibraryApi(State *s) {
 
         CVar comp = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
         if (comp.type_ != static_cast<int>(VarType::Nil) && comp.type_ != static_cast<int>(VarType::Closure)) {
-            ThrowFakeluaException("bad argument #2 to 'table.sort' (function expected)");
+            ThrowBadArgument(2, "table.sort", "function expected");
         }
 
         if (comp.type_ == static_cast<int>(VarType::Closure) && comp.data_.cl) {
@@ -532,30 +534,14 @@ void RegisterTableLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "table.create", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        auto create_table = [state]() -> CVar {
-            VarTable *vtbl = static_cast<VarTable *>(FakeluaAlloc(state, sizeof(VarTable), false));
-            *vtbl = VarTable{};
-            for (auto &qd: vtbl->quick_data_) {
-                qd.key.type_ = static_cast<int>(VarType::Nil);
-                qd.val.type_ = static_cast<int>(VarType::Nil);
-            }
-            vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
-            CVar tbl_cvar{};
-            tbl_cvar.type_ = static_cast<int>(VarType::Table);
-            tbl_cvar.data_.t = vtbl;
-            return tbl_cvar;
-        };
-
-        if (n < 1) return create_table();
+        if (n < 1) return CreateEmptyTable(state);
         CVar seq_var = inter::GetNativeArg(state, args, n, 0);
-        if (seq_var.type_ == static_cast<int>(VarType::Bool) || seq_var.type_ == static_cast<int>(VarType::Table)) {
-            ThrowFakeluaException("bad argument #1 to 'table.create' (number expected)");
-        }
+        CheckNumberArg(seq_var, 1, "table.create");
         int64_t count = inter::CVarToInteger(seq_var, 0);
         if (count < 0) count = 0;
 
         CVar val = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
-        CVar tbl_cvar = create_table();
+        CVar tbl_cvar = CreateEmptyTable(state);
         if (val.type_ != static_cast<int>(VarType::Nil)) {
             for (int64_t i = 1; i <= count; ++i) {
                 TableHelper::SetTableInt(state, tbl_cvar, i, val);

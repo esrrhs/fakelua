@@ -295,9 +295,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             // 标准 Lua：file:seek 的 offset 必须是 number
-            if (a1.type_ != static_cast<int>(VarType::Int) && a1.type_ != static_cast<int>(VarType::Float)) {
-                ThrowFakeluaException("bad argument #2 to 'file:seek' (number expected)");
-            }
+            CheckNumberArg(a1, 2, "file:seek");
             offset = inter::CVarToInteger(a1, 0);
         }
 
@@ -334,9 +332,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             // 标准 Lua：file:setvbuf 的 size 必须是 number
-            if (a1.type_ != static_cast<int>(VarType::Int) && a1.type_ != static_cast<int>(VarType::Float)) {
-                ThrowFakeluaException("bad argument #2 to 'file:setvbuf' (number expected)");
-            }
+            CheckNumberArg(a1, 2, "file:setvbuf");
             size = static_cast<size_t>(inter::CVarToInteger(a1, BUFSIZ));
         }
 
@@ -403,9 +399,7 @@ void RegisterIoLibraryApi(State *s) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ != static_cast<int>(VarType::Nil)) {
-                if (a1.type_ != static_cast<int>(VarType::String) && a1.type_ != static_cast<int>(VarType::StringId)) {
-                    ThrowFakeluaException("bad argument #2 to 'io.open' (string expected)");
-                }
+                CheckStringArg(a1, 2, "io.open");
                 mode = std::string(KeyToStringView(a1));
             }
         }
@@ -524,9 +518,7 @@ void RegisterIoLibraryApi(State *s) {
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ != static_cast<int>(VarType::Nil)) {
-                if (a1.type_ != static_cast<int>(VarType::String) && a1.type_ != static_cast<int>(VarType::StringId)) {
-                    ThrowFakeluaException("bad argument #2 to 'io.popen' (string expected)");
-                }
+                CheckStringArg(a1, 2, "io.popen");
                 mode = std::string(KeyToStringView(a1));
             }
         }
