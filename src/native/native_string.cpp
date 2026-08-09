@@ -916,33 +916,8 @@ void RegisterStringLibraryApi(State *s) {
         auto &alloc = state->GetHeap().GetAllocator(false);
         GMatchState *gs = new (alloc.Alloc(sizeof(GMatchState))) GMatchState{std::move(text), std::move(pattern), 0};
 
-        // upvalue 0: State*
-        CVar *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-        uv0->type_ = static_cast<int>(VarType::Int);
-        uv0->flag_ = 0;
-        uv0->data_.i = reinterpret_cast<int64_t>(state);
-
-        // upvalue 1: GMatchState*
-        CVar *uv1 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-        uv1->type_ = static_cast<int>(VarType::Int);
-        uv1->flag_ = 0;
-        uv1->data_.i = reinterpret_cast<int64_t>(gs);
-
-        // 分配闭包
-        VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 2 * sizeof(CVar *)));
-        cl->func_ptr = reinterpret_cast<void *>(GMatchIterator);
-        cl->upvalue_count = 2;
-        cl->expected_arg_count = 2;
-        cl->is_vararg = false;
-        cl->code_str = nullptr;
-        cl->upvalues[0] = uv0;
-        cl->upvalues[1] = uv1;
-
-        CVar res{};
-        res.type_ = static_cast<int>(VarType::Closure);
-        res.flag_ = 0;
-        res.data_.cl = cl;
-        return res;
+        // 使用共享辅助函数创建迭代器闭包
+        return MakeIteratorClosure(state, reinterpret_cast<void *>(GMatchIterator), gs);
     });
 
     // ─── string.gsub(s, pattern, repl [, n]) ───

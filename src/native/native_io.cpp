@@ -149,37 +149,11 @@ static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var, int argno, const
 }
 
 // Helper: create a file:lines() iterator closure
+// Uses shared MakeIteratorClosure from native_common.h to dedupe the standard
+// 2-upvalue (State*, opaque state) iterator pattern.
 static CVar MakeFileLinesClosure(State *state, FILE *fp) {
     if (!state || !fp) return inter::NativeToFakeluaNil(state);
-    auto &alloc = state->GetHeap().GetAllocator(false /* temp */);
-
-    // upvalue 0: State* (用于分配返回值等)
-    CVar *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-    uv0->type_ = static_cast<int>(VarType::Int);
-    uv0->flag_ = 0;
-    uv0->data_.i = reinterpret_cast<int64_t>(state);
-
-    // upvalue 1: FILE* (迭代器要读取的文件句柄)
-    CVar *uv1 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-    uv1->type_ = static_cast<int>(VarType::Int);
-    uv1->flag_ = 0;
-    uv1->data_.i = reinterpret_cast<int64_t>(fp);
-
-    // 分配闭包：sizeof(VarClosure) + 2 * sizeof(CVar *)
-    VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 2 * sizeof(CVar *)));
-    cl->func_ptr = reinterpret_cast<void *>(FileLinesIterator);
-    cl->upvalue_count = 2;
-    cl->expected_arg_count = 2;
-    cl->is_vararg = false;
-    cl->code_str = nullptr;
-    cl->upvalues[0] = uv0;
-    cl->upvalues[1] = uv1;
-
-    CVar res{};
-    res.type_ = static_cast<int>(VarType::Closure);
-    res.flag_ = 0;
-    res.data_.cl = cl;
-    return res;
+    return MakeIteratorClosure(state, reinterpret_cast<void *>(FileLinesIterator), reinterpret_cast<void *>(fp));
 }
 
 // 将 CVar 参数转为字符串视图，用于 fwrite 等
