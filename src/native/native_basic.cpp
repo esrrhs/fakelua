@@ -650,28 +650,8 @@ void RegisterBasicLibraryApi(State *s) {
         st->table = tbl;
         st->last_key = CVar{static_cast<int>(VarType::Nil)};
 
-        // upvalue 0: State* (用于分配 Multi)
-        CVar *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-        uv0->type_ = static_cast<int>(VarType::Int);
-        uv0->data_.i = reinterpret_cast<int64_t>(state);
-
-        // upvalue 1: PairIterState*
-        CVar *uv1 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-        uv1->type_ = static_cast<int>(VarType::Int);
-        uv1->data_.i = reinterpret_cast<int64_t>(st);
-
-        VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 2 * sizeof(CVar *)));
-        cl->func_ptr = reinterpret_cast<void *>(BasicPairsIterator);
-        cl->upvalue_count = 2;
-        cl->expected_arg_count = 2;
-        cl->is_vararg = false;
-        cl->code_str = nullptr;
-        cl->upvalues[0] = uv0;
-        cl->upvalues[1] = uv1;
-
-        CVar iter_closure{};
-        iter_closure.type_ = static_cast<int>(VarType::Closure);
-        iter_closure.data_.cl = cl;
+        // 使用共享辅助函数创建迭代器闭包
+        CVar iter_closure = MakeIteratorClosure(state, reinterpret_cast<void *>(BasicPairsIterator), st);
 
         // 返回 next, tbl, nil
         CVar multi = inter::AllocMultiCVar(state, 3);
@@ -693,26 +673,8 @@ void RegisterBasicLibraryApi(State *s) {
         st->table = tbl;
         st->next_idx = 1;
 
-        CVar *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-        uv0->type_ = static_cast<int>(VarType::Int);
-        uv0->data_.i = reinterpret_cast<int64_t>(state);
-
-        CVar *uv1 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-        uv1->type_ = static_cast<int>(VarType::Int);
-        uv1->data_.i = reinterpret_cast<int64_t>(st);
-
-        VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 2 * sizeof(CVar *)));
-        cl->func_ptr = reinterpret_cast<void *>(BasicIpairsIterator);
-        cl->upvalue_count = 2;
-        cl->expected_arg_count = 2;
-        cl->is_vararg = false;
-        cl->code_str = nullptr;
-        cl->upvalues[0] = uv0;
-        cl->upvalues[1] = uv1;
-
-        CVar iter_closure{};
-        iter_closure.type_ = static_cast<int>(VarType::Closure);
-        iter_closure.data_.cl = cl;
+        // 使用共享辅助函数创建迭代器闭包
+        CVar iter_closure = MakeIteratorClosure(state, reinterpret_cast<void *>(BasicIpairsIterator), st);
 
         CVar multi = inter::AllocMultiCVar(state, 3);
         inter::SetMultiCVarElement(multi, 0, iter_closure);
