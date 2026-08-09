@@ -48,5 +48,35 @@ function test_basic_continue()
     end
     if t_sum ~= 9 then return 5 end  -- 1+3+5 = 9
 
+    -- 测试 continue 在 repeat 内嵌套的 while 循环中（应继续 while，而非跳到 repeat until）
+    local total2 = 0
+    local n2 = 0
+    repeat
+        n2 = n2 + 1
+        local w = 0
+        while w < 3 do
+            w = w + 1
+            if w == 2 then continue end
+            total2 = total2 + 1
+        end
+        if n2 == 3 then break end
+    until false
+    -- n2 循环 3 轮，每轮 while 中 w=1,3 被计数（w=2 跳过）=> 每轮 2 次，共 6
+    if total2 ~= 6 then return 6 end
+
+    -- 测试 continue 在 repeat 内嵌套的 for 循环中（应继续 for，而非跳到 repeat until）
+    local ftotal2 = 0
+    local r2 = 0
+    repeat
+        r2 = r2 + 1
+        for k = 1, 4 do
+            if k % 2 == 0 then continue end
+            ftotal2 = ftotal2 + 1
+        end
+        if r2 == 2 then break end
+    until false
+    -- r2 循环 2 轮，每轮 for 中 k=1,3 被计数 => 每轮 2 次，共 4
+    if ftotal2 ~= 4 then return 7 end
+
     return 5000
 end

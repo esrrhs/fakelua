@@ -281,6 +281,8 @@ private:
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
     int repeat_depth_ = 0;             // repeat-until 循环嵌套深度（0 表示不在 repeat 内）
+    int repeat_label_counter_ = 0;     // repeat 循环标签计数器，保证每个 flua_until_ 标签唯一
+    std::vector<int> repeat_label_stack_; // 当前活跃的 repeat 标签 id 栈，栈顶即最近外层 repeat
 
 private:
     struct FuncInfo;

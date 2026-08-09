@@ -816,6 +816,9 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
         }
     }
     cur_tab_++;
+    repeat_depth_ = 0;  // 每个函数独立计数，避免跨函数标签名重复
+    repeat_label_counter_ = 0;
+    repeat_label_stack_.clear();
     CompileStmtBlock(func_block);
     cur_tab_--;
 
@@ -1361,12 +1364,18 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::While);
     const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
 
+    // while 循环会消耗自己的 continue，进入前屏蔽外层 repeat 的深度，
+    // 否则内层 continue 会错误地跳到外层 repeat 的 until 标签。
+    int saved_repeat_depth = repeat_depth_;
+    repeat_depth_ = 0;
+
     if (const auto native_cond = TryCompileNativeBoolExpr(while_stmt->Exp()); !native_cond.empty()) {
         Out() << GenTab() << "while (" << native_cond << ") {\n";
         cur_tab_++;
         CompileStmtBlock(while_stmt->Block());
         cur_tab_--;
         Out() << GenTab() << "}\n";
+        repeat_depth_ = saved_repeat_depth;
         return;
     }
 
@@ -1380,26 +1389,31 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     CompileStmtBlock(while_stmt->Block());
     cur_tab_--;
     Out() << GenTab() << "}\n";
+
+    repeat_depth_ = saved_repeat_depth;
 }
 
 void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Repeat);
     const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
 
-    int my_depth = ++repeat_depth_;
+    ++repeat_depth_;
+    int my_label = ++repeat_label_counter_;
+    repeat_label_stack_.push_back(my_label);
     Out() << GenTab() << "do {\n";
     // Lua 语义：until 条件可访问块内声明的 local 变量 —— 先编译块，再编译条件。
     cur_tab_++;
 
     CompileStmtBlock(repeat_stmt->Block());
     // until 条件检查处：continue 会跳转到此 label，而非跳过 until 条件
-    Out() << "flua_until_" << my_depth << ": ;\n";
+    Out() << "flua_until_" << my_label << ": ;\n";
     const auto cond_bool = CompileCondBoolExpr(repeat_stmt->Exp(), "flua_rbt");
     Out() << GenTab() << std::format("if ({}) break;\n", cond_bool);
 
     cur_tab_--;
     Out() << GenTab() << "} while (1);\n";
-    repeat_depth_ = my_depth - 1;
+    repeat_depth_--;
+    repeat_label_stack_.pop_back();
 }
 
 void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
@@ -1455,9 +1469,9 @@ void CGen::CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileStmtContinue(const SyntaxTreeInterfacePtr &stmt) {
-    if (repeat_depth_ > 0) {
+    if (repeat_depth_ > 0 && !repeat_label_stack_.empty()) {
         // 在 repeat-until 循环内，continue 应跳转到 until 条件检查处，而非 C 的 continue（会跳过 until 条件）
-        Out() << GenTab() << "goto flua_until_" << repeat_depth_ << ";\n";
+        Out() << GenTab() << "goto flua_until_" << repeat_label_stack_.back() << ";\n";
     } else {
         Out() << GenTab() << "continue;\n";
     }
@@ -1479,10 +1493,16 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForLoop);
     const auto for_stmt = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
 
+    // for 循环会消耗自己的 continue，进入前屏蔽外层 repeat 的深度，
+    // 否则内层 continue 会错误地跳到外层 repeat 的 until 标签。
+    int saved_repeat_depth = repeat_depth_;
+    repeat_depth_ = 0;
+
     const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() && LookupNodeType(for_stmt->ExpBegin().get()) == T_INT && LookupNodeType(for_stmt->ExpEnd().get()) == T_INT &&
                                (!for_stmt->ExpStep() || LookupNodeType(for_stmt->ExpStep().get()) == T_INT);
     if (typed_int_for) {
         CompileTypedNumericForLoop(for_stmt, T_INT);
+        repeat_depth_ = saved_repeat_depth;
         return;
     }
 
@@ -1493,10 +1513,13 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
                                  (LookupNodeType(for_stmt->ExpEnd().get()) == T_INT || LookupNodeType(for_stmt->ExpEnd().get()) == T_FLOAT) && step_is_numeric;
     if (typed_float_for) {
         CompileTypedNumericForLoop(for_stmt, T_FLOAT);
+        repeat_depth_ = saved_repeat_depth;
         return;
     }
 
     CompileDynamicForLoop(for_stmt);
+
+    repeat_depth_ = saved_repeat_depth;
 }
 
 void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt, InferredType loop_type) {
@@ -1702,6 +1725,11 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForIn);
     const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
 
+    // for-in 循环会消耗自己的 continue，进入前屏蔽外层 repeat 的深度，
+    // 否则内层 continue 会错误地跳到外层 repeat 的 until 标签。
+    int saved_repeat_depth = repeat_depth_;
+    repeat_depth_ = 0;
+
     const auto namelist = for_in->Namelist();
     DEBUG_ASSERT(namelist->Type() == SyntaxTreeType::NameList);
     const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
@@ -1833,6 +1861,8 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         cur_tab_--;
         Out() << GenTab() << "}\n";
     }
+
+    repeat_depth_ = saved_repeat_depth;
 }
 
 // ===========================================================================
