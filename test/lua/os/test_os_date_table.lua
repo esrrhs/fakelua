@@ -36,5 +36,23 @@ function test_os_date_table()
     if type(s) ~= "string" then return 0 end
     if #s < 8 then return 0 end
 
+    -- 测试 pairs() 遍历 os.date("*t") 能访问全部 9 个字段（bucket 表迭代依赖 active_list_）
+    local t3 = os.date("*t", 0)
+    local seen3 = {}
+    local count3 = 0
+    for k, v in pairs(t3) do
+        seen3[k] = true
+        count3 = count3 + 1
+    end
+    if count3 ~= 9 then return 0 end
+    local fields = {"year", "month", "day", "hour", "min", "sec", "wday", "yday", "isdst"}
+    for _, f in ipairs(fields) do
+        if not seen3[f] then return 0 end
+    end
+    -- epoch 0 (UTC) 的字段值需正确
+    if t3.year ~= 1970 then return 0 end
+    if t3.month ~= 1 then return 0 end
+    if t3.day ~= 1 then return 0 end
+
     return 5000
 end
