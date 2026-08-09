@@ -1,4 +1,5 @@
 #include "native/native_string.h"
+#include "native/native_common.h"
 #include "compile/c_runtime_header.h"
 #include "native/native_object.h"
 #include "state/state.h"
@@ -19,7 +20,7 @@
 
 namespace fakelua {
 
-static int64_t NormalizePos(int64_t pos, int64_t len) {
+static inline int64_t NormalizePos(int64_t pos, int64_t len) {
     if (pos >= 0) {
         return pos;
     }
@@ -428,16 +429,6 @@ std::string_view GetStringArgView(CVar a, std::string &temp) {
         return temp;
     }
     return {};
-}
-
-void CheckStringArg(const CVar &a, int argno, const char *fname) {
-    // Standard Lua 5.3: luaL_checkstring converts numbers to strings, so we allow Int/Float
-    // Reject Bool, Table, Nil, and other non-string/number types
-    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table) ||
-        a.type_ == static_cast<int>(VarType::Nil)) {
-        std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (string expected)";
-        ThrowFakeluaException(msg.c_str());
-    }
 }
 
 void RegisterStringLibraryApi(State *s) {

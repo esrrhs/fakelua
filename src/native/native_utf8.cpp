@@ -1,4 +1,5 @@
 #include "native/native_utf8.h"
+#include "native/native_common.h"
 #include "native/native_object.h"
 #include "native/native_string.h"
 #include "var/var.h"
@@ -108,16 +109,7 @@ static int Utf16Units(int64_t cp) {
     return (cp > 0xFFFF) ? 2 : 1;
 }
 
-// Helper: reject Bool/Table where a number is expected, matching real Lua's
-// luaL_checkinteger behavior (throws instead of silently defaulting).
-// Standard Lua 5.3: luaL_checkinteger converts numeric strings, so we allow strings.
-static inline void CheckUtf8NumberArg(const CVar &a, int argno, const char *fname) {
-    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table)) {
-        std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (number expected)";
-        ThrowFakeluaException(msg.c_str());
-    }
-}
-
+// Use shared CheckNumberArg from native_common.h
 
 // ─── utf8.char(...) ───
 // Takes zero or more integers, returns a UTF-8 string.
@@ -126,7 +118,7 @@ static CVar Utf8Char(State *state, CVar *args, int n) {
     out.reserve(static_cast<size_t>(n) * 3);
     for (int i = 0; i < n; ++i) {
         CVar a = inter::GetNativeArg(state, args, n, i);
-        CheckUtf8NumberArg(a, i + 1, "utf8.char");
+        CheckNumberArg(a, i + 1, "utf8.char");
         if (a.type_ == static_cast<int>(VarType::Float)) {
             if (static_cast<double>(static_cast<int64_t>(a.data_.f)) != a.data_.f) {
                 return inter::NativeToFakeluaNil(state);
@@ -155,11 +147,11 @@ static CVar Utf8Codepoint(State *state, CVar *args, int n) {
 
     // Parse i (default 1)
     CVar i_var = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
-    if (n >= 2) CheckUtf8NumberArg(i_var, 2, "utf8.codepoint");
+    if (n >= 2) CheckNumberArg(i_var, 2, "utf8.codepoint");
     int64_t i = (n >= 2) ? inter::CVarToInteger(i_var, 1) : 1;
     // Parse j (default i)
     CVar j_var = (n >= 3) ? inter::GetNativeArg(state, args, n, 2) : CVar{static_cast<int>(VarType::Nil)};
-    if (n >= 3) CheckUtf8NumberArg(j_var, 3, "utf8.codepoint");
+    if (n >= 3) CheckNumberArg(j_var, 3, "utf8.codepoint");
     int64_t j = (n >= 3) ? inter::CVarToInteger(j_var, i) : i;
 
     // Handle negative indices (relative to end)
@@ -286,11 +278,11 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
 
     // Parse i (default 1)
     CVar i_var = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
-    if (n >= 2) CheckUtf8NumberArg(i_var, 2, "utf8.len");
+    if (n >= 2) CheckNumberArg(i_var, 2, "utf8.len");
     int64_t i = (n >= 2) ? inter::CVarToInteger(i_var, 1) : 1;
     // Parse j (default -1, meaning end of string)
     CVar j_var = (n >= 3) ? inter::GetNativeArg(state, args, n, 2) : CVar{static_cast<int>(VarType::Nil)};
-    if (n >= 3) CheckUtf8NumberArg(j_var, 3, "utf8.len");
+    if (n >= 3) CheckNumberArg(j_var, 3, "utf8.len");
     int64_t j = (n >= 3) ? inter::CVarToInteger(j_var, -1) : -1;
 
     // Handle negative indices (relative to end)
@@ -343,12 +335,12 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
 
     // Parse n (which character)
     CVar target_n_var = inter::GetNativeArg(state, args, n, 1);
-    CheckUtf8NumberArg(target_n_var, 2, "utf8.offset");
+    CheckNumberArg(target_n_var, 2, "utf8.offset");
     int64_t target_n = inter::CVarToInteger(target_n_var, 0);
 
     // Parse i (starting byte position, default 1 if n>=0, len+1 if n<0)
     CVar i_var = (n >= 3) ? inter::GetNativeArg(state, args, n, 2) : CVar{static_cast<int>(VarType::Nil)};
-    if (n >= 3) CheckUtf8NumberArg(i_var, 3, "utf8.offset");
+    if (n >= 3) CheckNumberArg(i_var, 3, "utf8.offset");
     int64_t start_i = (n >= 3) ? inter::CVarToInteger(i_var, 1) : ((target_n >= 0) ? 1 : byte_len + 1);
 
     // Handle negative start_i
