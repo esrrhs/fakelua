@@ -43,7 +43,7 @@ TEST(test_math, test_math_exp_log) {
         CompileFile(s, "./math/test_math_exp_log.lua", config);
         double res = 0.0;
         Call(s, jit_type, "test_math_exp_log", res);
-        EXPECT_NEAR(res, 5.0, 1e-4);
+        EXPECT_NEAR(res, 5000, 0.5);
     }
 
     FakeluaDeleteState(s);
@@ -207,6 +207,141 @@ TEST(test_math, test_math_abs_bad_arg_table) {
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
     EXPECT_THROW(Call(s, JIT_GCC, "test_math_abs_bad_tbl", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_abs) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_abs.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_abs", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_floor_ceil) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_floor_ceil.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_floor_ceil", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_sqrt) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_sqrt.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_sqrt", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_trig_full) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_trig_full.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_trig_full", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_sinh_cosh_tanh) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_sinh_cosh_tanh.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_sinh_cosh_tanh", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_fmod_ldexp) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_fmod_ldexp.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_fmod_ldexp", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_type_tointeger) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_type_tointeger.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_type_tointeger", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_max_min) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_max_min.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_max_min", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_constants_full) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_constants_full.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_constants_full", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
 
     FakeluaDeleteState(s);
 }

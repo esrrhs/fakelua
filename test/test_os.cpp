@@ -183,3 +183,33 @@ TEST(test_os, test_os_exit) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_os, test_os_date_format) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./os/test_os_date_format.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_os_date_format", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_os, test_os_time_boundary) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./os/test_os_time_boundary.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_os_time_boundary", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}

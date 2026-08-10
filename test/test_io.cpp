@@ -153,3 +153,48 @@ TEST(test_io, test_file_setvbuf) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_io, test_io_flush) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_io_flush.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_io_flush", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, test_io_input_output) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_io_input_output.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_io_input_output", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, test_io_lines_boundary) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_io_lines_boundary.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_io_lines_boundary", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
