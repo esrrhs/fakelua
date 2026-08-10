@@ -76,6 +76,8 @@ struct NativeObject::Impl {
 // spec_get / spec_set 静态实现
 CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
 void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
+// 依据 obj 当前字段集合重建 tbl 的 spec_keys/spec_vals 快照，供 pairs()/next() 迭代
+void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s);
 
 // 从 CVar key 提取字符串视图（VAR_STRINGID / VAR_STRING）
 inline std::string_view KeyToStringView(CVar k) {

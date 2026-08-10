@@ -1,5 +1,6 @@
 #include "fakelua.h"
 #include "gtest/gtest.h"
+#include "var/var_type.h"
 #include <unordered_map>
 
 using namespace fakelua;
@@ -254,3 +255,230 @@ TEST(test_native, test_native_object_methods) {
     NativeObjectManager::Instance().DestroyGroup(gid);
     FakeluaDeleteState(s);
 }
+
+TEST(test_native, test_native_manager_operations) {
+    // 测试 NativeObjectManager 的 DestroySingle 和 Create 返回已有对象
+    int64_t gid = NativeObjectManager::Instance().CreateGroup(7001);
+
+    auto *obj1 = NativeObjectManager::Instance().Create(gid, "unit", 1001);
+    obj1->SetInt("level", 5);
+
+    // Create 再次调用相同 (type, id) 应返回相同对象
+    auto *obj1_again = NativeObjectManager::Instance().Create(gid, "unit", 1001);
+    EXPECT_EQ(obj1, obj1_again);
+    EXPECT_EQ(obj1_again->GetInt("level"), 5);
+
+    auto *obj2 = NativeObjectManager::Instance().Create(gid, "unit", 1002);
+    obj2->SetString("name", "warrior");
+
+    // DestroySingle 只销毁一个
+    bool destroyed = NativeObjectManager::Instance().DestroySingle("unit", 1001);
+    EXPECT_TRUE(destroyed);
+    EXPECT_EQ(NativeObjectManager::Instance().Get("unit", 1001), nullptr);
+    EXPECT_NE(NativeObjectManager::Instance().Get("unit", 1002), nullptr);
+
+    // 再次销毁不存在的对象
+    bool again = NativeObjectManager::Instance().DestroySingle("unit", 1001);
+    EXPECT_FALSE(again);
+
+    NativeObjectManager::Instance().DestroyGroup(gid);
+}
+
+TEST(test_native, test_native_obj_advanced_fields) {
+    // 测试 Del, Clear, SetNil, GetAsCVar, ForEach, SetId/SetGroupId
+    int64_t gid = NativeObjectManager::Instance().CreateGroup(7002);
+    auto *obj = NativeObjectManager::Instance().Create(gid, "hero", 2001);
+
+    // SetId / GetId
+    obj->SetId(9999);
+    EXPECT_EQ(obj->GetId(), 9999);
+    obj->SetId(2001);// restore
+
+    // SetGroupId / GetGroupId
+    obj->SetGroupId(7002);
+    EXPECT_EQ(obj->GetGroupId(), 7002);
+
+    // SetInt / GetInt with cross-type access
+    obj->SetFloat("speed", 3.14);
+    // GetInt on float field should cast
+    int64_t speed_int = obj->GetInt("speed", 0);
+    EXPECT_EQ(speed_int, 3);// floor of 3.14
+
+    // GetFloat on int field should cast
+    obj->SetInt("level", 5);
+    double level_f = obj->GetFloat("level", 0.0);
+    EXPECT_DOUBLE_EQ(level_f, 5.0);
+
+    // GetBool on missing field returns default
+    bool b = obj->GetBool("nonexist", true);
+    EXPECT_TRUE(b);
+
+    // GetString on missing field returns default
+    std::string s = obj->GetString("nonexist", "default");
+    EXPECT_EQ(s, "default");
+
+    // GetObject on missing field returns nullptr
+    NativeObject *nested = obj->GetObject("nonexist");
+    EXPECT_EQ(nested, nullptr);
+
+    // Has/Del
+    obj->SetBool("alive", true);
+    EXPECT_TRUE(obj->Has("alive"));
+    obj->Del("alive");
+    EXPECT_FALSE(obj->Has("alive"));
+
+    // SetNil removes field
+    obj->SetString("tag", "hero");
+    EXPECT_TRUE(obj->Has("tag"));
+    obj->SetNil("tag");
+    EXPECT_FALSE(obj->Has("tag"));
+
+    // SetInt / SetString verify round-trip via Has/GetInt
+    obj->SetString("item", "sword");
+    EXPECT_EQ(obj->GetString("item"), "sword");
+    obj->SetInt("qty", 5);
+    EXPECT_EQ(obj->GetInt("qty"), 5);
+
+    // ForEach
+    obj->SetInt("a", 1);
+    obj->SetInt("b", 2);
+    int field_count = 0;
+    obj->ForEach([&](std::string_view key, NativeObject::FieldKind kind) {
+        field_count++;
+    });
+    EXPECT_GE(field_count, 2);
+
+    // Clear removes all fields and methods
+    obj->Clear();
+    EXPECT_EQ(obj->Size(), 0);
+
+    NativeObjectManager::Instance().DestroyGroup(7002);
+}
+
+TEST(test_native, test_native_lua_manager_ops) {
+    auto *s = FakeluaNewState();
+
+    CompileConfig config;
+    CompileFile(s, "./native/test_native_manager.lua", config);
+
+    // test_destroy_single
+    CVar ret1;
+    Call(s, JIT_TCC, "test_destroy_single", ret1);
+    EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret1), 5000);
+
+    inter::Reset(s);
+
+    // test_new_group_auto_id
+    CVar ret2;
+    Call(s, JIT_TCC, "test_new_group_auto_id", ret2);
+    EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret2), 5000);
+
+    inter::Reset(s);
+
+    // test_create_existing
+    CVar ret3;
+    Call(s, JIT_TCC, "test_create_existing", ret3);
+    EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret3), 5000);
+
+    inter::Reset(s);
+
+    // test_get_nil_args
+    CVar ret4;
+    Call(s, JIT_TCC, "test_get_nil_args", ret4);
+    EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret4), 5000);
+
+    NativeObjectManager::Instance().Clear();
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native, test_native_lua_obj_ops) {
+    auto *s = FakeluaNewState();
+
+    CompileConfig config;
+    CompileFile(s, "./native/test_native_obj_ops.lua", config);
+
+    struct TestCase {
+        const char *func_name;
+    };
+    for (auto &tc : (std::vector<TestCase>{
+                 {"test_del_field"},
+                 {"test_float_field"},
+                 {"test_bool_field"},
+                 {"test_string_field"},
+                 {"test_object_field"},
+                 {"test_pairs_on_native_obj"},
+                 {"test_int_bool_not_equal_cross"},
+             })) {
+        inter::Reset(s);
+        NativeObjectManager::Instance().Clear();
+        CVar ret;
+        Call(s, JIT_TCC, tc.func_name, ret);
+        EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 5000) << "FAILED: " << tc.func_name;
+    }
+
+    NativeObjectManager::Instance().Clear();
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native, test_native_obj_wrap) {
+    auto *s = FakeluaNewState();
+
+    CompileConfig config;
+    CompileFile(s, "./native/test_native_obj_wrap.lua", config);
+
+    struct TestCase {
+        const char *func_name;
+    };
+    for (auto &tc : (std::vector<TestCase>{
+                 {"test_wrap_object_field"},
+                 {"test_wrap_empty_spec_keys"},
+                 {"test_wrap_set_from_cvar"},
+                 {"test_wrap_get_as_cvar"},
+             })) {
+        inter::Reset(s);
+        NativeObjectManager::Instance().Clear();
+        CVar ret;
+        Call(s, JIT_TCC, tc.func_name, ret);
+        EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 5000) << "FAILED: " << tc.func_name;
+    }
+
+    NativeObjectManager::Instance().Clear();
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native, test_native_manager_clear) {
+    // Test NativeObjectManager::Clear() - destroys all objects
+    int64_t gid1 = NativeObjectManager::Instance().CreateGroup(8001);
+    int64_t gid2 = NativeObjectManager::Instance().CreateGroup(8002);
+
+    auto *obj1 = NativeObjectManager::Instance().Create(gid1, "unit", 1);
+    auto *obj2 = NativeObjectManager::Instance().Create(gid2, "unit", 2);
+    obj1->SetInt("x", 10);
+    obj2->SetInt("y", 20);
+
+    EXPECT_NE(NativeObjectManager::Instance().Get("unit", 1), nullptr);
+    EXPECT_NE(NativeObjectManager::Instance().Get("unit", 2), nullptr);
+
+    // Clear all
+    NativeObjectManager::Instance().Clear();
+
+    // After Clear, all objects should be gone
+    EXPECT_EQ(NativeObjectManager::Instance().Get("unit", 1), nullptr);
+    EXPECT_EQ(NativeObjectManager::Instance().Get("unit", 2), nullptr);
+}
+
+TEST(test_native, test_native_create_error) {
+    // Test NativeObjectManager::Create with group_id == 0 (error path)
+    EXPECT_THROW(NativeObjectManager::Instance().Create(0, "test", 1), FakeluaException);
+}
+
+TEST(test_native, test_native_manager_destroy_empty) {
+    // DestroyGroup on non-existent group returns 0
+    size_t count = NativeObjectManager::Instance().DestroyGroup(99999);
+    EXPECT_EQ(count, 0);
+
+    // DestroySingle on non-existent object returns false
+    bool result = NativeObjectManager::Instance().DestroySingle("nonexist", 99999);
+    EXPECT_FALSE(result);
+}
+

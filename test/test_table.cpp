@@ -182,3 +182,78 @@ TEST(test_table, test_table_sort_boundary) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_table, test_table_sort_custom_cmp) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_sort_cmp.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_sort_custom_cmp", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_move_overlap) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_sort_cmp.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_move_overlap", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_move_no_overlap) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_sort_cmp.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_move_no_overlap", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_concat_float) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_sort_cmp.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_concat_float", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_sort_single) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_sort_cmp.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_sort_single", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
