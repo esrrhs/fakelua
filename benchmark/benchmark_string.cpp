@@ -887,7 +887,7 @@ static void BM_Lua_ToString(benchmark::State &state) {
 static void BM_FakeLua_ToString_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     for (auto _: state) {
-        int64_t ret = 0;
+        std::string ret;
         Call(g_ctx.flua, JIT_TCC, "bench_tostring", ret, n);
         benchmark::DoNotOptimize(ret);
     }
@@ -896,7 +896,7 @@ static void BM_FakeLua_ToString_TCC(benchmark::State &state) {
 static void BM_FakeLua_ToString_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     for (auto _: state) {
-        int64_t ret = 0;
+        std::string ret;
         Call(g_ctx.flua, JIT_GCC, "bench_tostring", ret, n);
         benchmark::DoNotOptimize(ret);
     }

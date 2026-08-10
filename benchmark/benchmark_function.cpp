@@ -65,14 +65,15 @@ end
 )";
 
 constexpr const char *kClosureScript = R"(
+function make_adder(x)
+    return function(y)
+        return x + y
+    end
+end
 function bench_closure(n)
     local total = 0
     for i = 1, n do
-        local inc = (function(x)
-            return function(y)
-                return x + y
-            end
-        end)(i)
+        local inc = make_adder(i)
         total = total + inc(i)
     end
     return total

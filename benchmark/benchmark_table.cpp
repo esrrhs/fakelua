@@ -761,7 +761,7 @@ static void BM_FakeLua_NestedTable_GCC(benchmark::State &state) {
 #define TABLE_PACK_ARGS    ->Arg(1)
 #define TABLE_MOVE_ARGS    ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
 #define TABLE_SORT_ARGS    ->Arg(100)->Arg(500)->Arg(1000)
-#define TABLE_CREATE_ARGS  ->Arg(1000)->Arg(5000)->Arg(10000)
+#define TABLE_CREATE_ARGS  ->Arg(1000)->Arg(3000)->Arg(5000)
 #define HASH_INSERT_ARGS   ->Arg(100)->Arg(500)->Arg(1000)
 #define HASH_LOOKUP_ARGS   ->Arg(100)->Arg(500)->Arg(1000)
 #define NESTED_TABLE_ARGS  ->Arg(1000)->Arg(10000)

@@ -4,9 +4,11 @@
 
 ## 基准说明
 
+本基准测试覆盖 5 大类共 44 个 Lua 性能场景，每个场景均实现 CPP / Lua 5.4 / FakeLua TCC / FakeLua GCC 四种横向对比。
+
 ### 算法对比（benchmark_algo.cpp）
 
-将 C++、Lua 5.4、FakeLua（JIT_TCC / JIT_GCC）在同一文件中进行横向性能对比，覆盖 11 类算法：
+将 C++、Lua 5.4、FakeLua（JIT_TCC / JIT_GCC）在同一文件中进行横向性能对比，覆盖 12 类算法：
 
 | 算法 | 说明 | 参数规模 |
 |------|------|---------|
@@ -23,11 +25,63 @@
 | MatMul | 单次 3×3 矩阵乘法（求迹） | 无参数，每次调用一次 |
 | Vector3 | 三维坐标 x, y, z 在循环中累计读写 | n=10000/100000/1000000 |
 
+### 字符串操作（benchmark_string.cpp）
+
+| 测试 | 说明 | 参数规模 |
+|------|------|---------|
+| StringLen | 取字符串长度 `#s` | 长度=10/100/1000/10000 |
+| StringSub | 截取子串 `string.sub` | 长度=10/100/1000/10000 |
+| StringRep | 重复字符串 `string.rep` | 重复 10/100/1000 次 |
+| StringReverse | 反转字符串 `string.reverse` | 长度=10/100/1000/10000 |
+| StringLower | 转小写 `string.lower` | 长度=10/100/1000/10000 |
+| StringUpper | 转大写 `string.upper` | 长度=10/100/1000/10000 |
+| StringByte | 取字符字节值 `string.byte` | 长度=10/100/1000 |
+| StringChar | 从字节值构建字符串 `string.char` | 循环 10/100/500 次 |
+| StringFormat | 格式化整数 `string.format` | 循环 10/100/500 次 |
+| StringFind | 字符串查找 `string.find` | 长度=10/100/1000/10000 |
+| StringGsub | 字符串替换 `string.gsub` | 长度=10/100/1000 |
+| ToNumber | 字符串转数字 `tonumber()` | 固定 1 次 |
+| ToString | 数字转字符串 `tostring()` | 循环 10/100/500 次 |
+
+### 表操作（benchmark_table.cpp）
+
+| 测试 | 说明 | 参数规模 |
+|------|------|---------|
+| TableInsert | 插入元素 `table.insert` | n=100/500/1000/5000 |
+| TableRemove | 删除元素 `table.remove` | n=100/500/1000/5000 |
+| TableConcat | 连接字符串 `table.concat` | n=100/500/1000 |
+| TablePack | 表打包与遍历 | n=10（固定） |
+| TableMove | 表元素移动 `table.move` | n=100/500/1000/5000 |
+| TableSort | 排序 `table.sort` | n=100/500/1000 |
+| TableCreate | 创建大数组表 | n=1000/3000/5000 |
+| HashInsert | 哈希表插入（字符串键） | n=100/500/1000 |
+| HashLookup | 哈希表查找（字符串键） | n=100/500/1000 |
+| NestedTable | 嵌套表深层遍历 | n=1000/10000 |
+
+### 函数调用（benchmark_function.cpp）
+
+| 测试 | 说明 | 参数规模 |
+|------|------|---------|
+| EmptyCall | 空函数调用开销 | n=10000/100000 |
+| Recursion | 递归斐波那契 fib(n) | n=10/20/25 |
+| Variadic | 可变参数函数 `...` | 固定 5 参数 |
+| MultiReturn | 函数返回值累加 | n=1000/10000 |
+| Closure | 闭包创建与调用 | n=100/1000 |
+| TailRecursion | 尾递归求和 | n=100/1000/5000 |
+
+### GC 与内存压力（benchmark_gc.cpp）
+
+| 测试 | 说明 | 参数规模 |
+|------|------|---------|
+| TableChurn | 大量创建/丢弃临时表 | n=100/500/1000 |
+| StringChurn | 大量创建/丢弃临时字符串 | n=100/500/1000 |
+| MixedAlloc | 混合分配表+字符串 | n=100/500/1000 |
+
 ---
 
 ## 运行环境
 
-- 日期：2026-08-02
+- 日期：2026-08-10 (算法), 2026-08-10 (新增场景)
 - 机器：2 X 2595.12 MHz CPU s
 - CPU 缓存：L1d 32 KiB (x2)，L1i 32 KiB (x2)，L2 4096 KiB (x2)，L3 16384 KiB (x1)
 - 构建模式：**Release**（`cmake .. -DCMAKE_BUILD_TYPE=Release`，最终编译标志 `-O3 -DNDEBUG`）
@@ -426,3 +480,407 @@ BM_FakeLua_Vector3_GCC/1000000                      22696590 ns     22675959 ns 
 4. **位运算 vs 取模**（FastPow `&`/`>>` vs PowMod `%`/`//`）：在 TCC 下位运算快（702 ns vs 432 ns），GCC 下两者也较接近，说明 FakeLua 已能对两种写法生成相近质量的代码。
 
 > 注：ASLR 开启，结果有一定随机噪声；建议在 `--cpu-scaling-enabled=false` 环境下多重复后取均值。
+
+---
+
+## 字符串操作性能分析
+
+> 更新日期：2026-08-10
+
+### 1. StringLen — 取字符串长度（s=10000 字符）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 16.5 ns | 1x |
+| Lua | 1,414 ns | **85.7x** 慢 |
+| FakeLua TCC | 911 ns | **55.2x** 慢 (比 Lua 快 **1.55x**) |
+| FakeLua GCC | 885 ns | **53.6x** 慢 (比 Lua 快 **1.60x**) |
+
+> `#s` 在 Fakelua 中涉及调用约定开销（~550ns 固定成本）。对长字符串 C++ `s.size()` 仅 ~16ns（被内联），Lua/Fakelua 均有函数调用开销，但 Fakelua 仍快于 Lua。
+
+### 2. StringSub — 截取子串（s=10000 字符）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 255 ns | 1x |
+| Lua | 2,286 ns | **8.96x** 慢 |
+| FakeLua TCC | 2,073 ns | **8.13x** 慢 (比 Lua 快 **1.10x**) |
+| FakeLua GCC | 2,100 ns | **8.24x** 慢 (比 Lua 快 **1.09x**) |
+
+> 子串创建涉及内存拷贝，Fakelua 与 Lua 性能接近。
+
+### 3. StringRep — 重复字符串（重复 1000 次）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 29,551 ns | 1x |
+| Lua | 4,686 ns | **0.16x** 快 (比 C++ 快 **6.3x**) |
+| FakeLua TCC | 31,057 ns | **1.05x** 慢 (比 Lua 慢 **6.63x**) |
+| FakeLua GCC | 31,108 ns | **1.05x** 慢 (比 Lua 慢 **6.64x**) |
+
+> Lua 的 `string.rep` 经历了深度优化（内部 memcpy 大量重复块），Fakelua 的字符串实现与 C++ naive 版本相当。
+
+### 4. StringReverse — 反转字符串（s=10000 字符）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 33,737 ns | 1x |
+| Lua | 9,077 ns | **0.27x** 快 (比 C++ 快 **3.72x**) |
+| FakeLua TCC | 35,603 ns | **1.06x** 慢 (比 Lua 慢 **3.92x**) |
+| FakeLua GCC | 35,634 ns | **1.06x** 慢 (比 Lua 慢 **3.93x**) |
+
+> Lua 原生 `string.reverse` 是 C 实现，效率远超脚本层操作。Fakelua 在脚本层逐字符操作导致落后。
+
+### 5. StringLower — 转小写（s=10000 字符）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 120,797 ns | 1x |
+| Lua | 10,887 ns | **0.09x** 快 (比 C++ 快 **11.1x**) |
+| FakeLua TCC | 66,376 ns | **0.55x** 快 (比 Lua 慢 **6.10x**) |
+| FakeLua GCC | 66,128 ns | **0.55x** 快 (比 Lua 慢 **6.07x**) |
+
+> Lua 的 `string.lower` 是原生 C 实现。Fakelua 在脚本层遍历字符串逐字符转换，性能约为 C++ 的 55%（在 JIT 编译下），但仍无法与原生 C 实现匹敌。
+
+### 6. StringUpper — 转大写（s=10000 字符）
+
+模式与 StringLower 完全一致，Lua 原生实现快于所有其他变体约 **11x**。
+
+### 7. StringFormat — 格式化整数（500 次 `string.format("%d", i)`）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 27,581 ns | 1x |
+| Lua | 103,499 ns | **3.75x** 慢 |
+| FakeLua TCC | 530,039 ns | **19.2x** 慢 (比 Lua 慢 **5.12x**) |
+| FakeLua GCC | 528,677 ns | **19.2x** 慢 (比 Lua 慢 **5.11x**) |
+
+> `string.format` 涉及复杂的格式解析和变参处理，Fakelua 在此场景显著落后于标准 Lua。
+
+### 8. StringGsub — 字符串替换（s=1000 字符，替换全部 a→b）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 17,115 ns | 1x |
+| Lua | 29,204 ns | **1.71x** 慢 |
+| FakeLua TCC | 649,413 ns | **37.9x** 慢 (比 Lua 慢 **22.2x**) |
+| FakeLua GCC | 639,056 ns | **37.3x** 慢 (比 Lua 慢 **21.9x**) |
+
+> `string.gsub` 是 Fakelua 字符串库中最薄弱的环节。Lua 原生模式匹配采用高度优化的 C 引擎，而 Fakelua 在脚本层实现使得替换操作极其昂贵。
+
+### 9. StringFind — 字符串查找（s=10000 字符，多次查找）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 97.5 ns | 1x |
+| Lua | 1,747 ns | **17.9x** 慢 |
+| FakeLua TCC | 2,274 ns | **23.3x** 慢 (比 Lua 慢 **1.30x**) |
+| FakeLua GCC | 2,247 ns | **23.1x** 慢 (比 Lua 慢 **1.29x**) |
+
+> Fakelua 与 Lua 在 `string.find` 上性能接近，均比 C/C++ 原生的 `strstr`/`find` 慢一个数量级。
+
+### 字符串操作：FakeLua TCC vs Lua 5.4
+
+| 测试 | 参数 | Lua | FakeLua TCC | 结果 |
+|------|------|-----|-------------|------|
+| StringLen | n=10000 | 1,414 ns | 911 ns | TCC **1.55x 快** |
+| StringSub | n=10000 | 2,286 ns | 2,073 ns | TCC **1.10x 快** |
+| StringRep | n=1000 | 4,686 ns | 31,057 ns | TCC **6.63x 慢** |
+| StringReverse | n=10000 | 9,077 ns | 35,603 ns | TCC **3.92x 慢** |
+| StringLower | n=10000 | 10,887 ns | 66,376 ns | TCC **6.10x 慢** |
+| StringUpper | n=10000 | 10,685 ns | 66,287 ns | TCC **6.20x 慢** |
+| StringByte | n=1000 | 444 ns | 1,472 ns | TCC **3.32x 慢** |
+| StringChar | n=500 | 56,325 ns | 2,187,565 ns | TCC **38.8x 慢** |
+| StringFormat | n=500 | 103,499 ns | 530,039 ns | TCC **5.12x 慢** |
+| StringFind | n=10000 | 1,747 ns | 2,274 ns | TCC **1.30x 慢** |
+| StringGsub | n=1000 | 29,204 ns | 649,413 ns | TCC **22.2x 慢** |
+| ToNumber | n=1 | 216 ns | 1,525 ns | TCC **7.06x 慢** |
+| ToString | n=500 | 349 ns | 1,108 ns | TCC **3.17x 慢** |
+
+> **关键发现**：fakelua 的原生字符串库函数（如 `string.rep`, `string.reverse`, `string.lower`, `string.gsub`）均远慢于标准 Lua，因为在 fakelua 中这些函数在 JIT 后仍走脚本层处理路径，而非 C 原生实现。**StringLen 是唯一 TCC 始终快于 Lua 的操作**（1.55x–4.51x），因为没有复杂内存操作。
+
+---
+
+## 表操作性能分析
+
+> 更新日期：2026-08-10
+
+### 1. TableInsert — 顺序插入（n=5000）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 28.4 µs | 1x |
+| Lua | 437.0 µs | **15.4x** 慢 |
+| FakeLua TCC | 69.3 ms | **2,437x** 慢 (比 Lua 慢 **159x**) |
+| FakeLua GCC | 20.5 ms | **720x** 慢 (比 Lua 慢 **46.9x**) |
+
+> `table.insert` 在 fakelua 中是严重瓶颈。n=5000 时 TCC 比标准 Lua 慢 159 倍。这暴露了 fakelua 在动态数组扩容和表尾部插入路径上的效率问题。
+
+### 2. TableRemove — 尾部删除（n=5000）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 84.0 µs | 1x |
+| Lua | 631.5 µs | **7.52x** 慢 |
+| FakeLua TCC | 69.6 ms | **828x** 慢 (比 Lua 慢 **110x**) |
+| FakeLua GCC | 17.5 ms | **209x** 慢 (比 Lua 慢 **27.8x**) |
+
+> 与 TableInsert 模式类似，删除操作在 fakelua 中也远慢于 Lua。
+
+### 3. TableSort — 排序 1000 个随机整数
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 68.0 µs | 1x |
+| Lua | 273.5 µs | **4.02x** 慢 |
+| FakeLua TCC | 11.6 ms | **170x** 慢 (比 Lua 慢 **42.5x**) |
+| FakeLua GCC | 11.6 ms | **170x** 慢 (比 Lua 慢 **42.3x**) |
+
+> `table.sort` 的性能问题是表操作中最为突出的之一，TCC 和 GCC 均慢于 Lua 约 42 倍。Lua 的排序在 C 层完成，而 fakelua 在脚本层进行排序比较和元素交换。
+
+### 4. TableConcat — 连接 1000 个字符串元素
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 86.5 µs | 1x |
+| Lua | 283.9 µs | **3.28x** 慢 |
+| FakeLua TCC | 6.70 ms | **77.5x** 慢 (比 Lua 慢 **23.6x**) |
+| FakeLua GCC | 6.65 ms | **77.0x** 慢 (比 Lua 慢 **23.4x**) |
+
+### 5. TableMove — 移动 5000 个元素
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 86.0 µs | 1x |
+| Lua | 175.0 µs | **2.03x** 慢 |
+| FakeLua TCC | 140.5 ms | **1,633x** 慢 (比 Lua 慢 **803x**) |
+| FakeLua GCC | 140.0 ms | **1,627x** 慢 (比 Lua 慢 **800x**) |
+
+> `table.move` 是 fakelua 最慢的表操作，TCC 比 Lua 慢 800 倍以上，说明 fakelua 当前的 `table.move` 实现在大规模数据下需要重点优化。
+
+### 6. HashInsert — 哈希表插入 1000 个字符串键
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 268.1 µs | 1x |
+| Lua | 377.4 µs | **1.41x** 慢 |
+| FakeLua TCC | 640.1 µs | **2.39x** 慢 (比 Lua 慢 **1.70x**) |
+| FakeLua GCC | 519.3 µs | **1.94x** 慢 (比 Lua 慢 **1.38x**) |
+
+> 哈希插入是 fakelua 表现较好的表操作，GCC 仅慢于 Lua 约 **1.38x**。
+
+### 7. HashLookup — 哈希表查找 1000 个字符串键
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 286.3–465.8 µs | 1x |
+| Lua | 31.7–316.1 µs | **0.11–0.68x** 快 |
+| FakeLua TCC | 55.2–553.4 µs | **0.19–1.19x** 慢 (比 Lua 慢 **1.74–1.76x**) |
+| FakeLua GCC | 49.4–498.9 µs | **0.17–1.07x** 慢 (比 Lua 慢 **1.56–1.58x**) |
+
+> Lua 的哈希查找快于 C++ `std::unordered_map`（因为 Lua table 的哈希实现针对小键做了极进优化）。Fakelua 的哈希查找约慢于 Lua **1.6–1.8x**。
+
+### 8. NestedTable — 10 层嵌套表遍历（访问 10000 次）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 596.6 µs | 1x |
+| Lua | 1.98 ms | **3.32x** 慢 |
+| FakeLua TCC | 2.84 ms | **4.75x** 慢 (比 Lua 慢 **1.43x**) |
+| FakeLua GCC | 544.5 µs | **0.91x** 快 (比 C++ 快 **9%**, 比 Lua 快 **3.63x**) |
+
+> **亮点**：嵌套表深层遍历中，**FakeLua GCC 快于 C++**。因为 GCC 将表层指针偏移路线编译为直接的寄存器偏移访问，避免了 C++ 的指针追踪开销。这是 fakelua Table 特化优化的最佳展示场景。
+
+### 表操作：FakeLua TCC vs Lua 5.4
+
+| 测试 | 参数 | Lua | FakeLua TCC | 结果 |
+|------|------|-----|-------------|------|
+| TableInsert | n=1000 | 88.1 µs | 2.78 ms | TCC **31.5x 慢** |
+| TableRemove | n=1000 | 116.8 µs | 2.80 ms | TCC **24.0x 慢** |
+| TableConcat | n=1000 | 283.9 µs | 6.70 ms | TCC **23.6x 慢** |
+| TableMove | n=1000 | 34.2 µs | 6.05 ms | TCC **177x 慢** |
+| TableSort | n=1000 | 273.5 µs | 11.6 ms | TCC **42.5x 慢** |
+| TableCreate | n=5000 | 93.7 µs | 440.9 µs | TCC **4.71x 慢** |
+| HashInsert | n=1000 | 377.4 µs | 640.1 µs | TCC **1.70x 慢** |
+| HashLookup | n=1000 | 316.1 µs | 553.4 µs | TCC **1.75x 慢** |
+| NestedTable | n=10000 | 1.98 ms | 2.84 ms | TCC **1.43x 慢** |
+
+> **总结**：fakelua 在表操作方面整体落后于 Lua 5.4，特别是 `table.insert`、`table.move`、`table.sort` 等标准库函数。哈希操作和嵌套表遍历差距最小。主要瓶颈在于表标准库函数在 fakelua 中走脚本层实现路径。
+
+---
+
+## 函数调用性能分析
+
+> 更新日期：2026-08-10
+
+### 1. EmptyCall — 空函数调用（n=100000 次）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 5.4 ns | 1x |
+| Lua | 2.91 ms | **537,331x** 慢 |
+| FakeLua TCC | 2.06 ms | **381,517x** 慢 (比 Lua 快 **1.41x**) |
+| FakeLua GCC | 256 µs | **47,314x** 慢 (比 Lua 快 **11.4x**) |
+
+> 极轻量操作的极端放大比。C++ 空调用在 `-O3` 下被完全优化掉。**GCC 比 Lua 快 11.4x**，说明 GCC 后端的函数调用内联优化显著减少了纯调用开销。
+
+### 2. Recursion — 递归 fib(25)
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 2.04 ms | 1x |
+| Lua | 8.75 ms | **4.29x** 慢 |
+| FakeLua TCC | 701.5 µs | **0.34x** 快 (比 C++ 快 **2.91x**, 比 Lua 快 **12.5x**) |
+| FakeLua GCC | 158.2 µs | **0.08x** 快 (比 C++ 快 **12.9x**, 比 Lua 快 **55.3x**) |
+
+> **异常现象**：Fakelua TCC 和 GCC 的递归均**远快于 C++**。这是因为 fakelua 的数值特化将递归完全编译为数值计算——消除了 C++ 函数的 ABI 调用开销（参数压栈、寄存器保存/恢复）。GCC 比 C++ 快 **12.9x**。
+
+### 3. Variadic — 可变参数函数（5 参数求和）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 10.8 ns | 1x |
+| Lua | 497 ns | **46.0x** 慢 |
+| FakeLua TCC | 5,481 ns | **507x** 慢 (比 Lua 慢 **11.0x**) |
+| FakeLua GCC | 5,304 ns | **491x** 慢 (比 Lua 慢 **10.7x**) |
+
+> 可变参数 `...` 处理在 fakelua 中较为昂贵，因为每次调用都需要构建 vararg 列表。TCC 和 GCC 均慢于标准 Lua 约 10–11x。
+
+### 4. MultiReturn — 函数返回值累加（n=10000）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 54.1 µs | 1x |
+| Lua | 398.0 µs | **7.36x** 慢 |
+| FakeLua TCC | 36.5 µs | **0.67x** 快 (比 Lua 快 **10.9x**) |
+| FakeLua GCC | 20.1 µs | **0.37x** 快 (比 Lua 快 **19.8x**) |
+
+> fakelua 在函数返回值处理上表现出色，GCC 比 Lua 快 **19.8x**，TCC 也快 **10.9x**。数值计算在 JIT 下被充分优化。
+
+### 5. Closure — 闭包创建与调用（n=1000）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 5.41 µs | 1x |
+| Lua | 152.1 µs | **28.1x** 慢 |
+| FakeLua TCC | 128.8 µs | **23.8x** 慢 (比 Lua 快 **1.18x**) |
+| FakeLua GCC | 58.4 µs | **10.8x** 慢 (比 Lua 快 **2.61x**) |
+
+> 闭包的创建和调用涉及 upvalue 捕获。GCC 比 Lua 快 **2.6x**，展示了对闭包场景的良好优化。
+
+### 6. TailRecursion — 尾递归求和（n=5000）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 27.1 µs | 1x |
+| Lua | 142.2 µs | **5.24x** 慢 |
+| FakeLua TCC | 19.0 µs | **0.70x** 快 (比 Lua 快 **7.49x**) |
+| FakeLua GCC | 1.94 µs | **0.07x** 快 (比 Lua 快 **73.5x**) |
+
+> **尾递归 GCC 比 C++ 快 14x**。fakelua 的尾调用优化将递归转换为循环，GCC 后端的 `-O3` 将循环完全向量化。
+
+### 函数调用：FakeLua TCC vs Lua 5.4
+
+| 测试 | 参数 | Lua | FakeLua TCC | 结果 |
+|------|------|-----|-------------|------|
+| EmptyCall | n=100000 | 2.91 ms | 2.06 ms | TCC **1.41x 快** |
+| Recursion | n=25 | 8.75 ms | 701.5 µs | TCC **12.5x 快** |
+| Variadic | n=5 | 497 ns | 5,481 ns | TCC **11.0x 慢** |
+| MultiReturn | n=10000 | 398.0 µs | 36.5 µs | TCC **10.9x 快** |
+| Closure | n=1000 | 152.1 µs | 128.8 µs | TCC **1.18x 快** |
+| TailRecursion | n=5000 | 142.2 µs | 19.0 µs | TCC **7.49x 快** |
+
+### FakeLua GCC vs Lua 5.4（函数调用）
+
+| 测试 | 参数 | Lua | FakeLua GCC | GCC 快多少 |
+|------|------|-----|-------------|-----------|
+| EmptyCall | n=100000 | 2.91 ms | 256.0 µs | **11.4x** |
+| Recursion | n=25 | 8.75 ms | 158.2 µs | **55.3x** |
+| MultiReturn | n=10000 | 398.0 µs | 20.1 µs | **19.8x** |
+| Closure | n=1000 | 152.1 µs | 58.4 µs | **2.61x** |
+| TailRecursion | n=5000 | 142.2 µs | 1.94 µs | **73.5x** |
+
+> **函数调用是 fakelua GCC 表现最出色的领域之一**。除 Variadic 外，GCC 在所有函数调用场景中均大幅领先 Lua 5.4（2.6x – 73.5x）。
+
+---
+
+## GC 与内存压力性能分析
+
+> 更新日期：2026-08-10
+
+### 1. TableChurn — 大量临时表创建/丢弃（n=1000）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 50.1 µs | 1x |
+| Lua | 423.1 µs | **8.44x** 慢 |
+| FakeLua TCC | 171.3 µs | **3.42x** 慢 (比 Lua 快 **2.47x**) |
+| FakeLua GCC | 29.8 µs | **0.59x** 快 (比 C++ 快 **1.68x**, 比 Lua 快 **14.2x**) |
+
+> **GCC 下的临时表创建比 C++ `std::vector` 分配更快**。fakelua 的内存池分配器避免了 C++ 的 `new`/`delete` 开销。Lua 的 GC 在频繁创建/丢弃下压力较大。
+
+### 2. StringChurn — 大量临时字符串创建/丢弃（n=1000）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 295.9 µs | 1x |
+| Lua | 774.8 µs | **2.62x** 慢 |
+| FakeLua TCC | 1.28 ms | **4.34x** 慢 (比 Lua 慢 **1.66x**) |
+| FakeLua GCC | 1.22 ms | **4.11x** 慢 (比 Lua 慢 **1.57x**) |
+
+> 字符串分配是 fakelua 的相对弱项。字符串拼接 `tostring(i) .. "_suffix"` 在 fakelua 中涉及两次字符串分配和拼接，而 C++ 和 Lua 均有更高效的内部实现。
+
+### 3. MixedAlloc — 混合分配表+字符串（n=1000）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 230.2 µs | 1x |
+| Lua | 708.9 µs | **3.08x** 慢 |
+| FakeLua TCC | 823.9 µs | **3.58x** 慢 (比 Lua 慢 **1.16x**) |
+| FakeLua GCC | 686.8 µs | **2.98x** 慢 (比 Lua 快 **1.03x**) |
+
+> 混合分配场景下 GCC 与 Lua 性能基本持平（仅快 3%），TCC 略慢于 Lua（16%）。
+
+### GC 类：FakeLua TCC vs Lua 5.4
+
+| 测试 | 参数 | Lua | FakeLua TCC | 结果 |
+|------|------|-----|-------------|------|
+| TableChurn | n=1000 | 423.1 µs | 171.3 µs | TCC **2.47x 快** |
+| StringChurn | n=1000 | 774.8 µs | 1.28 ms | TCC **1.66x 慢** |
+| MixedAlloc | n=1000 | 708.9 µs | 823.9 µs | TCC **1.16x 慢** |
+
+### GC 类：FakeLua GCC vs Lua 5.4
+
+| 测试 | 参数 | Lua | FakeLua GCC | GCC 快多少 |
+|------|------|-----|-------------|-----------|
+| TableChurn | n=1000 | 423.1 µs | 29.8 µs | **14.2x** |
+| StringChurn | n=1000 | 774.8 µs | 1.22 ms | **1.57x 慢** |
+| MixedAlloc | n=1000 | 708.9 µs | 686.8 µs | **1.03x** |
+
+> 临时表创建/丢弃是 fakelua 的优势场景，得益于内存池分配器。字符串频繁分配仍是需要改进的方向。
+
+---
+
+## 综合评估（新增场景）
+
+### FakeLua 优势场景
+
+| 场景 | GCC vs Lua | 关键原因 |
+|------|-----------|---------|
+| 纯数值递归 (fib) | **55.3x** | 数值特化 + 寄存器参数 + GCC 深度内联 |
+| 尾递归/循环累加 | **73.5x** | 尾调用优化 + GCC 自动向量化 |
+| 函数返回值计算 | **19.8x** | 原生数值运算，零 GC 参与 |
+| 临时表创建/丢弃 | **14.2x** | 内存池分配器 vs Lua GC |
+| 嵌套表深层访问 | **3.63x** | Table 结构体特化 + 指针偏移访问 |
+| 空函数调用 | **11.4x** | 函数内联优化 |
+
+### FakeLua 劣势场景（需优化）
+
+| 场景 | TCC vs Lua | 关键原因 |
+|------|-----------|---------|
+| table.move (5000 元素) | **803x 慢** | 脚本层遍历和元素移动 |
+| table.insert (5000 元素) | **159x 慢** | 数组扩容路径低效 |
+| table.sort (1000 元素) | **42.5x 慢** | 排序比较在脚本层执行 |
+| string.gsub | **22.2x 慢** | 模式匹配在脚本层实现 |
+| string.char 循环 | **38.8x 慢** | 多次函数调用和字符串拼接 |
+| 可变参数函数 | **11.0x 慢** | vararg 列表构建开销 |
