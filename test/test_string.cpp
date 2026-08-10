@@ -467,3 +467,33 @@ TEST(test_string, test_string_len_bad_arg_table) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, test_string_reverse) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_reverse.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_string_reverse", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_string_rep_boundary) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_rep_boundary.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_string_rep_boundary", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}

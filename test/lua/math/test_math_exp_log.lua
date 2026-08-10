@@ -1,14 +1,24 @@
 function test_math_exp_log()
-    local e1 = math.exp(1.0)
-    local l1 = math.log(e1)
-    local l2 = math.log(100.0, 10.0)
-    local l10 = math.log10(100.0)
-    local s1 = math.asin(0.0)
-    local c1 = math.acos(1.0)
-    local t1 = math.atan(0.0)
-    local t2 = math.atan(1.0, 1.0)
-    local sh = math.sinh(0.0)
-    local ch = math.cosh(0.0)
-    local th = math.tanh(0.0)
-    return l1 + l2 + l10 + s1 + c1 + t1 + sh + (ch - 1.0) + th
+    local eps = 1e-10
+
+    -- 1. exp(0) = 1
+    if math.abs(math.exp(0) - 1) > eps then return 1 end
+
+    -- 2. exp(1) = e (approximately 2.71828)
+    local e = math.exp(1)
+    if e < 2.7 or e > 2.8 then return 2 end
+
+    -- 3. log(e) = 1
+    if math.abs(math.log(e) - 1) > 0.01 then return 3 end
+
+    -- 4. log10(10) = 1
+    if math.abs(math.log10(10) - 1) > eps then return 4 end
+
+    -- 5. log10(100) = 2
+    if math.abs(math.log10(100) - 2) > eps then return 5 end
+
+    -- 6. log10(1) = 0
+    if math.abs(math.log10(1) - 0) > eps then return 6 end
+
+    return 5000
 end

@@ -92,3 +92,93 @@ TEST(test_table, test_table_create) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_table, test_table_move) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_move.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_move", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_create_boundary) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_create_boundary.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_create_boundary", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_insert_boundary) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_insert_boundary.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_insert_boundary", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_remove_boundary) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_remove_boundary.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_remove_boundary", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_concat_boundary) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_concat_boundary.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_concat_boundary", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_sort_boundary) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_sort_boundary.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_sort_boundary", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
