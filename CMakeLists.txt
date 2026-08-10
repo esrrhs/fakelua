@@ -65,3 +65,8 @@ add_subdirectory(cmd)
 enable_testing()
 add_subdirectory(test)
 add_subdirectory(benchmark)
+
+option(BUILD_FUZZ "Build fuzz targets (requires clang)" OFF)
+if (BUILD_FUZZ)
+    add_subdirectory(fuzz)
+endif ()
