@@ -661,6 +661,7 @@ private:
     friend class NativeObjectManager;
     friend CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
     friend void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
+    friend void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s);
     friend CVar NativeFieldToCVar(const NativeField &field, State *s);
     friend CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar);
     friend NativeField CVarToNativeField(CVar v);
@@ -721,6 +722,9 @@ public:
     size_t DestroyGroup(int64_t group_id);
     void Clear();
 
+    // 4. 单独销毁一个对象（不影响所属 group 中的其他对象）
+    bool DestroySingle(const std::string &type_name, int64_t id);
+
 private:
     struct PairHash {
         size_t operator()(const std::pair<std::string, int64_t> &p) const {
@@ -731,8 +735,6 @@ private:
     std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
     std::unordered_map<int64_t, std::vector<NativeObject *>> group_objects_;
     int64_t next_auto_group_id_ = 1000000;
-
-    bool DestroySingle(const std::string &type_name, int64_t id);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

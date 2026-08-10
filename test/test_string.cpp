@@ -497,3 +497,18 @@ TEST(test_string, test_string_rep_boundary) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, test_string_byte_multi) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./string/test_string_byte_multi.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_string_byte_multi", res);
+        EXPECT_EQ(res, 5000);
+    }
+
+    FakeluaDeleteState(s);
+}

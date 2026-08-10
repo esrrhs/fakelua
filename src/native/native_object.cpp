@@ -224,6 +224,47 @@ CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar) {
 // spec_get / spec_set 实现
 // ─────────────────────────────────────────────────────────────────────────────
 
+// 依据 obj->impl_->kv 的当前内容，重建 tbl 的 spec_keys / spec_vals 快照数组，
+// 使 pairs()/next() 迭代结果能反映 NativeSpecSet 写入后的最新字段集合。
+// 该函数在 Wrap() 和 NativeSpecSet() 之后都会被调用，以保持快照与实际字段同步。
+void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
+    auto &alloc = s->GetHeap().GetAllocator(false /* is_const */);
+    const auto &kv = obj->impl_->kv;
+    const size_t n = kv.size();
+
+    if (n == 0) {
+        tbl->spec_keys = nullptr;
+        tbl->spec_vals = nullptr;
+        tbl->spec_count = 0;
+        return;
+    }
+
+    tbl->spec_keys = static_cast<CVar *>(alloc.Alloc(sizeof(CVar) * n));
+    tbl->spec_vals = static_cast<CVar *>(alloc.Alloc(sizeof(CVar) * n));
+    tbl->spec_count = static_cast<uint32_t>(n);
+
+    size_t i = 0;
+    for (const auto &[k, v]: kv) {
+        // key：在 arena 中分配 VarString
+        const size_t klen = k.size();
+        auto *vs = static_cast<VarString *>(alloc.Alloc(sizeof(VarString) + klen + 1));
+        *reinterpret_cast<int *>(vs) = static_cast<int>(klen);
+        *reinterpret_cast<uint32_t *>(reinterpret_cast<char *>(vs) + sizeof(int)) = 0u;
+        char *buf = reinterpret_cast<char *>(vs) + sizeof(VarString);
+        if (klen > 0) {
+            std::memcpy(buf, k.data(), klen);
+        }
+        buf[klen] = '\0';
+
+        tbl->spec_keys[i].type_ = static_cast<int>(VarType::String);
+        tbl->spec_keys[i].flag_ = 0;
+        tbl->spec_keys[i].data_.s = vs;
+
+        tbl->spec_vals[i] = NativeFieldToCVar(v, s);
+        ++i;
+    }
+}
+
 CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish) {
     auto *spec = static_cast<NativeObjectSpec *>(tbl->spec);
     NativeObject *obj = spec->obj;
@@ -303,6 +344,10 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
     } else {
         obj->impl_->kv[skey] = CVarToNativeField(v);
     }
+
+    // 保持 spec_keys/spec_vals 快照与最新字段集合同步，使 pairs()/next() 迭代
+    // 能够看到 Wrap() 之后通过 spec_set 写入/删除的字段。
+    RefreshSpecKeys(tbl, obj, spec->state);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -352,34 +397,7 @@ CVar NativeObject::Wrap(State *s) const {
     vtbl->spec_set = reinterpret_cast<void *>(NativeSpecSet);
 
     // ── 填充 spec_keys / spec_vals（供 pairs() 迭代）─────────────────────────
-    const size_t n = impl_->kv.size();
-    if (n > 0) {
-        vtbl->spec_keys = static_cast<CVar *>(alloc.Alloc(sizeof(CVar) * n));
-        vtbl->spec_vals = static_cast<CVar *>(alloc.Alloc(sizeof(CVar) * n));
-        vtbl->spec_count = static_cast<uint32_t>(n);
-
-        size_t i = 0;
-        for (const auto &[k, v]: impl_->kv) {
-            // key：在 arena 中分配 VarString
-            const size_t klen = k.size();
-            auto *vs = static_cast<VarString *>(alloc.Alloc(sizeof(VarString) + klen + 1));
-            // 直接写 POD 字段
-            *reinterpret_cast<int *>(vs) = static_cast<int>(klen);
-            *reinterpret_cast<uint32_t *>(reinterpret_cast<char *>(vs) + sizeof(int)) = 0u;
-            char *buf = reinterpret_cast<char *>(vs) + sizeof(VarString);
-            if (klen > 0) {
-                std::memcpy(buf, k.data(), klen);
-            }
-            buf[klen] = '\0';
-
-            vtbl->spec_keys[i].type_ = static_cast<int>(VarType::String);
-            vtbl->spec_keys[i].flag_ = 0;
-            vtbl->spec_keys[i].data_.s = vs;
-
-            vtbl->spec_vals[i] = NativeFieldToCVar(v, s);
-            ++i;
-        }
-    }
+    RefreshSpecKeys(vtbl, this, s);
 
     CVar r{};
     r.type_ = static_cast<int>(VarType::Table);
@@ -552,8 +570,8 @@ void NativeObject::ForEach(const std::function<void(std::string_view, NativeObje
 // ─────────────────────────────────────────────────────────────────────────────
 
 void RegisterNativeObjectApi(State *s) {
-    // new_native_group([group_id]) -> group_id
-    RegisterNativeFunction(s, "new_native_group", 1, false, [](State *state, CVar *args, int n) -> CVar {
+    // new_native_group([group_id]) -> group_id (group_id 可省略，省略时自动分配)
+    RegisterNativeFunction(s, "new_native_group", 0, true, [](State *state, CVar *args, int n) -> CVar {
         CVar arg0 = inter::GetNativeArg(state, args, n, 0);
         int64_t specified_gid = (arg0.type_ != static_cast<int>(VarType::Nil)) ? inter::FakeluaToNative<int64_t>(state, arg0) : 0;
         int64_t gid = NativeObjectManager::Instance().CreateGroup(specified_gid);

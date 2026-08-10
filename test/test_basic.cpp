@@ -212,3 +212,110 @@ TEST(test_basic, test_basic_continue) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_basic, test_basic_pcall) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./basic/test_basic_pcall.lua", config);
+
+    // test_pcall_error 内部通过 error() 触发一次 C++ 异常。TCC 生成的 JIT 代码帧
+    // 没有 DWARF 展开表 (.eh_frame)，异常穿越这些帧会直接触发 std::terminate()，
+    // 因此该用例只在 JIT_GCC 下运行（同 test_exception.cpp 中记录的 TCC 限制）。
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        double res = 0;
+        Call(s, jit_type, "test_pcall_success", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_pcall_multi_return", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_pcall_with_args", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_pcall_non_function", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    {
+        double res = 0;
+        Call(s, JIT_GCC, "test_pcall_error", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, test_basic_xpcall) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./basic/test_basic_pcall.lua", config);
+
+    // test_xpcall_error 同样通过 error() 触发 C++ 异常，出于与上面相同的原因，
+    // 仅在 JIT_GCC 下运行。
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        double res = 0;
+        Call(s, jit_type, "test_xpcall_success", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_xpcall_non_function", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    {
+        double res = 0;
+        Call(s, JIT_GCC, "test_xpcall_error", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, test_basic_type_closure) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./basic/test_basic_type_closure.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_type_closure", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_type_nil_multi_table", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, test_basic_tonumber_with_base) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./basic/test_basic_type_closure.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_tonumber_with_base", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_tonumber_with_base_negative", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_tonumber_with_base_invalid", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}

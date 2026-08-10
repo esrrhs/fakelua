@@ -213,3 +213,64 @@ TEST(test_os, test_os_time_boundary) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_os, test_os_date_utc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./os/test_os_date_utc.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_os_date_utc", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_os_date_numeric_ts", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_os_date_string_ts", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_os_date_table_utc", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_os, test_os_setlocale_extended) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./os/test_os_date_utc.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_os_setlocale_query", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_os_setlocale_category", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_os, test_os_execute_empty) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./os/test_os_execute_empty.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_os_execute_empty", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}

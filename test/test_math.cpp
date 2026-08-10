@@ -345,3 +345,60 @@ TEST(test_math, test_math_constants_full) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_math, test_math_log_with_base) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_log_atan.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_log_with_base", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_math_atan_two_args", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_math_modf_int", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_math_random_range", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_type_nil) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_type_nil.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_type_nil", res);
+        EXPECT_EQ(res, 5000);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_fmod_zero) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_fmod_zero.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_fmod_zero", res);
+        EXPECT_EQ(res, 5000);
+    }
+
+    FakeluaDeleteState(s);
+}
