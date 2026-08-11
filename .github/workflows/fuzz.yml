@@ -69,17 +69,17 @@ jobs:
             clang++ ${FUZZ_FLAGS} \
               ${INC_FLAGS} -I/usr/include/lua5.4 \
               ../fuzz/${{ matrix.target }}.cpp \
-              -L lib64 -L src -L /usr/lib/x86_64-linux-gnu \
+              -L lib -L lib64 -L /usr/lib/x86_64-linux-gnu \
               -lfuzz_bridge -lfakelua -llua5.4 \
-              -Wl,-rpath,lib64 -Wl,-rpath,src \
+              -Wl,-rpath,lib -Wl,-rpath,lib64 \
               -o bin/${{ matrix.target }}
           else
             clang++ ${FUZZ_FLAGS} \
               ${INC_FLAGS} \
               ../fuzz/${{ matrix.target }}.cpp \
-              -L lib64 -L src \
+              -L lib -L lib64 \
               -lfuzz_bridge -lfakelua \
-              -Wl,-rpath,lib64 -Wl,-rpath,src \
+              -Wl,-rpath,lib -Wl,-rpath,lib64 \
               -o bin/${{ matrix.target }}
           fi
 
