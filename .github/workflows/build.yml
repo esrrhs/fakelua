@@ -6,28 +6,88 @@ on:
   pull_request:
     branches: [ "master" ]
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [debug, release, asan, cov]
+
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v1
-
-
+      - uses: actions/checkout@v4
 
       - name: Setup Lua
         run: |
           sudo apt-get update
           sudo apt-get install -y lua5.4 liblua5.4-dev
-          
-      - name: Build
+
+      - name: Setup TCC
+        if: matrix.build_type == 'asan' || matrix.build_type == 'cov'
+        run: |
+          git clone https://github.com/TinyCC/tinycc.git
+          cd tinycc
+          ./configure --extra-cflags="-fPIC"
+          make -j$(nproc)
+          sudo make install
+          cd ..
+
+      - name: Setup lcov
+        if: matrix.build_type == 'cov'
+        run: |
+          wget https://github.com/linux-test-project/lcov/releases/download/v2.0/lcov-2.0.tar.gz
+          tar -xf lcov-2.0.tar.gz
+          cd lcov-2.0/
+          sudo make install
+          yes|sudo perl -MCPAN -e 'install Capture::Tiny'
+          sudo apt-get install libdatetime-perl -y
+          sudo rm /usr/bin/lcov -f
+          sudo ln -s /usr/local/bin/lcov /usr/bin/lcov
+          lcov --version
+          cd ..
+
+      - name: Build (${{ matrix.build_type }})
         run: |
           set -x
-          rm build -rf
+          rm -rf build
           mkdir build
           cd build
-          cmake ..
-          make -j8
+
+          # Select CMake flags based on build type
+          case "${{ matrix.build_type }}" in
+            debug)
+              CMAKE_FLAGS=""
+              ;;
+            release)
+              CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release"
+              ;;
+            asan)
+              CMAKE_FLAGS="-DUSE_ASAN=ON"
+              export ASAN_OPTIONS=detect_leaks=0
+              ;;
+            cov)
+              CMAKE_FLAGS="-DUSE_COV=ON"
+              ;;
+          esac
+
+          cmake ${CMAKE_FLAGS} ..
+          make -j$(nproc)
           ctest -V
           ./bin/bench_mark
           ./bin/flua
+
+      - name: Coverage report
+        if: matrix.build_type == 'cov'
+        run: |
+          set -x
+          cd build
+          echo "function main() return 0 end" > test.lua
+          ./bin/flua --repeat=2 test.lua
+          lcov --directory ./ --capture --output-file coverage.info --ignore-errors source --ignore-errors mismatch
+          ls -l coverage.info
+          lcov --list coverage.info
+          bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV }} -f coverage.info || echo "Codecov did not collect coverage reports"

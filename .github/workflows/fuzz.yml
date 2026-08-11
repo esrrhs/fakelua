@@ -6,8 +6,8 @@ on:
   pull_request:
     branches: [ "master" ]
   schedule:
-    # Daily at 3:37 UTC (off-peak, avoid :00/:30 contention)
-    - cron: '37 3 * * *'
+    # Weekly on Sunday at 3:37 UTC
+    - cron: '37 3 * * 0'
   workflow_dispatch:
     inputs:
       duration:
@@ -90,14 +90,17 @@ jobs:
 
           # Determine run duration:
           # - PR: quick 60-second smoke test
-          # - Push to master / schedule: longer run (5 min per target)
+          # - Push to master: 10 min per target
+          # - Weekly schedule: 60 min per target
           # - Manual dispatch: user-specified duration
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             DURATION=60
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             DURATION=${{ github.event.inputs.duration }}
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            DURATION=3600
           else
-            DURATION=300
+            DURATION=600
           fi
 
           echo "Fuzzing ${{ matrix.target }} for ${DURATION}s..."
