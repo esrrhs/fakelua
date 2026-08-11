@@ -277,8 +277,10 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (whence_str == "set") whence = SEEK_SET;
         else if (whence_str == "end")
             whence = SEEK_END;
-        else
+        else if (whence_str == "cur")
             whence = SEEK_CUR;
+        else
+            ThrowFakeluaException("bad argument #1 to 'seek' (invalid option '" + std::string(whence_str) + "')");
 
         if (std::fseek(fp, static_cast<long>(offset), whence) != 0) {
             return inter::NativeToFakeluaNil(state);

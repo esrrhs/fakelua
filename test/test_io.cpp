@@ -198,3 +198,32 @@ TEST(test_io, test_io_lines_boundary) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_io, test_io_boundary) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_io_boundary.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_io_boundary", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, test_io_boundary_error) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./io/test_io_boundary_error.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_io_boundary_error", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
