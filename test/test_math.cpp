@@ -402,3 +402,33 @@ TEST(test_math, test_math_fmod_zero) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_math, test_math_boundary_nan_inf) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_boundary_nan_inf.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_boundary_nan_inf", res);
+        EXPECT_EQ(res, 5000);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_boundary_integer) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_boundary_integer.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_boundary_integer", res);
+        EXPECT_EQ(res, 5000);
+    }
+
+    FakeluaDeleteState(s);
+}

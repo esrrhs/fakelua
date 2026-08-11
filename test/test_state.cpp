@@ -333,3 +333,112 @@ TEST(state, vm_register_and_get_function) {
     ASSERT_EQ(result.GetName(), "fn_reg");
     ASSERT_EQ(result.GetArgCount(), 1);
 }
+
+// ---------------------------------------------------------------------------
+// ConstString empty string
+// ---------------------------------------------------------------------------
+
+TEST(state, const_string_empty) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+    auto &cs = s->GetConstString();
+
+    const int64_t id = cs.Alloc("");
+    ASSERT_NE(id, -1); // empty string must get a valid ID
+
+    const std::string_view sv = ConstString::GetString(id);
+    ASSERT_EQ(sv, ""); // must retrieve the empty string
+
+    const VarString *vs = ConstString::GetVarString(id);
+    ASSERT_NE(vs, nullptr);
+    ASSERT_EQ(vs->Str(), "");
+
+    // Allocating empty again must return the SAME id (interning)
+    const int64_t id2 = cs.Alloc("");
+    ASSERT_EQ(id2, id);
+}
+
+// ---------------------------------------------------------------------------
+// ConstString large key
+// ---------------------------------------------------------------------------
+
+TEST(state, const_string_large) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+    auto &cs = s->GetConstString();
+
+    // Build a 2KB string
+    std::string large(2048, 'X');
+    for (size_t i = 0; i < large.size(); ++i) {
+        large[i] = static_cast<char>('A' + (i % 26));
+    }
+
+    const int64_t id = cs.Alloc(large);
+    const std::string_view sv = ConstString::GetString(id);
+    ASSERT_EQ(sv, large);
+    ASSERT_EQ(sv.size(), 2048u);
+}
+
+// ---------------------------------------------------------------------------
+// State reset and reuse
+// ---------------------------------------------------------------------------
+
+TEST(state, reset_reuse_state) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+
+    // Phase 1: compile and call a function
+    ASSERT_NO_THROW(CompileString(s, "function first() return 111 end", {}));
+    {
+        int64_t ret = 0;
+        Call(s, JIT_TCC, "first", ret);
+        ASSERT_EQ(ret, 111);
+    }
+
+    // Reset the state
+    inter::Reset(s);
+
+    // Phase 2: compile and call a DIFFERENT function
+    ASSERT_NO_THROW(CompileString(s, "function second() return 222 end", {}));
+    {
+        int64_t ret = 0;
+        Call(s, JIT_TCC, "second", ret);
+        ASSERT_EQ(ret, 222);
+    }
+
+    // Phase 3: a second Reset and yet another compilation should work
+    inter::Reset(s);
+    ASSERT_NO_THROW(CompileString(s, "function third() return 333 end", {}));
+    {
+        int64_t ret = 0;
+        Call(s, JIT_TCC, "third", ret);
+        ASSERT_EQ(ret, 333);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Heap allocator: size 0 and block boundary
+// ---------------------------------------------------------------------------
+
+TEST(state, heap_alloc_boundary) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+    auto &alloc = s->GetHeap().GetAllocator(false);
+
+    // Alloc of size 0 should succeed (implementation may return a valid pointer or nullptr)
+    (void)alloc.Alloc(0);  // result may be nullptr; verify no crash
+    // After alloc(0), subsequent operations must still work
+    void *p1 = alloc.Alloc(64);
+    ASSERT_NE(p1, nullptr);
+
+    // Reset the allocator
+    inter::Reset(s);
+
+    // Allocate exactly 1 byte
+    void *pb = alloc.Alloc(1);
+    ASSERT_NE(pb, nullptr);
+
+    // Reset and verify empty
+    inter::Reset(s);
+    ASSERT_EQ(alloc.Size(), 0u);
+}
