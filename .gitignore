@@ -34,6 +34,7 @@
 .idea
 build
 build_*
+!fuzz/build_fuzz.sh
 !.github/workflows/build_with_windows.yml
 !.github/workflows/build_with_macos.yml
 cmake-build-debug

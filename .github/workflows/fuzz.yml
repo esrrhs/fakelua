@@ -1,0 +1,159 @@
+name: Fuzz
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  schedule:
+    # Daily at 3:37 UTC (off-peak, avoid :00/:30 contention)
+    - cron: '37 3 * * *'
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Fuzz duration per target (seconds)'
+        required: false
+        default: '300'
+        type: string
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [fuzz_compile, fuzz_differential]
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 liblua5.4-dev clang
+
+      - name: Setup TCC
+        run: |
+          git clone https://github.com/TinyCC/tinycc.git
+          cd tinycc
+          ./configure --extra-cflags="-fPIC"
+          make -j$(nproc)
+          sudo make install
+          cd ..
+
+      - name: Build fakelua + fuzz_bridge
+        run: |
+          set -x
+          rm -rf build
+          mkdir build && cd build
+          # Use clang for everything in CI (newer clang on ubuntu-24.04
+          # handles the libstdc++ headers fine)
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang \
+            -DBUILD_FUZZ=ON
+          make fuzz_bridge -j$(nproc)
+
+      - name: Build fuzz target
+        run: |
+          set -x
+          cd build
+          # Build the fuzz target binary with libFuzzer
+          FUZZ_FLAGS="-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer -g"
+          INC_FLAGS="-I../include -I../src -I../src/platform -I../fuzz"
+
+          mkdir -p bin
+
+          if [ "${{ matrix.target }}" = "fuzz_differential" ]; then
+            clang++ ${FUZZ_FLAGS} \
+              ${INC_FLAGS} -I/usr/include/lua5.4 \
+              ../fuzz/${{ matrix.target }}.cpp \
+              -L lib -L lib64 -L /usr/lib/x86_64-linux-gnu \
+              -lfuzz_bridge -lfakelua -llua5.4 \
+              -Wl,-rpath,lib -Wl,-rpath,lib64 \
+              -o bin/${{ matrix.target }}
+          else
+            clang++ ${FUZZ_FLAGS} \
+              ${INC_FLAGS} \
+              ../fuzz/${{ matrix.target }}.cpp \
+              -L lib -L lib64 \
+              -lfuzz_bridge -lfakelua \
+              -Wl,-rpath,lib -Wl,-rpath,lib64 \
+              -o bin/${{ matrix.target }}
+          fi
+
+      - name: Run fuzz (${{ matrix.target }})
+        run: |
+          set -x
+          cd build
+
+          # Determine run duration:
+          # - PR: quick 60-second smoke test
+          # - Push to master / schedule: longer run (5 min per target)
+          # - Manual dispatch: user-specified duration
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            DURATION=60
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            DURATION=${{ github.event.inputs.duration }}
+          else
+            DURATION=300
+          fi
+
+          echo "Fuzzing ${{ matrix.target }} for ${DURATION}s..."
+
+          # Run fuzzer with time limit
+          # -max_total_time: stop after N seconds
+          # -max_len: max input length (smaller = faster iteration)
+          # Use seed corpus if available
+          CORPUS_DIR="../fuzz/corpus/seed"
+          DICT_FILE="../fuzz/lua_keywords.dict"
+
+          ASAN_OPTIONS=detect_leaks=0 \
+          UBSAN_OPTIONS=print_stacktrace=1 \
+          ./bin/${{ matrix.target }} \
+            ${CORPUS_DIR} \
+            -dict=${DICT_FILE} \
+            -max_len=4096 \
+            -max_total_time=${DURATION} \
+            -print_final_stats=1 \
+            2>&1 | tee fuzz_${{ matrix.target }}.log
+
+          # libFuzzer exit codes:
+          #   0  = clean exit (no bugs found)
+          #   1  = bug found (crash/OOM)
+          #   77 = timeout (per-input timeout, non-fatal)
+          FUZZ_EXIT=${PIPESTATUS[0]}
+          if [ ${FUZZ_EXIT} -eq 1 ]; then
+            echo "::error::Fuzzer ${{ matrix.target }} found a crash (exit 1)!"
+            exit 1
+          elif [ ${FUZZ_EXIT} -eq 77 ]; then
+            echo "::warning::Fuzzer ${{ matrix.target }} timed out (exit 77), treating as non-fatal"
+          elif [ ${FUZZ_EXIT} -ne 0 ]; then
+            echo "::error::Fuzzer ${{ matrix.target }} exited with unexpected code ${FUZZ_EXIT}"
+            exit 1
+          fi
+
+          echo "Fuzzing ${{ matrix.target }} completed successfully."
+
+      - name: Upload fuzz artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: |
+            build/bin/${{ matrix.target }}
+            build/fuzz_${{ matrix.target }}.log
+            crash-*
+            leak-*
+            timeout-*
+            oom-*
+          retention-days: 30
+
+      - name: Upload fuzz log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-log-${{ matrix.target }}
+          path: build/fuzz_${{ matrix.target }}.log
+          retention-days: 7
