@@ -38,7 +38,7 @@ int fuzz_fakelua_compile_string(void *s, const char *src, int len) {
     std::string script(src, static_cast<size_t>(len));
 
     try {
-        fakelua::CompileString(state, script, {.debug_mode = false});
+        fakelua::CompileString(state, script, {.debug_mode = true});
         return 1; // success
     } catch (const fakelua::FakeluaException &) {
         return 0; // expected: invalid Lua / unsupported feature

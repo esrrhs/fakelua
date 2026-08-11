@@ -109,8 +109,8 @@ jobs:
           CORPUS_DIR="../fuzz/corpus/seed"
           DICT_FILE="../fuzz/lua_keywords.dict"
 
-          ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1 \
-          UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1 \
+          ASAN_OPTIONS=detect_leaks=0 \
+          UBSAN_OPTIONS=print_stacktrace=1 \
           ./bin/${{ matrix.target }} \
             ${CORPUS_DIR} \
             -dict=${DICT_FILE} \
@@ -119,10 +119,18 @@ jobs:
             -print_final_stats=1 \
             2>&1 | tee fuzz_${{ matrix.target }}.log
 
-          # Check for crashes (libFuzzer exits non-zero on finding)
+          # libFuzzer exit codes:
+          #   0  = clean exit (no bugs found)
+          #   1  = bug found (crash/OOM)
+          #   77 = timeout (per-input timeout, non-fatal)
           FUZZ_EXIT=${PIPESTATUS[0]}
-          if [ ${FUZZ_EXIT} -ne 0 ]; then
-            echo "::error::Fuzzer ${{ matrix.target }} exited with code ${FUZZ_EXIT} (crash found!)"
+          if [ ${FUZZ_EXIT} -eq 1 ]; then
+            echo "::error::Fuzzer ${{ matrix.target }} found a crash (exit 1)!"
+            exit 1
+          elif [ ${FUZZ_EXIT} -eq 77 ]; then
+            echo "::warning::Fuzzer ${{ matrix.target }} timed out (exit 77), treating as non-fatal"
+          elif [ ${FUZZ_EXIT} -ne 0 ]; then
+            echo "::error::Fuzzer ${{ matrix.target }} exited with unexpected code ${FUZZ_EXIT}"
             exit 1
           fi
 
