@@ -9,8 +9,8 @@
 | 触发条件 | 运行时长 (每 target) |
 |----------|---------------------|
 | Pull Request | 60 秒（快速冒烟） |
-| Push to master | 5 分钟 |
-| 每日定时 (3:37 UTC) | 5 分钟 |
+| Push to master | 10 分钟 |
+| 每周定时 (周日 3:37 UTC) | 60 分钟 |
 | 手动触发 (`workflow_dispatch`) | 可配置 |
 
 两个 fuzz target (`fuzz_compile`, `fuzz_differential`) 并行运行，发现 crash 时自动上传产物（crash 输入文件 + 日志）供排查。
