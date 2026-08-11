@@ -319,3 +319,33 @@ TEST(test_basic, test_basic_tonumber_with_base) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_basic, test_basic_tonumber_edge) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./basic/test_basic_tonumber_edge.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_basic_tonumber_edge", res);
+        EXPECT_EQ(res, 5000);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, test_basic_tostring_edge) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./basic/test_basic_tostring_edge.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_basic_tostring_edge", res);
+        EXPECT_EQ(res, 5000);
+    }
+
+    FakeluaDeleteState(s);
+}
