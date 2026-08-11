@@ -37,8 +37,11 @@ function test_math_boundary_integer()
     -- Non-integer float should return nil
     if math.tointeger(3.14) ~= nil then return 21 end
 
-    -- maxinteger + 0.5 is not an integer value (fractional part)
-    local toint_fract = math.tointeger(maxi + 0.5)
+    -- A float with a fractional part should return nil.
+    -- Use a value that is exactly representable in double (100.5) so the
+    -- behavior is consistent across platforms.  maxi + 0.5 would be rounded
+    -- to 2^63 (an exact integer) because maxi exceeds the float53 mantissa.
+    local toint_fract = math.tointeger(100.5)
     if toint_fract ~= nil then return 22 end
 
     -- Normal integer range should work
