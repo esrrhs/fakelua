@@ -39,9 +39,15 @@ build_*
 !.github/workflows/build_with_macos.yml
 cmake-build-debug
 cmake_install.cmake
+CMakeCache.txt
 CMakeFiles
 CTestTestfile.cmake
 Makefile
+
+# CPM package manager artifacts (in-source builds)
+CPM_modules/
+_deps/
+cpm-package-lock.cmake
 googletest
 _build/
 coverage.info
