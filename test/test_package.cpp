@@ -31,3 +31,16 @@ TEST(package, test_package_basic) {
         ASSERT_EQ(ret, 317);
     });
 }
+
+TEST(package, test_package_edge) {
+    PackageRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./package/test_package_lib.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./package/test_package_assign.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./package/test_package_ping.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./package/test_package_pong.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./package/test_package_edge.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_package_edge", ret);
+        ASSERT_EQ(ret, 5000);
+    });
+}
