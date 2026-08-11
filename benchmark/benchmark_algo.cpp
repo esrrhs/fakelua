@@ -1,14 +1,6 @@
-#include "benchmark/benchmark.h"
-#include "fakelua.h"
+#include "benchmark_common.h"
 
-#include <lua.hpp>
-
-#include <cstdint>
-#include <stdexcept>
-#include <string>
 #include <vector>
-
-using namespace fakelua;
 
 namespace {
 
@@ -392,62 +384,13 @@ int64_t CppMatMul() {
     return c[0] + c[4] + c[8];
 }
 
-void PushLuaArg(lua_State *L, const int64_t value) {
-    lua_pushinteger(L, static_cast<lua_Integer>(value));
-}
-
-void PushLuaArgs(lua_State *) {
-}
-
-template<typename T, typename... Args>
-void PushLuaArgs(lua_State *L, T first, Args... args) {
-    PushLuaArg(L, static_cast<int64_t>(first));
-    PushLuaArgs(L, args...);
-}
-
-template<typename... Args>
-int64_t CallLuaInt(lua_State *L, const char *func_name, Args... args) {
-    const int top = lua_gettop(L);
-    lua_getglobal(L, func_name);
-    if (!lua_isfunction(L, -1)) {
-        lua_settop(L, top);
-        throw std::runtime_error(std::string("Lua function not found: ") + func_name);
-    }
-
-    PushLuaArgs(L, args...);
-
-    constexpr int nargs = sizeof...(Args);
-    if (const int code = lua_pcall(L, nargs, 1, 0); code != LUA_OK) {
-        const char *err = lua_tostring(L, -1);
-        std::string msg = err ? err : "unknown lua error";
-        lua_settop(L, top);
-        throw std::runtime_error("Lua call failed: " + msg);
-    }
-
-    const auto ret = static_cast<int64_t>(lua_tointeger(L, -1));
-    lua_settop(L, top);
-    return ret;
-}
-
-struct RuntimeContext {
-    RuntimeContext() {
-        lua = luaL_newstate();
-        luaL_openlibs(lua);
-
-        const char *lua_scripts[] = {kFibScript,          kGcdScript,     kPowScript,      kSumScript,           kBubbleSortScript, kSieveScript,
+const char *const kAlgoScripts[] = {kFibScript,          kGcdScript,     kPowScript,      kSumScript,           kBubbleSortScript, kSieveScript,
                                      kBinarySearchScript, kFastPowScript, kPopcountScript, kInsertionSortScript, kMatMulScript,     kVector3Script};
-        for (const char *script: lua_scripts) {
-            if (luaL_dostring(lua, script) != LUA_OK) {
-                const char *err = lua_tostring(lua, -1);
-                throw std::runtime_error(std::string("init lua scripts failed: ") + (err ? err : "unknown"));
-            }
-        }
+constexpr size_t kAlgoScriptCount = sizeof(kAlgoScripts) / sizeof(kAlgoScripts[0]);
 
-        flua = FakeluaNewState();
-        for (const char *script: lua_scripts) {
-            CompileString(flua, script, {.debug_mode = false});
-        }
-
+struct Ctx : RuntimeContext {
+    Ctx() {
+        Init(kAlgoScripts, kAlgoScriptCount);
         // Warmup: call each FakeLua function once to page in JIT code and
         // trigger any lazy initialization before benchmarks start timing.
         int64_t warmup_ret = 0;
@@ -476,29 +419,8 @@ struct RuntimeContext {
         Call(flua, JIT_GCC, "bench_matmul", warmup_ret);
         Call(flua, JIT_GCC, "bench_vector3", warmup_ret, 100);
     }
-
-    ~RuntimeContext() {
-        if (lua) {
-            lua_close(lua);
-            lua = nullptr;
-        }
-        if (flua) {
-            FakeluaDeleteState(flua);
-            flua = nullptr;
-        }
-    }
-
-    lua_State *lua = nullptr;
-    State *flua = nullptr;
-};
-
-RuntimeContext g_ctx;
-
-void VerifyEqual(const int64_t got, const int64_t expected, const char *name) {
-    if (got != expected) {
-        throw std::runtime_error(std::string(name) + " wrong result: got " + std::to_string(got) + ", expected " + std::to_string(expected));
-    }
-}
+    ~Ctx() { Destroy(); }
+} g_ctx;
 
 static void BM_CPP_Fibonacci(benchmark::State &state) {
     const int64_t n = state.range(0);
