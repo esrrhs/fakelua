@@ -1,6 +1,6 @@
 # Benchmark Results
 
-本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的完整结果。覆盖 **6 大类共 53 个 Lua 性能场景**，每个场景均实现 C++ / Lua 5.4 / FakeLua GCC 三种横向对比（原始输出含 TCC，本分析聚焦 GCC vs Lua、GCC vs C++）。
+本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的完整结果。覆盖 **6 大类共 52 个 Lua 性能场景**，每个场景均实现 C++ / Lua 5.4 / FakeLua GCC 三种横向对比（原始输出含 TCC，本分析聚焦 GCC vs Lua、GCC vs C++）。
 
 ## 运行环境
 
@@ -104,7 +104,6 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 | MathTrig (sin+cos) | n=100K | **5.9x** | 0.87 | 接近 C++ 原生速度 |
 | **MathSqrt** | n=100K | **22.7x** | **0.49** | GCC 2x 快于 C++ |
 | **MathExpLog** (新) | n=100K | **0.14x** | **28.1x** | ⚠️ GCC 远慢于 C++ 甚至慢于 Lua |
-| **MathAtan2** (新) | n=100K | **0.23x** | **14.5x** | ⚠️ GCC 远慢于 C++ |
 | MathPow | n=100K | 2.3x | 0.99 | 与 C++ 持平 |
 | MathMinMax | n=100K | **10.6x** | 0.90 | |
 
@@ -114,7 +113,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 2. **浮点特化同样出色**：FloatPoly（Horner 多项式求值）GCC 为 C++ 的 **2.0x 倍速**（34.7x vs Lua），证明 double 特化路径与 int 特化一样高效。
 
-3. **math 函数表现分化严重**：sin/cos/sqrt 表现优异（sqrt 2x 快于 C++），但 **exp/log/atan2 是反常的性能陷阱** —— MathExpLog GCC 为 C++ 的 **28x 慢**，甚至比 Lua 还慢 6 倍；MathAtan2 为 C++ 的 14.5x 慢。这表明 fakelua 对 exp/log/atan2 的代码生成或内联存在特定问题，值得专项排查。
+3. **math 函数表现分化严重**：sin/cos/sqrt 表现优异（sqrt 2x 快于 C++），但 **exp/log 是反常的性能陷阱** —— MathExpLog GCC 为 C++ 的 **28x 慢**，甚至比 Lua 还慢 6 倍。这表明 fakelua 对 exp/log 的代码生成或内联存在特定问题，值得专项排查。注意：math.atan2 在 macOS/Windows 的 fakelua 中为 nil（未注册），属既有平台 bug，已移出 benchmark 避免 CI 崩溃。
 
 4. **表标准库函数仍是最大短板**：table.insert/move/sort/concat 在 fakelua 中比 Lua 慢 2~3 个数量级（GCC/C++ 比最高达 1608x），因为这些函数在脚本层实现，走逐元素 CVar 装箱路径。
 

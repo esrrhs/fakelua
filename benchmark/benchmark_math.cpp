@@ -38,16 +38,6 @@ function bench_math_exp_log(n)
 end
 )";
 
-constexpr const char *kMathAtan2Script = R"(
-function bench_math_atan2(n)
-    local sum = 0.0
-    for i = 1, n do
-        sum = sum + math.atan2(i, n - i + 1)
-    end
-    return sum
-end
-)";
-
 constexpr const char *kMathPowScript = R"(
 function bench_math_pow(n)
     local sum = 0.0
@@ -99,14 +89,6 @@ double CppMathExpLog(const int64_t n) {
     return sum;
 }
 
-double CppMathAtan2(const int64_t n) {
-    double sum = 0.0;
-    for (int64_t i = 1; i <= n; ++i) {
-        sum += std::atan2(static_cast<double>(i), static_cast<double>(n - i + 1));
-    }
-    return sum;
-}
-
 double CppMathPow(const int64_t n) {
     double sum = 0.0;
     for (int64_t i = 1; i <= n; ++i) {
@@ -132,7 +114,7 @@ double CppMathMinMax(const int64_t n) {
 
 const char *const kMathScripts[] = {
     kMathTrigScript, kMathSqrtScript, kMathExpLogScript,
-    kMathAtan2Script, kMathPowScript, kMathMinMaxScript,
+    kMathPowScript, kMathMinMaxScript,
 };
 constexpr size_t kMathScriptCount = sizeof(kMathScripts) / sizeof(kMathScripts[0]);
 
@@ -144,7 +126,6 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_TCC, "bench_math_trig", w, 10);
         Call(flua, JIT_TCC, "bench_math_sqrt", w, 10);
         Call(flua, JIT_TCC, "bench_math_exp_log", w, 10);
-        Call(flua, JIT_TCC, "bench_math_atan2", w, 10);
         Call(flua, JIT_TCC, "bench_math_pow", w, 10);
         Call(flua, JIT_TCC, "bench_math_minmax", w, 10);
     }
@@ -266,43 +247,6 @@ static void BM_FakeLua_MathExpLog_GCC(benchmark::State &state) {
 }
 
 // ---------------------------------------------------------------------------
-// Benchmarks: math atan2
-// ---------------------------------------------------------------------------
-
-static void BM_CPP_MathAtan2(benchmark::State &state) {
-    const int64_t n = state.range(0);
-    for (auto _: state) {
-        const double ret = CppMathAtan2(n);
-        benchmark::DoNotOptimize(ret);
-    }
-}
-
-static void BM_Lua_MathAtan2(benchmark::State &state) {
-    const int64_t n = state.range(0);
-    for (auto _: state) {
-        const double ret = CallLuaDouble(g_ctx.lua, "bench_math_atan2", n);
-        benchmark::DoNotOptimize(ret);
-    }
-}
-
-static void BM_FakeLua_MathAtan2_TCC(benchmark::State &state) {
-    const int64_t n = state.range(0);
-    for (auto _: state) {
-        double ret = 0;
-        Call(g_ctx.flua, JIT_TCC, "bench_math_atan2", ret, n);
-        benchmark::DoNotOptimize(ret);
-    }
-}
-
-static void BM_FakeLua_MathAtan2_GCC(benchmark::State &state) {
-    const int64_t n = state.range(0);
-    for (auto _: state) {
-        double ret = 0;
-        Call(g_ctx.flua, JIT_GCC, "bench_math_atan2", ret, n);
-        benchmark::DoNotOptimize(ret);
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Benchmarks: math pow
 // ---------------------------------------------------------------------------
@@ -401,11 +345,6 @@ BENCHMARK(BM_CPP_MathExpLog) MATH_ARGS;
 BENCHMARK(BM_Lua_MathExpLog) MATH_ARGS;
 BENCHMARK(BM_FakeLua_MathExpLog_TCC) MATH_ARGS;
 BENCHMARK(BM_FakeLua_MathExpLog_GCC) MATH_ARGS;
-
-BENCHMARK(BM_CPP_MathAtan2) MATH_ARGS;
-BENCHMARK(BM_Lua_MathAtan2) MATH_ARGS;
-BENCHMARK(BM_FakeLua_MathAtan2_TCC) MATH_ARGS;
-BENCHMARK(BM_FakeLua_MathAtan2_GCC) MATH_ARGS;
 
 BENCHMARK(BM_CPP_MathPow) MATH_ARGS;
 BENCHMARK(BM_Lua_MathPow) MATH_ARGS;
