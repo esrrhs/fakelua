@@ -206,6 +206,24 @@ function bench_vector3(n)
     return sum
 end
 )";
+constexpr const char *kFloatPolyScript = R"(
+function bench_float_poly(n)
+    local sum = 0.0
+    for i = 1, n do
+        local x = i * 0.0001
+        -- Horner: (((((a6*x + a5)*x + a4)*x + a3)*x + a2)*x + a1)*x + a0
+        local y = 1.0
+        y = y * x + 2.0
+        y = y * x + 3.0
+        y = y * x + 4.0
+        y = y * x + 5.0
+        y = y * x + 6.0
+        y = y * x + 7.0
+        sum = sum + y
+    end
+    return sum
+end
+)";
 
 int64_t CppFib(const int64_t n) {
     if (n <= 1) {
@@ -263,6 +281,22 @@ int64_t CppVector3(int64_t n) {
         v1.y = v1.y + v2.y;
         v1.z = v1.z + v2.z;
         sum = sum + v1.x + v1.y + v1.z;
+    }
+    return sum;
+}
+
+double CppFloatPoly(const int64_t n) {
+    double sum = 0.0;
+    for (int64_t i = 1; i <= n; ++i) {
+        const double x = static_cast<double>(i) * 0.0001;
+        double y = 1.0;
+        y = y * x + 2.0;
+        y = y * x + 3.0;
+        y = y * x + 4.0;
+        y = y * x + 5.0;
+        y = y * x + 6.0;
+        y = y * x + 7.0;
+        sum += y;
     }
     return sum;
 }
@@ -385,7 +419,8 @@ int64_t CppMatMul() {
 }
 
 const char *const kAlgoScripts[] = {kFibScript,          kGcdScript,     kPowScript,      kSumScript,           kBubbleSortScript, kSieveScript,
-                                     kBinarySearchScript, kFastPowScript, kPopcountScript, kInsertionSortScript, kMatMulScript,     kVector3Script};
+                                     kBinarySearchScript, kFastPowScript, kPopcountScript, kInsertionSortScript, kMatMulScript,     kVector3Script,
+                                     kFloatPolyScript};
 constexpr size_t kAlgoScriptCount = sizeof(kAlgoScripts) / sizeof(kAlgoScripts[0]);
 
 struct Ctx : RuntimeContext {
@@ -406,6 +441,8 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_TCC, "bench_insertion_sort", warmup_ret, 10);
         Call(flua, JIT_TCC, "bench_matmul", warmup_ret);
         Call(flua, JIT_TCC, "bench_vector3", warmup_ret, 100);
+        double warmup_double = 0;
+        Call(flua, JIT_TCC, "bench_float_poly", warmup_double, 100);
         Call(flua, JIT_GCC, "bench_fib", warmup_ret, 10);
         Call(flua, JIT_GCC, "bench_gcd", warmup_ret, 832040, 514229);
         Call(flua, JIT_GCC, "bench_powmod", warmup_ret, 2, 1000, 1000000007);
@@ -418,6 +455,7 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_GCC, "bench_insertion_sort", warmup_ret, 10);
         Call(flua, JIT_GCC, "bench_matmul", warmup_ret);
         Call(flua, JIT_GCC, "bench_vector3", warmup_ret, 100);
+        Call(flua, JIT_GCC, "bench_float_poly", warmup_double, 100);
     }
     ~Ctx() { Destroy(); }
 } g_ctx;
@@ -962,6 +1000,44 @@ static void BM_FakeLua_Vector3_GCC(benchmark::State &state) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Benchmarks: float polynomial (double specialization path)
+// ---------------------------------------------------------------------------
+
+static void BM_CPP_FloatPoly(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for ([[maybe_unused]] auto _: state) {
+        const double ret = CppFloatPoly(n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_Lua_FloatPoly(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for ([[maybe_unused]] auto _: state) {
+        const double ret = CallLuaDouble(g_ctx.lua, "bench_float_poly", n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_FloatPoly_TCC(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for ([[maybe_unused]] auto _: state) {
+        double ret = 0;
+        Call(g_ctx.flua, JIT_TCC, "bench_float_poly", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_FloatPoly_GCC(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for ([[maybe_unused]] auto _: state) {
+        double ret = 0;
+        Call(g_ctx.flua, JIT_GCC, "bench_float_poly", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 }// namespace
 
 #define FIB_ARGS ->Arg(20)->Arg(25)->Arg(30)->Arg(32)
@@ -1036,3 +1112,10 @@ BENCHMARK(BM_CPP_Vector3) VECTOR3_ARGS;
 BENCHMARK(BM_Lua_Vector3) VECTOR3_ARGS;
 BENCHMARK(BM_FakeLua_Vector3_TCC) VECTOR3_ARGS;
 BENCHMARK(BM_FakeLua_Vector3_GCC) VECTOR3_ARGS;
+
+#define FLOAT_POLY_ARGS ->Arg(1000000)
+
+BENCHMARK(BM_CPP_FloatPoly) FLOAT_POLY_ARGS;
+BENCHMARK(BM_Lua_FloatPoly) FLOAT_POLY_ARGS;
+BENCHMARK(BM_FakeLua_FloatPoly_TCC) FLOAT_POLY_ARGS;
+BENCHMARK(BM_FakeLua_FloatPoly_GCC) FLOAT_POLY_ARGS;

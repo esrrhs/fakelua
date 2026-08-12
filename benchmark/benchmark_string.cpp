@@ -98,6 +98,34 @@ function bench_tostring(n)
     return tostring(n)
 end
 )";
+constexpr const char *kStringFindPatternScript = R"(
+function bench_string_find_pattern(n)
+    local s = "abc123def456ghi789"
+    local count = 0
+    for i = 1, n do
+        local j = 1
+        while true do
+            local start, stop = string.find(s, "%d+", j)
+            if not start then break end
+            count = count + 1
+            j = stop + 1
+        end
+    end
+    return count
+end
+)";
+constexpr const char *kStringGmatchScript = R"(
+function bench_string_gmatch(n)
+    local s = "abc 123 def 456 ghi 789"
+    local count = 0
+    for i = 1, n do
+        for word in string.gmatch(s, "%d+") do
+            count = count + 1
+        end
+    end
+    return count
+end
+)";
 
 // ---------------------------------------------------------------------------
 // C++ reference implementations
@@ -183,6 +211,43 @@ int64_t CppStringGsub(const std::string &s, const std::string &from, const std::
     return count;
 }
 
+int64_t CppStringFindPattern(const int64_t n) {
+    const std::string s = "abc123def456ghi789";
+    int64_t total = 0;
+    for (int64_t i = 0; i < n; ++i) {
+        size_t j = 0;
+        while (j < s.size()) {
+            auto found = s.find_first_of("0123456789", j);
+            if (found == std::string::npos) {
+                break;
+            }
+            // skip the contiguous digit run
+            auto end = s.find_first_not_of("0123456789", found);
+            ++total;
+            j = (end == std::string::npos) ? s.size() : end;
+        }
+    }
+    return total;
+}
+
+int64_t CppStringGmatch(const int64_t n) {
+    const std::string s = "abc 123 def 456 ghi 789";
+    int64_t total = 0;
+    for (int64_t i = 0; i < n; ++i) {
+        size_t j = 0;
+        while (j < s.size()) {
+            auto found = s.find_first_of("0123456789", j);
+            if (found == std::string::npos) {
+                break;
+            }
+            auto end = s.find_first_not_of("0123456789", found);
+            ++total;
+            j = (end == std::string::npos) ? s.size() : end;
+        }
+    }
+    return total;
+}
+
 // ---------------------------------------------------------------------------
 // Lua helpers (extended for string args/returns)
 // ---------------------------------------------------------------------------
@@ -192,7 +257,7 @@ const char *const kStringScripts[] = {
             kStringReverseScript, kStringLowerScript, kStringUpperScript,
             kStringByteScript,    kStringCharScript,  kStringFormatScript,
             kStringFindScript,    kStringGsubScript,  kToNumberScript,
-            kToStringScript,
+            kToStringScript,      kStringFindPatternScript, kStringGmatchScript,
         };
 constexpr size_t kStringScriptCount = sizeof(kStringScripts) / sizeof(kStringScripts[0]);
 
@@ -215,6 +280,8 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_TCC, "bench_string_gsub", warmup_int, test_s, std::string("a"), std::string("b"));
         Call(flua, JIT_TCC, "bench_tonumber", warmup_int, std::string("12345"));
         Call(flua, JIT_TCC, "bench_tostring", warmup_str, 12345);
+        Call(flua, JIT_TCC, "bench_string_find_pattern", warmup_int, 10);
+        Call(flua, JIT_TCC, "bench_string_gmatch", warmup_int, 10);
     }
     ~Ctx() { Destroy(); }
 } g_ctx;
@@ -791,6 +858,82 @@ static void BM_FakeLua_ToString_GCC(benchmark::State &state) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Benchmarks: string find with pattern
+// ---------------------------------------------------------------------------
+
+static void BM_CPP_StringFindPattern(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        const int64_t ret = CppStringFindPattern(n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_Lua_StringFindPattern(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = CallLuaInt(g_ctx.lua, "bench_string_find_pattern", n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_StringFindPattern_TCC(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_TCC, "bench_string_find_pattern", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_StringFindPattern_GCC(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_GCC, "bench_string_find_pattern", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Benchmarks: string gmatch iterator
+// ---------------------------------------------------------------------------
+
+static void BM_CPP_StringGmatch(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        const int64_t ret = CppStringGmatch(n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_Lua_StringGmatch(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = CallLuaInt(g_ctx.lua, "bench_string_gmatch", n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_StringGmatch_TCC(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_TCC, "bench_string_gmatch", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_StringGmatch_GCC(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_GCC, "bench_string_gmatch", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -875,3 +1018,16 @@ BENCHMARK(BM_CPP_ToString) TOSTRING_ARGS;
 BENCHMARK(BM_Lua_ToString) TOSTRING_ARGS;
 BENCHMARK(BM_FakeLua_ToString_TCC) TOSTRING_ARGS;
 BENCHMARK(BM_FakeLua_ToString_GCC) TOSTRING_ARGS;
+
+#define STRING_FIND_PATTERN_ARGS ->Arg(1000)
+#define STRING_GMATCH_ARGS ->Arg(1000)
+
+BENCHMARK(BM_CPP_StringFindPattern) STRING_FIND_PATTERN_ARGS;
+BENCHMARK(BM_Lua_StringFindPattern) STRING_FIND_PATTERN_ARGS;
+BENCHMARK(BM_FakeLua_StringFindPattern_TCC) STRING_FIND_PATTERN_ARGS;
+BENCHMARK(BM_FakeLua_StringFindPattern_GCC) STRING_FIND_PATTERN_ARGS;
+
+BENCHMARK(BM_CPP_StringGmatch) STRING_GMATCH_ARGS;
+BENCHMARK(BM_Lua_StringGmatch) STRING_GMATCH_ARGS;
+BENCHMARK(BM_FakeLua_StringGmatch_TCC) STRING_GMATCH_ARGS;
+BENCHMARK(BM_FakeLua_StringGmatch_GCC) STRING_GMATCH_ARGS;
