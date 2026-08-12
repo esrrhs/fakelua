@@ -313,3 +313,23 @@ TEST(test_os, test_os_boundary_error) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_os, test_os_error_paths) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./os/test_os_error_paths.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_os_difftime_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_os_execute_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_os_exit_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_os_getenv_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_os_remove_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_os_rename_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_os_setlocale_bad_arg", res), std::exception);
+
+    FakeluaDeleteState(s);
+}

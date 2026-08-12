@@ -227,3 +227,23 @@ TEST(test_io, test_io_boundary_error) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_io, test_io_error_paths) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./io/test_io_error_paths.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_io_close_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_file_read_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_file_write_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_file_setvbuf_bad_mode", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_io_open_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_io_open_bad_mode", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_io_popen_bad_arg", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
