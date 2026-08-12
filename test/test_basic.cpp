@@ -349,3 +349,24 @@ TEST(test_basic, test_basic_tostring_edge) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_basic, test_basic_boundary_error) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./basic/test_basic_boundary_error.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_error_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_assert_bad_msg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_select_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_next_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_pairs_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_ipairs_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_collectgarbage_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_tonumber_bad_base", res), std::exception);
+
+    FakeluaDeleteState(s);
+}

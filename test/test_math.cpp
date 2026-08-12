@@ -432,3 +432,18 @@ TEST(test_math, test_math_boundary_integer) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_math, test_math_boundary_error) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_boundary_error.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_randomseed_bad_arg", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
