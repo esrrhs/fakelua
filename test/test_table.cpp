@@ -286,3 +286,22 @@ TEST(test_table, test_table_boundary_error) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_table, test_table_error_paths) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./table/test_table_error_paths.lua", config);
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_insert_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_remove_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_sort_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_concat_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_concat_bad_sep", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_move_bad_arg", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
