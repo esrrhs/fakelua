@@ -831,6 +831,63 @@ TEST(exception, raw_newline_in_short_string) {
     }
 }
 
+// Lua 读数字时会把紧跟的字母、数字、点一并吞下再校验，所以 3and、1local、5..2
+// 在 Lua 里都是 malformed number。差分 fuzz 反复撞到这一类：只删掉数字和关键字
+// 之间的空格就能构造出来。
+TEST(exception, malformed_number) {
+    for (const char *body: {"local a = 3and 1", "local a = 3or 1", "local a = 1local b = 2", "local a = 5..2", "local a = 0x1g",
+                            "local a = 1e2x", "local a = 12abc"}) {
+        SCOPED_TRACE(body);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(0);
+        const std::string script = std::string("function f()\n  ") + body + "\n  return 0\nend";
+        EXPECT_THROW(CompileString(s, script, {}), std::exception);
+    }
+}
+
+// --[==[ 是 Lua 的长注释开头，必须由同层级的 ]==] 收尾，否则报 unfinished long comment。
+// 早先 fakelua 只认 --[[ ... --]]，把 --[==[ 当成了行注释，比 Lua 宽松。
+TEST(exception, unfinished_long_comment) {
+    for (const char *body: {"--[[ never closed", "--[==[ never closed", "--[=[ closed at wrong level ]==]"}) {
+        SCOPED_TRACE(body);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(0);
+        const std::string script = std::string("function f()\n  ") + body + "\n  return 0\nend";
+        EXPECT_THROW(CompileString(s, script, {}), std::exception);
+    }
+}
+
+// Lua 没有一元加号，+1 会报 unexpected symbol。数字字面量因此不能自带正号。
+TEST(exception, no_unary_plus) {
+    for (const char *body: {"local a = +1", "local a = + 1", "local a = 1 + +2", "local a = +0x10"}) {
+        SCOPED_TRACE(body);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(0);
+        const std::string script = std::string("function f()\n  ") + body + "\n  return 0\nend";
+        EXPECT_THROW(CompileString(s, script, {}), std::exception);
+    }
+}
+
+// <const> 变量不能再被赋值，<const> / <close> 之外的属性名 Lua 也不认。
+TEST(exception, local_attrib_errors) {
+    for (const char *body: {"local x <const> = 1\n  x = 2", "local x <const> = 1\n  if true then x = 2 end",
+                            "local x <const> = 1\n  local y = 0\n  y, x = 1, 2", "local x <weird> = 1"}) {
+        SCOPED_TRACE(body);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(0);
+        const std::string script = std::string("function f()\n  ") + body + "\n  return 0\nend";
+        EXPECT_THROW(CompileString(s, script, {}), std::exception);
+    }
+}
+
 // Lua 的 block ::= {stat} [retstat]：return 只能是所在块的最后一条语句。
 // FakeLua 不能比 Lua 更宽松，否则差分 fuzz 会把它报成 fakelua 接受、Lua 拒绝的分歧。
 TEST(exception, return_must_be_last_in_block) {

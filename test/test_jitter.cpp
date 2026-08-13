@@ -2143,14 +2143,61 @@ TEST(jitter, global_const_int_in_expr) {
     });
 }
 
+// 合法的数字写法不能被 malformed number 规则误伤：等长时 flex 取靠前的 {number} 规则。
+TEST(jitter, valid_number_forms) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileString(s,
+                      "function test_nums()\n"
+                      "    local a = 0x1f\n"
+                      "    local b = 1e2\n"
+                      "    local c = 08\n"
+                      "    local d = 1.5e10\n"
+                      "    local e = 0X1P-2\n"
+                      "    local f = 2.0\n"
+                      "    local g = 1 .. 2\n"
+                      "    return a + b + c + #g\n"
+                      "end\n",
+                      {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test_nums", ret);
+        ASSERT_NEAR(ret, 0x1f + 100.0 + 8 + 2, 1e-9);
+    });
+}
+
+// 长注释的三种收尾都要能用：Lua 风格的 ]]、同层级的 ]==]，以及传统的 --]]。
+TEST(jitter, long_comment_forms) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileString(s,
+                      "--[[ lua style\n"
+                      "spanning lines ]]\n"
+                      "--[==[ leveled\n"
+                      "with a stray ]] inside ]==]\n"
+                      "function test_comments()\n"
+                      "    --[[ old style\n"
+                      "    still works --]]\n"
+                      "    return 7\n"
+                      "end\n",
+                      {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_comments", ret);
+        ASSERT_EQ(ret, 7);
+    });
+}
+
 // CRLF 行尾的源码里，\r 出现在字符串之外时应当被跳过而不是报错；
 // 只有短字符串内部的裸 \r 才非法（见 exception.raw_newline_in_short_string）。
+// 行注释也必须在 \r 处结束，否则 \r 后面的真实代码会被当成注释吞掉。
 TEST(jitter, crlf_line_endings) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileString(s, "function test_crlf()\r\n    local s = \"ab\"\r\n    return #s\r\nend\r\n", {.debug_mode = debug_mode});
+        CompileString(s, "function test_crlf()\r\n    local s = \"ab\"\r\n    -- comment\r\n    return #s\r\nend\r\n", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test_crlf", ret);
         ASSERT_EQ(ret, 2);
+
+        // 注释在 \r 处结束，所以 \r 之后的 return 3 是真正的语句
+        CompileString(s, "function test_cr_ends_comment()\n    -- comment\rreturn 3\nend\n", {.debug_mode = debug_mode});
+        Call(s, type, "test_cr_ends_comment", ret);
+        ASSERT_EQ(ret, 3);
     });
 }
 

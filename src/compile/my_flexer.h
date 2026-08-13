@@ -44,6 +44,7 @@ private:
 
 private:
     yy::location location_;       // 记录当前 token 的行列位置
+    int long_comment_level_ = 0;  // 当前长注释的长括号层级，即 --[==[ 里 = 的个数
     std::string filename_;        // 当前解析的文件名或源标识
     std::ifstream file_;          // 文件输入流
     std::istringstream string_;   // 字符串输入流

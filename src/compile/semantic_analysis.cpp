@@ -289,6 +289,88 @@ void SemanticAnalysis::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chun
     WalkSyntaxTree(chunk, [this, &ar](const SyntaxTreeInterfacePtr &node) { CheckNode(node, ar); });
     std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels;
     ValidateGotoInBlock(chunk, visible_labels, 0);
+    ValidateConstAssignInBlock(chunk, {});
+}
+
+// Lua 在编译期就拒绝对 <const> 变量赋值，这里按块作用域收集 const 名字后做同样的检查。
+void SemanticAnalysis::ValidateConstAssignInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_set<std::string> const_names) {
+    const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+    if (!blk) return;
+
+    for (const auto &stmt: blk->Stmts()) {
+        switch (stmt->Type()) {
+            case SyntaxTreeType::LocalVar: {
+                // 先查赋值再登记：local x <const> = x 里右边的 x 是外层的同名变量。
+                const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+                const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+                if (!namelist) break;
+                const auto &names = namelist->Names();
+                const auto &attribs = namelist->Attribs();
+                for (size_t i = 0; i < names.size(); ++i) {
+                    const bool is_const = i < attribs.size() && attribs[i] == "const";
+                    if (is_const) {
+                        const_names.insert(names[i]);
+                    } else {
+                        // 同名的非 const 局部变量会遮蔽外层的 const
+                        const_names.erase(names[i]);
+                    }
+                }
+                break;
+            }
+            case SyntaxTreeType::Assign: {
+                const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+                const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+                if (!varlist) break;
+                for (const auto &var_node: varlist->Vars()) {
+                    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(var_node);
+                    if (var && var->GetVarKind() == VarKind::kSimple && const_names.contains(var->GetName())) {
+                        ThrowError("attempt to assign to const variable '" + var->GetName() + "'", stmt);
+                    }
+                }
+                break;
+            }
+            case SyntaxTreeType::Block:
+                ValidateConstAssignInBlock(stmt, const_names);
+                break;
+            case SyntaxTreeType::While:
+                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt)->Block(), const_names);
+                break;
+            case SyntaxTreeType::Repeat:
+                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt)->Block(), const_names);
+                break;
+            case SyntaxTreeType::ForLoop:
+                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt)->Block(), const_names);
+                break;
+            case SyntaxTreeType::ForIn:
+                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt)->Block(), const_names);
+                break;
+            case SyntaxTreeType::If: {
+                const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+                ValidateConstAssignInBlock(if_stmt->Block(), const_names);
+                if (const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
+                    for (const auto &elseif_blk: elseif_list->ElseifBlocks()) {
+                        ValidateConstAssignInBlock(elseif_blk, const_names);
+                    }
+                }
+                if (if_stmt->ElseBlock()) ValidateConstAssignInBlock(if_stmt->ElseBlock(), const_names);
+                break;
+            }
+            case SyntaxTreeType::Function: {
+                // 函数体是新的作用域，外层局部变量在里面是 upvalue，Lua 同样禁止赋值，
+                // 但 fakelua 不支持闭包捕获，所以这里只从空集合重新开始。
+                const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt)->Funcbody());
+                if (fb) ValidateConstAssignInBlock(fb->Block(), {});
+                break;
+            }
+            case SyntaxTreeType::LocalFunction: {
+                const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt)->Funcbody());
+                if (fb) ValidateConstAssignInBlock(fb->Block(), {});
+                break;
+            }
+            default:
+                break;
+        }
+    }
 }
 
 void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar) {
@@ -528,6 +610,13 @@ void SemanticAnalysis::CheckLocalVar(const SyntaxTreeInterfacePtr &node, const A
                     ThrowError("local variable conflicts with global constant: " + name, node);
                 }
             }
+        }
+    }
+
+    // Lua 只认 <const> 和 <close> 两种属性，其它一律报 unknown attribute。
+    for (const auto &attrib: namelist->Attribs()) {
+        if (!attrib.empty() && attrib != "const" && attrib != "close") {
+            ThrowError("unknown attribute '" + attrib + "'", node);
         }
     }
 }

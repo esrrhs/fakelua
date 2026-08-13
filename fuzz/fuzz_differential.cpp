@@ -8,6 +8,10 @@
 //   2. Compile in both engines
 //   3. If compilation differs (fakelua-accepts + Lua-rejects), report
 //   4. If both compile, call fuzz_test() and compare results
+//
+// Every check is one-directional: fakelua is a documented subset of Lua, so
+// rejecting more than Lua does is expected and not reported. Only fakelua being
+// more permissive than Lua, or the two disagreeing on a value, is a bug.
 
 #include "fuzz_bridge.h"
 
@@ -121,9 +125,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             }
         }
 
-        if (flua_called != lua_called) {
-            fprintf(stderr, "\n[DIFF FUZZ] call success mismatch: flua=%d lua=%d\n%s\n",
-                    flua_called, lua_called, script.c_str());
+        // Same asymmetry as the compilation check above: fakelua is a subset, so it
+        // may reject at runtime what Lua accepts (it has no implicit string→number
+        // coercion, for one). Only the other direction — fakelua succeeding where
+        // Lua raises an error — means fakelua is too permissive.
+        if (flua_called && !lua_called) {
+            fprintf(stderr, "\n[DIFF FUZZ] fakelua call succeeded but Lua 5.4 failed:\n%s\n",
+                    script.c_str());
             std::abort();
         }
         if (flua_called && lua_called && flua_ret != lua_ret) {
