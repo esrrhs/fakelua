@@ -1,5 +1,7 @@
 #include "benchmark_common.h"
 
+#include <cmath>
+
 // ---------------------------------------------------------------------------
 // PushLuaArg implementations
 // ---------------------------------------------------------------------------
@@ -57,5 +59,13 @@ void VerifyEqual(int64_t got, int64_t expected, const char *name) {
 void VerifyEqual(const std::string &got, const std::string &expected, const char *name) {
     if (got != expected) {
         throw std::runtime_error(std::string(name) + " wrong result: got \"" + got + "\", expected \"" + expected + "\"");
+    }
+}
+
+void VerifyEqualDouble(double got, double expected, const char *name, double rtol, double atol) {
+    const double diff = std::fabs(got - expected);
+    const double scale = std::fabs(expected) > 1.0 ? std::fabs(expected) : 1.0;
+    if (diff > atol + rtol * scale) {
+        throw std::runtime_error(std::string(name) + " wrong result: got " + std::to_string(got) + ", expected " + std::to_string(expected));
     }
 }

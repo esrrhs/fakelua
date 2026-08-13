@@ -1,886 +1,700 @@
 # Benchmark Results
 
-本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的完整结果，以及对各算法的性能分析。
-
-## 基准说明
-
-本基准测试覆盖 5 大类共 44 个 Lua 性能场景，每个场景均实现 CPP / Lua 5.4 / FakeLua TCC / FakeLua GCC 四种横向对比。
-
-### 算法对比（benchmark_algo.cpp）
-
-将 C++、Lua 5.4、FakeLua（JIT_TCC / JIT_GCC）在同一文件中进行横向性能对比，覆盖 12 类算法：
-
-| 算法 | 说明 | 参数规模 |
-|------|------|---------|
-| Fibonacci | 递归斐波那契（无记忆化） | n=20/25/30/32 |
-| GCD | 欧几里得最大公约数 | 多组大整数对 |
-| PowMod | 快速幂取模（用 `%`/`//`） | 多组底数/指数/模数 |
-| Sum | 1..n 线性累加 | n=10000/100000/1000000/5000000 |
-| BubbleSort | 冒泡排序（O(n²)，含表操作） | n=50/100/200 |
-| Sieve | Eratosthenes 筛质数 | n=100/500/1000/5000 |
-| BinarySearch | 二分查找（n 次） | n=100/500/1000 |
-| FastPow | 快速幂取模（用 `&`/`>>`） | 多组底数/指数/模数 |
-| Popcount | Brian Kernighan 位计数（求和） | n=1000/10000/100000 |
-| InsertionSort | 插入排序（O(n²)，含表操作） | n=50/100/200 |
-| MatMul | 单次 3×3 矩阵乘法（求迹） | 无参数，每次调用一次 |
-| Vector3 | 三维坐标 x, y, z 在循环中累计读写 | n=10000/100000/1000000 |
-
-### 字符串操作（benchmark_string.cpp）
-
-| 测试 | 说明 | 参数规模 |
-|------|------|---------|
-| StringLen | 取字符串长度 `#s` | 长度=10/100/1000/10000 |
-| StringSub | 截取子串 `string.sub` | 长度=10/100/1000/10000 |
-| StringRep | 重复字符串 `string.rep` | 重复 10/100/1000 次 |
-| StringReverse | 反转字符串 `string.reverse` | 长度=10/100/1000/10000 |
-| StringLower | 转小写 `string.lower` | 长度=10/100/1000/10000 |
-| StringUpper | 转大写 `string.upper` | 长度=10/100/1000/10000 |
-| StringByte | 取字符字节值 `string.byte` | 长度=10/100/1000 |
-| StringChar | 从字节值构建字符串 `string.char` | 循环 10/100/500 次 |
-| StringFormat | 格式化整数 `string.format` | 循环 10/100/500 次 |
-| StringFind | 字符串查找 `string.find` | 长度=10/100/1000/10000 |
-| StringGsub | 字符串替换 `string.gsub` | 长度=10/100/1000 |
-| ToNumber | 字符串转数字 `tonumber()` | 固定 1 次 |
-| ToString | 数字转字符串 `tostring()` | 循环 10/100/500 次 |
-
-### 表操作（benchmark_table.cpp）
-
-| 测试 | 说明 | 参数规模 |
-|------|------|---------|
-| TableInsert | 插入元素 `table.insert` | n=100/500/1000/5000 |
-| TableRemove | 删除元素 `table.remove` | n=100/500/1000/5000 |
-| TableConcat | 连接字符串 `table.concat` | n=100/500/1000 |
-| TablePack | 表打包与遍历 | n=10（固定） |
-| TableMove | 表元素移动 `table.move` | n=100/500/1000/5000 |
-| TableSort | 排序 `table.sort` | n=100/500/1000 |
-| TableCreate | 创建大数组表 | n=1000/3000/5000 |
-| HashInsert | 哈希表插入（字符串键） | n=100/500/1000 |
-| HashLookup | 哈希表查找（字符串键） | n=100/500/1000 |
-| NestedTable | 嵌套表深层遍历 | n=1000/10000 |
-
-### 函数调用（benchmark_function.cpp）
-
-| 测试 | 说明 | 参数规模 |
-|------|------|---------|
-| EmptyCall | 空函数调用开销 | n=10000/100000 |
-| Recursion | 递归斐波那契 fib(n) | n=10/20/25 |
-| Variadic | 可变参数函数 `...` | 固定 5 参数 |
-| MultiReturn | 函数返回值累加 | n=1000/10000 |
-| Closure | 闭包创建与调用 | n=100/1000 |
-| TailRecursion | 尾递归求和 | n=100/1000/5000 |
-
-### GC 与内存压力（benchmark_gc.cpp）
-
-| 测试 | 说明 | 参数规模 |
-|------|------|---------|
-| TableChurn | 大量创建/丢弃临时表 | n=100/500/1000 |
-| StringChurn | 大量创建/丢弃临时字符串 | n=100/500/1000 |
-| MixedAlloc | 混合分配表+字符串 | n=100/500/1000 |
-
----
+本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的完整结果。覆盖 **6 大类共 51 个 Lua 性能场景**，每个场景均实现 C++ / Lua 5.4 / FakeLua GCC 三种横向对比（原始输出含 TCC，本分析聚焦 GCC vs Lua、GCC vs C++）。
 
 ## 运行环境
 
-- 日期：2026-08-10 (算法), 2026-08-10 (新增场景)
-- 机器：2 X 2595.12 MHz CPU s
+- 日期：2026-08-12
+- 机器：AMD EPYC 7K62 48-Core Processor，2 X 2595.12 MHz CPU s
 - CPU 缓存：L1d 32 KiB (x2)，L1i 32 KiB (x2)，L2 4096 KiB (x2)，L3 16384 KiB (x1)
-- 构建模式：**Release**（`cmake .. -DCMAKE_BUILD_TYPE=Release`，最终编译标志 `-O3 -DNDEBUG`）
-- FakeLua TCC JIT：**Release 模式**（`debug_mode=false`，TCC 启用 `-O2` 优化）
-- FakeLua GCC JIT：**Release 模式**（`debug_mode=false`，GCC 启用 `-O3` 优化）
+- 构建模式：**Release**（`-O3 -DNDEBUG`），GCC 15.1.0
+- FakeLua GCC JIT：**Release 模式**（`debug_mode=false`，GCC `-O3` 优化）
 - 二进制：`build/bin/bench_mark`
 
 ## 运行命令
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+cmake --build build --target bench_mark --parallel
 build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_only=true
 ```
 
 ---
 
+## 结论
+
+下表取各场景最大参数（最具代表性），**GCC vs Lua** 列表示 FakeLua GCC 相对 Lua 5.4 的加速倍数（>1 表示更快），**GCC vs C++** 列表示 FakeLua GCC 与手写 C++ 的比值（<1 表示 GCC 更快）。
+
+### 算法（algo）
+
+| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
+|------|------|-----------|-----------|------|
+| Fibonacci | n=32 | **36.4x** | 0.13 | 数值特化，接近 C++ |
+| GCD | 2147483647/1073741823 | 0.43x | 11.6x | 小循环受调用开销主导 |
+| PowMod | 1234567/7654321/1e9+7 | 1.8x | 2.6x | |
+| Sum | n=5M | **29.0x** | 0.06 | GCC 向量化，远快于 C++ |
+| BubbleSort | n=200 | 2.1x | 2.5x | 表操作拖累 |
+| Sieve | n=5000 | 1.9x | 2.5x | |
+| BinarySearch | n=1000 | 3.9x | 2.4x | |
+| FastPow | 1234567/7654321/1e9+7 | 1.5x | 2.5x | |
+| Popcount | n=100K | **37.3x** | 0.12 | 位运算极致优化 |
+| InsertionSort | n=200 | 2.6x | 2.9x | |
+| MatMul | 3×3 | 3.3x | 4.4x | 动态索引走 spec_get |
+| Vector3 | n=1M | 4.9x | 5.7x | 表特化为结构体，指针偏移 |
+| **FloatPoly** (新) | n=1M | **34.7x** | **0.49** | 浮点特化，GCC 2x 快于 C++ |
+
+### 字符串（string）
+
+| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
+|------|------|-----------|-----------|------|
+| StringLen | n=10K | 1.8x | 66.7x | 调用开销主导 |
+| StringSub | n=10K | 1.4x | 6.5x | |
+| StringRep | n=1000 | 0.17x | 1.05x | Lua 原生 C 实现更优 |
+| StringReverse | n=10K | 0.39x | 1.06x | |
+| StringLower | n=10K | 0.26x | 0.53x | |
+| StringUpper | n=10K | 0.22x | 0.54x | |
+| StringByte | n=1000 | 0.47x | 74.8x | |
+| StringChar | n=500 | 0.04x | 306x | 脚本层逐字符拼接 |
+| StringFormat | n=500 | 0.29x | 17.3x | 格式解析在脚本层 |
+| StringFind | n=10K | 0.85x | 20.2x | |
+| StringGsub | n=1000 | 0.09x | 38.9x | 模式匹配脚本层实现 |
+| ToNumber | n=1 | 0.18x | 15.7x | |
+| ToString | n=500 | 0.47x | 0.02x | |
+| **StringFindPattern** (新) | n=1000 | 0.18x | 28.1x | 模式匹配，GCC 慢于 Lua |
+| **StringGmatch** (新) | n=1000 | 0.21x | 27.5x | 迭代器+模式匹配 |
+
+### 表操作（table）
+
+| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
+|------|------|-----------|-----------|------|
+| TableInsert | n=5K | 0.02x | 1019x | 严重瓶颈 |
+| TableRemove | n=5K | 0.03x | 348x | |
+| TableConcat | n=1000 | 0.05x | 76.5x | |
+| TablePack | n=1 | 2.1x | 127x | |
+| TableMove | n=5K | ≈0x | 1608x | 最慢表操作 |
+| TableSort | n=1000 | 0.03x | 168x | 排序在脚本层 |
+| TableCreate | n=5K | 1.1x | 2.16x | |
+| HashInsert | n=1000 | 0.88x | 1.99x | |
+| HashLookup | n=1000 | 0.76x | 1.11x | |
+| NestedTable | n=10K | 3.3x | 1.42x | 表层指针偏移遍历 |
+
+### 函数调用（function）
+
+| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
+|------|------|-----------|-----------|------|
+| EmptyCall | n=100K | **13.0x** | 55422x | C++ 内联为 0 |
+| Recursion | n=25 | **44.0x** | 0.13 | 数值特化 |
+| Variadic | n=5 | 0.12x | 536x | vararg 构建开销大 |
+| MultiReturn | n=10K | **24.1x** | 0.45 | |
+| Closure | n=1000 | 3.9x | 10.9x | |
+| TailRecursion | n=5K | **106.8x** | 0.07 | 尾调用转循环+向量化 |
+
+### GC 与内存压力（gc）
+
+| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
+|------|------|-----------|-----------|------|
+| TableChurn | n=1000 | **13.9x** | 0.85 | 内存池分配器优势 |
+| StringChurn | n=1000 | 0.76x | 4.19x | 字符串分配是弱项 |
+| MixedAlloc | n=1000 | 1.2x | 3.22x | |
+
+### 数学函数（math，新增）
+
+| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
+|------|------|-----------|-----------|------|
+| MathTrig (sin+cos) | n=100K | **5.9x** | 0.87 | 接近 C++ 原生速度 |
+| **MathSqrt** | n=100K | **22.7x** | **0.49** | GCC 2x 快于 C++ |
+| **MathExpLog** (新) | n=100K | **0.14x** | **28.1x** | ⚠️ GCC 远慢于 C++ 甚至慢于 Lua |
+| MathMinMax | n=100K | **10.6x** | 0.90 | |
+
+### 核心发现
+
+1. **FakeLua GCC 在纯数值场景全面领先 Lua 5.4**（1.5x ~ 107x），Sum/Popcount/Fibonacci/Recursion/TailRecursion 均接近甚至超越手写 C++ —— 数值特化 + GCC `-O3` 向量化是核心优势。
+
+2. **浮点特化同样出色**：FloatPoly（Horner 多项式求值）GCC 为 C++ 的 **2.0x 倍速**（34.7x vs Lua），证明 double 特化路径与 int 特化一样高效。
+
+3. **math 函数表现分化严重**：sin/cos/sqrt 表现优异（sqrt 2x 快于 C++），但 **exp/log 是反常的性能陷阱** —— MathExpLog GCC 为 C++ 的 **28x 慢**，甚至比 Lua 还慢 6 倍。这表明 fakelua 对 exp/log 的代码生成或内联存在特定问题，值得专项排查。注意：`math.atan2`/`math.pow` 在 Lua 5.5 中已降为 compat-only 函数（需 `LUA_COMPAT_MATHLIB`），为避免在 vanilla Lua 5.5 上崩溃，已移出 benchmark。
+
+4. **表标准库函数仍是最大短板**：table.insert/move/sort/concat 在 fakelua 中比 Lua 慢 2~3 个数量级（GCC/C++ 比最高达 1608x），因为这些函数在脚本层实现，走逐元素 CVar 装箱路径。
+
+5. **字符串模式匹配是确认的弱项**：StringFindPattern/StringGmatch GCC 为 C++ 的 27~28x 慢，比 Lua 还慢约 5 倍（与 StringGsub 结论一致），模式匹配引擎在脚本层实现代价高昂。
+
+6. **内存池分配器在表频繁创建场景优势明显**：TableChurn 场景 GCC 13.9x 快于 Lua，且与 C++ 持平（0.85x）。
+
+---
+
 ## 完整原始输出
+
+以下为 `benchmark_algo.cpp` / `benchmark_string.cpp` / `benchmark_table.cpp` / `benchmark_function.cpp` / `benchmark_gc.cpp` / `benchmark_math.cpp` 全部 51 个场景的完整 google benchmark 输出（含 TCC 数据，按 benchmark 名称排序）：
 
 ```text
 Starting benchmarks...
-2026-08-02T19:08:19+08:00
-Running build/bin/bench_mark
+2026-08-12T15:08:29+08:00
+Running ./bench_mark
 Run on (2 X 2595.12 MHz CPU s)
 CPU Caches:
   L1 Data 32 KiB (x2)
   L1 Instruction 32 KiB (x2)
   L2 Unified 4096 KiB (x2)
   L3 Unified 16384 KiB (x1)
-Load Average: 1.59, 1.56, 0.80
+Load Average: 2.28, 2.22, 2.27
 ***WARNING*** ASLR is enabled, the results may have unreproducible noise in them.
 --------------------------------------------------------------------------------------------
 Benchmark                                                  Time             CPU   Iterations
 --------------------------------------------------------------------------------------------
-BM_CPP_Fibonacci/20                                    15635 ns        15583 ns        46250
-BM_CPP_Fibonacci/25                                   152267 ns       152113 ns         4699
-BM_CPP_Fibonacci/30                                  1888682 ns      1883646 ns          378
-BM_CPP_Fibonacci/32                                  4801340 ns      4797386 ns          150
-BM_Lua_Fibonacci/20                                   639706 ns       638915 ns         1111
-BM_Lua_Fibonacci/25                                  7036368 ns      7031955 ns           98
-BM_Lua_Fibonacci/30                                 78677918 ns     78624190 ns            9
-BM_Lua_Fibonacci/32                                206445190 ns    206203722 ns            3
-BM_FakeLua_Fibonacci_TCC/20                            61500 ns        61459 ns        11608
-BM_FakeLua_Fibonacci_TCC/25                           666136 ns       665558 ns         1038
-BM_FakeLua_Fibonacci_TCC/30                          7472063 ns      7462124 ns           90
-BM_FakeLua_Fibonacci_TCC/32                         20119442 ns     20047576 ns           35
-BM_FakeLua_Fibonacci_GCC/20                            17172 ns        17153 ns        40404
-BM_FakeLua_Fibonacci_GCC/25                           156009 ns       155910 ns         4536
-BM_FakeLua_Fibonacci_GCC/30                          1703298 ns      1700907 ns          410
-BM_FakeLua_Fibonacci_GCC/32                          4370245 ns      4366410 ns          164
-BM_CPP_GCD/832040/514229                                 121 ns          121 ns      5732264
-BM_CPP_GCD/123456789/987654321                          16.7 ns         16.7 ns     42009339
-BM_CPP_GCD/2147483647/1073741823                        13.0 ns         13.0 ns     54043926
-BM_Lua_GCD/832040/514229                                 501 ns          500 ns      1000000
-BM_Lua_GCD/123456789/987654321                           124 ns          124 ns      5703864
-BM_Lua_GCD/2147483647/1073741823                         107 ns          107 ns      6619970
-BM_FakeLua_GCD_TCC/832040/514229                         250 ns          250 ns      3094509
-BM_FakeLua_GCD_TCC/123456789/987654321                   124 ns          123 ns      5680009
-BM_FakeLua_GCD_TCC/2147483647/1073741823                 122 ns          121 ns      5875098
-BM_FakeLua_GCD_GCC/832040/514229                         202 ns          202 ns      3503856
-BM_FakeLua_GCD_GCC/123456789/987654321                   106 ns          106 ns      6329455
-BM_FakeLua_GCD_GCC/2147483647/1073741823                 104 ns          104 ns      6311426
-BM_CPP_PowMod/2/1000/1000000007                          105 ns          105 ns      6719127
-BM_CPP_PowMod/7/1000000/1000000007                       204 ns          204 ns      3427437
-BM_CPP_PowMod/1234567/7654321/1000000007                 296 ns          296 ns      2361570
-BM_Lua_PowMod/2/1000/1000000007                          474 ns          473 ns      1473092
-BM_Lua_PowMod/7/1000000/1000000007                       853 ns          852 ns       821851
-BM_Lua_PowMod/1234567/7654321/1000000007                1014 ns         1013 ns       685959
-BM_FakeLua_PowMod_TCC/2/1000/1000000007                  326 ns          325 ns      2062032
-BM_FakeLua_PowMod_TCC/7/1000000/1000000007               552 ns          552 ns      1253916
-BM_FakeLua_PowMod_TCC/1234567/7654321/1000000007         702 ns          702 ns       991474
-BM_FakeLua_PowMod_GCC/2/1000/1000000007                  222 ns          221 ns      3089493
-BM_FakeLua_PowMod_GCC/7/1000000/1000000007               327 ns          327 ns      2113581
-BM_FakeLua_PowMod_GCC/1234567/7654321/1000000007         426 ns          425 ns      1645901
-BM_CPP_Sum/10000                                        3083 ns         3081 ns       227076
-BM_CPP_Sum/100000                                      30901 ns        30868 ns        22661
-BM_CPP_Sum/1000000                                    309196 ns       309003 ns         2266
-BM_CPP_Sum/5000000                                   1546438 ns      1544860 ns          453
-BM_Lua_Sum/10000                                       54110 ns        54075 ns        12546
-BM_Lua_Sum/100000                                     548756 ns       548158 ns         1346
-BM_Lua_Sum/1000000                                   5331634 ns      5325907 ns          129
-BM_Lua_Sum/5000000                                  26798095 ns     26782335 ns           27
-BM_FakeLua_Sum_TCC/10000                               19844 ns        19824 ns        54500
-BM_FakeLua_Sum_TCC/100000                             255431 ns       255262 ns         2679
-BM_FakeLua_Sum_TCC/1000000                           2126112 ns      2123329 ns          321
-BM_FakeLua_Sum_TCC/5000000                          12636518 ns     12628908 ns           55
-BM_FakeLua_Sum_GCC/10000                                3198 ns         3195 ns       219595
-BM_FakeLua_Sum_GCC/100000                              31067 ns        31048 ns        22557
-BM_FakeLua_Sum_GCC/1000000                            309593 ns       309236 ns         2264
-BM_FakeLua_Sum_GCC/5000000                           1546852 ns      1545641 ns          453
-BM_CPP_BubbleSort/50                                    7750 ns         7639 ns        92448
-BM_CPP_BubbleSort/100                                  31084 ns        31059 ns        22534
-BM_CPP_BubbleSort/200                                 125714 ns       125610 ns         5567
-BM_Lua_BubbleSort/50                                   54119 ns        54057 ns        12762
-BM_Lua_BubbleSort/100                                 212040 ns       211847 ns         3380
-BM_Lua_BubbleSort/200                                 817055 ns       816011 ns          852
-BM_FakeLua_BubbleSort_TCC/50                          114521 ns       114394 ns         6262
-BM_FakeLua_BubbleSort_TCC/100                         444775 ns       444334 ns         1623
-BM_FakeLua_BubbleSort_TCC/200                        1746415 ns      1744879 ns          405
-BM_FakeLua_BubbleSort_GCC/50                           31890 ns        31847 ns        21867
-BM_FakeLua_BubbleSort_GCC/100                         127221 ns       127111 ns         5593
-BM_FakeLua_BubbleSort_GCC/200                         519207 ns       518505 ns         1390
-BM_CPP_Sieve/100                                         256 ns          256 ns      2745646
-BM_CPP_Sieve/500                                        1205 ns         1204 ns       575290
-BM_CPP_Sieve/1000                                       2447 ns         2444 ns       280275
-BM_CPP_Sieve/5000                                      12647 ns        12640 ns        55616
-BM_Lua_Sieve/100                                        6803 ns         6794 ns       107474
-BM_Lua_Sieve/500                                       27337 ns        27306 ns        26352
-BM_Lua_Sieve/1000                                      51753 ns        51708 ns        10000
-BM_Lua_Sieve/5000                                     265875 ns       265578 ns         2668
-BM_FakeLua_Sieve_TCC/100                                9565 ns         9559 ns        71865
-BM_FakeLua_Sieve_TCC/500                               50971 ns        50927 ns        10000
-BM_FakeLua_Sieve_TCC/1000                              96332 ns        96211 ns         7432
-BM_FakeLua_Sieve_TCC/5000                             578681 ns       578214 ns         1231
-BM_FakeLua_Sieve_GCC/100                                2072 ns         2069 ns       343593
-BM_FakeLua_Sieve_GCC/500                                9358 ns         9351 ns        71446
-BM_FakeLua_Sieve_GCC/1000                              19528 ns        19517 ns        35739
-BM_FakeLua_Sieve_GCC/5000                             124522 ns       124446 ns         5746
-BM_CPP_BinarySearch/100                                  854 ns          853 ns       814327
-BM_CPP_BinarySearch/500                                 6035 ns         6027 ns       115354
-BM_CPP_BinarySearch/1000                               19027 ns        19008 ns        32366
-BM_Lua_BinarySearch/100                                28437 ns        28402 ns        24281
-BM_Lua_BinarySearch/500                               193592 ns       193469 ns         3517
-BM_Lua_BinarySearch/1000                              437335 ns       436811 ns         1579
-BM_FakeLua_BinarySearch_TCC/100                        40306 ns        40278 ns        17589
-BM_FakeLua_BinarySearch_TCC/500                       283395 ns       282997 ns         2545
-BM_FakeLua_BinarySearch_TCC/1000                      632304 ns       631917 ns         1100
-BM_FakeLua_BinarySearch_GCC/100                         5924 ns         5919 ns       114774
-BM_FakeLua_BinarySearch_GCC/500                        53551 ns        53493 ns        13328
-BM_FakeLua_BinarySearch_GCC/1000                      128710 ns       128631 ns         5674
-BM_CPP_FastPow/2/1000/1000000007                         105 ns          104 ns      6711579
-BM_CPP_FastPow/7/1000000/1000000007                      204 ns          204 ns      3431512
-BM_CPP_FastPow/1234567/7654321/1000000007                297 ns          296 ns      2356807
-BM_Lua_FastPow/2/1000/1000000007                         425 ns          424 ns      1659666
-BM_Lua_FastPow/7/1000000/1000000007                      757 ns          756 ns       934431
-BM_Lua_FastPow/1234567/7654321/1000000007                889 ns          889 ns       773170
-BM_FakeLua_FastPow_TCC/2/1000/1000000007                 229 ns          228 ns      3013074
-BM_FakeLua_FastPow_TCC/7/1000000/1000000007              340 ns          340 ns      2064370
-BM_FakeLua_FastPow_TCC/1234567/7654321/1000000007        433 ns          432 ns      1622204
-BM_FakeLua_FastPow_GCC/2/1000/1000000007                 216 ns          216 ns      3235982
-BM_FakeLua_FastPow_GCC/7/1000000/1000000007              318 ns          318 ns      2213632
-BM_FakeLua_FastPow_GCC/1234567/7654321/1000000007        415 ns          415 ns      1699430
-BM_CPP_Popcount/1000                                    3477 ns         3472 ns       206910
-BM_CPP_Popcount/10000                                  39794 ns        39770 ns        17919
-BM_CPP_Popcount/100000                                468521 ns       467981 ns         1484
-BM_Lua_Popcount/1000                                   85875 ns        85824 ns         8362
-BM_Lua_Popcount/10000                                1064557 ns      1063429 ns          659
-BM_Lua_Popcount/100000                              13148758 ns     13137165 ns           56
-BM_FakeLua_Popcount_TCC/1000                           12440 ns        12433 ns        57375
-BM_FakeLua_Popcount_TCC/10000                         161567 ns       161372 ns         4562
-BM_FakeLua_Popcount_TCC/100000                       2029707 ns      2028480 ns          343
-BM_FakeLua_Popcount_GCC/1000                            3295 ns         3291 ns       210627
-BM_FakeLua_Popcount_GCC/10000                          38455 ns        38422 ns        18951
-BM_FakeLua_Popcount_GCC/100000                        436204 ns       435917 ns         1576
-BM_CPP_InsertionSort/50                                  734 ns          734 ns       938614
-BM_CPP_InsertionSort/100                                3181 ns         3178 ns       220391
-BM_CPP_InsertionSort/200                               11601 ns        11593 ns        59893
-BM_Lua_InsertionSort/50                                39213 ns        39161 ns        17507
-BM_Lua_InsertionSort/100                              148986 ns       148820 ns         4723
-BM_Lua_InsertionSort/200                              569398 ns       568720 ns         1167
-BM_FakeLua_InsertionSort_TCC/50                        71522 ns        71473 ns         9988
-BM_FakeLua_InsertionSort_TCC/100                      276817 ns       276639 ns         2517
-BM_FakeLua_InsertionSort_TCC/200                     1083127 ns      1081968 ns          642
-BM_FakeLua_InsertionSort_GCC/50                        13979 ns        13970 ns        49665
-BM_FakeLua_InsertionSort_GCC/100                       53864 ns        53783 ns        12968
-BM_FakeLua_InsertionSort_GCC/200                      200742 ns       200615 ns         3354
-BM_CPP_MatMul                                           1.90 ns         1.90 ns    368088721
-BM_Lua_MatMul                                           2780 ns         2779 ns       249699
-BM_FakeLua_MatMul_TCC                                   2126 ns         2125 ns       334774
-BM_FakeLua_MatMul_GCC                                    516 ns          516 ns      1375711
-BM_CPP_Vector3/10000                                    4812 ns         4809 ns       142370
-BM_CPP_Vector3/100000                                  48086 ns        48055 ns        14435
-BM_CPP_Vector3/1000000                                481126 ns       480592 ns         1424
-BM_Lua_Vector3/10000                                 1144099 ns      1143382 ns          608
-BM_Lua_Vector3/100000                               11418599 ns     11410453 ns           60
-BM_Lua_Vector3/1000000                             116910546 ns    116747545 ns            6
-BM_FakeLua_Vector3_TCC/10000                         1373160 ns      1372328 ns          512
-BM_FakeLua_Vector3_TCC/100000                       13706434 ns     13691575 ns           52
-BM_FakeLua_Vector3_TCC/1000000                     136705941 ns    136618141 ns            5
-BM_FakeLua_Vector3_GCC/10000                          236063 ns       235757 ns         3139
-BM_FakeLua_Vector3_GCC/100000                        2312607 ns      2310603 ns          306
-BM_FakeLua_Vector3_GCC/1000000                      22696590 ns     22675959 ns           31
+BM_CPP_Fibonacci/20                                   244001 ns       188867 ns         3719
+BM_CPP_Fibonacci/25                                  2604029 ns      2091419 ns          336
+BM_CPP_Fibonacci/30                                 28892494 ns     23208447 ns           30
+BM_CPP_Fibonacci/32                                 74868609 ns     60627917 ns           12
+BM_Lua_Fibonacci/20                                  1095837 ns       867154 ns          804
+BM_Lua_Fibonacci/25                                 12164314 ns      9615372 ns           73
+BM_Lua_Fibonacci/30                                165708142 ns    108233930 ns            7
+BM_Lua_Fibonacci/32                                397572480 ns    283813384 ns            2
+BM_FakeLua_Fibonacci_TCC/20                           104678 ns        77972 ns         8790
+BM_FakeLua_Fibonacci_TCC/25                          1259518 ns       871771 ns          803
+BM_FakeLua_Fibonacci_TCC/30                         11481546 ns      9636264 ns           74
+BM_FakeLua_Fibonacci_TCC/32                         32248861 ns     24995418 ns           28
+BM_FakeLua_Fibonacci_GCC/20                            35802 ns        30050 ns        23569
+BM_FakeLua_Fibonacci_GCC/25                           364210 ns       271531 ns         2527
+BM_FakeLua_Fibonacci_GCC/30                          4324573 ns      2808106 ns          253
+BM_FakeLua_Fibonacci_GCC/32                         10451699 ns      7806774 ns           97
+BM_CPP_GCD/832040/514229                                 240 ns          183 ns      3836274
+BM_CPP_GCD/123456789/987654321                          55.1 ns         44.5 ns     15783864
+BM_CPP_GCD/2147483647/1073741823                        54.3 ns         39.0 ns     17930236
+BM_Lua_GCD/832040/514229                                 934 ns          734 ns       953192
+BM_Lua_GCD/123456789/987654321                           268 ns          215 ns      3227248
+BM_Lua_GCD/2147483647/1073741823                         240 ns          193 ns      3630863
+BM_FakeLua_GCD_TCC/832040/514229                         801 ns          608 ns      1175104
+BM_FakeLua_GCD_TCC/123456789/987654321                   636 ns          478 ns      1466185
+BM_FakeLua_GCD_TCC/2147483647/1073741823                 626 ns          474 ns      1477639
+BM_FakeLua_GCD_GCC/832040/514229                         729 ns          548 ns      1281849
+BM_FakeLua_GCD_GCC/123456789/987654321                   616 ns          453 ns      1551256
+BM_FakeLua_GCD_GCC/2147483647/1073741823                 634 ns          451 ns      1558405
+BM_CPP_PowMod/2/1000/1000000007                          164 ns          121 ns      5782772
+BM_CPP_PowMod/7/1000000/1000000007                       294 ns          205 ns      3413145
+BM_CPP_PowMod/1234567/7654321/1000000007                 389 ns          298 ns      2348296
+BM_Lua_PowMod/2/1000/1000000007                          917 ns          683 ns      1023161
+BM_Lua_PowMod/7/1000000/1000000007                      1638 ns         1174 ns       611965
+BM_Lua_PowMod/1234567/7654321/1000000007                1902 ns         1378 ns       502604
+BM_FakeLua_PowMod_TCC/2/1000/1000000007                  975 ns          700 ns       985972
+BM_FakeLua_PowMod_TCC/7/1000000/1000000007              1237 ns          919 ns       750285
+BM_FakeLua_PowMod_TCC/1234567/7654321/1000000007        1429 ns         1058 ns       660055
+BM_FakeLua_PowMod_GCC/2/1000/1000000007                  777 ns          577 ns      1215902
+BM_FakeLua_PowMod_GCC/7/1000000/1000000007               960 ns          683 ns      1025378
+BM_FakeLua_PowMod_GCC/1234567/7654321/1000000007        1020 ns          776 ns       898082
+BM_CPP_Sum/10000                                       73965 ns        55114 ns        12805
+BM_CPP_Sum/100000                                     799820 ns       551704 ns         1278
+BM_CPP_Sum/1000000                                   6272927 ns      5492065 ns          129
+BM_CPP_Sum/5000000                                  32602101 ns     27451677 ns           26
+BM_Lua_Sum/10000                                      112952 ns        91478 ns         7503
+BM_Lua_Sum/100000                                    1183385 ns       915086 ns          758
+BM_Lua_Sum/1000000                                  12257774 ns      8800271 ns           77
+BM_Lua_Sum/5000000                                  63892439 ns     44934950 ns           15
+BM_FakeLua_Sum_TCC/10000                               31886 ns        25183 ns        27483
+BM_FakeLua_Sum_TCC/100000                             310590 ns       251022 ns         2765
+BM_FakeLua_Sum_TCC/1000000                           2972264 ns      2450162 ns          276
+BM_FakeLua_Sum_TCC/5000000                          14427243 ns     12287990 ns           57
+BM_FakeLua_Sum_GCC/10000                                4687 ns         3569 ns       197130
+BM_FakeLua_Sum_GCC/100000                              38516 ns        31500 ns        22186
+BM_FakeLua_Sum_GCC/1000000                            386643 ns       310651 ns         2252
+BM_FakeLua_Sum_GCC/5000000                           1929485 ns      1551341 ns          451
+BM_CPP_BubbleSort/50                                   20561 ns        16033 ns        43414
+BM_CPP_BubbleSort/100                                  80161 ns        62715 ns        11150
+BM_CPP_BubbleSort/200                                 315338 ns       248914 ns         2803
+BM_Lua_BubbleSort/50                                  111145 ns        86159 ns         8116
+BM_Lua_BubbleSort/100                                 453567 ns       335743 ns         2084
+BM_Lua_BubbleSort/200                                2027811 ns      1324344 ns          534
+BM_FakeLua_BubbleSort_TCC/50                          257914 ns       187624 ns         3606
+BM_FakeLua_BubbleSort_TCC/100                         875880 ns       746935 ns          949
+BM_FakeLua_BubbleSort_TCC/200                        3514946 ns      3054451 ns          232
+BM_FakeLua_BubbleSort_GCC/50                           58056 ns        40502 ns        17084
+BM_FakeLua_BubbleSort_GCC/100                         231300 ns       157924 ns         4485
+BM_FakeLua_BubbleSort_GCC/200                         745482 ns       627059 ns         1103
+BM_CPP_Sieve/100                                        1716 ns         1469 ns       476034
+BM_CPP_Sieve/500                                        8701 ns         7454 ns        94272
+BM_CPP_Sieve/1000                                      18904 ns        15087 ns        46697
+BM_CPP_Sieve/5000                                     100016 ns        79319 ns         8838
+BM_Lua_Sieve/100                                       13394 ns         9878 ns        70439
+BM_Lua_Sieve/500                                       48460 ns        39712 ns        17671
+BM_Lua_Sieve/1000                                      94106 ns        75604 ns         9470
+BM_Lua_Sieve/5000                                     441337 ns       381609 ns         1832
+BM_FakeLua_Sieve_TCC/100                               18112 ns        14949 ns        47887
+BM_FakeLua_Sieve_TCC/500                               82602 ns        70509 ns         9766
+BM_FakeLua_Sieve_TCC/1000                             187862 ns       141592 ns         4961
+BM_FakeLua_Sieve_TCC/5000                            1016307 ns       872919 ns          786
+BM_FakeLua_Sieve_GCC/100                                4438 ns         3662 ns       190411
+BM_FakeLua_Sieve_GCC/500                               19343 ns        15967 ns        43518
+BM_FakeLua_Sieve_GCC/1000                              38241 ns        32052 ns        21714
+BM_FakeLua_Sieve_GCC/5000                             280594 ns       196475 ns         3529
+BM_CPP_BinarySearch/100                                 6412 ns         4872 ns       143452
+BM_CPP_BinarySearch/500                                39543 ns        29901 ns        23466
+BM_CPP_BinarySearch/1000                               88950 ns        65515 ns        10810
+BM_Lua_BinarySearch/100                                49841 ns        39759 ns        17342
+BM_Lua_BinarySearch/500                               333722 ns       273027 ns         2549
+BM_Lua_BinarySearch/1000                              850654 ns       621516 ns         1161
+BM_FakeLua_BinarySearch_TCC/100                        71410 ns        53885 ns        13075
+BM_FakeLua_BinarySearch_TCC/500                       512519 ns       382369 ns         1833
+BM_FakeLua_BinarySearch_TCC/1000                     1229219 ns       891469 ns          771
+BM_FakeLua_BinarySearch_GCC/100                        10781 ns         8076 ns        87637
+BM_FakeLua_BinarySearch_GCC/500                       102455 ns        67772 ns        10375
+BM_FakeLua_BinarySearch_GCC/1000                      190968 ns       158817 ns         4423
+BM_CPP_FastPow/2/1000/1000000007                         143 ns          122 ns      5773546
+BM_CPP_FastPow/7/1000000/1000000007                      243 ns          207 ns      3379019
+BM_CPP_FastPow/1234567/7654321/1000000007                355 ns          300 ns      2334171
+BM_Lua_FastPow/2/1000/1000000007                         749 ns          611 ns      1177502
+BM_Lua_FastPow/7/1000000/1000000007                     1541 ns          981 ns       713501
+BM_Lua_FastPow/1234567/7654321/1000000007               1549 ns         1159 ns       601482
+BM_FakeLua_FastPow_TCC/2/1000/1000000007                 755 ns          624 ns      1104775
+BM_FakeLua_FastPow_TCC/7/1000000/1000000007              926 ns          723 ns       967899
+BM_FakeLua_FastPow_TCC/1234567/7654321/1000000007        985 ns          806 ns       868314
+BM_FakeLua_FastPow_GCC/2/1000/1000000007                 704 ns          566 ns      1234099
+BM_FakeLua_FastPow_GCC/7/1000000/1000000007              831 ns          667 ns      1046521
+BM_FakeLua_FastPow_GCC/1234567/7654321/1000000007       1118 ns          762 ns       918455
+BM_CPP_Popcount/1000                                   44926 ns        32710 ns        21385
+BM_CPP_Popcount/10000                                 503463 ns       409351 ns         1711
+BM_CPP_Popcount/100000                               5876893 ns      5007660 ns          140
+BM_Lua_Popcount/1000                                  186548 ns       145867 ns         4836
+BM_Lua_Popcount/10000                                2453630 ns      1809095 ns          386
+BM_Lua_Popcount/100000                              28290747 ns     22278137 ns           32
+BM_FakeLua_Popcount_TCC/1000                           16270 ns        12688 ns        53993
+BM_FakeLua_Popcount_TCC/10000                         191919 ns       151174 ns         4632
+BM_FakeLua_Popcount_TCC/100000                       2332164 ns      1802909 ns          414
+BM_FakeLua_Popcount_GCC/1000                            5728 ns         4595 ns       151917
+BM_FakeLua_Popcount_GCC/10000                          76147 ns        49186 ns        14313
+BM_FakeLua_Popcount_GCC/100000                        798193 ns       597600 ns         1171
+BM_CPP_InsertionSort/50                                10845 ns         8120 ns        86142
+BM_CPP_InsertionSort/100                               41131 ns        30781 ns        22721
+BM_CPP_InsertionSort/200                              159839 ns       119814 ns         5838
+BM_Lua_InsertionSort/50                                84623 ns        60257 ns        11664
+BM_Lua_InsertionSort/100                              278283 ns       232025 ns         3076
+BM_Lua_InsertionSort/200                             1067368 ns       906011 ns          770
+BM_FakeLua_InsertionSort_TCC/50                       130134 ns       120322 ns         5911
+BM_FakeLua_InsertionSort_TCC/100                      549659 ns       462438 ns         1500
+BM_FakeLua_InsertionSort_TCC/200                     2242257 ns      1794866 ns          379
+BM_FakeLua_InsertionSort_GCC/50                        30456 ns        23964 ns        29424
+BM_FakeLua_InsertionSort_GCC/100                      120411 ns        90990 ns         7699
+BM_FakeLua_InsertionSort_GCC/200                      461297 ns       351381 ns         1990
+BM_CPP_MatMul                                            321 ns          248 ns      2819887
+BM_Lua_MatMul                                           4407 ns         3642 ns       191864
+BM_FakeLua_MatMul_TCC                                   4391 ns         3426 ns       204270
+BM_FakeLua_MatMul_GCC                                   1470 ns         1100 ns       639194
+BM_CPP_Vector3/10000                                   66859 ns        52702 ns        13251
+BM_CPP_Vector3/100000                                 729243 ns       530514 ns         1328
+BM_CPP_Vector3/1000000                               7187725 ns      5289390 ns          131
+BM_Lua_Vector3/10000                                 1990411 ns      1499313 ns          462
+BM_Lua_Vector3/100000                               20282472 ns     14966766 ns           47
+BM_Lua_Vector3/1000000                             199163143 ns    149785755 ns            5
+BM_FakeLua_Vector3_TCC/10000                         2711982 ns      2046746 ns          348
+BM_FakeLua_Vector3_TCC/100000                       27786847 ns     20614034 ns           35
+BM_FakeLua_Vector3_TCC/1000000                     244198035 ns    205447166 ns            3
+BM_FakeLua_Vector3_GCC/10000                          388782 ns       305854 ns         2295
+BM_FakeLua_Vector3_GCC/100000                        3977854 ns      3042764 ns          231
+BM_FakeLua_Vector3_GCC/1000000                      41820437 ns     30362696 ns           23
+BM_CPP_FloatPoly/1000000                             7640625 ns      5817973 ns          119
+BM_Lua_FloatPoly/1000000                           140330396 ns     99455046 ns            7
+BM_FakeLua_FloatPoly_TCC/1000000                    24121306 ns     14361104 ns           49
+BM_FakeLua_FloatPoly_GCC/1000000                     3569147 ns      2870252 ns          244
+BM_CPP_EmptyCall/10000                                  7.10 ns         5.50 ns    126963265
+BM_CPP_EmptyCall/100000                                 6.71 ns         5.51 ns    126962922
+BM_Lua_EmptyCall/10000                                537409 ns       395641 ns         1762
+BM_Lua_EmptyCall/100000                              5222610 ns      3965114 ns          177
+BM_FakeLua_EmptyCall_TCC/10000                        343108 ns       251721 ns         2768
+BM_FakeLua_EmptyCall_TCC/100000                      3422245 ns      2515211 ns          281
+BM_FakeLua_EmptyCall_GCC/10000                         41720 ns        30282 ns        22867
+BM_FakeLua_EmptyCall_GCC/100000                       388070 ns       305375 ns         2290
+BM_CPP_Recursion/10                                     2245 ns         1523 ns       459427
+BM_CPP_Recursion/20                                   268446 ns       192172 ns         3633
+BM_CPP_Recursion/25                                  2706553 ns      2101749 ns          327
+BM_Lua_Recursion/10                                    11643 ns         8655 ns        80749
+BM_Lua_Recursion/20                                  1267839 ns      1060900 ns          674
+BM_Lua_Recursion/25                                 13497088 ns     11788694 ns           59
+BM_FakeLua_Recursion_TCC/10                             1243 ns         1086 ns       645911
+BM_FakeLua_Recursion_TCC/20                            97814 ns        79807 ns         8705
+BM_FakeLua_Recursion_TCC/25                           991358 ns       874359 ns          799
+BM_FakeLua_Recursion_GCC/10                              707 ns          599 ns      1161702
+BM_FakeLua_Recursion_GCC/20                            40499 ns        29632 ns        23741
+BM_FakeLua_Recursion_GCC/25                           396165 ns       268053 ns         2654
+BM_CPP_Variadic/1                                       14.4 ns         11.0 ns     63803395
+BM_Lua_Variadic/1                                        784 ns          680 ns      1016480
+BM_FakeLua_Variadic_TCC/1                               7181 ns         6123 ns       116928
+BM_FakeLua_Variadic_GCC/1                               6586 ns         5893 ns       118888
+BM_CPP_MultiReturn/1000                                 6440 ns         5549 ns       127396
+BM_CPP_MultiReturn/10000                               63605 ns        55276 ns        12623
+BM_Lua_MultiReturn/1000                                73369 ns        60650 ns        11426
+BM_Lua_MultiReturn/10000                              700380 ns       602970 ns         1140
+BM_FakeLua_MultiReturn_TCC/1000                         7840 ns         5767 ns       119459
+BM_FakeLua_MultiReturn_TCC/10000                       71207 ns        53355 ns        13265
+BM_FakeLua_MultiReturn_GCC/1000                         4440 ns         2969 ns       235501
+BM_FakeLua_MultiReturn_GCC/10000                       34759 ns        25036 ns        27825
+BM_CPP_Closure/100                                       804 ns          555 ns      1259497
+BM_CPP_Closure/1000                                     6754 ns         5520 ns       123555
+BM_Lua_Closure/100                                     29972 ns        24180 ns        29185
+BM_Lua_Closure/1000                                   297514 ns       238287 ns         2892
+BM_FakeLua_Closure_TCC/100                             19931 ns        16992 ns        41135
+BM_FakeLua_Closure_TCC/1000                           197950 ns       166231 ns         4234
+BM_FakeLua_Closure_GCC/100                              9280 ns         6484 ns       107193
+BM_FakeLua_Closure_GCC/1000                            86871 ns        60425 ns        11470
+BM_CPP_TailRecursion/100                                 851 ns          553 ns      1266789
+BM_CPP_TailRecursion/1000                               6550 ns         5496 ns       127347
+BM_CPP_TailRecursion/5000                              33006 ns        27464 ns        25540
+BM_Lua_TailRecursion/100                                5452 ns         4471 ns       156425
+BM_Lua_TailRecursion/1000                              54899 ns        42810 ns        16210
+BM_Lua_TailRecursion/5000                             303389 ns       213681 ns         3314
+BM_FakeLua_TailRecursion_TCC/100                        1285 ns          918 ns       770917
+BM_FakeLua_TailRecursion_TCC/1000                       7418 ns         5246 ns       135067
+BM_FakeLua_TailRecursion_TCC/5000                      29759 ns        25266 ns        29155
+BM_FakeLua_TailRecursion_GCC/100                         536 ns          463 ns      1512128
+BM_FakeLua_TailRecursion_GCC/1000                        889 ns          757 ns       918265
+BM_FakeLua_TailRecursion_GCC/5000                       2182 ns         2001 ns       343031
+BM_CPP_TableChurn/100                                   6057 ns         5362 ns       129836
+BM_CPP_TableChurn/500                                  36071 ns        26521 ns        25770
+BM_CPP_TableChurn/1000                                 69228 ns        52824 ns        13320
+BM_Lua_TableChurn/100                                  88920 ns        62584 ns        10900
+BM_Lua_TableChurn/500                                 382283 ns       312124 ns         2276
+BM_Lua_TableChurn/1000                                798672 ns       623987 ns         1137
+BM_FakeLua_TableChurn_TCC/100                          27455 ns        24056 ns        29701
+BM_FakeLua_TableChurn_TCC/500                         152607 ns       118942 ns         5847
+BM_FakeLua_TableChurn_TCC/1000                        301820 ns       235828 ns         2943
+BM_FakeLua_TableChurn_GCC/100                           6144 ns         5037 ns       135846
+BM_FakeLua_TableChurn_GCC/500                          27835 ns        22605 ns        30319
+BM_FakeLua_TableChurn_GCC/1000                         68913 ns        45037 ns        15801
+BM_CPP_StringChurn/100                                 47994 ns        29712 ns        23489
+BM_CPP_StringChurn/500                                182406 ns       153421 ns         4566
+BM_CPP_StringChurn/1000                               382854 ns       311758 ns         2277
+BM_Lua_StringChurn/100                                 96332 ns        75548 ns         9534
+BM_Lua_StringChurn/500                                595908 ns       489138 ns         1425
+BM_Lua_StringChurn/1000                              1444872 ns      1003632 ns          696
+BM_FakeLua_StringChurn_TCC/100                        198281 ns       141653 ns         5028
+BM_FakeLua_StringChurn_TCC/500                        906911 ns       715240 ns          979
+BM_FakeLua_StringChurn_TCC/1000                      1701709 ns      1421517 ns          494
+BM_FakeLua_StringChurn_GCC/100                        161297 ns       131602 ns         5352
+BM_FakeLua_StringChurn_GCC/500                        835406 ns       660005 ns         1067
+BM_FakeLua_StringChurn_GCC/1000                      1594786 ns      1306204 ns          530
+BM_CPP_MixedAlloc/100                                  33552 ns        23049 ns        30324
+BM_CPP_MixedAlloc/500                                 152138 ns       118122 ns         6001
+BM_CPP_MixedAlloc/1000                                352953 ns       236465 ns         2947
+BM_Lua_MixedAlloc/100                                 113150 ns        92271 ns         7676
+BM_Lua_MixedAlloc/500                                 682426 ns       470793 ns         1485
+BM_Lua_MixedAlloc/1000                               1243862 ns       943406 ns          745
+BM_FakeLua_MixedAlloc_TCC/100                         115008 ns        95436 ns         7400
+BM_FakeLua_MixedAlloc_TCC/500                         641732 ns       478158 ns         1469
+BM_FakeLua_MixedAlloc_TCC/1000                       1279982 ns       951658 ns          747
+BM_FakeLua_MixedAlloc_GCC/100                         156540 ns        74401 ns         9323
+BM_FakeLua_MixedAlloc_GCC/500                         660755 ns       372074 ns         1888
+BM_FakeLua_MixedAlloc_GCC/1000                        937336 ns       761541 ns          912
+BM_CPP_MathTrig/100000                               4428913 ns      3545417 ns          197
+BM_Lua_MathTrig/100000                              22585647 ns     18260022 ns           38
+BM_FakeLua_MathTrig_TCC/100000                      14450561 ns     11594773 ns           60
+BM_FakeLua_MathTrig_GCC/100000                       3815773 ns      3079505 ns          228
+BM_CPP_MathSqrt/100000                                734133 ns       570643 ns         1238
+BM_Lua_MathSqrt/100000                               7657403 ns      6274359 ns          113
+BM_FakeLua_MathSqrt_TCC/100000                       5111395 ns      4115277 ns          171
+BM_FakeLua_MathSqrt_GCC/100000                        338425 ns       276775 ns         2530
+BM_CPP_MathExpLog/100000                             5912180 ns      4741305 ns          148
+BM_Lua_MathExpLog/100000                            23017204 ns     19033686 ns           37
+BM_FakeLua_MathExpLog_TCC/100000                   185797707 ns    137865272 ns            5
+BM_FakeLua_MathExpLog_GCC/100000                   162874484 ns    133183547 ns            5
+BM_CPP_MathMinMax/100000                             3494186 ns      2420676 ns          289
+BM_Lua_MathMinMax/100000                            28660028 ns     22968714 ns           30
+BM_FakeLua_MathMinMax_TCC/100000                    14167435 ns     11518015 ns           61
+BM_FakeLua_MathMinMax_GCC/100000                     2707326 ns      2173469 ns          321
+BM_CPP_StringLen/10                                     19.9 ns         16.8 ns     41674582
+BM_CPP_StringLen/100                                    20.3 ns         16.8 ns     41698120
+BM_CPP_StringLen/1000                                   20.2 ns         16.7 ns     41769863
+BM_CPP_StringLen/10000                                  24.4 ns         16.8 ns     41937007
+BM_Lua_StringLen/10                                      230 ns          187 ns      3746761
+BM_Lua_StringLen/100                                     372 ns          343 ns      2053664
+BM_Lua_StringLen/1000                                    689 ns          521 ns      1333793
+BM_Lua_StringLen/10000                                  2741 ns         2003 ns       348503
+BM_FakeLua_StringLen_TCC/10                              785 ns          552 ns      1271769
+BM_FakeLua_StringLen_TCC/100                             941 ns          608 ns      1163935
+BM_FakeLua_StringLen_TCC/1000                            964 ns          637 ns      1093728
+BM_FakeLua_StringLen_TCC/10000                          1416 ns         1142 ns       607563
+BM_FakeLua_StringLen_GCC/10                              785 ns          551 ns      1271884
+BM_FakeLua_StringLen_GCC/100                             782 ns          602 ns      1143457
+BM_FakeLua_StringLen_GCC/1000                            761 ns          629 ns      1110335
+BM_FakeLua_StringLen_GCC/10000                          1374 ns         1121 ns       624707
+BM_CPP_StringSub/10                                      118 ns         92.7 ns      7556968
+BM_CPP_StringSub/100                                     183 ns          136 ns      5132732
+BM_CPP_StringSub/1000                                    190 ns          144 ns      4857186
+BM_CPP_StringSub/10000                                   491 ns          361 ns      1951418
+BM_Lua_StringSub/10                                      741 ns          392 ns      1786635
+BM_Lua_StringSub/100                                     943 ns          633 ns      1122708
+BM_Lua_StringSub/1000                                   1268 ns          949 ns       718797
+BM_Lua_StringSub/10000                                  4438 ns         3196 ns       219348
+BM_FakeLua_StringSub_TCC/10                             1616 ns         1379 ns       510092
+BM_FakeLua_StringSub_TCC/100                            1693 ns         1483 ns       473629
+BM_FakeLua_StringSub_TCC/1000                           1788 ns         1531 ns       457399
+BM_FakeLua_StringSub_TCC/10000                          2906 ns         2329 ns       300023
+BM_FakeLua_StringSub_GCC/10                             1647 ns         1372 ns       510094
+BM_FakeLua_StringSub_GCC/100                            1718 ns         1442 ns       485989
+BM_FakeLua_StringSub_GCC/1000                           2301 ns         1518 ns       456373
+BM_FakeLua_StringSub_GCC/10000                          2937 ns         2333 ns       301548
+BM_CPP_StringRep/10                                      720 ns          420 ns      1645804
+BM_CPP_StringRep/100                                    5664 ns         3071 ns       227801
+BM_CPP_StringRep/1000                                  60314 ns        30033 ns        23192
+BM_Lua_StringRep/10                                      705 ns          429 ns      1646933
+BM_Lua_StringRep/100                                    2054 ns         1065 ns       639071
+BM_Lua_StringRep/1000                                   9809 ns         5488 ns       117228
+BM_FakeLua_StringRep_TCC/10                             2140 ns         1690 ns       417956
+BM_FakeLua_StringRep_TCC/100                            5252 ns         4462 ns       157405
+BM_FakeLua_StringRep_TCC/1000                          38221 ns        31596 ns        22129
+BM_FakeLua_StringRep_GCC/10                             2005 ns         1688 ns       411427
+BM_FakeLua_StringRep_GCC/100                            5176 ns         4444 ns       157613
+BM_FakeLua_StringRep_GCC/1000                          47114 ns        31573 ns        22260
+BM_CPP_StringReverse/10                                  150 ns          104 ns      6728966
+BM_CPP_StringReverse/100                                 617 ns          455 ns      1533631
+BM_CPP_StringReverse/1000                               4770 ns         3523 ns       198592
+BM_CPP_StringReverse/10000                             45970 ns        34349 ns        20420
+BM_Lua_StringReverse/10                                  502 ns          314 ns      2218709
+BM_Lua_StringReverse/100                                1015 ns          724 ns       965645
+BM_Lua_StringReverse/1000                               2476 ns         1917 ns       368622
+BM_Lua_StringReverse/10000                             18670 ns        14211 ns        51314
+BM_FakeLua_StringReverse_TCC/10                         1447 ns         1210 ns       588507
+BM_FakeLua_StringReverse_TCC/100                        1799 ns         1650 ns       420761
+BM_FakeLua_StringReverse_TCC/1000                       5434 ns         4787 ns       146279
+BM_FakeLua_StringReverse_TCC/10000                     45719 ns        36459 ns        19062
+BM_FakeLua_StringReverse_GCC/10                         1479 ns         1184 ns       589100
+BM_FakeLua_StringReverse_GCC/100                        1971 ns         1645 ns       425514
+BM_FakeLua_StringReverse_GCC/1000                       6496 ns         4756 ns       146607
+BM_FakeLua_StringReverse_GCC/10000                     43227 ns        36576 ns        19274
+BM_CPP_StringLower/10                                    354 ns          194 ns      3568595
+BM_CPP_StringLower/100                                  1635 ns         1356 ns       516449
+BM_CPP_StringLower/1000                                14338 ns        12548 ns        55892
+BM_CPP_StringLower/10000                              144704 ns       124552 ns         5608
+BM_Lua_StringLower/10                                    373 ns          327 ns      2140132
+BM_Lua_StringLower/100                                   935 ns          757 ns       931277
+BM_Lua_StringLower/1000                                 2591 ns         2219 ns       317137
+BM_Lua_StringLower/10000                               21705 ns        17124 ns        41137
+BM_FakeLua_StringLower_TCC/10                           1433 ns         1204 ns       586100
+BM_FakeLua_StringLower_TCC/100                          2434 ns         1929 ns       360856
+BM_FakeLua_StringLower_TCC/1000                        10045 ns         7725 ns        90314
+BM_FakeLua_StringLower_TCC/10000                       82321 ns        66543 ns        10480
+BM_FakeLua_StringLower_GCC/10                           1548 ns         1195 ns       585487
+BM_FakeLua_StringLower_GCC/100                          2235 ns         1933 ns       360914
+BM_FakeLua_StringLower_GCC/1000                        10801 ns         7773 ns        91180
+BM_FakeLua_StringLower_GCC/10000                      100611 ns        66635 ns        10666
+BM_CPP_StringUpper/10                                    254 ns          197 ns      3555340
+BM_CPP_StringUpper/100                                  1803 ns         1371 ns       510412
+BM_CPP_StringUpper/1000                                16573 ns        12648 ns        55404
+BM_CPP_StringUpper/10000                              148923 ns       124852 ns         5602
+BM_Lua_StringUpper/10                                    395 ns          318 ns      2199829
+BM_Lua_StringUpper/100                                  1010 ns          724 ns       971687
+BM_Lua_StringUpper/1000                                 2906 ns         2026 ns       346674
+BM_Lua_StringUpper/10000                               19231 ns        14751 ns        47236
+BM_FakeLua_StringUpper_TCC/10                           1876 ns         1188 ns       591885
+BM_FakeLua_StringUpper_TCC/100                          2590 ns         1918 ns       366064
+BM_FakeLua_StringUpper_TCC/1000                        10841 ns         7800 ns        90394
+BM_FakeLua_StringUpper_TCC/10000                      101903 ns        67317 ns        10515
+BM_FakeLua_StringUpper_GCC/10                           1425 ns         1195 ns       584536
+BM_FakeLua_StringUpper_GCC/100                          2303 ns         1920 ns       363190
+BM_FakeLua_StringUpper_GCC/1000                         9024 ns         7766 ns        89774
+BM_FakeLua_StringUpper_GCC/10000                       77316 ns        66902 ns        10490
+BM_CPP_StringByte/10                                    23.6 ns         16.9 ns     41168498
+BM_CPP_StringByte/100                                   20.6 ns         16.9 ns     41551028
+BM_CPP_StringByte/1000                                  22.0 ns         16.9 ns     41330430
+BM_Lua_StringByte/10                                     356 ns          284 ns      2470813
+BM_Lua_StringByte/100                                    557 ns          442 ns      1585153
+BM_Lua_StringByte/1000                                   817 ns          619 ns      1123045
+BM_FakeLua_StringByte_TCC/10                            1481 ns         1176 ns       592065
+BM_FakeLua_StringByte_TCC/100                           1560 ns         1233 ns       564802
+BM_FakeLua_StringByte_TCC/1000                          1557 ns         1261 ns       552768
+BM_FakeLua_StringByte_GCC/10                            1822 ns         1177 ns       596420
+BM_FakeLua_StringByte_GCC/100                           1773 ns         1231 ns       573251
+BM_FakeLua_StringByte_GCC/1000                          1704 ns         1265 ns       553388
+BM_CPP_StringChar/10                                     238 ns          206 ns      3414614
+BM_CPP_StringChar/100                                   1974 ns         1448 ns       479190
+BM_CPP_StringChar/500                                   8241 ns         6817 ns       103196
+BM_Lua_StringChar/10                                    4482 ns         3085 ns       226181
+BM_Lua_StringChar/100                                  20611 ns        17919 ns        38728
+BM_Lua_StringChar/500                                  94589 ns        77815 ns         9370
+BM_FakeLua_StringChar_TCC/10                           18737 ns        16069 ns        44164
+BM_FakeLua_StringChar_TCC/100                         274684 ns       205036 ns         3423
+BM_FakeLua_StringChar_TCC/500                        2976099 ns      2130511 ns          327
+BM_FakeLua_StringChar_GCC/10                           19983 ns        15063 ns        46371
+BM_FakeLua_StringChar_GCC/100                         262169 ns       195854 ns         3575
+BM_FakeLua_StringChar_GCC/500                        2855694 ns      2089168 ns          337
+BM_CPP_StringFormat/10                                   667 ns          536 ns      1300872
+BM_CPP_StringFormat/100                                 6815 ns         5299 ns       133071
+BM_CPP_StringFormat/500                                37191 ns        29447 ns        23740
+BM_Lua_StringFormat/10                                  3685 ns         2953 ns       236796
+BM_Lua_StringFormat/100                                36329 ns        28668 ns        24427
+BM_Lua_StringFormat/500                               198469 ns       147611 ns         4799
+BM_FakeLua_StringFormat_TCC/10                         14330 ns        10776 ns        65074
+BM_FakeLua_StringFormat_TCC/100                       138036 ns       103169 ns         6762
+BM_FakeLua_StringFormat_TCC/500                       678364 ns       515325 ns         1367
+BM_FakeLua_StringFormat_GCC/10                         14179 ns        10652 ns        65386
+BM_FakeLua_StringFormat_GCC/100                       143547 ns       102189 ns         6825
+BM_FakeLua_StringFormat_GCC/500                       696456 ns       510061 ns         1370
+BM_CPP_StringFind/10                                    88.3 ns         66.2 ns     10560864
+BM_CPP_StringFind/100                                   90.5 ns         68.6 ns     10171823
+BM_CPP_StringFind/1000                                   103 ns         70.5 ns      9951069
+BM_CPP_StringFind/10000                                  190 ns          128 ns      5429439
+BM_Lua_StringFind/10                                     617 ns          482 ns      1449480
+BM_Lua_StringFind/100                                    751 ns          599 ns      1164241
+BM_Lua_StringFind/1000                                  1086 ns          802 ns       879119
+BM_Lua_StringFind/10000                                 3039 ns         2216 ns       314954
+BM_FakeLua_StringFind_TCC/10                            2845 ns         1711 ns       412027
+BM_FakeLua_StringFind_TCC/100                           2440 ns         1720 ns       406821
+BM_FakeLua_StringFind_TCC/1000                          2129 ns         1785 ns       393471
+BM_FakeLua_StringFind_TCC/10000                         3171 ns         2621 ns       263347
+BM_FakeLua_StringFind_GCC/10                            1989 ns         1698 ns       411205
+BM_FakeLua_StringFind_GCC/100                           2073 ns         1709 ns       409127
+BM_FakeLua_StringFind_GCC/1000                          2130 ns         1763 ns       398758
+BM_FakeLua_StringFind_GCC/10000                         3225 ns         2582 ns       268519
+BM_CPP_StringGsub/10                                     257 ns          185 ns      3767363
+BM_CPP_StringGsub/100                                   2461 ns         1735 ns       403615
+BM_CPP_StringGsub/1000                                 23592 ns        17165 ns        40897
+BM_Lua_StringGsub/10                                    1316 ns          973 ns       718553
+BM_Lua_StringGsub/100                                   9011 ns         6512 ns       107387
+BM_Lua_StringGsub/1000                                 80089 ns        57167 ns        12154
+BM_FakeLua_StringGsub_TCC/10                           14776 ns        10508 ns        65956
+BM_FakeLua_StringGsub_TCC/100                          86643 ns        70203 ns         9944
+BM_FakeLua_StringGsub_TCC/1000                        836159 ns       665230 ns         1056
+BM_FakeLua_StringGsub_GCC/10                           13436 ns        10466 ns        66438
+BM_FakeLua_StringGsub_GCC/100                          89500 ns        70417 ns         9953
+BM_FakeLua_StringGsub_GCC/1000                        866494 ns       667670 ns         1046
+BM_CPP_ToNumber/1                                        119 ns         92.5 ns      7537568
+BM_Lua_ToNumber/1                                        325 ns          269 ns      2589378
+BM_FakeLua_ToNumber_TCC/1                               1885 ns         1465 ns       474466
+BM_FakeLua_ToNumber_GCC/1                               1817 ns         1453 ns       478264
+BM_CPP_ToString/10                                      1136 ns          891 ns       785820
+BM_CPP_ToString/100                                    11054 ns         8745 ns        79803
+BM_CPP_ToString/500                                    59570 ns        44771 ns        15725
+BM_Lua_ToString/10                                       716 ns          510 ns      1356090
+BM_Lua_ToString/100                                      665 ns          514 ns      1371493
+BM_Lua_ToString/500                                      689 ns          513 ns      1357492
+BM_FakeLua_ToString_TCC/10                              1361 ns         1046 ns       664452
+BM_FakeLua_ToString_TCC/100                             1297 ns         1059 ns       664222
+BM_FakeLua_ToString_TCC/500                             1295 ns         1059 ns       659709
+BM_FakeLua_ToString_GCC/10                              1260 ns         1044 ns       672893
+BM_FakeLua_ToString_GCC/100                             1272 ns         1054 ns       667884
+BM_FakeLua_ToString_GCC/500                             1262 ns         1053 ns       663416
+BM_CPP_StringFindPattern/1000                         239122 ns       191815 ns         3613
+BM_Lua_StringFindPattern/1000                        1291275 ns       995323 ns          693
+BM_FakeLua_StringFindPattern_TCC/1000                6775461 ns      5489633 ns          128
+BM_FakeLua_StringFindPattern_GCC/1000                6868854 ns      5390184 ns          131
+BM_CPP_StringGmatch/1000                              251438 ns       221912 ns         3161
+BM_Lua_StringGmatch/1000                             1652116 ns      1248890 ns          572
+BM_FakeLua_StringGmatch_TCC/1000                     6829500 ns      6271437 ns          111
+BM_FakeLua_StringGmatch_GCC/1000                     7368825 ns      6091806 ns          115
+BM_CPP_TableInsert/100                                   783 ns          664 ns      1058184
+BM_CPP_TableInsert/500                                  3694 ns         3006 ns       231731
+BM_CPP_TableInsert/1000                                 7167 ns         5920 ns       117633
+BM_CPP_TableInsert/5000                                38704 ns        29040 ns        23949
+BM_Lua_TableInsert/100                                 19830 ns        13680 ns        51014
+BM_Lua_TableInsert/500                                 85396 ns        61844 ns        11878
+BM_Lua_TableInsert/1000                               171401 ns       120782 ns         5680
+BM_Lua_TableInsert/5000                               793507 ns       585246 ns         1156
+BM_FakeLua_TableInsert_TCC/100                         66328 ns        54777 ns        12820
+BM_FakeLua_TableInsert_TCC/500                       1451992 ns      1088750 ns          642
+BM_FakeLua_TableInsert_TCC/1000                      5369852 ns      4322096 ns          164
+BM_FakeLua_TableInsert_TCC/5000                    119662784 ns    105876177 ns            7
+BM_FakeLua_TableInsert_GCC/100                         18588 ns        16270 ns        43526
+BM_FakeLua_TableInsert_GCC/500                        423879 ns       328276 ns         2216
+BM_FakeLua_TableInsert_GCC/1000                      1502031 ns      1295016 ns          537
+BM_FakeLua_TableInsert_GCC/5000                     39966428 ns     29610920 ns           24
+BM_CPP_TableRemove/100                                  2620 ns         1808 ns       387855
+BM_CPP_TableRemove/500                                 13512 ns         8739 ns        80612
+BM_CPP_TableRemove/1000                                19918 ns        17753 ns        39383
+BM_CPP_TableRemove/5000                               103304 ns        87640 ns         7930
+BM_Lua_TableRemove/100                                 23370 ns        19585 ns        35417
+BM_Lua_TableRemove/500                                101572 ns        86839 ns         7911
+BM_Lua_TableRemove/1000                               208276 ns       168288 ns         4071
+BM_Lua_TableRemove/5000                              1098396 ns       917705 ns          758
+BM_FakeLua_TableRemove_TCC/100                         72940 ns        61653 ns        11279
+BM_FakeLua_TableRemove_TCC/500                       1510153 ns      1130615 ns          618
+BM_FakeLua_TableRemove_TCC/1000                      5908257 ns      4337975 ns          162
+BM_FakeLua_TableRemove_TCC/5000                    146538395 ns    104609798 ns            7
+BM_FakeLua_TableRemove_GCC/100                         25293 ns        18198 ns        36974
+BM_FakeLua_TableRemove_GCC/500                        448550 ns       324855 ns         2120
+BM_FakeLua_TableRemove_GCC/1000                      1601957 ns      1242525 ns          564
+BM_FakeLua_TableRemove_GCC/5000                     36387976 ns     30472920 ns           23
+BM_CPP_TableConcat/100                                 10055 ns         8799 ns        80105
+BM_CPP_TableConcat/500                                 52325 ns        44868 ns        15589
+BM_CPP_TableConcat/1000                               106755 ns        90039 ns         7768
+BM_Lua_TableConcat/100                                 51984 ns        38274 ns        18147
+BM_Lua_TableConcat/500                                276820 ns       188649 ns         3722
+BM_Lua_TableConcat/1000                               507283 ns       379999 ns         1832
+BM_FakeLua_TableConcat_TCC/100                        225853 ns       192706 ns         3723
+BM_FakeLua_TableConcat_TCC/500                       2424617 ns      2081939 ns          337
+BM_FakeLua_TableConcat_TCC/1000                      7971335 ns      6957870 ns           99
+BM_FakeLua_TableConcat_GCC/100                        209450 ns       184053 ns         3808
+BM_FakeLua_TableConcat_GCC/500                       2373606 ns      2042856 ns          343
+BM_FakeLua_TableConcat_GCC/1000                      8972538 ns      6884714 ns          102
+BM_CPP_TablePack/1                                      7.62 ns         5.52 ns    126824477
+BM_Lua_TablePack/1                                      2270 ns         1508 ns       453066
+BM_FakeLua_TablePack_TCC/1                              1772 ns         1398 ns       504946
+BM_FakeLua_TablePack_GCC/1                               949 ns          703 ns      1005029
+BM_CPP_TableMove/100                                    2349 ns         1919 ns       364542
+BM_CPP_TableMove/500                                   13773 ns         9112 ns        77038
+BM_CPP_TableMove/1000                                  24574 ns        17941 ns        39076
+BM_CPP_TableMove/5000                                 164542 ns        88971 ns         7911
+BM_Lua_TableMove/100                                   11145 ns         9438 ns        75906
+BM_Lua_TableMove/500                                   35022 ns        30325 ns        22956
+BM_Lua_TableMove/1000                                  68190 ns        55370 ns        12679
+BM_Lua_TableMove/5000                                 306408 ns       269300 ns         2588
+BM_FakeLua_TableMove_TCC/100                          131860 ns       113604 ns         6153
+BM_FakeLua_TableMove_TCC/500                         2036913 ns      1683879 ns          413
+BM_FakeLua_TableMove_TCC/1000                        7436139 ns      6159088 ns          114
+BM_FakeLua_TableMove_TCC/5000                      197092956 ns    143306119 ns            5
+BM_FakeLua_TableMove_GCC/100                          149727 ns       107889 ns         6515
+BM_FakeLua_TableMove_GCC/500                         2309838 ns      1678119 ns          416
+BM_FakeLua_TableMove_GCC/1000                        8444337 ns      6185440 ns          113
+BM_FakeLua_TableMove_GCC/5000                      223027760 ns    143053397 ns            5
+BM_CPP_TableSort/100                                    7729 ns         5223 ns       133732
+BM_CPP_TableSort/500                                   42171 ns        33348 ns        21094
+BM_CPP_TableSort/1000                                  85949 ns        69875 ns        10057
+BM_Lua_TableSort/100                                   38986 ns        30933 ns        22685
+BM_Lua_TableSort/500                                  247574 ns       190351 ns         3664
+BM_Lua_TableSort/1000                                 589248 ns       409169 ns         1709
+BM_FakeLua_TableSort_TCC/100                          277771 ns       175282 ns         3973
+BM_FakeLua_TableSort_TCC/500                         4214847 ns      3123057 ns          224
+BM_FakeLua_TableSort_TCC/1000                       16585657 ns     11862535 ns           59
+BM_FakeLua_TableSort_GCC/100                          195888 ns       165667 ns         4241
+BM_FakeLua_TableSort_GCC/500                         3564204 ns      3069208 ns          228
+BM_FakeLua_TableSort_GCC/1000                       13942763 ns     11756315 ns           59
+BM_CPP_TableCreate/1000                                14341 ns        11812 ns        58980
+BM_CPP_TableCreate/3000                                40850 ns        35176 ns        19834
+BM_CPP_TableCreate/5000                                68488 ns        58292 ns        12135
+BM_Lua_TableCreate/1000                                33272 ns        27710 ns        25386
+BM_Lua_TableCreate/3000                                99579 ns        81255 ns         8612
+BM_Lua_TableCreate/5000                               187385 ns       140588 ns         4949
+BM_FakeLua_TableCreate_TCC/1000                       123928 ns        98272 ns         7157
+BM_FakeLua_TableCreate_TCC/3000                       405145 ns       342909 ns         2053
+BM_FakeLua_TableCreate_TCC/5000                       720608 ns       629690 ns         1108
+BM_FakeLua_TableCreate_GCC/1000                        22936 ns        19493 ns        35938
+BM_FakeLua_TableCreate_GCC/3000                        79501 ns        66952 ns        10688
+BM_FakeLua_TableCreate_GCC/5000                       146031 ns       125736 ns         5564
+BM_CPP_HashInsert/100                                  31074 ns        25627 ns        27321
+BM_CPP_HashInsert/500                                 167382 ns       144563 ns         4831
+BM_CPP_HashInsert/1000                                352005 ns       296431 ns         2358
+BM_Lua_HashInsert/100                                  60447 ns        49093 ns        14224
+BM_Lua_HashInsert/500                                 300879 ns       246976 ns         2835
+BM_Lua_HashInsert/1000                                616094 ns       516227 ns         1347
+BM_FakeLua_HashInsert_TCC/100                          82384 ns        69876 ns        10051
+BM_FakeLua_HashInsert_TCC/500                         420580 ns       344089 ns         2028
+BM_FakeLua_HashInsert_TCC/1000                        875961 ns       740259 ns          946
+BM_FakeLua_HashInsert_GCC/100                          73095 ns        57537 ns        12208
+BM_FakeLua_HashInsert_GCC/500                         372756 ns       286522 ns         2447
+BM_FakeLua_HashInsert_GCC/1000                        778321 ns       591072 ns         1163
+BM_CPP_HashLookup/100                                 460844 ns       317764 ns         2209
+BM_CPP_HashLookup/500                                 543700 ns       401039 ns         1745
+BM_CPP_HashLookup/1000                                803534 ns       503815 ns         1392
+BM_Lua_HashLookup/100                                  47576 ns        40821 ns        17129
+BM_Lua_HashLookup/500                                 237389 ns       209240 ns         3305
+BM_Lua_HashLookup/1000                                483369 ns       424861 ns         1632
+BM_FakeLua_HashLookup_TCC/100                          74025 ns        63641 ns        10944
+BM_FakeLua_HashLookup_TCC/500                         372589 ns       323900 ns         2161
+BM_FakeLua_HashLookup_TCC/1000                        787554 ns       655228 ns         1081
+BM_FakeLua_HashLookup_GCC/100                          78154 ns        56178 ns        12749
+BM_FakeLua_HashLookup_GCC/500                         381772 ns       283637 ns         2462
+BM_FakeLua_HashLookup_GCC/1000                        652404 ns       560545 ns         1240
+BM_CPP_NestedTable/1000                                83303 ns        61237 ns        11382
+BM_CPP_NestedTable/10000                              750997 ns       608333 ns         1147
+BM_Lua_NestedTable/1000                               332739 ns       291943 ns         2414
+BM_Lua_NestedTable/10000                             3400317 ns      2887672 ns          241
+BM_FakeLua_NestedTable_TCC/1000                       504239 ns       443705 ns         1571
+BM_FakeLua_NestedTable_TCC/10000                     5211569 ns      4435698 ns          159
+BM_FakeLua_NestedTable_GCC/1000                       116617 ns        87651 ns         8035
+BM_FakeLua_NestedTable_GCC/10000                     1148141 ns       862546 ns          808
 ```
-
----
-
-## 算法性能分析（C++ vs Lua vs FakeLua TCC vs FakeLua GCC）
-
-以下取各算法的典型参数做横向对比（CPU Time），**倍数 = 对应实现时间 / C++ 时间**：
-
-### 1. Fibonacci（n=32，递归无记忆化）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 4.80 ms | 1x |
-| Lua | 206.20 ms | **43.00x** 慢 |
-| FakeLua TCC | 20.05 ms | **4.19x** 慢 |
-| FakeLua GCC | 4.37 ms | **1.09x** 快 (比 C++ 快 **9%**) |
-
-### 2. GCD（a=832040, b=514229，约 30 次迭代）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 121 ns | 1x |
-| Lua | 500 ns | **4.14x** 慢 |
-| FakeLua TCC | 250 ns | **2.07x** 慢 (比 Lua 快 **2.00x**) |
-| FakeLua GCC | 202 ns | **1.67x** 慢 (比 Lua 快 **2.48x**) |
-
-### 3. PowMod（base=1234567, exp=7654321, mod=1e9+7，约 23 次循环，用 `%`/`//`）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 296 ns | 1x |
-| Lua | 1013 ns | **3.43x** 慢 |
-| FakeLua TCC | 702 ns | **2.37x** 慢 (比 Lua 快 **1.44x**) |
-| FakeLua GCC | 425 ns | **1.44x** 慢 (比 Lua 快 **2.38x**) |
-
-### 4. FastPow（base=1234567, exp=7654321, mod=1e9+7，用 `&`/`>>`）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 297 ns | 1x |
-| Lua | 889 ns | **2.99x** 慢 |
-| FakeLua TCC | 432 ns | **1.46x** 慢 (比 Lua 快 **2.06x**) |
-| FakeLua GCC | 415 ns | **1.40x** 慢 (比 Lua 快 **2.14x**) |
-
-> FastPow 用位运算 `&`/`>>` 代替取余/整除 `%`/`//`，在 FakeLua TCC 下比 PowMod 快约 **1.6x**（702 ns → 432 ns），说明 TCC 对位运算的代码生成较优。GCC 两者表现也较接近。
-
-### 5. Sum（n=5000000，纯循环累加）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 1.54 ms | 1x |
-| Lua | 26.78 ms | **17.33x** 慢 |
-| FakeLua TCC | 12.63 ms | **8.17x** 慢 (比 Lua 快 **2.12x**) |
-| FakeLua GCC | 1.55 ms | **1.00x** 持平 |
-
-> 纯整数累加循环：FakeLua GCC 与 C++ 几乎完全相同，说明 GCC `-O3` 对简单数值循环已达到 C++ 原生水平。TCC 比 Lua 快 **2.1x**。
-
-### 6. BubbleSort（n=200，O(n²)，含表操作）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 125.7 µs | 1x |
-| Lua | 816.0 µs | **6.50x** 慢 |
-| FakeLua TCC | 1.74 ms | **13.89x** 慢 (比 Lua 慢 **2.14x**) |
-| FakeLua GCC | 518.5 µs | **4.13x** 慢 (比 Lua 快 **1.57x**) |
-
-> 表操作为瓶颈。TCC 比 Lua 慢约 2.1x，GCC 快于 Lua 约 1.6x。
-
-### 7. Sieve（n=5000，Eratosthenes 筛质数）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 12.6 µs | 1x |
-| Lua | 265.6 µs | **21.02x** 慢 |
-| FakeLua TCC | 578.2 µs | **45.76x** 慢 (比 Lua 慢 **2.18x**) |
-| FakeLua GCC | 124.4 µs | **9.85x** 慢 (比 Lua 快 **2.14x**) |
-
-> 筛法涉及大量表写操作，TCC 表现最差；GCC 凭借优化仍快于 Lua 2.1x。
-
-### 8. BinarySearch（n=1000，二分查找）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 19.0 µs | 1x |
-| Lua | 436.8 µs | **22.98x** 慢 |
-| FakeLua TCC | 631.9 µs | **33.23x** 慢 (比 Lua 慢 **1.45x**) |
-| FakeLua GCC | 128.6 µs | **6.76x** 慢 (比 Lua 快 **3.40x**) |
-
-### 9. Popcount（n=100000，Brian Kernighan 位计数）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 468.0 µs | 1x |
-| Lua | 13.14 ms | **28.06x** 慢 |
-| FakeLua TCC | 2.03 ms | **4.33x** 慢 (比 Lua 快 **6.48x**) |
-| FakeLua GCC | 435.9 µs | **0.93x** 快 (比 C++ 快 **7%**) |
-
-> 纯位运算场景：FakeLua GCC 略超 C++，比 Lua 快 **30.1x**，展示 GCC 对位运算的极致优化。
-
-### 10. InsertionSort（n=200，O(n²)，含表操作）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 11.6 µs | 1x |
-| Lua | 568.7 µs | **49.08x** 慢 |
-| FakeLua TCC | 1.08 ms | **93.36x** 慢 (比 Lua 慢 **1.90x**) |
-| FakeLua GCC | 200.6 µs | **17.30x** 慢 (比 Lua 快 **2.84x**) |
-
-### 11. MatMul（单次 3×3 矩阵乘法，使用全局常量 Table 读）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 1.90 ns | 1x |
-| Lua | 2.78 µs | **1463.16x** 慢 |
-| FakeLua TCC | 2.13 µs | **1118.95x** 慢 (比 Lua 快 **1.31x**) |
-| FakeLua GCC | 516 ns | **271.58x** 慢 (比 Lua 快 **5.39x**) |
-
-> 将只读矩阵 `mat_a` 和 `mat_b` 移入全局/模块级常量，并启用 Table 特化后，**TCC 和 GCC-JIT 的性能均获得巨大突破**：
-> - **TCC** 成功跑赢 Lua 5.4 解释器（快 **1.31x**）。
-> - **GCC** 比 Lua 5.4 解释器快 **5.39x**。
->
-> **实现细节剖析**：
-> 需要注意的是，由于 `bench_matmul` 中的索引访问是动态表达式（如 `mat_a[(i - 1) * 3 + k]`），在生成的 C 代码中，并不能直接在调用处生成静态的指针偏移访问（如 `s->_int_1`）。它在 C 代码中仍然调用了 `FlGetTableInt`。
-> 但由于 `mat_a` 和 `mat_b` 已经是特化 Table，`FlGetTableInt` 内部会优先通过其绑定的特化回调函数 `spec_get` 执行。在 `spec_get` 内部，系统执行 `if (__ival == 1) return s->_int_1;` 等键值匹配分支，最终映射到结构体成员的指针偏移。这种方式虽然含有分支判断开销，但比常规的哈希计算与哈希桶查找要高效得多。此外，将只读表定义于函数外部，彻底消除了每次函数调用时的 Table 重新分配与 GC 垃圾回收压力。
-
----
-
-### 12. Vector3（三维坐标 x, y, z 在循环中累计读写）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 480.6 µs | 1x |
-| Lua | 116.75 ms | **242.99x** 慢 |
-| FakeLua TCC | 136.62 ms | **284.14x** 慢 (比 Lua 慢 **1.17x**) |
-| FakeLua GCC | 22.68 ms | **47.17x** 慢 |
-
-> **实现细节剖析**：
-> 在本测试中，`v1` 和 `v2` 是通过字面量键定义的局部 Vector3 表 `{x=10, y=20, z=30}`。由于键 `x`, `y`, `z` 均为静态已知的字符串字面量，JIT 编译器**成功将该 Table 构造特化为了静态的 C 结构体**。
-> 同时，在循环体内对 `v1.x = v1.x + v2.x` 等成员的读写都是静态已知的字符串 Key 访问，因此 JIT 编译器**直接将其编译为了零查找开销的静态指针偏移访问**（类似于 C 语言结构体成员的直接读写 `v1.spec->x = v1.spec->x + v2.spec->x`）。
-> 相比之下，Lua 5.4 在执行这 100 万次循环时，必须进行总共 900 万次基于字符串哈希的 Table Lookup。实验表明，FakeLua GCC 比标准 Lua 5.4 **快 5.15 倍**，充分展示了 Table 结构体特化和直接指针偏移读写的强悍性能。
-
----
-
-## FakeLua TCC vs Lua 5.4 详细对比
-
-| 算法 | 参数 | Lua | FakeLua TCC | 结果 |
-|------|------|-----|-------------|------|
-| Fibonacci | n=32 | 206.20 ms | 20.05 ms | TCC **10.28x 快** |
-| GCD | 832040/514229 | 500 ns | 250 ns | TCC **2.00x 快** |
-| PowMod | 1234567/7654321/1e9+7 | 1013 ns | 702 ns | TCC **1.44x 快** |
-| FastPow | 1234567/7654321/1e9+7 | 889 ns | 432 ns | TCC **2.06x 快** |
-| Sum | n=5000000 | 26.78 ms | 12.63 ms | TCC **2.12x 快** |
-| BubbleSort | n=200 | 816.0 µs | 1.74 ms | TCC **2.14x 慢** |
-| Sieve | n=5000 | 265.6 µs | 578.2 µs | TCC **2.18x 慢** |
-| BinarySearch | n=1000 | 436.8 µs | 631.9 µs | TCC **1.45x 慢** |
-| Popcount | n=100000 | 13.14 ms | 2.03 ms | TCC **6.48x 快** |
-| InsertionSort | n=200 | 568.7 µs | 1.08 ms | TCC **1.90x 慢** |
-| MatMul | 单次 3×3 | 2.78 µs | 2.13 µs | TCC **1.31x 快** |
-| Vector3 | n=1000000 | 116.75 ms | 136.62 ms | TCC **1.17x 慢** |
-
-> **结论**：在将部分 Table 静态只读部分常量化后，TCC 在 MatMul 这样的运算中超越了 Lua；在纯数值算法上也保持 2.0x ~ 10.3x 的巨大优势。表写操作依然是 TCC 的软肋，但表读与遍历性能表现优异。
-
----
-
-## FakeLua GCC vs Lua 5.4 详细对比
-
-| 算法 | 参数 | Lua | FakeLua GCC | GCC 快多少 |
-|------|------|-----|-------------|-----------|
-| Fibonacci | n=32 | 206.20 ms | 4.37 ms | **47.19x** |
-| GCD | 832040/514229 | 500 ns | 202 ns | **2.48x** |
-| PowMod | 1234567/7654321/1e9+7 | 1013 ns | 425 ns | **2.38x** |
-| FastPow | 1234567/7654321/1e9+7 | 889 ns | 415 ns | **2.14x** |
-| Sum | n=5000000 | 26.78 ms | 1.55 ms | **17.32x** |
-| BubbleSort | n=200 | 816.0 µs | 518.5 µs | **1.57x** |
-| Sieve | n=5000 | 265.6 µs | 124.4 µs | **2.14x** |
-| BinarySearch | n=1000 | 436.8 µs | 128.6 µs | **3.40x** |
-| Popcount | n=100000 | 13.14 ms | 435.9 µs | **30.14x** |
-| InsertionSort | n=200 | 568.7 µs | 200.6 µs | **2.84x** |
-| MatMul | 单次 3×3 | 2.78 µs | 516 ns | **5.39x** |
-| Vector3 | n=1000000 | 116.75 ms | 22.68 ms | **5.15x** |
-
-### FakeLua GCC 按场景分类
-
-| 场景类型 | FakeLua GCC 比 Lua 快 | 原因 |
-|---------|----------------------|------|
-| **纯整数累加 (Sum)** | **17.32x** | GCC `-O3` 向量化，达到 C++ 原生水平 |
-| **纯整数位运算 (Popcount)** | **30.14x** | 位运算全部原生化，GCC 极进优化 |
-| **递归 (Fibonacci)** | **47.19x** | 数值特化 + 原生递归，GCC 深度内联 |
-| **算术循环 (PowMod/FastPow)** | **2.38x–2.14x** | 循环体数值特化，取模运算受益于寄存器优化 |
-| **短迭代 (GCD)** | **2.48x** | 迭代次数少，函数调用开销占比高 |
-| **二分查找 (BinarySearch)** | **3.40x** | 混合数值+表操作，GCC 部分消除 table 开销 |
-| **表操作为主 (BubbleSort/InsertionSort/Sieve/MatMul/Vector3)** | **1.57x–5.39x** | 引入了 Table 结构体特化与读写，大幅提升读写效率 |
-
-> **FakeLua GCC 后端在所有算法上均快于 Lua 5.4**（1.6x ~ 47.2x），特别是表常量化后，部分表操作场景的性能优势得到了显著提升。
-
----
-
-## 总体结论
-
-1. **C++ 最快**：在全部算法上领先，受益于 `-O3` 内联/展开/向量化。
-
-2. **FakeLua GCC 全面超越 Lua，纯数值场景接近 C++ 原生**：
-   - 纯整数运算（Sum）：GCC 与 C++ 完全持平，比 Lua 快 **17.3x**
-   - 纯位运算（Popcount）：GCC 略超 C++，比 Lua 快 **30.1x**
-   - 递归（Fibonacci）：比 Lua 快 **47.2x**，性能非常接近 C++（甚至略快 9%）
-   - 算术循环（PowMod/FastPow）：比 Lua 快 **2.4–2.1x**
-   - 表操作为主（BubbleSort/InsertionSort/Sieve/MatMul/Vector3）：比 Lua 快 **1.6–5.4x**
-
-3. **FakeLua TCC 优缺点分明**：
-   - 纯整数算法（Sum、Popcount、FastPow、Fibonacci）：比 Lua 快 **2.1x ~ 10.3x**
-   - 表操作密集型算法（BubbleSort、Sieve、InsertionSort）：比 Lua 慢 **1.15x ~ 2.3x**，但只读静态 Table 的场景下已能够快于 Lua (**1.31x**)
-   - TCC 生成的 C 代码对 table 读写路径较长，而 Lua 解释器对 table 操作深度优化，导致写密集表算法下 TCC 明显落后
-
-4. **位运算 vs 取模**（FastPow `&`/`>>` vs PowMod `%`/`//`）：在 TCC 下位运算快（702 ns vs 432 ns），GCC 下两者也较接近，说明 FakeLua 已能对两种写法生成相近质量的代码。
-
-> 注：ASLR 开启，结果有一定随机噪声；建议在 `--cpu-scaling-enabled=false` 环境下多重复后取均值。
-
----
-
-## 字符串操作性能分析
-
-> 更新日期：2026-08-10
-
-### 1. StringLen — 取字符串长度（s=10000 字符）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 16.5 ns | 1x |
-| Lua | 1,414 ns | **85.7x** 慢 |
-| FakeLua TCC | 911 ns | **55.2x** 慢 (比 Lua 快 **1.55x**) |
-| FakeLua GCC | 885 ns | **53.6x** 慢 (比 Lua 快 **1.60x**) |
-
-> `#s` 在 Fakelua 中涉及调用约定开销（~550ns 固定成本）。对长字符串 C++ `s.size()` 仅 ~16ns（被内联），Lua/Fakelua 均有函数调用开销，但 Fakelua 仍快于 Lua。
-
-### 2. StringSub — 截取子串（s=10000 字符）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 255 ns | 1x |
-| Lua | 2,286 ns | **8.96x** 慢 |
-| FakeLua TCC | 2,073 ns | **8.13x** 慢 (比 Lua 快 **1.10x**) |
-| FakeLua GCC | 2,100 ns | **8.24x** 慢 (比 Lua 快 **1.09x**) |
-
-> 子串创建涉及内存拷贝，Fakelua 与 Lua 性能接近。
-
-### 3. StringRep — 重复字符串（重复 1000 次）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 29,551 ns | 1x |
-| Lua | 4,686 ns | **0.16x** 快 (比 C++ 快 **6.3x**) |
-| FakeLua TCC | 31,057 ns | **1.05x** 慢 (比 Lua 慢 **6.63x**) |
-| FakeLua GCC | 31,108 ns | **1.05x** 慢 (比 Lua 慢 **6.64x**) |
-
-> Lua 的 `string.rep` 经历了深度优化（内部 memcpy 大量重复块），Fakelua 的字符串实现与 C++ naive 版本相当。
-
-### 4. StringReverse — 反转字符串（s=10000 字符）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 33,737 ns | 1x |
-| Lua | 9,077 ns | **0.27x** 快 (比 C++ 快 **3.72x**) |
-| FakeLua TCC | 35,603 ns | **1.06x** 慢 (比 Lua 慢 **3.92x**) |
-| FakeLua GCC | 35,634 ns | **1.06x** 慢 (比 Lua 慢 **3.93x**) |
-
-> Lua 原生 `string.reverse` 是 C 实现，效率远超脚本层操作。Fakelua 在脚本层逐字符操作导致落后。
-
-### 5. StringLower — 转小写（s=10000 字符）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 120,797 ns | 1x |
-| Lua | 10,887 ns | **0.09x** 快 (比 C++ 快 **11.1x**) |
-| FakeLua TCC | 66,376 ns | **0.55x** 快 (比 Lua 慢 **6.10x**) |
-| FakeLua GCC | 66,128 ns | **0.55x** 快 (比 Lua 慢 **6.07x**) |
-
-> Lua 的 `string.lower` 是原生 C 实现。Fakelua 在脚本层遍历字符串逐字符转换，性能约为 C++ 的 55%（在 JIT 编译下），但仍无法与原生 C 实现匹敌。
-
-### 6. StringUpper — 转大写（s=10000 字符）
-
-模式与 StringLower 完全一致，Lua 原生实现快于所有其他变体约 **11x**。
-
-### 7. StringFormat — 格式化整数（500 次 `string.format("%d", i)`）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 27,581 ns | 1x |
-| Lua | 103,499 ns | **3.75x** 慢 |
-| FakeLua TCC | 530,039 ns | **19.2x** 慢 (比 Lua 慢 **5.12x**) |
-| FakeLua GCC | 528,677 ns | **19.2x** 慢 (比 Lua 慢 **5.11x**) |
-
-> `string.format` 涉及复杂的格式解析和变参处理，Fakelua 在此场景显著落后于标准 Lua。
-
-### 8. StringGsub — 字符串替换（s=1000 字符，替换全部 a→b）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 17,115 ns | 1x |
-| Lua | 29,204 ns | **1.71x** 慢 |
-| FakeLua TCC | 649,413 ns | **37.9x** 慢 (比 Lua 慢 **22.2x**) |
-| FakeLua GCC | 639,056 ns | **37.3x** 慢 (比 Lua 慢 **21.9x**) |
-
-> `string.gsub` 是 Fakelua 字符串库中最薄弱的环节。Lua 原生模式匹配采用高度优化的 C 引擎，而 Fakelua 在脚本层实现使得替换操作极其昂贵。
-
-### 9. StringFind — 字符串查找（s=10000 字符，多次查找）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 97.5 ns | 1x |
-| Lua | 1,747 ns | **17.9x** 慢 |
-| FakeLua TCC | 2,274 ns | **23.3x** 慢 (比 Lua 慢 **1.30x**) |
-| FakeLua GCC | 2,247 ns | **23.1x** 慢 (比 Lua 慢 **1.29x**) |
-
-> Fakelua 与 Lua 在 `string.find` 上性能接近，均比 C/C++ 原生的 `strstr`/`find` 慢一个数量级。
-
-### 字符串操作：FakeLua TCC vs Lua 5.4
-
-| 测试 | 参数 | Lua | FakeLua TCC | 结果 |
-|------|------|-----|-------------|------|
-| StringLen | n=10000 | 1,414 ns | 911 ns | TCC **1.55x 快** |
-| StringSub | n=10000 | 2,286 ns | 2,073 ns | TCC **1.10x 快** |
-| StringRep | n=1000 | 4,686 ns | 31,057 ns | TCC **6.63x 慢** |
-| StringReverse | n=10000 | 9,077 ns | 35,603 ns | TCC **3.92x 慢** |
-| StringLower | n=10000 | 10,887 ns | 66,376 ns | TCC **6.10x 慢** |
-| StringUpper | n=10000 | 10,685 ns | 66,287 ns | TCC **6.20x 慢** |
-| StringByte | n=1000 | 444 ns | 1,472 ns | TCC **3.32x 慢** |
-| StringChar | n=500 | 56,325 ns | 2,187,565 ns | TCC **38.8x 慢** |
-| StringFormat | n=500 | 103,499 ns | 530,039 ns | TCC **5.12x 慢** |
-| StringFind | n=10000 | 1,747 ns | 2,274 ns | TCC **1.30x 慢** |
-| StringGsub | n=1000 | 29,204 ns | 649,413 ns | TCC **22.2x 慢** |
-| ToNumber | n=1 | 216 ns | 1,525 ns | TCC **7.06x 慢** |
-| ToString | n=500 | 349 ns | 1,108 ns | TCC **3.17x 慢** |
-
-> **关键发现**：fakelua 的原生字符串库函数（如 `string.rep`, `string.reverse`, `string.lower`, `string.gsub`）均远慢于标准 Lua，因为在 fakelua 中这些函数在 JIT 后仍走脚本层处理路径，而非 C 原生实现。**StringLen 是唯一 TCC 始终快于 Lua 的操作**（1.55x–4.51x），因为没有复杂内存操作。
-
----
-
-## 表操作性能分析
-
-> 更新日期：2026-08-10
-
-### 1. TableInsert — 顺序插入（n=5000）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 28.4 µs | 1x |
-| Lua | 437.0 µs | **15.4x** 慢 |
-| FakeLua TCC | 69.3 ms | **2,437x** 慢 (比 Lua 慢 **159x**) |
-| FakeLua GCC | 20.5 ms | **720x** 慢 (比 Lua 慢 **46.9x**) |
-
-> `table.insert` 在 fakelua 中是严重瓶颈。n=5000 时 TCC 比标准 Lua 慢 159 倍。这暴露了 fakelua 在动态数组扩容和表尾部插入路径上的效率问题。
-
-### 2. TableRemove — 尾部删除（n=5000）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 84.0 µs | 1x |
-| Lua | 631.5 µs | **7.52x** 慢 |
-| FakeLua TCC | 69.6 ms | **828x** 慢 (比 Lua 慢 **110x**) |
-| FakeLua GCC | 17.5 ms | **209x** 慢 (比 Lua 慢 **27.8x**) |
-
-> 与 TableInsert 模式类似，删除操作在 fakelua 中也远慢于 Lua。
-
-### 3. TableSort — 排序 1000 个随机整数
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 68.0 µs | 1x |
-| Lua | 273.5 µs | **4.02x** 慢 |
-| FakeLua TCC | 11.6 ms | **170x** 慢 (比 Lua 慢 **42.5x**) |
-| FakeLua GCC | 11.6 ms | **170x** 慢 (比 Lua 慢 **42.3x**) |
-
-> `table.sort` 的性能问题是表操作中最为突出的之一，TCC 和 GCC 均慢于 Lua 约 42 倍。Lua 的排序在 C 层完成，而 fakelua 在脚本层进行排序比较和元素交换。
-
-### 4. TableConcat — 连接 1000 个字符串元素
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 86.5 µs | 1x |
-| Lua | 283.9 µs | **3.28x** 慢 |
-| FakeLua TCC | 6.70 ms | **77.5x** 慢 (比 Lua 慢 **23.6x**) |
-| FakeLua GCC | 6.65 ms | **77.0x** 慢 (比 Lua 慢 **23.4x**) |
-
-### 5. TableMove — 移动 5000 个元素
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 86.0 µs | 1x |
-| Lua | 175.0 µs | **2.03x** 慢 |
-| FakeLua TCC | 140.5 ms | **1,633x** 慢 (比 Lua 慢 **803x**) |
-| FakeLua GCC | 140.0 ms | **1,627x** 慢 (比 Lua 慢 **800x**) |
-
-> `table.move` 是 fakelua 最慢的表操作，TCC 比 Lua 慢 800 倍以上，说明 fakelua 当前的 `table.move` 实现在大规模数据下需要重点优化。
-
-### 6. HashInsert — 哈希表插入 1000 个字符串键
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 268.1 µs | 1x |
-| Lua | 377.4 µs | **1.41x** 慢 |
-| FakeLua TCC | 640.1 µs | **2.39x** 慢 (比 Lua 慢 **1.70x**) |
-| FakeLua GCC | 519.3 µs | **1.94x** 慢 (比 Lua 慢 **1.38x**) |
-
-> 哈希插入是 fakelua 表现较好的表操作，GCC 仅慢于 Lua 约 **1.38x**。
-
-### 7. HashLookup — 哈希表查找 1000 个字符串键
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 286.3–465.8 µs | 1x |
-| Lua | 31.7–316.1 µs | **0.11–0.68x** 快 |
-| FakeLua TCC | 55.2–553.4 µs | **0.19–1.19x** 慢 (比 Lua 慢 **1.74–1.76x**) |
-| FakeLua GCC | 49.4–498.9 µs | **0.17–1.07x** 慢 (比 Lua 慢 **1.56–1.58x**) |
-
-> Lua 的哈希查找快于 C++ `std::unordered_map`（因为 Lua table 的哈希实现针对小键做了极进优化）。Fakelua 的哈希查找约慢于 Lua **1.6–1.8x**。
-
-### 8. NestedTable — 10 层嵌套表遍历（访问 10000 次）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 596.6 µs | 1x |
-| Lua | 1.98 ms | **3.32x** 慢 |
-| FakeLua TCC | 2.84 ms | **4.75x** 慢 (比 Lua 慢 **1.43x**) |
-| FakeLua GCC | 544.5 µs | **0.91x** 快 (比 C++ 快 **9%**, 比 Lua 快 **3.63x**) |
-
-> **亮点**：嵌套表深层遍历中，**FakeLua GCC 快于 C++**。因为 GCC 将表层指针偏移路线编译为直接的寄存器偏移访问，避免了 C++ 的指针追踪开销。这是 fakelua Table 特化优化的最佳展示场景。
-
-### 表操作：FakeLua TCC vs Lua 5.4
-
-| 测试 | 参数 | Lua | FakeLua TCC | 结果 |
-|------|------|-----|-------------|------|
-| TableInsert | n=1000 | 88.1 µs | 2.78 ms | TCC **31.5x 慢** |
-| TableRemove | n=1000 | 116.8 µs | 2.80 ms | TCC **24.0x 慢** |
-| TableConcat | n=1000 | 283.9 µs | 6.70 ms | TCC **23.6x 慢** |
-| TableMove | n=1000 | 34.2 µs | 6.05 ms | TCC **177x 慢** |
-| TableSort | n=1000 | 273.5 µs | 11.6 ms | TCC **42.5x 慢** |
-| TableCreate | n=5000 | 93.7 µs | 440.9 µs | TCC **4.71x 慢** |
-| HashInsert | n=1000 | 377.4 µs | 640.1 µs | TCC **1.70x 慢** |
-| HashLookup | n=1000 | 316.1 µs | 553.4 µs | TCC **1.75x 慢** |
-| NestedTable | n=10000 | 1.98 ms | 2.84 ms | TCC **1.43x 慢** |
-
-> **总结**：fakelua 在表操作方面整体落后于 Lua 5.4，特别是 `table.insert`、`table.move`、`table.sort` 等标准库函数。哈希操作和嵌套表遍历差距最小。主要瓶颈在于表标准库函数在 fakelua 中走脚本层实现路径。
-
----
-
-## 函数调用性能分析
-
-> 更新日期：2026-08-10
-
-### 1. EmptyCall — 空函数调用（n=100000 次）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 5.4 ns | 1x |
-| Lua | 2.91 ms | **537,331x** 慢 |
-| FakeLua TCC | 2.06 ms | **381,517x** 慢 (比 Lua 快 **1.41x**) |
-| FakeLua GCC | 256 µs | **47,314x** 慢 (比 Lua 快 **11.4x**) |
-
-> 极轻量操作的极端放大比。C++ 空调用在 `-O3` 下被完全优化掉。**GCC 比 Lua 快 11.4x**，说明 GCC 后端的函数调用内联优化显著减少了纯调用开销。
-
-### 2. Recursion — 递归 fib(25)
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 2.04 ms | 1x |
-| Lua | 8.75 ms | **4.29x** 慢 |
-| FakeLua TCC | 701.5 µs | **0.34x** 快 (比 C++ 快 **2.91x**, 比 Lua 快 **12.5x**) |
-| FakeLua GCC | 158.2 µs | **0.08x** 快 (比 C++ 快 **12.9x**, 比 Lua 快 **55.3x**) |
-
-> **异常现象**：Fakelua TCC 和 GCC 的递归均**远快于 C++**。这是因为 fakelua 的数值特化将递归完全编译为数值计算——消除了 C++ 函数的 ABI 调用开销（参数压栈、寄存器保存/恢复）。GCC 比 C++ 快 **12.9x**。
-
-### 3. Variadic — 可变参数函数（5 参数求和）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 10.8 ns | 1x |
-| Lua | 497 ns | **46.0x** 慢 |
-| FakeLua TCC | 5,481 ns | **507x** 慢 (比 Lua 慢 **11.0x**) |
-| FakeLua GCC | 5,304 ns | **491x** 慢 (比 Lua 慢 **10.7x**) |
-
-> 可变参数 `...` 处理在 fakelua 中较为昂贵，因为每次调用都需要构建 vararg 列表。TCC 和 GCC 均慢于标准 Lua 约 10–11x。
-
-### 4. MultiReturn — 函数返回值累加（n=10000）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 54.1 µs | 1x |
-| Lua | 398.0 µs | **7.36x** 慢 |
-| FakeLua TCC | 36.5 µs | **0.67x** 快 (比 Lua 快 **10.9x**) |
-| FakeLua GCC | 20.1 µs | **0.37x** 快 (比 Lua 快 **19.8x**) |
-
-> fakelua 在函数返回值处理上表现出色，GCC 比 Lua 快 **19.8x**，TCC 也快 **10.9x**。数值计算在 JIT 下被充分优化。
-
-### 5. Closure — 闭包创建与调用（n=1000）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 5.41 µs | 1x |
-| Lua | 152.1 µs | **28.1x** 慢 |
-| FakeLua TCC | 128.8 µs | **23.8x** 慢 (比 Lua 快 **1.18x**) |
-| FakeLua GCC | 58.4 µs | **10.8x** 慢 (比 Lua 快 **2.61x**) |
-
-> 闭包的创建和调用涉及 upvalue 捕获。GCC 比 Lua 快 **2.6x**，展示了对闭包场景的良好优化。
-
-### 6. TailRecursion — 尾递归求和（n=5000）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 27.1 µs | 1x |
-| Lua | 142.2 µs | **5.24x** 慢 |
-| FakeLua TCC | 19.0 µs | **0.70x** 快 (比 Lua 快 **7.49x**) |
-| FakeLua GCC | 1.94 µs | **0.07x** 快 (比 Lua 快 **73.5x**) |
-
-> **尾递归 GCC 比 C++ 快 14x**。fakelua 的尾调用优化将递归转换为循环，GCC 后端的 `-O3` 将循环完全向量化。
-
-### 函数调用：FakeLua TCC vs Lua 5.4
-
-| 测试 | 参数 | Lua | FakeLua TCC | 结果 |
-|------|------|-----|-------------|------|
-| EmptyCall | n=100000 | 2.91 ms | 2.06 ms | TCC **1.41x 快** |
-| Recursion | n=25 | 8.75 ms | 701.5 µs | TCC **12.5x 快** |
-| Variadic | n=5 | 497 ns | 5,481 ns | TCC **11.0x 慢** |
-| MultiReturn | n=10000 | 398.0 µs | 36.5 µs | TCC **10.9x 快** |
-| Closure | n=1000 | 152.1 µs | 128.8 µs | TCC **1.18x 快** |
-| TailRecursion | n=5000 | 142.2 µs | 19.0 µs | TCC **7.49x 快** |
-
-### FakeLua GCC vs Lua 5.4（函数调用）
-
-| 测试 | 参数 | Lua | FakeLua GCC | GCC 快多少 |
-|------|------|-----|-------------|-----------|
-| EmptyCall | n=100000 | 2.91 ms | 256.0 µs | **11.4x** |
-| Recursion | n=25 | 8.75 ms | 158.2 µs | **55.3x** |
-| MultiReturn | n=10000 | 398.0 µs | 20.1 µs | **19.8x** |
-| Closure | n=1000 | 152.1 µs | 58.4 µs | **2.61x** |
-| TailRecursion | n=5000 | 142.2 µs | 1.94 µs | **73.5x** |
-
-> **函数调用是 fakelua GCC 表现最出色的领域之一**。除 Variadic 外，GCC 在所有函数调用场景中均大幅领先 Lua 5.4（2.6x – 73.5x）。
-
----
-
-## GC 与内存压力性能分析
-
-> 更新日期：2026-08-10
-
-### 1. TableChurn — 大量临时表创建/丢弃（n=1000）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 50.1 µs | 1x |
-| Lua | 423.1 µs | **8.44x** 慢 |
-| FakeLua TCC | 171.3 µs | **3.42x** 慢 (比 Lua 快 **2.47x**) |
-| FakeLua GCC | 29.8 µs | **0.59x** 快 (比 C++ 快 **1.68x**, 比 Lua 快 **14.2x**) |
-
-> **GCC 下的临时表创建比 C++ `std::vector` 分配更快**。fakelua 的内存池分配器避免了 C++ 的 `new`/`delete` 开销。Lua 的 GC 在频繁创建/丢弃下压力较大。
-
-### 2. StringChurn — 大量临时字符串创建/丢弃（n=1000）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 295.9 µs | 1x |
-| Lua | 774.8 µs | **2.62x** 慢 |
-| FakeLua TCC | 1.28 ms | **4.34x** 慢 (比 Lua 慢 **1.66x**) |
-| FakeLua GCC | 1.22 ms | **4.11x** 慢 (比 Lua 慢 **1.57x**) |
-
-> 字符串分配是 fakelua 的相对弱项。字符串拼接 `tostring(i) .. "_suffix"` 在 fakelua 中涉及两次字符串分配和拼接，而 C++ 和 Lua 均有更高效的内部实现。
-
-### 3. MixedAlloc — 混合分配表+字符串（n=1000）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 230.2 µs | 1x |
-| Lua | 708.9 µs | **3.08x** 慢 |
-| FakeLua TCC | 823.9 µs | **3.58x** 慢 (比 Lua 慢 **1.16x**) |
-| FakeLua GCC | 686.8 µs | **2.98x** 慢 (比 Lua 快 **1.03x**) |
-
-> 混合分配场景下 GCC 与 Lua 性能基本持平（仅快 3%），TCC 略慢于 Lua（16%）。
-
-### GC 类：FakeLua TCC vs Lua 5.4
-
-| 测试 | 参数 | Lua | FakeLua TCC | 结果 |
-|------|------|-----|-------------|------|
-| TableChurn | n=1000 | 423.1 µs | 171.3 µs | TCC **2.47x 快** |
-| StringChurn | n=1000 | 774.8 µs | 1.28 ms | TCC **1.66x 慢** |
-| MixedAlloc | n=1000 | 708.9 µs | 823.9 µs | TCC **1.16x 慢** |
-
-### GC 类：FakeLua GCC vs Lua 5.4
-
-| 测试 | 参数 | Lua | FakeLua GCC | GCC 快多少 |
-|------|------|-----|-------------|-----------|
-| TableChurn | n=1000 | 423.1 µs | 29.8 µs | **14.2x** |
-| StringChurn | n=1000 | 774.8 µs | 1.22 ms | **1.57x 慢** |
-| MixedAlloc | n=1000 | 708.9 µs | 686.8 µs | **1.03x** |
-
-> 临时表创建/丢弃是 fakelua 的优势场景，得益于内存池分配器。字符串频繁分配仍是需要改进的方向。
-
----
-
-## 综合评估（新增场景）
-
-### FakeLua 优势场景
-
-| 场景 | GCC vs Lua | 关键原因 |
-|------|-----------|---------|
-| 纯数值递归 (fib) | **55.3x** | 数值特化 + 寄存器参数 + GCC 深度内联 |
-| 尾递归/循环累加 | **73.5x** | 尾调用优化 + GCC 自动向量化 |
-| 函数返回值计算 | **19.8x** | 原生数值运算，零 GC 参与 |
-| 临时表创建/丢弃 | **14.2x** | 内存池分配器 vs Lua GC |
-| 嵌套表深层访问 | **3.63x** | Table 结构体特化 + 指针偏移访问 |
-| 空函数调用 | **11.4x** | 函数内联优化 |
-
-### FakeLua 劣势场景（需优化）
-
-| 场景 | TCC vs Lua | 关键原因 |
-|------|-----------|---------|
-| table.move (5000 元素) | **803x 慢** | 脚本层遍历和元素移动 |
-| table.insert (5000 元素) | **159x 慢** | 数组扩容路径低效 |
-| table.sort (1000 元素) | **42.5x 慢** | 排序比较在脚本层执行 |
-| string.gsub | **22.2x 慢** | 模式匹配在脚本层实现 |
-| string.char 循环 | **38.8x 慢** | 多次函数调用和字符串拼接 |
-| 可变参数函数 | **11.0x 慢** | vararg 列表构建开销 |

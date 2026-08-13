@@ -52,6 +52,27 @@ int64_t CallLuaInt(lua_State *L, const char *func_name, Args... args) {
 }
 
 template<typename... Args>
+double CallLuaDouble(lua_State *L, const char *func_name, Args... args) {
+    const int top = lua_gettop(L);
+    lua_getglobal(L, func_name);
+    if (!lua_isfunction(L, -1)) {
+        lua_settop(L, top);
+        throw std::runtime_error(std::string("Lua function not found: ") + func_name);
+    }
+    PushLuaArgs(L, std::forward<Args>(args)...);
+    constexpr int nargs = sizeof...(Args);
+    if (const int code = lua_pcall(L, nargs, 1, 0); code != LUA_OK) {
+        const char *err = lua_tostring(L, -1);
+        std::string msg = err ? err : "unknown lua error";
+        lua_settop(L, top);
+        throw std::runtime_error("Lua call failed: " + msg);
+    }
+    const auto ret = lua_tonumber(L, -1);
+    lua_settop(L, top);
+    return ret;
+}
+
+template<typename... Args>
 std::string CallLuaString(lua_State *L, const char *func_name, Args... args) {
     const int top = lua_gettop(L);
     lua_getglobal(L, func_name);
@@ -95,3 +116,4 @@ struct RuntimeContext {
 
 void VerifyEqual(int64_t got, int64_t expected, const char *name);
 void VerifyEqual(const std::string &got, const std::string &expected, const char *name);
+void VerifyEqualDouble(double got, double expected, const char *name, double rtol = 1e-9, double atol = 1e-12);
