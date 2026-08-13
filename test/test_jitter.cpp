@@ -2143,6 +2143,16 @@ TEST(jitter, global_const_int_in_expr) {
     });
 }
 
+// return 处在块尾的合法形态（含结尾分号、do...end 内的 return）不应被误拒。
+TEST(jitter, return_last_forms) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_return_last_forms.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_return_last_forms", ret);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
 // 文件级只写声明（含空语句）是合法形态，应能正常编译并运行。
 TEST(jitter, file_level_decls_only) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {

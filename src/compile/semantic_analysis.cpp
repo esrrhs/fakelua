@@ -325,9 +325,12 @@ void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const Analy
             CheckExp(node);
             break;
         }
+        case SyntaxTreeType::Block: {
+            CheckBlockReturnPosition(node);
+            break;
+        }
         case SyntaxTreeType::None:
         case SyntaxTreeType::Empty:
-        case SyntaxTreeType::Block:
         case SyntaxTreeType::Assign:
         case SyntaxTreeType::VarList:
         case SyntaxTreeType::ExpList:
@@ -525,6 +528,32 @@ void SemanticAnalysis::CheckLocalVar(const SyntaxTreeInterfacePtr &node, const A
                     ThrowError("local variable conflicts with global constant: " + name, node);
                 }
             }
+        }
+    }
+}
+
+// Lua 的文法是 block ::= {stat} [retstat]，return 只能是所在块的最后一条语句。
+// FakeLua 的文法把 retstat 当成了普通 stmt，所以这里补上位置校验，否则会比 Lua 宽松，
+// 接受 Lua 明确拒绝的代码（差分 fuzz 已经抓到过这种分歧）。
+// retstat 不吞掉结尾的分号，因此 return 后面允许跟若干空语句。
+void SemanticAnalysis::CheckBlockReturnPosition(const SyntaxTreeInterfacePtr &node) {
+    const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+    if (!blk) {
+        return;
+    }
+    const auto &stmts = blk->Stmts();
+
+    size_t last_effective = stmts.size();
+    for (size_t i = stmts.size(); i > 0; --i) {
+        if (stmts[i - 1]->Type() != SyntaxTreeType::Empty) {
+            last_effective = i - 1;
+            break;
+        }
+    }
+
+    for (size_t i = 0; i < stmts.size(); ++i) {
+        if (stmts[i]->Type() == SyntaxTreeType::Return && i != last_effective) {
+            ThrowError("'return' must be the last statement in a block", stmts[i]);
         }
     }
 }

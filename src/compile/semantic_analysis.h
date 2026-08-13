@@ -33,6 +33,7 @@ private:
     void CheckFunctionCall(const SyntaxTreeInterfacePtr &node);
     void CheckParList(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
     void CheckLocalVar(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
+    void CheckBlockReturnPosition(const SyntaxTreeInterfacePtr &node);
     void CheckForLoop(const SyntaxTreeInterfacePtr &node);
     void CheckForIn(const SyntaxTreeInterfacePtr &node);
     void CheckExp(const SyntaxTreeInterfacePtr &node);

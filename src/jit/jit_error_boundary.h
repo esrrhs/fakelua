@@ -48,22 +48,32 @@ inline bool InJitFrame() {
 // 把错误交回最近的边界。仅在 InJitFrame() 为真时可调用。
 [[noreturn]] void JumpToJitErrorBoundary(std::string msg);
 
+// 边界的入栈与出栈。出栈必须走析构：fn 也可能直接抛出普通 C++ 异常（例如参数个数
+// 不合法），那种情况下不会回到 setjmp 点，仅靠顺序代码复位会留下悬空指针。
+class JitErrorBoundaryScope {
+public:
+    explicit JitErrorBoundaryScope(JitErrorBoundary *boundary) : prev_(g_jit_error_boundary) {
+        boundary->prev = prev_;
+        g_jit_error_boundary = boundary;
+    }
+
+    ~JitErrorBoundaryScope() {
+        g_jit_error_boundary = prev_;
+    }
+
+    JitErrorBoundaryScope(const JitErrorBoundaryScope &) = delete;
+    JitErrorBoundaryScope &operator=(const JitErrorBoundaryScope &) = delete;
+
+private:
+    JitErrorBoundary *prev_;
+};
+
 // 在边界内执行 fn（fn 会调用 JIT 代码）：JIT 代码里的错误会以 FakeluaException 抛出。
 template<typename Fn>
 auto RunWithJitErrorBoundary(Fn &&fn) -> decltype(fn()) {
     JitErrorBoundary boundary;
-    boundary.prev = g_jit_error_boundary;
+    JitErrorBoundaryScope scope(&boundary);
 
-    // 出栈必须走析构：fn 也可能直接抛出普通 C++ 异常（例如参数个数不合法），
-    // 那种情况下不会回到 setjmp 点，仅靠顺序代码复位会留下悬空指针。
-    struct Popper {
-        ~Popper() {
-            g_jit_error_boundary = prev;
-        }
-        JitErrorBoundary *prev;
-    } popper{boundary.prev};
-
-    g_jit_error_boundary = &boundary;
     if (FAKELUA_SETJMP(boundary.buf) == 0) {
         return fn();
     }

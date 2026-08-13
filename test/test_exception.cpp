@@ -810,6 +810,20 @@ TEST(exception, file_level_stmt_rejected) {
     }
 }
 
+// Lua 的 block ::= {stat} [retstat]：return 只能是所在块的最后一条语句。
+// FakeLua 不能比 Lua 更宽松，否则差分 fuzz 会把它报成 fakelua 接受、Lua 拒绝的分歧。
+TEST(exception, return_must_be_last_in_block) {
+    for (const char *file: {"./exception/test_return_not_last.lua", "./exception/test_return_twice.lua",
+                            "./exception/test_return_before_nested_block.lua"}) {
+        SCOPED_TRACE(file);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(0);
+        EXPECT_THROW(CompileFile(s, file, {}), std::exception);
+    }
+}
+
 // 文件级语句被拒绝时，报错信息应指明是文件级语句问题并带上出错位置。
 TEST(exception, file_level_stmt_error_message) {
     FakeluaStateGuard sg;
