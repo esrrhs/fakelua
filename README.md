@@ -76,7 +76,7 @@ static CVar fib_dispatcher(CVar n_var) {
 }
 ```
 
-以递归 Fibonacci（n=32）为例，GCC 后端比 Lua 5.4 快 **43.7x**，TCC 后端快 **10.4x**（详见 [benchmark/README.md](benchmark/README.md)）。
+以递归 Fibonacci（n=32）为例，GCC 后端比 Lua 5.4 快 **43.5x**，TCC 后端快 **11.2x**（详见 [benchmark/README.md](benchmark/README.md)）。
 
 ### Table 结构体特化（Table Specialization）
 
@@ -428,13 +428,13 @@ ctest --test-dir build -V
 
 | 算法（典型参数） | Lua 5.4 | FakeLua TCC | FakeLua GCC |
 |---|---|---|---|
-| Fibonacci n=32 | 229.6 ms | 22.1 ms（**10.4x**↑） | 5.3 ms（**43.7x**↑） |
-| Sum n=5000000 | 32.4 ms | 11.7 ms（**2.8x**↑） | 2.7 ms（**11.8x**↑） |
-| Popcount n=100000 | 13.9 ms | 1.95 ms（**7.1x**↑） | 0.49 ms（**28.4x**↑） |
-| BubbleSort n=200 | 873.7 μs | 2.46 ms（0.35x） | 461.2 μs（**1.9x**↑） |
-| Sieve n=5000 | 282.6 μs | 771.4 μs（0.37x） | 192.9 μs（**1.5x**↑） |
+| Fibonacci n=32 | 297.9 ms | 26.7 ms（**11.2x**↑） | 6.8 ms（**43.5x**↑） |
+| Sum n=5000000 | 33.9 ms | 18.4 ms（**1.8x**↑） | 2.0 ms（**17.1x**↑） |
+| Popcount n=100000 | 18.2 ms | 3.1 ms（**5.9x**↑） | 974.0 μs（**18.7x**↑） |
+| BubbleSort n=200 | 1.5 ms | 3.3 ms（0.45x） | 738.8 μs（**2.0x**↑） |
+| Sieve n=5000 | 353.4 μs | 1.0 ms（0.34x） | 219.3 μs（**1.6x**↑） |
 
-> TCC 纯计算类场景普遍快于 Lua；在包含 Table 操作的场景下，由于引入了 Table 结构体特化，GCC 与 TCC 的 Table 读写性能均得到了大幅度的优化提升。完整数据见 [benchmark/README.md](benchmark/README.md)。
+> TCC 纯计算类场景普遍快于 Lua；在包含 Table 操作的场景下，由于引入了 Table 结构体特化，GCC 与 TCC 的 Table 读写性能均得到了大幅度的优化提升。表标准库（`table.insert`/`remove`/`sort`）GCC 后端也快于 Lua 3.6~4.2x。完整数据见 [benchmark/README.md](benchmark/README.md)。
 
 ## C++ API 详细文档
 
