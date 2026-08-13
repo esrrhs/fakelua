@@ -33,23 +33,27 @@ extern "C" void FakeluaThrowError(State *state, const char *msg) {
 static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr);
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
-    // 参数必须在 varargs 函数自身里取出，随后的分发交给普通函数处理
+    // 参数必须在 varargs 函数自身里取出，随后的分发交给普通函数处理。
+    // arg_num 超限时一个都不能读：调用方并没有真的压入这么多参数，照着读会越过实参区
+    // （Windows 上直接段错误）。越限的报错留给 CallByNameImpl，它在碰 raw_arg_arr
+    // 之前就会抛出。
     CVar raw_arg_arr[kMaxFunctionInputParams];
-    const int read_num = std::min(arg_num, static_cast<int>(kMaxFunctionInputParams));
-    va_list args_list;
-    va_start(args_list, arg_num);
+    if (LIKELY(arg_num > 0 && arg_num <= static_cast<int>(kMaxFunctionInputParams))) {
+        va_list args_list;
+        va_start(args_list, arg_num);
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnon-pod-varargs"
 #endif
-    for (int i = 0; i < read_num; ++i) {
-        // NOLINTNEXTLINE(clang-analyzer-valist.Uninitialized)
-        raw_arg_arr[i] = va_arg(args_list, CVar);
-    }
+        for (int i = 0; i < arg_num; ++i) {
+            // NOLINTNEXTLINE(clang-analyzer-valist.Uninitialized)
+            raw_arg_arr[i] = va_arg(args_list, CVar);
+        }
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
-    va_end(args_list);
+        va_end(args_list);
+    }
 
     // 调用方可能是 JIT 代码，异常不能穿过它的帧回到 C++
     return GuardJitEntry([&] { return CallByNameImpl(state, jit_type, name, arg_num, raw_arg_arr); });
