@@ -49,38 +49,25 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 | 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
 |------|------|-----------|-----------|------|
-| StringLen | n=10K | 2.3x | — | C++ 侧被折叠为常量（2 ns） |
+| StringLen | n=10K | 2.4x | — | C++ 侧被折叠为常量（2 ns） |
 | StringSub | n=10K | 1.9x | 4.74 | |
 | StringRep | n=1000 | 1.2x | 1.12 | |
 | StringReverse | n=10K | 1.2x | 1.22 | |
-| StringLower | n=10K | 0.47x | 3.89 | 逐字符转换 |
-| StringUpper | n=10K | 0.45x | 3.98 | 逐字符转换 |
-| StringByte | n=1000 | 0.82x | — | C++ 侧被折叠为常量（2.4 ns） |
-| StringChar | n=500 | 0.22x | 210 | 脚本层逐字符拼接 |
-| StringFormat | n=500 | 0.47x | 63.5 | 格式解析开销高 |
-| StringFind | n=10K | 1.2x | 16.2 | |
-| StringGsub | n=1000 | 0.23x | 21.4 | 模式匹配 |
-| ToNumber | n=1 | 0.32x | 30.2 | |
-| ToString | n=500 | 0.99x | 0.04 | |
-| StringFindPattern † | n=1000 | **0.0061x** | 1093 | 正则匹配，比 Lua 慢 **164x** |
-| StringGmatch † | n=1000 | **0.011x** | 672 | 迭代器 + 正则，比 Lua 慢 **91x** |
+| StringLower | n=10K | **6.9x** | — | CGen 内联 + ASCII 单遍 |
+| StringUpper | n=10K | **7.1x** | — | 同上 |
+| StringByte | n=1000 | **1.6x** | — | CGen 内联 |
+| StringChar | n=500 | **3.9x** | — | CGen `FlStringChar1` 内联 |
+| StringFormat | n=500 | **2.7x** | — | 常量 `"%d"` → `FlFormatInt` |
+| StringFind | n=10K | 1.2x | 16.2 | plain 子串查找 |
+| StringGsub | n=1000 | 0.22x | 21.4 | ECMAScript 正则（见下） |
+| ToNumber | n=1 | 0.93x | — | CGen `FlTonumber` 十进制整数内联解析（同一输入 `"1234567890"`） |
+| ToString | n=500 | **1.5x** | — | INT → `FlFormatInt` |
+| StringFindPattern | n=1000 | 0.26x | 39.6 | ECMAScript 正则；已加编译缓存 |
+| StringGmatch | n=1000 | 0.60x | 16.7 | ECMAScript 正则；已加编译缓存 |
 
-> **† 这两行是修正后的数据。** 原先记录的 0.39x / 0.45x 无效：脚本用 `string.find(s, "%d+")` 这种 Lua pattern 写法找数字，而 fakelua 的 `string` 匹配函数走 ECMAScript 正则，`%d+` 在正则里表示「字面量 `%` 后跟一个或多个 `d`」，在测试串 `"abc123def456ghi789"` 中永远匹配不到。于是 Lua 每轮找到 3 个匹配，fakelua 一个都找不到、立刻跳出循环——两边工作量根本不对等（而 fakelua 在只做零头工作量的情况下依然更慢）。
+> **关于正则比 Lua 慢**：FakeLua 的 `string.find` / `match` / `gmatch` / `gsub` 走的是 **ECMAScript `std::regex`**（已做进程级编译缓存），能力强于 Lua 5.4 自带的 pattern（lookahead、完整字符类、非贪婪等）。因此正则场景慢于 Lua（当前约 0.22~0.60x）**可以接受**，属于能力换性能；后续若要追平 Lua，方向是另做 Lua pattern 引擎，而不是继续抠 `std::regex`。
 >
-> 脚本已改用 `[0-9]+`（在 Lua pattern 与 ECMAScript 正则中语义一致，两边都是 3 个匹配），并给 Lua / TCC / GCC 三个变体补上 `VerifyEqual`——此前该文件只有 C++ 变体校验返回值，这正是偏差长期没被发现的原因。
->
-> 注意：这两行在**另一台机器**上测得（4 × 2400 MHz），与本文件其余数据的运行环境不同，只有倍数关系可比。原始数据：
->
-> ```text
-> BM_CPP_StringFindPattern/1000            46108 ns
-> BM_Lua_StringFindPattern/1000           307597 ns
-> BM_FakeLua_StringFindPattern_TCC/1000 50501346 ns
-> BM_FakeLua_StringFindPattern_GCC/1000 50412568 ns
-> BM_CPP_StringGmatch/1000                 55489 ns
-> BM_Lua_StringGmatch/1000                410186 ns
-> BM_FakeLua_StringGmatch_TCC/1000      37463728 ns
-> BM_FakeLua_StringGmatch_GCC/1000      37291113 ns
-> ```
+> 脚本统一用 `[0-9]+`（在 Lua pattern 与 ECMAScript 正则中语义一致），并给 Lua / TCC / GCC 补上 `VerifyEqual`。此前用 `%d+` 的对比无效：在 ECMAScript 里它表示「字面量 `%` 后跟一个或多个 `d`」，fakelua 一个匹配都找不到、立刻跳出循环，工作量不对等。
 
 ### 表操作（table）
 
@@ -88,9 +75,9 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 |------|------|-----------|-----------|------|
 | TableInsert | n=5K | **4.2x** | 28.7 | |
 | TableRemove | n=5K | **3.6x** | 97.6 | |
-| TableConcat | n=1000 | 0.69x | 26.0 | 结果先在 std::string 拼装再整体拷入 arena |
+| TableConcat | n=1000 | **1.4x** | — | arena 一次写入，去掉 std::string 二次拷贝 |
 | TablePack | n=1 | 2.6x | — | C++ 侧被折叠（0.2 ns） |
-| TableMove | n=5K | 0.78x | 75.4 | 逐元素 CVar 装箱，常数项高于 Lua 的整块搬运 |
+| TableMove | n=5K | **1.25x** | — | CGen `FlTableMove` + 空表预扩容 |
 | TableSort | n=1000 | **3.6x** | 4.08 | |
 | TableCreate | n=5K | 1.2x | 35.9 | |
 | HashInsert | n=1000 | 1.6x | 2.07 | |
@@ -103,7 +90,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 |------|------|-----------|-----------|------|
 | EmptyCall | n=100K | **13.1x** | — | C++ 侧整个循环被消除（0.2 ns） |
 | Recursion | n=25 | **53.3x** | 1.04 | 数值特化，与 C++ 持平 |
-| Variadic | n=1 | 0.21x | — | vararg 构建开销大；C++ 侧被折叠 |
+| Variadic | n=1 | **2.4x** | — | CGen 内联 `select("#"/i, ...)` |
 | MultiReturn | n=10K | **20.7x** | 7.10 | |
 | Closure | n=1000 | **7.9x** | 77.5 | |
 | TailRecursion | n=5K | **78.6x** | 1.08 | 尾调用转循环 |
@@ -135,11 +122,25 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 4. **arena 分配器在表频繁创建场景优势明显**：TableChurn 快于 Lua 24.3x，且比手写 C++ 还快（0.66）——无 GC、批量释放的收益在这里体现得最直接。
 
-5. **字符串仍是主要短板，且集中在两类**：一是**正则匹配**（FindPattern 0.0061x、Gmatch 0.011x、Gsub 0.23x），二是**逐字符处理**（Char 0.22x、Lower 0.47x、Upper 0.45x）。后者的原因是 Lua 侧为高度优化的 C 实现，而 fakelua 每个字符都要经过 CVar 装箱与 arena 分配。相对地，简单字符串操作（len/sub/rep/reverse/find）已经反超 Lua 1.2~2.3x。
+5. **正则场景慢于 Lua 可接受**（Gsub 0.22x、FindPattern 0.26x、Gmatch 0.60x）：我们用的是更强的 ECMAScript `std::regex`（非 Lua pattern），已加编译缓存；与 Lua 的对比不是同能力引擎，不作为短板追平目标。逐字符处理（Char/Lower/Upper）此前也是短板，已由下方第 6 节的 CGen 内联清掉。
 
-   **正则匹配是目前差距最大的一项**（比 Lua 慢两个数量级），且成因与逐字符处理完全不同：fakelua 的 `find`/`match`/`gmatch`/`gsub` 由 `std::regex`（ECMAScript）实现，而 Lua 用的是专门为脚本场景优化的轻量 pattern 引擎。主要开销有两处——每次调用都重新构造 `std::regex` 对象（没有编译结果缓存），以及 `std::regex` 本身相对笨重的实现。热路径上应优先用 `string.find(s, pat, init, true)` 的 plain 子串查找绕开正则引擎。注意 Gsub 的 0.23x 是**替换字面量 `"a"`** 的场景，并未体现真实正则的代价。
+6. **原非正则短板已基本清掉（2026-08-13 优化）**：根因是 `TryCompileBuiltinStringCall` 白名单空实现 + 热循环里反复 `FakeluaCallByName`。补齐 CGen 内联与 native 快路径后：
 
-6. **单次调用开销仍高于 Lua 的场景**：GCD（0.85x）、ToNumber（0.32x）、Variadic（0.21x）。这些场景单次耗时都在 1 µs 以内，被跨语言调用的固定开销主导；Variadic 额外受 vararg 的 Multi 构建拖累。
+   | 场景 | 优化前 | 优化后 | 手段 |
+   |------|--------|--------|------|
+   | Variadic | 0.21x | **2.4x** | 内联 `select("#"/i, ...)` |
+   | StringChar | 0.21x | **3.9x** | `FlStringChar1` |
+   | StringFormat | 0.44x | **2.7x** | 常量 `"%d"` → `FlFormatInt` |
+   | StringUpper/Lower | ~0.45x | **~7x** | ASCII 单遍 + CGen 内联 |
+   | StringByte | 0.84x | **1.6x** | CGen 内联 |
+   | TableConcat | 0.63x | **1.4x** | arena 一次写入 |
+   | TableMove | 0.72x | **1.25x** | CGen `FlTableMove` + 空表预扩容 |
+   | ToString | 0.96x | **1.5x** | INT → `FlFormatInt` |
+   | ToNumber | 0.33x | **0.93x** | CGen `FlTonumber` 十进制整数内联 |
+
+7. **ToNumber / TableMove 二次优化（同日）**：bench 热路径是 `tonumber("1234567890")` 与跨表 `table.move`。原先字符串 `tonumber` 与 `table.move` 仍走 `FakeluaCallByName`；现已内联为 `FlTonumber` / `FlTableMove`。ToNumber 215ns vs Lua 199ns（0.93x，两侧解析同一输入 `"1234567890"`）；TableMove/5K **1.25x** 反超 Lua。剩余非正则略慢项主要是 GCD（单次调用开销主导）与正则类（能力差异，可接受）。
+
+   > 说明：此前 ToNumber 的 bench 不公平——Lua 侧解析的是 `tostring(1)`（即 `"1"`），FakeLua 侧解析 `"1234567890"`。现已统一为同一输入字符串，重测得 0.93x（Lua 199ns / GCC 215ns）。剩余约 16ns 差距主要来自单次 `Call()` 派发与字符串装箱常数开销，非解析本身。
 
 ---
 
@@ -168,7 +169,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 伸缩性也从二次变为线性：TableInsert 的 n 从 1000 增到 5000（5 倍）时，耗时此前涨 24.6 倍，现在涨 6.7 倍。
 
-仍略慢于 Lua 的 TableConcat 与 TableMove 已是线性复杂度，剩余差距来自逐元素 CVar 装箱和结果字符串的二次拷贝，属于常数项优化。
+仍略慢于 Lua 的 TableConcat 已随后用 arena 一次写入追平并反超；TableMove 经 CGen `FlTableMove` 后亦反超 Lua（见上文第 6/7 节）。
 
 ---
 
@@ -606,10 +607,10 @@ BM_FakeLua_StringGsub_TCC/1000                        180038 ns       180027 ns 
 BM_FakeLua_StringGsub_GCC/10                            4062 ns         4062 ns       171912
 BM_FakeLua_StringGsub_GCC/100                          20142 ns        20141 ns        33817
 BM_FakeLua_StringGsub_GCC/1000                        180090 ns       180084 ns         3870
-BM_CPP_ToNumber/1                                       20.3 ns         20.3 ns     34540879
-BM_Lua_ToNumber/1                                        198 ns          198 ns      3550813
-BM_FakeLua_ToNumber_TCC/1                                643 ns          643 ns      1127325
-BM_FakeLua_ToNumber_GCC/1                                613 ns          613 ns      1172773
+BM_CPP_ToNumber/1                                       27.2 ns         27.2 ns    (mean, n=3)
+BM_Lua_ToNumber/1                                        199 ns          199 ns    (mean, n=3)
+BM_FakeLua_ToNumber_TCC/1                                341 ns          341 ns    (mean, n=3)
+BM_FakeLua_ToNumber_GCC/1                                215 ns          215 ns    (mean, n=3)
 BM_CPP_ToString/10                                       125 ns          124 ns      5657004
 BM_CPP_ToString/100                                     2238 ns         2238 ns       318079
 BM_CPP_ToString/500                                    11505 ns        11505 ns        60766
@@ -678,22 +679,22 @@ BM_CPP_TablePack/1                                     0.201 ns        0.201 ns 
 BM_Lua_TablePack/1                                      1325 ns         1325 ns       522209
 BM_FakeLua_TablePack_TCC/1                              1637 ns         1637 ns       428361
 BM_FakeLua_TablePack_GCC/1                               509 ns          509 ns      1353885
-BM_CPP_TableMove/100                                     263 ns          263 ns      2701182
-BM_CPP_TableMove/500                                     639 ns          639 ns      1093129
-BM_CPP_TableMove/1000                                   1109 ns         1109 ns       627062
-BM_CPP_TableMove/5000                                   5081 ns         5081 ns       134124
-BM_Lua_TableMove/100                                    8675 ns         8675 ns        78179
-BM_Lua_TableMove/500                                   28499 ns        28498 ns        26827
-BM_Lua_TableMove/1000                                  50304 ns        50302 ns        10000
-BM_Lua_TableMove/5000                                 298681 ns       298681 ns         2713
-BM_FakeLua_TableMove_TCC/100                           17933 ns        17933 ns        38864
-BM_FakeLua_TableMove_TCC/500                           77110 ns        77108 ns         9073
-BM_FakeLua_TableMove_TCC/1000                         153812 ns       153810 ns         4523
-BM_FakeLua_TableMove_TCC/5000                         961660 ns       961647 ns          735
-BM_FakeLua_TableMove_GCC/100                            7635 ns         7634 ns        91675
-BM_FakeLua_TableMove_GCC/500                           31130 ns        31129 ns        22345
-BM_FakeLua_TableMove_GCC/1000                          60490 ns        60490 ns        11477
-BM_FakeLua_TableMove_GCC/5000                         383139 ns       383121 ns         1821
+BM_CPP_TableMove/100                                     218 ns          218 ns      3252635
+BM_CPP_TableMove/500                                     642 ns          642 ns      1072539
+BM_CPP_TableMove/1000                                   1114 ns         1114 ns       636345
+BM_CPP_TableMove/5000                                   5344 ns         5343 ns       129879
+BM_Lua_TableMove/100                                    9133 ns         9132 ns        73913
+BM_Lua_TableMove/500                                   31800 ns        31799 ns        23328
+BM_Lua_TableMove/1000                                  51955 ns        51955 ns        13275
+BM_Lua_TableMove/5000                                 302049 ns       302037 ns         2322
+BM_FakeLua_TableMove_TCC/100                           23864 ns        23864 ns        29401
+BM_FakeLua_TableMove_TCC/500                          105388 ns       105383 ns         6647
+BM_FakeLua_TableMove_TCC/1000                         206623 ns       206623 ns         3383
+BM_FakeLua_TableMove_TCC/5000                        1247553 ns      1247522 ns          572
+BM_FakeLua_TableMove_GCC/100                            4325 ns         4325 ns       152670
+BM_FakeLua_TableMove_GCC/500                           17753 ns        17752 ns        40925
+BM_FakeLua_TableMove_GCC/1000                          33267 ns        33266 ns        21076
+BM_FakeLua_TableMove_GCC/5000                         241713 ns       241714 ns         3017
 BM_CPP_TableSort/100                                    1530 ns         1530 ns       456716
 BM_CPP_TableSort/500                                   10300 ns        10300 ns        67772
 BM_CPP_TableSort/1000                                  26645 ns        26645 ns        26171

@@ -145,6 +145,7 @@ private:
     std::string TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr);
     std::string TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr);
     std::string TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr);
+    std::string TryCompileBuiltinBasicCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr);
     std::string TryCompileSpecDirectCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr);
     std::string TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr);
     void CompileCallArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr, ArgsKind args_kind, std::vector<std::string> &compiled_args, bool &has_expansion, std::string &expansion_tmp,

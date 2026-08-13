@@ -783,22 +783,20 @@ static void BM_FakeLua_StringGsub_GCC(benchmark::State &state) {
 // Benchmarks: tonumber
 // ---------------------------------------------------------------------------
 
+// 所有实现都解析同一个字符串，保证对比公平
+static constexpr const char *kToNumberInput = "1234567890";
+
 static void BM_CPP_ToNumber(benchmark::State &state) {
-    const int64_t n = state.range(0);
     for (auto _: state) {
-        int64_t total = 0;
-        for (int64_t i = 1; i <= n; ++i) {
-            total += std::stoll(std::to_string(i));
-        }
-        benchmark::DoNotOptimize(total);
+        std::string s(kToNumberInput);
+        int64_t ret = std::stoll(s);
+        benchmark::DoNotOptimize(ret);
     }
 }
 
 static void BM_Lua_ToNumber(benchmark::State &state) {
-    const int64_t n = state.range(0);
     for (auto _: state) {
-        // Call tonumber on a string representation of n
-        std::string s = std::to_string(n);
+        std::string s(kToNumberInput);
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_tonumber", s);
         benchmark::DoNotOptimize(ret);
     }
@@ -807,7 +805,7 @@ static void BM_Lua_ToNumber(benchmark::State &state) {
 static void BM_FakeLua_ToNumber_TCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
-        Call(g_ctx.flua, JIT_TCC, "bench_tonumber", ret, std::string("1234567890"));
+        Call(g_ctx.flua, JIT_TCC, "bench_tonumber", ret, std::string(kToNumberInput));
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -815,7 +813,7 @@ static void BM_FakeLua_ToNumber_TCC(benchmark::State &state) {
 static void BM_FakeLua_ToNumber_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
-        Call(g_ctx.flua, JIT_GCC, "bench_tonumber", ret, std::string("1234567890"));
+        Call(g_ctx.flua, JIT_GCC, "bench_tonumber", ret, std::string(kToNumberInput));
         benchmark::DoNotOptimize(ret);
     }
 }

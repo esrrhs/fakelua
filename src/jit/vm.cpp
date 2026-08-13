@@ -20,7 +20,8 @@ extern "C" void FakeluaThrowError(State *state, const char *msg) {
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
     // ── 查找函数：优先 JIT，其次 C++ 原生 ─────────────────────────────────────
-    const std::string func_name(name);
+    // 用 string_view 查表，避免每次调用都堆分配 std::string
+    const std::string_view func_name(name);
     const auto jit_func = state->GetVM().GetFunction(func_name);
     const bool has_jit = !jit_func.Empty();
 

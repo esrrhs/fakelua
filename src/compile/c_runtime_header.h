@@ -1203,6 +1203,188 @@ static inline CVar FlConcat(CVar a, CVar b) {
     return result;
 }
 
+// string.char(c) 单字节快路径
+static inline CVar FlStringChar1(int64_t c) {
+    if (UNLIKELY(c < 0 || c > 255)) {
+        FakeluaThrowError(_S, "bad argument to string.char: value out of range");
+    }
+    VarString *vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + 1, !__fakelua_init_flag__);
+    vs->size_ = 1;
+    vs->hash_ = 0;
+    vs->data_[0] = (char)c;
+    CVar r;
+    r.type_ = VAR_STRING;
+    r.flag_ = 0;
+    r.data_.s = vs;
+    return r;
+}
+
+// string.lower / upper：ASCII 单遍 + 一次 arena 分配
+static inline CVar FlStringLower(CVar s) {
+    const char *src = 0;
+    int len = 0;
+    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
+    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
+    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.lower", 1, s); }
+    VarString *out = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    out->size_ = len;
+    out->hash_ = 0;
+    for (int i = 0; i < len; ++i) {
+        unsigned char c = (unsigned char)src[i];
+        out->data_[i] = (c >= 'A' && c <= 'Z') ? (char)(c + 32) : (char)c;
+    }
+    CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = out;
+    return r;
+}
+
+static inline CVar FlStringUpper(CVar s) {
+    const char *src = 0;
+    int len = 0;
+    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
+    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
+    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.upper", 1, s); }
+    VarString *out = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    out->size_ = len;
+    out->hash_ = 0;
+    for (int i = 0; i < len; ++i) {
+        unsigned char c = (unsigned char)src[i];
+        out->data_[i] = (c >= 'a' && c <= 'z') ? (char)(c - 32) : (char)c;
+    }
+    CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = out;
+    return r;
+}
+
+// string.byte(s, i) 单位置；越界返回 nil
+static inline CVar FlStringByte1(CVar s, int64_t i) {
+    const char *src = 0;
+    int len = 0;
+    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
+    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
+    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.byte", 2, s, (CVar){.type_ = VAR_INT, .data_.i = i}); }
+    if (i < 0) i = len + i + 1;
+    if (i < 1 || i > len) return (CVar){VAR_NIL};
+    return (CVar){.type_ = VAR_INT, .data_.i = (unsigned char)src[i - 1]};
+}
+
+// string.format("%d", int)
+static inline CVar FlFormatInt(int64_t v) {
+    char buf[32];
+    int n = snprintf(buf, sizeof(buf), "%lld", (long long)v);
+    if (n < 0) n = 0;
+    VarString *vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + n, !__fakelua_init_flag__);
+    vs->size_ = n;
+    vs->hash_ = 0;
+    memcpy(vs->data_, buf, (size_t)n);
+    CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = vs;
+    return r;
+}
+
+// select("#", multi) / select(i, multi) 的内联辅助
+static inline CVar FlSelectHash(CVar vararg) {
+    if (vararg.type_ == VAR_MULTI) return (CVar){.type_ = VAR_INT, .data_.i = (int64_t)vararg.data_.m->count};
+    if (vararg.type_ == VAR_NIL) return (CVar){.type_ = VAR_INT, .data_.i = 0};
+    return (CVar){.type_ = VAR_INT, .data_.i = 1};
+}
+
+static inline CVar FlSelectIndex(int64_t idx, CVar vararg) {
+    if (vararg.type_ == VAR_MULTI) {
+        VarMulti *m = vararg.data_.m;
+        if (idx < 0) idx = (int64_t)m->count + idx + 1;
+        if (idx < 1 || idx > (int64_t)m->count) return (CVar){VAR_NIL};
+        uint32_t start = (uint32_t)(idx - 1);
+        uint32_t count = m->count - start;
+        if (count == 1) return m->vars[start];
+        return FlSliceMulti(_S, vararg, start);
+    }
+    if (vararg.type_ == VAR_NIL) return (CVar){VAR_NIL};
+    if (idx == 1 || idx == -1) return vararg;
+    return (CVar){VAR_NIL};
+}
+
+// tonumber 热路径：数字直通；纯十进制整数字符串本地解析；其余回退 native
+static inline int FlIsSpaceByte(unsigned char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
+}
+
+static inline CVar FlTonumber(CVar v) {
+    if (LIKELY(v.type_ == VAR_INT || v.type_ == VAR_FLOAT)) return v;
+    const char *p = 0;
+    int len = 0;
+    if (LIKELY(v.type_ == VAR_STRING)) { p = STR_DATA(v.data_.s); len = STR_SIZE(v.data_.s); }
+    else if (v.type_ == VAR_STRINGID) { VarString *vs = (VarString *)v.data_.i; p = STR_DATA(vs); len = STR_SIZE(vs); }
+    else { return (CVar){VAR_NIL}; }
+    while (len > 0 && FlIsSpaceByte((unsigned char)p[0])) { ++p; --len; }
+    while (len > 0 && FlIsSpaceByte((unsigned char)p[len - 1])) { --len; }
+    if (len <= 0) return (CVar){VAR_NIL};
+    // 0x 十六进制等复杂形式走 native
+    if (len >= 2 && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "tonumber", 1, v);
+    }
+    if (len >= 3 && (p[0] == '+' || p[0] == '-') && p[1] == '0' && (p[2] == 'x' || p[2] == 'X')) {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "tonumber", 1, v);
+    }
+    int neg = 0;
+    int i = 0;
+    if (p[0] == '+') { i = 1; }
+    else if (p[0] == '-') { neg = 1; i = 1; }
+    if (i >= len) return (CVar){VAR_NIL};
+    // 含小数点/指数 → native
+    { int j; for (j = i; j < len; ++j) {
+        unsigned char c = (unsigned char)p[j];
+        if (c == '.' || c == 'e' || c == 'E') {
+            return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "tonumber", 1, v);
+        }
+        if (c < '0' || c > '9') return (CVar){VAR_NIL};
+    } }
+    int64_t val = 0;
+    for (; i < len; ++i) {
+        val = val * 10 + (p[i] - '0');
+    }
+    if (neg) val = -val;
+    return (CVar){.type_ = VAR_INT, .data_.i = val};
+}
+
+// 空表预扩到至少 need 个桶（反复 FlTableRehash，空表拷贝成本可忽略）
+static inline void FlEnsureTableBuckets(VarTable *tbl, uint32_t need) {
+    if (need < 1) need = 1;
+    uint32_t target = need - 1;
+    target |= target >> 1; target |= target >> 2; target |= target >> 4;
+    target |= target >> 8; target |= target >> 16; target += 1;
+    while (tbl->bucket_count_ < target) {
+        FlTableRehash(tbl);
+        if (UNLIKELY(tbl->bucket_count_ == 0)) break;
+    }
+}
+
+// table.move 内联实现（非重叠 / 不同表的前向拷贝；重叠同表走 native）
+static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar dst) {
+    if (UNLIKELY(src.type_ != VAR_TABLE)) {
+        FakeluaThrowError(_S, "bad argument to table.move: table expected");
+    }
+    if (dst.type_ != VAR_TABLE || !dst.data_.t) dst = src;
+    if (e < f) return dst;
+    uint64_t count = (uint64_t)e - (uint64_t)f + 1;
+    if (count > 10000000ULL) return dst;
+    int64_t icount = (int64_t)count;
+    int same = (src.data_.t == dst.data_.t);
+    if (same && t > f && t <= e) {
+        // 后向重叠：回退完整 native 语义
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "table.move", 5, src,
+            (CVar){.type_ = VAR_INT, .data_.i = f},
+            (CVar){.type_ = VAR_INT, .data_.i = e},
+            (CVar){.type_ = VAR_INT, .data_.i = t},
+            dst);
+    }
+    if (!same && dst.data_.t->count_ == 0 && icount > 8) {
+        FlEnsureTableBuckets(dst.data_.t, (uint32_t)icount);
+    }
+    { int64_t i; for (i = 0; i < icount; ++i) {
+        CVar val = FlGetTableInt(src, f + i);
+        FlSetTableInt(dst, t + i, val);
+    } }
+    return dst;
+}
+
 #define GET_TABLE_ENTRY(tbl, idx, k, v) do { \
     uint32_t __spec_cnt = (tbl).data_.t->spec_count; \
     if (LIKELY((idx) < __spec_cnt)) { \

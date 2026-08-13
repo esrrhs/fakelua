@@ -5,6 +5,7 @@
 #include "state/state.h"
 #include "var/var.h"
 #include "var/var_multi.h"
+#include "var/var_string.h"
 #include <algorithm>
 #include <cctype>
 #include <cinttypes>
@@ -12,7 +13,10 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <memory>
+#include <mutex>
 #include <regex>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -27,10 +31,50 @@ static inline int64_t NormalizePos(int64_t pos, int64_t len) {
     return len + pos + 1;
 }
 
+// ─── ECMAScript 正则编译缓存 ───
+// std::regex 构造极慢；find/match/gmatch/gsub 的热点是重复编译同一 pattern。
+// 进程级缓存：key=pattern 原文，value=编译结果（含 optimize）。
+// 返回的指针由缓存永久持有（不淘汰，避免 gmatch 状态中的裸指针悬空）。
+namespace {
+
+std::shared_mutex g_regex_cache_mu;
+std::unordered_map<std::string, std::unique_ptr<std::regex>> g_regex_cache;
+
+// 成功返回非空指针；pattern 非法返回 nullptr（与原先 catch regex_error → nil 一致）。
+const std::regex *GetCachedRegex(std::string_view pattern) {
+    std::string key(pattern);
+    {
+        std::shared_lock lock(g_regex_cache_mu);
+        auto it = g_regex_cache.find(key);
+        if (it != g_regex_cache.end()) {
+            return it->second.get();
+        }
+    }
+
+    std::unique_ptr<std::regex> compiled;
+    try {
+        compiled = std::make_unique<std::regex>(
+                key, std::regex::ECMAScript | std::regex::optimize);
+    } catch (const std::regex_error &) {
+        return nullptr;
+    }
+
+    std::unique_lock lock(g_regex_cache_mu);
+    auto it = g_regex_cache.find(key);
+    if (it != g_regex_cache.end()) {
+        return it->second.get();
+    }
+    auto [ins, _] = g_regex_cache.emplace(std::move(key), std::move(compiled));
+    return ins->second.get();
+}
+
+}// namespace
+
 // ─── gmatch 迭代器状态（存储在闭包 upvalue 中） ───
+// re 指向全局缓存中的编译结果，不在此处持有所有权（arena 不跑析构也安全）。
 struct GMatchState {
     std::string text;
-    std::string pattern;
+    const std::regex *re = nullptr;
     size_t pos = 0;
 };
 
@@ -388,20 +432,21 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         return inter::NativeToFakeluaNil(iter_state);
     }
 
-    if (gs->pos >= gs->text.size()) {
+    if (!gs->re || gs->pos >= gs->text.size()) {
         return inter::NativeToFakeluaNil(iter_state);
     }
 
     try {
-        std::regex re(gs->pattern, std::regex::ECMAScript);
+        // 在原串上从 pos 起搜，避免每次 substr 拷贝
+        auto first = gs->text.cbegin() + static_cast<std::ptrdiff_t>(gs->pos);
+        auto last = gs->text.cend();
         std::smatch match;
-        std::string sub = gs->text.substr(gs->pos);
-        if (!std::regex_search(sub, match, re)) {
+        if (!std::regex_search(first, last, match, *gs->re)) {
             gs->pos = gs->text.size();
             return inter::NativeToFakeluaNil(iter_state);
         }
 
-        gs->pos += match.position() + match.length();
+        gs->pos += static_cast<size_t>(match.position() + match.length());
         if (match.length() == 0) {
             // 零宽匹配：前进一位避免死循环
             gs->pos += 1;
@@ -528,9 +573,17 @@ void RegisterStringLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "string.lower");
         std::string temp;
-        std::string res(GetStringArgView(a0, temp));
-        std::transform(res.begin(), res.end(), res.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return inter::NativeToFakeluaStringView(state, res);
+        std::string_view sv = GetStringArgView(a0, temp);
+        VarString *vs = VarString::AllocTempRaw(state, sv.size());
+        char *out = vs->MutableData();
+        for (size_t i = 0; i < sv.size(); ++i) {
+            unsigned char c = static_cast<unsigned char>(sv[i]);
+            // ASCII 快路径（与 C++ bench / Lua 常见用法一致）；非 A-Z 原样拷贝
+            out[i] = (c >= 'A' && c <= 'Z') ? static_cast<char>(c + 32) : static_cast<char>(c);
+        }
+        CVar ret{static_cast<int>(VarType::String)};
+        ret.data_.s = vs;
+        return ret;
     });
 
     RegisterNativeFunction(s, "string.upper", 1, false, [](State *state, CVar *args, int n) -> CVar {
@@ -538,9 +591,16 @@ void RegisterStringLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "string.upper");
         std::string temp;
-        std::string res(GetStringArgView(a0, temp));
-        std::transform(res.begin(), res.end(), res.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
-        return inter::NativeToFakeluaStringView(state, res);
+        std::string_view sv = GetStringArgView(a0, temp);
+        VarString *vs = VarString::AllocTempRaw(state, sv.size());
+        char *out = vs->MutableData();
+        for (size_t i = 0; i < sv.size(); ++i) {
+            unsigned char c = static_cast<unsigned char>(sv[i]);
+            out[i] = (c >= 'a' && c <= 'z') ? static_cast<char>(c - 32) : static_cast<char>(c);
+        }
+        CVar ret{static_cast<int>(VarType::String)};
+        ret.data_.s = vs;
+        return ret;
     });
 
 
@@ -590,6 +650,27 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "string.char", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        // 单参数热路径：直接写 1 字节 VarString，跳过 std::string 中转
+        if (n == 1) {
+            CVar arg0 = inter::GetNativeArg(state, args, n, 0);
+            if (arg0.type_ == static_cast<int>(VarType::Int) || arg0.type_ == static_cast<int>(VarType::Float)) {
+                if (arg0.type_ == static_cast<int>(VarType::Float)) {
+                    if (static_cast<double>(static_cast<int64_t>(arg0.data_.f)) != arg0.data_.f) {
+                        ThrowFakeluaException("bad argument to 'string.char' (number has no integer representation)");
+                    }
+                }
+                int64_t c = inter::CVarToInteger(arg0, -1);
+                if (c < 0 || c > 255) {
+                    ThrowFakeluaException("bad argument to 'string.char' (value out of range)");
+                }
+                VarString *vs = VarString::AllocTempRaw(state, 1);
+                vs->MutableData()[0] = static_cast<char>(c);
+                CVar ret{static_cast<int>(VarType::String)};
+                ret.data_.s = vs;
+                return ret;
+            }
+            ThrowFakeluaException("bad argument to 'string.char' (number expected)");
+        }
         std::string res;
         res.reserve(static_cast<size_t>(n));
         for (int i = 0; i < n; ++i) {
@@ -617,6 +698,23 @@ void RegisterStringLibraryApi(State *s) {
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
         std::string temp_fmt;
         std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
+
+        // 热路径：string.format("%d", int) —— bench 与常见用法，跳过通用解析器
+        if (fmt == "%d" && n >= 2) {
+            CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            if (a1.type_ == static_cast<int>(VarType::Int) || a1.type_ == static_cast<int>(VarType::Float) ||
+                a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
+                int64_t ival = inter::CVarToInteger(a1, 0);
+                char buf[32];
+                int len = snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(ival));
+                if (len < 0) len = 0;
+                return inter::NativeToFakeluaStringView(state, std::string_view(buf, static_cast<size_t>(len)));
+            }
+            if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table) ||
+                a1.type_ == static_cast<int>(VarType::Nil)) {
+                ThrowFakeluaException("bad argument to 'format' (number expected)");
+            }
+        }
 
         std::string res;
         res.reserve(fmt.size() + 32);
@@ -830,10 +928,12 @@ void RegisterStringLibraryApi(State *s) {
             return multi;
         }
 
+        const std::regex *re = GetCachedRegex(pat_view);
+        if (!re) return inter::NativeToFakeluaNil(state);
+
         try {
-            std::regex re(std::string(pat_view), std::regex::ECMAScript);
             std::smatch match;
-            if (!std::regex_search(sub, match, re)) return inter::NativeToFakeluaNil(state);
+            if (!std::regex_search(sub, match, *re)) return inter::NativeToFakeluaNil(state);
 
             int64_t start = init_pos + static_cast<int64_t>(match.position());
             int64_t end = start + static_cast<int64_t>(match.length()) - 1;
@@ -878,10 +978,12 @@ void RegisterStringLibraryApi(State *s) {
         }
         std::string sub = std::string(sv.substr(static_cast<size_t>(init_pos - 1)));
 
+        const std::regex *re = GetCachedRegex(pat_view);
+        if (!re) return inter::NativeToFakeluaNil(state);
+
         try {
-            std::regex re(std::string(pat_view), std::regex::ECMAScript);
             std::smatch match;
-            if (!std::regex_search(sub, match, re)) return inter::NativeToFakeluaNil(state);
+            if (!std::regex_search(sub, match, *re)) return inter::NativeToFakeluaNil(state);
 
             if (match.size() > 1) {
                 // 有捕获组：返回所有捕获
@@ -912,9 +1014,12 @@ void RegisterStringLibraryApi(State *s) {
         std::string pattern(GetStringArgView(a1, temp1));
         if (text.empty() || pattern.empty()) return inter::NativeToFakeluaNil(state);
 
-        // 使用 arena 分配器分配迭代器状态
+        const std::regex *re = GetCachedRegex(pattern);
+        if (!re) return inter::NativeToFakeluaNil(state);
+
+        // 使用 arena 分配器分配迭代器状态（re 由全局缓存持有）
         auto &alloc = state->GetHeap().GetAllocator(false);
-        GMatchState *gs = new (alloc.Alloc(sizeof(GMatchState))) GMatchState{std::move(text), std::move(pattern), 0};
+        GMatchState *gs = new (alloc.Alloc(sizeof(GMatchState))) GMatchState{std::move(text), re, 0};
 
         // 使用共享辅助函数创建迭代器闭包
         return MakeIteratorClosure(state, reinterpret_cast<void *>(GMatchIterator), gs);
@@ -949,14 +1054,16 @@ void RegisterStringLibraryApi(State *s) {
         bool repl_is_table = (repl_var.type_ == static_cast<int>(VarType::Table) && repl_var.data_.t);
         bool repl_is_closure = (repl_var.type_ == static_cast<int>(VarType::Closure) && repl_var.data_.cl);
 
+        const std::regex *re = GetCachedRegex(pat_view);
+        if (!re) return inter::NativeToFakeluaNil(state);
+
         try {
-            std::regex re(std::string(pat_view), std::regex::ECMAScript);
             std::string input(sv);
             std::string result;
             result.reserve(input.size());
             int64_t count = 0;
 
-            auto it = std::sregex_iterator(input.begin(), input.end(), re);
+            auto it = std::sregex_iterator(input.begin(), input.end(), *re);
             auto end = std::sregex_iterator();
             size_t last_pos = 0;
 
