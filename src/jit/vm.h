@@ -4,6 +4,7 @@
 #include "jit/vm_function.h"
 #include "var/var.h"
 #include <functional>
+#include <string_view>
 
 namespace fakelua {
 
@@ -38,7 +39,7 @@ public:
     }
 
     // 获取 JIT 函数
-    [[nodiscard]] VmFunction GetFunction(const std::string &name) const {
+    [[nodiscard]] VmFunction GetFunction(std::string_view name) const {
         if (const auto iter = vm_functions_.find(name); iter != vm_functions_.end()) {
             return iter->second;
         }
@@ -52,7 +53,7 @@ public:
     }
 
     // 查找原生函数条目（供 FakeluaCallByName 使用）
-    [[nodiscard]] const NativeFuncEntry *FindNativeFunction(const std::string &name) const {
+    [[nodiscard]] const NativeFuncEntry *FindNativeFunction(std::string_view name) const {
         const auto it = native_functions_.find(name);
         return it != native_functions_.end() ? &it->second : nullptr;
     }
@@ -63,8 +64,25 @@ public:
     }
 
 private:
-    std::unordered_map<std::string, VmFunction> vm_functions_;
-    std::unordered_map<std::string, NativeFuncEntry> native_functions_;
+    // 透明哈希：FakeluaCallByName 热路径可用 string_view 查表，避免每次堆分配
+    struct TransparentStringHash {
+        using is_transparent = void;
+        size_t operator()(std::string_view s) const noexcept {
+            return std::hash<std::string_view>{}(s);
+        }
+        size_t operator()(const std::string &s) const noexcept {
+            return std::hash<std::string_view>{}(s);
+        }
+    };
+    struct TransparentStringEq {
+        using is_transparent = void;
+        bool operator()(std::string_view a, std::string_view b) const noexcept {
+            return a == b;
+        }
+    };
+
+    std::unordered_map<std::string, VmFunction, TransparentStringHash, TransparentStringEq> vm_functions_;
+    std::unordered_map<std::string, NativeFuncEntry, TransparentStringHash, TransparentStringEq> native_functions_;
     uint64_t global_name_ = 0;
 };
 

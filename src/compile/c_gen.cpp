@@ -2846,6 +2846,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         return result;
     }
 
+    if (auto result = TryCompileBuiltinBasicCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        return result;
+    }
+
     if (auto result = TryCompileSpecDirectCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
         return result;
     }
@@ -3270,13 +3274,38 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
     const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
     const auto &raw_args = explist_arg_ptr->Exps();
 
-    static const std::unordered_set<std::string> table_builtins = {"insert", "remove", "unpack", "create"};
+    static const std::unordered_set<std::string> table_builtins = {"insert", "remove", "unpack", "create", "move"};
     if (!table_builtins.contains(method_name)) {
         return {};
     }
 
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    CVar " << tmp << ";\n";
+
+    if (method_name == "move" && raw_args.size() >= 4) {
+        std::string src_arg = CompileExp(raw_args[0]);
+        std::string f_arg = CompileExp(raw_args[1]);
+        std::string e_arg = CompileExp(raw_args[2]);
+        std::string t_arg = CompileExp(raw_args[3]);
+        std::string dst_arg = (raw_args.size() >= 5) ? CompileExp(raw_args[4]) : src_arg;
+        const auto src_tmp = std::format("flua_mv_s_{}", tmp_var_counter_++);
+        const auto dst_tmp = std::format("flua_mv_d_{}", tmp_var_counter_++);
+        const auto f_tmp = std::format("flua_mv_f_{}", tmp_var_counter_++);
+        const auto e_tmp = std::format("flua_mv_e_{}", tmp_var_counter_++);
+        const auto t_tmp = std::format("flua_mv_t_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << src_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << dst_tmp << ";\n";
+        func_temp_decls_ << "    int64_t " << f_tmp << ";\n";
+        func_temp_decls_ << "    int64_t " << e_tmp << ";\n";
+        func_temp_decls_ << "    int64_t " << t_tmp << ";\n";
+        Out() << GenTab() << src_tmp << " = " << src_arg << ";\n";
+        Out() << GenTab() << dst_tmp << " = " << dst_arg << ";\n";
+        Out() << GenTab() << f_tmp << " = (" << f_arg << ".type_ == VAR_INT) ? " << f_arg << ".data_.i : 1;\n";
+        Out() << GenTab() << e_tmp << " = (" << e_arg << ".type_ == VAR_INT) ? " << e_arg << ".data_.i : 0;\n";
+        Out() << GenTab() << t_tmp << " = (" << t_arg << ".type_ == VAR_INT) ? " << t_arg << ".data_.i : 1;\n";
+        Out() << GenTab() << tmp << " = FlTableMove(" << src_tmp << ", " << f_tmp << ", " << e_tmp << ", " << t_tmp << ", " << dst_tmp << ");\n";
+        return tmp;
+    }
 
     if (method_name == "create" && !raw_args.empty()) {
         std::string seq_arg = CompileExp(raw_args[0]);
@@ -3464,6 +3493,10 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
     if (!base_var || base_var->GetVarKind() != VarKind::kSimple || base_var->GetName() != "string") {
         return {};
     }
+    // 局部遮蔽的 string 表不内联
+    if (var_to_def_map_.contains(base_var.get())) {
+        return {};
+    }
 
     const std::string method_name = callee_var->GetName();
     static const std::unordered_set<std::string> string_builtins = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char", "format", "dump"};
@@ -3471,8 +3504,179 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
         return {};
     }
 
-    // string.len, string.sub, string.rep, string.reverse, string.lower, string.upper, string.byte, string.char
-    // Fallback to NativeFunction VM call via slow path, or inline if appropriate
+    const auto explist_arg = args_ptr->Explist();
+    const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
+    const auto &raw_args = explist_arg_ptr->Exps();
+
+    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    CVar " << tmp << ";\n";
+
+    if (method_name == "char" && raw_args.size() == 1) {
+        const std::string arg = CompileExp(raw_args[0]);
+        const auto arg_tmp = std::format("flua_schar_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT)) {\n";
+        Out() << GenTab() << "    " << tmp << " = FlStringChar1(" << arg_tmp << ".data_.i);\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.char\", 1, " << arg_tmp << ");\n";
+        Out() << GenTab() << "}\n";
+        return tmp;
+    }
+
+    if ((method_name == "lower" || method_name == "upper") && raw_args.size() == 1) {
+        const std::string arg = CompileExp(raw_args[0]);
+        const auto arg_tmp = std::format("flua_scase_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        const char *fl = (method_name == "lower") ? "FlStringLower" : "FlStringUpper";
+        Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_STRING || " << arg_tmp << ".type_ == VAR_STRINGID)) {\n";
+        Out() << GenTab() << "    " << tmp << " = " << fl << "(" << arg_tmp << ");\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string." << method_name << "\", 1, " << arg_tmp << ");\n";
+        Out() << GenTab() << "}\n";
+        return tmp;
+    }
+
+    if (method_name == "byte" && (raw_args.size() == 1 || raw_args.size() == 2)) {
+        const std::string s_arg = CompileExp(raw_args[0]);
+        const auto s_tmp = std::format("flua_sbyte_s_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << s_tmp << ";\n";
+        Out() << GenTab() << s_tmp << " = " << s_arg << ";\n";
+        if (raw_args.size() == 1) {
+            Out() << GenTab() << "if (LIKELY(" << s_tmp << ".type_ == VAR_STRING || " << s_tmp << ".type_ == VAR_STRINGID)) {\n";
+            Out() << GenTab() << "    " << tmp << " = FlStringByte1(" << s_tmp << ", 1);\n";
+            Out() << GenTab() << "} else {\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.byte\", 1, " << s_tmp << ");\n";
+            Out() << GenTab() << "}\n";
+        } else {
+            const std::string i_arg = CompileExp(raw_args[1]);
+            const auto i_tmp = std::format("flua_sbyte_i_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << i_tmp << ";\n";
+            Out() << GenTab() << i_tmp << " = " << i_arg << ";\n";
+            Out() << GenTab() << "if (LIKELY((" << s_tmp << ".type_ == VAR_STRING || " << s_tmp << ".type_ == VAR_STRINGID) && " << i_tmp << ".type_ == VAR_INT)) {\n";
+            Out() << GenTab() << "    " << tmp << " = FlStringByte1(" << s_tmp << ", " << i_tmp << ".data_.i);\n";
+            Out() << GenTab() << "} else {\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.byte\", 2, " << s_tmp << ", " << i_tmp << ");\n";
+            Out() << GenTab() << "}\n";
+        }
+        return tmp;
+    }
+
+    if (method_name == "format" && raw_args.size() == 2) {
+        // 常量 "%d" + 数值参数 → FlFormatInt
+        if (const auto fmt_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[0]);
+            fmt_exp && fmt_exp->GetExpKind() == ExpKind::kString && fmt_exp->ExpValue() == "%d") {
+            const std::string arg = CompileExp(raw_args[1]);
+            const auto arg_tmp = std::format("flua_sfmt_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
+            Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+            Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT)) {\n";
+            Out() << GenTab() << "    " << tmp << " = FlFormatInt(" << arg_tmp << ".data_.i);\n";
+            Out() << GenTab() << "} else {\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.format\", 2, "
+                 << "(CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("%d") << "}, " << arg_tmp << ");\n";
+            Out() << GenTab() << "}\n";
+            return tmp;
+        }
+    }
+
+    if (method_name == "len" && raw_args.size() == 1) {
+        // 只对字符串内联：string.len(t) 对表必须报错，语义与 #t 不同
+        const std::string arg = CompileExp(raw_args[0]);
+        const auto arg_tmp = std::format("flua_slen_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_STRING)) {\n";
+        Out() << GenTab() << "    SET_INT(" << tmp << ", STR_SIZE(" << arg_tmp << ".data_.s));\n";
+        Out() << GenTab() << "} else if (" << arg_tmp << ".type_ == VAR_STRINGID) {\n";
+        Out() << GenTab() << "    SET_INT(" << tmp << ", STR_SIZE((VarString *)" << arg_tmp << ".data_.i));\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.len\", 1, " << arg_tmp << ");\n";
+        Out() << GenTab() << "}\n";
+        return tmp;
+    }
+
+    // 其余（sub/rep/reverse/dump/多参 format 等）仍走慢路径
+    return {};
+}
+
+std::string CGen::TryCompileBuiltinBasicCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,
+                                             const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
+    if (pe_pre_ptr->GetPrefixKind() != PrefixExpKind::kVar || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+        return {};
+    }
+    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+        return {};
+    }
+    // 局部同名变量遮蔽时不内联
+    if (var_to_def_map_.contains(callee_var.get())) {
+        return {};
+    }
+
+    const std::string &name = callee_var->GetName();
+    const auto explist_arg = args_ptr->Explist();
+    const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
+    const auto &raw_args = explist_arg_ptr->Exps();
+
+    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+
+    // 仅内联 2 参形式 select(i, ...) / select("#", ...)；
+    // select(2, 10, 20, 30) 等多参字面量仍走 native，以保留多返回值语义。
+    if (name == "select" && raw_args.size() == 2) {
+        func_temp_decls_ << "    CVar " << tmp << ";\n";
+        // select 的末尾 ... 必须保留 Multi，不能 FlUnboxMulti(..., 0)
+        // select("#", ...)
+        if (const auto idx_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[0]);
+            idx_exp && idx_exp->GetExpKind() == ExpKind::kString && idx_exp->ExpValue() == "#") {
+            const std::string vararg = CompileExp(raw_args[1], /*preserve_multi=*/true);
+            Out() << GenTab() << tmp << " = FlSelectHash(" << vararg << ");\n";
+            return tmp;
+        }
+        // select(i, ...) —— i 为 INT 时直接取首个元素（表达式上下文）
+        const std::string idx_c = CompileExp(raw_args[0]);
+        const std::string vararg = CompileExp(raw_args[1], /*preserve_multi=*/true);
+        const auto idx_tmp = std::format("flua_sel_i_{}", tmp_var_counter_++);
+        const auto va_tmp = std::format("flua_sel_v_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << idx_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << va_tmp << ";\n";
+        Out() << GenTab() << idx_tmp << " = " << idx_c << ";\n";
+        Out() << GenTab() << va_tmp << " = " << vararg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << idx_tmp << ".type_ == VAR_INT)) {\n";
+        Out() << GenTab() << "    " << tmp << " = FlSelectIndex(" << idx_tmp << ".data_.i, " << va_tmp << ");\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"select\", 2, " << idx_tmp << ", " << va_tmp << ");\n";
+        Out() << GenTab() << "}\n";
+        return tmp;
+    }
+
+    if (name == "tonumber" && raw_args.size() == 1) {
+        func_temp_decls_ << "    CVar " << tmp << ";\n";
+        const std::string arg = CompileExp(raw_args[0]);
+        const auto arg_tmp = std::format("flua_tonum_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        Out() << GenTab() << tmp << " = FlTonumber(" << arg_tmp << ");\n";
+        return tmp;
+    }
+
+    if (name == "tostring" && raw_args.size() == 1) {
+        func_temp_decls_ << "    CVar " << tmp << ";\n";
+        const std::string arg = CompileExp(raw_args[0]);
+        const auto arg_tmp = std::format("flua_tostr_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_STRING || " << arg_tmp << ".type_ == VAR_STRINGID)) {\n";
+        Out() << GenTab() << "    " << tmp << " = " << arg_tmp << ";\n";
+        Out() << GenTab() << "} else if (" << arg_tmp << ".type_ == VAR_INT) {\n";
+        Out() << GenTab() << "    " << tmp << " = FlFormatInt(" << arg_tmp << ".data_.i);\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"tostring\", 1, " << arg_tmp << ");\n";
+        Out() << GenTab() << "}\n";
+        return tmp;
+    }
+
     return {};
 }
 

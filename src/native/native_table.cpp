@@ -157,6 +157,8 @@ uint32_t NextPowerOfTwo(uint32_t v) {
     return v + 1;
 }
 
+void TableRehashTo(State *s, VarTable *tbl, uint32_t min_buckets);
+
 // 与 c_runtime_header.h 的 FlTableInsertRaw 对应。溢出节点耗尽时返回 false，
 // 由调用方扩容后重试。
 bool TableInsertRaw(VarTable *tbl, CVar key, CVar val, uint32_t hash) {
@@ -200,12 +202,19 @@ bool TableInsertRaw(VarTable *tbl, CVar key, CVar val, uint32_t hash) {
 
 // 与 c_runtime_header.h 的 FlTableRehash 对应。内容不变，故序列长度缓存无需失效。
 void TableRehash(State *s, VarTable *tbl) {
+    TableRehashTo(s, tbl, 0);
+}
+
+// min_buckets>0 时至少扩到该容量（用于 table.move 预扩空目标表，避免逐次翻倍 rehash）。
+void TableRehashTo(State *s, VarTable *tbl, uint32_t min_buckets) {
     const uint32_t old_count = tbl->count_;
     const uint32_t old_bucket_count = tbl->bucket_count_;
     auto *old_nodes = tbl->nodes_;
 
     uint32_t new_bucket_count = NextPowerOfTwo(old_count + 1);
     if (new_bucket_count <= old_bucket_count) new_bucket_count = old_bucket_count * 2;
+    if (min_buckets > new_bucket_count) new_bucket_count = NextPowerOfTwo(min_buckets);
+    if (new_bucket_count < 1) new_bucket_count = 1;
 
     auto &alloc = s->GetHeap().GetAllocator(false /* temp */);
     while (true) {
@@ -681,23 +690,48 @@ void RegisterTableLibraryApi(State *s) {
             end_j = inter::CVarToInteger(end_var, end_j);
         }
 
-        std::string res;
+        // 两遍扫描：先算总长再一次写入 arena，避免 std::string 增长 + NativeToFakelua 二次拷贝
+        std::vector<std::string> owned;// Int/Float 转字符串的临时缓冲
+        std::vector<std::string_view> parts;
+        const int64_t nparts = (end_j >= start_i) ? (end_j - start_i + 1) : 0;
+        parts.reserve(static_cast<size_t>(nparts) + (sep.empty() ? 0 : static_cast<size_t>(nparts)));
+        // parts 保存指向 owned 元素的 view，必须预留足够容量：一旦扩容，
+        // SSO 短字符串的数据随对象一起搬走，已保存的 view 会全部悬空。
+        owned.reserve(static_cast<size_t>(nparts));
+        size_t total = 0;
         for (int64_t idx = start_i; idx <= end_j; ++idx) {
-            if (idx > start_i) res += sep;
+            if (idx > start_i && !sep.empty()) {
+                parts.push_back(sep);
+                total += sep.size();
+            }
             CVar item = TableHelper::GetTableInt(state, tbl, idx);
             if (item.type_ == static_cast<int>(VarType::Int)) {
-                res += std::to_string(item.data_.i);
+                owned.push_back(std::to_string(item.data_.i));
+                parts.push_back(owned.back());
+                total += owned.back().size();
             } else if (item.type_ == static_cast<int>(VarType::Float)) {
-                // 标准 Lua：table.concat 会将 float 转换为字符串
-                res += std::format("{}", item.data_.f);
+                owned.push_back(std::format("{}", item.data_.f));
+                parts.push_back(owned.back());
+                total += owned.back().size();
             } else if (item.type_ == static_cast<int>(VarType::String) || item.type_ == static_cast<int>(VarType::StringId)) {
                 auto sv = KeyToStringView(item);
-                res += std::string(sv);
+                parts.push_back(sv);
+                total += sv.size();
             } else {
                 ThrowFakeluaException("invalid value in table for 'concat'");
             }
         }
-        return inter::NativeToFakeluaStringView(state, res);
+        VarString *vs = VarString::AllocTempRaw(state, total);
+        char *dst = vs->MutableData();
+        for (const auto &p: parts) {
+            if (!p.empty()) {
+                std::memcpy(dst, p.data(), p.size());
+                dst += p.size();
+            }
+        }
+        CVar ret{static_cast<int>(VarType::String)};
+        ret.data_.s = vs;
+        return ret;
     });
 
     RegisterNativeFunction(s, "table.unpack", 1, true, [](State *state, CVar *args, int n) -> CVar {
@@ -769,6 +803,10 @@ void RegisterTableLibraryApi(State *s) {
             if (count > 10000000ULL) return a2;
             int64_t icount = static_cast<int64_t>(count);
             bool same_table = (a1.type_ == static_cast<int>(VarType::Table) && a2.type_ == static_cast<int>(VarType::Table) && a1.data_.t == a2.data_.t);
+            // 空目标表预扩容：避免 1→2→4→… 反复 rehash（大 n 时常数项明显）
+            if (!same_table && a2.data_.t->count_ == 0 && icount > 8) {
+                TableRehashTo(state, a2.data_.t, static_cast<uint32_t>(icount));
+            }
             if (!same_table || t <= f || t > e) {
                 for (int64_t i = 0; i < icount; ++i) {
                     CVar val = TableHelper::GetTableInt(state, a1, f + i);

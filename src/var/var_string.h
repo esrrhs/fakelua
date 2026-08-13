@@ -45,6 +45,13 @@ public:
 
     static VarString *AllocTemp(State *state, const std::string_view &str);
 
+    // 预分配指定长度，调用方直接写入 MutableData()，避免 std::string 中转二次拷贝。
+    static VarString *AllocTempRaw(State *state, size_t size);
+
+    [[nodiscard]] char *MutableData() {
+        return data_;
+    }
+
 private:
     int size_ = 0;
     mutable uint32_t hash_ = 0;

@@ -269,12 +269,12 @@ void RegisterBasicLibraryApi(State *s) {
             return inter::NativeToFakeluaNil(state);
         }
 
-        std::string str(v.GetString()->Str());
-        // Trim leading and trailing whitespace per Lua spec
-        size_t start = str.find_first_not_of(" \t\n\r\f\v");
-        if (start == std::string::npos) return inter::NativeToFakeluaNil(state);
-        size_t end = str.find_last_not_of(" \t\n\r\f\v");
-        str = str.substr(start, end - start + 1);
+        std::string_view raw = v.GetString()->Str();
+        // Trim leading and trailing whitespace per Lua spec（不先拷整串）
+        size_t start = raw.find_first_not_of(" \t\n\r\f\v");
+        if (start == std::string_view::npos) return inter::NativeToFakeluaNil(state);
+        size_t end = raw.find_last_not_of(" \t\n\r\f\v");
+        std::string_view trimmed = raw.substr(start, end - start + 1);
 
         int base = 10;
         bool has_custom_base = false;
@@ -306,13 +306,17 @@ void RegisterBasicLibraryApi(State *s) {
         }
 
         // Auto-detect 0x/0X prefix when no custom base is provided
-        if (!has_custom_base && (str.rfind("0x", 0) == 0 || str.rfind("0X", 0) == 0 || str.rfind("-0x", 0) == 0 || str.rfind("-0X", 0) == 0 || str.rfind("+0x", 0) == 0 || str.rfind("+0X", 0) == 0)) {
+        auto starts_hex = [](std::string_view s) {
+            return s.rfind("0x", 0) == 0 || s.rfind("0X", 0) == 0 || s.rfind("-0x", 0) == 0 || s.rfind("-0X", 0) == 0 || s.rfind("+0x", 0) == 0 ||
+                   s.rfind("+0X", 0) == 0;
+        };
+        if (!has_custom_base && starts_hex(trimmed)) {
             base = 16;
         }
 
         if (base == 10) {
-            // 尝试整数解析 (先去除领先正号)
-            std::string_view s_view = str;
+            // 整数：直接在 string_view 上 from_chars，避免拷贝
+            std::string_view s_view = trimmed;
             if (!s_view.empty() && s_view[0] == '+') {
                 s_view.remove_prefix(1);
             }
@@ -321,7 +325,8 @@ void RegisterBasicLibraryApi(State *s) {
             if (ec == std::errc{} && ptr == s_view.data() + s_view.size()) {
                 return inter::NativeToFakeluaInt(state, ival);
             }
-            // 尝试浮点解析
+            // 浮点解析需要 NUL 结尾或 stod；此处才拷一次
+            std::string str(trimmed);
             try {
                 size_t pos = 0;
                 double dval = std::stod(str, &pos);
@@ -332,6 +337,7 @@ void RegisterBasicLibraryApi(State *s) {
             }
             return inter::NativeToFakeluaNil(state);
         } else {
+            std::string str(trimmed);
             if (base < 2 || base > 36) return inter::NativeToFakeluaNil(state);
             int64_t result = 0;
             bool negative = false;
