@@ -25,7 +25,8 @@ static bool CallClosure(State *state, VarClosure *cl, CVar *args, int n, CVar &r
     try {
         void *addr = cl->func_ptr;
         if (addr != nullptr) {
-            result = inter::DispatchCall(addr, args, n);
+            // closure 的后端来源不确定，按需要边界的那一种处理
+            result = inter::DispatchCall(addr, args, n, JIT_TCC);
         } else if (cl->code_str) {
             result = FlEvalLoadClosure(state, cl, n, args);
         } else {
@@ -530,7 +531,7 @@ void RegisterBasicLibraryApi(State *s) {
                 void *addr = err_cl->func_ptr;
                 CVar err_result{static_cast<int>(VarType::Nil)};
                 if (addr != nullptr) {
-                    err_result = inter::DispatchCall(addr, &err_arg, 1);
+                    err_result = inter::DispatchCall(addr, &err_arg, 1, JIT_TCC);
                 } else if (err_cl->code_str) {
                     err_result = FlEvalLoadClosure(state, err_cl, 1, &err_arg);
                 } else {

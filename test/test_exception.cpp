@@ -8,17 +8,11 @@ using namespace fakelua;
 
 #define TEST_JIT_TYPE JIT_TCC
 
-// TCC 异常处理限制说明：
-// TCC 编译生成的动态指令帧（JIT 代码段）中没有 DWARF 异常展开表（.eh_frame），
-// 如果在这些 TCC 动态帧中运行的代码（如 __fakelua_init 全局初始化流程）抛出 C++ 异常，
-// 运行时由于无法定位异常处理器，将直接触发 std::terminate() 导致进程崩溃。
-//
-// 为此，我们手动在下面包含复杂全局变量初始化（其求值过程中可能触发 C++ 运行时异常）的 18 个
-// 测试用例中，使用 CompileFileTccDisabled 显式禁用 JIT_TCC，以允许 GCC JIT 正常执行并捕获 C++ 异常。
-static inline void CompileFileTccDisabled(State *s, const std::string &file) {
-    CompileConfig cfg;
-    cfg.disable_jit[JIT_TCC] = true;
-    CompileFile(s, file, cfg);
+// 这些用例的全局初始化在编译期就会执行（__fakelua_init），求值过程可能触发运行时错误。
+// 两个 JIT 后端都参与：TCC 的代码页没有 DWARF 展开表，错误经 jit_error_boundary 的
+// 跳转边界回到 C++，因此不再需要像早期那样为它们单独关掉 JIT_TCC。
+static inline void CompileFileBothJit(State *s, const std::string &file) {
+    CompileFile(s, file, {});
 }
 
 // Lightweight mirror of test_infer.cpp's InferGetCCode: compile a Lua file with
@@ -475,7 +469,7 @@ TEST(exception, test_const_binop_plus_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_plus_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_plus_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -501,7 +495,7 @@ TEST(exception, test_const_binop_minus_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_minus_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_minus_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -516,7 +510,7 @@ TEST(exception, test_const_binop_star_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_star_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_star_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -531,7 +525,7 @@ TEST(exception, test_const_binop_slash_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_slash_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_slash_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -546,7 +540,7 @@ TEST(exception, test_const_binop_double_slash_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_double_slash_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_double_slash_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -561,7 +555,7 @@ TEST(exception, test_const_binop_pow_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_pow_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_pow_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -576,7 +570,7 @@ TEST(exception, test_const_binop_mod_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_mod_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_mod_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -591,7 +585,7 @@ TEST(exception, test_const_binop_bitand_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_bitand_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_bitand_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -606,7 +600,7 @@ TEST(exception, test_const_binop_xor_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_xor_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_xor_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -621,7 +615,7 @@ TEST(exception, test_const_binop_bitor_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_bitor_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_bitor_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -636,7 +630,7 @@ TEST(exception, test_const_binop_right_shift_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_right_shift_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_right_shift_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -651,7 +645,7 @@ TEST(exception, test_const_binop_left_shift_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_left_shift_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_left_shift_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -666,7 +660,7 @@ TEST(exception, test_const_binop_less_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_less_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_less_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -681,7 +675,7 @@ TEST(exception, test_const_binop_less_equal_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_less_equal_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_less_equal_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -696,7 +690,7 @@ TEST(exception, test_const_binop_more_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_more_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_more_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -711,7 +705,7 @@ TEST(exception, test_const_binop_more_equal_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_more_equal_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_binop_more_equal_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -726,7 +720,7 @@ TEST(exception, test_const_unop_len_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_unop_len_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_unop_len_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -741,7 +735,7 @@ TEST(exception, test_const_unop_bitnot_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_unop_bitnot_error.lua");
+        CompileFileBothJit(s, "./exception/test_const_unop_bitnot_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -795,6 +789,42 @@ TEST(exception, goto_elseif_nonexistent) {
     ASSERT_NE(s, nullptr);
     SetDebugLogLevel(0);
     EXPECT_THROW(CompileFile(s, "./exception/test_goto_elseif_nonexistent.lua", {}), std::exception);
+}
+
+// 文件级只承载声明：local 定义、函数定义，以及可选的首行 package 声明。
+// 其余可执行语句在 SemanticAnalysis::CheckFileLevelStmts 里就应该被拒绝，
+// 不能被悄悄搬进 __fakelua_init。
+TEST(exception, file_level_stmt_rejected) {
+    for (const char *file: {"./exception/test_top_level_if.lua", "./exception/test_top_level_while.lua",
+                            "./exception/test_top_level_repeat.lua", "./exception/test_top_level_for.lua",
+                            "./exception/test_top_level_for_in.lua", "./exception/test_top_level_do_end.lua",
+                            "./exception/test_top_level_assign.lua", "./exception/test_top_level_table_assign.lua",
+                            "./exception/test_top_level_function_call.lua", "./exception/test_top_level_return.lua",
+                            "./exception/test_top_level_goto.lua", "./exception/test_top_level_package_not_first.lua"}) {
+        SCOPED_TRACE(file);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(0);
+        EXPECT_THROW(CompileFile(s, file, {}), std::exception);
+    }
+}
+
+// 文件级语句被拒绝时，报错信息应指明是文件级语句问题并带上出错位置。
+TEST(exception, file_level_stmt_error_message) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_top_level_if.lua", {});
+        FAIL() << "expected CompileFile to throw";
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("unsupported file-level statement If"), std::string::npos) << msg;
+        EXPECT_NE(msg.find("test_top_level_if.lua:3:1"), std::string::npos) << msg;
+    }
 }
 
 TEST(exception, const_func_call_error) {
@@ -1212,9 +1242,9 @@ TEST(exception, math_spec_too_few_args) {
 // ============================================================================
 // Migrated from test_infer.cpp – runtime exceptions thrown from JIT-compiled
 // code.  These throws happen during Call(), not during compilation, so the
-// compile step must succeed first.  Only JIT_GCC is used for the call: TCC
-// generates no DWARF unwind tables and cannot propagate a C++ exception thrown
-// from inside JIT-compiled code (it would std::terminate instead).
+// compile step must succeed first.  Both backends are exercised: TCC generates
+// no DWARF unwind tables, so the error travels back through the jump boundary
+// in jit_error_boundary.h rather than by unwinding out of the JIT frame.
 // ============================================================================
 
 TEST(exception, spec_assign_nonnumeric_float_throws) {
@@ -1224,13 +1254,15 @@ TEST(exception, spec_assign_nonnumeric_float_throws) {
     SetDebugLogLevel(0);
     CompileFile(s, "./exception/test_spec_assign_nonnumeric_float_throws.lua", {});
 
-    try {
-        double dret = 0.0;
-        Call(s, JIT_GCC, "test", dret, 2.5);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("attempt to assign non-numeric value to typed float variable") != std::string::npos);
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        try {
+            double dret = 0.0;
+            Call(s, jit_type, "test", dret, 2.5);
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("attempt to assign non-numeric value to typed float variable") != std::string::npos);
+        }
     }
 }
 
@@ -1255,13 +1287,15 @@ TEST(exception, spec_assign_nonnumeric_int_throws) {
     SetDebugLogLevel(0);
     CompileFile(s, "./exception/test_spec_assign_nonnumeric_int_throws.lua", {});
 
-    try {
-        int ret = 0;
-        Call(s, JIT_GCC, "test", ret, 5);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("attempt to assign non-numeric value to typed int variable") != std::string::npos);
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        try {
+            int ret = 0;
+            Call(s, jit_type, "test", ret, 5);
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("attempt to assign non-numeric value to typed int variable") != std::string::npos);
+        }
     }
 }
 
@@ -1288,7 +1322,39 @@ TEST(exception, const_table_modify_error) {
 
     CompileFile(s, "./exception/test_const_table_modify_error.lua", {});
 
-    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
-    double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_modify_const", res), std::exception);
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        double res = 0;
+        EXPECT_THROW(Call(s, jit_type, "test_modify_const", res), std::exception);
+    }
+}
+
+// ============================================================================
+// 错误必须能穿过 JIT 帧回到调用方，而不是让进程 abort。TCC 的代码页没有 DWARF
+// 展开表，这两条路径以前都会 std::terminate()：
+//   1. 文件级语句被编译器搬进 __fakelua_init，在 CompileString 期间就执行
+//   2. 已编译函数在 Call 期间出错
+// ============================================================================
+
+TEST(exception, init_runtime_error_is_catchable) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    // b 尚未定义，加法在 __fakelua_init 里就会失败
+    EXPECT_THROW(CompileString(s, "local a = 1\nlocal b = a + b\n", {}), FakeluaException);
+}
+
+TEST(exception, call_runtime_error_is_catchable) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    CompileString(s, "function call_non_function()\nlocal s = \"hello\"\nreturn string.sub(s, 1, 3)(s)\nend", {});
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        double res = 0;
+        EXPECT_THROW(Call(s, jit_type, "call_non_function", res), FakeluaException);
+    }
 }

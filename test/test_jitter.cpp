@@ -2143,6 +2143,16 @@ TEST(jitter, global_const_int_in_expr) {
     });
 }
 
+// 文件级只写声明（含空语句）是合法形态，应能正常编译并运行。
+TEST(jitter, file_level_decls_only) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_file_level_decls_only.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_file_level_decls_only", ret);
+        ASSERT_EQ(ret, 18);
+    });
+}
+
 TEST(jitter, bitnot_on_specialized_int) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bitnot_on_specialized_int.lua", {.debug_mode = debug_mode});

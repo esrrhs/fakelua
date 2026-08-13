@@ -16,10 +16,14 @@ extern "C" {
 void *fuzz_fakelua_new_state(void);
 void fuzz_fakelua_delete_state(void *s);
 
-// Compile Lua source code.
-// Returns 1 on success, 0 on expected failure (invalid syntax/unsupported feature),
-// aborts on unexpected failure (crash / unknown exception).
+// Compile Lua source with the GCC backend only (TCC disabled).
+// Returns 1 on success, 0 on expected failure (invalid syntax/unsupported feature /
+// runtime error in file-level initializers), aborts on unexpected failure.
 int fuzz_fakelua_compile_string(void *s, const char *src, int len);
+
+// Same GCC-only compile as above; named separately for differential fuzz, which
+// needs the compiled functions to remain callable afterwards.
+int fuzz_fakelua_compile_string_executable(void *s, const char *src, int len);
 
 // Call a named function with no arguments, expecting an int64_t return.
 // Returns 1 on success, 0 on expected failure, aborts on unexpected failure.

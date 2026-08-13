@@ -1,6 +1,7 @@
 #include "native/native_table.h"
 #include "native/native_common.h"
 #include "compile/c_runtime_header.h"
+#include "jit/jit_error_boundary.h"
 #include "native/native_object.h"
 #include "native/native_string.h"
 #include "state/state.h"
@@ -847,7 +848,8 @@ void RegisterTableLibraryApi(State *s) {
                 CVar res{static_cast<int>(VarType::Nil)};
                 if (cl->func_ptr) {
                     void *addr = cl->func_ptr;
-                    res = reinterpret_cast<CVar (*)(VarClosure *, CVar, CVar)>(addr)(cl, a, b);
+                    // 比较器是 JIT 代码：错误必须先在边界转成异常，才能穿过 stable_sort 回到这里
+                    res = RunWithJitErrorBoundary([&] { return reinterpret_cast<CVar (*)(VarClosure *, CVar, CVar)>(addr)(cl, a, b); });
                 } else if (cl->code_str) {
                     CVar args_arr[2] = {a, b};
                     res = FlEvalLoadClosure(state, cl, 2, args_arr);

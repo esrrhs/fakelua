@@ -9,6 +9,37 @@ namespace fakelua {
 SemanticAnalysis::SemanticAnalysis(State *s) : s_(s) {
 }
 
+// 文件级只承载声明：local 变量定义、函数定义，以及可选的首行 package 声明。
+// if / while / for / 赋值 等可执行语句必须写在函数体里：它们在文件级没有确定的执行时机，
+// 而且文件级 local 会被当成该文件的常量降级成 C 的 static const，再赋值就自相矛盾了。
+void SemanticAnalysis::CheckFileLevelStmts(const ParseResult &pr) {
+    file_name_ = pr.file_name;
+
+    DEBUG_ASSERT(pr.chunk->Type() == SyntaxTreeType::Block);
+    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
+
+    const auto &stmts = top_block->Stmts();
+    for (size_t i = 0; i < stmts.size(); ++i) {
+        const auto &stmt = stmts[i];
+        switch (stmt->Type()) {
+            case SyntaxTreeType::LocalVar:
+            case SyntaxTreeType::Function:
+            case SyntaxTreeType::LocalFunction:
+            case SyntaxTreeType::Empty:
+                continue;
+            default:
+                break;
+        }
+        // package 声明只承认写在文件第一条语句的形态，后续 CGen 也只在这个位置识别它
+        if (std::string pkg_name; i == 0 && ExtractPackageName(stmt, pkg_name)) {
+            continue;
+        }
+        ThrowError(std::format("unsupported file-level statement {}, only local definitions and function definitions are allowed at file level",
+                               SyntaxTreeTypeToString(stmt->Type())),
+                   stmt);
+    }
+}
+
 AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileConfig &cfg) {
     file_name_ = pr.file_name;
 

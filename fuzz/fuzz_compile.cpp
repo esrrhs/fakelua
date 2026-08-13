@@ -1,7 +1,8 @@
-// fuzz_compile.cpp — Compilation-only fuzz target for fakelua
+// fuzz_compile.cpp — GCC-backend fuzz target for fakelua
 //
 // Uses fuzz_bridge (compiled with GCC) to call fakelua from a
-// clang+libFuzzer binary. Tests that CompileString doesn't crash.
+// clang+libFuzzer binary. Exercises CompileString through the production
+// GCC backend (including __fakelua_init); TCC is disabled.
 //
 // Build:  See fuzz/README.md
 // Run:    ./fuzz_compile -max_len=4096 -runs=1000000

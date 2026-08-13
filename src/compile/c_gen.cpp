@@ -18,70 +18,6 @@ CGen::CGen(State *s) : s_(s) {
 }
 
 // ---------------------------------------------------------------------------
-// Package 探测辅助
-// ---------------------------------------------------------------------------
-
-// 剥离 Lua 字符串字面量的引号（"..." 或 '...'），返回内容部分。
-// 若不以引号开头则原样返回。
-std::string CGen::StripLuaStringQuotes(const std::string &raw) {
-    if (raw.size() >= 2 && (raw.front() == '"' || raw.front() == '\'')) {
-        return raw.substr(1, raw.size() - 2);
-    }
-    return raw;
-}
-
-// 尝试从一条语句中提取 package 声明名。
-// 支持两种 AST 形态：FunctionCall（package "xxx"）和 Assign（package = "xxx"）。
-// 成功则 out_name 被赋值，返回 true；否则返回 false。
-bool CGen::ExtractPackageName(const SyntaxTreeInterfacePtr &stmt, std::string &out_name) const {
-    if (stmt->Type() == SyntaxTreeType::FunctionCall) {
-        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(stmt);
-        if (fc && fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
-            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-            if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar && pe->GetValue()) {
-                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-                if (v && v->GetName() == "package" && fc->Args()) {
-                    const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-                    if (args && args->GetArgsKind() == ArgsKind::kString && args->String()) {
-                        const auto str_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(args->String());
-                        if (str_exp) {
-                            out_name = StripLuaStringQuotes(str_exp->ExpValue());
-                            return true;
-                        }
-                    } else if (args && args->GetArgsKind() == ArgsKind::kExpList && args->Explist()) {
-                        const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(args->Explist());
-                        if (el && !el->Exps().empty()) {
-                            const auto str_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
-                            if (str_exp && str_exp->GetExpKind() == ExpKind::kString) {
-                                out_name = StripLuaStringQuotes(str_exp->ExpValue());
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    } else if (stmt->Type() == SyntaxTreeType::Assign) {
-        const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
-        if (assign && assign->Varlist() && assign->Explist()) {
-            const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
-            const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
-            if (vl && !vl->Vars().empty() && el && !el->Exps().empty()) {
-                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vl->Vars()[0]);
-                if (v && v->GetName() == "package") {
-                    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
-                    if (exp && exp->GetExpKind() == ExpKind::kString) {
-                        out_name = StripLuaStringQuotes(exp->ExpValue());
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-    return false;
-}
-
-// ---------------------------------------------------------------------------
 // 字面量 key 分类辅助
 // ---------------------------------------------------------------------------
 
@@ -455,7 +391,7 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                     // CONST_FLAG 会在 init 函数赋值后由 CompileStmtAssign 注入。
                     const std::string cvar_init = exp ? CompileExp(exp) : "(CVar){.type_ = VAR_NIL}";
                     Out() << "static CVar " << name << " = " << cvar_init << ";\n";
-                    // 全局非数值变量（表/闭包）记录到集合，后续在 init 函数赋值后注入 CONST_FLAG
+                    // 全局非数值变量（表/闭包）记录到集合，后续在 init 函数赋值后注入 CONST_FLAG。
                     global_const_table_vars_.insert(name);
                 }
             }

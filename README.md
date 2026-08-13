@@ -388,6 +388,21 @@ local z = (x + y) / 2.0
 
 编译器会将复杂初始化器提取到生成的 `__fakelua_init()` 函数中，在 JIT 加载后立即执行，使全局变量获得正确的运行时值。
 
+### 文件级语句限制
+
+文件级（chunk 顶层）只允许三类语句：可选的首行 `package "Name"` 声明、`local` 变量定义、函数定义。
+`if` / `while` / `for` / 赋值等可执行语句必须写在函数体内，否则会在 [semantic_analysis](file:///home/project/fakelua/src/compile/semantic_analysis.h) 的
+`CheckFileLevelStmts` 阶段（预处理改写 AST 之前）直接报错：
+
+```lua
+local x = 5
+if x > 3 then -- 编译错误：unsupported file-level statement If
+    x = 10
+end
+```
+
+文件级 `local` 被视为该文件的常量，会降级成 C 的 `static const`，因此也不允许在文件级对它再次赋值。
+
 ## 当前已知限制
 
 ### 类型系统限制
@@ -547,6 +562,8 @@ Lua 源码
 [词法分析] → tokens (flexer)
    ↓
 [语法分析] → AST (bison + syntax_tree)
+   ↓
+[文件级语句校验] → 拒绝非声明语句 (semantic_analysis)
    ↓
 [预处理] → normalized AST (preprocessor)
    ↓

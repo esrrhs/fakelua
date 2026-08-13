@@ -181,6 +181,68 @@ inline bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node) {
     return pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall;
 }
 
+// ---- package 声明辅助 --------------------------------------------------------
+
+// 剥离 Lua 字符串字面量的引号（"..." 或 '...'），返回内容部分。
+// 若不以引号开头则原样返回。
+inline std::string StripLuaStringQuotes(const std::string &raw) {
+    if (raw.size() >= 2 && (raw.front() == '"' || raw.front() == '\'')) {
+        return raw.substr(1, raw.size() - 2);
+    }
+    return raw;
+}
+
+// 尝试从一条语句中提取 package 声明名。
+// 支持两种 AST 形态：FunctionCall（package "xxx"）和 Assign（package = "xxx"）。
+// 成功则 out_name 被赋值，返回 true；否则返回 false。
+inline bool ExtractPackageName(const SyntaxTreeInterfacePtr &stmt, std::string &out_name) {
+    if (stmt->Type() == SyntaxTreeType::FunctionCall) {
+        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(stmt);
+        if (fc && fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
+            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+            if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar && pe->GetValue()) {
+                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+                if (v && v->GetName() == "package" && fc->Args()) {
+                    const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+                    if (args && args->GetArgsKind() == ArgsKind::kString && args->String()) {
+                        const auto str_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(args->String());
+                        if (str_exp) {
+                            out_name = StripLuaStringQuotes(str_exp->ExpValue());
+                            return true;
+                        }
+                    } else if (args && args->GetArgsKind() == ArgsKind::kExpList && args->Explist()) {
+                        const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(args->Explist());
+                        if (el && !el->Exps().empty()) {
+                            const auto str_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
+                            if (str_exp && str_exp->GetExpKind() == ExpKind::kString) {
+                                out_name = StripLuaStringQuotes(str_exp->ExpValue());
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else if (stmt->Type() == SyntaxTreeType::Assign) {
+        const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+        if (assign && assign->Varlist() && assign->Explist()) {
+            const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+            const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+            if (vl && !vl->Vars().empty() && el && !el->Exps().empty()) {
+                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vl->Vars()[0]);
+                if (v && v->GetName() == "package") {
+                    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
+                    if (exp && exp->GetExpKind() == ExpKind::kString) {
+                        out_name = StripLuaStringQuotes(exp->ExpValue());
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
 // 统一的语法树位置格式化字符串，供各编译阶段共用。
 inline std::string SyntaxTreeLocationStr(const std::string &file_name, const SyntaxTreeInterfacePtr &ptr) {
     return std::format("{}:{}:{}", file_name, ptr->Loc().begin.line, ptr->Loc().begin.column);

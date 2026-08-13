@@ -15,6 +15,11 @@ class SemanticAnalysis {
 public:
     explicit SemanticAnalysis(State *s);
 
+    // 校验文件级（chunk 顶层）语句的合法性。
+    // 必须在 PreProcessor 之前调用：预处理会把顶层语句搬进 __fakelua_init，
+    // 之后就分辨不出哪些是用户写在文件级的语句、哪些是编译器生成的初始化赋值了。
+    void CheckFileLevelStmts(const ParseResult &pr);
+
     // 运行语义分析
     AnalysisResult Analyze(const ParseResult &pr, const CompileConfig &cfg);
 

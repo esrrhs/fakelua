@@ -1,8 +1,8 @@
 #include "vm.h"
 #include "fakelua.h"
+#include "jit/jit_error_boundary.h"
 #include "state/state.h"
 #include "util/common.h"
-#include "util/dispatch_macro.h"
 #include "var/var_closure.h"
 #include "var/var_multi.h"
 #include "var/var_type.h"
@@ -10,15 +10,52 @@
 
 namespace fakelua {
 
+thread_local JitErrorBoundary *g_jit_error_boundary __attribute__((tls_model("initial-exec"))) = nullptr;
+
+[[noreturn]] void JumpToJitErrorBoundary(std::string msg) {
+    JitErrorBoundary *boundary = g_jit_error_boundary;
+    boundary->msg = std::move(msg);
+    FAKELUA_LONGJMP(boundary->buf, 1);
+}
+
 extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const) {
-    return state->GetHeap().GetAllocator(is_const).Alloc(size);
+    return GuardJitEntry([&] { return state->GetHeap().GetAllocator(is_const).Alloc(size); });
 }
 
 extern "C" void FakeluaThrowError(State *state, const char *msg) {
+    if (InJitFrame()) {
+        // JIT 代码直接调用本函数，中间没有需要析构的 C++ 帧，可以直接跳转
+        JumpToJitErrorBoundary(BuildFakeluaErrorMessage(msg));
+    }
     ThrowFakeluaException(msg);
 }
 
+static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr);
+
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
+    // 参数必须在 varargs 函数自身里取出，随后的分发交给普通函数处理
+    CVar raw_arg_arr[kMaxFunctionInputParams];
+    const int read_num = std::min(arg_num, static_cast<int>(kMaxFunctionInputParams));
+    va_list args_list;
+    va_start(args_list, arg_num);
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-pod-varargs"
+#endif
+    for (int i = 0; i < read_num; ++i) {
+        // NOLINTNEXTLINE(clang-analyzer-valist.Uninitialized)
+        raw_arg_arr[i] = va_arg(args_list, CVar);
+    }
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+    va_end(args_list);
+
+    // 调用方可能是 JIT 代码，异常不能穿过它的帧回到 C++
+    return GuardJitEntry([&] { return CallByNameImpl(state, jit_type, name, arg_num, raw_arg_arr); });
+}
+
+static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr) {
     // ── 查找函数：优先 JIT，其次 C++ 原生 ─────────────────────────────────────
     // 用 string_view 查表，避免每次调用都堆分配 std::string
     const std::string_view func_name(name);
@@ -48,23 +85,6 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     if (UNLIKELY(arg_num > static_cast<int>(kMaxFunctionInputParams))) {
         ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) passed for function '{}', max is {}", arg_num, name, kMaxFunctionInputParams));
     }
-
-    // ── 收集原始参数 ──────────────────────────────────────────────────────────
-    CVar raw_arg_arr[kMaxFunctionInputParams];
-    va_list args_list;
-    va_start(args_list, arg_num);
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wnon-pod-varargs"
-#endif
-    for (int i = 0; i < arg_num; ++i) {
-        // NOLINTNEXTLINE(clang-analyzer-valist.Uninitialized)
-        raw_arg_arr[i] = va_arg(args_list, CVar);
-    }
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-    va_end(args_list);
 
     // ── 展开 Multi / 补齐参数 ─────────────────────────────────────────────────
     const CVar *arg_arr = nullptr;
@@ -143,50 +163,9 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no address for jit_type {}", name, jit_type));
     }
 
-    switch (expected_arg_count) {
-#define VM_CASE(N)                                                                                                                                                                                     \
-    case N:                                                                                                                                                                                            \
-        return reinterpret_cast<CVar (*)(VarClosure * DISPATCH_CVAR_##N)>(addr)(nullptr DISPATCH_ARG_##N);
-
-        VM_CASE(0)
-        VM_CASE(1)
-        VM_CASE(2)
-        VM_CASE(3)
-        VM_CASE(4)
-        VM_CASE(5)
-        VM_CASE(6)
-        VM_CASE(7)
-        VM_CASE(8)
-        VM_CASE(9)
-        VM_CASE(10)
-        VM_CASE(11)
-        VM_CASE(12)
-        VM_CASE(13)
-        VM_CASE(14)
-        VM_CASE(15)
-        VM_CASE(16)
-        VM_CASE(17)
-        VM_CASE(18)
-        VM_CASE(19)
-        VM_CASE(20)
-        VM_CASE(21)
-        VM_CASE(22)
-        VM_CASE(23)
-        VM_CASE(24)
-        VM_CASE(25)
-        VM_CASE(26)
-        VM_CASE(27)
-        VM_CASE(28)
-        VM_CASE(29)
-        VM_CASE(30)
-        VM_CASE(31)
-        VM_CASE(32)
-
-#undef VM_CASE
-#include "util/dispatch_macro_undef.h"
-        default:
-            __builtin_unreachable();
-    }
+    // 走 DispatchCall 而不是在这里再展开一遍调用阶梯：它自带 JIT 错误边界，
+    // 被调用方出错时本函数的帧（持有 VmFunction 里的 shared_ptr）才能正常析构。
+    return inter::DispatchCall(addr, arg_arr, expected_arg_count, static_cast<JITType>(jit_type));
 }
 
 

@@ -1,6 +1,7 @@
 #include "native/native_string.h"
 #include "native/native_common.h"
 #include "compile/c_runtime_header.h"
+#include "jit/jit_error_boundary.h"
 #include "native/native_object.h"
 #include "state/state.h"
 #include "var/var.h"
@@ -1082,14 +1083,14 @@ void RegisterStringLibraryApi(State *s) {
                         for (int i = 0; i < call_arg_count; ++i) {
                             call_args[i] = inter::NativeToFakeluaStringView(state, match[i + 1].str());
                         }
-                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, call_args, call_arg_count) : FlEvalLoadClosure(state, cl, call_arg_count, call_args);
+                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, call_args, call_arg_count, JIT_TCC) : FlEvalLoadClosure(state, cl, call_arg_count, call_args);
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
                         replacement = std::string(KeyToStringView(fn_res));
                     } else {
                         CVar call_arg = inter::NativeToFakeluaStringView(state, match[0].str());
-                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, &call_arg, 1) : FlEvalLoadClosure(state, cl, 1, &call_arg);
+                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, &call_arg, 1, JIT_TCC) : FlEvalLoadClosure(state, cl, 1, &call_arg);
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
@@ -2012,7 +2013,9 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
     try {
         CompileConfig config;
         CompileString(state, full_code, config);
-        CVar res = FakeluaCallByName(state, JIT_TCC, eval_fn_name.c_str(), 0);
+        // 边界不能省：本函数要靠下面的 catch 把错误吞成 nil，若让错误直接跳到更外层的
+        // 边界，这里的 std::string 就不会析构，语义也从"返回 nil"变成了向上抛。
+        CVar res = RunWithJitErrorBoundary([&] { return FakeluaCallByName(state, JIT_TCC, eval_fn_name.c_str(), 0); });
         return res;
     } catch (...) {
         return inter::NativeToFakeluaNil(state);

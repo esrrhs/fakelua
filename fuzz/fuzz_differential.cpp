@@ -75,8 +75,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     int flua_compiled = 0;
     void *flua = fuzz_fakelua_new_state();
     if (flua) {
-        flua_compiled = fuzz_fakelua_compile_string(flua, script.c_str(),
-                                                     static_cast<int>(script.size()));
+        // Executable variant: fuzz_test() has to be callable below. Lua 5.4 also
+        // runs the chunk via lua_pcall, so both sides execute file-level code.
+        flua_compiled = fuzz_fakelua_compile_string_executable(flua, script.c_str(),
+                                                              static_cast<int>(script.size()));
     }
 
     // ---- Lua 5.4 ----
