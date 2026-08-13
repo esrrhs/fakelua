@@ -64,6 +64,36 @@ TEST(test_table, test_table_sort) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_table, test_table_large_seq) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_large_seq.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_large_seq", res);
+        EXPECT_NEAR(res, 8000.0, 1e-4);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_seqlen) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_seqlen.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_seqlen", res);
+        EXPECT_NEAR(res, 8100.0, 1e-4);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_table, test_table_sort_invalid_comparator) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
