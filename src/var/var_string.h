@@ -26,14 +26,19 @@ public:
         return static_cast<size_t>(size_);
     }
 
+    // djb2。必须与 c_runtime_header.h 中的 FlHashString 保持一致，否则宿主与 JIT
+    // 生成的代码会把同一个字符串键算到不同的桶里。
+    [[nodiscard]] static uint32_t HashOf(const std::string_view &str) {
+        uint32_t hash_val = 5381;
+        for (const char c: str) {
+            hash_val = ((hash_val << 5) + hash_val) + static_cast<uint8_t>(c);
+        }
+        return (hash_val == 0) ? 1 : hash_val;
+    }
+
     [[nodiscard]] uint32_t Hash() const {
         if (hash_ == 0) {
-            uint32_t hash_val = 5381;
-            const char *ptr = data_;
-            for (int i = 0; i < size_; ++i) {
-                hash_val = ((hash_val << 5) + hash_val) + static_cast<uint8_t>(ptr[i]);
-            }
-            hash_ = (hash_val == 0) ? 1 : hash_val;
+            hash_ = HashOf(Str());
         }
         return hash_;
     }

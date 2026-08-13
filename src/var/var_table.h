@@ -36,6 +36,10 @@ struct VarTable {
     CVar *spec_keys;
     CVar *spec_vals;
     uint32_t spec_count;
+    // 连续整数键前缀长度（# 运算符结果）的缓存。seq_len_valid_ == 0 代表缓存无效，
+    // 需要重算——因此把 VarTable 整体清零的分配路径天然落在安全的重算分支上。
+    uint32_t seq_len_valid_;
+    int64_t seq_len_;
 };
 
 }// namespace fakelua
