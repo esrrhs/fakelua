@@ -1,5 +1,6 @@
 #include "fakelua.h"
 #include "compile/c_runtime_header.h"
+#include "native/native_table.h"
 #include "state/state.h"
 #include "util/common.h"
 #include "util/dispatch_macro.h"
@@ -430,40 +431,17 @@ static CVar ViToVar(State *state, VarInterface *src) {
         case VarInterface::Type::STRING:
             return NativeToFakeluaStringView(state, src->ViGetString());
         case VarInterface::Type::TABLE: {
-            size_t count = src->ViGetTableSize();
-            auto &alloc = state->GetHeap().GetAllocator(false /* temp */);
-            auto *vtbl = static_cast<VarTable *>(alloc.Alloc(sizeof(VarTable)));
-            *vtbl = VarTable{};
-            for (auto &qd: vtbl->quick_data_) {
-                qd.key.type_ = static_cast<int>(VarType::Nil);
-                qd.val.type_ = static_cast<int>(VarType::Nil);
+            // 必须走 TableHelper 的哈希写入：此前这里把第 i 个键值对直接写在 nodes_[i]，
+            // 既不按 hash & mask 落槽也不填 entry.hash，导致这样构造出来的表在 JIT 侧
+            // （FlGetTable/FlGetTableInt 都按哈希定位）根本索引不到。
+            const size_t count = src->ViGetTableSize();
+            CVar tbl_cvar = TableHelper::CreateTable(state);
+            for (size_t i = 0; i < count; ++i) {
+                auto kv = src->ViGetTableKv(static_cast<int>(i));
+                CVar k = ViToVar(state, kv.first);
+                CVar v = ViToVar(state, kv.second);
+                TableHelper::SetTable(state, tbl_cvar, k, v);
             }
-            vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
-
-            if (count > 0) {
-                uint32_t bucket_count = 1;
-                while (bucket_count < count) bucket_count <<= 1;
-                vtbl->bucket_count_ = bucket_count;
-                vtbl->nodes_ = static_cast<VarTable::TableNode *>(alloc.Alloc(sizeof(VarTable::TableNode) * bucket_count));
-                vtbl->active_list_ = static_cast<uint32_t *>(alloc.Alloc(sizeof(uint32_t) * bucket_count));
-                for (uint32_t i = 0; i < bucket_count; ++i) {
-                    vtbl->nodes_[i].entry.key.type_ = static_cast<int>(VarType::Nil);
-                    vtbl->nodes_[i].entry.val.type_ = static_cast<int>(VarType::Nil);
-                    vtbl->nodes_[i].next = VarTable::INVALID_INDEX;
-                }
-                for (size_t i = 0; i < count; ++i) {
-                    auto kv = src->ViGetTableKv(static_cast<int>(i));
-                    CVar k = ViToVar(state, kv.first);
-                    CVar v = ViToVar(state, kv.second);
-                    static_cast<CVar &>(vtbl->nodes_[i].entry.key) = k;
-                    static_cast<CVar &>(vtbl->nodes_[i].entry.val) = v;
-                    vtbl->active_list_[i] = static_cast<uint32_t>(i);
-                }
-                vtbl->count_ = static_cast<uint32_t>(count);
-            }
-            CVar tbl_cvar{};
-            tbl_cvar.type_ = static_cast<int>(VarType::Table);
-            tbl_cvar.data_.t = vtbl;
             return tbl_cvar;
         }
         default:

@@ -78,6 +78,10 @@ struct VarTable {
     CVar *spec_keys;
     CVar *spec_vals;
     uint32_t spec_count;
+    /* 连续整数键前缀长度（# 运算符结果）的缓存。seq_len_valid_ == 0 代表缓存无效，
+       需要重算——因此把 VarTable 整体清零的分配路径天然落在安全的重算分支上。 */
+    uint32_t seq_len_valid_;
+    int64_t seq_len_;
 };
 
 typedef struct State State;
@@ -103,34 +107,68 @@ enum {
 // CVar flag bits: 第 0 位表示该变量为只读（const），不可修改其值或表字段
 #define CONST_FLAG 0x1
 
-static inline int64_t FlGetTableSeqLen(VarTable *t) {
-    if (!t) return 0;
-    int64_t max_i = (int64_t)t->spec_count;
-    while (1) {
-        bool found = false;
-        if (LIKELY(t->bucket_count_ == 0)) {
-            for (uint32_t i = 0; i < t->count_; ++i) {
-                if (t->quick_data_[i].key.type_ == VAR_INT && t->quick_data_[i].key.data_.i == max_i + 1 && t->quick_data_[i].val.type_ != VAR_NIL) {
-                    found = true; break;
-                }
-            }
-        } else {
-            int64_t target_k = max_i + 1;
-            uint32_t h = (uint32_t)(target_k ^ (target_k >> 32));
-            uint32_t mask = t->bucket_count_ - 1;
-            uint32_t idx = h & mask;
-            TableNode *curr = &t->nodes_[idx];
-            while (curr) {
-                if (curr->entry.key.type_ == VAR_INT && curr->entry.key.data_.i == target_k && curr->entry.val.type_ != VAR_NIL) {
-                    found = true; break;
-                }
-                if (curr->next == 0xFFFFFFFF) break;
-                curr = &t->nodes_[curr->next];
+/* 探测整数键 k 是否存在且值非 nil。查找逻辑与 FlGetTableInt 一致，但直接作用于
+   VarTable*，供序列长度计算与缓存维护复用。 */
+static inline bool FlTableHasIntKey(VarTable *t, int64_t k) {
+    if (LIKELY(t->bucket_count_ == 0)) {
+        uint32_t i;
+        for (i = 0; i < t->count_; ++i) {
+            if (t->quick_data_[i].key.type_ == VAR_INT && t->quick_data_[i].key.data_.i == k && t->quick_data_[i].val.type_ != VAR_NIL) {
+                return true;
             }
         }
-        if (found) { max_i++; } else { break; }
+        return false;
+    } else {
+        uint32_t h = (uint32_t)(k ^ (k >> 32));
+        uint32_t mask = t->bucket_count_ - 1;
+        TableNode *curr = &t->nodes_[h & mask];
+        while (1) {
+            if (curr->entry.key.type_ == VAR_INT && curr->entry.key.data_.i == k && curr->entry.val.type_ != VAR_NIL) {
+                return true;
+            }
+            if (curr->next == 0xFFFFFFFF) return false;
+            curr = &t->nodes_[curr->next];
+        }
     }
-    return max_i;
+}
+
+/* 从 base 起向上数连续存在的整数键，返回前缀长度。*/
+static inline int64_t FlSeqScanFrom(VarTable *t, int64_t base) {
+    while (FlTableHasIntKey(t, base + 1)) { base++; }
+    return base;
+}
+
+/* 带 spec 的表字段布局在构造期固定且规模很小，不参与缓存，每次直接重算。*/
+static inline bool FlSeqCacheable(VarTable *t) {
+    return t->spec == NULL && t->spec_count == 0;
+}
+
+static inline int64_t FlGetTableSeqLen(VarTable *t) {
+    if (!t) return 0;
+    if (UNLIKELY(!FlSeqCacheable(t))) {
+        return FlSeqScanFrom(t, (int64_t)t->spec_count);
+    }
+    if (LIKELY(t->seq_len_valid_ != 0)) {
+        return t->seq_len_;
+    }
+    t->seq_len_ = FlSeqScanFrom(t, 0);
+    t->seq_len_valid_ = 1;
+    return t->seq_len_;
+}
+
+/* 在整数键写入完成后同步序列长度缓存。缓存无效时什么都不做，交由下一次
+   FlGetTableSeqLen 懒重算——这保证漏挂钩的写入路径只会退化性能而不会算错长度。
+   本函数对同一次写入重复调用是幂等的。 */
+static inline void FlSeqNoteIntSet(VarTable *t, int64_t k, bool is_nil) {
+    if (!t || t->seq_len_valid_ == 0) return;
+    if (UNLIKELY(!FlSeqCacheable(t))) { t->seq_len_valid_ = 0; return; }
+    if (is_nil) {
+        /* t[k] 变为 nil，前缀在 k-1 处截断；1..k-1 都还在，故新长度恰为 k-1。*/
+        if (k >= 1 && k <= t->seq_len_) { t->seq_len_ = k - 1; }
+        return;
+    }
+    /* 只有正好补上 t[len+1] 才会延长前缀，随后继续吸收先前写入的更高键。*/
+    if (k == t->seq_len_ + 1) { t->seq_len_ = FlSeqScanFrom(t, k); }
 }
 
 #define TABLE_SIZE(t) ((t)->count_ + (t)->spec_count)
@@ -546,6 +584,8 @@ static inline uint32_t FlHashString(const char *str, int len) {
     __t->spec_keys = NULL; \
     __t->spec_vals = NULL; \
     __t->spec_count = 0; \
+    __t->seq_len_valid_ = 1; \
+    __t->seq_len_ = 0; \
     assert(sizeof(__t->quick_data_) == 8 * sizeof(VarEntry)); \
     { int __i; for (__i = 0; __i < 8; ++__i) { \
         __t->quick_data_[__i].key.type_ = VAR_NIL; \
@@ -748,7 +788,7 @@ static inline void FlTableRehash(VarTable *tbl) {
     }
 }
 
-static inline void FlSetTable(CVar t, CVar k, CVar v) {
+static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
     k = NORMALIZE_TABLE_KEY(k);
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
@@ -817,6 +857,14 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     FlTableInsertRaw(tbl, k, v, h);
 }
 
+static inline void FlSetTable(CVar t, CVar k, CVar v) {
+    FlSetTableImpl(t, k, v);
+    if (LIKELY(t.type_ == VAR_TABLE)) {
+        CVar __nk = NORMALIZE_TABLE_KEY(k);
+        if (__nk.type_ == VAR_INT) { FlSeqNoteIntSet(t.data_.t, __nk.data_.i, v.type_ == VAR_NIL); }
+    }
+}
+
 static inline CVar FlGetTableInt(CVar t, int64_t k) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
@@ -851,7 +899,7 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
     return (CVar){VAR_NIL};
 }
 
-static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
+static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(t.flag_ & CONST_FLAG)) { FakeluaThrowError(_S, "attempt to modify a const table"); }
     VarTable *tbl = t.data_.t;
@@ -883,6 +931,11 @@ static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
     }
     if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) { FlTableRehash(tbl); }
     FlTableInsertRaw(tbl, key_cvar, v, h);
+}
+
+static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
+    FlSetTableIntImpl(t, k, v);
+    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, v.type_ == VAR_NIL); }
 }
 
 static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
