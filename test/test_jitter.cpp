@@ -2143,6 +2143,17 @@ TEST(jitter, global_const_int_in_expr) {
     });
 }
 
+// CRLF 行尾的源码里，\r 出现在字符串之外时应当被跳过而不是报错；
+// 只有短字符串内部的裸 \r 才非法（见 exception.raw_newline_in_short_string）。
+TEST(jitter, crlf_line_endings) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileString(s, "function test_crlf()\r\n    local s = \"ab\"\r\n    return #s\r\nend\r\n", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_crlf", ret);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
 // return 处在块尾的合法形态（含结尾分号、do...end 内的 return）不应被误拒。
 TEST(jitter, return_last_forms) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {

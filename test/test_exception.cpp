@@ -810,6 +810,27 @@ TEST(exception, file_level_stmt_rejected) {
     }
 }
 
+// Lua 的短字符串里不允许出现裸换行，\n 和 \r 都会报 unfinished string。
+// 我们的 lexer 早先只排除了 \n，差分 fuzz 抓到过带裸 \r 的输入被 fakelua 接受、
+// 被 Lua 拒绝。这里的脚本用 CompileString 传入，避免裸 \r 落到磁盘上被工具改写。
+TEST(exception, raw_newline_in_short_string) {
+    struct Case {
+        const char *name;
+        const char *script;
+    };
+    for (const Case &c: {Case{"double quoted with CR", "function f()\n  local s = \"a\rb\"\n  return s\nend"},
+                         Case{"single quoted with CR", "function f()\n  local s = 'a\rb'\n  return s\nend"},
+                         Case{"double quoted with LF", "function f()\n  local s = \"a\nb\"\n  return s\nend"},
+                         Case{"single quoted with LF", "function f()\n  local s = 'a\nb'\n  return s\nend"}}) {
+        SCOPED_TRACE(c.name);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(0);
+        EXPECT_THROW(CompileString(s, c.script, {}), std::exception);
+    }
+}
+
 // Lua 的 block ::= {stat} [retstat]：return 只能是所在块的最后一条语句。
 // FakeLua 不能比 Lua 更宽松，否则差分 fuzz 会把它报成 fakelua 接受、Lua 拒绝的分歧。
 TEST(exception, return_must_be_last_in_block) {

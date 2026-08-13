@@ -33,8 +33,10 @@
 
 %}
 
-string1  \"((?:\\\"|[^\"\n])*)\"
-string2  \'((\\'|[^'\n])*)\'
+/* 短字符串里不能出现裸换行（\n 和 \r 都算），与 Lua 的 "unfinished string" 一致。
+   需要跨行的内容用 [[ ]] 长字符串或转义写法。 */
+string1  \"((?:\\\"|[^\"\n\r])*)\"
+string2  \'((\\'|[^'\n\r])*)\'
 string3  \[\[([^\]]|(\][^\]]))*\]\]
 string   {string1}|{string2}|{string3}
 name     [_a-zA-Z][_a-zA-Z0-9]*
