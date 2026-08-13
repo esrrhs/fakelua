@@ -1,6 +1,6 @@
 # Benchmark Results
 
-本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的完整结果。覆盖 **6 大类共 52 个 Lua 性能场景**，每个场景均实现 C++ / Lua 5.4 / FakeLua GCC 三种横向对比（原始输出含 TCC，本分析聚焦 GCC vs Lua、GCC vs C++）。
+本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的完整结果。覆盖 **6 大类共 51 个 Lua 性能场景**，每个场景均实现 C++ / Lua 5.4 / FakeLua GCC 三种横向对比（原始输出含 TCC，本分析聚焦 GCC vs Lua、GCC vs C++）。
 
 ## 运行环境
 
@@ -104,7 +104,6 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 | MathTrig (sin+cos) | n=100K | **5.9x** | 0.87 | 接近 C++ 原生速度 |
 | **MathSqrt** | n=100K | **22.7x** | **0.49** | GCC 2x 快于 C++ |
 | **MathExpLog** (新) | n=100K | **0.14x** | **28.1x** | ⚠️ GCC 远慢于 C++ 甚至慢于 Lua |
-| MathPow | n=100K | 2.3x | 0.99 | 与 C++ 持平 |
 | MathMinMax | n=100K | **10.6x** | 0.90 | |
 
 ### 核心发现
@@ -113,7 +112,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 2. **浮点特化同样出色**：FloatPoly（Horner 多项式求值）GCC 为 C++ 的 **2.0x 倍速**（34.7x vs Lua），证明 double 特化路径与 int 特化一样高效。
 
-3. **math 函数表现分化严重**：sin/cos/sqrt 表现优异（sqrt 2x 快于 C++），但 **exp/log 是反常的性能陷阱** —— MathExpLog GCC 为 C++ 的 **28x 慢**，甚至比 Lua 还慢 6 倍。这表明 fakelua 对 exp/log 的代码生成或内联存在特定问题，值得专项排查。注意：math.atan2 在 macOS/Windows 的 fakelua 中为 nil（未注册），属既有平台 bug，已移出 benchmark 避免 CI 崩溃。
+3. **math 函数表现分化严重**：sin/cos/sqrt 表现优异（sqrt 2x 快于 C++），但 **exp/log 是反常的性能陷阱** —— MathExpLog GCC 为 C++ 的 **28x 慢**，甚至比 Lua 还慢 6 倍。这表明 fakelua 对 exp/log 的代码生成或内联存在特定问题，值得专项排查。注意：`math.atan2`/`math.pow` 在 Lua 5.5 中已降为 compat-only 函数（需 `LUA_COMPAT_MATHLIB`），为避免在 vanilla Lua 5.5 上崩溃，已移出 benchmark。
 
 4. **表标准库函数仍是最大短板**：table.insert/move/sort/concat 在 fakelua 中比 Lua 慢 2~3 个数量级（GCC/C++ 比最高达 1608x），因为这些函数在脚本层实现，走逐元素 CVar 装箱路径。
 
@@ -125,7 +124,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 ## 完整原始输出
 
-以下为 `benchmark_algo.cpp` / `benchmark_string.cpp` / `benchmark_table.cpp` / `benchmark_function.cpp` / `benchmark_gc.cpp` / `benchmark_math.cpp` 全部 53 个场景的完整 google benchmark 输出（含 TCC 数据，按 benchmark 名称排序）：
+以下为 `benchmark_algo.cpp` / `benchmark_string.cpp` / `benchmark_table.cpp` / `benchmark_function.cpp` / `benchmark_gc.cpp` / `benchmark_math.cpp` 全部 51 个场景的完整 google benchmark 输出（含 TCC 数据，按 benchmark 名称排序）：
 
 ```text
 Starting benchmarks...
@@ -394,14 +393,6 @@ BM_CPP_MathExpLog/100000                             5912180 ns      4741305 ns 
 BM_Lua_MathExpLog/100000                            23017204 ns     19033686 ns           37
 BM_FakeLua_MathExpLog_TCC/100000                   185797707 ns    137865272 ns            5
 BM_FakeLua_MathExpLog_GCC/100000                   162874484 ns    133183547 ns            5
-BM_CPP_MathAtan2/100000                              5895138 ns      4792512 ns          146
-BM_Lua_MathAtan2/100000                             20616173 ns     15748598 ns           44
-BM_FakeLua_MathAtan2_TCC/100000                     90308055 ns     72269178 ns           10
-BM_FakeLua_MathAtan2_GCC/100000                     86835926 ns     69517131 ns           10
-BM_CPP_MathPow/100000                                8290299 ns      6498527 ns          107
-BM_Lua_MathPow/100000                               18269142 ns     15006228 ns           47
-BM_FakeLua_MathPow_TCC/100000                       17741555 ns     11723230 ns           60
-BM_FakeLua_MathPow_GCC/100000                        9709055 ns      6412944 ns          110
 BM_CPP_MathMinMax/100000                             3494186 ns      2420676 ns          289
 BM_Lua_MathMinMax/100000                            28660028 ns     22968714 ns           30
 BM_FakeLua_MathMinMax_TCC/100000                    14167435 ns     11518015 ns           61
