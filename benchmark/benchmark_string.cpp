@@ -98,6 +98,9 @@ function bench_tostring(n)
     return tostring(n)
 end
 )";
+// NOTE: "[0-9]+" is used instead of "%d+" because fakelua's string library matches
+// with ECMAScript regex while vanilla Lua uses Lua patterns. A bracket class means
+// the same thing to both engines, so both runtimes do identical work here.
 constexpr const char *kStringFindPatternScript = R"(
 function bench_string_find_pattern(n)
     local s = "abc123def456ghi789"
@@ -105,7 +108,7 @@ function bench_string_find_pattern(n)
     for i = 1, n do
         local j = 1
         while true do
-            local start, stop = string.find(s, "%d+", j)
+            local start, stop = string.find(s, "[0-9]+", j)
             if not start then break end
             count = count + 1
             j = stop + 1
@@ -119,7 +122,7 @@ function bench_string_gmatch(n)
     local s = "abc 123 def 456 ghi 789"
     local count = 0
     for i = 1, n do
-        for word in string.gmatch(s, "%d+") do
+        for word in string.gmatch(s, "[0-9]+") do
             count = count + 1
         end
     end
@@ -872,27 +875,33 @@ static void BM_CPP_StringFindPattern(benchmark::State &state) {
 
 static void BM_Lua_StringFindPattern(benchmark::State &state) {
     const int64_t n = state.range(0);
+    const int64_t expected = CppStringFindPattern(n);
     for (auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_string_find_pattern", n);
         benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "Lua string.find pattern");
     }
 }
 
 static void BM_FakeLua_StringFindPattern_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
+    const int64_t expected = CppStringFindPattern(n);
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_string_find_pattern", ret, n);
         benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua TCC string.find pattern");
     }
 }
 
 static void BM_FakeLua_StringFindPattern_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
+    const int64_t expected = CppStringFindPattern(n);
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_string_find_pattern", ret, n);
         benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua GCC string.find pattern");
     }
 }
 
@@ -910,27 +919,33 @@ static void BM_CPP_StringGmatch(benchmark::State &state) {
 
 static void BM_Lua_StringGmatch(benchmark::State &state) {
     const int64_t n = state.range(0);
+    const int64_t expected = CppStringGmatch(n);
     for (auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_string_gmatch", n);
         benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "Lua string.gmatch");
     }
 }
 
 static void BM_FakeLua_StringGmatch_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
+    const int64_t expected = CppStringGmatch(n);
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_string_gmatch", ret, n);
         benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua TCC string.gmatch");
     }
 }
 
 static void BM_FakeLua_StringGmatch_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
+    const int64_t expected = CppStringGmatch(n);
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_string_gmatch", ret, n);
         benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua GCC string.gmatch");
     }
 }
 

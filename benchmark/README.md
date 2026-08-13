@@ -62,8 +62,25 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 | StringGsub | n=1000 | 0.23x | 21.4 | 模式匹配 |
 | ToNumber | n=1 | 0.32x | 30.2 | |
 | ToString | n=500 | 0.99x | 0.04 | |
-| StringFindPattern | n=1000 | 0.39x | 28.4 | 模式匹配 |
-| StringGmatch | n=1000 | 0.45x | 21.6 | 迭代器+模式匹配 |
+| StringFindPattern † | n=1000 | **0.0061x** | 1093 | 正则匹配，比 Lua 慢 **164x** |
+| StringGmatch † | n=1000 | **0.011x** | 672 | 迭代器 + 正则，比 Lua 慢 **91x** |
+
+> **† 这两行是修正后的数据。** 原先记录的 0.39x / 0.45x 无效：脚本用 `string.find(s, "%d+")` 这种 Lua pattern 写法找数字，而 fakelua 的 `string` 匹配函数走 ECMAScript 正则，`%d+` 在正则里表示「字面量 `%` 后跟一个或多个 `d`」，在测试串 `"abc123def456ghi789"` 中永远匹配不到。于是 Lua 每轮找到 3 个匹配，fakelua 一个都找不到、立刻跳出循环——两边工作量根本不对等（而 fakelua 在只做零头工作量的情况下依然更慢）。
+>
+> 脚本已改用 `[0-9]+`（在 Lua pattern 与 ECMAScript 正则中语义一致，两边都是 3 个匹配），并给 Lua / TCC / GCC 三个变体补上 `VerifyEqual`——此前该文件只有 C++ 变体校验返回值，这正是偏差长期没被发现的原因。
+>
+> 注意：这两行在**另一台机器**上测得（4 × 2400 MHz），与本文件其余数据的运行环境不同，只有倍数关系可比。原始数据：
+>
+> ```text
+> BM_CPP_StringFindPattern/1000            46108 ns
+> BM_Lua_StringFindPattern/1000           307597 ns
+> BM_FakeLua_StringFindPattern_TCC/1000 50501346 ns
+> BM_FakeLua_StringFindPattern_GCC/1000 50412568 ns
+> BM_CPP_StringGmatch/1000                 55489 ns
+> BM_Lua_StringGmatch/1000                410186 ns
+> BM_FakeLua_StringGmatch_TCC/1000      37463728 ns
+> BM_FakeLua_StringGmatch_GCC/1000      37291113 ns
+> ```
 
 ### 表操作（table）
 
@@ -118,7 +135,9 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 4. **arena 分配器在表频繁创建场景优势明显**：TableChurn 快于 Lua 24.3x，且比手写 C++ 还快（0.66）——无 GC、批量释放的收益在这里体现得最直接。
 
-5. **字符串仍是主要短板，且集中在两类**：一是**模式匹配**（Gsub 0.23x、FindPattern 0.39x、Gmatch 0.45x），二是**逐字符处理**（Char 0.22x、Lower 0.47x、Upper 0.45x）。Lua 这些函数是高度优化的 C 实现，而 fakelua 侧每个字符都要经过 CVar 装箱与 arena 分配。相对地，简单字符串操作（len/sub/rep/reverse/find）已经反超 Lua 1.2~2.3x。
+5. **字符串仍是主要短板，且集中在两类**：一是**正则匹配**（FindPattern 0.0061x、Gmatch 0.011x、Gsub 0.23x），二是**逐字符处理**（Char 0.22x、Lower 0.47x、Upper 0.45x）。后者的原因是 Lua 侧为高度优化的 C 实现，而 fakelua 每个字符都要经过 CVar 装箱与 arena 分配。相对地，简单字符串操作（len/sub/rep/reverse/find）已经反超 Lua 1.2~2.3x。
+
+   **正则匹配是目前差距最大的一项**（比 Lua 慢两个数量级），且成因与逐字符处理完全不同：fakelua 的 `find`/`match`/`gmatch`/`gsub` 由 `std::regex`（ECMAScript）实现，而 Lua 用的是专门为脚本场景优化的轻量 pattern 引擎。主要开销有两处——每次调用都重新构造 `std::regex` 对象（没有编译结果缓存），以及 `std::regex` 本身相对笨重的实现。热路径上应优先用 `string.find(s, pat, init, true)` 的 plain 子串查找绕开正则引擎。注意 Gsub 的 0.23x 是**替换字面量 `"a"`** 的场景，并未体现真实正则的代价。
 
 6. **单次调用开销仍高于 Lua 的场景**：GCD（0.85x）、ToNumber（0.32x）、Variadic（0.21x）。这些场景单次耗时都在 1 µs 以内，被跨语言调用的固定开销主导；Variadic 额外受 vararg 的 Multi 构建拖累。
 
@@ -156,6 +175,8 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 ## 完整原始输出
 
 以下为 `benchmark_algo.cpp` / `benchmark_string.cpp` / `benchmark_table.cpp` / `benchmark_function.cpp` / `benchmark_gc.cpp` / `benchmark_math.cpp` 全部 51 个场景的完整 google benchmark 输出（含 TCC 数据）：
+
+> ⚠️ 其中 `BM_*_StringFindPattern` / `BM_*_StringGmatch` 八行是 `[0-9]+` 修正**之前**的旧数据，两边工作量不对等，不可用于比较；以上文表格中的修正值为准。
 
 ```text
 <string>:1305: warning: assignment of read-only location
