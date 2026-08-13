@@ -267,7 +267,7 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **基础操作**：`string.len`、`string.sub`、`string.rep`、`string.reverse`、`string.lower`、`string.upper`
   - **编码转换**：`string.byte`、`string.char`、`string.charpattern`
   - **格式化**：`string.format`（支持 `%s` `%d` `%i` `%u` `%x` `%X` `%o` `%f` `%e` `%E` `%g` `%G` `%c` `%q` `%p`）
-  - **模式匹配**：`string.find`、`string.match`、`string.gmatch`、`string.gsub`
+  - **正则匹配**：`string.find`、`string.match`、`string.gmatch`、`string.gsub`（⚠️ **采用 ECMAScript 正则语法，而非 Lua pattern**，详见下方[正则匹配](#正则匹配采用-ecmascript-语法而非-lua-pattern)一节）
   - **序列化与加载**：`string.pack`、`string.packsize`、`string.unpack`、`string.dump`、`load`、`loadstring`、`loadfile`（直接编译文件，顶层函数注册为全局，无需调用闭包）
 - **OS 系统库 (`os.*`)**：
   - **时间日期**：`os.clock()`、`os.date([format[, time]]])`（支持 `"*t"` 返回时间表 `{year=, month=, day=, hour=, min=, sec=, wday=, yday=, isdst=}`）、`os.difftime(t2, t1)`、`os.time([table])`
@@ -295,6 +295,44 @@ local top_student = string.format("Top score: %d, Angle Rad: %.2f", scores[1], m
 local info = table.concat(scores, ", ")
 -- top_student => "Top score: 95, Angle Rad: 3.14"
 -- info        => "95, 92, 85, 78"
+```
+
+#### 正则匹配：采用 ECMAScript 语法，而非 Lua pattern
+
+`string.find` / `string.match` / `string.gmatch` / `string.gsub` 底层由 `std::regex`（`std::regex::ECMAScript`）实现，**不是** Lua 原生的 pattern 引擎。从标准 Lua 迁移脚本时，模式串必须改写：
+
+| 用途 | Lua pattern | FakeLua（ECMAScript 正则） |
+|---|---|---|
+| 数字 | `%d` | `\\d` |
+| 字母 | `%a` | `[A-Za-z]` |
+| 字母或数字 | `%w` | `[A-Za-z0-9]`（注意 `\\w` 额外包含 `_`） |
+| 空白 | `%s` | `\\s` |
+| 转义字面量 | `%.`、`%%` | `\\.`、`%` |
+| 惰性重复 | `-`（如 `.-`） | `?`（如 `.*?`） |
+| 替换串中引用捕获 | `%1`、`%0` | `$1`、`$&` |
+
+> 由于 Lua 字符串字面量中 `\d` 不是合法转义，正则里的反斜杠需要写成 `"\\d+"`。FakeLua 不支持 `[[...]]` 长字符串，无法用它来规避转义。
+>
+> 若脚本需要同时兼容标准 Lua 与 FakeLua，可改用两种引擎语义相同的写法，例如用 `[0-9]+` 代替 `%d+`、用 `[A-Za-z]+` 代替 `%a+`——方括号字符集、`+`、`*`、`()` 捕获在两边含义一致。
+
+主要差异：
+
+- **`gsub` 的替换串**使用 JS 风格记法：`$1`…`$9`（捕获组）、`$&`（整个匹配）、`` $` ``（匹配前的文本）、`$'`（匹配后的文本）、`$$`（字面 `$`）。Lua 的 `%1` / `%0` 在这里只会被当作普通字符。
+- **可以使用 Lua pattern 没有的能力**：交替 `|`、非贪婪量词 `*?` `+?`、区间重复 `{n,m}`、前瞻断言 `(?=...)` 等 ECMAScript 特性均开箱可用。
+- **不支持 Lua 特有语法**：`%b()`（括号平衡匹配）、`%f[set]`（frontier pattern）以及所有 `%` 字符类。
+- **非法模式串不抛异常**：`std::regex_error` 被捕获后统一返回 `nil`，脚本不会中断，因此模式写错时表现为「永远匹配不到」而非报错。
+- **`string.find` 的 `plain` 参数**语义与 Lua 一致：传 `true` 时退化为纯子串查找，完全绕过正则引擎，也是最快的路径。
+- **性能**：正则路径明显慢于 Lua 原生 pattern 引擎（见 [benchmark/README.md](benchmark/README.md)），热路径上建议优先用 `plain` 查找或 `string.sub` / `string.byte` 等基础操作。
+
+```lua
+-- Lua pattern 写法（在 FakeLua 中匹配不到，会返回 nil）
+local n1 = string.match("abc123", "%d+")      -- nil
+
+-- FakeLua 的 ECMAScript 正则写法
+local n2 = string.match("abc123", "\\d+")     -- "123"
+
+-- gsub 的捕获引用用 $1 而不是 %1
+local s = string.gsub("hello world", "([a-z]+) ([a-z]+)", "$2 $1")  -- "world hello"
 ```
 
 ### C++ 嵌入 API
@@ -364,6 +402,9 @@ local z = (x + y) / 2.0
 - 不支持 `require` / `module` 模块系统（注：fakelua 有独立的 `package "Name"` 模块化机制）
 - 不支持 `rawequal` / `rawget` / `rawset` / `rawlen`（因无元表，这些函数无意义）
 - 不支持 debug 标准库
+
+### 标准库语义差异
+- `string.find` / `match` / `gmatch` / `gsub` 使用 **ECMAScript 正则**而非 Lua pattern：`%d`、`%b()`、`%f[]` 等 Lua 特有语法不可用，`gsub` 替换串需用 `$1` 而非 `%1`（详见[正则匹配](#正则匹配采用-ecmascript-语法而非-lua-pattern)）
 
 ## 快速上手
 
