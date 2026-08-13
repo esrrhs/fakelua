@@ -2937,7 +2937,8 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
     const auto &raw_args = explist_arg_ptr->Exps();
 
-    static const std::unordered_set<std::string> math_builtins = {"abs", "floor", "ceil", "max", "min", "sqrt", "sin", "cos", "tan", "pow", "deg", "rad", "random", "randomseed", "modf", "frexp"};
+    static const std::unordered_set<std::string> math_builtins = {"abs", "floor", "ceil", "max", "min", "sqrt", "sin", "cos", "tan", "pow", "deg", "rad", "random", "randomseed",
+                                                                  "modf", "frexp", "exp", "log", "log10", "asin", "acos", "atan", "sinh", "cosh", "tanh"};
 
     if (!math_builtins.contains(method_name)) {
         return {};
@@ -2945,6 +2946,40 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
 
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    CVar " << tmp << ";\n";
+
+    // 单参数数学函数的内联发射：参数为 INT/FLOAT 时直接调用原生 C 函数，其余类型
+    // （数字字符串需转换、bool/table 需报错）回退到注册的 math.* native 实现，
+    // 以保证内联路径与 native 路径语义完全一致。
+    const auto emit_guarded_unary = [&](const char *c_func, const std::string &lua_name) {
+        const std::string arg = CompileExp(raw_args[0]);
+        // 先绑定到临时变量：CompileExp 可能返回复合字面量 (CVar){.type_ = ..., .data_.i = ...}，
+        // 其中的逗号会被预处理器当成 LIKELY 的参数分隔符（大括号不构成嵌套）。顺带避免重复求值。
+        const auto arg_tmp = std::format("flua_marg_{}", tmp_var_counter_++);
+        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
+        func_temp_decls_ << "    double " << val_tmp << ";\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT || " << arg_tmp << ".type_ == VAR_FLOAT)) {\n";
+        Out() << GenTab() << "    " << val_tmp << " = (" << arg_tmp << ".type_ == VAR_INT ? (double)" << arg_tmp << ".data_.i : " << arg_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << c_func << "(" << val_tmp << ")};\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math." << lua_name << "\", 1, " << arg_tmp << ");\n";
+        Out() << GenTab() << "}\n";
+    };
+
+    // 多参数变体不做内联，直接转发给 native 实现（调用频度低，且可变参语义更复杂）。
+    const auto emit_native_call = [&](const std::string &lua_name) {
+        std::vector<std::string> compiled;
+        compiled.reserve(raw_args.size());
+        for (const auto &raw_arg: raw_args) {
+            compiled.push_back(CompileExp(raw_arg));
+        }
+        Out() << GenTab() << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math." << lua_name << "\", " << compiled.size();
+        for (const auto &c: compiled) {
+            Out() << ", " << c;
+        }
+        Out() << ");\n";
+    };
 
     if (method_name == "abs" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
@@ -3030,99 +3065,47 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         return tmp;
     }
     if (method_name == "asin" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = asin(" << val_tmp << ")};\n";
+        emit_guarded_unary("asin", method_name);
         return tmp;
     }
     if (method_name == "acos" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = acos(" << val_tmp << ")};\n";
+        emit_guarded_unary("acos", method_name);
         return tmp;
     }
     if (method_name == "atan" && !raw_args.empty()) {
         if (raw_args.size() == 1) {
-            std::string arg = CompileExp(raw_args[0]);
-            const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    double " << val_tmp << ";\n";
-            Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-            Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = atan(" << val_tmp << ")};\n";
+            emit_guarded_unary("atan", method_name);
         } else {
-            std::string arg1 = CompileExp(raw_args[0]);
-            std::string arg2 = CompileExp(raw_args[1]);
-            const auto val1_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-            const auto val2_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    double " << val1_tmp << ";\n";
-            func_temp_decls_ << "    double " << val2_tmp << ";\n";
-            Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? (double)" << arg1 << ".data_.i : (" << arg1 << ".type_ == VAR_FLOAT ? " << arg1 << ".data_.f : 0.0));\n";
-            Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? (double)" << arg2 << ".data_.i : (" << arg2 << ".type_ == VAR_FLOAT ? " << arg2 << ".data_.f : 0.0));\n";
-            Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = atan2(" << val1_tmp << ", " << val2_tmp << ")};\n";
+            emit_native_call(method_name);
         }
         return tmp;
     }
     if (method_name == "exp" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = exp(" << val_tmp << ")};\n";
+        emit_guarded_unary("exp", method_name);
         return tmp;
     }
     if (method_name == "log" && !raw_args.empty()) {
         if (raw_args.size() == 1) {
-            std::string arg = CompileExp(raw_args[0]);
-            const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    double " << val_tmp << ";\n";
-            Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-            Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = log(" << val_tmp << ")};\n";
+            emit_guarded_unary("log", method_name);
         } else {
-            std::string arg1 = CompileExp(raw_args[0]);
-            std::string arg2 = CompileExp(raw_args[1]);
-            const auto val1_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-            const auto val2_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    double " << val1_tmp << ";\n";
-            func_temp_decls_ << "    double " << val2_tmp << ";\n";
-            Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? (double)" << arg1 << ".data_.i : (" << arg1 << ".type_ == VAR_FLOAT ? " << arg1 << ".data_.f : 0.0));\n";
-            Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? (double)" << arg2 << ".data_.i : (" << arg2 << ".type_ == VAR_FLOAT ? " << arg2 << ".data_.f : 0.0));\n";
-            Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = log(" << val1_tmp << ") / log(" << val2_tmp << ")};\n";
+            emit_native_call(method_name);
         }
         return tmp;
     }
     if (method_name == "log10" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = log10(" << val_tmp << ")};\n";
+        emit_guarded_unary("log10", method_name);
         return tmp;
     }
     if (method_name == "sinh" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = sinh(" << val_tmp << ")};\n";
+        emit_guarded_unary("sinh", method_name);
         return tmp;
     }
     if (method_name == "cosh" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = cosh(" << val_tmp << ")};\n";
+        emit_guarded_unary("cosh", method_name);
         return tmp;
     }
     if (method_name == "tanh" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = tanh(" << val_tmp << ")};\n";
+        emit_guarded_unary("tanh", method_name);
         return tmp;
     }
     if (method_name == "fmod" && raw_args.size() >= 2) {

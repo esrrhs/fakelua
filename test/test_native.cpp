@@ -199,6 +199,46 @@ TEST(test_native, test_native_var_interface_callback) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_native, test_native_var_interface_table_result) {
+    auto *s = FakeluaNewState();
+
+    // 回调返回一张同时含字符串键与整数键的表，Lua 侧必须能按键索引到全部内容。
+    RegisterNativeVarFunction(s, "cpp_make_table", 0, false, NativeVarFuncCallback([](State *state, const std::vector<VarInterface *> &args) -> VarInterface * {
+                                  auto make_str = [](const std::string &v) {
+                                      auto *p = new SimpleVarImpl();
+                                      p->ViSetString(v);
+                                      return p;
+                                  };
+                                  auto make_int = [](int64_t v) {
+                                      auto *p = new SimpleVarImpl();
+                                      p->ViSetInt(v);
+                                      return p;
+                                  };
+
+                                  std::vector<std::pair<VarInterface *, VarInterface *>> kv;
+                                  kv.emplace_back(make_str("name"), make_str("Alice"));
+                                  kv.emplace_back(make_str("level"), make_int(7));
+                                  kv.emplace_back(make_int(1), make_int(10));
+                                  kv.emplace_back(make_int(2), make_int(20));
+                                  kv.emplace_back(make_int(3), make_int(30));
+
+                                  auto *res = new SimpleVarImpl();
+                                  res->ViSetTable(kv);
+                                  return res;
+                              }));
+
+    CompileConfig config;
+    CompileFile(s, "./native/test_native_callback.lua", config);
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        int64_t res = 0;
+        Call(s, jit_type, "consume_cpp_table", res);
+        EXPECT_EQ(res, 9000);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_native, test_native_typed_template_callback) {
     auto *s = FakeluaNewState();
 

@@ -9,10 +9,366 @@
 #include "var/var_string.h"
 #include "var/var_table.h"
 #include <algorithm>
+#include <cstring>
 #include <string>
 #include <vector>
 
 namespace fakelua {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 宿主侧 VarTable 操作核心。
+//
+// 这些辅助函数必须与 c_runtime_header.h 中对应的 Fl* 运行时函数保持一致的哈希
+// 计算、桶布局与 rehash 策略。JIT 生成的代码和宿主 C++ 会读写同一批 VarTable，
+// 只要两侧对「键落在哪个桶」的判断出现分歧，一侧写入的键在另一侧就会查不到。
+// ─────────────────────────────────────────────────────────────────────────────
+namespace {
+
+constexpr int kNilType = static_cast<int>(VarType::Nil);
+constexpr int kIntType = static_cast<int>(VarType::Int);
+constexpr int kFloatType = static_cast<int>(VarType::Float);
+constexpr int kStringType = static_cast<int>(VarType::String);
+constexpr int kStringIdType = static_cast<int>(VarType::StringId);
+
+uint32_t IntKeyHash(int64_t k) {
+    return static_cast<uint32_t>(k ^ (k >> 32));
+}
+
+// 与 c_runtime_header.h 的 VarHash 宏对应。
+uint32_t VarKeyHash(CVar k) {
+    switch (k.type_) {
+        case kNilType:
+            return 0;
+        case static_cast<int>(VarType::Bool):
+            return k.data_.b ? 1 : 0;
+        case kIntType:
+            return IntKeyHash(k.data_.i);
+        case kFloatType: {
+            uint64_t bits = 0;
+            std::memcpy(&bits, &k.data_.f, sizeof(bits));
+            return static_cast<uint32_t>(bits ^ (bits >> 32));
+        }
+        case kStringType:
+            return k.data_.s->Hash();
+        case kStringIdType:
+            return reinterpret_cast<const VarString *>(k.data_.i)->Hash();
+        case static_cast<int>(VarType::Table):
+            return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(k.data_.t) ^ (reinterpret_cast<uintptr_t>(k.data_.t) >> 32));
+        case static_cast<int>(VarType::Closure):
+            return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(k.data_.cl) ^ (reinterpret_cast<uintptr_t>(k.data_.cl) >> 32));
+        default:
+            return 0;
+    }
+}
+
+// 与 c_runtime_header.h 的 VarEqual 宏对应。
+bool VarKeyEqual(CVar a, CVar b) {
+    const bool a_str = (a.type_ == kStringType || a.type_ == kStringIdType);
+    const bool b_str = (b.type_ == kStringType || b.type_ == kStringIdType);
+    if (a_str && b_str) {
+        return KeyToStringView(a) == KeyToStringView(b);
+    }
+    if (a.type_ == kIntType && b.type_ == kFloatType) {
+        return static_cast<double>(a.data_.i) == b.data_.f;
+    }
+    if (a.type_ == kFloatType && b.type_ == kIntType) {
+        return a.data_.f == static_cast<double>(b.data_.i);
+    }
+    if (a.type_ != b.type_) return false;
+    switch (a.type_) {
+        case kNilType:
+            return true;
+        case static_cast<int>(VarType::Bool):
+            return a.data_.b == b.data_.b;
+        case kIntType:
+            return a.data_.i == b.data_.i;
+        case kFloatType:
+            return a.data_.f == b.data_.f;
+        case static_cast<int>(VarType::Table):
+            return a.data_.t == b.data_.t;
+        case static_cast<int>(VarType::Closure):
+            return a.data_.cl == b.data_.cl;
+        default:
+            return false;
+    }
+}
+
+// 与 c_runtime_header.h 的 FlTableHasIntKey 对应。
+bool TableHasIntKey(const VarTable *t, int64_t k) {
+    if (t->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < t->count_; ++i) {
+            const auto &qd = t->quick_data_[i];
+            if (qd.key.type_ == kIntType && qd.key.data_.i == k && qd.val.type_ != kNilType) return true;
+        }
+        return false;
+    }
+    const uint32_t mask = t->bucket_count_ - 1;
+    const auto *curr = &t->nodes_[IntKeyHash(k) & mask];
+    while (true) {
+        if (curr->entry.key.type_ == kIntType && curr->entry.key.data_.i == k && curr->entry.val.type_ != kNilType) return true;
+        if (curr->next == VarTable::INVALID_INDEX) return false;
+        curr = &t->nodes_[curr->next];
+    }
+}
+
+int64_t SeqScanFrom(const VarTable *t, int64_t base) {
+    while (TableHasIntKey(t, base + 1)) { base++; }
+    return base;
+}
+
+bool SeqCacheable(const VarTable *t) {
+    return t->spec == nullptr && t->spec_count == 0;
+}
+
+// 与 c_runtime_header.h 的 FlSeqNoteIntSet 对应；对同一次写入重复调用是幂等的。
+void SeqNoteIntSet(VarTable *t, int64_t k, bool is_nil) {
+    if (!t || t->seq_len_valid_ == 0) return;
+    if (!SeqCacheable(t)) {
+        t->seq_len_valid_ = 0;
+        return;
+    }
+    if (is_nil) {
+        if (k >= 1 && k <= t->seq_len_) t->seq_len_ = k - 1;
+        return;
+    }
+    if (k == t->seq_len_ + 1) t->seq_len_ = SeqScanFrom(t, k);
+}
+
+// 与 c_runtime_header.h 的 NORMALIZE_TABLE_KEY 对应：整数值的浮点键归一化为整数键，
+// 使 t[2.0] 与 t[2] 命中同一个槽。
+CVar NormalizeTableKey(CVar k) {
+    if (k.type_ == kFloatType && std::isfinite(k.data_.f)) {
+        double integral = 0.0;
+        if (std::modf(k.data_.f, &integral) == 0.0 && integral >= static_cast<double>(INT64_MIN) && integral <= static_cast<double>(INT64_MAX)) {
+            k.type_ = kIntType;
+            k.data_.i = static_cast<int64_t>(integral);
+        }
+    }
+    return k;
+}
+
+uint32_t NextPowerOfTwo(uint32_t v) {
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    return v + 1;
+}
+
+// 与 c_runtime_header.h 的 FlTableInsertRaw 对应。溢出节点耗尽时返回 false，
+// 由调用方扩容后重试。
+bool TableInsertRaw(VarTable *tbl, CVar key, CVar val, uint32_t hash) {
+    const uint32_t mask = tbl->bucket_count_ - 1;
+    const uint32_t idx = hash & mask;
+    auto *main_node = &tbl->nodes_[idx];
+    if (main_node->entry.key.type_ == kNilType) {
+        static_cast<CVar &>(main_node->entry.key) = key;
+        static_cast<CVar &>(main_node->entry.val) = val;
+        main_node->entry.hash = hash;
+        main_node->next = VarTable::INVALID_INDEX;
+        main_node->active_pos = tbl->count_;
+        tbl->active_list_[tbl->count_] = idx;
+        tbl->count_++;
+        return true;
+    }
+    uint32_t curr_idx = idx;
+    while (true) {
+        auto *curr = &tbl->nodes_[curr_idx];
+        if (curr->entry.hash == hash && VarKeyEqual(curr->entry.key, key)) {
+            static_cast<CVar &>(curr->entry.val) = val;
+            return true;
+        }
+        if (curr->next == VarTable::INVALID_INDEX) break;
+        curr_idx = curr->next;
+    }
+    if (tbl->free_list_idx_ == VarTable::INVALID_INDEX) return false;
+    const uint32_t new_node_idx = tbl->free_list_idx_;
+    auto *new_node = &tbl->nodes_[new_node_idx];
+    tbl->free_list_idx_ = new_node->next;
+    static_cast<CVar &>(new_node->entry.key) = key;
+    static_cast<CVar &>(new_node->entry.val) = val;
+    new_node->entry.hash = hash;
+    new_node->next = main_node->next;
+    main_node->next = new_node_idx;
+    new_node->active_pos = tbl->count_;
+    tbl->active_list_[tbl->count_] = new_node_idx;
+    tbl->count_++;
+    return true;
+}
+
+// 与 c_runtime_header.h 的 FlTableRehash 对应。内容不变，故序列长度缓存无需失效。
+void TableRehash(State *s, VarTable *tbl) {
+    const uint32_t old_count = tbl->count_;
+    const uint32_t old_bucket_count = tbl->bucket_count_;
+    auto *old_nodes = tbl->nodes_;
+
+    uint32_t new_bucket_count = NextPowerOfTwo(old_count + 1);
+    if (new_bucket_count <= old_bucket_count) new_bucket_count = old_bucket_count * 2;
+
+    auto &alloc = s->GetHeap().GetAllocator(false /* temp */);
+    while (true) {
+        const uint32_t overflow_count = new_bucket_count / 2;
+        const uint32_t total_nodes = new_bucket_count + overflow_count;
+        const size_t nodes_size = total_nodes * sizeof(VarTable::TableNode);
+        auto *buffer = static_cast<char *>(alloc.Alloc(nodes_size + total_nodes * sizeof(uint32_t)));
+        auto *new_nodes = reinterpret_cast<VarTable::TableNode *>(buffer);
+        auto *new_active_list = reinterpret_cast<uint32_t *>(buffer + nodes_size);
+        for (uint32_t i = 0; i < total_nodes; ++i) {
+            new_nodes[i].entry.key.type_ = kNilType;
+            new_nodes[i].next = VarTable::INVALID_INDEX;
+            new_nodes[i].active_pos = VarTable::INVALID_INDEX;
+        }
+
+        auto *prev_nodes = tbl->nodes_;
+        auto *prev_active_list = tbl->active_list_;
+        const uint32_t prev_bucket_count = tbl->bucket_count_;
+        const uint32_t prev_count = tbl->count_;
+        const uint32_t prev_free_list_idx = tbl->free_list_idx_;
+
+        tbl->nodes_ = new_nodes;
+        tbl->active_list_ = new_active_list;
+        tbl->bucket_count_ = new_bucket_count;
+        tbl->count_ = 0;
+        if (overflow_count > 0) {
+            for (uint32_t i = 0; i + 1 < overflow_count; ++i) {
+                tbl->nodes_[new_bucket_count + i].next = new_bucket_count + i + 1;
+            }
+            tbl->nodes_[new_bucket_count + overflow_count - 1].next = VarTable::INVALID_INDEX;
+            tbl->free_list_idx_ = new_bucket_count;
+        } else {
+            tbl->free_list_idx_ = VarTable::INVALID_INDEX;
+        }
+
+        bool success = true;
+        if (old_bucket_count == 0) {
+            for (uint32_t i = 0; i < old_count; ++i) {
+                const auto &qd = tbl->quick_data_[i];
+                if (!TableInsertRaw(tbl, qd.key, qd.val, qd.hash)) {
+                    success = false;
+                    break;
+                }
+            }
+        } else {
+            for (uint32_t i = 0; i < old_bucket_count && success; ++i) {
+                uint32_t curr_idx = i;
+                while (curr_idx != VarTable::INVALID_INDEX) {
+                    const auto *old_node = &old_nodes[curr_idx];
+                    if (old_node->entry.key.type_ != kNilType) {
+                        if (!TableInsertRaw(tbl, old_node->entry.key, old_node->entry.val, old_node->entry.hash)) {
+                            success = false;
+                            break;
+                        }
+                    }
+                    curr_idx = old_node->next;
+                }
+            }
+        }
+        if (success) return;
+
+        tbl->nodes_ = prev_nodes;
+        tbl->active_list_ = prev_active_list;
+        tbl->bucket_count_ = prev_bucket_count;
+        tbl->count_ = prev_count;
+        tbl->free_list_idx_ = prev_free_list_idx;
+        new_bucket_count *= 2;
+    }
+}
+
+// 通用的键写入，与 FlSetTableImpl 的插入路径对应（不含 nil 删除）。
+void TableSetNonNil(State *s, VarTable *tbl, CVar key, CVar val, uint32_t hash) {
+    if (tbl->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < tbl->count_; ++i) {
+            auto &qd = tbl->quick_data_[i];
+            if (qd.hash == hash && VarKeyEqual(qd.key, key)) {
+                static_cast<CVar &>(qd.val) = val;
+                return;
+            }
+        }
+        if (tbl->count_ < VarTable::QUICK_DATA_SIZE) {
+            auto &qd = tbl->quick_data_[tbl->count_];
+            static_cast<CVar &>(qd.key) = key;
+            static_cast<CVar &>(qd.val) = val;
+            qd.hash = hash;
+            tbl->count_++;
+            return;
+        }
+        TableRehash(s, tbl);
+    }
+    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == VarTable::INVALID_INDEX) {
+        TableRehash(s, tbl);
+    }
+    TableInsertRaw(tbl, key, val, hash);
+}
+
+// nil 删除：从 quick_data_ 或桶链中摘除键，与 FlSetTableImpl 的删除路径对应。
+void TableDelete(VarTable *tbl, CVar key, uint32_t hash) {
+    if (tbl->count_ == 0) return;
+    if (tbl->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < tbl->count_; ++i) {
+            auto &qd = tbl->quick_data_[i];
+            if (qd.hash == hash && VarKeyEqual(qd.key, key)) {
+                if (i + 1 < tbl->count_) tbl->quick_data_[i] = tbl->quick_data_[tbl->count_ - 1];
+                tbl->count_--;
+                return;
+            }
+        }
+        return;
+    }
+    const uint32_t mask = tbl->bucket_count_ - 1;
+    const uint32_t idx = hash & mask;
+    auto *curr = &tbl->nodes_[idx];
+    if (curr->entry.key.type_ == kNilType) return;
+
+    const auto unlink_from_active = [&](uint32_t node_idx, uint32_t pos) {
+        const uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
+        if (node_idx != last_node_idx) {
+            tbl->active_list_[pos] = last_node_idx;
+            tbl->nodes_[last_node_idx].active_pos = pos;
+        }
+    };
+
+    if (curr->entry.hash == hash && VarKeyEqual(curr->entry.key, key)) {
+        if (curr->next != VarTable::INVALID_INDEX) {
+            // 主位置被删除且存在冲突链：把链上下一个节点提升到主位置，
+            // 这样「主位置为 nil 即整条链为空」的不变式得以保持。
+            const uint32_t next_idx = curr->next;
+            auto *next_node = &tbl->nodes_[next_idx];
+            unlink_from_active(next_idx, next_node->active_pos);
+            next_node->active_pos = VarTable::INVALID_INDEX;
+            curr->entry = next_node->entry;
+            curr->next = next_node->next;
+            next_node->next = tbl->free_list_idx_;
+            tbl->free_list_idx_ = next_idx;
+        } else {
+            unlink_from_active(idx, curr->active_pos);
+            curr->active_pos = VarTable::INVALID_INDEX;
+            curr->entry.key.type_ = kNilType;
+        }
+        tbl->count_--;
+        return;
+    }
+
+    uint32_t prev_idx = idx;
+    uint32_t curr_idx = curr->next;
+    while (curr_idx != VarTable::INVALID_INDEX) {
+        auto *node = &tbl->nodes_[curr_idx];
+        if (node->entry.hash == hash && VarKeyEqual(node->entry.key, key)) {
+            unlink_from_active(curr_idx, node->active_pos);
+            node->active_pos = VarTable::INVALID_INDEX;
+            tbl->nodes_[prev_idx].next = node->next;
+            node->next = tbl->free_list_idx_;
+            tbl->free_list_idx_ = curr_idx;
+            tbl->count_--;
+            return;
+        }
+        prev_idx = curr_idx;
+        curr_idx = node->next;
+    }
+}
+
+}// namespace
 
 bool TableHelper::VarKeyEqualInt(CVar k, int64_t idx) {
     if (k.type_ == static_cast<int>(VarType::Int)) {
@@ -24,25 +380,21 @@ bool TableHelper::VarKeyEqualInt(CVar k, int64_t idx) {
     return false;
 }
 
+// 返回连续整数键前缀长度，与 # 运算符（FlGetTableSeqLen）语义一致。此前这里返回的是
+// 「最大整数键」，与 JIT 内联的 table.insert 用的 # 语义不同，同一段脚本会因为调用点
+// 是否被内联而得到不同结果。
 int64_t TableHelper::GetTableLen(CVar tbl) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return 0;
     VarTable *t = tbl.data_.t;
-    int64_t max_idx = static_cast<int64_t>(t->spec_count);
-    for (const auto &qd: t->quick_data_) {
-        if (qd.key.type_ == static_cast<int>(VarType::Int)) {
-            if (qd.key.data_.i > max_idx) max_idx = qd.key.data_.i;
-        }
+    if (!SeqCacheable(t)) {
+        return SeqScanFrom(t, static_cast<int64_t>(t->spec_count));
     }
-    if (t->nodes_ && t->bucket_count_ > 0) {
-        for (uint32_t i = 0; i < t->count_; ++i) {
-            uint32_t node_idx = t->active_list_[i];
-            const auto &entry = t->nodes_[node_idx].entry;
-            if (entry.key.type_ == static_cast<int>(VarType::Int)) {
-                if (entry.key.data_.i > max_idx) max_idx = entry.key.data_.i;
-            }
-        }
+    if (t->seq_len_valid_ != 0) {
+        return t->seq_len_;
     }
-    return max_idx;
+    t->seq_len_ = SeqScanFrom(t, 0);
+    t->seq_len_valid_ = 1;
+    return t->seq_len_;
 }
 
 CVar TableHelper::GetTableInt(State *s, CVar tbl, int64_t idx) {
@@ -67,20 +419,23 @@ CVar TableHelper::GetTableInt(State *s, CVar tbl, int64_t idx) {
         }
     }
 
-    for (const auto &qd: t->quick_data_) {
-        if (VarKeyEqualInt(qd.key, idx)) {
-            return qd.val;
-        }
-    }
-
-    if (t->nodes_ && t->bucket_count_ > 0) {
+    // 按哈希定位，而非遍历整张表。此前这里是 O(表大小) 的全量扫描，使得
+    // table.concat/move/sort/unpack 这些逐元素读取的标准库函数整体退化为 O(n²)。
+    const uint32_t hash = IntKeyHash(idx);
+    if (t->bucket_count_ == 0) {
         for (uint32_t i = 0; i < t->count_; ++i) {
-            uint32_t node_idx = t->active_list_[i];
-            const auto &entry = t->nodes_[node_idx].entry;
-            if (VarKeyEqualInt(entry.key, idx)) {
-                return entry.val;
-            }
+            const auto &qd = t->quick_data_[i];
+            if (qd.hash == hash && VarKeyEqualInt(qd.key, idx)) return qd.val;
         }
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+    if (!t->nodes_) return CVar{static_cast<int>(VarType::Nil)};
+    const uint32_t mask = t->bucket_count_ - 1;
+    const auto *curr = &t->nodes_[hash & mask];
+    while (true) {
+        if (curr->entry.hash == hash && VarKeyEqualInt(curr->entry.key, idx)) return curr->entry.val;
+        if (curr->next == VarTable::INVALID_INDEX) break;
+        curr = &t->nodes_[curr->next];
     }
     return CVar{static_cast<int>(VarType::Nil)};
 }
@@ -121,20 +476,22 @@ CVar TableHelper::GetTableStrId(State *s, CVar tbl, const char *str_key) {
         }
     }
 
-    for (const auto &qd: t->quick_data_) {
-        if (var_key_match_str(qd.key, target_key)) {
-            return qd.val;
-        }
-    }
-
-    if (t->nodes_ && t->bucket_count_ > 0) {
+    // 按哈希定位，而非遍历整张表。
+    const uint32_t hash = VarString::HashOf(target_key);
+    if (t->bucket_count_ == 0) {
         for (uint32_t i = 0; i < t->count_; ++i) {
-            uint32_t node_idx = t->active_list_[i];
-            const auto &entry = t->nodes_[node_idx].entry;
-            if (var_key_match_str(entry.key, target_key)) {
-                return entry.val;
-            }
+            const auto &qd = t->quick_data_[i];
+            if (qd.hash == hash && var_key_match_str(qd.key, target_key)) return qd.val;
         }
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+    if (!t->nodes_) return CVar{static_cast<int>(VarType::Nil)};
+    const uint32_t mask = t->bucket_count_ - 1;
+    const auto *curr = &t->nodes_[hash & mask];
+    while (true) {
+        if (curr->entry.hash == hash && var_key_match_str(curr->entry.key, target_key)) return curr->entry.val;
+        if (curr->next == VarTable::INVALID_INDEX) break;
+        curr = &t->nodes_[curr->next];
     }
     return CVar{static_cast<int>(VarType::Nil)};
 }
@@ -153,10 +510,6 @@ void TableHelper::SetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
         if (finish) return;
     }
 
-    CVar key{static_cast<int>(VarType::Int)};
-    key.data_.i = idx;
-    uint32_t hash = static_cast<uint32_t>(idx ^ (idx >> 32));
-
     if (t->spec_count > 0 && t->spec_vals && t->spec_keys) {
         for (uint32_t i = 0; i < t->spec_count; ++i) {
             if (VarKeyEqualInt(t->spec_keys[i], idx)) {
@@ -166,105 +519,66 @@ void TableHelper::SetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
         }
     }
 
-    for (auto &qd: t->quick_data_) {
-        if (VarKeyEqualInt(qd.key, idx)) {
-            static_cast<CVar &>(qd.val) = val;
-            qd.hash = hash;
-            return;
-        }
+    // 走与 JIT 侧 FlSetTableInt 相同的哈希插入与扩容路径。此前 quick_data_ 的 8 个槽用满后
+    // 会把整数键 std::to_string 成十进制字符串再按 StringId 存入：JIT 侧按 VAR_INT 键查找
+    // 时永远匹配不上，于是 table.move 等原生函数写入的第 9 个及之后的元素全部丢失。
+    CVar key{static_cast<int>(VarType::Int)};
+    key.data_.i = idx;
+    const uint32_t hash = IntKeyHash(idx);
+    if (val.type_ == kNilType) {
+        TableDelete(t, key, hash);
+    } else {
+        TableSetNonNil(s, t, key, val, hash);
+    }
+    SeqNoteIntSet(t, idx, val.type_ == kNilType);
+}
+
+void TableHelper::SetTable(State *s, CVar tbl, CVar key, CVar val) {
+    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
+    VarTable *t = tbl.data_.t;
+
+    key = NormalizeTableKey(key);
+    if (key.type_ == kNilType) return;
+
+    if (t->spec_set) {
+        using SpecSetFn = void (*)(VarTable *, CVar, CVar, bool *);
+        auto set_fn = reinterpret_cast<SpecSetFn>(t->spec_set);
+        bool finish = false;
+        set_fn(t, key, val, &finish);
+        if (finish) return;
     }
 
-    for (auto &qd: t->quick_data_) {
-        if (qd.key.type_ == static_cast<int>(VarType::Nil)) {
-            static_cast<CVar &>(qd.key) = key;
-            static_cast<CVar &>(qd.val) = val;
-            qd.hash = hash;
-            t->count_++;
-            return;
-        }
+    const uint32_t hash = VarKeyHash(key);
+    if (val.type_ == kNilType) {
+        TableDelete(t, key, hash);
+    } else {
+        TableSetNonNil(s, t, key, val, hash);
     }
-
-    std::string key_str = std::to_string(idx);
-    SetTableStrId(s, tbl, key_str.c_str(), val);
+    if (key.type_ == kIntType) SeqNoteIntSet(t, key.data_.i, val.type_ == kNilType);
 }
 
 void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
     VarTable *t = tbl.data_.t;
-    int64_t id = s->GetConstString().Alloc(str_key);
-    auto *vs = reinterpret_cast<const VarString *>(id);
-    uint32_t hash = vs->Hash();
+    const int64_t id = s->GetConstString().Alloc(str_key);
+    const auto *vs = reinterpret_cast<const VarString *>(id);
+    const uint32_t hash = vs->Hash();
 
     CVar key{static_cast<int>(VarType::StringId)};
     key.data_.i = id;
 
-    if (t->bucket_count_ > 0 && t->nodes_) {
-        uint32_t mask = t->bucket_count_ - 1;
-        uint32_t idx = hash & mask;
-        if (t->nodes_[idx].entry.key.type_ == static_cast<int>(VarType::StringId) && t->nodes_[idx].entry.hash == hash) {
-            static_cast<CVar &>(t->nodes_[idx].entry.val) = val;
-            return;
-        }
-        if (t->nodes_[idx].entry.key.type_ == static_cast<int>(VarType::Nil)) {
-            static_cast<CVar &>(t->nodes_[idx].entry.key) = key;
-            static_cast<CVar &>(t->nodes_[idx].entry.val) = val;
-            t->nodes_[idx].entry.hash = hash;
-            t->nodes_[idx].next = VarTable::INVALID_INDEX;
-            if (t->active_list_) {
-                t->active_list_[t->count_] = idx;
-            }
-            t->count_++;
-            return;
-        }
-        uint32_t cur = idx;
-        while (t->nodes_[cur].next != VarTable::INVALID_INDEX) {
-            uint32_t nxt = t->nodes_[cur].next;
-            if (t->nodes_[nxt].entry.key.type_ == static_cast<int>(VarType::StringId) && t->nodes_[nxt].entry.hash == hash) {
-                static_cast<CVar &>(t->nodes_[nxt].entry.val) = val;
-                return;
-            }
-            cur = nxt;
-        }
-        for (uint32_t probe = 1; probe < t->bucket_count_; ++probe) {
-            uint32_t i = (idx + probe) & mask;
-            if (t->nodes_[i].entry.key.type_ == static_cast<int>(VarType::Nil)) {
-                static_cast<CVar &>(t->nodes_[i].entry.key) = key;
-                static_cast<CVar &>(t->nodes_[i].entry.val) = val;
-                t->nodes_[i].entry.hash = hash;
-                t->nodes_[i].next = VarTable::INVALID_INDEX;
-                t->nodes_[cur].next = i;
-                if (t->active_list_) {
-                    t->active_list_[t->count_] = i;
-                }
-                t->count_++;
-                return;
-            }
-        }
-        return;
-    }
-
-    for (auto &qd: t->quick_data_) {
-        if (qd.key.type_ == static_cast<int>(VarType::StringId) && qd.key.data_.i == id) {
-            static_cast<CVar &>(qd.val) = val;
-            return;
-        }
-    }
-
-    for (auto &qd: t->quick_data_) {
-        if (qd.key.type_ == static_cast<int>(VarType::Nil)) {
-            static_cast<CVar &>(qd.key) = key;
-            static_cast<CVar &>(qd.val) = val;
-            qd.hash = hash;
-            t->count_++;
-            return;
-        }
+    // 此前这里是一套独立的探测逻辑：只比较 hash 而不比较键内容（哈希冲突会串值），
+    // 并且在 quick_data_ 满、桶也满时直接返回，静默丢弃写入。现在统一走带扩容的公共路径。
+    if (val.type_ == kNilType) {
+        TableDelete(t, key, hash);
+    } else {
+        TableSetNonNil(s, t, key, val, hash);
     }
 }
 
 // Use shared CheckNumberArg from native_common.h
 
-// ─── Helper: create an empty table with arena allocator ───
-static CVar CreateEmptyTable(State *state) {
+CVar TableHelper::CreateTable(State *state) {
     VarTable *vtbl = static_cast<VarTable *>(FakeluaAlloc(state, sizeof(VarTable), false));
     *vtbl = VarTable{};
     for (auto &qd: vtbl->quick_data_) {
@@ -272,10 +586,17 @@ static CVar CreateEmptyTable(State *state) {
         qd.val.type_ = static_cast<int>(VarType::Nil);
     }
     vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
+    // 空表的连续整数键前缀长度确定为 0，可直接标记缓存有效。
+    vtbl->seq_len_ = 0;
+    vtbl->seq_len_valid_ = 1;
     CVar tbl_cvar{};
     tbl_cvar.type_ = static_cast<int>(VarType::Table);
     tbl_cvar.data_.t = vtbl;
     return tbl_cvar;
+}
+
+static CVar CreateEmptyTable(State *state) {
+    return TableHelper::CreateTable(state);
 }
 
 void RegisterTableLibraryApi(State *s) {
