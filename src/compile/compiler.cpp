@@ -57,23 +57,26 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
         return pr;
     }
 
-    // 2. 预处理语法树
+    // 2. 文件级语句校验：必须在预处理改写语法树之前，此时顶层语句还保持源码里的原始形态
+    SemanticAnalysis semantic_analysis(s_);
+    semantic_analysis.CheckFileLevelStmts(pr);
+
+    // 3. 预处理语法树
     PreProcessor pp(s_);
     pp.Process(pr, cfg);
 
-    // 3. 语义与控制流分析
-    SemanticAnalysis semantic_analysis(s_);
+    // 4. 语义与控制流分析
     AnalysisResult ar = semantic_analysis.Analyze(pr, cfg);
 
-    // 4. 类型推导（同时识别数学参数）
+    // 5. 类型推导（同时识别数学参数）
     TypeInferencer inferencer;
     InferResult ir = inferencer.InferTypes(pr, cfg);
 
-    // 5. 转译为C
+    // 6. 转译为C
     CGen cgen(s_);
     GenResult gr = cgen.Generate(pr, ir, ar, cfg);
 
-    // 6. JIT编译
+    // 7. JIT编译
     if (!cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(pr, gr, cfg);

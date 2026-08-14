@@ -249,7 +249,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     void *init_ptr = dlsym_lambda(kInitFunctionName);
     if (init_ptr) {
-        inter::DispatchCall(init_ptr, nullptr, 0);
+        inter::DispatchCall(init_ptr, nullptr, 0, JIT_GCC);
     }
 
 #if !defined(_WIN32)

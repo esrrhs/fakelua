@@ -488,7 +488,10 @@ private:
     State *s_;
 };
 
-CVar DispatchCall(void *addr, const CVar *args, int arg_count);
+// type 指出 addr 属于哪个后端：TCC 的代码页没有异常展开表，需要额外的错误跳转边界。
+// 来源不确定的 closure（pcall / table.sort / gsub 的回调）传 JIT_TCC 即可，多一道
+// 边界对 GCC 后端也是安全的。
+CVar DispatchCall(void *addr, const CVar *args, int arg_count, JITType type);
 
 CVar AllocMultiCVar(State *s, int count);
 void SetMultiCVarElement(CVar &multi, int idx, CVar val);
@@ -574,7 +577,7 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
     }
 
     // 分发调用
-    CVar ret_var = inter::DispatchCall(addr, call_cvars, arg_count);
+    CVar ret_var = inter::DispatchCall(addr, call_cvars, arg_count, type);
 
     // 返回值处理：自动解包 tuple / 单值
     if constexpr (is_std_tuple_v<RetType>) {

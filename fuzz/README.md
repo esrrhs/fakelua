@@ -38,20 +38,21 @@ fuzz/
 
 ## Fuzz Target 说明
 
-### fuzz_compile — 编译期健壮性测试
+### fuzz_compile — GCC 后端健壮性测试
 
-测试 `CompileString()` 对任意输入的健壮性。检测：
+测试 `CompileString()` 在生产路径（GCC 后端）下的健壮性。检测：
 
 - Parser / Lexer / Compiler pipeline 中的 crash / segfault
+- GCC 编译生成代码、`__fakelua_init` 执行中的 crash / 内存错误
 - ASan 检测的内存错误（越界读写、use-after-free、double-free）
 - UBSan 检测的未定义行为（空指针解引用、整数溢出）
 - 非预期的异常类型
 
-**策略**：只编译，不执行。对任意输入调用 `CompileString`，捕获 `FakeluaException`（预期行为），任何其他 crash 或异常都是 bug。
+**策略**：关闭 TCC，只走 GCC。对任意输入调用 `CompileString`，捕获 `FakeluaException`（预期行为），任何其他 crash 或异常都是 bug。
 
 ### fuzz_differential — 差分测试（fakelua vs Lua 5.4）
 
-同一个 Lua 脚本分别在 fakelua 和 Lua 5.4 中编译执行，对比结果：
+同一个 Lua 脚本分别在 fakelua（GCC 后端）和 Lua 5.4 中编译执行，对比结果：
 
 | 场景 | fakelua | Lua 5.4 | 判断 |
 |------|---------|---------|------|

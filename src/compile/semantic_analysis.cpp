@@ -9,6 +9,37 @@ namespace fakelua {
 SemanticAnalysis::SemanticAnalysis(State *s) : s_(s) {
 }
 
+// 文件级只承载声明：local 变量定义、函数定义，以及可选的首行 package 声明。
+// if / while / for / 赋值 等可执行语句必须写在函数体里：它们在文件级没有确定的执行时机，
+// 而且文件级 local 会被当成该文件的常量降级成 C 的 static const，再赋值就自相矛盾了。
+void SemanticAnalysis::CheckFileLevelStmts(const ParseResult &pr) {
+    file_name_ = pr.file_name;
+
+    DEBUG_ASSERT(pr.chunk->Type() == SyntaxTreeType::Block);
+    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
+
+    const auto &stmts = top_block->Stmts();
+    for (size_t i = 0; i < stmts.size(); ++i) {
+        const auto &stmt = stmts[i];
+        switch (stmt->Type()) {
+            case SyntaxTreeType::LocalVar:
+            case SyntaxTreeType::Function:
+            case SyntaxTreeType::LocalFunction:
+            case SyntaxTreeType::Empty:
+                continue;
+            default:
+                break;
+        }
+        // package 声明只承认写在文件第一条语句的形态，后续 CGen 也只在这个位置识别它
+        if (std::string pkg_name; i == 0 && ExtractPackageName(stmt, pkg_name)) {
+            continue;
+        }
+        ThrowError(std::format("unsupported file-level statement {}, only local definitions and function definitions are allowed at file level",
+                               SyntaxTreeTypeToString(stmt->Type())),
+                   stmt);
+    }
+}
+
 AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileConfig &cfg) {
     file_name_ = pr.file_name;
 
@@ -258,6 +289,88 @@ void SemanticAnalysis::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chun
     WalkSyntaxTree(chunk, [this, &ar](const SyntaxTreeInterfacePtr &node) { CheckNode(node, ar); });
     std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels;
     ValidateGotoInBlock(chunk, visible_labels, 0);
+    ValidateConstAssignInBlock(chunk, {});
+}
+
+// Lua 在编译期就拒绝对 <const> 变量赋值，这里按块作用域收集 const 名字后做同样的检查。
+void SemanticAnalysis::ValidateConstAssignInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_set<std::string> const_names) {
+    const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+    if (!blk) return;
+
+    for (const auto &stmt: blk->Stmts()) {
+        switch (stmt->Type()) {
+            case SyntaxTreeType::LocalVar: {
+                // 先查赋值再登记：local x <const> = x 里右边的 x 是外层的同名变量。
+                const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+                const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+                if (!namelist) break;
+                const auto &names = namelist->Names();
+                const auto &attribs = namelist->Attribs();
+                for (size_t i = 0; i < names.size(); ++i) {
+                    const bool is_const = i < attribs.size() && attribs[i] == "const";
+                    if (is_const) {
+                        const_names.insert(names[i]);
+                    } else {
+                        // 同名的非 const 局部变量会遮蔽外层的 const
+                        const_names.erase(names[i]);
+                    }
+                }
+                break;
+            }
+            case SyntaxTreeType::Assign: {
+                const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+                const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+                if (!varlist) break;
+                for (const auto &var_node: varlist->Vars()) {
+                    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(var_node);
+                    if (var && var->GetVarKind() == VarKind::kSimple && const_names.contains(var->GetName())) {
+                        ThrowError("attempt to assign to const variable '" + var->GetName() + "'", stmt);
+                    }
+                }
+                break;
+            }
+            case SyntaxTreeType::Block:
+                ValidateConstAssignInBlock(stmt, const_names);
+                break;
+            case SyntaxTreeType::While:
+                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt)->Block(), const_names);
+                break;
+            case SyntaxTreeType::Repeat:
+                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt)->Block(), const_names);
+                break;
+            case SyntaxTreeType::ForLoop:
+                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt)->Block(), const_names);
+                break;
+            case SyntaxTreeType::ForIn:
+                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt)->Block(), const_names);
+                break;
+            case SyntaxTreeType::If: {
+                const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+                ValidateConstAssignInBlock(if_stmt->Block(), const_names);
+                if (const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
+                    for (const auto &elseif_blk: elseif_list->ElseifBlocks()) {
+                        ValidateConstAssignInBlock(elseif_blk, const_names);
+                    }
+                }
+                if (if_stmt->ElseBlock()) ValidateConstAssignInBlock(if_stmt->ElseBlock(), const_names);
+                break;
+            }
+            case SyntaxTreeType::Function: {
+                // 函数体是新的作用域，外层局部变量在里面是 upvalue，Lua 同样禁止赋值，
+                // 但 fakelua 不支持闭包捕获，所以这里只从空集合重新开始。
+                const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt)->Funcbody());
+                if (fb) ValidateConstAssignInBlock(fb->Block(), {});
+                break;
+            }
+            case SyntaxTreeType::LocalFunction: {
+                const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt)->Funcbody());
+                if (fb) ValidateConstAssignInBlock(fb->Block(), {});
+                break;
+            }
+            default:
+                break;
+        }
+    }
 }
 
 void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar) {
@@ -294,9 +407,12 @@ void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const Analy
             CheckExp(node);
             break;
         }
+        case SyntaxTreeType::Block: {
+            CheckBlockReturnPosition(node);
+            break;
+        }
         case SyntaxTreeType::None:
         case SyntaxTreeType::Empty:
-        case SyntaxTreeType::Block:
         case SyntaxTreeType::Assign:
         case SyntaxTreeType::VarList:
         case SyntaxTreeType::ExpList:
@@ -494,6 +610,39 @@ void SemanticAnalysis::CheckLocalVar(const SyntaxTreeInterfacePtr &node, const A
                     ThrowError("local variable conflicts with global constant: " + name, node);
                 }
             }
+        }
+    }
+
+    // Lua 只认 <const> 和 <close> 两种属性，其它一律报 unknown attribute。
+    for (const auto &attrib: namelist->Attribs()) {
+        if (!attrib.empty() && attrib != "const" && attrib != "close") {
+            ThrowError("unknown attribute '" + attrib + "'", node);
+        }
+    }
+}
+
+// Lua 的文法是 block ::= {stat} [retstat]，return 只能是所在块的最后一条语句。
+// FakeLua 的文法把 retstat 当成了普通 stmt，所以这里补上位置校验，否则会比 Lua 宽松，
+// 接受 Lua 明确拒绝的代码（差分 fuzz 已经抓到过这种分歧）。
+// retstat 不吞掉结尾的分号，因此 return 后面允许跟若干空语句。
+void SemanticAnalysis::CheckBlockReturnPosition(const SyntaxTreeInterfacePtr &node) {
+    const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+    if (!blk) {
+        return;
+    }
+    const auto &stmts = blk->Stmts();
+
+    size_t last_effective = stmts.size();
+    for (size_t i = stmts.size(); i > 0; --i) {
+        if (stmts[i - 1]->Type() != SyntaxTreeType::Empty) {
+            last_effective = i - 1;
+            break;
+        }
+    }
+
+    for (size_t i = 0; i < stmts.size(); ++i) {
+        if (stmts[i]->Type() == SyntaxTreeType::Return && i != last_effective) {
+            ThrowError("'return' must be the last statement in a block", stmts[i]);
         }
     }
 }

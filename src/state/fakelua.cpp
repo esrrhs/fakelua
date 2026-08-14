@@ -1,5 +1,6 @@
 #include "fakelua.h"
 #include "compile/c_runtime_header.h"
+#include "jit/jit_error_boundary.h"
 #include "native/native_table.h"
 #include "state/state.h"
 #include "util/common.h"
@@ -460,7 +461,18 @@ void ThrowIfMultiCVar(const CVar &v) {
     }
 }
 
-CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count) {
+static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count);
+
+CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count, JITType type) {
+    // GCC 后端产出的动态库带 .eh_frame，C++ 异常能正常穿过它的帧，不必付边界的代价。
+    // TCC 把代码生成在自己的内存代码页里，没有展开表，错误只能靠边界跳回来。
+    if (type == JIT_GCC) {
+        return DispatchCallRaw(addr, arg_arr, arg_count);
+    }
+    return RunWithJitErrorBoundary([&] { return DispatchCallRaw(addr, arg_arr, arg_count); });
+}
+
+static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count) {
     switch (arg_count) {
 #define DCASE(N)                                                                                                                                                                                       \
     case N:                                                                                                                                                                                            \

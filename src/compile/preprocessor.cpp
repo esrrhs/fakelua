@@ -444,6 +444,7 @@ void PreProcessor::PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &ch
         } else if (stmt->Type() == SyntaxTreeType::Function || stmt->Type() == SyntaxTreeType::LocalFunction) {
             new_stmts.push_back(stmt);
         } else {
+            // SemanticAnalysis::CheckFileLevelStmts 之后，这里只剩下首行的 package 声明和空语句。
             init_assign_stmts.push_back(stmt);
         }
     }

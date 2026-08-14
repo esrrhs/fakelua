@@ -33,13 +33,17 @@
 
 %}
 
-string1  \"((?:\\\"|[^\"\n])*)\"
-string2  \'((\\'|[^'\n])*)\'
+/* 短字符串里不能出现裸换行（\n 和 \r 都算），与 Lua 的 "unfinished string" 一致。
+   需要跨行的内容用 [[ ]] 长字符串或转义写法。 */
+string1  \"((?:\\\"|[^\"\n\r])*)\"
+string2  \'((\\'|[^'\n\r])*)\'
 string3  \[\[([^\]]|(\][^\]]))*\]\]
 string   {string1}|{string2}|{string3}
 name     [_a-zA-Z][_a-zA-Z0-9]*
-num1     [+-]?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
-num2     [+-]?0[xX][0-9a-fA-F]+(\.[0-9a-fA-F]+)?([pP][+-]?[0-9]+)?
+/* 字面量不带正号：Lua 没有一元加，+1 应该报 unexpected symbol near '+'。
+   去掉 + 后它会退回成 PLUS token，语法里没有对应产生式，于是和 Lua 一样被拒。 */
+num1     -?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
+num2     -?0[xX][0-9a-fA-F]+(\.[0-9a-fA-F]+)?([pP][+-]?[0-9]+)?
 number   {num1}|{num2}
 
 %{
@@ -55,13 +59,18 @@ number   {num1}|{num2}
   loc.step ();
 %}
 
-"--[["            { yy_push_state(MULTI_LINE_COMMENT_STATE); }
-<MULTI_LINE_COMMENT_STATE>"--]]"   { yy_pop_state(); }
+    /* 长注释按 Lua 的长括号层级处理：--[[ 配 ]]，--[==[ 配 ]==]，层级不匹配的
+       ]] 只是普通内容。传统的 --]] 收尾依然有效，因为其中的 ]] 就是 0 级闭括号。 */
+"--"\[=*\[        { long_comment_level_ = static_cast<int>(yyleng) - 4; yy_push_state(MULTI_LINE_COMMENT_STATE); }
+<MULTI_LINE_COMMENT_STATE>\]=*\]   { if (static_cast<int>(yyleng) - 2 == long_comment_level_) yy_pop_state(); }
 <MULTI_LINE_COMMENT_STATE>\n   { loc.lines(yyleng); loc.step(); }
 <MULTI_LINE_COMMENT_STATE>.    { }
+<MULTI_LINE_COMMENT_STATE><<EOF>>   { throw yy::parser::syntax_error(loc, "unfinished long comment"); }
 
 "--"            { yy_push_state(SINGLE_LINE_COMMENT_STATE); }
 <SINGLE_LINE_COMMENT_STATE>\n   { loc.lines(yyleng); loc.step(); yy_pop_state(); }
+    /* Lua 的行注释遇到 \r 也结束，只认 \n 会把 \r 后面的真实代码一起吞掉。 */
+<SINGLE_LINE_COMMENT_STATE>\r   { yy_pop_state(); }
 <SINGLE_LINE_COMMENT_STATE>.    { }
 
 [ \t]+          loc.step ();
@@ -126,6 +135,11 @@ number   {num1}|{num2}
 "//"            return yy::parser::make_DOUBLE_SLASH(loc);
 
 {number}        return yy::parser::make_NUMBER(yytext, loc);
+
+    /* Lua 读数字时会把紧跟其后的字母、数字和点一起吞掉再做校验，所以 3and、1local、
+       5..2 都是 "malformed number"。这条规则必须排在 {number} 之后：等长时 flex 取
+       靠前的规则，于是 0x1f、1e2 这类合法写法仍走 {number}。 */
+{number}[0-9a-zA-Z_.]   { throw yy::parser::syntax_error(loc, "malformed number near '" + std::string(yytext) + "'"); }
 
 {name}          return yy::parser::make_IDENTIFIER(yytext, loc);
 

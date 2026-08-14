@@ -36,7 +36,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     void *init_ptr = tcc_get_symbol(s, kInitFunctionName);
     if (init_ptr) {
-        inter::DispatchCall(init_ptr, nullptr, 0);
+        inter::DispatchCall(init_ptr, nullptr, 0, JIT_TCC);
     }
 
     LOG_INFO("TCC JIT compilation finished for {}", pr.file_name);

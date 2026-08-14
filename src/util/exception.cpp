@@ -20,10 +20,14 @@ std::string StacktraceCurrent() {
     return ret;
 }
 
-[[noreturn]] void ThrowFakeluaException(const std::string &msg) {
+std::string BuildFakeluaErrorMessage(const std::string &msg) {
     const auto stack = StacktraceCurrent();
     LOG_ERROR("fakelua error: {}\n{}", msg, stack);
-    throw FakeluaException(std::format("fakelua error: {}\n{}", msg, stack));
+    return std::format("fakelua error: {}\n{}", msg, stack);
+}
+
+[[noreturn]] void ThrowFakeluaException(const std::string &msg) {
+    throw FakeluaException(BuildFakeluaErrorMessage(msg));
 }
 
 }// namespace fakelua

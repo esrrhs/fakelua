@@ -1179,16 +1179,21 @@ static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
     }
 }
 
+// Lua 的 .. 只接受字符串和数字，nil / bool / table / function 一律报错。
+// 检查放在非字符串分支里，字符串拼接的快路径不受影响。
+#define CONCAT_CHECK_NUMERIC(v) \
+    if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) { FakeluaThrowError(_S, "attempt to concatenate a non-string value"); }
+
 static inline CVar FlConcat(CVar a, CVar b) {
     char buf_a[256], buf_b[256];
     const char *sa = buf_a; int la;
     const char *sb = buf_b; int lb;
     if (LIKELY(a.type_ == VAR_STRING)) { sa = STR_DATA(a.data_.s); la = STR_SIZE(a.data_.s); }
     else if (UNLIKELY(a.type_ == VAR_STRINGID)) { VarString *vs = (VarString *)a.data_.i; sa = STR_DATA(vs); la = STR_SIZE(vs); }
-    else { la = FlVarToStr(a, buf_a, sizeof(buf_a)); }
+    else { CONCAT_CHECK_NUMERIC(a); la = FlVarToStr(a, buf_a, sizeof(buf_a)); }
     if (LIKELY(b.type_ == VAR_STRING)) { sb = STR_DATA(b.data_.s); lb = STR_SIZE(b.data_.s); }
     else if (UNLIKELY(b.type_ == VAR_STRINGID)) { VarString *vs = (VarString *)b.data_.i; sb = STR_DATA(vs); lb = STR_SIZE(vs); }
-    else { lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
+    else { CONCAT_CHECK_NUMERIC(b); lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
     int total = la + lb;
     if (UNLIKELY(total < la || total < lb)) { FakeluaThrowError(_S, "string concatenation result too long"); }
     VarString *vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);

@@ -1,6 +1,7 @@
 #include "native/native_string.h"
 #include "native/native_common.h"
 #include "compile/c_runtime_header.h"
+#include "jit/jit_error_boundary.h"
 #include "native/native_object.h"
 #include "state/state.h"
 #include "var/var.h"
@@ -489,21 +490,19 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "string.sub", 2, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 2) return inter::NativeToFakeluaStringView(state, "");
+        // 与 Lua 一致：缺参直接报错，不再悄悄返回空串（差分 fuzz 已抓到过这种宽松）。
+        if (n < 1) ThrowBadArgument(1, "string.sub", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.sub", "number expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "string.sub");
         std::string temp;
         std::string_view sv = GetStringArgView(a0, temp);
         int64_t len = static_cast<int64_t>(sv.size());
 
-        CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        CheckNumberArg(a1, 2, "string.sub");
-        int64_t start_pos = inter::CVarToInteger(a1, 1);
+        int64_t start_pos = CheckIntegerArg(inter::GetNativeArg(state, args, n, 1), 2, "string.sub");
         int64_t end_pos = len;
         if (n >= 3) {
-            CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            CheckNumberArg(a2, 3, "string.sub");
-            end_pos = inter::CVarToInteger(a2, len);
+            end_pos = CheckIntegerArg(inter::GetNativeArg(state, args, n, 2), 3, "string.sub");
         }
 
         start_pos = NormalizePos(start_pos, len);
@@ -1082,14 +1081,14 @@ void RegisterStringLibraryApi(State *s) {
                         for (int i = 0; i < call_arg_count; ++i) {
                             call_args[i] = inter::NativeToFakeluaStringView(state, match[i + 1].str());
                         }
-                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, call_args, call_arg_count) : FlEvalLoadClosure(state, cl, call_arg_count, call_args);
+                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, call_args, call_arg_count, JIT_TCC) : FlEvalLoadClosure(state, cl, call_arg_count, call_args);
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
                         replacement = std::string(KeyToStringView(fn_res));
                     } else {
                         CVar call_arg = inter::NativeToFakeluaStringView(state, match[0].str());
-                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, &call_arg, 1) : FlEvalLoadClosure(state, cl, 1, &call_arg);
+                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, &call_arg, 1, JIT_TCC) : FlEvalLoadClosure(state, cl, 1, &call_arg);
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
@@ -2012,7 +2011,9 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
     try {
         CompileConfig config;
         CompileString(state, full_code, config);
-        CVar res = FakeluaCallByName(state, JIT_TCC, eval_fn_name.c_str(), 0);
+        // 边界不能省：本函数要靠下面的 catch 把错误吞成 nil，若让错误直接跳到更外层的
+        // 边界，这里的 std::string 就不会析构，语义也从"返回 nil"变成了向上抛。
+        CVar res = RunWithJitErrorBoundary([&] { return FakeluaCallByName(state, JIT_TCC, eval_fn_name.c_str(), 0); });
         return res;
     } catch (...) {
         return inter::NativeToFakeluaNil(state);

@@ -1092,6 +1092,11 @@ public:
         return names_;
     }
 
+    // 获取与 Names() 一一对应的属性列表，没写属性的位置是空串
+    [[nodiscard]] const std::vector<std::string> &Attribs() const {
+        return attrib_;
+    }
+
 private:
     std::vector<std::string> names_;
     std::vector<std::string> attrib_;

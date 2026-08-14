@@ -112,6 +112,9 @@ jobs:
           CORPUS_DIR="../fuzz/corpus/seed"
           DICT_FILE="../fuzz/lua_keywords.dict"
 
+          # -error_exitcode / -timeout_exitcode are set explicitly so the two
+          # cases can be told apart below. libFuzzer's own defaults (77 for a
+          # bug, 70 for a timeout) are easy to misread.
           ASAN_OPTIONS=detect_leaks=0 \
           UBSAN_OPTIONS=print_stacktrace=1 \
           ./bin/${{ matrix.target }} \
@@ -119,21 +122,20 @@ jobs:
             -dict=${DICT_FILE} \
             -max_len=4096 \
             -max_total_time=${DURATION} \
+            -error_exitcode=1 \
+            -timeout_exitcode=70 \
             -print_final_stats=1 \
             2>&1 | tee fuzz_${{ matrix.target }}.log
 
-          # libFuzzer exit codes:
-          #   0  = clean exit (no bugs found)
-          #   1  = bug found (crash/OOM)
-          #   77 = timeout (per-input timeout, non-fatal)
+          # Exit codes:
+          #   0  = clean exit (budget exhausted, no bugs found)
+          #   1  = bug found (crash / OOM / leak), see -error_exitcode above
+          #   70 = per-input timeout (slow unit), non-fatal
           FUZZ_EXIT=${PIPESTATUS[0]}
-          if [ ${FUZZ_EXIT} -eq 1 ]; then
-            echo "::error::Fuzzer ${{ matrix.target }} found a crash (exit 1)!"
-            exit 1
-          elif [ ${FUZZ_EXIT} -eq 77 ]; then
-            echo "::warning::Fuzzer ${{ matrix.target }} timed out (exit 77), treating as non-fatal"
+          if [ ${FUZZ_EXIT} -eq 70 ]; then
+            echo "::warning::Fuzzer ${{ matrix.target }} hit a per-input timeout (exit 70), treating as non-fatal"
           elif [ ${FUZZ_EXIT} -ne 0 ]; then
-            echo "::error::Fuzzer ${{ matrix.target }} exited with unexpected code ${FUZZ_EXIT}"
+            echo "::error::Fuzzer ${{ matrix.target }} found a bug (exit ${FUZZ_EXIT})!"
             exit 1
           fi
 
@@ -147,10 +149,11 @@ jobs:
           path: |
             build/bin/${{ matrix.target }}
             build/fuzz_${{ matrix.target }}.log
-            crash-*
-            leak-*
-            timeout-*
-            oom-*
+            build/crash-*
+            build/leak-*
+            build/timeout-*
+            build/oom-*
+            build/slow-unit-*
           retention-days: 30
 
       - name: Upload fuzz log

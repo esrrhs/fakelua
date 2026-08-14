@@ -358,15 +358,6 @@ private:
     [[nodiscard]] static std::string BuildSpecCallArgs(const std::vector<std::string> &params, const std::vector<int> &math_params, int bitmask);
 
     // -----------------------------------------------------------------------
-    // Package 探测辅助
-    // -----------------------------------------------------------------------
-    // 剥离 Lua 字符串字面量的引号（"..." 或 '...'），返回内容部分。
-    [[nodiscard]] static std::string StripLuaStringQuotes(const std::string &raw);
-    // 尝试从一条语句中提取 package 声明名。
-    // 支持两种 AST 形态：FunctionCall（package "xxx"）和 Assign（package = "xxx"）。
-    [[nodiscard]] bool ExtractPackageName(const SyntaxTreeInterfacePtr &stmt, std::string &out_name) const;
-
-    // -----------------------------------------------------------------------
     // 字面量 key 分类辅助
     // -----------------------------------------------------------------------
     struct LiteralKeyInfo {

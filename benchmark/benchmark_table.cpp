@@ -100,10 +100,15 @@ end
 )";
 
 constexpr const char *kHashLookupScript = R"(
-local hash_t = {}
-for i = 1, 1000 do
-    hash_t["k" .. tostring(i)] = i
+local function build_hash()
+    local t = {}
+    for i = 1, 1000 do
+        t["k" .. tostring(i)] = i
+    end
+    return t
 end
+
+local hash_t = build_hash()
 
 function bench_hash_lookup(n)
     local sum = 0
@@ -115,13 +120,18 @@ end
 )";
 
 constexpr const char *kNestedTableScript = R"(
-local deep = {}
-local cur = deep
-for i = 1, 10 do
-    cur.a = {}
-    cur = cur.a
+local function build_deep()
+    local root = {}
+    local cur = root
+    for i = 1, 10 do
+        cur.a = {}
+        cur = cur.a
+    end
+    cur.value = 42
+    return root
 end
-cur.value = 42
+
+local deep = build_deep()
 
 function bench_nested_table(n)
     local sum = 0

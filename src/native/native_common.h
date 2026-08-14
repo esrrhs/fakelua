@@ -2,6 +2,8 @@
 
 #include "state/state.h"
 #include "var/var_closure.h"
+#include <cmath>
+#include <limits>
 #include <string>
 
 namespace fakelua {
@@ -17,12 +19,39 @@ inline void ThrowBadArgument(int argno, const char *fname, const char *expected)
     ThrowFakeluaException(msg);
 }
 
-// Reject Bool/Table where a number is expected. Standard Lua 5.3: luaL_checknumber
-// converts numeric strings to numbers, so we allow strings; only Bool/Table are invalid.
+// Reject Bool/Table/Nil where a number is expected. Lua's luaL_checknumber also
+// converts numeric strings, so plain String/StringId are left to the caller.
 inline void CheckNumberArg(const CVar &a, int argno, const char *fname) {
-    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table)) {
+    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table) ||
+        a.type_ == static_cast<int>(VarType::Nil)) {
         ThrowBadArgument(argno, fname, "number expected");
     }
+}
+
+// luaL_checkinteger：Int 直接过；Float 必须能无损落成整数；数字串按同样规则转换；
+// 其它类型一律 "number expected"。
+inline int64_t CheckIntegerArg(const CVar &a, int argno, const char *fname) {
+    if (a.type_ == static_cast<int>(VarType::Int)) {
+        return a.data_.i;
+    }
+    if (a.type_ == static_cast<int>(VarType::Float)) {
+        const double d = a.data_.f;
+        if (!std::isfinite(d) || std::trunc(d) != d) {
+            ThrowBadArgument(argno, fname, "number has no integer representation");
+        }
+        return static_cast<int64_t>(d);
+    }
+    if (a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) {
+        const double d = inter::CVarToNumber(a, std::numeric_limits<double>::quiet_NaN());
+        if (!std::isfinite(d)) {
+            ThrowBadArgument(argno, fname, "number expected");
+        }
+        if (std::trunc(d) != d) {
+            ThrowBadArgument(argno, fname, "number has no integer representation");
+        }
+        return static_cast<int64_t>(d);
+    }
+    ThrowBadArgument(argno, fname, "number expected");
 }
 
 // Reject Bool/Table/Nil where a string is expected. Standard Lua 5.3: luaL_checkstring
