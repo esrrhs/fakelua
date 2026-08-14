@@ -1271,6 +1271,75 @@ static inline CVar FlStringByte1(CVar s, int64_t i) {
     return (CVar){.type_ = VAR_INT, .data_.i = (unsigned char)src[i - 1]};
 }
 
+// string.rep(s, n)：s 重复 n 次（无分隔符，最常见形式）
+static inline CVar FlStringRep(CVar s, int64_t n) {
+    const char *src = 0;
+    int len = 0;
+    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
+    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
+    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar){.type_ = VAR_INT, .data_.i = n}); }
+    if (n <= 0 || len == 0) {
+        VarString *vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString), !__fakelua_init_flag__);
+        vs->size_ = 0; vs->hash_ = 0; vs->data_[0] = '\0';
+        CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = vs; return r;
+    }
+    // 防溢出：总长度超过 1G 回退 native
+    if ((uint64_t)(unsigned int)n > (1073741824ULL / (uint64_t)(unsigned int)len)) {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar){.type_ = VAR_INT, .data_.i = n});
+    }
+    int64_t total = (int64_t)len * n;
+    VarString *out = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
+    out->size_ = total;
+    out->hash_ = 0;
+    char *dst = out->data_;
+    for (int64_t i = 0; i < n; ++i) {
+        memcpy(dst, src, len);
+        dst += len;
+    }
+    CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = out;
+    return r;
+}
+
+// string.reverse(s)：字符串反转
+static inline CVar FlStringReverse(CVar s) {
+    const char *src = 0;
+    int len = 0;
+    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
+    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
+    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.reverse", 1, s); }
+    VarString *out = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    out->size_ = len;
+    out->hash_ = 0;
+    for (int i = 0; i < len; ++i) {
+        out->data_[i] = src[len - 1 - i];
+    }
+    CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = out;
+    return r;
+}
+
+// string.find(s, pattern, 1, true) 纯文本子串搜索（plain=true，从位置 1 开始）
+static inline CVar FlStringFindPlain(CVar s, CVar pat) {
+    const char *src = 0;
+    int slen = 0;
+    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); slen = STR_SIZE(s.data_.s); }
+    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); slen = STR_SIZE(vs); }
+    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.find", 4, s, pat, (CVar){.type_ = VAR_INT, .data_.i = 1}, (CVar){.type_ = VAR_BOOL, .data_.b = true}); }
+    const char *psrc = 0;
+    int plen = 0;
+    if (LIKELY(pat.type_ == VAR_STRING)) { psrc = STR_DATA(pat.data_.s); plen = STR_SIZE(pat.data_.s); }
+    else if (pat.type_ == VAR_STRINGID) { VarString *vs = (VarString *)pat.data_.i; psrc = STR_DATA(vs); plen = STR_SIZE(vs); }
+    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.find", 4, s, pat, (CVar){.type_ = VAR_INT, .data_.i = 1}, (CVar){.type_ = VAR_BOOL, .data_.b = true}); }
+    if (plen == 0) return (CVar){.type_ = VAR_INT, .data_.i = 1};
+    if (plen > slen) return (CVar){VAR_NIL};
+    int limit = slen - plen;
+    for (int i = 0; i <= limit; ++i) {
+        if (src[i] == psrc[0] && memcmp(src + i, psrc, plen) == 0) {
+            return (CVar){.type_ = VAR_INT, .data_.i = i + 1};
+        }
+    }
+    return (CVar){VAR_NIL};
+}
+
 // string.format("%d", int)
 static inline CVar FlFormatInt(int64_t v) {
     char buf[32];
