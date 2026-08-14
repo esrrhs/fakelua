@@ -420,6 +420,7 @@ end
 
 ### 标准库语义差异
 - `string.find` / `match` / `gmatch` / `gsub` 使用 **ECMAScript 正则**而非 Lua pattern：`%d`、`%b()`、`%f[]` 等 Lua 特有语法不可用，`gsub` 替换串需用 `$1` 而非 `%1`（详见[正则匹配](#正则匹配采用-ecmascript-语法而非-lua-pattern)）
+- 算术不做字符串→数字的隐式转换：`"10" + 1` 在 Lua 里能算，在 FakeLua 里会报错
 
 ## 快速上手
 

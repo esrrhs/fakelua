@@ -490,21 +490,19 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "string.sub", 2, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 2) return inter::NativeToFakeluaStringView(state, "");
+        // 与 Lua 一致：缺参直接报错，不再悄悄返回空串（差分 fuzz 已抓到过这种宽松）。
+        if (n < 1) ThrowBadArgument(1, "string.sub", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.sub", "number expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "string.sub");
         std::string temp;
         std::string_view sv = GetStringArgView(a0, temp);
         int64_t len = static_cast<int64_t>(sv.size());
 
-        CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        CheckNumberArg(a1, 2, "string.sub");
-        int64_t start_pos = inter::CVarToInteger(a1, 1);
+        int64_t start_pos = CheckIntegerArg(inter::GetNativeArg(state, args, n, 1), 2, "string.sub");
         int64_t end_pos = len;
         if (n >= 3) {
-            CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            CheckNumberArg(a2, 3, "string.sub");
-            end_pos = inter::CVarToInteger(a2, len);
+            end_pos = CheckIntegerArg(inter::GetNativeArg(state, args, n, 2), 3, "string.sub");
         }
 
         start_pos = NormalizePos(start_pos, len);

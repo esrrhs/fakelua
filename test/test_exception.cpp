@@ -888,6 +888,43 @@ TEST(exception, local_attrib_errors) {
     }
 }
 
+// string.sub 的参数校验必须和 Lua 一样严：缺参、非整数下标、非数字字符串都要报错，
+// 不能悄悄返回空串（差分 fuzz 已抓到过）。
+TEST(exception, string_sub_arg_errors) {
+    for (const char *body: {"return string.sub()", "return string.sub(3)", "return string.sub(\"hello\")",
+                            "return string.sub(\"hello\", 10.5, 3)", "return string.sub(\"hello\", \"x\", 3)",
+                            "return string.sub(\"hello\", nil, 3)", "local s = \"hello\"\n  return string.sub(s, s, 3)"}) {
+        SCOPED_TRACE(body);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(0);
+        const std::string script = std::string("function f()\n  ") + body + "\nend";
+        ASSERT_NO_THROW(CompileString(s, script, {}));
+        for (const auto jit_type: {JIT_TCC, JIT_GCC}) {
+            CVar ret;
+            EXPECT_THROW(Call(s, jit_type, "f", ret), std::exception);
+        }
+    }
+}
+
+// Lua 的 .. 只接受字符串和数字；nil / bool / table 拼接必须报错。
+TEST(exception, concat_non_string_value) {
+    for (const char *body: {"return nil .. \"x\"", "return \"x\" .. nil", "return true .. \"x\"", "return {} .. \"x\""}) {
+        SCOPED_TRACE(body);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(0);
+        const std::string script = std::string("function f()\n  ") + body + "\nend";
+        ASSERT_NO_THROW(CompileString(s, script, {}));
+        for (const auto jit_type: {JIT_TCC, JIT_GCC}) {
+            CVar ret;
+            EXPECT_THROW(Call(s, jit_type, "f", ret), std::exception);
+        }
+    }
+}
+
 // Lua 的 block ::= {stat} [retstat]：return 只能是所在块的最后一条语句。
 // FakeLua 不能比 Lua 更宽松，否则差分 fuzz 会把它报成 fakelua 接受、Lua 拒绝的分歧。
 TEST(exception, return_must_be_last_in_block) {

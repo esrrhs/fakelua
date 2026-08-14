@@ -955,7 +955,7 @@ TEST(jitter, test_binop_concat) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_concat.lua", {.debug_mode = debug_mode});
         std::string ret;
-        Call(s, type, "test", ret, 3, 1.2, true, "test");
+        Call(s, type, "test", ret, 3, 1.2, "true", "test");
         ASSERT_EQ(ret, "31.2truetest");
     });
 }
