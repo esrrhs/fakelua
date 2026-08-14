@@ -3533,7 +3533,67 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
         return tmp;
     }
 
-    // 其余（sub/rep/reverse/dump/多参 format 等）仍走慢路径
+    if (method_name == "rep" && raw_args.size() == 2) {
+        // string.rep(s, n)：最常见形式（无分隔符）
+        const std::string s_arg = CompileExp(raw_args[0]);
+        const std::string n_arg = CompileExp(raw_args[1]);
+        const auto s_tmp = std::format("flua_srep_s_{}", tmp_var_counter_++);
+        const auto n_tmp = std::format("flua_srep_n_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << s_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << n_tmp << ";\n";
+        Out() << GenTab() << s_tmp << " = " << s_arg << ";\n";
+        Out() << GenTab() << n_tmp << " = " << n_arg << ";\n";
+        const auto val_tmp = std::format("flua_srep_v_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    int64_t " << val_tmp << ";\n";
+        Out() << GenTab() << val_tmp << " = (" << n_tmp << ".type_ == VAR_INT ? " << n_tmp << ".data_.i : (int64_t)(" << n_tmp << ".type_ == VAR_FLOAT ? " << n_tmp << ".data_.f : 0));\n";
+        Out() << GenTab() << "if (LIKELY((" << s_tmp << ".type_ == VAR_STRING || " << s_tmp << ".type_ == VAR_STRINGID) && " << n_tmp << ".type_ == VAR_INT)) {\n";
+        Out() << GenTab() << "    " << tmp << " = FlStringRep(" << s_tmp << ", " << val_tmp << ");\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.rep\", 2, " << s_tmp << ", " << n_tmp << ");\n";
+        Out() << GenTab() << "}\n";
+        return tmp;
+    }
+
+    if (method_name == "reverse" && raw_args.size() == 1) {
+        const std::string arg = CompileExp(raw_args[0]);
+        const auto arg_tmp = std::format("flua_srev_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_STRING || " << arg_tmp << ".type_ == VAR_STRINGID)) {\n";
+        Out() << GenTab() << "    " << tmp << " = FlStringReverse(" << arg_tmp << ");\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.reverse\", 1, " << arg_tmp << ");\n";
+        Out() << GenTab() << "}\n";
+        return tmp;
+    }
+
+    if (method_name == "find" && raw_args.size() == 4) {
+        // string.find(s, pattern, init, plain)：仅当 plain=true 且 init=1 时内联为纯文本搜索
+        const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[2]);
+        const auto plain_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[3]);
+        const bool init_is_one = init_exp && init_exp->GetExpKind() == ExpKind::kNumber && init_exp->ExpValue() == "1";
+        const bool plain_is_true = plain_exp && plain_exp->GetExpKind() == ExpKind::kTrue;
+        if (init_is_one && plain_is_true) {
+            const std::string s_arg = CompileExp(raw_args[0]);
+            const std::string pat_arg = CompileExp(raw_args[1]);
+            const auto s_tmp = std::format("flua_sfinds_{}", tmp_var_counter_++);
+            const auto p_tmp = std::format("flua_sfindp_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << s_tmp << ";\n";
+            func_temp_decls_ << "    CVar " << p_tmp << ";\n";
+            Out() << GenTab() << s_tmp << " = " << s_arg << ";\n";
+            Out() << GenTab() << p_tmp << " = " << pat_arg << ";\n";
+            Out() << GenTab() << "if (LIKELY((" << s_tmp << ".type_ == VAR_STRING || " << s_tmp << ".type_ == VAR_STRINGID) && ("
+                 << p_tmp << ".type_ == VAR_STRING || " << p_tmp << ".type_ == VAR_STRINGID))) {\n";
+            Out() << GenTab() << "    " << tmp << " = FlStringFindPlain(" << s_tmp << ", " << p_tmp << ");\n";
+            Out() << GenTab() << "} else {\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.find\", 4, " << s_tmp << ", " << p_tmp
+                 << ", (CVar){.type_ = VAR_INT, .data_.i = 1}, (CVar){.type_ = VAR_BOOL, .data_.b = true});\n";
+            Out() << GenTab() << "}\n";
+            return tmp;
+        }
+    }
+
+    // 其余（sub/dump/多参 format/非标准 find 等）仍走慢路径
     return {};
 }
 
