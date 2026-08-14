@@ -65,9 +65,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 | StringFindPattern | n=1000 | 0.12x | 39.6 | ECMAScript 正则；已加编译缓存 |
 | StringGmatch | n=1000 | 0.21x | 23.3 | ECMAScript 正则；已加编译缓存 |
 
-> **关于正则比 Lua 慢**：FakeLua 的 `string.find` / `match` / `gmatch` / `gsub` 走的是 **ECMAScript `std::regex`**（已做进程级编译缓存），能力强于 Lua 5.4 自带的 pattern（lookahead、完整字符类、非贪婪等）。因此正则场景慢于 Lua（当前约 0.06~0.21x）**可以接受**，属于能力换性能；后续若要追平 Lua，方向是另做 Lua pattern 引擎，而不是继续抠 `std::regex`。
->
-> 脚本统一用 `[0-9]+`（在 Lua pattern 与 ECMAScript 正则中语义一致），并给 Lua / TCC / GCC 补上 `VerifyEqual`。此前用 `%d+` 的对比无效：在 ECMAScript 里它表示「字面量 `%` 后跟一个或多个 `d`」，fakelua 一个匹配都找不到、立刻跳出循环，工作量不对等。
+> **关于正则比 Lua 慢**：FakeLua 的 `string.find` / `match` / `gmatch` / `gsub` 走的是 **ECMAScript `std::regex`**（已做进程级编译缓存），能力强于 Lua 5.4 自带的 pattern（lookahead、完整字符类、非贪婪等）。因此正则场景慢于 Lua（当前约 0.06~0.21x）**可以接受**，属于能力换性能；后续若要追平 Lua，方向是另做 Lua pattern 引擎，而不是继续抠 `std::regex`。脚本统一用 `[0-9]+`（在 Lua pattern 与 ECMAScript 正则中语义一致）。
 
 ### 表操作（table）
 
@@ -116,56 +114,19 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 1. **纯数值场景全面领先 Lua 5.4 并接近手写 C++**：Fibonacci 36.6x、TailRecursion 107.5x、Recursion 42.9x、FloatPoly 34.9x、Popcount 37.3x、Sum 30.4x。数值特化让这些函数生成的 C 代码与手写版本几乎一致，剩下的交给 GCC `-O3`。
 
-2. **math 库四项全部快于 Lua**（4.3x~22.3x）。`math.exp`/`math.log` 曾是反常的性能陷阱（比 Lua 还慢），原因是它们不在 CGen 的内联白名单里，每次调用都要走 `FakeluaCallByName`；补入白名单后直接内联为 libm 调用。同批修复的还有 `log10`/`asin`/`acos`/`atan`/`sinh`/`cosh`/`tanh`——它们的内联代码早已写好，但同样因为不在白名单里而是**永远执行不到的死代码**。
+2. **math 库四项全部快于 Lua**（4.3x~22.3x），sin/cos/sqrt 接近 C++ 原生速度。
 
-3. **表操作从最大短板转为优势项**：table.insert 4.0x、remove 3.2x、sort 1.2x 快于 Lua，move / concat 与 Lua 基本持平。此前这几项比 Lua 慢 2~3 个数量级，根因是算法复杂度与宿主/JIT 两侧实现不一致，详见下节。
+3. **string 标准库函数大多快于 Lua**：lower/upper 5-6x、format 1.8x、rep 1.1x、reverse 1.7x，均通过 CGen 内联（`FlStringLower/Upper`、`FlFormatInt`、`FlStringRep`、`FlStringReverse`）避免 `FakeluaCallByName` 的调用开销。当前仅 StringFind (plain) 0.85x 略慢于 Lua，剩余差距为单次调用派发开销。
 
-4. **arena 分配器在表频繁创建场景优势明显**：TableChurn 快于 Lua 9.3x——无 GC、批量释放的收益在这里体现得最直接。
+4. **表操作整体有优势**：table.insert 4.0x、remove 3.2x、sort 1.2x 快于 Lua，move / concat 与 Lua 基本持平。`VarTable` 缓存连续整数键前缀长度使 `#t` 为 O(1)，宿主侧与 JIT 侧共用同一套哈希/桶布局。
 
-5. **正则场景慢于 Lua 可接受**（Gsub 0.06x、FindPattern 0.12x、Gmatch 0.21x）：我们用的是更强的 ECMAScript `std::regex`（非 Lua pattern），已加编译缓存；与 Lua 的对比不是同能力引擎，不作为短板追平目标。
+5. **arena 分配器在表频繁创建场景优势明显**：TableChurn 快于 Lua 9.3x——无 GC、批量释放。
 
-6. **string 标准库函数内联（2026-08-14 优化）**：`TryCompileBuiltinStringCall` 此前只内联了 char/byte/lower/upper/format/len，rep/reverse/find 仍走 `FakeluaCallByName`。补齐 CGen 内联后：
+6. **正则场景慢于 Lua 可接受**（Gsub 0.06x、FindPattern 0.12x、Gmatch 0.21x）：使用更强的 ECMAScript `std::regex`（非 Lua pattern），已加编译缓存；能力不同，不作为追平目标。
 
-   | 场景 | 优化前 vs Lua | 优化后 vs Lua | 手段 |
-   |------|:--:|:--:|------|
-   | StringRep | 0.17x | **1.1x** | `FlStringRep` |
-   | StringReverse | 0.39x | **1.7x** | `FlStringReverse` |
-   | StringFind (plain) | 0.85x | 0.85x | `FlStringFindPlain`（接近持平，剩余为调用派发开销） |
-
-   其余 string 函数（lower/upper/format/len）在 2026-08-13 优化中已内联，见下方历史记录。
-
-7. **剩余非正则慢项分析**：GCD（0.45x）和 Variadic（0.91x）为单次调用派发开销主导——函数体极小（< 1 µs），JIT 的 CVar 装箱/拆箱与调用约定开销占比大，非运算本身慢；ToNumber（0.53x）和 ToString（0.74x）虽有内联但仍受限于单次调用开销。这些场景需要跨函数内联或调用约定优化才能追平，不属于当前内联优化的范畴。
+7. **剩余慢项为调用派发开销主导**：GCD（0.45x）、ToNumber（0.53x）、ToString（0.74x）、Variadic（0.91x）函数体极小（< 1 µs），JIT 的 CVar 装箱/拆箱与调用约定开销占比大，非运算本身慢。需跨函数内联或调用约定优化才能追平。
 
    > 说明：ToNumber 的 bench 两侧解析同一输入字符串 `"1234567890"`。剩余差距主要来自单次 `Call()` 派发与字符串装箱常数开销，非解析本身。
-
----
-
-## 表操作性能修复（2026-08-13）
-
-表操作一节此前记录的数据（TableInsert 0.02x、TableMove ≈0x 等）源于两个缺陷，均已修复。
-
-**根因一：`#t` 是 O(n)，使 table.insert/remove 退化为 O(n²)。**
-`FlGetTableSeqLen` 每次都从 0 开始逐个向上探测整数键。CGen 把 `table.insert(t, v)` 内联成 `FlLenInt` + `FlSetTableInt`，于是每追加一个元素都要重新数一遍整张表。现在 `VarTable` 缓存连续整数键前缀长度，在整数键写入路径上增量维护，`#t` 变为 O(1)、追加整体 O(n)。缓存以「0 = 无效」编码，任何把 `VarTable` 清零的分配路径都会自动落到重算分支——漏挂钩只会退化性能，不会算错长度。
-
-**根因二：宿主 C++ 侧与 JIT 侧是两套不兼容的表实现，且会静默丢数据。**
-`TableHelper::GetTableInt` 是全表线性扫描而非哈希定位，让 table.concat/move/sort/unpack 这些逐元素读取的函数整体退化为 O(n²)。更严重的是 `TableHelper::SetTableInt` 在 `quick_data_` 的 8 个槽用满后，会把整数键 `std::to_string` 成十进制字符串再按 StringId 存入——JIT 侧按 `VAR_INT` 键哈希查找时永远匹配不上。**这不只是性能问题：`table.move` 复制 20 个元素时，第 9 个及之后全部丢失，`#dst` 返回 8。** 而 `bench_table_move` 返回的正是 `#dst`，所以它一直在给一个错误结果计时。现在宿主侧与 `c_runtime_header.h` 中的 `Fl*` 运行时函数共用同一套哈希、桶布局与 rehash 策略。
-
-回归测试见 `test/lua/table/test_table_large_seq.lua` 与 `test_table_seqlen.lua`。此前的 `table.move` 用例最多只用 5 个元素，正好落在 8 槽以内，所以这个 bug 一直没被暴露。
-
-修复前后在同一台机器、同一次会话中连续测得（`--benchmark_min_time=0.15s`，CPU 时间）：
-
-| 场景 | 参数 | 修复前 | 修复后 | 提升 | 修复前 vs Lua | 修复后 vs Lua |
-|------|------|-------:|-------:|-----:|-------------:|-------------:|
-| TableInsert | n=5000 | 25114.8 µs | 119.7 µs | 210x | 0.02x | **4.24x** |
-| TableMove | n=5000 | 46355.6 µs | 377.5 µs | 123x | 0.006x | 0.82x |
-| TableRemove | n=5000 | 20647.6 µs | 226.7 µs | 91x | 0.04x | **3.62x** |
-| TableSort | n=1000 | 3301.0 µs | 99.4 µs | 33x | 0.11x | **3.73x** |
-| TableConcat | n=1000 | 2424.9 µs | 589.3 µs | 4.1x | 0.16x | 0.69x |
-| MathExpLog | n=100K | 57520.1 µs | 5228.8 µs | 11x | 0.38x | **4.08x** |
-
-伸缩性也从二次变为线性：TableInsert 的 n 从 1000 增到 5000（5 倍）时，耗时此前涨 24.6 倍，现在涨 6.7 倍。
-
-仍略慢于 Lua 的 TableConcat 已随后用 arena 一次写入追平并反超；TableMove 经 CGen `FlTableMove` 后亦反超 Lua（见上文第 6/7 节）。
 
 ---
 
