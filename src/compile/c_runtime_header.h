@@ -1283,8 +1283,8 @@ static inline CVar FlStringRep(CVar s, int64_t n) {
         vs->size_ = 0; vs->hash_ = 0; vs->data_[0] = '\0';
         CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = vs; return r;
     }
-    // 防溢出：总长度超过 1G 回退 native
-    if ((uint64_t)(unsigned int)n > (1073741824ULL / (uint64_t)(unsigned int)len)) {
+    // 防溢出：总长度超过 1G 回退 native。(n, len) 均转为 uint64_t 避免截断
+    if ((uint64_t)n > (1073741824ULL / (uint64_t)len)) {
         return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar){.type_ = VAR_INT, .data_.i = n});
     }
     int64_t total = (int64_t)len * n;
@@ -1412,7 +1412,13 @@ static inline CVar FlTonumber(CVar v) {
     } }
     int64_t val = 0;
     for (; i < len; ++i) {
-        val = val * 10 + (p[i] - '0');
+        // 溢出检查：val * 10 + digit > INT64_MAX 时回退到 native（返回 float）
+        // 阈值: (INT64_MAX - digit) / 10，等价于 val > (INT64_MAX - digit) / 10
+        int digit = p[i] - '0';
+        if (val > (INT64_MAX - digit) / 10) {
+            return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "tonumber", 1, v);
+        }
+        val = val * 10 + digit;
     }
     if (neg) val = -val;
     return (CVar){.type_ = VAR_INT, .data_.i = val};
