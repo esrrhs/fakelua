@@ -85,8 +85,7 @@ add_test(NAME unit COMMAND ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/unit_test
 add_custom_command(
         TARGET unit_tests
         POST_BUILD
-        COMMAND rm -rf ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/lua
-        COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/lua/ ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/lua/ ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/
 )
 
 IF (WIN32)
