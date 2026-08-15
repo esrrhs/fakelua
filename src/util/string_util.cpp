@@ -129,8 +129,15 @@ int64_t ToInteger(const std::string_view &input) {
         } else if (errno == ERANGE || uval > static_cast<uint64_t>(INT64_MAX) + 1ULL) {
             ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", input));
         }
-        // Reinterpret as signed: -0x8000000000000000 == INT64_MIN is valid.
-        result = -static_cast<int64_t>(uval);
+        // Reinterpret as signed: -0x8000000000000000 == INT64_MIN is valid。
+        // 直接 reinterpret 避免 -INT64_MIN 溢出（UB）。
+        // uval 范围 [0, 2^63]，对应 int64 范围 [0, INT64_MIN]，全部合法。
+        result = static_cast<int64_t>(uval);
+        if (uval == static_cast<uint64_t>(INT64_MAX) + 1ULL) {
+            result = INT64_MIN;  // 唯一负值情况
+        } else if (uval != 0) {
+            result = -result;    // 其他情况取负
+        }
     } else {
         result = strtoll(str.c_str(), &end_ptr, base);
         if (end_ptr == str.c_str() || *end_ptr != '\0') {

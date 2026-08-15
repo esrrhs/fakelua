@@ -79,6 +79,12 @@ struct GMatchState {
     size_t pos = 0;
 };
 
+// 检测主机字节序（x86 = 小端）
+static inline bool IsHostBigEndian() {
+    const uint16_t probe = 0x0001;
+    return static_cast<const unsigned char *>(static_cast<const void *>(&probe))[0] == 0;
+}
+
 // ─── string.pack / packsize / unpack 二进制序列化辅助 ───
 struct PackMachine {
     bool big_endian = false;
@@ -143,8 +149,15 @@ int PackMachine::PackSpec(std::string &out, const char *fmt, const char *end, St
             ++fmt;
             continue;
         }
-        if (c == '>' || c == '=') {
+        if (c == '>') {
             big_endian = true;
+            ++fmt;
+            continue;
+        }
+        // '=' : native endianness, no alignment (x86 = little-endian)
+        if (c == '=') {
+            big_endian = IsHostBigEndian();
+            align = 0;
             ++fmt;
             continue;
         }
@@ -545,7 +558,7 @@ void RegisterStringLibraryApi(State *s) {
 
         size_t unit_len = sv.size() + sep.size();
         if (unit_len > 0 && static_cast<uint64_t>(rep_cnt) > (1073741824ULL / unit_len)) {
-            return inter::NativeToFakeluaNil(state);
+            ThrowFakeluaException("string.rep: resulting string too large");
         }
 
         std::string res;
@@ -1412,8 +1425,15 @@ void RegisterStringLibraryApi(State *s) {
                 ++fmt_p;
                 continue;
             }
-            if (c == '>' || c == '=') {
+            if (c == '>') {
                 pm.big_endian = true;
+                ++fmt_p;
+                continue;
+            }
+            // '=' : native endianness, no alignment (x86 = little-endian)
+            if (c == '=') {
+                pm.big_endian = IsHostBigEndian();
+                pm.align = 0;
                 ++fmt_p;
                 continue;
             }
@@ -1651,6 +1671,7 @@ void RegisterStringLibraryApi(State *s) {
                 }
                 if (count <= 0) return inter::NativeToFakeluaNil(state);
                 total += static_cast<size_t>(count);
+                ++str_arg_idx;  // c[n] 消耗一个参数
                 continue;
             }
             if (c == 'i' || c == 'I') {
@@ -1666,6 +1687,7 @@ void RegisterStringLibraryApi(State *s) {
                     if (mod != 0) total += static_cast<size_t>(pm.align) - mod;
                 }
                 total += static_cast<size_t>(sz);
+                ++str_arg_idx;  // i[n]/I[n] 消耗一个参数
                 continue;
             }
 
