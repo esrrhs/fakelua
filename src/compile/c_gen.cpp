@@ -10,12 +10,24 @@
 
 namespace fakelua {
 
-// string 库方法全集（对齐 Lua 5.4 标准库）。
-// TryCompileBuiltinStringCall 和 BuildMethodCall 共用：前者处理 string.xxx() 直接调用，
-// 后者处理 s:xxx() colon 调用。遇到这些方法时直接调用 string.<method>，避免
-// FlGetTableStrId 对非表值（如 string）触发 "attempt to index a non-table value"。
+// string 库方法名集合（对齐 Lua 5.4）。
 static const std::unordered_set<std::string> kStringLibraryMethods = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char",
                                                                       "format", "dump", "find", "match", "gmatch", "gsub"};
+
+// 非表值的 colon 方法调用转发（对齐 Lua 的语义：s:match() ≡ string.match(s, ...)）。
+// 目前只有 string 库需要此机制。未来若要支持其他类型（如 number），在此扩展即可。
+// 返回空串表示不匹配，调用方回退到 FlGetTableStrId。
+static std::string TryBuildLibraryMethodCall(const std::string &method_name, const std::vector<std::string> &args) {
+    if (!kStringLibraryMethods.contains(method_name)) {
+        return {};
+    }
+    std::string arg_list;
+    for (size_t i = 0; i < args.size(); ++i) {
+        if (i > 0) arg_list += ", ";
+        arg_list += args[i];
+    }
+    return std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.{}\", {}, {})", method_name, args.size(), arg_list);
+}
 
 // ===========================================================================
 // 第一部分：核心调度与编排
@@ -3944,16 +3956,10 @@ std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> 
     if (!spec_type.empty() && IsSpecField(spec_type, method_name, TableKeyKind::kString)) {
         const auto c_name = GetSpecFieldCName(spec_type, method_name, TableKeyKind::kString);
         callee_expr = std::format("FL_SPEC({}, {}, {})", spec_type, obj_tmp, c_name);
-    } else if (kStringLibraryMethods.contains(method_name)) {
+    } else if (auto forwarded = TryBuildLibraryMethodCall(method_name, final_args); !forwarded.empty()) {
         // string 库方法（match/find/gsub/gmatch 等）：直接调用 string.<method>，
         // 避免 FlGetTableStrId 对非表值（如 string）触发 "attempt to index a non-table value"。
-        std::string arg_list;
-        for (size_t i = 0; i < final_args.size(); ++i) {
-            if (i > 0) arg_list += ", ";
-            arg_list += final_args[i];
-        }
-        return std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.{}\", {}, {})",
-                           method_name, final_args.size(), arg_list);
+        return forwarded;
     } else {
         const auto id = s_->GetConstString().Alloc(method_name);
         callee_expr = std::format("FlGetTableStrId({}, {})", obj_tmp, id);
