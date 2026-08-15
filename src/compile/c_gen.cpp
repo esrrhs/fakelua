@@ -11,7 +11,9 @@
 namespace fakelua {
 
 // string 库方法全集（对齐 Lua 5.4 标准库）。
-// BuildMethodCall 遇到这些方法名时直接调用 string.<method>，避免 FlGetTableStrId 对非表值 crash。
+// TryCompileBuiltinStringCall 和 BuildMethodCall 共用：前者处理 string.xxx() 直接调用，
+// 后者处理 s:xxx() colon 调用。遇到这些方法时直接调用 string.<method>，避免
+// FlGetTableStrId 对非表值（如 string）触发 "attempt to index a non-table value"。
 static const std::unordered_set<std::string> kStringLibraryMethods = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char",
                                                                       "format", "dump", "find", "match", "gmatch", "gsub"};
 
@@ -3470,8 +3472,7 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
     }
 
     const std::string method_name = callee_var->GetName();
-    static const std::unordered_set<std::string> string_builtins = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char", "format", "dump"};
-    if (!string_builtins.contains(method_name)) {
+    if (!kStringLibraryMethods.contains(method_name)) {
         return {};
     }
 
