@@ -16,8 +16,11 @@ function test_math_random()
     local r5 = math.random(50, 50)
     if r5 ~= 50 then return 0 end
 
-    -- 反向无效区间 l > u 应返回 nil
-    if math.random(100, 50) ~= nil then return 0 end
-
     return 300
+end
+
+-- 反向无效区间 l > u 应报错 "interval is empty"（对齐 Lua 5.4）
+-- 单独函数：gtest 通过 EXPECT_THROW 捕获，避免 JIT pcall 不捕获内联异常的已有 bug
+function test_math_random_reverse_interval()
+    math.random(100, 50)
 end

@@ -2923,7 +2923,11 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
 
     if (method_name == "abs" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
-        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = llabs(" << arg << ".data_.i)}; } ";
+        // llabs(INT64_MIN) 是 UB（绝对值无法存入 int64）。
+        // 与 Lua 5.4 对齐：检测到 INT64_MIN 时走 float 路径返回 9.22e18。
+        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { ";
+        Out() << "if (" << arg << ".data_.i == INT64_MIN) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = (double)(" << arg << ".data_.i) * -1.0}; } ";
+        Out() << "else { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = llabs(" << arg << ".data_.i)}; } } ";
         Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = fabs(" << arg << ".data_.f)}; } ";
         Out() << "else { " << tmp << " = FakeluaCallByName(_S, 0, \"math.abs\", 1, " << arg << "); }\n";
         return tmp;
@@ -3117,7 +3121,18 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << val_tmp << ";\n";
             Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? " << arg << ".data_.i : (int64_t)" << arg << ".data_.f);\n";
-            Out() << GenTab() << tmp << " = (" << val_tmp << " < 1 ? (CVar){.type_ = VAR_INT, .data_.i = 0} : (CVar){.type_ = VAR_INT, .data_.i = 1 + (rand() % " << val_tmp << ")});\n";
+            // 与 Lua 5.4 对齐：
+            //   random(0)  -> 全范围随机整数（拼两个 rand 得到 ~62 位）
+            //   random(<0) -> 抛异常 "interval is empty"
+            //   random(>=1)-> [1, n]
+            const auto rv_tmp = std::format("flua_rv_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    uint64_t " << rv_tmp << ";\n";
+            Out() << GenTab() << "if (" << val_tmp << " == 0) { ";
+            Out() << rv_tmp << " = ((uint64_t)rand() << 32) | (uint64_t)rand(); ";
+            Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)" << rv_tmp << "}; }\n";
+            Out() << GenTab() << "else if (" << val_tmp << " < 0) { ";
+            Out() << "FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (interval is empty)\"); }\n";
+            Out() << GenTab() << "else { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = 1 + (rand() % " << val_tmp << ")}; }\n";
         } else {
             std::string arg1 = CompileExp(raw_args[0]);
             std::string arg2 = CompileExp(raw_args[1]);
@@ -3127,8 +3142,23 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             func_temp_decls_ << "    int64_t " << val2_tmp << ";\n";
             Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? " << arg1 << ".data_.i : (int64_t)" << arg1 << ".data_.f);\n";
             Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? " << arg2 << ".data_.i : (int64_t)" << arg2 << ".data_.f);\n";
-            Out() << GenTab() << tmp << " = (" << val1_tmp << " > " << val2_tmp << " ? kNil : (" << val1_tmp << " == " << val2_tmp << " ? (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp
-                  << "} : (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << " + (rand() % (" << val2_tmp << " - " << val1_tmp << " + 1))}));\n";
+            // 与 Lua 5.4 对齐：
+            //   l > u -> 抛异常 "interval is empty"
+            //   l == u -> 返回 l
+            //   l < u -> 无符号求 range 避免溢出，用 64 位随机数取模
+            const auto range_tmp = std::format("flua_range_{}", tmp_var_counter_++);
+            const auto rv_tmp = std::format("flua_rv_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    uint64_t " << range_tmp << ";\n";
+            func_temp_decls_ << "    uint64_t " << rv_tmp << ";\n";
+            Out() << GenTab() << "if (" << val1_tmp << " > " << val2_tmp << ") { ";
+            Out() << "FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (interval is empty)\"); }\n";
+            Out() << GenTab() << "else if (" << val1_tmp << " == " << val2_tmp << ") { ";
+            Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << "}; }\n";
+            Out() << GenTab() << "else { ";
+            Out() << range_tmp << " = (uint64_t)" << val2_tmp << " - (uint64_t)" << val1_tmp << " + 1; ";
+            Out() << "if (" << range_tmp << " == 0) { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << "}; } ";
+            Out() << "else { " << rv_tmp << " = ((uint64_t)rand() << 32) | (uint64_t)rand(); ";
+            Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << " + (int64_t)(" << rv_tmp << " % " << range_tmp << ")}; } }\n";
         }
         return tmp;
     }

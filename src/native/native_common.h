@@ -30,13 +30,22 @@ inline void CheckNumberArg(const CVar &a, int argno, const char *fname) {
 
 // luaL_checkinteger：Int 直接过；Float 必须能无损落成整数；数字串按同样规则转换；
 // 其它类型一律 "number expected"。
+//
+// 与 Lua 5.4 对齐：float 超出 int64 范围（|d| >= 2^63）时抛
+// "number has no integer representation"，而不是 UB 的 static_cast。
 inline int64_t CheckIntegerArg(const CVar &a, int argno, const char *fname) {
     if (a.type_ == static_cast<int>(VarType::Int)) {
         return a.data_.i;
     }
+    // int64 能表示的 double 范围是 [-2^63, 2^63)。2^63 本身无法存入 int64，
+    // 直接 static_cast 是 UB，必须先拦一刀。
+    static constexpr double kInt64Limit = static_cast<double>(INT64_MAX) + 1.0;  // == 2^63
     if (a.type_ == static_cast<int>(VarType::Float)) {
         const double d = a.data_.f;
         if (!std::isfinite(d) || std::trunc(d) != d) {
+            ThrowBadArgument(argno, fname, "number has no integer representation");
+        }
+        if (d < -kInt64Limit || d >= kInt64Limit) {
             ThrowBadArgument(argno, fname, "number has no integer representation");
         }
         return static_cast<int64_t>(d);
@@ -47,6 +56,9 @@ inline int64_t CheckIntegerArg(const CVar &a, int argno, const char *fname) {
             ThrowBadArgument(argno, fname, "number expected");
         }
         if (std::trunc(d) != d) {
+            ThrowBadArgument(argno, fname, "number has no integer representation");
+        }
+        if (d < -kInt64Limit || d >= kInt64Limit) {
             ThrowBadArgument(argno, fname, "number has no integer representation");
         }
         return static_cast<int64_t>(d);

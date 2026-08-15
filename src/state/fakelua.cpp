@@ -201,7 +201,14 @@ std::string_view FakeluaToNativeStringView(State *state, CVar val) {
 int64_t CVarToInteger(const CVar &v, int64_t default_val) {
     const auto &var = AsVar(v);
     if (var.Type() == VarType::Int) return var.GetInt();
-    if (var.Type() == VarType::Float) return static_cast<int64_t>(var.GetFloat());
+    if (var.Type() == VarType::Float) {
+        const double d = var.GetFloat();
+        // 超出 int64 范围的 float 强转是 UB，返回默认值让调用方决定。
+        if (d < static_cast<double>(INT64_MIN) || d >= static_cast<double>(INT64_MAX) + 1.0) {
+            return default_val;
+        }
+        return static_cast<int64_t>(d);
+    }
     if (var.Type() == VarType::String || var.Type() == VarType::StringId) {
         std::string_view sv = var.GetString()->Str();
         if (!sv.empty()) {
