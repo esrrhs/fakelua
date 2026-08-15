@@ -10,6 +10,11 @@
 
 namespace fakelua {
 
+// string 库方法全集（对齐 Lua 5.4 标准库）。
+// BuildMethodCall 遇到这些方法名时直接调用 string.<method>，避免 FlGetTableStrId 对非表值 crash。
+static const std::unordered_set<std::string> kStringLibraryMethods = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char",
+                                                                      "format", "dump", "find", "match", "gmatch", "gsub"};
+
 // ===========================================================================
 // 第一部分：核心调度与编排
 // ===========================================================================
@@ -3926,11 +3931,28 @@ std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> 
     func_temp_decls_ << "    CVar " << obj_tmp << ";\n";
     Out() << GenTab() << obj_tmp << " = " << obj_expr << ";\n";
 
+    // 构造参数列表（对象本身作为第一个参数）
+    std::vector<std::string> final_args;
+    final_args.push_back(obj_tmp);
+    for (const auto &arg: args) {
+        final_args.push_back(arg);
+    }
+
     std::string callee_expr;
     const auto spec_type = GetSpecTypeForVar(pe_pre_ptr);
     if (!spec_type.empty() && IsSpecField(spec_type, method_name, TableKeyKind::kString)) {
         const auto c_name = GetSpecFieldCName(spec_type, method_name, TableKeyKind::kString);
         callee_expr = std::format("FL_SPEC({}, {}, {})", spec_type, obj_tmp, c_name);
+    } else if (kStringLibraryMethods.contains(method_name)) {
+        // string 库方法（match/find/gsub/gmatch 等）：直接调用 string.<method>，
+        // 避免 FlGetTableStrId 对非表值（如 string）触发 "attempt to index a non-table value"。
+        std::string arg_list;
+        for (size_t i = 0; i < final_args.size(); ++i) {
+            if (i > 0) arg_list += ", ";
+            arg_list += final_args[i];
+        }
+        return std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.{}\", {}, {})",
+                           method_name, final_args.size(), arg_list);
     } else {
         const auto id = s_->GetConstString().Alloc(method_name);
         callee_expr = std::format("FlGetTableStrId({}, {})", obj_tmp, id);
@@ -3939,12 +3961,6 @@ std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> 
     std::string callee_tmp = std::format("flua_method_{}", tmp_var_counter_++);
     func_temp_decls_ << "    CVar " << callee_tmp << ";\n";
     Out() << GenTab() << callee_tmp << " = " << callee_expr << ";\n";
-
-    std::vector<std::string> final_args;
-    final_args.push_back(obj_tmp);
-    for (const auto &arg: args) {
-        final_args.push_back(arg);
-    }
 
     std::string call_expr = std::format("FlCallClosure(_S, {}, {}", callee_tmp, final_args.size());
     for (const auto &arg: final_args) {

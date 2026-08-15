@@ -527,3 +527,31 @@ TEST(test_math, test_math_random_reverse) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_math, test_string_method_colon) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    // 验证 string 库方法 colon 调用不 crash（Bug #1: FlGetTableStrId on string）
+    CompileFile(s, "./math/test_math_critical_boundary.lua", config);
+    int64_t res = 0;
+    Call(s, JIT_GCC, "test_string_method_colon", res);
+    EXPECT_EQ(res, 0);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_err_match) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    // 验证 err:match 不 crash（Bug #1: FlGetTableStrId on string in method call）
+    CompileFile(s, "./math/test_math_critical_boundary.lua", config);
+    int64_t res = 0;
+    Call(s, JIT_GCC, "test_err_match", res);
+    EXPECT_EQ(res, 0);
+
+    FakeluaDeleteState(s);
+}
