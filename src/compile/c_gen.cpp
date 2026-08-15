@@ -3127,13 +3127,13 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             func_temp_decls_ << "    int64_t " << val_tmp << ";\n";
             Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? " << arg << ".data_.i : (int64_t)" << arg << ".data_.f);\n";
             // 与 Lua 5.4 对齐：
-            //   random(0)  -> 全范围随机整数（拼两个 rand 得到 ~62 位）
+            //   random(0)  -> 全范围随机整数（拼 4 个 rand 填满 64 位，跨平台一致）
             //   random(<0) -> 抛异常 "interval is empty"
             //   random(>=1)-> [1, n]
             const auto rv_tmp = std::format("flua_rv_{}", tmp_var_counter_++);
             func_temp_decls_ << "    uint64_t " << rv_tmp << ";\n";
             Out() << GenTab() << "if (" << val_tmp << " == 0) { ";
-            Out() << rv_tmp << " = ((uint64_t)rand() << 32) | (uint64_t)rand(); ";
+            Out() << rv_tmp << " = ((uint64_t)rand() << 48) | ((uint64_t)rand() << 32) | ((uint64_t)rand() << 16) | (uint64_t)rand(); ";
             Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)" << rv_tmp << "}; }\n";
             Out() << GenTab() << "else if (" << val_tmp << " < 0) { ";
             Out() << "FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (interval is empty)\"); }\n";

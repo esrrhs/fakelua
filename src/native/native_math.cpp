@@ -312,8 +312,10 @@ void RegisterMathLibraryApi(State *s) {
             int64_t u = inter::CVarToInteger(a0, 0);
             if (u == 0) {
                 // Lua 5.4：math.random(0) 特殊情况，返回全范围随机整数。
-                // std::rand() 通常只有 31 位，拼两次得到 ~62 位覆盖 int64 主体范围。
-                uint64_t rv = (static_cast<uint64_t>(std::rand()) << 32) |
+                // 拼 4 个 rand 填满 64 位，避免 Windows 上 RAND_MAX=32767 导致位数不足。
+                uint64_t rv = (static_cast<uint64_t>(std::rand()) << 48) |
+                              (static_cast<uint64_t>(std::rand()) << 32) |
+                              (static_cast<uint64_t>(std::rand()) << 16) |
                               static_cast<uint64_t>(std::rand());
                 return inter::NativeToFakeluaInt(state, static_cast<int64_t>(rv));
             }
