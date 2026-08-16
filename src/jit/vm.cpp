@@ -30,6 +30,15 @@ extern "C" void FakeluaThrowError(State *state, const char *msg) {
     ThrowFakeluaException(msg);
 }
 
+// JIT 代码（C 编译）不能直接调用 inter::AllocMultiCVar，需要 extern "C" 包装。
+extern "C" CVar FakeluaAllocMultiCVar(State *state, int count) {
+    return inter::AllocMultiCVar(state, count);
+}
+
+extern "C" void FakeluaSetMultiCVarElement(CVar *multi, int idx, CVar val) {
+    inter::SetMultiCVarElement(*multi, idx, val);
+}
+
 static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr);
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {

@@ -179,6 +179,8 @@ typedef struct VarMulti {
 } VarMulti;
 
 extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
+extern CVar FakeluaAllocMultiCVar(State *s, int count);
+extern void FakeluaSetMultiCVarElement(CVar *multi, int idx, CVar val);
 
 static inline CVar FlAllocMulti(State *state, uint32_t count) {
     VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
