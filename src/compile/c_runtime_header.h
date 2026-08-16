@@ -190,6 +190,14 @@ static inline CVar FlAllocMulti(State *state, uint32_t count) {
     return res;
 }
 
+// 设置 multi-value 的元素，避免链接 inter::SetMultiCVarElement（Windows TCC 找不到符号）
+static inline void FlSetMultiCVarElement(CVar multi, int idx, CVar val) {
+    VarMulti *m = multi.data_.m;
+    if (idx >= 0 && idx < (int)m->count) {
+        m->vars[idx] = val;
+    }
+}
+
 static inline CVar FlMakeMulti(State *state, uint32_t count, ...) {
     VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
     m->count = count;

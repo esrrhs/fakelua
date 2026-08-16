@@ -3640,9 +3640,9 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
             Out() << GenTab() << "        VarString *__vs = (" << p_tmp << ".type_ == VAR_STRING) ? " << p_tmp << ".data_.s : (VarString *)" << p_tmp << ".data_.i;\n";
             Out() << GenTab() << "        " << pat_len_tmp << " = __vs->size_;\n";
             Out() << GenTab() << "        int64_t end = " << tmp << ".data_.i + " << pat_len_tmp << " - 1;\n";
-            Out() << GenTab() << "        CVar multi = FakeluaAllocMultiCVar(_S, 2);\n";
-            Out() << GenTab() << "        FakeluaSetMultiCVarElement(&multi, 0, " << tmp << ");\n";
-            Out() << GenTab() << "        FakeluaSetMultiCVarElement(&multi, 1, (CVar){.type_ = VAR_INT, .data_.i = end});\n";
+            Out() << GenTab() << "        CVar multi = FlAllocMulti(_S, 2);\n";
+            Out() << GenTab() << "        FlSetMultiCVarElement(multi, 0, " << tmp << ");\n";
+            Out() << GenTab() << "        FlSetMultiCVarElement(multi, 1, (CVar){.type_ = VAR_INT, .data_.i = end});\n";
             Out() << GenTab() << "        " << tmp << " = multi;\n";
             Out() << GenTab() << "    }\n";
             Out() << GenTab() << "} else {\n";
