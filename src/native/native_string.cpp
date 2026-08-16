@@ -628,15 +628,14 @@ void RegisterStringLibraryApi(State *s) {
         int64_t start_pos = 1;
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            CheckNumberArg(a1, 2, "string.byte");
-            start_pos = inter::CVarToInteger(a1, 1);
+            // 与 Lua 5.4 对齐：超大 float 报 "number has no integer representation"
+            start_pos = CheckIntegerArg(a1, 2, "string.byte");
         }
 
         int64_t end_pos = start_pos;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            CheckNumberArg(a2, 3, "string.byte");
-            end_pos = inter::CVarToInteger(a2, start_pos);
+            end_pos = CheckIntegerArg(a2, 3, "string.byte");
         }
 
         start_pos = NormalizePos(start_pos, len);

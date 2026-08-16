@@ -109,6 +109,20 @@ TEST(test_math, test_math_random) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_math, test_math_random_reverse_interval) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_random.lua", config);
+    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    // math.random(100, 50) 应抛 "interval is empty"
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_reverse_interval", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_math, test_math_modf_frexp) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -444,6 +458,100 @@ TEST(test_math, test_math_boundary_error) {
     double res = 0;
     EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_math_randomseed_bad_arg", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_critical_boundary) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    // TCC 是 C 编译器，不支持 C++ 异常传播和某些表操作，只测试 GCC 后端
+    CompileFile(s, "./math/test_math_critical_boundary.lua", config);
+    int64_t res = 0;
+    Call(s, JIT_GCC, "test_math_critical_boundary", res);
+    EXPECT_EQ(res, 9999);
+
+    FakeluaDeleteState(s);
+}
+
+
+TEST(test_math, test_string_sub_overflow) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_critical_boundary.lua", config);
+    // 超大 float index 应抛 "number has no integer representation"
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_string_sub_overflow", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_string_byte_overflow) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_critical_boundary.lua", config);
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_string_byte_overflow", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_random_neg) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_critical_boundary.lua", config);
+    double res = 0;
+    // math.random(-5) 应抛 "interval is empty"
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_neg", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_random_reverse) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_critical_boundary.lua", config);
+    double res = 0;
+    // math.random(5,3) 应抛 "interval is empty"
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_reverse", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_string_method_colon) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    // 验证 string 库方法 colon 调用不 crash（Bug #1: FlGetTableStrId on string）
+    CompileFile(s, "./math/test_math_critical_boundary.lua", config);
+    int64_t res = 0;
+    Call(s, JIT_GCC, "test_string_method_colon", res);
+    EXPECT_EQ(res, 0);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_err_match) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    // 验证 err:match 不 crash（Bug #1: FlGetTableStrId on string in method call）
+    CompileFile(s, "./math/test_math_critical_boundary.lua", config);
+    int64_t res = 0;
+    Call(s, JIT_GCC, "test_err_match", res);
+    EXPECT_EQ(res, 0);
 
     FakeluaDeleteState(s);
 }

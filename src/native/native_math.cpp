@@ -15,7 +15,14 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.abs", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckNumberArg(a0, 1, "math.abs");
-        if (a0.type_ == static_cast<int>(VarType::Int)) return inter::NativeToFakeluaInt(state, std::abs(a0.data_.i));
+        if (a0.type_ == static_cast<int>(VarType::Int)) {
+            // std::abs(INT64_MIN) 是 UB（绝对值无法存入 int64）。
+            // 与 Lua 5.4 对齐：返回 float 9.2233720368548e+18。
+            if (a0.data_.i == INT64_MIN) {
+                return inter::NativeToFakeluaFloat(state, static_cast<double>(a0.data_.i) * -1.0);
+            }
+            return inter::NativeToFakeluaInt(state, std::abs(a0.data_.i));
+        }
         if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::abs(a0.data_.f));
         double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
         if (!std::isnan(f)) {
@@ -303,7 +310,19 @@ void RegisterMathLibraryApi(State *s) {
                 ThrowFakeluaException("bad argument #1 to 'math.random' (number expected)");
             }
             int64_t u = inter::CVarToInteger(a0, 0);
-            if (u < 1) return inter::NativeToFakeluaInt(state, 0);
+            if (u == 0) {
+                // Lua 5.4：math.random(0) 特殊情况，返回全范围随机整数。
+                // 拼 4 个 rand 填满 64 位，避免 Windows 上 RAND_MAX=32767 导致位数不足。
+                uint64_t rv = (static_cast<uint64_t>(std::rand()) << 48) |
+                              (static_cast<uint64_t>(std::rand()) << 32) |
+                              (static_cast<uint64_t>(std::rand()) << 16) |
+                              static_cast<uint64_t>(std::rand());
+                return inter::NativeToFakeluaInt(state, static_cast<int64_t>(rv));
+            }
+            if (u < 0) {
+                // Lua 5.4：math.random(负数) 报 "interval is empty"
+                ThrowFakeluaException("bad argument #1 to 'math.random' (interval is empty)");
+            }
             int64_t r = 1 + (static_cast<int64_t>(std::rand()) % u);
             return inter::NativeToFakeluaInt(state, r);
         } else {
@@ -318,11 +337,19 @@ void RegisterMathLibraryApi(State *s) {
             }
             int64_t l = inter::CVarToInteger(a0, 0);
             int64_t u = inter::CVarToInteger(a1, 0);
-            if (l > u) return inter::NativeToFakeluaNil(state);
+            if (l > u) {
+                // Lua 5.4：空区间报 "interval is empty"
+                ThrowFakeluaException("bad argument #1 to 'math.random' (interval is empty)");
+            }
             if (l == u) return inter::NativeToFakeluaInt(state, l);
-            int64_t range = u - l + 1;
-            if (range <= 0) return inter::NativeToFakeluaInt(state, l);
-            int64_t r = l + (static_cast<int64_t>(std::rand()) % range);
+            // 用无符号运算求 range，避免 math.random(0, INT64_MAX) 等有符号溢出（UB）。
+            // 与 Lua 5.4 project() 思路一致：range 最大到 2^64（此时回绕为 0），
+            // 回绕仅发生在 l=INT64_MIN, u=INT64_MAX 的极端情况，此时直接返回 l。
+            uint64_t range = static_cast<uint64_t>(u) - static_cast<uint64_t>(l) + 1;
+            if (range == 0) return inter::NativeToFakeluaInt(state, l);  // 区间覆盖整个 int64，任意值都可
+            uint64_t rv = (static_cast<uint64_t>(std::rand()) << 32) |
+                          static_cast<uint64_t>(std::rand());
+            int64_t r = l + static_cast<int64_t>(rv % range);
             return inter::NativeToFakeluaInt(state, r);
         }
     });

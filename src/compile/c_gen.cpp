@@ -14,6 +14,24 @@ namespace fakelua {
 // 第一部分：核心调度与编排
 // ===========================================================================
 
+// string 库方法名集合（对齐 Lua 5.4）。
+const std::unordered_set<std::string> CGen::kStringLibraryMethods = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char",
+                                                                      "format", "dump", "find", "match", "gmatch", "gsub"};
+
+// 非表值的 colon 方法调用转发（s:match() ≡ string.match(s, ...)）。
+// 返回空串表示不匹配，调用方回退到 FlGetTableStrId。
+std::string CGen::TryBuildLibraryMethodCall(const std::string &method_name, const std::vector<std::string> &args) {
+    if (!kStringLibraryMethods.contains(method_name)) {
+        return {};
+    }
+    std::string arg_list;
+    for (size_t i = 0; i < args.size(); ++i) {
+        if (i > 0) arg_list += ", ";
+        arg_list += args[i];
+    }
+    return std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.{}\", {}, {})", method_name, args.size(), arg_list);
+}
+
 CGen::CGen(State *s) : s_(s) {
 }
 
@@ -2923,7 +2941,11 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
 
     if (method_name == "abs" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
-        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = llabs(" << arg << ".data_.i)}; } ";
+        // llabs(INT64_MIN) 是 UB（绝对值无法存入 int64）。
+        // 与 Lua 5.4 对齐：检测到 INT64_MIN 时走 float 路径返回 9.22e18。
+        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { ";
+        Out() << "if (" << arg << ".data_.i == INT64_MIN) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = (double)(" << arg << ".data_.i) * -1.0}; } ";
+        Out() << "else { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = llabs(" << arg << ".data_.i)}; } } ";
         Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = fabs(" << arg << ".data_.f)}; } ";
         Out() << "else { " << tmp << " = FakeluaCallByName(_S, 0, \"math.abs\", 1, " << arg << "); }\n";
         return tmp;
@@ -3117,7 +3139,18 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << val_tmp << ";\n";
             Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? " << arg << ".data_.i : (int64_t)" << arg << ".data_.f);\n";
-            Out() << GenTab() << tmp << " = (" << val_tmp << " < 1 ? (CVar){.type_ = VAR_INT, .data_.i = 0} : (CVar){.type_ = VAR_INT, .data_.i = 1 + (rand() % " << val_tmp << ")});\n";
+            // 与 Lua 5.4 对齐：
+            //   random(0)  -> 全范围随机整数（拼 4 个 rand 填满 64 位，跨平台一致）
+            //   random(<0) -> 抛异常 "interval is empty"
+            //   random(>=1)-> [1, n]
+            const auto rv_tmp = std::format("flua_rv_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    uint64_t " << rv_tmp << ";\n";
+            Out() << GenTab() << "if (" << val_tmp << " == 0) { ";
+            Out() << rv_tmp << " = ((uint64_t)rand() << 48) | ((uint64_t)rand() << 32) | ((uint64_t)rand() << 16) | (uint64_t)rand(); ";
+            Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)" << rv_tmp << "}; }\n";
+            Out() << GenTab() << "else if (" << val_tmp << " < 0) { ";
+            Out() << "FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (interval is empty)\"); }\n";
+            Out() << GenTab() << "else { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = 1 + (rand() % " << val_tmp << ")}; }\n";
         } else {
             std::string arg1 = CompileExp(raw_args[0]);
             std::string arg2 = CompileExp(raw_args[1]);
@@ -3127,8 +3160,23 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             func_temp_decls_ << "    int64_t " << val2_tmp << ";\n";
             Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? " << arg1 << ".data_.i : (int64_t)" << arg1 << ".data_.f);\n";
             Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? " << arg2 << ".data_.i : (int64_t)" << arg2 << ".data_.f);\n";
-            Out() << GenTab() << tmp << " = (" << val1_tmp << " > " << val2_tmp << " ? kNil : (" << val1_tmp << " == " << val2_tmp << " ? (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp
-                  << "} : (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << " + (rand() % (" << val2_tmp << " - " << val1_tmp << " + 1))}));\n";
+            // 与 Lua 5.4 对齐：
+            //   l > u -> 抛异常 "interval is empty"
+            //   l == u -> 返回 l
+            //   l < u -> 无符号求 range 避免溢出，用 64 位随机数取模
+            const auto range_tmp = std::format("flua_range_{}", tmp_var_counter_++);
+            const auto rv_tmp = std::format("flua_rv_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    uint64_t " << range_tmp << ";\n";
+            func_temp_decls_ << "    uint64_t " << rv_tmp << ";\n";
+            Out() << GenTab() << "if (" << val1_tmp << " > " << val2_tmp << ") { ";
+            Out() << "FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (interval is empty)\"); }\n";
+            Out() << GenTab() << "else if (" << val1_tmp << " == " << val2_tmp << ") { ";
+            Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << "}; }\n";
+            Out() << GenTab() << "else { ";
+            Out() << range_tmp << " = (uint64_t)" << val2_tmp << " - (uint64_t)" << val1_tmp << " + 1; ";
+            Out() << "if (" << range_tmp << " == 0) { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << "}; } ";
+            Out() << "else { " << rv_tmp << " = ((uint64_t)rand() << 32) | (uint64_t)rand(); ";
+            Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << " + (int64_t)(" << rv_tmp << " % " << range_tmp << ")}; } }\n";
         }
         return tmp;
     }
@@ -3435,8 +3483,7 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
     }
 
     const std::string method_name = callee_var->GetName();
-    static const std::unordered_set<std::string> string_builtins = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char", "format", "dump"};
-    if (!string_builtins.contains(method_name)) {
+    if (!CGen::kStringLibraryMethods.contains(method_name)) {
         return {};
     }
 
@@ -3582,9 +3629,21 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
             func_temp_decls_ << "    CVar " << p_tmp << ";\n";
             Out() << GenTab() << s_tmp << " = " << s_arg << ";\n";
             Out() << GenTab() << p_tmp << " = " << pat_arg << ";\n";
+            const auto pat_len_tmp = std::format("flua_findpl_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << pat_len_tmp << ";\n";
             Out() << GenTab() << "if (LIKELY((" << s_tmp << ".type_ == VAR_STRING || " << s_tmp << ".type_ == VAR_STRINGID) && ("
                  << p_tmp << ".type_ == VAR_STRING || " << p_tmp << ".type_ == VAR_STRINGID))) {\n";
+            // FlStringFindPlain 返回单个 CVar：VAR_INT(pos) 或 VAR_NIL。需要构造 multi-value (start, end)。
             Out() << GenTab() << "    " << tmp << " = FlStringFindPlain(" << s_tmp << ", " << p_tmp << ");\n";
+            Out() << GenTab() << "    if (" << tmp << ".type_ != VAR_NIL) {\n";
+            Out() << GenTab() << "        VarString *__vs = (" << p_tmp << ".type_ == VAR_STRING) ? " << p_tmp << ".data_.s : (VarString *)" << p_tmp << ".data_.i;\n";
+            Out() << GenTab() << "        " << pat_len_tmp << " = __vs->size_;\n";
+            Out() << GenTab() << "        int64_t end = " << tmp << ".data_.i + " << pat_len_tmp << " - 1;\n";
+            Out() << GenTab() << "        CVar multi = FlAllocMulti(_S, 2);\n";
+            Out() << GenTab() << "        FlSetMultiCVarElement(multi, 0, " << tmp << ");\n";
+            Out() << GenTab() << "        FlSetMultiCVarElement(multi, 1, (CVar){.type_ = VAR_INT, .data_.i = end});\n";
+            Out() << GenTab() << "        " << tmp << " = multi;\n";
+            Out() << GenTab() << "    }\n";
             Out() << GenTab() << "} else {\n";
             Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.find\", 4, " << s_tmp << ", " << p_tmp
                  << ", (CVar){.type_ = VAR_INT, .data_.i = 1}, (CVar){.type_ = VAR_BOOL, .data_.b = true});\n";
@@ -3896,11 +3955,22 @@ std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> 
     func_temp_decls_ << "    CVar " << obj_tmp << ";\n";
     Out() << GenTab() << obj_tmp << " = " << obj_expr << ";\n";
 
+    // 构造参数列表（对象本身作为第一个参数）
+    std::vector<std::string> final_args;
+    final_args.push_back(obj_tmp);
+    for (const auto &arg: args) {
+        final_args.push_back(arg);
+    }
+
     std::string callee_expr;
     const auto spec_type = GetSpecTypeForVar(pe_pre_ptr);
     if (!spec_type.empty() && IsSpecField(spec_type, method_name, TableKeyKind::kString)) {
         const auto c_name = GetSpecFieldCName(spec_type, method_name, TableKeyKind::kString);
         callee_expr = std::format("FL_SPEC({}, {}, {})", spec_type, obj_tmp, c_name);
+    } else if (auto forwarded = CGen::TryBuildLibraryMethodCall(method_name, final_args); !forwarded.empty()) {
+        // string 库方法（match/find/gsub/gmatch 等）：直接调用 string.<method>，
+        // 避免 FlGetTableStrId 对非表值（如 string）触发 "attempt to index a non-table value"。
+        return forwarded;
     } else {
         const auto id = s_->GetConstString().Alloc(method_name);
         callee_expr = std::format("FlGetTableStrId({}, {})", obj_tmp, id);
@@ -3909,12 +3979,6 @@ std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> 
     std::string callee_tmp = std::format("flua_method_{}", tmp_var_counter_++);
     func_temp_decls_ << "    CVar " << callee_tmp << ";\n";
     Out() << GenTab() << callee_tmp << " = " << callee_expr << ";\n";
-
-    std::vector<std::string> final_args;
-    final_args.push_back(obj_tmp);
-    for (const auto &arg: args) {
-        final_args.push_back(arg);
-    }
 
     std::string call_expr = std::format("FlCallClosure(_S, {}, {}", callee_tmp, final_args.size());
     for (const auto &arg: final_args) {

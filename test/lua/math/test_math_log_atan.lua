@@ -43,17 +43,18 @@ function test_math_modf_int()
 end
 
 function test_math_random_range()
-    -- math.random(l, u) where l > u should return nil
-    local r = math.random(10, 5)
-    if r ~= nil then return 1 end
+    -- math.random(l, u) where l > u 应报错 "interval is empty"（对齐 Lua 5.4）
+    local ok, err = pcall(function() return math.random(10, 5) end)
+    if ok then return 1 end
+    if not string.find(err, "interval is empty") then return 2 end
 
     -- math.random(l, u) where l == u should return l
     local r2 = math.random(7, 7)
-    if r2 ~= 7 then return 2 end
+    if r2 ~= 7 then return 3 end
 
     -- math.random(1) should return integer in [1, 1]
     local r3 = math.random(1)
-    if r3 ~= 1 then return 3 end
+    if r3 ~= 1 then return 4 end
 
     return 5000
 end

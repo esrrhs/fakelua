@@ -83,6 +83,11 @@ private:
     [[nodiscard]] InferredType GetSpecFieldType(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     // table 特化辅助：生成字段描述符（用于 map key）
     [[nodiscard]] static std::string GetKeyDescriptor(const std::string &key, TableKeyKind kind);
+    // string 库方法名集合（对齐 Lua 5.4）。
+    static const std::unordered_set<std::string> kStringLibraryMethods;
+    // 非表值的 colon 方法调用转发（s:match() ≡ string.match(s, ...)）。
+    // 返回空串表示不匹配，调用方回退到 FlGetTableStrId。
+    [[nodiscard]] static std::string TryBuildLibraryMethodCall(const std::string &method_name, const std::vector<std::string> &args);
     // ==========================================
     // 第二部分：语句编译
     // ==========================================
