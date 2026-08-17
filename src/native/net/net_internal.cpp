@@ -486,7 +486,7 @@ void TcpServer::handle_link_write(TcpLink *link) {
 
     int n;
 #if defined(_WIN32)
-    n = send(link->fd, ptr, static_cast<int>(len), 0);
+    n = ::send(link->fd, ptr, static_cast<int>(len), 0);
 #else
     n = static_cast<int>(::send(link->fd, ptr, len, 0));
 #endif
@@ -649,7 +649,7 @@ void TcpClient::handle_write() {
 
     int n;
 #if defined(_WIN32)
-    n = send(link_->fd, ptr, static_cast<int>(len), 0);
+    n = ::send(link_->fd, ptr, static_cast<int>(len), 0);
 #else
     n = static_cast<int>(::send(link_->fd, ptr, len, 0));
 #endif
