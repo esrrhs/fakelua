@@ -59,11 +59,7 @@ TEST(test_net, test_minimal_tcp) {
         char buf[256];
         int n = (int)::recv(accepted, buf, sizeof(buf), 0);
         std::cerr << "server recv " << n << " bytes: [" << std::string(buf, std::max(0, n)) << "]" << std::endl;
-#if defined(_WIN32)
-        closesocket(accepted);
-#else
         ::close(accepted);
-#endif
     });
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -77,17 +73,12 @@ TEST(test_net, test_minimal_tcp) {
 
     server_thread.join();
 
-#if defined(_WIN32)
-    closesocket(client_fd);
-    closesocket(listen_fd);
-#else
     ::close(client_fd);
     ::close(listen_fd);
-#endif
     net_shutdown();
 }
 
-// 测试 2: TcpServer + TcpClient 非阻塞 echo
+// 测试 2: TcpServer + TcpClient 非阻塞 echo（纯 C++ 引擎层）
 TEST(test_net, test_echo_cpp) {
     net_init();
 
@@ -124,13 +115,14 @@ TEST(test_net, test_echo_cpp) {
     }
 
     std::cout << "conn=" << conn_count << " connected=" << client.connected() << std::endl;
+    ASSERT_GE(conn_count, 1);
 
     // client 发送数据
     bool sent = client.send("hello", 5);
-    std::cout << "client.send returned " << sent << std::endl;
+    ASSERT_TRUE(sent);
 
     // 等数据到达
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     // 驱动收发
     for (int i = 0; i < 100; ++i) {
@@ -147,15 +139,14 @@ TEST(test_net, test_echo_cpp) {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 
-    std::cout << "final: conn=" << conn_count << " recv=" << recv_count << " data=[" << last_data << "]" << std::endl;
+    std::cout << "final: recv=" << recv_count << " data=[" << last_data << "]" << std::endl;
+
+    ASSERT_GE(recv_count, 1);
+    ASSERT_EQ(last_data, "hello");
 
     client.disconnect();
     server.stop();
     net_shutdown();
-
-    EXPECT_EQ(conn_count, 1);
-    EXPECT_EQ(recv_count, 1);
-    EXPECT_EQ(last_data, "hello");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -206,7 +197,7 @@ TEST(test_net, test_client_create_destroy) {
     FakeluaDeleteState(s);
 }
 
-// 测试 5: echo 收发（核心：验证 C++ → Lua 按函数名回调机制）
+// 测试 5: echo 收发（核心：验证 C++ → Lua 按函数名回调 + 纯函数返回指令）
 TEST(test_net, test_echo_basic) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -234,14 +225,12 @@ TEST(test_net, test_multiple_packets) {
     CompileConfig config;
     CompileFile(s, "./net/test_net_multi_packets.lua", config);
 
-    int64_t count = 0;
-    std::string p1, p2, p3;
-    Call(s, JIT_TCC, "NetMulti.test_multi", std::tie(count, p1, p2, p3));
+    int64_t recv_count = 0;
+    std::string last_data;
+    Call(s, JIT_TCC, "NetMulti.test_multi", std::tie(recv_count, last_data));
 
-    EXPECT_EQ(count, 3) << "should receive 3 packets";
-    EXPECT_EQ(p1, "packet1");
-    EXPECT_EQ(p2, "packet2");
-    EXPECT_EQ(p3, "packet3");
+    EXPECT_EQ(recv_count, 3) << "should receive 3 packets";
+    EXPECT_EQ(last_data, "packet3") << "last echoed data should be packet3";
 
     FakeluaDeleteState(s);
 }

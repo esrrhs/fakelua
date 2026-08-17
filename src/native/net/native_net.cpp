@@ -12,14 +12,22 @@
 namespace fakelua {
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NetObject — 包装 liblu 风格的引擎 + fakelua 回调
+// NetObject — 包装引擎 + fakelua 回调
+// 所有可变状态存 C++ 侧（fakelua 无状态设计）
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct NetObject {
     State *state = nullptr;
     std::string dispatch_name;           // Lua 回调函数名（统一入口）
     bool is_server = false;
-    CVar state_table{};                  // 用户传入的可变状态 table（dispatch 时绑定）
+
+    // 可变状态全部存 C++ 侧
+    std::vector<std::string> events;     // 事件记录
+    std::string last_server_data;        // server 最后收到的数据
+    std::string last_client_data;        // client 最后收到的数据
+    int server_connid = -1;              // server 端连接 ID
+    int conn_count = 0;                  // 连接计数
+    int recv_count = 0;                  // 收包计数
 
     std::unique_ptr<net::TcpServer> server;
     std::unique_ptr<net::TcpClient> client;
@@ -28,14 +36,30 @@ struct NetObject {
 static constexpr int64_t kNetGroup = 999998;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// C++ → Lua 回调派发（核心：按函数名查找，不存闭包）
+// 辅助：从 CVar 提取字符串
 // ─────────────────────────────────────────────────────────────────────────────
 
-static void call_lua_event(State *state, const std::string &func_name,
+static std::string cvar_to_string(CVar v) {
+    if (v.type_ == static_cast<int>(VarType::String) && v.data_.s) {
+        return std::string(v.data_.s->Str());
+    }
+    if (v.type_ == static_cast<int>(VarType::StringId) && v.data_.i) {
+        const char *ptr = reinterpret_cast<const char *>(v.data_.i);
+        int sz = *reinterpret_cast<const int *>(ptr);
+        return std::string(ptr + 8, sz);
+    }
+    return {};
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// C++ → Lua 回调派发（核心：按函数名查找，不存闭包）
+// 回调是纯函数：接收事件参数，返回可选指令（echo 等）
+// ─────────────────────────────────────────────────────────────────────────────
+
+static CVar call_lua_event(State *state, const std::string &func_name,
                            const char *type, int connid,
-                           const char *data, size_t len, int reason,
-                           const CVar *state_table) {
-    if (func_name.empty()) return;
+                           const char *data, size_t len, int reason) {
+    if (func_name.empty()) return CVar{static_cast<int>(VarType::Nil)};
 
     // 优先查找 JIT 编译的 Lua 函数
     auto func = state->GetVM().GetFunction(func_name);
@@ -50,49 +74,66 @@ static void call_lua_event(State *state, const std::string &func_name,
     }
 
     if (addr) {
-        // 构造参数: (type, connid, data, len, reason[, state_table])
-        CVar args[6];
+        // 构造参数: (type, connid, data, len, reason)
+        CVar args[5];
         args[0] = inter::NativeToFakeluaString(state, type);
         args[1] = inter::NativeToFakeluaInt(state, connid);
         if (data && len > 0) {
             args[2] = inter::NativeToFakeluaString(state, std::string(data, len));
             args[3] = inter::NativeToFakeluaInt(state, static_cast<int64_t>(len));
-        } else if (data) {
-            args[2] = inter::NativeToFakeluaString(state, "");
-            args[3] = inter::NativeToFakeluaInt(state, 0);
         } else {
-            args[2] = inter::NativeToFakeluaString(state, "");
-            args[3] = inter::NativeToFakeluaInt(state, 0);
+            CVar nil{};
+            nil.type_ = static_cast<int>(VarType::Nil);
+            args[2] = nil;
+            args[3] = nil;
         }
         args[4] = inter::NativeToFakeluaInt(state, reason);
-        // 如果用户绑定了 state table，作为第 6 个参数传入
-        if (state_table && state_table->type_ == static_cast<int>(VarType::Table)) {
-            args[5] = *state_table;
-            inter::DispatchCall(addr, args, 6, jit_type);
-        } else {
-            inter::DispatchCall(addr, args, 5, jit_type);
-        }
+
+        return inter::DispatchCall(addr, args, 5, jit_type);
     } else {
         // 回退：尝试原生函数
         auto *entry = state->GetVM().FindNativeFunction(func_name);
         if (entry && entry->callback) {
-            CVar args[6];
+            CVar args[5];
             args[0] = inter::NativeToFakeluaString(state, type);
             args[1] = inter::NativeToFakeluaInt(state, connid);
             if (data && len > 0) {
                 args[2] = inter::NativeToFakeluaString(state, std::string(data, len));
                 args[3] = inter::NativeToFakeluaInt(state, static_cast<int64_t>(len));
             } else {
-                args[2] = inter::NativeToFakeluaString(state, "");
-                args[3] = inter::NativeToFakeluaInt(state, 0);
+                CVar nil{};
+                nil.type_ = static_cast<int>(VarType::Nil);
+                args[2] = nil;
+                args[3] = nil;
             }
             args[4] = inter::NativeToFakeluaInt(state, reason);
-            if (state_table && state_table->type_ == static_cast<int>(VarType::Table)) {
-                args[5] = *state_table;
-                entry->callback(state, args, 6);
-            } else {
-                entry->callback(state, args, 5);
-            }
+            return entry->callback(state, args, 5);
+        }
+    }
+    return CVar{static_cast<int>(VarType::Nil)};
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 处理回调返回值：解析 Lua 返回的指令
+// 返回值格式：nil（无操作）或 Multi {command, arg1, arg2, ...}
+// 支持的指令：
+//   "echo", data → 将 data 发回来源连接
+// ─────────────────────────────────────────────────────────────────────────────
+
+static void handle_callback_return(NetObject *obj, const CVar &ret, int connid) {
+    // 检查是否为 Multi（多返回值）
+    if (ret.type_ != static_cast<int>(VarType::Multi)) return;
+
+    // 通过 GetMultiCVarElement 访问（避免依赖 VarMulti 完整定义）
+    CVar first = inter::GetMultiCVarElement(ret, 0);
+    std::string cmd = cvar_to_string(first);
+    if (cmd == "echo") {
+        CVar data_var = inter::GetMultiCVarElement(ret, 1);
+        std::string echo_data = cvar_to_string(data_var);
+        if (obj->is_server) {
+            obj->server->send(connid, echo_data.data(), echo_data.size());
+        } else {
+            obj->client->send(echo_data.data(), echo_data.size());
         }
     }
 }
@@ -109,7 +150,7 @@ static NetObject *unwrap(NativeObject *self) {
 // NativeObject 方法实现
 // ─────────────────────────────────────────────────────────────────────────────
 
-// server:dispatch(func_name [, state_table]) — 注册统一回调函数名 + 可选状态
+// server:dispatch(func_name) — 注册统一回调函数名
 static CVar net_dispatch(NativeObject *self, State *s, CVar *args, int n) {
     auto *obj = unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
@@ -130,15 +171,6 @@ static CVar net_dispatch(NativeObject *self, State *s, CVar *args, int n) {
         }
     }
     obj->dispatch_name = std::move(fname);
-
-    // 可选的第 2 个参数：用户状态 table（在回调中原样传回）
-    if (n >= 2) {
-        CVar a1 = inter::GetNativeArg(s, args, n, 1);
-        obj->state_table = a1;
-    } else {
-        obj->state_table = CVar{};
-    }
-
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -147,31 +179,45 @@ static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *obj = unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
 
-    const CVar *st = (obj->state_table.type_ == static_cast<int>(VarType::Table)) ? &obj->state_table : nullptr;
-
     if (obj->is_server && obj->server && obj->server->running()) {
         obj->server->tick(
             // on_conn
-            [obj, st](int connid) {
-                call_lua_event(obj->state, obj->dispatch_name, "conn", connid, nullptr, 0, 0, st);
+            [obj](int connid) {
+                obj->conn_count++;
+                obj->server_connid = connid;
+                obj->events.push_back("conn");
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "conn", connid, nullptr, 0, 0);
+                handle_callback_return(obj, ret, connid);
             },
             // on_recv
-            [obj, st](int connid, const char *data, size_t len) {
-                call_lua_event(obj->state, obj->dispatch_name, "recv", connid, data, len, 0, st);
+            [obj](int connid, const char *data, size_t len) {
+                obj->recv_count++;
+                obj->last_server_data.assign(data, len);
+                obj->events.push_back("recv");
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", connid, data, len, 0);
+                handle_callback_return(obj, ret, connid);
             },
             // on_close
-            [obj, st](int connid) {
-                call_lua_event(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0, st);
+            [obj](int connid) {
+                obj->events.push_back("close");
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
+                handle_callback_return(obj, ret, connid);
             });
     } else if (!obj->is_server && obj->client) {
         obj->client->tick(
             // on_recv
-            [obj, st](const char *data, size_t len) {
-                call_lua_event(obj->state, obj->dispatch_name, "recv", 0, data, len, 0, st);
+            [obj](const char *data, size_t len) {
+                obj->recv_count++;
+                obj->last_client_data.assign(data, len);
+                obj->events.push_back("recv");
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", 0, data, len, 0);
+                handle_callback_return(obj, ret, 0);
             },
             // on_close
-            [obj, st]() {
-                call_lua_event(obj->state, obj->dispatch_name, "close", 0, nullptr, 0, 0, st);
+            [obj]() {
+                obj->events.push_back("close");
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", 0, nullptr, 0, 0);
+                handle_callback_return(obj, ret, 0);
             });
     }
 
@@ -239,6 +285,45 @@ static CVar net_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) 
     // 清空 NativeObject 中的指针，防止重复关闭
     self->SetInt("__net_obj__", 0);
     return inter::NativeToFakeluaNil(s);
+}
+
+// 状态读取方法：get_events / get_last_data / get_conn_count / get_recv_count / get_connid
+static CVar net_get_events(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = unwrap(self);
+    if (!obj) return inter::NativeToFakeluaNil(s);
+    CVar multi = inter::AllocMultiCVar(s, static_cast<int>(obj->events.size()));
+    for (size_t i = 0; i < obj->events.size(); ++i) {
+        inter::SetMultiCVarElement(multi, static_cast<int>(i), inter::NativeToFakeluaString(s, obj->events[i]));
+    }
+    return multi;
+}
+
+static CVar net_get_last_data(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = unwrap(self);
+    if (!obj) return inter::NativeToFakeluaNil(s);
+    if (obj->is_server) {
+        return inter::NativeToFakeluaString(s, obj->last_server_data);
+    } else {
+        return inter::NativeToFakeluaString(s, obj->last_client_data);
+    }
+}
+
+static CVar net_get_conn_count(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = unwrap(self);
+    if (!obj) return inter::NativeToFakeluaNil(s);
+    return inter::NativeToFakeluaInt(s, obj->conn_count);
+}
+
+static CVar net_get_recv_count(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = unwrap(self);
+    if (!obj) return inter::NativeToFakeluaNil(s);
+    return inter::NativeToFakeluaInt(s, obj->recv_count);
+}
+
+static CVar net_get_connid(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = unwrap(self);
+    if (!obj) return inter::NativeToFakeluaNil(s);
+    return inter::NativeToFakeluaInt(s, obj->server_connid);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -321,6 +406,11 @@ static CVar net_server(State *s, CVar *args, int n) {
     nat->RegisterMethod("tick", net_tick);
     nat->RegisterMethod("send", net_send);
     nat->RegisterMethod("close", net_close);
+    nat->RegisterMethod("get_events", net_get_events);
+    nat->RegisterMethod("get_last_data", net_get_last_data);
+    nat->RegisterMethod("get_conn_count", net_get_conn_count);
+    nat->RegisterMethod("get_recv_count", net_get_recv_count);
+    nat->RegisterMethod("get_connid", net_get_connid);
 
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
@@ -345,6 +435,10 @@ static CVar net_client(State *s, CVar *args, int n) {
     nat->RegisterMethod("tick", net_tick);
     nat->RegisterMethod("send", net_send);
     nat->RegisterMethod("close", net_close);
+    nat->RegisterMethod("get_events", net_get_events);
+    nat->RegisterMethod("get_last_data", net_get_last_data);
+    nat->RegisterMethod("get_conn_count", net_get_conn_count);
+    nat->RegisterMethod("get_recv_count", net_get_recv_count);
 
     return inter::NativeToFakeluaNativeObject(s, nat);
 }

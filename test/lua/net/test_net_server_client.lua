@@ -1,54 +1,48 @@
 package "NetTest"
 
-function on_server_event(type, connid, data, len, reason, state)
-    if type == "conn" then
-        state.server_connid = connid
-        state.conn_count = state.conn_count + 1
-    elseif type == "recv" then
-        state.server_data = data
-        state.recv_count = state.recv_count + 1
-        state.server:send(connid, "echo:" .. data)
+-- 纯函数回调：接收事件参数，返回指令
+-- 返回 "echo", data 表示让 C++ 侧将 data 发回来源连接
+function on_server_event(type, connid, data, len, reason)
+    if type == "recv" then
+        -- 收到数据，返回 echo 指令
+        return "echo", "echo:" .. data
     end
 end
 
-function on_client_event(type, connid, data, len, reason, state)
-    if type == "recv" then
-        state.client_data = data
-    end
+function on_client_event(type, connid, data, len, reason)
+    -- client 只接收，不需要返回指令
 end
 
 function test_echo()
-    local state = {}
-    state.server_data = ""
-    state.server_connid = 0
-    state.client_data = ""
-    state.conn_count = 0
-    state.recv_count = 0
-
     local server = net.server({port = 19988, maxconn = 10})
-    state.server = server
-    server:dispatch("NetTest.on_server_event", state)
+    server:dispatch("NetTest.on_server_event")
 
     local client = net.client({port = 19988})
-    client:dispatch("NetTest.on_client_event", state)
+    client:dispatch("NetTest.on_client_event")
 
-    for i = 1, 50 do
+    -- 驱动连接建立
+    for i = 1, 30 do
         server:tick()
         client:tick()
     end
 
+    -- client 发送
     client:send("hello fakelua")
 
-    for i = 1, 50 do
+    -- 驱动收发（server 回调会返回 echo 指令，C++ 侧执行发送）
+    for i = 1, 30 do
         server:tick()
         client:tick()
     end
+
+    -- 从 C++ 侧读取状态
+    local conn_count = server:get_conn_count()
+    local recv_count = server:get_recv_count()
+    local server_data = server:get_last_data()
+    local client_data = client:get_last_data()
 
     server:close()
     client:close()
 
-    -- 调试：打印到 stderr
-    print("DEBUG: conn=" .. state.conn_count .. " recv=" .. state.recv_count .. " data=[" .. state.server_data .. "]")
-
-    return state.conn_count, state.recv_count, state.server_data, state.client_data
+    return conn_count, recv_count, server_data, client_data
 end
