@@ -98,6 +98,8 @@ else ()
             INSTALL_COMMAND make install
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
+endif ()
+
 if (WIN32)
     set(TARGET_LIB ${TARGET_LIB} ws2_32)
 else ()
