@@ -4,6 +4,7 @@
 #include "native/native_os.h"
 #include "native/native_utf8.h"
 #include "native/native_io.h"
+#include "native/net/native_net.h"
 
 namespace fakelua {
 
@@ -14,6 +15,7 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     RegisterOsLibraryApi(this);
     RegisterUtf8LibraryApi(this);
     RegisterIoLibraryApi(this);
+    RegisterNetLibraryApi(this);
 }
 
 }// namespace fakelua
