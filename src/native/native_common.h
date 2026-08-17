@@ -14,7 +14,7 @@ namespace fakelua {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Throw a standardized "bad argument #N to 'fname' (expected)" exception.
-inline void ThrowBadArgument(int argno, const char *fname, const char *expected) {
+[[noreturn]] inline void ThrowBadArgument(int argno, const char *fname, const char *expected) {
     std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (" + expected + ")";
     ThrowFakeluaException(msg);
 }
