@@ -1,7 +1,7 @@
-#include "native/native_utf8.h"
+#include "native/utf8/native_utf8.h"
 #include "native/native_common.h"
-#include "native/native_object.h"
-#include "native/native_string.h"
+#include "native/object/native_object.h"
+#include "native/string/native_string.h"
 #include "var/var.h"
 #include <cstdint>
 #include <string>

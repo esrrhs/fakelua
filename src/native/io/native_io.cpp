@@ -1,7 +1,7 @@
-#include "native/native_io.h"
+#include "native/io/native_io.h"
 #include "native/native_common.h"
-#include "native/native_object.h"
-#include "native/native_string.h"
+#include "native/object/native_object.h"
+#include "native/string/native_string.h"
 #include "var/var.h"
 
 #include <cerrno>

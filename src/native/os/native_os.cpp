@@ -1,6 +1,6 @@
-#include "native/native_os.h"
-#include "native/native_object.h"
-#include "native/native_table.h"
+#include "native/os/native_os.h"
+#include "native/object/native_object.h"
+#include "native/table/native_table.h"
 #include "var/var.h"
 #include <cerrno>
 #include <cmath>

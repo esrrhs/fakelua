@@ -1,9 +1,9 @@
 #include "state/state.h"
 #include "fakelua.h"
 #include "jit/tcc_jit.h"
-#include "native/native_os.h"
-#include "native/native_utf8.h"
-#include "native/native_io.h"
+#include "native/os/native_os.h"
+#include "native/utf8/native_utf8.h"
+#include "native/io/native_io.h"
 #include "native/net/native_net.h"
 
 namespace fakelua {

@@ -1,9 +1,9 @@
-#include "native/native_object.h"
+#include "native/object/native_object.h"
 #include "jit/vm.h"
-#include "native/native_basic.h"
-#include "native/native_io.h"
-#include "native/native_os.h"
-#include "native/native_utf8.h"
+#include "native/basic/native_basic.h"
+#include "native/io/native_io.h"
+#include "native/os/native_os.h"
+#include "native/utf8/native_utf8.h"
 #include "var/var_multi.h"
 
 #include <algorithm>

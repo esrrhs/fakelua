@@ -1,7 +1,7 @@
 #include "native/net/native_net.h"
 #include "native/net/net_internal.h"
 #include "native/native_common.h"
-#include "native/native_object.h"
+#include "native/object/native_object.h"
 #include "var/var.h"
 
 #include <cstring>

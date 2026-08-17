@@ -1,7 +1,7 @@
 #include "fakelua.h"
 #include "compile/c_runtime_header.h"
 #include "jit/jit_error_boundary.h"
-#include "native/native_table.h"
+#include "native/table/native_table.h"
 #include "state/state.h"
 #include "util/common.h"
 #include "util/dispatch_macro.h"
