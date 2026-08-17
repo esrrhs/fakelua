@@ -6,12 +6,20 @@
 
 #if defined(_WIN32)
 #pragma comment(lib, "ws2_32.lib")
-#else
+#elif defined(__linux__)
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/epoll.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#else
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
@@ -190,13 +198,13 @@ TcpLink::~TcpLink() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 Selector::Selector() {
-#if !defined(_WIN32)
+#if defined(__linux__)
     epoll_fd_ = epoll_create1(EPOLL_CLOEXEC);
 #endif
 }
 
 Selector::~Selector() {
-#if !defined(_WIN32)
+#if defined(__linux__)
     if (epoll_fd_ >= 0) ::close(epoll_fd_);
 #endif
 }
@@ -209,7 +217,7 @@ void Selector::add(socket_t fd, void *userdata) {
         return;
     }
     fd_map_[fd] = userdata;
-#if !defined(_WIN32)
+#if defined(__linux__)
     epoll_event ev{};
     ev.events = EPOLLIN | EPOLLERR | EPOLLRDHUP;
     ev.data.fd = static_cast<int>(fd);
@@ -223,14 +231,14 @@ void Selector::remove(socket_t fd) {
         return;
     }
     fd_map_.erase(fd);
-#if !defined(_WIN32)
+#if defined(__linux__)
     epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
 #endif
 }
 
 void Selector::clear() {
     for (auto &[fd, _] : fd_map_) {
-#if !defined(_WIN32)
+#if defined(__linux__)
         epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
 #endif
     }
@@ -240,7 +248,7 @@ void Selector::clear() {
     pending_remove_.clear();
 }
 
-#if defined(_WIN32)
+#if !defined(__linux__)
 
 void Selector::wait(int timeout_ms,
                     const std::function<void(void *)> &on_read,
@@ -285,7 +293,7 @@ void Selector::wait(int timeout_ms,
     pending_add_ud_.clear();
 }
 
-#else // Linux epoll (水平触发，与 liblu 一致)
+#else // defined(__linux__)
 
 void Selector::wait(int timeout_ms,
                     const std::function<void(void *)> &on_read,

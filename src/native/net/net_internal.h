@@ -130,7 +130,7 @@ private:
     std::vector<socket_t> pending_add_;
     std::vector<void *> pending_add_ud_;
     std::vector<socket_t> pending_remove_;
-#if !defined(_WIN32)
+#if defined(__linux__)
     int epoll_fd_ = -1;
 #endif
 };
