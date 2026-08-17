@@ -6,7 +6,7 @@
 using namespace fakelua;
 
 TEST(test_native, test_basic_kv) {
-    int64_t gid = NativeObjectManager::Instance().CreateGroup(1);
+    int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *obj = NativeObjectManager::Instance().Create(gid, "player", 1);
     obj->SetInt("hp", 100);
     obj->SetFloat("speed", 5.5);
@@ -24,7 +24,7 @@ TEST(test_native, test_basic_kv) {
 }
 
 TEST(test_native, test_nested_object) {
-    int64_t gid = NativeObjectManager::Instance().CreateGroup(2);
+    int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *player = NativeObjectManager::Instance().Create(gid, "player", 1);
     auto *bag = NativeObjectManager::Instance().Create(gid, "bag", 2);
 
@@ -40,7 +40,7 @@ TEST(test_native, test_nested_object) {
 TEST(test_native, test_lua_integration_get_set) {
     auto *s = FakeluaNewState();
 
-    int64_t gid = NativeObjectManager::Instance().CreateGroup(100);
+    int64_t gid = NativeObjectManager::Instance().CreateGroup();
     static NativeObject *global_player = nullptr;
     global_player = NativeObjectManager::Instance().Create(gid, "player", 100);
     global_player->SetInt("hp", 100);
@@ -139,20 +139,22 @@ TEST(test_native, test_group_arena_batch_destroy) {
     CompileConfig config;
     CompileFile(s, "./native/test_native_group.lua", config);
 
-    // ── 1. 在 Lua 中创建玩家 1001 以及归属于 1001 的 bag 和 item 对象 ─────────
+    // ── 1. 在 Lua 中创建玩家 1001 以及归属于该 group 的 bag 和 item 对象 ─────────
     CVar ret1;
     Call(s, JIT_TCC, "test_group_create", ret1, 1001);
-    std::string weapon_name = inter::FakeluaToNative<std::string>(s, ret1);
-    EXPECT_EQ(weapon_name, "Excalibur");
+    int64_t gid = inter::FakeluaToNative<int64_t>(s, ret1);
+    EXPECT_GT(gid, 0);
 
     // 验证对象存在于管理器中
+    auto *item = NativeObjectManager::Instance().Get("item", 100100);
+    ASSERT_NE(item, nullptr);
+    EXPECT_EQ(item->GetString("name"), "Excalibur");
     EXPECT_NE(NativeObjectManager::Instance().Get("player", 1001), nullptr);
     EXPECT_NE(NativeObjectManager::Instance().Get("bag", 10010), nullptr);
-    EXPECT_NE(NativeObjectManager::Instance().Get("item", 100100), nullptr);
 
-    // ── 2. 一口气批处理销毁 1001 组下的所有 NativeObject ────────────────────
+    // ── 2. 一口气批处理销毁该组下的所有 NativeObject ────────────────────
     CVar ret2;
-    Call(s, JIT_TCC, "test_group_destroy", ret2, 1001);
+    Call(s, JIT_TCC, "test_group_destroy", ret2, gid);
     int64_t destroyed_count = inter::FakeluaToNative<int64_t>(s, ret2);
     EXPECT_EQ(destroyed_count, 3);// 3 个对象全部一口气清理
 
@@ -258,7 +260,7 @@ TEST(test_native, test_native_typed_template_callback) {
 TEST(test_native, test_native_object_methods) {
     auto *s = FakeluaNewState();
 
-    int64_t gid = NativeObjectManager::Instance().CreateGroup(500);
+    int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *player = NativeObjectManager::Instance().Create(gid, "player", 1);
 
     // 1. 注册 C++ 成员回调 take_damage
@@ -298,7 +300,7 @@ TEST(test_native, test_native_object_methods) {
 
 TEST(test_native, test_native_manager_operations) {
     // 测试 NativeObjectManager 的 DestroySingle 和 Create 返回已有对象
-    int64_t gid = NativeObjectManager::Instance().CreateGroup(7001);
+    int64_t gid = NativeObjectManager::Instance().CreateGroup();
 
     auto *obj1 = NativeObjectManager::Instance().Create(gid, "unit", 1001);
     obj1->SetInt("level", 5);
@@ -326,7 +328,7 @@ TEST(test_native, test_native_manager_operations) {
 
 TEST(test_native, test_native_obj_advanced_fields) {
     // 测试 Del, Clear, SetNil, GetAsCVar, ForEach, SetId/SetGroupId
-    int64_t gid = NativeObjectManager::Instance().CreateGroup(7002);
+    int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *obj = NativeObjectManager::Instance().Create(gid, "hero", 2001);
 
     // SetId / GetId
@@ -488,8 +490,8 @@ TEST(test_native, test_native_obj_wrap) {
 
 TEST(test_native, test_native_manager_clear) {
     // Test NativeObjectManager::Clear() - destroys all objects
-    int64_t gid1 = NativeObjectManager::Instance().CreateGroup(8001);
-    int64_t gid2 = NativeObjectManager::Instance().CreateGroup(8002);
+    int64_t gid1 = NativeObjectManager::Instance().CreateGroup();
+    int64_t gid2 = NativeObjectManager::Instance().CreateGroup();
 
     auto *obj1 = NativeObjectManager::Instance().Create(gid1, "unit", 1);
     auto *obj2 = NativeObjectManager::Instance().Create(gid2, "unit", 2);

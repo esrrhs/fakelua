@@ -2,7 +2,7 @@
 -- CVarToNativeField with Table, RefreshSpecKeys, SetFromCVar, GetAsCVar
 
 function test_wrap_object_field()
-    local gid = new_native_group(9001)
+    local gid = new_native_group()
     local parent = new_native_obj(gid, "player", 501)
     local bag = new_native_obj(gid, "bag", 502)
     bag.gold = 999
@@ -16,12 +16,12 @@ function test_wrap_object_field()
     parent.bag.gold = 500
     if parent.bag.gold ~= 500 then return 3 end
 
-    del_native_group(9001)
+    del_native_group(gid)
     return 5000
 end
 
 function test_wrap_empty_spec_keys()
-    local gid = new_native_group(9002)
+    local gid = new_native_group()
     local obj = new_native_obj(gid, "empty", 503)  -- no fields set
 
     -- pairs() on an empty native object should iterate 0 times
@@ -31,12 +31,12 @@ function test_wrap_empty_spec_keys()
     end
     if count ~= 0 then return 1 end
 
-    del_native_group(9002)
+    del_native_group(gid)
     return 5000
 end
 
 function test_wrap_set_from_cvar()
-    local gid = new_native_group(9003)
+    local gid = new_native_group()
     local obj = new_native_obj(gid, "cvartest", 504)
 
     -- Setting various Lua types that go through CVarToNativeField
@@ -54,12 +54,12 @@ function test_wrap_set_from_cvar()
     if obj.str_val ~= "hello" then return 4 end
     if obj.nil_val ~= nil then return 5 end
 
-    del_native_group(9003)
+    del_native_group(gid)
     return 5000
 end
 
 function test_wrap_get_as_cvar()
-    local gid = new_native_group(9004)
+    local gid = new_native_group()
     local obj = new_native_obj(gid, "gettest", 505)
     obj.hp = 100
     obj.name = "warrior"
@@ -74,6 +74,6 @@ function test_wrap_get_as_cvar()
     local x = obj.non_existent
     if x ~= nil then return 4 end
 
-    del_native_group(9004)
+    del_native_group(gid)
     return 5000
 end

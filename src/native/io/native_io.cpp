@@ -172,7 +172,7 @@ static std::string_view ArgToStringView(CVar a, State * /*state*/, std::string &
 // 创建一个 IoFile NativeObject 壳，内部 FILE* 存为 Int 字段
 // is_popen=true 时用 pclose 而非 fclose 关闭
 static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
-    int64_t gid = NativeObjectManager::Instance().CreateGroup(0);
+    int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *obj = NativeObjectManager::Instance().Create(gid, "iofile");
     obj->SetInt(kFpKey, reinterpret_cast<int64_t>(fp));
     obj->SetBool(kPopenKey, is_popen);

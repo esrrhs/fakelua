@@ -1,6 +1,6 @@
 function test_group_create(pid)
-    -- 1. 显式申请/定义一个 group 空间 (group_id = pid)
-    local gid = new_native_group(pid)
+    -- 1. 申请分配一个唯一 group 空间
+    local gid = new_native_group()
 
     -- 2. 申请属于这个 group 的全套 obj
     local player = new_native_obj(gid, "player", pid)
@@ -14,10 +14,10 @@ function test_group_create(pid)
     item.name = "Excalibur"
     bag.weapon = item
 
-    return player.bag.weapon.name
+    return gid
 end
 
-function test_group_destroy(pid)
+function test_group_destroy(gid)
     -- 3. 一口气释放/注销整个 group 空间的内存对象
-    return del_native_group(pid)
+    return del_native_group(gid)
 end

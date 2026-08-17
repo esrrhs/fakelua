@@ -714,8 +714,8 @@ class NativeObjectManager {
 public:
     static NativeObjectManager &Instance();
 
-    // 1. 申请/定义组 (Group Arena)
-    int64_t CreateGroup(int64_t specified_group_id = 0);
+    // 1. 申请/定义组 (Group Arena) 统一由管理器自增发号分配
+    int64_t CreateGroup();
 
     // 2. 在指定组内申请 NativeObject（group_id 必需 != 0）
     NativeObject *Create(int64_t group_id, const std::string &type_name, int64_t id = 0);
@@ -737,12 +737,12 @@ private:
 
     std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
     std::unordered_map<int64_t, std::vector<NativeObject *>> group_objects_;
-    int64_t next_auto_group_id_ = 1000000;
+    int64_t next_auto_group_id_ = 0;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RegisterNativeObjectApi — 自动向 State 注册内置原生对象 API：
-//   - new_native_group([group_id]) -> group_id (申请/定义一个新的 Group 批处理空间)
+//   - new_native_group() -> group_id (申请/分配一个新的唯一 Group 批处理空间 ID)
 //   - new_native_obj(group_id, type, id) -> NativeObject (在指定 group 中申请对象)
 //   - get_native_obj(type, id) -> NativeObject (Wrap 壳) 或 nil
 //   - del_native_group(group_id) -> count (一口气注销释放整组空间的所有对象)

@@ -3,7 +3,7 @@
 -- GetString with missing key, GetObject missing key
 
 function test_del_field()
-    local gid = new_native_group(8801)
+    local gid = new_native_group()
     local obj = new_native_obj(gid, "item", 401)
     obj.hp = 100
     obj.mp = 200
@@ -16,12 +16,12 @@ function test_del_field()
     -- mp still exists
     if obj.mp ~= 200 then return 2 end
 
-    del_native_group(8801)
+    del_native_group(gid)
     return 5000
 end
 
 function test_float_field()
-    local gid = new_native_group(8802)
+    local gid = new_native_group()
     local obj = new_native_obj(gid, "item", 402)
     obj.speed = 3.14  -- SetFloat
 
@@ -29,12 +29,12 @@ function test_float_field()
     local s = obj.speed
     if math.abs(s - 3.14) > 0.001 then return 1 end
 
-    del_native_group(8802)
+    del_native_group(gid)
     return 5000
 end
 
 function test_bool_field()
-    local gid = new_native_group(8803)
+    local gid = new_native_group()
     local obj = new_native_obj(gid, "item", 403)
     obj.alive = true   -- SetBool
 
@@ -46,12 +46,12 @@ function test_bool_field()
     local x = obj.nonexist
     if x ~= nil then return 2 end
 
-    del_native_group(8803)
+    del_native_group(gid)
     return 5000
 end
 
 function test_string_field()
-    local gid = new_native_group(8804)
+    local gid = new_native_group()
     local obj = new_native_obj(gid, "item", 404)
     obj.name = "sword"  -- SetString
 
@@ -62,12 +62,12 @@ function test_string_field()
     local x = obj.missing_str
     if x ~= nil then return 2 end
 
-    del_native_group(8804)
+    del_native_group(gid)
     return 5000
 end
 
 function test_object_field()
-    local gid = new_native_group(8805)
+    local gid = new_native_group()
     local parent = new_native_obj(gid, "player", 405)
     local child = new_native_obj(gid, "bag", 406)
     child.gold = 999
@@ -84,12 +84,12 @@ function test_object_field()
     local x = parent.missing_obj
     if x ~= nil then return 3 end
 
-    del_native_group(8805)
+    del_native_group(gid)
     return 5000
 end
 
 function test_pairs_on_native_obj()
-    local gid = new_native_group(8806)
+    local gid = new_native_group()
     local obj = new_native_obj(gid, "item", 407)
     obj.a = 1
     obj.b = 2
@@ -102,12 +102,12 @@ function test_pairs_on_native_obj()
     end
     if count < 3 then return 1 end
 
-    del_native_group(8806)
+    del_native_group(gid)
     return 5000
 end
 
 function test_int_bool_not_equal_cross()
-    local gid = new_native_group(8807)
+    local gid = new_native_group()
     local obj = new_native_obj(gid, "item", 408)
     obj.v = 42
 
@@ -115,6 +115,6 @@ function test_int_bool_not_equal_cross()
     obj.v = nil
     if obj.v ~= nil then return 1 end
 
-    del_native_group(8807)
+    del_native_group(gid)
     return 5000
 end
