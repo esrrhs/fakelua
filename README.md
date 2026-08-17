@@ -245,7 +245,7 @@ Call(s, JIT_GCC, "calc_multi", std::tie(x, y, msg), 10, 20, 30); // x=10, y=20, 
 
 ### 标准内置扩展库（Built-in Standard Libraries）
 
-FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`utf8`、`io`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string` / `native_os` / `native_utf8` / `native_io`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
+FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`utf8`、`io`、`net`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string` / `native_os` / `native_utf8` / `native_io` / `native_net`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
 
 - **Basic 全局函数**：
   - **类型与转换**：`type`、`tostring`、`tonumber`
@@ -285,6 +285,11 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **类型检查**：`io.type(v)`
   - **标准流**：`io.stdin`、`io.stdout`、`io.stderr`
   - **文件方法**：`file:read([format])`、`file:write(...)`、`file:flush()`、`file:close()`、`file:seek(...)`、`file:setvbuf(...)`、`file:lines()`（逐行迭代器，用于 `for line in file:lines() do ... end`）
+- **Net 网络库 (`net.*`)**：
+  - **服务端与客户端创建**：`net.server(config)`、`net.client(config)`（配置项支持 `port`, `maxconn`, `backlog`, `nonblocking`, `nodelay`, `keepalive` 等）
+  - **事件派发与驱动**：`server:dispatch("Package.on_event")` / `client:dispatch(...)`（注册统一纯函数事件回调入口）、`server:tick()` / `client:tick()`（驱动非阻塞 I/O 与事件分发）
+  - **数据发送与连接管理**：`server:send(connid, data)`、`client:send(data)`、`server:close()`、`client:close()`
+  - **状态与统计读取**：`obj:get_conn_count()`、`obj:get_recv_count()`、`obj:get_last_data()`、`server:get_connid()`、`obj:get_events()`
 
 ```lua
 -- 示例：使用标准库完成排序、格式化与数学计算
