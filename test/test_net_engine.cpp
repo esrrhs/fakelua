@@ -2,10 +2,15 @@
 #include "gtest/gtest.h"
 #include "native/net/net_internal.h"
 
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#endif
 
 #include <atomic>
 #include <chrono>
@@ -47,7 +52,11 @@ TEST(test_net_engine, test_minimal_tcp) {
         char buf[256];
         int n = (int)::recv(accepted, buf, sizeof(buf), 0);
         std::cerr << "server recv " << n << " bytes: [" << std::string(buf, std::max(0, n)) << "]" << std::endl;
+#if defined(_WIN32)
+        closesocket(accepted);
+#else
         ::close(accepted);
+#endif
     });
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -56,13 +65,18 @@ TEST(test_net_engine, test_minimal_tcp) {
     std::cerr << "client connect ret=" << ret << std::endl;
 
     const char *msg = "hello";
-    int sent = (int)send(client_fd, msg, 5, 0);
+    int sent = (int)::send(client_fd, msg, 5, 0);
     std::cerr << "client sent " << sent << " bytes" << std::endl;
 
     server_thread.join();
 
+#if defined(_WIN32)
+    closesocket(client_fd);
+    closesocket(listen_fd);
+#else
     ::close(client_fd);
     ::close(listen_fd);
+#endif
     net_shutdown();
 }
 
