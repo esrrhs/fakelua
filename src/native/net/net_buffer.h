@@ -1,7 +1,10 @@
 #pragma once
 
+#include "native/net/net_common.h"
+
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -44,7 +47,13 @@ private:
     size_t size_ = 0;
 };
 
+// 封包打包函数：依据配置向 send_buf 写入打包后的数据（含长度头/分隔符）
+void write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, size_t len);
+
+// 封包解析函数：依据配置从 recv_buf 中尝试解析出一个完整的数据包
+bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len);
+
+// 兼容旧接口的 4 字节大端打包
 void write_packet_header(CircularBuffer &buf, uint32_t payload_len);
-bool try_parse_packet(CircularBuffer &buf, const char *&out_payload, uint32_t &out_len);
 
 } // namespace fakelua::net

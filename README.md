@@ -286,7 +286,18 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **标准流**：`io.stdin`、`io.stdout`、`io.stderr`
   - **文件方法**：`file:read([format])`、`file:write(...)`、`file:flush()`、`file:close()`、`file:seek(...)`、`file:setvbuf(...)`、`file:lines()`（逐行迭代器，用于 `for line in file:lines() do ... end`）
 - **Net 网络库 (`net.*`)**：
-  - **服务端与客户端创建**：`net.server(config)`、`net.client(config)`（配置项支持 `port`, `maxconn`, `backlog`, `nonblocking`, `nodelay`, `keepalive` 等）
+  - **服务端与客户端创建**：`net.server(config)`、`net.client(config)`（支持 `port`, `maxconn`, `backlog`, `nonblocking`, `nodelay`, `keepalive` 等基础配置）
+  - **多种常用封包/解包协议**：通过 `framer` 配置无缝切换：
+    - `"header4"` / `"header4_be"`（默认）：4 字节大端整数长度头
+    - `"header4_le"`：4 字节小端整数长度头
+    - `"header2"` / `"header2_be"`：2 字节大端整数长度头
+    - `"header2_le"`：2 字节小端整数长度头
+    - `"line"`：换行符（`\n` 或 `\r\n`）分隔，自动解包并去除换行符
+    - `"fixed"`：固定包长协议（配合 `fixed_len = N` 配置）
+    - `"raw"`：原始流透传模式
+  - **自定义解包算法（Custom Parser）**：
+    - **Lua 自定义解包**：传入 `parser = "Package.my_parser"`，接收缓冲区字符串，返回 `(payload, consumed_bytes)` 或 `nil`（数据不足）
+    - **C++ 自定义解包**：在 C++ `NetConfig` 中设置 `custom_parser_fn` 与 `custom_encoder_fn`
   - **事件派发与驱动**：`server:dispatch("Package.on_event")` / `client:dispatch(...)`（注册统一纯函数事件回调入口）、`server:tick()` / `client:tick()`（驱动非阻塞 I/O 与事件分发）
   - **数据发送与连接管理**：`server:send(connid, data)`、`client:send(data)`、`server:close()`、`client:close()`
   - **状态与统计读取**：`obj:get_conn_count()`、`obj:get_recv_count()`、`obj:get_last_data()`、`server:get_connid()`、`obj:get_events()`

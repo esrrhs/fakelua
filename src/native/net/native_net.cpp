@@ -362,6 +362,68 @@ static int64_t get_table_field(State *s, CVar tbl_cvar, const char *key_name, in
     return default_val;
 }
 
+static std::string get_table_field_string(State *s, CVar tbl_cvar, const char *key_name, const std::string &default_val = "") {
+    if (tbl_cvar.type_ != static_cast<int>(VarType::Table) || !tbl_cvar.data_.t) return default_val;
+    VarTable *t = tbl_cvar.data_.t;
+    int64_t id = s->GetConstString().Alloc(key_name);
+    CVar key{static_cast<int>(VarType::StringId)};
+    key.data_.i = id;
+
+    if (t->spec_get) {
+        using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
+        auto get_fn = reinterpret_cast<SpecGetFn>(t->spec_get);
+        bool finish = false;
+        CVar r = get_fn(t, key, &finish);
+        if (finish) {
+            std::string res = cvar_to_string(r);
+            return (res.empty() && r.type_ == static_cast<int>(VarType::Nil)) ? default_val : res;
+        }
+    }
+    for (const auto &qd : t->quick_data_) {
+        if (qd.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(qd.key) == key_name) {
+            return cvar_to_string(qd.val);
+        }
+    }
+    if (t->nodes_ && t->bucket_count_ > 0 && t->active_list_) {
+        for (uint32_t i = 0; i < t->count_; ++i) {
+            uint32_t node_idx = t->active_list_[i];
+            const auto &entry = t->nodes_[node_idx].entry;
+            if (entry.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(entry.key) == key_name) {
+                return cvar_to_string(entry.val);
+            }
+        }
+    }
+    return default_val;
+}
+
+static net::FramerType parse_framer_type(const std::string &framer_str) {
+    if (framer_str.empty() || framer_str == "header4" || framer_str == "header4_be" || framer_str == "be4") {
+        return net::FramerType::Header4BigEndian;
+    }
+    if (framer_str == "header4_le" || framer_str == "le4") {
+        return net::FramerType::Header4LittleEndian;
+    }
+    if (framer_str == "header2" || framer_str == "header2_be" || framer_str == "be2") {
+        return net::FramerType::Header2BigEndian;
+    }
+    if (framer_str == "header2_le" || framer_str == "le2") {
+        return net::FramerType::Header2LittleEndian;
+    }
+    if (framer_str == "line" || framer_str == "lines" || framer_str == "delimiter") {
+        return net::FramerType::LineDelimiter;
+    }
+    if (framer_str == "fixed" || framer_str == "fixed_length") {
+        return net::FramerType::FixedLength;
+    }
+    if (framer_str == "raw" || framer_str == "raw_stream" || framer_str == "none") {
+        return net::FramerType::RawStream;
+    }
+    if (framer_str == "custom") {
+        return net::FramerType::Custom;
+    }
+    return net::FramerType::Header4BigEndian;
+}
+
 static net::NetConfig parse_config(State *s, CVar *args, int n) {
     net::NetConfig cfg;
     if (n < 1) return cfg;
@@ -369,19 +431,125 @@ static net::NetConfig parse_config(State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     if (a0.type_ != static_cast<int>(VarType::Table)) return cfg;
 
+    cfg.ip = get_table_field_string(s, a0, "ip", "127.0.0.1");
     cfg.port = static_cast<uint16_t>(get_table_field(s, a0, "port", 8888));
     cfg.max_conn = static_cast<int>(get_table_field(s, a0, "maxconn", 1000));
     cfg.backlog = static_cast<int>(get_table_field(s, a0, "backlog", 128));
+    cfg.fixed_packet_len = static_cast<int>(get_table_field(s, a0, "fixed_len", 0));
+    if (cfg.fixed_packet_len == 0) {
+        cfg.fixed_packet_len = static_cast<int>(get_table_field(s, a0, "fixed_packet_len", 0));
+    }
     cfg.non_blocking = get_table_field(s, a0, "nonblocking", 1) != 0;
     cfg.no_delay = get_table_field(s, a0, "nodelay", 1) != 0;
     cfg.keep_alive = get_table_field(s, a0, "keepalive", 1) != 0;
 
+    std::string framer_str = get_table_field_string(s, a0, "framer", "");
+    cfg.framer = parse_framer_type(framer_str);
+
+    cfg.custom_parser_name = get_table_field_string(s, a0, "parser", "");
+    if (cfg.custom_parser_name.empty()) {
+        cfg.custom_parser_name = get_table_field_string(s, a0, "custom_parser", "");
+    }
+    if (!cfg.custom_parser_name.empty()) {
+        cfg.framer = net::FramerType::Custom;
+    }
+
     return cfg;
+}
+
+// 辅助：建立 Lua 自定义解包函数的 C++ parser 桥接
+static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::string &parser_name) {
+    if (parser_name.empty()) return;
+
+    cfg.framer = net::FramerType::Custom;
+    cfg.custom_parser_name = parser_name;
+
+    // 创建捕获 parser_name 的 C++ 回调，从 CircularBuffer 窥视数据，调用 Lua parser 解包
+    cfg.custom_parser_fn = [s, parser_name](net::CircularBuffer &buf, const char *&out_payload, uint32_t &out_len) -> bool {
+        if (buf.empty()) return false;
+
+        static thread_local std::vector<char> peek_buf;
+        static thread_local std::vector<char> payload_buf;
+        size_t total = buf.size();
+        if (peek_buf.size() < total) peek_buf.resize(total);
+        buf.peek(peek_buf.data(), total);
+
+        // 调用 Lua 解包函数: parser(buffer_str)
+        // 期望返回值:
+        // 1. (packet_str, consumed_bytes)
+        // 2. 或仅 packet_str（默认 consumed_bytes = packet_str.length()）
+        // 3. 或 nil（表示数据尚未就绪，需等待更多数据）
+        auto func = s->GetVM().GetFunction(parser_name);
+        void *addr = nullptr;
+        JITType jit_type = JIT_TCC;
+        if (!func.Empty()) {
+            addr = func.GetAddr(JIT_TCC);
+            if (!addr) {
+                addr = func.GetAddr(JIT_GCC);
+                jit_type = JIT_GCC;
+            }
+        }
+
+        CVar res{static_cast<int>(VarType::Nil)};
+        CVar in_arg = inter::NativeToFakeluaString(s, std::string(peek_buf.data(), total));
+
+        if (addr) {
+            CVar args[1] = {in_arg};
+            res = inter::DispatchCall(addr, args, 1, jit_type);
+        } else {
+            auto *entry = s->GetVM().FindNativeFunction(parser_name);
+            if (entry && entry->callback) {
+                CVar args[1] = {in_arg};
+                res = entry->callback(s, args, 1);
+            }
+        }
+
+        if (res.type_ == static_cast<int>(VarType::Nil)) {
+            return false;
+        }
+
+        std::string parsed_str;
+        size_t consumed = 0;
+
+        if (res.type_ == static_cast<int>(VarType::Multi)) {
+            CVar p_var = inter::GetMultiCVarElement(res, 0);
+            parsed_str = cvar_to_string(p_var);
+            CVar c_var = inter::GetMultiCVarElement(res, 1);
+            if (c_var.type_ != static_cast<int>(VarType::Nil)) {
+                consumed = static_cast<size_t>(inter::CVarToInteger(c_var, static_cast<int64_t>(parsed_str.size())));
+            } else {
+                consumed = parsed_str.size();
+            }
+        } else {
+            parsed_str = cvar_to_string(res);
+            consumed = parsed_str.size();
+        }
+
+        if (consumed == 0 && parsed_str.empty()) {
+            return false;
+        }
+
+        if (consumed > total) {
+            consumed = total;
+        }
+        buf.skip(consumed);
+
+        if (payload_buf.size() < parsed_str.size()) payload_buf.resize(parsed_str.size());
+        if (!parsed_str.empty()) {
+            std::memcpy(payload_buf.data(), parsed_str.data(), parsed_str.size());
+        }
+        out_payload = payload_buf.data();
+        out_len = static_cast<uint32_t>(parsed_str.size());
+        return true;
+    };
 }
 
 // net.server(config) → server object
 static CVar net_server(State *s, CVar *args, int n) {
     net::NetConfig cfg = parse_config(s, args, n);
+    if (!cfg.custom_parser_name.empty()) {
+        setup_lua_custom_parser(s, cfg, cfg.custom_parser_name);
+    }
 
     net::net_init();
 
@@ -416,6 +584,9 @@ static CVar net_server(State *s, CVar *args, int n) {
 // net.client(config) → client object
 static CVar net_client(State *s, CVar *args, int n) {
     net::NetConfig cfg = parse_config(s, args, n);
+    if (!cfg.custom_parser_name.empty()) {
+        setup_lua_custom_parser(s, cfg, cfg.custom_parser_name);
+    }
 
     net::net_init();
 
@@ -452,4 +623,4 @@ void RegisterNetLibraryApi(State *s) {
     RegisterNativeFunction(s, "net.client", 1, false, net_client);
 }
 
-}// namespace fakelua::net
+} // namespace fakelua::net
