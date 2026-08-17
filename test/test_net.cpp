@@ -159,17 +159,10 @@ TEST(test_net, test_server_create_destroy) {
     ASSERT_NE(s, nullptr);
 
     CompileConfig config;
-    CompileString(s, R"(
-        package "NetCreate"
-        function run()
-            local srv = net.server({port = 19999, maxconn = 10})
-            srv:close()
-            return 1
-        end
-    )", config);
+    CompileFile(s, "./net/test_net_create_destroy.lua", config);
 
     int64_t ret = 0;
-    Call(s, JIT_TCC, "NetCreate.run", ret);
+    Call(s, JIT_TCC, "NetCreate.test_server_create_destroy", ret);
     EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
@@ -181,17 +174,10 @@ TEST(test_net, test_client_create_destroy) {
     ASSERT_NE(s, nullptr);
 
     CompileConfig config;
-    CompileString(s, R"(
-        package "NetClientCreate"
-        function run()
-            local c = net.client({port = 19998})
-            c:close()
-            return 1
-        end
-    )", config);
+    CompileFile(s, "./net/test_net_create_destroy.lua", config);
 
     int64_t ret = 0;
-    Call(s, JIT_TCC, "NetClientCreate.run", ret);
+    Call(s, JIT_TCC, "NetCreate.test_client_create_destroy", ret);
     EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
