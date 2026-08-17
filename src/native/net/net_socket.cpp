@@ -129,7 +129,7 @@ void TcpServer::handle_link_read(TcpLink *link, const std::function<void(int, co
         while (true) {
             const char *payload = nullptr;
             uint32_t payload_len = 0;
-            if (!try_parse_packet(link->recv_buf, payload, payload_len)) break;
+            if (!try_parse_packet(link->recv_buf, config_, payload, payload_len)) break;
             on_recv(link->conn_id, payload, payload_len);
         }
     } else if (n == 0) {
@@ -201,8 +201,7 @@ bool TcpServer::send(int conn_id, const char *data, size_t len) {
     if (conn_id < 0 || conn_id >= config_.max_conn) return false;
     auto *link = links_[conn_id];
     if (!link || !link->connected) return false;
-    write_packet_header(link->send_buf, static_cast<uint32_t>(len));
-    link->send_buf.write(data, len);
+    write_packet(link->send_buf, config_, data, len);
     handle_link_write(link);
     return true;
 }
@@ -286,7 +285,7 @@ void TcpClient::handle_read(const std::function<void(const char *, size_t)> &on_
         while (true) {
             const char *payload = nullptr;
             uint32_t payload_len = 0;
-            if (!try_parse_packet(link_->recv_buf, payload, payload_len)) break;
+            if (!try_parse_packet(link_->recv_buf, config_, payload, payload_len)) break;
             on_recv(payload, payload_len);
         }
     } else if (n == 0) {
@@ -336,8 +335,7 @@ void TcpClient::tick(const std::function<void(const char *, size_t)> &on_recv, c
 
 bool TcpClient::send(const char *data, size_t len) {
     if (!link_ || !link_->connected) return false;
-    write_packet_header(link_->send_buf, static_cast<uint32_t>(len));
-    link_->send_buf.write(data, len);
+    write_packet(link_->send_buf, config_, data, len);
     handle_write();
     return true;
 }

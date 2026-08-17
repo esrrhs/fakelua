@@ -349,3 +349,131 @@ TEST(test_net, test_one_server_multi_clients) {
 
     FakeluaDeleteState(s);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 自定义解包/封包与多 Framer 协议测试
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 测试 9: C++ 层自定义解包算法 (Custom Parser & Encoder)
+TEST(test_net, test_framer_custom_cpp) {
+    net_init();
+
+    // 自定义协议：以 '#' 结尾，数据格式 "payload#"
+    NetConfig s_cfg;
+    s_cfg.port = 19968;
+    s_cfg.framer = FramerType::Custom;
+    s_cfg.custom_parser_fn = [](CircularBuffer &buf, const char *&out_payload, uint32_t &out_len) -> bool {
+        if (buf.empty()) return false;
+        static thread_local std::vector<char> tmp;
+        size_t sz = buf.size();
+        if (tmp.size() < sz) tmp.resize(sz);
+        buf.peek(tmp.data(), sz);
+
+        for (size_t i = 0; i < sz; ++i) {
+            if (tmp[i] == '#') {
+                buf.read(tmp.data(), i + 1);
+                out_payload = tmp.data();
+                out_len = static_cast<uint32_t>(i); // 不包含 '#'
+                return true;
+            }
+        }
+        return false;
+    };
+
+    NetConfig c_cfg;
+    c_cfg.port = 19968;
+    c_cfg.framer = FramerType::Custom;
+    c_cfg.custom_encoder_fn = [](CircularBuffer &buf, const char *data, size_t len) {
+        buf.write(data, len);
+        buf.write("#", 1);
+    };
+
+    TcpServer server(s_cfg);
+    server.start();
+    ASSERT_TRUE(server.running());
+
+    TcpClient client(c_cfg);
+    client.connect();
+
+    for (int i = 0; i < 30; ++i) {
+        server.tick([](int) {}, [](int, const char *, size_t) {}, [](int) {});
+        client.tick([](const char *, size_t) {}, []() {});
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    std::string received_server;
+    bool client_sent = client.send("custom_cpp_payload", 18);
+    ASSERT_TRUE(client_sent);
+
+    for (int i = 0; i < 30; ++i) {
+        server.tick([](int) {},
+                    [&](int, const char *data, size_t len) {
+                        received_server.assign(data, len);
+                    },
+                    [](int) {});
+        client.tick([](const char *, size_t) {}, []() {});
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    EXPECT_EQ(received_server, "custom_cpp_payload");
+
+    client.disconnect();
+    server.stop();
+}
+
+// 测试 10: Lua 层多 Framer 协议测试 (header2_be, header2_le, header4_le, line, fixed, custom_lua)
+TEST(test_net, test_framer_lua_protocols) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_framer.lua", config);
+
+    // 1. 测试 2 字节大端
+    {
+        std::string s_data, c_data;
+        Call(s, JIT_TCC, "NetFramerTest.test_framer_2be", std::tie(s_data, c_data));
+        EXPECT_EQ(s_data, "hello_2be");
+        EXPECT_EQ(c_data, "echo:hello_2be");
+    }
+
+    // 2. 测试 2 字节小端
+    {
+        std::string s_data, c_data;
+        Call(s, JIT_TCC, "NetFramerTest.test_framer_2le", std::tie(s_data, c_data));
+        EXPECT_EQ(s_data, "hello_2le");
+        EXPECT_EQ(c_data, "echo:hello_2le");
+    }
+
+    // 3. 测试 4 字节小端
+    {
+        std::string s_data, c_data;
+        Call(s, JIT_TCC, "NetFramerTest.test_framer_4le", std::tie(s_data, c_data));
+        EXPECT_EQ(s_data, "hello_4le");
+        EXPECT_EQ(c_data, "echo:hello_4le");
+    }
+
+    // 4. 测试 换行符定界 (line delimiter)
+    {
+        std::string s_data, c_data;
+        Call(s, JIT_TCC, "NetFramerTest.test_framer_line", std::tie(s_data, c_data));
+        EXPECT_EQ(s_data, "line_command_1");
+        EXPECT_EQ(c_data, "echo:line_command_1");
+    }
+
+    // 5. 测试 固定长度 (fixed length)
+    {
+        std::string s_data;
+        Call(s, JIT_TCC, "NetFramerTest.test_framer_fixed", s_data);
+        EXPECT_EQ(s_data, "12345678");
+    }
+
+    // 6. 测试 自定义 Lua 解包函数
+    {
+        std::string s_data;
+        Call(s, JIT_TCC, "NetFramerTest.test_framer_custom_lua", s_data);
+        EXPECT_EQ(s_data, "custom_msg_dollar");
+    }
+
+    FakeluaDeleteState(s);
+}
