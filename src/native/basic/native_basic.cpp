@@ -17,7 +17,10 @@
 #include <string>
 #include <string_view>
 
-namespace fakelua {
+namespace fakelua::basic {
+
+using table::TableHelper;
+using string::GetStringArgView;
 
 // ─── Helper: call a closure, capturing any exception into err_msg ───
 // Returns true on success (result written to 'result'), false on failure.
@@ -717,4 +720,4 @@ void RegisterBasicLibraryApi(State *s) {
     });
 }
 
-}// namespace fakelua
+}// namespace fakelua::basic

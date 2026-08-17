@@ -14,7 +14,9 @@
 #include <string>
 #include <vector>
 
-namespace fakelua {
+namespace fakelua::table {
+
+using string::GetStringArgView;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 宿主侧 VarTable 操作核心。
@@ -918,4 +920,4 @@ void RegisterTableLibraryApi(State *s) {
     });
 }
 
-}// namespace fakelua
+}// namespace fakelua::table

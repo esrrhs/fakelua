@@ -23,7 +23,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace fakelua {
+namespace fakelua::string {
 
 static inline int64_t NormalizePos(int64_t pos, int64_t len) {
     if (pos >= 0) {
@@ -2041,4 +2041,4 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
     }
 }
 
-}// namespace fakelua
+}// namespace fakelua::string

@@ -623,13 +623,13 @@ void RegisterNativeObjectApi(State *s) {
     });
 
     // 自动注册内置标准库 API
-    RegisterMathLibraryApi(s);
-    RegisterTableLibraryApi(s);
-    RegisterStringLibraryApi(s);
-    RegisterBasicLibraryApi(s);
-    RegisterOsLibraryApi(s);
-    RegisterUtf8LibraryApi(s);
-    RegisterIoLibraryApi(s);
+    math::RegisterMathLibraryApi(s);
+    table::RegisterTableLibraryApi(s);
+    string::RegisterStringLibraryApi(s);
+    basic::RegisterBasicLibraryApi(s);
+    os::RegisterOsLibraryApi(s);
+    utf8::RegisterUtf8LibraryApi(s);
+    io::RegisterIoLibraryApi(s);
 }
 
 }// namespace fakelua

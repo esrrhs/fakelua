@@ -7,7 +7,9 @@
 #include <string>
 #include <string_view>
 
-namespace fakelua {
+namespace fakelua::utf8 {
+
+using string::GetStringArgView;
 
 // ─── UTF-8 encoding/decoding helpers ───
 
@@ -414,4 +416,4 @@ void RegisterUtf8LibraryApi(State *s) {
     RegisterNativeFunction(s, "utf8.offset", 2, true, [](State *state, CVar *args, int n) -> CVar { return Utf8Offset(state, args, n); });
 }
 
-}// namespace fakelua
+}// namespace fakelua::utf8

@@ -10,12 +10,7 @@ namespace fakelua {
 
 State::State(const StateConfig &config) : config_(config), compiler_(this), const_string_(this) {
     RegisterNativeObjectApi(this);
-    RegisterMathLibraryApi(this);
-    RegisterTableLibraryApi(this);
-    RegisterOsLibraryApi(this);
-    RegisterUtf8LibraryApi(this);
-    RegisterIoLibraryApi(this);
-    RegisterNetLibraryApi(this);
+    net::RegisterNetLibraryApi(this);
 }
 
 }// namespace fakelua

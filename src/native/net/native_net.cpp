@@ -9,7 +9,7 @@
 #include <string>
 #include <string_view>
 
-namespace fakelua {
+namespace fakelua::net {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NetObject — 包装引擎 + fakelua 回调
@@ -452,4 +452,4 @@ void RegisterNetLibraryApi(State *s) {
     RegisterNativeFunction(s, "net.client", 1, false, net_client);
 }
 
-}// namespace fakelua
+}// namespace fakelua::net

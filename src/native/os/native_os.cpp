@@ -1,5 +1,6 @@
 #include "native/os/native_os.h"
 #include "native/object/native_object.h"
+#include "native/string/native_string.h"
 #include "native/table/native_table.h"
 #include "var/var.h"
 #include <cerrno>
@@ -16,7 +17,10 @@
 #include <sys/wait.h>
 #endif
 
-namespace fakelua {
+namespace fakelua::os {
+
+using table::TableHelper;
+using string::GetStringArgView;
 
 // ─── Helper: extract int64 from CVar arg, return default if not numeric ───
 static int64_t get_int_arg(State *state, CVar *args, int n, int index, int64_t default_val) {
@@ -442,4 +446,4 @@ void RegisterOsLibraryApi(State *s) {
     });
 }
 
-}// namespace fakelua
+}// namespace fakelua::os

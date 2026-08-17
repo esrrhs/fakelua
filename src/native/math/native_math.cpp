@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <ctime>
 
-namespace fakelua {
+namespace fakelua::math {
 
 // Use shared CheckNumberArg from native_common.h
 
@@ -399,4 +399,4 @@ void RegisterMathLibraryApi(State *s) {
     });
 }
 
-}// namespace fakelua
+}// namespace fakelua::math

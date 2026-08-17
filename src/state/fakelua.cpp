@@ -443,12 +443,12 @@ static CVar ViToVar(State *state, VarInterface *src) {
             // 既不按 hash & mask 落槽也不填 entry.hash，导致这样构造出来的表在 JIT 侧
             // （FlGetTable/FlGetTableInt 都按哈希定位）根本索引不到。
             const size_t count = src->ViGetTableSize();
-            CVar tbl_cvar = TableHelper::CreateTable(state);
+            CVar tbl_cvar = table::TableHelper::CreateTable(state);
             for (size_t i = 0; i < count; ++i) {
                 auto kv = src->ViGetTableKv(static_cast<int>(i));
                 CVar k = ViToVar(state, kv.first);
                 CVar v = ViToVar(state, kv.second);
-                TableHelper::SetTable(state, tbl_cvar, k, v);
+                table::TableHelper::SetTable(state, tbl_cvar, k, v);
             }
             return tbl_cvar;
         }

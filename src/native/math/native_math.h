@@ -2,8 +2,8 @@
 
 #include "fakelua.h"
 
-namespace fakelua {
+namespace fakelua::math {
 
 void RegisterMathLibraryApi(State *s);
 
-}// namespace fakelua
+}// namespace fakelua::math

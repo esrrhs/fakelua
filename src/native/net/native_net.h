@@ -2,8 +2,8 @@
 
 #include "fakelua.h"
 
-namespace fakelua {
+namespace fakelua::net {
 
 void RegisterNetLibraryApi(State *s);
 
-}// namespace fakelua
+}// namespace fakelua::net

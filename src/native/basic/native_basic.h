@@ -2,8 +2,8 @@
 
 #include "fakelua.h"
 
-namespace fakelua {
+namespace fakelua::basic {
 
 void RegisterBasicLibraryApi(State *s);
 
-}// namespace fakelua
+}// namespace fakelua::basic

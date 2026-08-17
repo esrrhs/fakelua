@@ -601,6 +601,16 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
 struct NativeField;
 using NativeMethod = std::function<CVar(NativeObject *self, State *s, CVar *args, int n)>;
 
+namespace math {
+void RegisterMathLibraryApi(State *s);
+}
+namespace table {
+void RegisterTableLibraryApi(State *s);
+}
+namespace io {
+void RegisterIoLibraryApi(State *s);
+}
+
 class NativeObject {
 public:
     // 禁止拷贝
@@ -669,9 +679,9 @@ private:
     friend CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar);
     friend NativeField CVarToNativeField(CVar v);
     friend void RegisterNativeObjectApi(State *s);
-    friend void RegisterMathLibraryApi(State *s);
-    friend void RegisterTableLibraryApi(State *s);
-    friend void RegisterIoLibraryApi(State *s);
+    friend void math::RegisterMathLibraryApi(State *s);
+    friend void table::RegisterTableLibraryApi(State *s);
+    friend void io::RegisterIoLibraryApi(State *s);
     friend CVar inter::NativeToFakeluaNativeObject(State *s, const NativeObject *obj);
 };
 
@@ -683,8 +693,12 @@ using NativeVarFuncCallback = std::function<VarInterface *(State *, const std::v
 
 void RegisterNativeFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeFuncCallback callback);
 
+namespace math {
 void RegisterMathLibraryApi(State *s);
+}
+namespace table {
 void RegisterTableLibraryApi(State *s);
+}
 
 void RegisterNativeVarFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeVarFuncCallback callback);
 

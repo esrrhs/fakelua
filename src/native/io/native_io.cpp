@@ -11,7 +11,9 @@
 #include <string>
 #include <string_view>
 
-namespace fakelua {
+namespace fakelua::io {
+
+using string::GetStringArgView;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IoFile: wraps a FILE* inside a NativeObject.
@@ -566,4 +568,4 @@ void RegisterIoLibraryApi(State *s) {
     }
 }
 
-}// namespace fakelua
+}// namespace fakelua::io
