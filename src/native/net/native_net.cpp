@@ -33,8 +33,6 @@ struct NetObject {
     std::unique_ptr<net::TcpClient> client;
 };
 
-static constexpr int64_t kNetGroup = 999998;
-
 // ─────────────────────────────────────────────────────────────────────────────
 // 辅助：从 CVar 提取字符串
 // ─────────────────────────────────────────────────────────────────────────────
@@ -399,7 +397,7 @@ static CVar net_server(State *s, CVar *args, int n) {
     }
 
     // 包装为 NativeObject
-    int64_t gid = NativeObjectManager::Instance().CreateGroup(kNetGroup);
+    int64_t gid = NativeObjectManager::Instance().CreateGroup(0);
     auto *nat = NativeObjectManager::Instance().Create(gid, "net_server");
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
     nat->RegisterMethod("dispatch", net_dispatch);
@@ -428,7 +426,7 @@ static CVar net_client(State *s, CVar *args, int n) {
     obj->client->connect();
 
     // 包装为 NativeObject
-    int64_t gid = NativeObjectManager::Instance().CreateGroup(kNetGroup);
+    int64_t gid = NativeObjectManager::Instance().CreateGroup(0);
     auto *nat = NativeObjectManager::Instance().Create(gid, "net_client");
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
     nat->RegisterMethod("dispatch", net_dispatch);

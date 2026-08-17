@@ -21,7 +21,6 @@ namespace fakelua {
 
 static constexpr const char *kFpKey = "__fp__";
 static constexpr const char *kPopenKey = "__popen__";
-static constexpr int64_t kIoFileGroup = 999999;// 专用 group，0 不允许
 
 // ─── 行读取辅助函数 ───
 // 从 fp 读取一行（去掉换行），返回是否读到内容。与 file:read("*l") 逻辑一致。
@@ -173,7 +172,8 @@ static std::string_view ArgToStringView(CVar a, State * /*state*/, std::string &
 // 创建一个 IoFile NativeObject 壳，内部 FILE* 存为 Int 字段
 // is_popen=true 时用 pclose 而非 fclose 关闭
 static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
-    auto *obj = NativeObjectManager::Instance().Create(kIoFileGroup, "iofile");
+    int64_t gid = NativeObjectManager::Instance().CreateGroup(0);
+    auto *obj = NativeObjectManager::Instance().Create(gid, "iofile");
     obj->SetInt(kFpKey, reinterpret_cast<int64_t>(fp));
     obj->SetBool(kPopenKey, is_popen);
 
@@ -354,9 +354,6 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
 
 void RegisterIoLibraryApi(State *s) {
     if (!s) return;
-
-    // 确保 io 文件对象的 group 已创建
-    NativeObjectManager::Instance().CreateGroup(kIoFileGroup);
 
     // ─── io.open(filename [, mode]) → file | nil, err ───
     RegisterNativeFunction(s, "io.open", 1, true, [](State *state, CVar *args, int n) -> CVar {
