@@ -98,6 +98,9 @@ else ()
             INSTALL_COMMAND make install
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
+if (WIN32)
+    set(TARGET_LIB ${TARGET_LIB} ws2_32)
+else ()
     set(TARGET_LIB ${TARGET_LIB} Threads::Threads)
     if (NOT APPLE)
         set(TARGET_LIB ${TARGET_LIB} dl m)
