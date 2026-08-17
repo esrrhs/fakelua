@@ -66,7 +66,7 @@ TEST(test_net, test_echo_basic) {
     ASSERT_NE(s, nullptr);
 
     CompileConfig config;
-    CompileFile(s, "./lua/net/test_net_server_client.lua", config);
+    CompileFile(s, "./net/test_net_server_client.lua", config);
 
     int64_t conn_count = 0, recv_count = 0;
     std::string server_data, client_data;
@@ -89,7 +89,7 @@ TEST(test_net, test_multiple_packets) {
     ASSERT_NE(s, nullptr);
 
     CompileConfig config;
-    CompileFile(s, "./lua/net/test_net_multi_packets.lua", config);
+    CompileFile(s, "./net/test_net_multi_packets.lua", config);
 
     int64_t count = 0;
     std::string p1, p2, p3;
