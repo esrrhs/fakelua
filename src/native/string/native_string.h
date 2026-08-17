@@ -6,13 +6,15 @@
 #include <string_view>
 
 namespace fakelua {
-
 class State;
 struct CVar;
+}
+
+namespace fakelua::string {
 
 void RegisterStringLibraryApi(State *s);
 std::string_view GetStringArgView(CVar a, std::string &temp);
 
-}// namespace fakelua
+}// namespace fakelua::string
 
 #endif// FAKELUA_NATIVE_STRING_H

@@ -1,8 +1,8 @@
-#include "native/native_string.h"
+#include "native/string/native_string.h"
 #include "native/native_common.h"
 #include "compile/c_runtime_header.h"
 #include "jit/jit_error_boundary.h"
-#include "native/native_object.h"
+#include "native/object/native_object.h"
 #include "state/state.h"
 #include "var/var.h"
 #include "var/var_multi.h"
@@ -23,7 +23,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace fakelua {
+namespace fakelua::string {
 
 static inline int64_t NormalizePos(int64_t pos, int64_t len) {
     if (pos >= 0) {
@@ -2041,4 +2041,4 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
     }
 }
 
-}// namespace fakelua
+}// namespace fakelua::string

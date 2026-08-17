@@ -1,8 +1,8 @@
-#include "native/native_basic.h"
+#include "native/basic/native_basic.h"
 #include "compile/c_runtime_header.h"
-#include "native/native_object.h"
-#include "native/native_string.h"
-#include "native/native_table.h"
+#include "native/object/native_object.h"
+#include "native/string/native_string.h"
+#include "native/table/native_table.h"
 #include "state/state.h"
 #include "var/var.h"
 #include "var/var_closure.h"
@@ -17,7 +17,10 @@
 #include <string>
 #include <string_view>
 
-namespace fakelua {
+namespace fakelua::basic {
+
+using table::TableHelper;
+using string::GetStringArgView;
 
 // ─── Helper: call a closure, capturing any exception into err_msg ───
 // Returns true on success (result written to 'result'), false on failure.
@@ -717,4 +720,4 @@ void RegisterBasicLibraryApi(State *s) {
     });
 }
 
-}// namespace fakelua
+}// namespace fakelua::basic

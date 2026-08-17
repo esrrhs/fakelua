@@ -2,8 +2,8 @@
 
 #include "fakelua.h"
 
-namespace fakelua {
+namespace fakelua::utf8 {
 
 void RegisterUtf8LibraryApi(State *s);
 
-}// namespace fakelua
+}// namespace fakelua::utf8

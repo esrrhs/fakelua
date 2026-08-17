@@ -1,9 +1,9 @@
-#include "native/native_object.h"
+#include "native/object/native_object.h"
 #include "jit/vm.h"
-#include "native/native_basic.h"
-#include "native/native_io.h"
-#include "native/native_os.h"
-#include "native/native_utf8.h"
+#include "native/basic/native_basic.h"
+#include "native/io/native_io.h"
+#include "native/os/native_os.h"
+#include "native/utf8/native_utf8.h"
 #include "var/var_multi.h"
 
 #include <algorithm>
@@ -98,8 +98,8 @@ NativeObjectManager &NativeObjectManager::Instance() {
     return instance;
 }
 
-int64_t NativeObjectManager::CreateGroup(int64_t specified_group_id) {
-    int64_t gid = (specified_group_id != 0) ? specified_group_id : ++next_auto_group_id_;
+int64_t NativeObjectManager::CreateGroup() {
+    int64_t gid = ++next_auto_group_id_;
     if (!group_objects_.contains(gid)) {
         group_objects_[gid] = {};
     }
@@ -109,6 +109,9 @@ int64_t NativeObjectManager::CreateGroup(int64_t specified_group_id) {
 NativeObject *NativeObjectManager::Create(int64_t group_id, const std::string &type_name, int64_t id) {
     if (group_id == 0) {
         ThrowFakeluaException("NativeObjectManager::Create failed: group_id must be specified and non-zero");
+    }
+    if (id == 0) {
+        id = --next_auto_obj_id_;
     }
     auto key = std::make_pair(type_name, id);
     auto it = objects_.find(key);
@@ -570,11 +573,9 @@ void NativeObject::ForEach(const std::function<void(std::string_view, NativeObje
 // ─────────────────────────────────────────────────────────────────────────────
 
 void RegisterNativeObjectApi(State *s) {
-    // new_native_group([group_id]) -> group_id (group_id 可省略，省略时自动分配)
-    RegisterNativeFunction(s, "new_native_group", 0, true, [](State *state, CVar *args, int n) -> CVar {
-        CVar arg0 = inter::GetNativeArg(state, args, n, 0);
-        int64_t specified_gid = (arg0.type_ != static_cast<int>(VarType::Nil)) ? inter::FakeluaToNative<int64_t>(state, arg0) : 0;
-        int64_t gid = NativeObjectManager::Instance().CreateGroup(specified_gid);
+    // new_native_group() -> group_id (由系统统一自增分配唯一 group_id)
+    RegisterNativeFunction(s, "new_native_group", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar {
+        int64_t gid = NativeObjectManager::Instance().CreateGroup();
         return inter::NativeToFakeluaInt(state, gid);
     });
 
@@ -625,13 +626,13 @@ void RegisterNativeObjectApi(State *s) {
     });
 
     // 自动注册内置标准库 API
-    RegisterMathLibraryApi(s);
-    RegisterTableLibraryApi(s);
-    RegisterStringLibraryApi(s);
-    RegisterBasicLibraryApi(s);
-    RegisterOsLibraryApi(s);
-    RegisterUtf8LibraryApi(s);
-    RegisterIoLibraryApi(s);
+    math::RegisterMathLibraryApi(s);
+    table::RegisterTableLibraryApi(s);
+    string::RegisterStringLibraryApi(s);
+    basic::RegisterBasicLibraryApi(s);
+    os::RegisterOsLibraryApi(s);
+    utf8::RegisterUtf8LibraryApi(s);
+    io::RegisterIoLibraryApi(s);
 }
 
 }// namespace fakelua

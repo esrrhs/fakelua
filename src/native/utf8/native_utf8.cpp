@@ -1,13 +1,15 @@
-#include "native/native_utf8.h"
+#include "native/utf8/native_utf8.h"
 #include "native/native_common.h"
-#include "native/native_object.h"
-#include "native/native_string.h"
+#include "native/object/native_object.h"
+#include "native/string/native_string.h"
 #include "var/var.h"
 #include <cstdint>
 #include <string>
 #include <string_view>
 
-namespace fakelua {
+namespace fakelua::utf8 {
+
+using string::GetStringArgView;
 
 // ─── UTF-8 encoding/decoding helpers ───
 
@@ -414,4 +416,4 @@ void RegisterUtf8LibraryApi(State *s) {
     RegisterNativeFunction(s, "utf8.offset", 2, true, [](State *state, CVar *args, int n) -> CVar { return Utf8Offset(state, args, n); });
 }
 
-}// namespace fakelua
+}// namespace fakelua::utf8

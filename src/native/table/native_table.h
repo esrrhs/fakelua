@@ -2,7 +2,7 @@
 
 #include "fakelua.h"
 
-namespace fakelua {
+namespace fakelua::table {
 
 class TableHelper {
 public:
@@ -20,4 +20,4 @@ public:
 
 void RegisterTableLibraryApi(State *s);
 
-}// namespace fakelua
+}// namespace fakelua::table

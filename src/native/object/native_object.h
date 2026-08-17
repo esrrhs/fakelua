@@ -103,7 +103,7 @@ NativeField CVarToNativeField(CVar v);
 
 }// namespace fakelua
 
-#include "native/native_math.h"
-#include "native/native_string.h"
-#include "native/native_table.h"
+#include "native/math/native_math.h"
+#include "native/string/native_string.h"
+#include "native/table/native_table.h"
 #include "state/state.h"

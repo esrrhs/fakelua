@@ -4,7 +4,7 @@
 
 function test_destroy_single()
     -- Create objects via Lua API
-    local gid = new_native_group(9901)
+    local gid = new_native_group()
     local obj1 = new_native_obj(gid, "monster", 101)
     local obj2 = new_native_obj(gid, "monster", 102)
     obj1.hp = 50
@@ -15,8 +15,8 @@ function test_destroy_single()
     if obj1_again == nil then return 1 end
     if obj1_again.hp ~= 50 then return 2 end
 
-    -- Destroy single
-    local count = del_native_group(9901)
+    -- Destroy group
+    local count = del_native_group(gid)
     if count ~= 2 then return 3 end
 
     -- After destroy, should be nil
@@ -40,12 +40,12 @@ end
 
 function test_create_existing()
     -- Creating an object that already exists should return the same object
-    local gid = new_native_group(9902)
+    local gid = new_native_group()
     local obj1 = new_native_obj(gid, "hero", 301)
     obj1.level = 5
     local obj2 = new_native_obj(gid, "hero", 301)  -- same type+id -> same object
     if obj2.level ~= 5 then return 1 end
-    del_native_group(9902)
+    del_native_group(gid)
     return 5000
 end
 
