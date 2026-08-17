@@ -752,6 +752,7 @@ private:
     std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
     std::unordered_map<int64_t, std::vector<NativeObject *>> group_objects_;
     int64_t next_auto_group_id_ = 0;
+    int64_t next_auto_obj_id_ = 0;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

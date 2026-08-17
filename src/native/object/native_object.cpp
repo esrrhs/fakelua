@@ -110,6 +110,9 @@ NativeObject *NativeObjectManager::Create(int64_t group_id, const std::string &t
     if (group_id == 0) {
         ThrowFakeluaException("NativeObjectManager::Create failed: group_id must be specified and non-zero");
     }
+    if (id == 0) {
+        id = --next_auto_obj_id_;
+    }
     auto key = std::make_pair(type_name, id);
     auto it = objects_.find(key);
     if (it != objects_.end()) {
