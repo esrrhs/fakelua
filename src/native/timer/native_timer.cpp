@@ -210,7 +210,8 @@ static CVar timer_set_heartbeat(State *s, CVar *args, int n) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 全局 NativeObject 读写接口（供回调记录状态，测试在 main 读取验证）
+// 全局 NativeObject：供回调记录状态，测试在 main 读取验证
+// fakelua 不支持 _G / 可变全局变量，故以 C++ 全局 NativeObject 代替
 // ─────────────────────────────────────────────────────────────────────────────
 
 static void ensure_result_obj() {
@@ -220,22 +221,18 @@ static void ensure_result_obj() {
     }
 }
 
-static CVar timer_set_result(State *s, CVar *args, int n) {
-    if (n < 2) ThrowBadArgument(1, "timer.set_result", "key and value expected");
+// timer.result(key, val) — val 非空时写入，val 缺失时读取
+static CVar timer_result(State *s, CVar *args, int n) {
     ensure_result_obj();
+    if (n < 1) ThrowBadArgument(1, "timer.result", "key expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     std::string key = cvar_to_string(a0);
-    CVar a1 = inter::GetNativeArg(s, args, n, 1);
-    int64_t val = inter::CVarToInteger(a1, 0);
-    g_state.result_obj->SetInt(key, val);
-    return inter::NativeToFakeluaNil(s);
-}
-
-static CVar timer_get_result(State *s, CVar *args, int n) {
-    if (n < 1) ThrowBadArgument(1, "timer.get_result", "key expected");
-    ensure_result_obj();
-    CVar a0 = inter::GetNativeArg(s, args, n, 0);
-    std::string key = cvar_to_string(a0);
+    if (n >= 2) {
+        CVar a1 = inter::GetNativeArg(s, args, n, 1);
+        int64_t val = inter::CVarToInteger(a1, 0);
+        g_state.result_obj->SetInt(key, val);
+        return inter::NativeToFakeluaNil(s);
+    }
     return inter::NativeToFakeluaInt(s, g_state.result_obj->GetInt(key, 0));
 }
 
@@ -250,8 +247,7 @@ void RegisterTimerLibraryApi(State *s) {
     RegisterNativeFunction(s, "timer.del", 1, false, timer_del);
     RegisterNativeFunction(s, "timer.tick", 0, false, timer_tick);
     RegisterNativeFunction(s, "timer.set_heartbeat", 2, false, timer_set_heartbeat);
-    RegisterNativeFunction(s, "timer.set_result", 2, false, timer_set_result);
-    RegisterNativeFunction(s, "timer.get_result", 1, false, timer_get_result);
+    RegisterNativeFunction(s, "timer.result", 2, true, timer_result);
 }
 
 } // namespace fakelua::timer

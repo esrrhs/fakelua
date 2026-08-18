@@ -1,12 +1,11 @@
 package "TimerTest"
 
 function on_timer(type, data)
-    local count = timer.get_result("count")
-    timer.set_result("count", count + 1)
+    timer.result("count", timer.result("count") + 1)
 end
 
 function test_del_before_fire()
-    timer.set_result("count", 0)
+    timer.result("count", 0)
     local id = timer.set(5000, "TimerTest.on_timer")
 
     local ok = timer.del(id)
@@ -19,7 +18,7 @@ function test_del_before_fire()
     end
 
     -- 删除后回调不应被调用
-    if timer.get_result("count") ~= 0 then return 0 end
+    if timer.result("count") ~= 0 then return 0 end
 
     -- 再删一次应返回 false
     ok = timer.del(id)
