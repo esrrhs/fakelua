@@ -305,7 +305,7 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **一次性定时器**：`timer.set(delay_ms, "Package.callback")`（注册定时器并返回 `timer_id`，到期时按函数名派发回调，回调签名为 `function cb(type, timer_id)`，其中 `type == "timer"`）、`timer.del(timer_id)`（删除未触发的定时器）
   - **驱动定时器**：`timer.tick()`（在主循环中调用，触发所有到期定时器与心跳）
   - **周期性心跳**：`timer.set_heartbeat(interval_ms, "Package.heartbeat_cb")`（注册全局心跳，到期后自动重新调度，永不自动删除；重复调用覆盖之前的心跳）
-  - **状态读写**：`timer.set_result(key, val)` / `timer.get_result(key)`（读写全局 NativeObject，供回调记录状态、测试在 main 读取验证）
+  - **状态读写**：`timer.result(key, val)`（`val` 非空时写入，缺失时读取；读写全局 NativeObject，供回调记录状态、测试在 main 读取验证；fakelua 无可变全局变量，以此代替 `_G`）
 
 ```lua
 -- 示例：使用标准库完成排序、格式化与数学计算
