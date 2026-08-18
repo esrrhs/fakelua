@@ -88,9 +88,14 @@ void Selector::wait(int timeout_ms,
     FD_ZERO(&except_set);
 
     socket_t max_fd = INVALID_SOCKET_VAL;
-    for (auto &[fd, _] : fd_map_) {
+    bool has_write = false;
+    for (auto &[fd, ud] : fd_map_) {
         FD_SET(fd, &read_set);
-        FD_SET(fd, &write_set);
+        auto *link = static_cast<TcpLink *>(ud);
+        if (link && !link->send_buf.empty()) {
+            FD_SET(fd, &write_set);
+            has_write = true;
+        }
         FD_SET(fd, &except_set);
         if (max_fd == INVALID_SOCKET_VAL || fd > max_fd) max_fd = fd;
     }
@@ -99,7 +104,7 @@ void Selector::wait(int timeout_ms,
     tv.tv_sec = timeout_ms / 1000;
     tv.tv_usec = (timeout_ms % 1000) * 1000;
 
-    int ret = select(static_cast<int>(max_fd) + 1, &read_set, &write_set, &except_set, &tv);
+    int ret = select(static_cast<int>(max_fd) + 1, &read_set, has_write ? &write_set : nullptr, &except_set, &tv);
     if (ret <= 0) return;
 
     iterating_ = true;
@@ -109,7 +114,7 @@ void Selector::wait(int timeout_ms,
             continue;
         }
         if (FD_ISSET(fd, &read_set)) on_read(ud);
-        if (FD_ISSET(fd, &write_set)) on_write(ud);
+        if (has_write && FD_ISSET(fd, &write_set)) on_write(ud);
     }
     iterating_ = false;
 
