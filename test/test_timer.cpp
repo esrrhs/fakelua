@@ -1,9 +1,6 @@
 #include "fakelua.h"
 #include "gtest/gtest.h"
 
-#include <chrono>
-#include <thread>
-
 using namespace fakelua;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -16,7 +13,7 @@ TEST(test_timer, test_set_and_fire) {
     ASSERT_NE(s, nullptr);
 
     CompileConfig config;
-    CompileFile(s, "./timer/test_timer_basic.lua", config);
+    CompileFile(s, "./timer/test_timer_set_and_fire.lua", config);
 
     int64_t ret = 0;
     Call(s, JIT_TCC, "TimerTest.test_set_and_fire", ret);
@@ -31,7 +28,7 @@ TEST(test_timer, test_del_before_fire) {
     ASSERT_NE(s, nullptr);
 
     CompileConfig config;
-    CompileFile(s, "./timer/test_timer_basic.lua", config);
+    CompileFile(s, "./timer/test_timer_del_before_fire.lua", config);
 
     int64_t ret = 0;
     Call(s, JIT_TCC, "TimerTest.test_del_before_fire", ret);
@@ -46,7 +43,7 @@ TEST(test_timer, test_multiple_timers_order) {
     ASSERT_NE(s, nullptr);
 
     CompileConfig config;
-    CompileFile(s, "./timer/test_timer_basic.lua", config);
+    CompileFile(s, "./timer/test_timer_multiple_order.lua", config);
 
     int64_t ret = 0;
     Call(s, JIT_TCC, "TimerTest.test_multiple_timers_order", ret);
@@ -61,7 +58,7 @@ TEST(test_timer, test_heartbeat) {
     ASSERT_NE(s, nullptr);
 
     CompileConfig config;
-    CompileFile(s, "./timer/test_timer_basic.lua", config);
+    CompileFile(s, "./timer/test_timer_heartbeat.lua", config);
 
     int64_t ret = 0;
     Call(s, JIT_TCC, "TimerTest.test_heartbeat", ret);

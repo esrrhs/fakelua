@@ -12,6 +12,8 @@
 // Source: https://github.com/esrrhs/heap_timer (MIT)
 // Integrated into fakelua as a standalone timer library.
 
+namespace fakelua::timer {
+
 class HeapTimer {
 public:
     using Clock = std::chrono::steady_clock;
@@ -195,3 +197,5 @@ private:
     size_t heap_size_ = 0;
     std::unordered_map<TimerId, TimerNodePtr> timer_map_;
 };
+
+} // namespace fakelua::timer
