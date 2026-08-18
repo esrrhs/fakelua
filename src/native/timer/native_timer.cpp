@@ -7,7 +7,6 @@
 
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace fakelua::timer {
 
@@ -25,6 +24,9 @@ struct TimerState {
     HeapTimer::TimePoint heartbeat_next{};     // 下次触发时间
     uint32_t heartbeat_interval_ms = 0;        // 心跳间隔
     bool heartbeat_active = false;             // 是否已注册心跳
+
+    // 全局 NativeObject：供回调读写状态，测试在 main 里读取验证
+    NativeObject *result_obj = nullptr;
 };
 
 static TimerState g_state;
@@ -208,78 +210,33 @@ static CVar timer_set_heartbeat(State *s, CVar *args, int n) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 回调记录器（NativeObject）：用于测试验证回调确实被调用
+// 全局 NativeObject 读写接口（供回调记录状态，测试在 main 读取验证）
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct RecorderObject {
-    int count = 0;
-    std::vector<HeapTimer::TimerId> order;
-};
-
-static RecorderObject *unwrap_recorder(NativeObject *self) {
-    return reinterpret_cast<RecorderObject *>(self->GetInt("__recorder_obj__", 0));
+static void ensure_result_obj() {
+    if (!g_state.result_obj) {
+        int64_t gid = NativeObjectManager::Instance().CreateGroup();
+        g_state.result_obj = NativeObjectManager::Instance().Create(gid, "timer_result");
+    }
 }
 
-static CVar recorder_increment(NativeObject *self, State *s, CVar *args, int n) {
-    auto *rec = unwrap_recorder(self);
-    if (!rec) return inter::NativeToFakeluaNil(s);
-    HeapTimer::TimerId id = 0;
-    if (n >= 1) {
-        CVar a0 = inter::GetNativeArg(s, args, n, 0);
-        id = static_cast<HeapTimer::TimerId>(inter::CVarToInteger(a0, 0));
-    }
-    rec->count++;
-    rec->order.push_back(id);
+static CVar timer_set_result(State *s, CVar *args, int n) {
+    if (n < 2) ThrowBadArgument(1, "timer.set_result", "key and value expected");
+    ensure_result_obj();
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    std::string key = cvar_to_string(a0);
+    CVar a1 = inter::GetNativeArg(s, args, n, 1);
+    int64_t val = inter::CVarToInteger(a1, 0);
+    g_state.result_obj->SetInt(key, val);
     return inter::NativeToFakeluaNil(s);
 }
 
-static CVar recorder_get_count(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *rec = unwrap_recorder(self);
-    if (!rec) return inter::NativeToFakeluaNil(s);
-    return inter::NativeToFakeluaInt(s, rec->count);
-}
-
-static CVar recorder_get_order_count(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *rec = unwrap_recorder(self);
-    if (!rec) return inter::NativeToFakeluaNil(s);
-    return inter::NativeToFakeluaInt(s, static_cast<int64_t>(rec->order.size()));
-}
-
-static CVar recorder_get_order_at(NativeObject *self, State *s, CVar *args, int n) {
-    auto *rec = unwrap_recorder(self);
-    if (!rec) return inter::NativeToFakeluaNil(s);
-    if (n < 1) ThrowBadArgument(1, "get_order_at", "index expected");
+static CVar timer_get_result(State *s, CVar *args, int n) {
+    if (n < 1) ThrowBadArgument(1, "timer.get_result", "key expected");
+    ensure_result_obj();
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
-    int64_t idx = inter::CVarToInteger(a0, 0);
-    if (idx < 1 || static_cast<size_t>(idx) > rec->order.size()) {
-        return inter::NativeToFakeluaNil(s);
-    }
-    return inter::NativeToFakeluaInt(s, static_cast<int64_t>(rec->order[static_cast<size_t>(idx - 1)]));
-}
-
-static void release_recorder(NativeObject *self) {
-    auto *rec = reinterpret_cast<RecorderObject *>(self->GetInt("__recorder_obj__", 0));
-    if (!rec) return;
-    delete rec;
-    self->SetInt("__recorder_obj__", 0);
-}
-
-// timer.create_recorder() → recorder object
-static CVar timer_create_recorder(State *s, CVar * /*args*/, int /*n*/) {
-    auto *rec = new RecorderObject();
-
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(gid, "timer_recorder");
-    nat->SetInt("__recorder_obj__", reinterpret_cast<int64_t>(rec));
-    nat->SetFinalizer([](NativeObject *self) {
-        release_recorder(self);
-    });
-    nat->RegisterMethod("increment", recorder_increment);
-    nat->RegisterMethod("get_count", recorder_get_count);
-    nat->RegisterMethod("get_order_count", recorder_get_order_count);
-    nat->RegisterMethod("get_order_at", recorder_get_order_at);
-
-    return inter::NativeToFakeluaNativeObject(s, nat);
+    std::string key = cvar_to_string(a0);
+    return inter::NativeToFakeluaInt(s, g_state.result_obj->GetInt(key, 0));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -293,7 +250,8 @@ void RegisterTimerLibraryApi(State *s) {
     RegisterNativeFunction(s, "timer.del", 1, false, timer_del);
     RegisterNativeFunction(s, "timer.tick", 0, false, timer_tick);
     RegisterNativeFunction(s, "timer.set_heartbeat", 2, false, timer_set_heartbeat);
-    RegisterNativeFunction(s, "timer.create_recorder", 0, false, timer_create_recorder);
+    RegisterNativeFunction(s, "timer.set_result", 2, false, timer_set_result);
+    RegisterNativeFunction(s, "timer.get_result", 1, false, timer_get_result);
 }
 
 } // namespace fakelua::timer

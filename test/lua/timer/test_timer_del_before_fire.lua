@@ -1,16 +1,12 @@
 package "TimerTest"
 
-local recorder = nil
-
 function on_timer(type, data)
-    if recorder then
-        recorder:increment(data)
-    end
+    local count = timer.get_result("count")
+    timer.set_result("count", count + 1)
 end
 
 function test_del_before_fire()
-    recorder = timer.create_recorder()
-
+    timer.set_result("count", 0)
     local id = timer.set(5000, "TimerTest.on_timer")
 
     local ok = timer.del(id)
@@ -23,12 +19,11 @@ function test_del_before_fire()
     end
 
     -- 删除后回调不应被调用
-    if recorder:get_count() ~= 0 then return 0 end
+    if timer.get_result("count") ~= 0 then return 0 end
 
     -- 再删一次应返回 false
     ok = timer.del(id)
     if ok ~= false then return 0 end
 
-    recorder = nil
     return 1
 end
