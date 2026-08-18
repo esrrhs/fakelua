@@ -22,7 +22,7 @@ struct NetObject {
     bool is_server = false;
 
     // 可变状态全部存 C++ 侧
-    std::vector<std::string> events;     // 事件记录
+    std::vector<std::string> events;     // 事件记录（有上限，防止长跑泄漏）
     std::string last_server_data;        // server 最后收到的数据
     std::string last_client_data;        // client 最后收到的数据
     int server_connid = -1;              // server 端连接 ID
@@ -31,6 +31,8 @@ struct NetObject {
 
     std::unique_ptr<net::TcpServer> server;
     std::unique_ptr<net::TcpClient> client;
+
+    static constexpr size_t kMaxEvents = 1024;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -144,6 +146,15 @@ static NetObject *unwrap(NativeObject *self) {
     return reinterpret_cast<NetObject *>(self->GetInt("__net_obj__", 0));
 }
 
+// 事件记录加上限：超过 kMaxEvents 时丢弃最旧的事件，防止长跑无界增长。
+static void push_event(NetObject *obj, std::string_view ev) {
+    if (obj->events.size() >= NetObject::kMaxEvents) {
+        // 批量丢弃前半部分，避免每个事件都 O(n) 搬移
+        obj->events.erase(obj->events.begin(), obj->events.begin() + NetObject::kMaxEvents / 2);
+    }
+    obj->events.emplace_back(ev);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // NativeObject 方法实现
 // ─────────────────────────────────────────────────────────────────────────────
@@ -183,7 +194,7 @@ static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
             [obj](int connid) {
                 obj->conn_count++;
                 obj->server_connid = connid;
-                obj->events.push_back("conn");
+                push_event(obj, "conn");
                 CVar ret = call_lua_event(obj->state, obj->dispatch_name, "conn", connid, nullptr, 0, 0);
                 handle_callback_return(obj, ret, connid);
             },
@@ -191,13 +202,13 @@ static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
             [obj](int connid, const char *data, size_t len) {
                 obj->recv_count++;
                 obj->last_server_data.assign(data, len);
-                obj->events.push_back("recv");
+                push_event(obj, "recv");
                 CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", connid, data, len, 0);
                 handle_callback_return(obj, ret, connid);
             },
             // on_close
             [obj](int connid) {
-                obj->events.push_back("close");
+                push_event(obj, "close");
                 CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
                 handle_callback_return(obj, ret, connid);
             });
@@ -207,13 +218,13 @@ static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
             [obj](const char *data, size_t len) {
                 obj->recv_count++;
                 obj->last_client_data.assign(data, len);
-                obj->events.push_back("recv");
+                push_event(obj, "recv");
                 CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", 0, data, len, 0);
                 handle_callback_return(obj, ret, 0);
             },
             // on_close
             [obj]() {
-                obj->events.push_back("close");
+                push_event(obj, "close");
                 CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", 0, nullptr, 0, 0);
                 handle_callback_return(obj, ret, 0);
             });
@@ -265,10 +276,20 @@ static CVar net_send(NativeObject *self, State *s, CVar *args, int n) {
     return inter::NativeToFakeluaBool(s, false);
 }
 
-// server:close() / client:close()
-static CVar net_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+// server:close_connection(connid) — 关闭单条连接（C++ 已有能力，现导出到 Lua）
+static CVar net_close_connection(NativeObject *self, State *s, CVar *args, int n) {
     auto *obj = unwrap(self);
-    if (!obj) return inter::NativeToFakeluaNil(s);
+    if (!obj || !obj->is_server || !obj->server) return inter::NativeToFakeluaBool(s, false);
+    if (n < 1) ThrowBadArgument(1, "close_connection", "connid expected");
+    int connid = static_cast<int>(CheckIntegerArg(inter::GetNativeArg(s, args, n, 0), 1, "close_connection"));
+    obj->server->close_connection(connid);
+    return inter::NativeToFakeluaBool(s, true);
+}
+
+// 释放 NetObject 及其持有的 socket 引擎。可重入：__net_obj__ 已为 0 时是 no-op。
+static void release_net_object(NativeObject *self) {
+    auto *obj = reinterpret_cast<NetObject *>(self->GetInt("__net_obj__", 0));
+    if (!obj) return;
 
     if (obj->server) {
         obj->server->stop();
@@ -278,10 +299,21 @@ static CVar net_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) 
         obj->client->disconnect();
         obj->client.reset();
     }
-
     delete obj;
-    // 清空 NativeObject 中的指针，防止重复关闭
     self->SetInt("__net_obj__", 0);
+}
+
+// server:close() / client:close()
+static CVar net_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    if (!unwrap(self)) return inter::NativeToFakeluaNil(s); // 已关闭，no-op
+
+    // 停止 socket、释放 NetObject、清空指针
+    release_net_object(self);
+
+    // 销毁 NativeObject 壳及其 group，回收 NativeObjectManager 中的注册。
+    // 这是本方法的最后一步：此后 self 指针失效，不可再访问。
+    int64_t gid = self->GetGroupId();
+    NativeObjectManager::Instance().DestroyGroup(gid);
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -432,7 +464,14 @@ static net::NetConfig parse_config(State *s, CVar *args, int n) {
     if (a0.type_ != static_cast<int>(VarType::Table)) return cfg;
 
     cfg.ip = get_table_field_string(s, a0, "ip", "127.0.0.1");
-    cfg.port = static_cast<uint16_t>(get_table_field(s, a0, "port", 8888));
+    {
+        // 端口超出 uint16 范围时拒绝，避免静默截断（如 70000 → 4464）
+        int64_t port_val = get_table_field(s, a0, "port", 8888);
+        if (port_val <= 0 || port_val > 65535) {
+            ThrowFakeluaException(std::format("net: port {} out of range (1-65535)", port_val));
+        }
+        cfg.port = static_cast<uint16_t>(port_val);
+    }
     cfg.max_conn = static_cast<int>(get_table_field(s, a0, "maxconn", 1000));
     cfg.backlog = static_cast<int>(get_table_field(s, a0, "backlog", 128));
     cfg.fixed_packet_len = static_cast<int>(get_table_field(s, a0, "fixed_len", 0));
@@ -465,12 +504,16 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
     cfg.custom_parser_name = parser_name;
 
     // 创建捕获 parser_name 的 C++ 回调，从 CircularBuffer 窥视数据，调用 Lua parser 解包
-    cfg.custom_parser_fn = [s, parser_name](net::CircularBuffer &buf, const char *&out_payload, uint32_t &out_len) -> bool {
+    // 按值捕获 max_packet_len，避免 lambda 存入 cfg 后引用工厂局部 cfg 导致悬空
+    const int max_pkt = cfg.max_packet_len;
+    cfg.custom_parser_fn = [s, parser_name, max_pkt](net::CircularBuffer &buf, const char *&out_payload, uint32_t &out_len) -> bool {
         if (buf.empty()) return false;
 
         static thread_local std::vector<char> peek_buf;
         static thread_local std::vector<char> payload_buf;
-        size_t total = buf.size();
+        // 限制窥视上限为 max_packet_len，避免半包时每 tick O(缓冲) 全量分配/拷贝
+        size_t total = std::min(buf.size(), static_cast<size_t>(max_pkt));
+        if (total == 0) return false;
         if (peek_buf.size() < total) peek_buf.resize(total);
         buf.peek(peek_buf.data(), total);
 
@@ -561,6 +604,7 @@ static CVar net_server(State *s, CVar *args, int n) {
 
     if (!obj->server->running()) {
         delete obj;
+        net::net_shutdown(); // 平衡工厂开头的 net_init()（未创建 NativeObject，无 finalizer 触发）
         ThrowFakeluaException(std::format("net.server: failed to listen on port {}", cfg.port));
     }
 
@@ -568,10 +612,17 @@ static CVar net_server(State *s, CVar *args, int n) {
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *nat = NativeObjectManager::Instance().Create(gid, "net_server");
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
+    // 销毁时：配对 net_shutdown（平衡工厂里的 net_init）+ 停 socket + 释放 NetObject。
+    // 仅在真正销毁时触发；net_close 已先 release_net_object，此处 __net_obj__ 为 0 是 no-op。
+    nat->SetFinalizer([](NativeObject *self) {
+        net::net_shutdown();
+        release_net_object(self);
+    });
     nat->RegisterMethod("dispatch", net_dispatch);
     nat->RegisterMethod("tick", net_tick);
     nat->RegisterMethod("send", net_send);
     nat->RegisterMethod("close", net_close);
+    nat->RegisterMethod("close_connection", net_close_connection);
     nat->RegisterMethod("get_events", net_get_events);
     nat->RegisterMethod("get_last_data", net_get_last_data);
     nat->RegisterMethod("get_conn_count", net_get_conn_count);
@@ -600,6 +651,12 @@ static CVar net_client(State *s, CVar *args, int n) {
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *nat = NativeObjectManager::Instance().Create(gid, "net_client");
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
+    // 销毁时：配对 net_shutdown（平衡工厂里的 net_init）+ 停 socket + 释放 NetObject。
+    // 仅在真正销毁时触发；net_close 已先 release_net_object，此处 __net_obj__ 为 0 是 no-op。
+    nat->SetFinalizer([](NativeObject *self) {
+        net::net_shutdown();
+        release_net_object(self);
+    });
     nat->RegisterMethod("dispatch", net_dispatch);
     nat->RegisterMethod("tick", net_tick);
     nat->RegisterMethod("send", net_send);

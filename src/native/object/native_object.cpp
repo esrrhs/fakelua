@@ -361,7 +361,13 @@ NativeObject::NativeObject(std::string type_name) : impl_(new Impl{std::move(typ
 }
 
 NativeObject::~NativeObject() {
+    // 触发销毁回调，让拥有者释放关联的 C++ 资源（在 impl_ 仍有效时调用）。
+    if (impl_ && impl_->finalizer) impl_->finalizer(this);
     delete impl_;
+}
+
+void NativeObject::SetFinalizer(const std::function<void(NativeObject *self)> &fn) {
+    impl_->finalizer = fn;
 }
 
 NativeObject *NativeObject::Create(int64_t group_id, std::string type_name, int64_t id) {

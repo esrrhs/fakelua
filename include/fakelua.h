@@ -650,6 +650,11 @@ public:
     void Del(std::string_view key);
     void Clear();
 
+    // ── 销毁回调 ─────────────────────────────────────────────────────────────
+    // 设置 NativeObject 被 Destroy 时（含管理器 Clear / DestroyGroup）的回调，
+    // 用于释放该对象拥有的 C++ 资源（如 socket）。回调内不应再操作 Lua 状态。
+    void SetFinalizer(const std::function<void(NativeObject *self)> &fn);
+
     // 枚举所有字段（只读快照）
     enum class FieldKind { Nil, Int, Float, Bool, String, Object };
     void ForEach(const std::function<void(std::string_view key, FieldKind kind)> &fn) const;

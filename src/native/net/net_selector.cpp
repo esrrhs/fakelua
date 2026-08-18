@@ -14,7 +14,9 @@
 
 namespace fakelua::net {
 
-TcpLink::TcpLink() : recv_buf(64 * 1024), send_buf(64 * 1024) {}
+TcpLink::TcpLink() : recv_buf(0), send_buf(0) {
+    // 不预分配：accept / connect 时会按 config 分配真实大小的缓冲，避免 64KB→1MB 的浪费
+}
 
 TcpLink::~TcpLink() {
     if (fd != INVALID_SOCKET_VAL) {
@@ -37,17 +39,16 @@ Selector::~Selector() {
 
 void Selector::add(socket_t fd, void *userdata) {
     if (iterating_) {
+        // 迭代中禁止改写 fd_map_（Windows select 正在遍历该 map，属于 UB）。
+        // 只进 pending 队列，本轮 wait 结束后再统一应用。
         pending_add_.push_back(fd);
         pending_add_ud_.push_back(userdata);
-        fd_map_[fd] = userdata;
         return;
     }
     fd_map_[fd] = userdata;
+    write_want_[fd] = false;
 #if defined(__linux__)
-    epoll_event ev{};
-    ev.events = EPOLLIN | EPOLLERR | EPOLLRDHUP;
-    ev.data.fd = static_cast<int>(fd);
-    epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev);
+    apply_epoll_add(fd, userdata, false);
 #endif
 }
 
@@ -57,6 +58,7 @@ void Selector::remove(socket_t fd) {
         return;
     }
     fd_map_.erase(fd);
+    write_want_.erase(fd);
 #if defined(__linux__)
     epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
 #endif
@@ -69,10 +71,46 @@ void Selector::clear() {
 #endif
     }
     fd_map_.clear();
+    write_want_.clear();
     pending_add_.clear();
     pending_add_ud_.clear();
     pending_remove_.clear();
 }
+
+void Selector::set_write_watch(socket_t fd, bool on) {
+    auto it = write_want_.find(fd);
+    if (it != write_want_.end() && it->second == on) return;
+    write_want_[fd] = on;
+#if defined(__linux__)
+    // 若 fd 已在 epoll 中则 MOD；若尚在 pending_add 里则只记录，apply_epoll_add 时会带上
+    if (fd_map_.count(fd)) {
+        apply_epoll_mod(fd, on);
+    }
+#endif
+}
+
+#if defined(__linux__)
+
+void Selector::apply_epoll_add(socket_t fd, void *userdata, bool want_write) {
+    epoll_event ev{};
+    ev.events = EPOLLIN | EPOLLERR | EPOLLRDHUP;
+    if (want_write) ev.events |= EPOLLOUT;
+    ev.data.fd = static_cast<int>(fd);
+    epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev);
+    fd_map_[fd] = userdata;
+    write_want_[fd] = want_write;
+}
+
+void Selector::apply_epoll_mod(socket_t fd, bool want_write) {
+    epoll_event ev{};
+    ev.events = EPOLLIN | EPOLLERR | EPOLLRDHUP;
+    if (want_write) ev.events |= EPOLLOUT;
+    ev.data.fd = static_cast<int>(fd);
+    epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, fd, &ev);
+    write_want_[fd] = want_write;
+}
+
+#endif
 
 #if !defined(__linux__)
 
@@ -91,8 +129,7 @@ void Selector::wait(int timeout_ms,
     bool has_write = false;
     for (auto &[fd, ud] : fd_map_) {
         FD_SET(fd, &read_set);
-        auto *link = static_cast<TcpLink *>(ud);
-        if (link && !link->send_buf.empty()) {
+        if (write_want_.count(fd) && write_want_[fd]) {
             FD_SET(fd, &write_set);
             has_write = true;
         }
@@ -118,8 +155,15 @@ void Selector::wait(int timeout_ms,
     }
     iterating_ = false;
 
-    for (auto fd : pending_remove_) fd_map_.erase(fd);
+    for (auto fd : pending_remove_) {
+        fd_map_.erase(fd);
+        write_want_.erase(fd);
+    }
     pending_remove_.clear();
+    for (size_t i = 0; i < pending_add_.size(); ++i) {
+        fd_map_[pending_add_[i]] = pending_add_ud_[i];
+        write_want_[pending_add_[i]] = false;
+    }
     pending_add_.clear();
     pending_add_ud_.clear();
 }
@@ -144,6 +188,9 @@ void Selector::wait(int timeout_ms,
         if (it == fd_map_.end()) continue;
         void *ud = it->second;
 
+        // 同一轮中若该连接已被关闭（fd 失效），跳过后续事件，避免对无效 fd 操作。
+        if (ud && static_cast<TcpLink *>(ud)->fd == INVALID_SOCKET_VAL) continue;
+
         if (ev & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
             on_close(ud);
             continue;
@@ -155,20 +202,15 @@ void Selector::wait(int timeout_ms,
 
     for (auto fd : pending_remove_) {
         fd_map_.erase(fd);
+        write_want_.erase(fd);
         epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
     }
     pending_remove_.clear();
     for (size_t i = 0; i < pending_add_.size(); ++i) {
         socket_t fd = pending_add_[i];
         void *ud = pending_add_ud_[i];
-        epoll_event ev{};
-        ev.events = (ud == nullptr) ? (EPOLLIN | EPOLLERR | EPOLLRDHUP)
-                                   : (EPOLLIN | EPOLLERR | EPOLLRDHUP);
-        ev.data.fd = static_cast<int>(fd);
-        int rc = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev);
-        if (rc == 0) {
-            fd_map_[fd] = ud;
-        }
+        bool want_write = write_want_.count(fd) && write_want_[fd];
+        apply_epoll_add(fd, ud, want_write);
     }
     pending_add_.clear();
     pending_add_ud_.clear();

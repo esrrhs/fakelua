@@ -48,10 +48,15 @@ private:
 };
 
 // 封包打包函数：依据配置向 send_buf 写入打包后的数据（含长度头/分隔符）
-void write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, size_t len);
+// 若缓冲区剩余空间不足以容纳完整编码后的包，则不写入任何内容并返回 false（禁止截断）
+bool write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, size_t len);
 
 // 封包解析函数：依据配置从 recv_buf 中尝试解析出一个完整的数据包
-bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len);
+// out_error: 当声明长度非法（超过 max_packet_len / 超过缓冲区容量 / uint32 溢出）时为 true，
+//           调用方应关闭该连接；返回 false 且 out_error=false 仅表示数据未齐，需继续等待
+
+bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len,
+                      bool &out_error);
 
 // 兼容旧接口的 4 字节大端打包
 void write_packet_header(CircularBuffer &buf, uint32_t payload_len);
