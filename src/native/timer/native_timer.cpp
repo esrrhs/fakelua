@@ -24,9 +24,6 @@ struct TimerState {
     HeapTimer::TimePoint heartbeat_next{};     // 下次触发时间
     uint32_t heartbeat_interval_ms = 0;        // 心跳间隔
     bool heartbeat_active = false;             // 是否已注册心跳
-
-    // 全局 NativeObject：供回调读写状态，测试在 main 里读取验证
-    NativeObject *result_obj = nullptr;
 };
 
 static TimerState g_state;
@@ -45,6 +42,43 @@ static std::string cvar_to_string(CVar v) {
         return std::string(ptr + 8, sz);
     }
     return {};
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NativeObject 辅助方法注册（供测试在回调中读写状态）
+// ─────────────────────────────────────────────────────────────────────────────
+
+static CVar obj_get_int(NativeObject *self, State *s, CVar *args, int n) {
+    if (n < 1) ThrowBadArgument(1, "get_int", "key expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    std::string key = cvar_to_string(a0);
+    return inter::NativeToFakeluaInt(s, self->GetInt(key, 0));
+}
+
+static CVar obj_set_int(NativeObject *self, State *s, CVar *args, int n) {
+    if (n < 2) ThrowBadArgument(1, "set_int", "key and value expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    std::string key = cvar_to_string(a0);
+    CVar a1 = inter::GetNativeArg(s, args, n, 1);
+    int64_t val = inter::CVarToInteger(a1, 0);
+    self->SetInt(key, val);
+    return inter::NativeToFakeluaNil(s);
+}
+
+// timer.register_obj_methods(type, id) — 为已有 NativeObject 注册 get_int/set_int
+static CVar timer_register_obj_methods(State *s, CVar *args, int n) {
+    if (n < 2) ThrowBadArgument(1, "timer.register_obj_methods", "type and id expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    CVar a1 = inter::GetNativeArg(s, args, n, 1);
+    std::string type_name = cvar_to_string(a0);
+    int64_t id = inter::CVarToInteger(a1, 0);
+    NativeObject *obj = NativeObjectManager::Instance().Get(type_name, id);
+    if (!obj) {
+        ThrowFakeluaException("timer.register_obj_methods: object not found: " + type_name + "/" + std::to_string(id));
+    }
+    obj->RegisterMethod("get_int", obj_get_int);
+    obj->RegisterMethod("set_int", obj_set_int);
+    return inter::NativeToFakeluaNil(s);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -210,33 +244,6 @@ static CVar timer_set_heartbeat(State *s, CVar *args, int n) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 全局 NativeObject：供回调记录状态，测试在 main 读取验证
-// fakelua 不支持 _G / 可变全局变量，故以 C++ 全局 NativeObject 代替
-// ─────────────────────────────────────────────────────────────────────────────
-
-static void ensure_result_obj() {
-    if (!g_state.result_obj) {
-        int64_t gid = NativeObjectManager::Instance().CreateGroup();
-        g_state.result_obj = NativeObjectManager::Instance().Create(gid, "timer_result");
-    }
-}
-
-// timer.result(key, val) — val 非空时写入，val 缺失时读取
-static CVar timer_result(State *s, CVar *args, int n) {
-    ensure_result_obj();
-    if (n < 1) ThrowBadArgument(1, "timer.result", "key expected");
-    CVar a0 = inter::GetNativeArg(s, args, n, 0);
-    std::string key = cvar_to_string(a0);
-    if (n >= 2) {
-        CVar a1 = inter::GetNativeArg(s, args, n, 1);
-        int64_t val = inter::CVarToInteger(a1, 0);
-        g_state.result_obj->SetInt(key, val);
-        return inter::NativeToFakeluaNil(s);
-    }
-    return inter::NativeToFakeluaInt(s, g_state.result_obj->GetInt(key, 0));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // 注册
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -247,7 +254,7 @@ void RegisterTimerLibraryApi(State *s) {
     RegisterNativeFunction(s, "timer.del", 1, false, timer_del);
     RegisterNativeFunction(s, "timer.tick", 0, false, timer_tick);
     RegisterNativeFunction(s, "timer.set_heartbeat", 2, false, timer_set_heartbeat);
-    RegisterNativeFunction(s, "timer.result", 2, true, timer_result);
+    RegisterNativeFunction(s, "timer.register_obj_methods", 2, false, timer_register_obj_methods);
 }
 
 } // namespace fakelua::timer
