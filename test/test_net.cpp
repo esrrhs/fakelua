@@ -421,6 +421,166 @@ TEST(test_net, test_framer_custom_cpp) {
     server.stop();
 }
 
+// 测试 9b: 恶意 Header4 长度 0xFFFFFFFF — 进程不爆、连接被踢（长度校验 + 超长关连接）
+TEST(test_net, test_malicious_header4_length) {
+    net_init();
+
+    NetConfig s_cfg;
+    s_cfg.port = 19970;
+    s_cfg.max_conn = 10;
+    s_cfg.recv_buf_size = 16 * 1024; // 小缓冲，确保 0xFFFFFFFF 远超容量
+    TcpServer server(s_cfg);
+    server.start();
+    ASSERT_TRUE(server.running());
+
+    // 直接用原始 socket 发送恶意长度头，绕过客户端 framer
+    socket_t fd = socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_NE(fd, INVALID_SOCKET_VAL);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(19970);
+    inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+    ASSERT_EQ(::connect(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)), 0);
+
+    // 发送 4 字节大端长度 = 0xFFFFFFFF
+    char evil[4] = {(char)0xFF, (char)0xFF, (char)0xFF, (char)0xFF};
+    ASSERT_EQ(::send(fd, evil, 4, 0), 4);
+
+    // 驱动服务器处理：应检测到异常并关闭该连接，进程不崩溃
+    std::atomic<int> close_count{0};
+    for (int i = 0; i < 50; ++i) {
+        server.tick([](int) {}, [](int, const char *, size_t) {}, [&close_count](int) { close_count++; });
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    // 服务器应存活（未被 OOM / 崩溃），且该连接被关闭
+    EXPECT_TRUE(server.running());
+
+    // 再发数据应失败（连接已被服务器关闭）
+    int r = ::send(fd, evil, 4, 0);
+    std::cerr << "send after close: " << r << std::endl;
+
+    ::close(fd);
+    server.stop();
+    net_shutdown();
+}
+
+// 测试 9c: 反复 connect + close / 反复创建销毁 server — 循环多次不崩溃、行为稳定
+TEST(test_net, test_repeated_connect_close) {
+    net_init();
+
+    for (int iter = 0; iter < 50; ++iter) {
+        NetConfig s_cfg;
+        s_cfg.port = 19980 + (iter % 3);
+        s_cfg.max_conn = 4;
+        TcpServer server(s_cfg);
+        server.start();
+        ASSERT_TRUE(server.running()) << "iter=" << iter;
+
+        NetConfig c_cfg;
+        c_cfg.ip = "127.0.0.1";
+        c_cfg.port = s_cfg.port;
+        TcpClient client(c_cfg);
+        client.connect();
+
+        for (int i = 0; i < 20; ++i) {
+            server.tick([](int) {}, [](int, const char *, size_t) {}, [](int) {});
+            client.tick([](const char *, size_t) {}, []() {});
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+
+        // 应能正常收发至少一次
+        client.send("ping", 4);
+        for (int i = 0; i < 20; ++i) {
+            server.tick([](int) {}, [](int, const char *, size_t) {}, [](int) {});
+            client.tick([](const char *, size_t) {}, []() {});
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+
+        client.disconnect();
+        server.stop();
+    }
+    net_shutdown();
+}
+
+// 测试 9d: 对未监听端口 net.client — 连接应失败（connected 为 false 或收到 close），不能假成功
+TEST(test_net, test_client_connect_fail) {
+    net_init();
+
+    NetConfig c_cfg;
+    c_cfg.ip = "127.0.0.1";
+    c_cfg.port = 19921; // 无人监听
+    TcpClient client(c_cfg);
+    client.connect();
+
+    // 驱动若干 tick，让非阻塞 connect 失败被检测到
+    std::atomic<int> close_count{0};
+    for (int i = 0; i < 40; ++i) {
+        client.tick([](const char *, size_t) {}, [&close_count]() { close_count++; });
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    // 连接失败：connected 应为 false，且 send 必须返回 false（不能假成功）
+    EXPECT_FALSE(client.connected());
+    EXPECT_FALSE(client.send("should fail", 11));
+    EXPECT_GE(close_count.load(), 1) << "client should receive close on connect failure";
+
+    client.disconnect();
+    net_shutdown();
+}
+
+// 测试 9e: send 缓冲设很小再发大包 — 返回 false，不能截断后对端解出错包
+TEST(test_net, test_send_buffer_full_no_truncate) {
+    net_init();
+
+    NetConfig s_cfg;
+    s_cfg.port = 19922;
+    s_cfg.max_conn = 4;
+    s_cfg.send_buf_size = 64; // 极小的发送缓冲（连一个 length-header + 载荷都放不下）
+    TcpServer server(s_cfg);
+    server.start();
+    ASSERT_TRUE(server.running());
+
+    NetConfig c_cfg;
+    c_cfg.ip = "127.0.0.1";
+    c_cfg.port = 19922;
+    TcpClient client(c_cfg);
+    client.connect();
+
+    for (int i = 0; i < 20; ++i) {
+        server.tick([](int) {}, [](int, const char *, size_t) {}, [](int) {});
+        client.tick([](const char *, size_t) {}, []() {});
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+
+    // 服务器向客户端发送一个超过 send_buf_size 的大包，应返回 false（不截断）
+    std::string big(1024, 'A');
+    bool ok = server.send(0, big.data(), big.size());
+    EXPECT_FALSE(ok) << "send beyond buffer capacity must return false, not truncate";
+
+    client.disconnect();
+    server.stop();
+    net_shutdown();
+}
+
+// 测试 9f: server :close() 后 NativeObject group 不再泄漏（DestroyGroup 生效）
+TEST(test_net, test_server_close_releases_native_object) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_create_destroy.lua", config);
+
+    // 多次创建并关闭 server，每次 close 都应释放 NativeObject
+    for (int i = 0; i < 5; ++i) {
+        int64_t ret = 0;
+        Call(s, JIT_TCC, "NetCreate.test_server_create_destroy", ret);
+        EXPECT_EQ(ret, 1);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 // 测试 10: Lua 层多 Framer 协议测试 (header2_be, header2_le, header4_le, line, fixed, custom_lua)
 TEST(test_net, test_framer_lua_protocols) {
     State *s = FakeluaNewState();

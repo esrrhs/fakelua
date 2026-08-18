@@ -37,7 +37,7 @@ private:
     void accept_connections(const std::function<void(int)> &on_conn);
     void handle_link_read(TcpLink *link, const std::function<void(int, const char *, size_t)> &on_recv,
                           const std::function<void(int)> &on_close);
-    void handle_link_write(TcpLink *link);
+    void handle_link_write(TcpLink *link, const std::function<void(int)> &on_close);
     void close_link(TcpLink *link, const std::function<void(int)> &on_close);
     int alloc_link();
     void free_link(int slot);
@@ -62,9 +62,10 @@ private:
     NetConfig config_;
     TcpLink *link_ = nullptr;
     Selector selector_;
+    bool connecting_ = false; // 非阻塞 connect 进行中，等待可写后 SO_ERROR 确认
 
     void handle_read(const std::function<void(const char *, size_t)> &on_recv, const std::function<void()> &on_close);
-    void handle_write();
+    void handle_write(const std::function<void()> &on_close);
 };
 
 } // namespace fakelua::net

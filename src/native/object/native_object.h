@@ -71,6 +71,8 @@ struct NativeObject::Impl {
     int64_t group_id = 0;
     std::unordered_map<std::string, NativeField> kv;
     std::unordered_map<std::string, NativeMethod> methods;
+    // 可选销毁回调：NativeObject 被 Destroy 时调用（无论是否经 close 方法），用于释放关联资源
+    std::function<void(NativeObject *self)> finalizer;
 };
 
 // spec_get / spec_set 静态实现

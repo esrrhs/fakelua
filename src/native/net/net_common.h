@@ -44,10 +44,10 @@ using CustomEncoderFn = std::function<void(CircularBuffer &buf, const char *data
 struct NetConfig {
     std::string ip = "127.0.0.1";
     uint16_t port = 8888;
-    int max_conn = 1000;
-    int send_buf_size = 1024 * 1024;
-    int recv_buf_size = 1024 * 1024;
-    int max_packet_len = 100 * 1024;
+    int max_conn = 64;                    // 默认连接数（可按需通过 maxconn 加大）
+    int send_buf_size = 64 * 1024;        // 默认 64KB 发送缓冲
+    int recv_buf_size = 64 * 1024;        // 默认 64KB 接收缓冲
+    int max_packet_len = 64 * 1024;       // 默认单包上限 64KB（不超过收发缓冲）
     int fixed_packet_len = 0; // 当 framer == FramerType::FixedLength 时使用
     int wait_timeout_ms = 1;
     int backlog = 128;

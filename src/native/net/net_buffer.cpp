@@ -100,11 +100,46 @@ void write_packet_header(CircularBuffer &buf, uint32_t payload_len) {
     buf.write(header, kPacketHeaderSize);
 }
 
-void write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, size_t len) {
-    if (cfg.custom_encoder_fn) {
-        cfg.custom_encoder_fn(buf, data, len);
-        return;
+// 计算某 framer 编码 len 字节 payload 所需的总字节数（含头/分隔符/填充）。
+// 返回值以 size_t 表示，避免 uint32 溢出。
+static size_t encoded_packet_size(const NetConfig &cfg, size_t len) {
+    switch (cfg.framer) {
+        case FramerType::Header4BigEndian:
+        case FramerType::Header4LittleEndian:
+            return 4 + len;
+        case FramerType::Header2BigEndian:
+        case FramerType::Header2LittleEndian:
+            return 2 + len;
+        case FramerType::LineDelimiter:
+            return len + 1;
+        case FramerType::FixedLength:
+            return (cfg.fixed_packet_len > 0) ? static_cast<size_t>(cfg.fixed_packet_len) : len;
+        case FramerType::RawStream:
+        case FramerType::Custom:
+        default:
+            return len;
     }
+}
+
+bool write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, size_t len) {
+    if (cfg.custom_encoder_fn) {
+        // 自定义编码：先写入临时缓冲区测量长度，确保能完整放入目标缓冲。
+        CircularBuffer tmp(buf.capacity());
+        cfg.custom_encoder_fn(tmp, data, len);
+        if (tmp.size() > buf.capacity() - buf.size()) return false;
+        // 将临时缓冲内容搬入目标缓冲
+        size_t n = tmp.size();
+        if (n > 0) {
+            std::vector<char> tmp_data(n);
+            tmp.read(tmp_data.data(), n);
+            buf.write(tmp_data.data(), n);
+        }
+        return true;
+    }
+
+    // 整包必须能完整写入，否则拒绝（禁止截断半个 length-header 包）。
+    size_t needed = encoded_packet_size(cfg, len);
+    if (needed > buf.capacity() - buf.size()) return false;
 
     switch (cfg.framer) {
         case FramerType::Header4BigEndian: {
@@ -124,6 +159,7 @@ void write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, s
             break;
         }
         case FramerType::Header2BigEndian: {
+            if (len > 0xFFFF) return false; // 超出 uint16 表示范围，拒绝
             char header[2];
             uint16_t l = static_cast<uint16_t>(len);
             header[0] = static_cast<char>((l >> 8) & 0xFF);
@@ -133,6 +169,7 @@ void write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, s
             break;
         }
         case FramerType::Header2LittleEndian: {
+            if (len > 0xFFFF) return false; // 超出 uint16 表示范围，拒绝
             char header[2];
             uint16_t l = static_cast<uint16_t>(len);
             header[0] = static_cast<char>(l & 0xFF);
@@ -165,9 +202,36 @@ void write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, s
             break;
         }
     }
+    return true;
 }
 
-bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len) {
+// 校验 length-header framer 读出的 payload_len 是否合法。
+// 使用 size_t 做全部比较，杜绝 uint32 加法溢出。
+// 返回 true 表示合法（可能数据不足，由调用方继续等）；
+// 返回 false 且 *out_error=true 表示协议违规，调用方应关闭连接。
+static bool validate_payload_len(const NetConfig &cfg, size_t payload_len, size_t header_size,
+                                 size_t buf_size, size_t buf_capacity, bool &out_error) {
+    size_t total = header_size + payload_len; // size_t，不会溢出
+    if (payload_len > static_cast<size_t>(cfg.max_packet_len)) {
+        out_error = true;
+        return false;
+    }
+    if (total > buf_capacity) {
+        // 声明长度超过缓冲区容量，永远装不下 → 协议违规
+        out_error = true;
+        return false;
+    }
+    if (buf_size < total) {
+        // 数据还没到齐，继续等待（不是错误）
+        return false;
+    }
+    return true;
+}
+
+bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len,
+                      bool &out_error) {
+    out_error = false;
+
     if (cfg.custom_parser_fn) {
         return cfg.custom_parser_fn(buf, out_payload, out_len);
     }
@@ -179,65 +243,78 @@ bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&ou
             if (buf.size() < 4) return false;
             char header[4];
             buf.peek(header, 4);
-            uint32_t payload_len = (static_cast<uint8_t>(header[0]) << 24) |
-                                   (static_cast<uint8_t>(header[1]) << 16) |
-                                   (static_cast<uint8_t>(header[2]) << 8) |
-                                   static_cast<uint8_t>(header[3]);
-            if (buf.size() < 4 + payload_len) return false;
+            size_t payload_len = (static_cast<size_t>(static_cast<uint8_t>(header[0])) << 24) |
+                                 (static_cast<size_t>(static_cast<uint8_t>(header[1])) << 16) |
+                                 (static_cast<size_t>(static_cast<uint8_t>(header[2])) << 8) |
+                                 static_cast<size_t>(static_cast<uint8_t>(header[3]));
+            if (!validate_payload_len(cfg, payload_len, 4, buf.size(), buf.capacity(), out_error)) {
+                return false;
+            }
             buf.skip(4);
             if (parse_tmp.size() < payload_len) parse_tmp.resize(payload_len);
             buf.read(parse_tmp.data(), payload_len);
             out_payload = parse_tmp.data();
-            out_len = payload_len;
+            out_len = static_cast<uint32_t>(payload_len);
             return true;
         }
         case FramerType::Header4LittleEndian: {
             if (buf.size() < 4) return false;
             char header[4];
             buf.peek(header, 4);
-            uint32_t payload_len = static_cast<uint8_t>(header[0]) |
-                                   (static_cast<uint8_t>(header[1]) << 8) |
-                                   (static_cast<uint8_t>(header[2]) << 16) |
-                                   (static_cast<uint8_t>(header[3]) << 24);
-            if (buf.size() < 4 + payload_len) return false;
+            size_t payload_len = static_cast<size_t>(static_cast<uint8_t>(header[0])) |
+                                 (static_cast<size_t>(static_cast<uint8_t>(header[1])) << 8) |
+                                 (static_cast<size_t>(static_cast<uint8_t>(header[2])) << 16) |
+                                 (static_cast<size_t>(static_cast<uint8_t>(header[3])) << 24);
+            if (!validate_payload_len(cfg, payload_len, 4, buf.size(), buf.capacity(), out_error)) {
+                return false;
+            }
             buf.skip(4);
             if (parse_tmp.size() < payload_len) parse_tmp.resize(payload_len);
             buf.read(parse_tmp.data(), payload_len);
             out_payload = parse_tmp.data();
-            out_len = payload_len;
+            out_len = static_cast<uint32_t>(payload_len);
             return true;
         }
         case FramerType::Header2BigEndian: {
             if (buf.size() < 2) return false;
             char header[2];
             buf.peek(header, 2);
-            uint32_t payload_len = (static_cast<uint8_t>(header[0]) << 8) |
-                                   static_cast<uint8_t>(header[1]);
-            if (buf.size() < 2 + payload_len) return false;
+            size_t payload_len = (static_cast<size_t>(static_cast<uint8_t>(header[0])) << 8) |
+                                 static_cast<size_t>(static_cast<uint8_t>(header[1]));
+            if (!validate_payload_len(cfg, payload_len, 2, buf.size(), buf.capacity(), out_error)) {
+                return false;
+            }
             buf.skip(2);
             if (parse_tmp.size() < payload_len) parse_tmp.resize(payload_len);
             buf.read(parse_tmp.data(), payload_len);
             out_payload = parse_tmp.data();
-            out_len = payload_len;
+            out_len = static_cast<uint32_t>(payload_len);
             return true;
         }
         case FramerType::Header2LittleEndian: {
             if (buf.size() < 2) return false;
             char header[2];
             buf.peek(header, 2);
-            uint32_t payload_len = static_cast<uint8_t>(header[0]) |
-                                   (static_cast<uint8_t>(header[1]) << 8);
-            if (buf.size() < 2 + payload_len) return false;
+            size_t payload_len = static_cast<size_t>(static_cast<uint8_t>(header[0])) |
+                                 (static_cast<size_t>(static_cast<uint8_t>(header[1])) << 8);
+            if (!validate_payload_len(cfg, payload_len, 2, buf.size(), buf.capacity(), out_error)) {
+                return false;
+            }
             buf.skip(2);
             if (parse_tmp.size() < payload_len) parse_tmp.resize(payload_len);
             buf.read(parse_tmp.data(), payload_len);
             out_payload = parse_tmp.data();
-            out_len = payload_len;
+            out_len = static_cast<uint32_t>(payload_len);
             return true;
         }
         case FramerType::LineDelimiter: {
             if (buf.empty()) return false;
             size_t total = buf.size();
+            if (total > static_cast<size_t>(cfg.max_packet_len)) {
+                // 超过 max_packet_len 仍未见到换行符，视为恶意/异常连接
+                out_error = true;
+                return false;
+            }
             if (parse_tmp.size() < total) parse_tmp.resize(total);
             buf.peek(parse_tmp.data(), total);
 
@@ -277,7 +354,8 @@ bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&ou
         }
         case FramerType::RawStream: {
             if (buf.empty()) return false;
-            size_t n = buf.size();
+            // 原始流也做上限，避免单 tick 转发无界数据
+            size_t n = std::min(buf.size(), static_cast<size_t>(cfg.max_packet_len));
             if (parse_tmp.size() < n) parse_tmp.resize(n);
             buf.read(parse_tmp.data(), n);
             out_payload = parse_tmp.data();
