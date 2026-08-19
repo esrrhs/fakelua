@@ -5,7 +5,7 @@ function on_timer(type, data)
     local o = get_global_obj("timer_result")
     if o then
         local count = o:get_int("count")
-        o:set_int("count", count + 1)
+        o:add_int("count", 1)
         o:set_int("id_" .. tostring(count + 1), data)
     end
 end

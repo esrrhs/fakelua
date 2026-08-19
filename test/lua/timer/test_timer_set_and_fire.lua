@@ -4,7 +4,7 @@ package "TimerTest"
 function on_timer(type, data)
     local o = get_global_obj("timer_result")
     if o then
-        o:set_int("count", o:get_int("count") + 1)
+        o:add_int("count", 1)
         o:set_int("last_id", data)
     end
 end

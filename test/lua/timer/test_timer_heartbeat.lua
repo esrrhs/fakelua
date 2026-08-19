@@ -4,7 +4,7 @@ package "TimerTest"
 function on_heartbeat(type, data)
     local o = get_global_obj("timer_result")
     if o then
-        o:set_int("hb_count", o:get_int("hb_count") + 1)
+        o:add_int("hb_count", 1)
     end
 end
 
