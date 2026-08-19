@@ -156,6 +156,7 @@ SetVarInterfaceNewFunc(s, []() { return new CustomVar(); });
 
 - **精简宿主公共 API**：在 SDK 头文件中屏蔽底层存储细节（Pimpl），只暴露必要的属性存取（`GetInt`/`SetInt`/`GetFloat`/`SetObject` 等）与迭代方法。
 - **组粒度批次释放（Group Allocation & Arena Destroy）**：禁止单个手动申请或卸载对象。所有 `NativeObject` 均强制在指定的 `group_id` 组池内创建（`NativeObjectManager::Instance().Create(group_id, ...)`），在处理请求或逻辑帧完成后通过 `DestroyGroup(group_id)` 批量一次性释放，与 FakeLua 无 GC、Arena 极速重置的设计哲学高度保持一致。
+- **全局对象（Global Object，string key 索引）**：对于全局管理器、全局计数器等无需归组、直接通过 string key 索引的常驻对象（类似 Lua `_G.xxx`），提供独立于 group 机制的全局对象接口：`new_global_obj(key, type)` 创建、`get_global_obj(key)` 查找、`del_global_obj(key)` 单独销毁。全局对象 `group_id == 0`，不属于任何组，不会被 `DestroyGroup` 误释放，适合跨帧跨组共享的单例场景。
 - **C++ 原生成员回调方法绑定 (Member Method Binding)**：支持直接在 `NativeObject` 上通过 `RegisterMethod` 绑定 C++ 函数/Lambda 方法。在 Lua 中可直接使用冒号语法 `obj:method(args...)` 随时调用 C++ 宿主方法。
 - **C++ 函数自动装箱转换**：C++ 侧注册的 Native 回调可以直接返回 `NativeObject*` 指针，`fakelua.h` 的 `inter::NativeToFakelua` 会自动安全打包并转换为 Lua 可识别的装箱对象。
 
@@ -305,7 +306,7 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **一次性定时器**：`timer.set(delay_ms, "Package.callback")`（注册定时器并返回 `timer_id`，到期时按函数名派发回调，回调签名为 `function cb(type, timer_id)`，其中 `type == "timer"`）、`timer.del(timer_id)`（删除未触发的定时器）
   - **驱动定时器**：`timer.tick()`（在主循环中调用，触发所有到期定时器与心跳）
   - **周期性心跳**：`timer.set_heartbeat(interval_ms, "Package.heartbeat_cb")`（注册全局心跳，到期后自动重新调度，永不自动删除；重复调用覆盖之前的心跳）
-  - **共享状态**：测试可通过 `new_native_obj` / `get_native_obj` 创建全局 NativeObject，配合 `timer.register_obj_methods(type, id)` 注册 `get_int`/`set_int` 方法，供回调记录状态、测试在 main 读取验证（fakelua 无可变全局变量，NativeObject 代替 `_G`）
+  - **共享状态**：测试可通过 `new_global_obj(key, type)` / `get_global_obj(key)` 创建全局 NativeObject（无需 group_id，直接通过 string key 索引，类似 `_G.xxx`），配合 `timer.register_obj_methods(obj)` 注册 `get_int`/`set_int`/`add_int` 方法，供回调记录状态、测试在 main 读取验证（fakelua 无可变全局变量，NativeObject 代替 `_G`）；其中 `add_int(key, delta)` 将字段值增加 delta，字段不存在时从 0 开始
 - **Serialize 序列化库 (`serialize.*`)**：
   - **二进制序列化 / 反序列化**：`serialize.encode(value)` 将 Lua 值编码为二进制字符串，`serialize.decode(data)` 将其反序列化回 Lua 值，二者互为逆操作
   - **类 Protobuf 编码算法**：整数采用 zigzag + varint 编码（小绝对值整数占用更少字节），浮点数采用小端 8 字节 memcpy，字符串采用字典去重（相同字符串第二次起仅存储 varint 引用 id），表递归序列化为键值对序列

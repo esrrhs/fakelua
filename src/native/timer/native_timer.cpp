@@ -65,19 +65,28 @@ static CVar obj_set_int(NativeObject *self, State *s, CVar *args, int n) {
     return inter::NativeToFakeluaNil(s);
 }
 
-// timer.register_obj_methods(type, id) — 为已有 NativeObject 注册 get_int/set_int
-static CVar timer_register_obj_methods(State *s, CVar *args, int n) {
-    if (n < 2) ThrowBadArgument(1, "timer.register_obj_methods", "type and id expected");
+// add_int(key, delta) — 将字段值增加 delta，字段不存在时从 0 开始
+static CVar obj_add_int(NativeObject *self, State *s, CVar *args, int n) {
+    if (n < 2) ThrowBadArgument(1, "add_int", "key and delta expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    std::string key = cvar_to_string(a0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
-    std::string type_name = cvar_to_string(a0);
-    int64_t id = inter::CVarToInteger(a1, 0);
-    NativeObject *obj = NativeObjectManager::Instance().Get(type_name, id);
+    int64_t delta = inter::CVarToInteger(a1, 0);
+    self->SetInt(key, self->GetInt(key, 0) + delta);
+    return inter::NativeToFakeluaNil(s);
+}
+
+// timer.register_obj_methods(obj) — 为已有 NativeObject 注册 get_int/set_int/add_int
+static CVar timer_register_obj_methods(State *s, CVar *args, int n) {
+    if (n < 1) ThrowBadArgument(1, "timer.register_obj_methods", "NativeObject expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    NativeObject *obj = NativeObject::Unwrap(a0);
     if (!obj) {
-        ThrowFakeluaException("timer.register_obj_methods: object not found: " + type_name + "/" + std::to_string(id));
+        ThrowFakeluaException("timer.register_obj_methods: argument is not a NativeObject");
     }
     obj->RegisterMethod("get_int", obj_get_int);
     obj->RegisterMethod("set_int", obj_set_int);
+    obj->RegisterMethod("add_int", obj_add_int);
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -254,7 +263,7 @@ void RegisterTimerLibraryApi(State *s) {
     RegisterNativeFunction(s, "timer.del", 1, false, timer_del);
     RegisterNativeFunction(s, "timer.tick", 0, false, timer_tick);
     RegisterNativeFunction(s, "timer.set_heartbeat", 2, false, timer_set_heartbeat);
-    RegisterNativeFunction(s, "timer.register_obj_methods", 2, false, timer_register_obj_methods);
+    RegisterNativeFunction(s, "timer.register_obj_methods", 1, false, timer_register_obj_methods);
 }
 
 } // namespace fakelua::timer

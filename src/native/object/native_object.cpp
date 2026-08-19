@@ -152,6 +152,42 @@ bool NativeObjectManager::DestroySingle(const std::string &type_name, int64_t id
     return false;
 }
 
+// ── 全局对象（group_id == 0，通过 string key 索引）─────────────────────────
+
+NativeObject *NativeObjectManager::GlobalCreate(const std::string &key, const std::string &type_name, int64_t id) {
+    auto it = global_objects_.find(key);
+    if (it != global_objects_.end()) {
+        // key 已存在，直接返回已有对象（与 Create 的幂等语义一致）
+        return it->second;
+    }
+    if (id == 0) {
+        id = --next_auto_obj_id_;
+    }
+    // 全局对象 group_id = 0，不加入 group_objects_ 索引
+    auto *obj = NativeObject::Create(0, type_name, id);
+    objects_[std::make_pair(type_name, id)] = obj;
+    global_objects_[key] = obj;
+    return obj;
+}
+
+NativeObject *NativeObjectManager::GlobalGet(const std::string &key) const {
+    auto it = global_objects_.find(key);
+    return (it != global_objects_.end()) ? it->second : nullptr;
+}
+
+bool NativeObjectManager::GlobalDestroy(const std::string &key) {
+    auto it = global_objects_.find(key);
+    if (it == global_objects_.end()) {
+        return false;
+    }
+    NativeObject *obj = it->second;
+    auto obj_key = std::make_pair(obj->GetTypeName(), obj->GetId());
+    objects_.erase(obj_key);
+    global_objects_.erase(it);
+    NativeObject::Destroy(obj);
+    return true;
+}
+
 size_t NativeObjectManager::DestroyGroup(int64_t group_id) {
     auto git = group_objects_.find(group_id);
     if (git == group_objects_.end()) {
@@ -179,6 +215,8 @@ void NativeObjectManager::Clear() {
     }
     objects_.clear();
     group_objects_.clear();
+    // global_objects_ 中的对象指针已在 objects_ 中一并销毁，只需清空索引
+    global_objects_.clear();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -371,9 +409,7 @@ void NativeObject::SetFinalizer(const std::function<void(NativeObject *self)> &f
 }
 
 NativeObject *NativeObject::Create(int64_t group_id, std::string type_name, int64_t id) {
-    if (group_id == 0) {
-        ThrowFakeluaException("NativeObject::Create failed: group_id must be specified and non-zero. Objects can only be created within a group.");
-    }
+    // group_id == 0 表示全局对象（不属于任何 group），由 NativeObjectManager::GlobalCreate 使用。
     auto *obj = new NativeObject(std::move(type_name));
     obj->impl_->id = id;
     obj->impl_->group_id = group_id;
@@ -629,6 +665,39 @@ void RegisterNativeObjectApi(State *s) {
 
         size_t count = NativeObjectManager::Instance().DestroyGroup(group_id);
         return inter::NativeToFakeluaInt(state, static_cast<int64_t>(count));
+    });
+
+    // new_global_obj(key, type) -> NativeObject (通过 string key 创建全局对象，无需 group_id)
+    RegisterNativeFunction(s, "new_global_obj", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar arg0 = inter::GetNativeArg(state, args, n, 0);
+        CVar arg1 = inter::GetNativeArg(state, args, n, 1);
+
+        std::string key = inter::FakeluaToNative<std::string>(state, arg0);
+        std::string type_name = inter::FakeluaToNative<std::string>(state, arg1);
+
+        NativeObject *obj = NativeObjectManager::Instance().GlobalCreate(key, type_name);
+        return obj->Wrap(state);
+    });
+
+    // get_global_obj(key) -> NativeObject (Wrap 壳) 或 nil (按 string key 查找全局对象)
+    RegisterNativeFunction(s, "get_global_obj", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar arg0 = inter::GetNativeArg(state, args, n, 0);
+        std::string key = inter::FakeluaToNative<std::string>(state, arg0);
+
+        NativeObject *obj = NativeObjectManager::Instance().GlobalGet(key);
+        if (!obj) {
+            return inter::NativeToFakeluaNil(state);
+        }
+        return obj->Wrap(state);
+    });
+
+    // del_global_obj(key) -> bool (按 string key 销毁单个全局对象)
+    RegisterNativeFunction(s, "del_global_obj", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar arg0 = inter::GetNativeArg(state, args, n, 0);
+        std::string key = inter::FakeluaToNative<std::string>(state, arg0);
+
+        bool ok = NativeObjectManager::Instance().GlobalDestroy(key);
+        return inter::NativeToFakeluaBool(state, ok);
     });
 
     // 自动注册内置标准库 API

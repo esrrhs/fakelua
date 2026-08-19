@@ -1,19 +1,18 @@
 package "TimerTest"
 
--- 回调：通过 get_native_obj 获取对象并记录调用
+-- 回调：通过 get_global_obj 获取全局对象并记录调用
 function on_timer(type, data)
-    local o = get_native_obj("timer_result", 1)
+    local o = get_global_obj("timer_result")
     if o then
-        o:set_int("count", o:get_int("count") + 1)
+        o:add_int("count", 1)
         o:set_int("last_id", data)
     end
 end
 
 function test_set_and_fire()
-    -- 在函数内创建 NativeObject
-    local gid = new_native_group()
-    local obj = new_native_obj(gid, "timer_result", 1)
-    timer.register_obj_methods("timer_result", 1)
+    -- 创建全局 NativeObject（无需 group_id，直接通过 string key 索引）
+    local obj = new_global_obj("timer_result", "timer_result")
+    timer.register_obj_methods(obj)
 
     obj:set_int("count", 0)
     local id = timer.set(1, "TimerTest.on_timer")
@@ -33,6 +32,6 @@ function test_set_and_fire()
     -- 验证回调收到正确的 timer id
     if obj:get_int("last_id") ~= id then return 0 end
 
-    del_native_group(gid)
+    del_global_obj("timer_result")
     return 1
 end
