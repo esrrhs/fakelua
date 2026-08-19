@@ -27,12 +27,37 @@ jobs:
     steps:
       - uses: actions/checkout@v1
 
-      - name: Install dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
+      - name: Setup Lua
+        timeout-minutes: 10
         run: |
-          sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30
-          sudo apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" lua5.4 liblua5.4-dev clang
+          # 从 GitHub 镜像编译 Lua 源码，避免 apt 镜像（azure.archive.ubuntu.com）间歇性超时卡死
+          # make a 只构建 liblua.a（无需 readline），fakelua 只需头文件 + liblua.a
+          git clone --depth 1 --branch v5.4.8 https://github.com/lua/lua.git
+          cd lua
+          make a -j$(nproc)
+          # 手动安装头文件 + 库（该 makefile 无 install 目标）
+          sudo cp liblua.a /usr/local/lib/
+          # fuzz_differential 用 -llua5.4 链接，建 symlink 适配
+          sudo ln -sf /usr/local/lib/liblua.a /usr/local/lib/liblua5.4.a
+          sudo cp lua.h luaconf.h lualib.h lauxlib.h /usr/local/include/
+          # 测试/fuzz CMake 查找 /usr/include/lua5.4，建子目录适配
+          sudo mkdir -p /usr/include/lua5.4
+          for h in lua.h luaconf.h lualib.h lauxlib.h; do
+            sudo ln -sf "/usr/local/include/$h" "/usr/include/lua5.4/$h"
+          done
+          sudo ldconfig
+          cd ..
+          rm -rf lua
+
+      - name: Install clang
+        run: |
+          # ubuntu-24.04 runner 通常预装 clang；仅在缺失时才走 apt，避免 apt 镜像间歇性卡死
+          if command -v clang++ >/dev/null 2>&1; then
+            echo "clang already installed: $(clang++ --version | head -1)"
+          else
+            sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30
+            sudo apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" clang
+          fi
 
       - name: Setup TCC
         run: |
