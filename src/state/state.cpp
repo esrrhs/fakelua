@@ -6,6 +6,7 @@
 #include "native/io/native_io.h"
 #include "native/net/native_net.h"
 #include "native/timer/native_timer.h"
+#include "native/serialize/native_serialize.h"
 
 namespace fakelua {
 
@@ -13,6 +14,7 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     RegisterNativeObjectApi(this);
     net::RegisterNetLibraryApi(this);
     timer::RegisterTimerLibraryApi(this);
+    serialize::RegisterSerializeLibraryApi(this);
 }
 
 }// namespace fakelua

@@ -245,7 +245,7 @@ Call(s, JIT_GCC, "calc_multi", std::tie(x, y, msg), 10, 20, 30); // x=10, y=20, 
 
 ### 标准内置扩展库（Built-in Standard Libraries）
 
-FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`utf8`、`io`、`net`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string` / `native_os` / `native_utf8` / `native_io` / `native_net`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
+FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`utf8`、`io`、`net`、`serialize`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string` / `native_os` / `native_utf8` / `native_io` / `native_net` / `native_serialize`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
 
 - **Basic 全局函数**：
   - **类型与转换**：`type`、`tostring`、`tonumber`
@@ -306,6 +306,11 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **驱动定时器**：`timer.tick()`（在主循环中调用，触发所有到期定时器与心跳）
   - **周期性心跳**：`timer.set_heartbeat(interval_ms, "Package.heartbeat_cb")`（注册全局心跳，到期后自动重新调度，永不自动删除；重复调用覆盖之前的心跳）
   - **共享状态**：测试可通过 `new_native_obj` / `get_native_obj` 创建全局 NativeObject，配合 `timer.register_obj_methods(type, id)` 注册 `get_int`/`set_int` 方法，供回调记录状态、测试在 main 读取验证（fakelua 无可变全局变量，NativeObject 代替 `_G`）
+- **Serialize 序列化库 (`serialize.*`)**：
+  - **二进制序列化 / 反序列化**：`serialize.encode(value)` 将 Lua 值编码为二进制字符串，`serialize.decode(data)` 将其反序列化回 Lua 值，二者互为逆操作
+  - **类 Protobuf 编码算法**：整数采用 zigzag + varint 编码（小绝对值整数占用更少字节），浮点数采用小端 8 字节 memcpy，字符串采用字典去重（相同字符串第二次起仅存储 varint 引用 id），表递归序列化为键值对序列
+  - **支持的类型**：`nil`、`boolean`、整数、浮点数、字符串（含二进制安全）、表（嵌套）；表中的函数（closure）等不支持类型会被自动跳过，顶层传入不支持类型则报错
+  - **典型用途**：网络消息与 Lua 表之间的零拷贝转换、游戏状态持久化快照
 
 ```lua
 -- 示例：使用标准库完成排序、格式化与数学计算
