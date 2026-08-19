@@ -597,6 +597,7 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
 //   - VarTable 壳帧末自动消亡，NativeObject 本身由用户负责 Create/Destroy
 //   - lua 通过 player.hp / player.hp = 123 读写字段，底层走 spec_get/spec_set
 //   - 嵌套对象：SetObject("inventory", inv_obj)，lua 侧 player.inventory.item 透明访问
+//   - 两种归属：组对象（group_id != 0，批量释放）和全局对象（group_id == 0，按 string key 索引，单独释放）
 // ─────────────────────────────────────────────────────────────────────────────
 struct NativeField;
 using NativeMethod = std::function<CVar(NativeObject *self, State *s, CVar *args, int n)>;
@@ -659,6 +660,12 @@ public:
     enum class FieldKind { Nil, Int, Float, Bool, String, Object };
     void ForEach(const std::function<void(std::string_view key, FieldKind kind)> &fn) const;
 
+    // CVar ↔ NativeObject 转换
+    // Wrap：在当前帧 arena 中生成轻量 VarTable 壳，供 lua 访问（壳帧末自动消亡）
+    // Unwrap：从 Wrap 出的 CVar 壳还原 NativeObject*（通过 spec_get 特征识别）
+    [[nodiscard]] CVar Wrap(State *s) const;
+    static NativeObject *Unwrap(CVar v);
+
 private:
     struct Impl;
     Impl *impl_;
@@ -670,9 +677,7 @@ private:
     static NativeObject *Create(int64_t group_id, std::string type_name, int64_t id = 0);
     static void Destroy(NativeObject *obj);
 
-    // 内部 CVar / 边界转换接口（不对外暴露）
-    [[nodiscard]] CVar Wrap(State *s) const;
-    static NativeObject *Unwrap(CVar v);
+    // 内部字段转换接口
     void SetFromCVar(std::string_view key, CVar v);
     [[nodiscard]] CVar GetAsCVar(std::string_view key, State *s) const;
 
@@ -747,6 +752,12 @@ public:
     // 4. 单独销毁一个对象（不影响所属 group 中的其他对象）
     bool DestroySingle(const std::string &type_name, int64_t id);
 
+    // 5. 全局对象：通过 string key 直接索引，无需 group_id（类似 _G.xxx）
+    //    全局对象不属于任何 group，group_id 为 0，生命周期由 GlobalDestroy / Clear 管理。
+    NativeObject *GlobalCreate(const std::string &key, const std::string &type_name, int64_t id = 0);
+    NativeObject *GlobalGet(const std::string &key) const;
+    bool GlobalDestroy(const std::string &key);
+
 private:
     struct PairHash {
         size_t operator()(const std::pair<std::string, int64_t> &p) const {
@@ -756,6 +767,7 @@ private:
 
     std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
     std::unordered_map<int64_t, std::vector<NativeObject *>> group_objects_;
+    std::unordered_map<std::string, NativeObject *> global_objects_;// key -> obj（全局对象）
     int64_t next_auto_group_id_ = 0;
     int64_t next_auto_obj_id_ = 0;
 };
@@ -766,6 +778,9 @@ private:
 //   - new_native_obj(group_id, type, id) -> NativeObject (在指定 group 中申请对象)
 //   - get_native_obj(type, id) -> NativeObject (Wrap 壳) 或 nil
 //   - del_native_group(group_id) -> count (一口气注销释放整组空间的所有对象)
+//   - new_global_obj(key, type) -> NativeObject (通过 string key 创建全局对象，无需 group_id)
+//   - get_global_obj(key) -> NativeObject (Wrap 壳) 或 nil (按 string key 查找全局对象)
+//   - del_global_obj(key) -> bool (按 string key 销毁单个全局对象)
 // ─────────────────────────────────────────────────────────────────────────────
 void RegisterNativeObjectApi(State *s);
 

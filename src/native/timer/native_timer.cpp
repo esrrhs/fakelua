@@ -65,16 +65,13 @@ static CVar obj_set_int(NativeObject *self, State *s, CVar *args, int n) {
     return inter::NativeToFakeluaNil(s);
 }
 
-// timer.register_obj_methods(type, id) — 为已有 NativeObject 注册 get_int/set_int
+// timer.register_obj_methods(obj) — 为已有 NativeObject 注册 get_int/set_int
 static CVar timer_register_obj_methods(State *s, CVar *args, int n) {
-    if (n < 2) ThrowBadArgument(1, "timer.register_obj_methods", "type and id expected");
+    if (n < 1) ThrowBadArgument(1, "timer.register_obj_methods", "NativeObject expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
-    CVar a1 = inter::GetNativeArg(s, args, n, 1);
-    std::string type_name = cvar_to_string(a0);
-    int64_t id = inter::CVarToInteger(a1, 0);
-    NativeObject *obj = NativeObjectManager::Instance().Get(type_name, id);
+    NativeObject *obj = NativeObject::Unwrap(a0);
     if (!obj) {
-        ThrowFakeluaException("timer.register_obj_methods: object not found: " + type_name + "/" + std::to_string(id));
+        ThrowFakeluaException("timer.register_obj_methods: argument is not a NativeObject");
     }
     obj->RegisterMethod("get_int", obj_get_int);
     obj->RegisterMethod("set_int", obj_set_int);
@@ -254,7 +251,7 @@ void RegisterTimerLibraryApi(State *s) {
     RegisterNativeFunction(s, "timer.del", 1, false, timer_del);
     RegisterNativeFunction(s, "timer.tick", 0, false, timer_tick);
     RegisterNativeFunction(s, "timer.set_heartbeat", 2, false, timer_set_heartbeat);
-    RegisterNativeFunction(s, "timer.register_obj_methods", 2, false, timer_register_obj_methods);
+    RegisterNativeFunction(s, "timer.register_obj_methods", 1, false, timer_register_obj_methods);
 }
 
 } // namespace fakelua::timer

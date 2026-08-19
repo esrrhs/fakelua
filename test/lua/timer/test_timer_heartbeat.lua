@@ -2,17 +2,16 @@ package "TimerTest"
 
 -- 心跳回调：记录调用次数
 function on_heartbeat(type, data)
-    local o = get_native_obj("timer_result", 1)
+    local o = get_global_obj("timer_result")
     if o then
         o:set_int("hb_count", o:get_int("hb_count") + 1)
     end
 end
 
 function test_heartbeat()
-    -- 在函数内创建 NativeObject
-    local gid = new_native_group()
-    local obj = new_native_obj(gid, "timer_result", 1)
-    timer.register_obj_methods("timer_result", 1)
+    -- 创建全局 NativeObject（无需 group_id，直接通过 string key 索引）
+    local obj = new_global_obj("timer_result", "timer_result")
+    timer.register_obj_methods(obj)
 
     obj:set_int("hb_count", 0)
     timer.set_heartbeat(20, "TimerTest.on_heartbeat")
@@ -27,6 +26,6 @@ function test_heartbeat()
     local count = obj:get_int("hb_count")
     if count < 3 then return 0 end
 
-    del_native_group(gid)
+    del_global_obj("timer_result")
     return 1
 end
