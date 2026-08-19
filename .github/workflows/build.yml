@@ -22,11 +22,25 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Lua
-        env:
-          DEBIAN_FRONTEND: noninteractive
+        timeout-minutes: 10
         run: |
-          sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30
-          sudo apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" lua5.4 liblua5.4-dev
+          # 从 GitHub 镜像编译 Lua 源码，避免 apt 镜像（azure.archive.ubuntu.com）间歇性超时卡死
+          # make a 只构建 liblua.a（无需 readline），fakelua 只需头文件 + liblua.a
+          git clone --depth 1 --branch v5.4.8 https://github.com/lua/lua.git
+          cd lua
+          make a -j$(nproc)
+          # 手动安装头文件 + 库（该 makefile 无 install 目标）
+          sudo cp liblua.a /usr/local/lib/
+          sudo cp lua.h luaconf.h lualib.h lauxlib.h /usr/local/include/
+          # 测试 CMake 的 fallback 路径查找 /usr/include/lua5.4，建子目录适配
+          sudo mkdir -p /usr/include/lua5.4
+          for h in lua.h luaconf.h lualib.h lauxlib.h; do
+            sudo ln -sf "/usr/local/include/$h" "/usr/include/lua5.4/$h"
+          done
+          sudo ldconfig
+          cd ..
+          rm -rf lua
+          ls -l /usr/include/lua5.4/
 
       - name: Setup TCC
         if: matrix.build_type == 'asan' || matrix.build_type == 'cov'
