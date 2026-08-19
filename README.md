@@ -245,7 +245,7 @@ Call(s, JIT_GCC, "calc_multi", std::tie(x, y, msg), 10, 20, 30); // x=10, y=20, 
 
 ### 标准内置扩展库（Built-in Standard Libraries）
 
-FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`utf8`、`io`、`net`、`serialize`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string` / `native_os` / `native_utf8` / `native_io` / `native_net` / `native_serialize`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
+FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`utf8`、`io`、`net`、`serialize`、`protobuf`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string` / `native_os` / `native_utf8` / `native_io` / `native_net` / `native_serialize` / `native_protobuf`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
 
 - **Basic 全局函数**：
   - **类型与转换**：`type`、`tostring`、`tonumber`
@@ -311,6 +311,13 @@ FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`u
   - **类 Protobuf 编码算法**：整数采用 zigzag + varint 编码（小绝对值整数占用更少字节），浮点数采用小端 8 字节 memcpy，字符串采用字典去重（相同字符串第二次起仅存储 varint 引用 id），表递归序列化为键值对序列
   - **支持的类型**：`nil`、`boolean`、整数、浮点数、字符串（含二进制安全）、表（嵌套）；表中的函数（closure）等不支持类型会被自动跳过，顶层传入不支持类型则报错
   - **典型用途**：网络消息与 Lua 表之间的零拷贝转换、游戏状态持久化快照
+- **Protobuf 协议库 (`protobuf.*`)**：
+  - **运行时 .proto 解析**：`protobuf.load(proto_text)` 动态解析 proto3 文本，注册所有 message/enum 定义到全局 schema 注册器
+  - **标准 Protobuf 编解码**：`protobuf.encode(message_name, table)` 按 proto 定义将 Lua 表打包为标准 protobuf 二进制，`protobuf.decode(message_name, binary)` 将其反序列化回 Lua 值，输出与官方 protobuf 完全互操作
+  - **Schema 查询**：`protobuf.types()` 返回已注册消息名列表，`protobuf.fields(message_name)` 返回字段信息（name/number/type/label）
+  - **支持的 proto3 特性**：message（含嵌套）、enum、map\<K,V\>、oneof、repeated（packed 默认）、optional（显式 presence）、全部 18 种 scalar type、import（多文件）
+  - **类 Protobuf 编码算法**：tag = field_number << 3 | wire_type；整数 varint（sint 用 zigzag）；浮点数小端 memcpy；string/bytes/message 长度前缀；repeated 标量默认 packed
+  - **典型用途**：游戏服务器跨语言通信（战斗服/登录服/世界服）、客户端协议互操作
 
 ```lua
 -- 示例：使用标准库完成排序、格式化与数学计算

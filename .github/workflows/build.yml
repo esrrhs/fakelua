@@ -22,9 +22,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Lua
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y lua5.4 liblua5.4-dev
+          sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30
+          sudo apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" lua5.4 liblua5.4-dev
 
       - name: Setup TCC
         if: matrix.build_type == 'asan' || matrix.build_type == 'cov'
