@@ -1,262 +1,15 @@
 #include "native/mysql/mysql_connection.h"
+#include "native/mysql/mysql_result.h"
+#include "native/native_common.h"
 
-#include <chrono>
 #include <cstring>
-#include <format>
-#include <stdexcept>
-
-#if !defined(_WIN32)
-#include <errno.h>
-#include <fcntl.h>
-#include <netdb.h>
-#include <poll.h>
-#include <unistd.h>
-#endif
 
 namespace fakelua::mysql {
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-[[noreturn]] void MysqlConnection::net_error(const std::string &msg) {
-    throw std::runtime_error("mysql net: " + msg);
-}
-
-#if defined(_WIN32)
-static int get_socket_error() { return WSAGetLastError(); }
-static bool would_block(int err) { return err == WSAEWOULDBLOCK || err == WSAEINPROGRESS; }
-#else
-static int get_socket_error() { return errno; }
-static bool would_block(int err) { return err == EAGAIN || err == EWOULDBLOCK || err == EINPROGRESS; }
-#endif
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Lifetime
-// ─────────────────────────────────────────────────────────────────────────────
 
 MysqlConnection::MysqlConnection() = default;
 
 MysqlConnection::~MysqlConnection() {
     close();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Socket I/O (blocking with timeout)
-// ─────────────────────────────────────────────────────────────────────────────
-
-void MysqlConnection::socket_connect(const std::string &host, uint16_t port) {
-    // Resolve address
-    addrinfo hints{};
-    hints.ai_family = AF_INET;       // IPv4 only (matches net module)
-    hints.ai_socktype = SOCK_STREAM;
-    addrinfo *res = nullptr;
-    std::string port_str = std::to_string(port);
-    int rc = getaddrinfo(host.c_str(), port_str.c_str(), &hints, &res);
-    if (rc != 0 || !res) {
-        net_error(std::format("resolve {} failed: {}", host, gai_strerror(rc)));
-    }
-
-    sock_ = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (sock_ == INVALID_SOCKET_VAL) {
-        freeaddrinfo(res);
-        net_error("socket() failed");
-    }
-
-    // Set socket options: TCP_NODELAY, timeouts
-#if !defined(_WIN32)
-    int opt = 1;
-    setsockopt(sock_, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-    struct timeval tv;
-    tv.tv_sec = 5; tv.tv_usec = 0;
-    setsockopt(sock_, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(sock_, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-#else
-    int opt = 1;
-    setsockopt(sock_, IPPROTO_TCP, TCP_NODELAY, (const char *)&opt, sizeof(opt));
-    DWORD tv = 5000;
-    setsockopt(sock_, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
-    setsockopt(sock_, SOL_SOCKET, SO_SNDTIMEO, (const char *)&tv, sizeof(tv));
-#endif
-
-    rc = ::connect(sock_, res->ai_addr, static_cast<int>(res->ai_addrlen));
-    freeaddrinfo(res);
-    if (rc != 0) {
-        int err = get_socket_error();
-        if (!would_block(err)) {
-            close();
-            net_error(std::format("connect failed: {}", err));
-        }
-        // Blocking connect: use poll/select to wait for completion with timeout
-#if !defined(_WIN32)
-        struct pollfd pfd{};
-        pfd.fd = sock_;
-        pfd.events = POLLOUT;
-        int pr = poll(&pfd, 1, 5000);
-        if (pr <= 0) {
-            close();
-            net_error("connect timeout");
-        }
-        // Check SO_ERROR
-        int so_error = 0;
-        socklen_t len = sizeof(so_error);
-        getsockopt(sock_, SOL_SOCKET, SO_ERROR, &so_error, &len);
-        if (so_error != 0) {
-            close();
-            net_error(std::format("connect failed: {}", so_error));
-        }
-#else
-        fd_set wset, eset;
-        FD_ZERO(&wset); FD_ZERO(&eset);
-        FD_SET(sock_, &wset); FD_SET(sock_, &eset);
-        struct timeval tv0;
-        tv0.tv_sec = 5; tv0.tv_usec = 0;
-        int sel = select(0, nullptr, &wset, &eset, &tv0);
-        if (sel <= 0) {
-            close();
-            net_error("connect timeout");
-        }
-        int so_error = 0;
-        int len = sizeof(so_error);
-        getsockopt(sock_, SOL_SOCKET, SO_ERROR, (char *)&so_error, &len);
-        if (so_error != 0) {
-            close();
-            net_error(std::format("connect failed: {}", so_error));
-        }
-#endif
-    }
-}
-
-void MysqlConnection::socket_send(const char *data, size_t len) {
-    size_t sent = 0;
-    while (sent < len) {
-#if defined(_WIN32)
-        int n = ::send(sock_, data + sent, static_cast<int>(len - sent), 0);
-#else
-        ssize_t n = ::send(sock_, data + sent, len - sent, 0);
-#endif
-        if (n <= 0) {
-            net_error(std::format("send failed: {}", get_socket_error()));
-        }
-        sent += static_cast<size_t>(n);
-    }
-}
-
-void MysqlConnection::socket_recv_exact(char *buf, size_t len) {
-    size_t got = 0;
-    while (got < len) {
-#if defined(_WIN32)
-        int n = ::recv(sock_, buf + got, static_cast<int>(len - got), 0);
-#else
-        ssize_t n = ::recv(sock_, buf + got, len - got, 0);
-#endif
-        if (n == 0) {
-            net_error("connection closed by server");
-        }
-        if (n < 0) {
-            int err = get_socket_error();
-            if (would_block(err)) {
-                net_error("recv timeout");
-            }
-            net_error(std::format("recv failed: {}", err));
-        }
-        got += static_cast<size_t>(n);
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Packet I/O
-// ─────────────────────────────────────────────────────────────────────────────
-
-void MysqlConnection::send_packet(uint8_t seq, const char *payload, size_t len) {
-    socket_send(payload, len);  // payload already has 4-byte header prepended by caller
-}
-
-std::vector<char> MysqlConnection::recv_packet() {
-    // Read 4-byte header
-    char header[4];
-    socket_recv_exact(header, 4);
-    uint32_t payload_len = static_cast<uint8_t>(header[0]) |
-                           (static_cast<uint8_t>(header[1]) << 8) |
-                           (static_cast<uint8_t>(header[2]) << 16);
-    uint8_t seq = static_cast<uint8_t>(header[3]);
-    (void)seq;  // sequence checked/updated by caller if needed
-
-    // Read payload
-    std::vector<char> payload(payload_len);
-    if (payload_len > 0) {
-        socket_recv_exact(payload.data(), payload_len);
-    }
-
-    // Multi-packet: if payload is exactly MAX_PACKET_SIZE, more packets follow
-    std::vector<char> full_payload;
-    full_payload.reserve(payload_len);
-    full_payload.insert(full_payload.end(), payload.begin(), payload.end());
-
-    while (payload_len == MAX_PACKET_SIZE) {
-        socket_recv_exact(header, 4);
-        payload_len = static_cast<uint8_t>(header[0]) |
-                      (static_cast<uint8_t>(header[1]) << 8) |
-                      (static_cast<uint8_t>(header[2]) << 16);
-        payload.resize(payload_len);
-        if (payload_len > 0) {
-            socket_recv_exact(payload.data(), payload_len);
-        }
-        full_payload.insert(full_payload.end(), payload.begin(), payload.end());
-    }
-
-    return full_payload;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Handshake
-// ─────────────────────────────────────────────────────────────────────────────
-
-void MysqlConnection::do_handshake(const std::string &user, const std::string &password,
-                                   const std::string &database) {
-    // 1) Read server handshake (seq 0)
-    auto server_packet = recv_packet();
-    if (server_packet.empty()) {
-        net_error("empty handshake packet");
-    }
-
-    auto info = parse_handshake(server_packet);
-
-    // We require mysql_native_password or at least the classic scramble
-    if (!info.auth_plugin_name.empty() &&
-        info.auth_plugin_name != "mysql_native_password") {
-        net_error(std::format("unsupported auth plugin '{}'", info.auth_plugin_name));
-    }
-
-    // 2) Build and send client response (seq 1)
-    auto response_payload = build_handshake_response(info, user, password, database);
-    auto response_pkt = make_packet(1, response_payload.data(), response_payload.size());
-    socket_send(response_pkt.data(), response_pkt.size());
-
-    // 3) Read server response (seq 2): OK, ERR, or auth switch
-    auto auth_reply = recv_packet();
-    if (auth_reply.empty()) {
-        net_error("empty auth reply");
-    }
-
-    uint8_t type = static_cast<uint8_t>(auth_reply[0]);
-    if (type == PACKET_ERR) {
-        auto err = parse_err(auth_reply);
-        net_error(std::format("auth failed: {} ({})", err.message, err.sql_state));
-    }
-    if (type == PACKET_OK) {
-        // Success — save capabilities/charset for later
-        capabilities_ = info.capabilities;
-        charset_ = info.charset;
-        seq_ = 0;  // reset sequence for commands
-        return;
-    }
-    // Auth switch request (0xFE) or legacy — not supported in v1
-    if (type == PACKET_EOF) {
-        net_error("legacy auth (pre-4.1) not supported");
-    }
-    // 0xFE could be auth switch — try to handle simple mysql_native_password switch
-    net_error(std::format("unexpected auth reply type 0x{:02x}", type));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -266,115 +19,352 @@ void MysqlConnection::do_handshake(const std::string &user, const std::string &p
 void MysqlConnection::connect(const std::string &host, uint16_t port,
                               const std::string &user, const std::string &password,
                               const std::string &database) {
-    if (sock_ != INVALID_SOCKET_VAL) {
-        close();
-    }
-    seq_ = 0;
-    capabilities_ = 0;
-    charset_ = 0;
-    socket_connect(host, port);
-    do_handshake(user, password, database);
+    user_ = user;
+    password_ = password;
+    database_ = database;
+
+    net_config_.ip = host;
+    net_config_.port = port;
+    net_config_.non_blocking = true;
+    net_config_.no_delay = true;
+    net_config_.framer = net::FramerType::RawStream;
+    net_config_.max_packet_len = static_cast<int>(MAX_PACKET_SIZE);
+    net_config_.recv_buf_size = 256 * 1024;
+    net_config_.send_buf_size = 64 * 1024;
+
+    client_ = std::make_unique<net::TcpClient>(net_config_);
+    state_ = State::Connecting;
+    recv_buf_.clear();
+    client_->connect();
 }
 
-MysqlResult MysqlConnection::query(const std::string &sql) {
-    // Build COM_QUERY packet (seq 0)
+void MysqlConnection::query(const std::string &sql) {
+    if (state_ != State::Ready || !client_ || !client_->connected()) {
+        dispatch_result({}, "connection not ready");
+        return;
+    }
+    last_sql_ = sql;
+    state_ = State::Querying;
+
+    // Build COM_QUERY packet
     std::string payload;
     payload.push_back(static_cast<char>(COM_QUERY));
     payload.append(sql);
-    auto pkt = make_packet(0, payload.data(), payload.size());
-    socket_send(pkt.data(), pkt.size());
+    send_packet(0, payload.data(), payload.size());
+}
 
-    // Read first response packet
-    auto first = recv_packet();
-    if (first.empty()) {
-        net_error("empty query response");
+void MysqlConnection::close() {
+    if (client_ && client_->connected() && state_ != State::Idle) {
+        // Send COM_QUIT
+        std::string payload(1, static_cast<char>(COM_QUIT));
+        send_packet(0, payload.data(), payload.size());
+    }
+    client_.reset();
+    state_ = State::Idle;
+    ready_ = false;
+}
+
+void MysqlConnection::tick() {
+    if (!client_) return;
+
+    // Only tick when we expect data (not idle)
+    if (state_ == State::Idle || state_ == State::Error) return;
+
+    client_->tick(
+        // on_recv: feed raw bytes into MySQL packet parser
+        [this](const char *data, size_t len) {
+            feed_bytes(data, len);
+        },
+        // on_close: connection lost
+        [this]() {
+            if (state_ == State::Connecting || state_ == State::Handshaking) {
+                dispatch_connect("connection closed during handshake");
+            } else if (state_ == State::Querying) {
+                dispatch_result({}, "connection closed during query");
+            } else if (state_ == State::Ready) {
+                // Server closed connection (e.g. idle timeout)
+            }
+            state_ = State::Idle;
+            ready_ = false;
+        });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Packet I/O
+// ─────────────────────────────────────────────────────────────────────────────
+
+void MysqlConnection::send_packet(uint8_t seq, const char *payload, size_t len) {
+    if (!client_) return;
+    std::string pkt = make_packet(seq, payload, len);
+    client_->send(pkt.data(), pkt.size());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Byte buffer → MySQL packet parsing
+// ─────────────────────────────────────────────────────────────────────────────
+
+void MysqlConnection::feed_bytes(const char *data, size_t len) {
+    recv_buf_.insert(recv_buf_.end(), data, data + len);
+
+    // Parse all complete packets in the buffer
+    while (true) {
+        std::vector<uint8_t> payload;
+        if (!try_parse_packet(payload)) break;
+
+        // Dispatch based on protocol state
+        switch (state_) {
+            case State::Handshaking:
+                handle_handshake_packet(payload);
+                break;
+            case State::Querying:
+                handle_query_packet(payload);
+                break;
+            case State::Connecting:
+                // Shouldn't receive data before TCP connect completes
+                break;
+            case State::Ready:
+                // Unsolicited packet (shouldn't happen normally)
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+bool MysqlConnection::try_parse_packet(std::vector<uint8_t> &out_payload) {
+    if (recv_buf_.size() < 4) return false;
+
+    // MySQL packet header: 3-byte LE payload length + 1-byte sequence
+    uint32_t payload_len = recv_buf_[0] | (static_cast<uint8_t>(recv_buf_[1]) << 8) |
+                           (static_cast<uint8_t>(recv_buf_[2]) << 16);
+    // uint8_t seq = recv_buf_[3];
+
+    if (recv_buf_.size() < 4 + payload_len) return false;  // incomplete
+
+    out_payload.assign(recv_buf_.begin() + 4, recv_buf_.begin() + 4 + payload_len);
+    recv_buf_.erase(recv_buf_.begin(), recv_buf_.begin() + 4 + payload_len);
+    return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Protocol handlers
+// ─────────────────────────────────────────────────────────────────────────────
+
+void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payload) {
+    // Convert to char vector for existing parse functions
+    std::vector<char> char_payload(payload.begin(), payload.end());
+
+    if (payload.empty()) {
+        dispatch_connect("empty handshake packet");
+        state_ = State::Error;
+        return;
     }
 
-    uint8_t type = static_cast<uint8_t>(first[0]);
+    uint8_t type = payload[0];
+
     if (type == PACKET_ERR) {
-        auto err = parse_err(first);
-        net_error(std::format("query failed: {} ({})", err.message, err.sql_state));
+        auto err = parse_err(char_payload);
+        dispatch_connect(err.message.c_str());
+        state_ = State::Error;
+        return;
     }
+
+    if (type == 0x0A) {
+        // Handshake packet (protocol v10)
+        HandshakeInfo info = parse_handshake(char_payload);
+
+        // Check auth plugin
+        if (!info.auth_plugin_name.empty() &&
+            info.auth_plugin_name != "mysql_native_password") {
+            dispatch_connect(std::format("unsupported auth plugin '{}'", info.auth_plugin_name).c_str());
+            state_ = State::Error;
+            return;
+        }
+
+        // Build and send handshake response
+        std::string response = build_handshake_response(info, user_, password_, database_);
+        send_packet(1, response.data(), response.size());
+
+        capabilities_ = info.capabilities;
+        charset_ = info.charset;
+        // Stay in Handshaking state - wait for auth OK/ERR
+        return;
+    }
+
+    // Auth switch request (0xFE) - not supported in v1
+    if (type == PACKET_EOF) {
+        dispatch_connect("auth switch / legacy auth not supported");
+        state_ = State::Error;
+        return;
+    }
+
+    // Could be OK after handshake response (some servers skip the handshake packet)
     if (type == PACKET_OK) {
-        // INSERT/UPDATE/DELETE or empty result
+        state_ = State::Ready;
+        ready_ = true;
+        seq_ = 0;
+        dispatch_connect(nullptr);
+        return;
+    }
+
+    dispatch_connect(std::format("unexpected handshake byte 0x{:02x}", type).c_str());
+    state_ = State::Error;
+}
+
+void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
+    if (payload.empty()) {
+        dispatch_result({}, "empty query response");
+        state_ = State::Ready;
+        return;
+    }
+
+    std::vector<char> char_payload(payload.begin(), payload.end());
+    uint8_t type = payload[0];
+
+    if (type == PACKET_ERR) {
+        auto err = parse_err(char_payload);
+        state_ = State::Ready;
+        dispatch_result({}, err.message.c_str());
+        return;
+    }
+
+    if (type == PACKET_OK) {
+        // OK response (INSERT/UPDATE/DELETE)
+        MysqlResult result = parse_ok_to_result(char_payload);
+        state_ = State::Ready;
+        dispatch_result(result, nullptr);
+        return;
+    }
+
+    if (type == PACKET_EOF) {
+        // Under CLIENT_DEPRECATE_EOF, 0xFE can be OK-as-EOF
+        // For simplicity, treat as end of empty result
         MysqlResult result;
         result.is_result_set = false;
-        result.affected_rows = 0;
-        result.last_insert_id = 0;
-        result.status_flags = 0;
-        result.info.clear();
-        if (first.size() > 1) {
-            // Re-parse OK from payload (skip the 0x00 header byte already consumed by parse_ok)
-            result = parse_ok_to_result(first);
-        }
-        return result;
+        state_ = State::Ready;
+        dispatch_result(result, nullptr);
+        return;
     }
-    if (type == PACKET_EOF) {
-        // Under CLIENT_DEPRECATE_EOF, 0xFE can be OK-as-EOF or genuine EOF.
-        // For a query response, 0xFE as first packet is unusual; treat as error.
-        net_error("unexpected EOF as first query response");
-    }
+
     // Otherwise: column count (length-encoded integer) → result set
     MysqlResult result;
     result.is_result_set = true;
     size_t pos = 0;
-    uint64_t col_count = read_lenenc_int(first, pos);
+    uint64_t col_count = read_lenenc_int(char_payload, pos);
 
-    // Read column definitions
+    // Read column definitions (each is a separate packet)
     result.columns.resize(static_cast<size_t>(col_count));
     for (uint64_t i = 0; i < col_count; ++i) {
-        auto col_pkt = recv_packet();
-        result.columns[i] = parse_column_def(col_pkt);
+        std::vector<uint8_t> col_pkt;
+        if (!try_parse_packet(col_pkt)) {
+            // Need more data - but we're in a callback, can't block
+            // Save state and wait for next tick
+            // For now, return partial result
+            dispatch_result({}, "incomplete column definitions");
+            state_ = State::Ready;
+            return;
+        }
+        std::vector<char> col_char(col_pkt.begin(), col_pkt.end());
+        result.columns[i] = parse_column_def(col_char);
     }
 
-    // Read EOF (or OK-as-EOF under DEPRECATE_EOF) between columns and rows
+    // Read EOF/OK between columns and rows
     {
-        auto eof_pkt = recv_packet();
+        std::vector<uint8_t> eof_pkt;
+        if (!try_parse_packet(eof_pkt)) {
+            dispatch_result({}, "incomplete EOF after columns");
+            state_ = State::Ready;
+            return;
+        }
         if (!eof_pkt.empty()) {
-            uint8_t h = static_cast<uint8_t>(eof_pkt[0]);
+            uint8_t h = eof_pkt[0];
             if (h != PACKET_EOF && h != PACKET_OK) {
-                net_error(std::format("expected EOF after columns, got 0x{:02x}", h));
+                dispatch_result({}, std::format("expected EOF after columns, got 0x{:02x}", h).c_str());
+                state_ = State::Ready;
+                return;
             }
         }
     }
 
     // Read rows until EOF/OK
     while (true) {
-        auto row_pkt = recv_packet();
+        std::vector<uint8_t> row_pkt;
+        if (!try_parse_packet(row_pkt)) break;  // No more packets available
         if (row_pkt.empty()) break;
-        uint8_t h = static_cast<uint8_t>(row_pkt[0]);
+
+        uint8_t h = row_pkt[0];
         if (h == PACKET_EOF || h == PACKET_OK) {
-            // End of result set — if OK, capture status
-            if (h == PACKET_OK && row_pkt.size() > 1) {
-                // Could parse trailing status here if needed
-            }
-            break;
+            break;  // End of result set
         }
-        result.rows.push_back(parse_row(row_pkt, result.columns.size()));
+        std::vector<char> row_char(row_pkt.begin(), row_pkt.end());
+        result.rows.push_back(parse_row(row_char, result.columns.size()));
     }
 
-    return result;
+    state_ = State::Ready;
+    dispatch_result(result, nullptr);
 }
 
-void MysqlConnection::close() {
-    if (sock_ != INVALID_SOCKET_VAL) {
-        // Send COM_QUIT only if the handshake completed (capabilities_ set).
-        // On a never-established connection the socket may be in an error state
-        // and ::send could block.
-        if (capabilities_ != 0) {
-            auto quit = make_packet(0, "\x01", 1);  // COM_QUIT = 0x01
-            ::send(sock_, quit.data(), static_cast<int>(quit.size()), 0);
-        }
-#if defined(_WIN32)
-        closesocket(sock_);
-#else
-        ::close(sock_);
-#endif
-        sock_ = INVALID_SOCKET_VAL;
+// ─────────────────────────────────────────────────────────────────────────────
+// Lua callback dispatch (same mechanism as net module's call_lua_event)
+// ─────────────────────────────────────────────────────────────────────────────
+
+void MysqlConnection::dispatch_connect(const char *err_msg) {
+    if (!lua_state_ || connect_cb_.empty()) return;
+
+    auto func = lua_state_->GetVM().GetFunction(connect_cb_);
+    if (func.Empty()) return;
+
+    void *addr = func.GetAddr(JIT_TCC);
+    JITType jit_type = JIT_TCC;
+    if (!addr) {
+        addr = func.GetAddr(JIT_GCC);
+        jit_type = JIT_GCC;
     }
-    seq_ = 0;
-    capabilities_ = 0;
-    charset_ = 0;
+    if (!addr) return;
+
+    CVar args[3];
+    args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_)
+                          : inter::NativeToFakeluaNil(lua_state_);
+    args[1] = inter::NativeToFakeluaString(lua_state_, err_msg ? err_msg : "");
+    args[2] = inter::NativeToFakeluaInt(lua_state_, err_msg ? 0 : 1);
+
+    inter::DispatchCall(addr, args, 3, jit_type);
+}
+
+void MysqlConnection::dispatch_result(const MysqlResult &result, const char *err_msg) {
+    if (!lua_state_ || result_cb_.empty()) return;
+
+    auto func = lua_state_->GetVM().GetFunction(result_cb_);
+    if (func.Empty()) return;
+
+    void *addr = func.GetAddr(JIT_TCC);
+    JITType jit_type = JIT_TCC;
+    if (!addr) {
+        addr = func.GetAddr(JIT_GCC);
+        jit_type = JIT_GCC;
+    }
+    if (!addr) return;
+
+    CVar args[3];
+    args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_)
+                          : inter::NativeToFakeluaNil(lua_state_);
+    if (err_msg) {
+        args[1] = inter::NativeToFakeluaString(lua_state_, err_msg);
+        CVar nil{};
+        nil.type_ = static_cast<int>(VarType::Nil);
+        args[2] = nil;
+    } else {
+        CVar nil{};
+        nil.type_ = static_cast<int>(VarType::Nil);
+        args[1] = nil;
+        args[2] = result_to_lua(lua_state_, result);
+    }
+
+    inter::DispatchCall(addr, args, 3, jit_type);
+}
+
+[[noreturn]] void MysqlConnection::net_error(const std::string &msg) {
+    ThrowFakeluaException("mysql net: " + msg);
 }
 
 }  // namespace fakelua::mysql

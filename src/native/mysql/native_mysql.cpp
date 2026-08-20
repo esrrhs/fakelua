@@ -4,7 +4,6 @@
 #include "native/mysql/mysql_protocol.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
-#include "native/table/native_table.h"
 #include "var/var.h"
 
 #include <cstring>
@@ -34,90 +33,31 @@ static std::string cvar_to_string(CVar v) {
     return {};
 }
 
-// Retrieve MysqlConnection* from NativeObject (stored as int64 __mysql_conn__)
+// Retrieve MysqlConnection* from NativeObject
 static MysqlConnection *unwrap_conn(NativeObject *self) {
     if (!self) return nullptr;
     return reinterpret_cast<MysqlConnection *>(self->GetInt("__mysql_conn__", 0));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Convert MysqlResult to Lua table
-// ─────────────────────────────────────────────────────────────────────────────
-
-static CVar result_to_lua(State *s, const MysqlResult &result) {
-    CVar tbl = table::TableHelper::CreateTable(s);
-
-    if (result.is_result_set) {
-        // Set is_result_set = true
-        table::TableHelper::SetTableInt(s, tbl, 1, inter::NativeToFakeluaBool(s, true));
-
-        // Build columns array (1-based)
-        CVar cols_tbl = table::TableHelper::CreateTable(s);
-        for (size_t i = 0; i < result.columns.size(); ++i) {
-            const auto &col = result.columns[i];
-            CVar col_tbl = table::TableHelper::CreateTable(s);
-            table::TableHelper::SetTableInt(s, col_tbl, 1,
-                inter::NativeToFakeluaString(s, col.name));
-            table::TableHelper::SetTableInt(s, col_tbl, 2,
-                inter::NativeToFakeluaInt(s, static_cast<int64_t>(col.type)));
-            table::TableHelper::SetTableInt(s, cols_tbl,
-                static_cast<int64_t>(i + 1), col_tbl);
-        }
-        // columns at key 2
-        table::TableHelper::SetTableInt(s, tbl, 2, cols_tbl);
-
-        // Build rows array (1-based)
-        CVar rows_tbl = table::TableHelper::CreateTable(s);
-        for (size_t i = 0; i < result.rows.size(); ++i) {
-            const auto &row = result.rows[i];
-            CVar row_tbl = table::TableHelper::CreateTable(s);
-            for (size_t j = 0; j < row.size(); ++j) {
-                if (row[j].first) {
-                    // NULL → nil
-                    table::TableHelper::SetTableInt(s, row_tbl,
-                        static_cast<int64_t>(j + 1), inter::NativeToFakeluaNil(s));
-                } else {
-                    table::TableHelper::SetTableInt(s, row_tbl,
-                        static_cast<int64_t>(j + 1),
-                        inter::NativeToFakeluaString(s, row[j].second));
-                }
-            }
-            table::TableHelper::SetTableInt(s, rows_tbl,
-                static_cast<int64_t>(i + 1), row_tbl);
-        }
-        // rows at key 3
-        table::TableHelper::SetTableInt(s, tbl, 3, rows_tbl);
-
-    } else {
-        // Status mode: is_result_set = false, affected_rows, last_insert_id, info
-        table::TableHelper::SetTableInt(s, tbl, 1, inter::NativeToFakeluaBool(s, false));
-        table::TableHelper::SetTableInt(s, tbl, 4,
-            inter::NativeToFakeluaInt(s, static_cast<int64_t>(result.affected_rows)));
-        table::TableHelper::SetTableInt(s, tbl, 5,
-            inter::NativeToFakeluaInt(s, static_cast<int64_t>(result.last_insert_id)));
-        table::TableHelper::SetTableInt(s, tbl, 6,
-            inter::NativeToFakeluaString(s, result.info));
-    }
-
-    return tbl;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Forward declarations (used as NativeObject methods)
+// Forward declarations
 // ─────────────────────────────────────────────────────────────────────────────
 
 static CVar conn_query(NativeObject *self, State *s, CVar *args, int n);
+static CVar conn_tick(NativeObject *self, State *s, CVar *args, int n);
 static CVar conn_close(NativeObject *self, State *s, CVar *args, int n);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// mysql.connect(config) → connection object
+// mysql.connect(config, on_connect) → connection object
+// on_connect(err, success) called when connection completes
 // ─────────────────────────────────────────────────────────────────────────────
 
 static CVar mysql_connect(State *s, CVar *args, int n) {
-    if (n < 1) ThrowBadArgument(1, "mysql.connect", "config table expected");
+    if (n < 2) ThrowBadArgument(1, "mysql.connect", "config table and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    CVar a1 = inter::GetNativeArg(s, args, n, 1);
 
-    // Read config fields from the table
+    // Read config fields
     std::string host = "127.0.0.1";
     uint16_t port = 3306;
     std::string user;
@@ -125,7 +65,6 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     std::string database;
 
     if (a0.type_ == static_cast<int>(VarType::Table) && a0.data_.t) {
-        // Read config fields via table helper (string-keyed lookup)
         CVar host_var = table::TableHelper::GetTableStrId(s, a0, "host");
         if (host_var.type_ != static_cast<int>(VarType::Nil)) host = cvar_to_string(host_var);
 
@@ -148,8 +87,15 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
 
     if (user.empty()) ThrowBadArgument(1, "mysql.connect", "user required");
 
-    // Create connection
-    auto *conn = std::make_unique<MysqlConnection>().release();
+    // Read callback function name
+    std::string cb_name = cvar_to_string(a1);
+    if (cb_name.empty()) ThrowBadArgument(1, "mysql.connect", "callback function expected");
+
+    // Create connection (async)
+    auto *conn = new MysqlConnection();
+    conn->set_state(s);
+    conn->set_connect_callback(cb_name);
+
     try {
         conn->connect(host, port, user, password, database);
     } catch (const std::exception &e) {
@@ -157,8 +103,9 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
         error(std::format("connect failed: {}", e.what()));
     }
 
-    // Wrap in NativeObject
-    auto *nat = NativeObjectManager::Instance().Create(0, "mysql_connection");
+    // Wrap in NativeObject (need a group_id)
+    int64_t gid = NativeObjectManager::Instance().CreateGroup();
+    auto *nat = NativeObjectManager::Instance().Create(gid, "mysql_connection");
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
     nat->SetFinalizer([](NativeObject *self) {
         auto *c = unwrap_conn(self);
@@ -168,29 +115,49 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
         }
     });
     nat->RegisterMethod("query", conn_query);
+    nat->RegisterMethod("tick", conn_tick);
     nat->RegisterMethod("close", conn_close);
+
+    // Set NativeObject on connection (for callback dispatch)
+    conn->set_native_object(nat);
 
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// conn:query(sql) → result table
+// conn:query(sql, on_result)
+// on_result(err, result) called when query completes
 // ─────────────────────────────────────────────────────────────────────────────
 
 static CVar conn_query(NativeObject *self, State *s, CVar *args, int n) {
-    if (n < 2) ThrowBadArgument(1, "conn:query", "sql expected");
+    if (n < 3) ThrowBadArgument(1, "conn:query", "sql and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    CVar a1 = inter::GetNativeArg(s, args, n, 1);
     std::string sql = cvar_to_string(a0);
+    std::string cb_name = cvar_to_string(a1);
 
     auto *conn = unwrap_conn(self);
-    if (!conn || !conn->connected()) error("conn:query: connection is closed");
+    if (!conn) error("conn:query: connection is closed");
 
-    try {
-        MysqlResult result = conn->query(sql);
-        return result_to_lua(s, result);
-    } catch (const std::exception &e) {
-        error(std::format("query failed: {}", e.what()));
-    }
+    conn->set_state(s);
+    conn->set_result_callback(cb_name);
+    conn->query(sql);
+
+    return inter::NativeToFakeluaNil(s);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// conn:tick() — pump network events (call periodically from game loop)
+// ─────────────────────────────────────────────────────────────────────────────
+
+static CVar conn_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *conn = unwrap_conn(self);
+    if (!conn) return inter::NativeToFakeluaNil(s);
+
+    conn->set_state(s);
+    conn->tick();
+
+    return inter::NativeToFakeluaNil(s);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -213,8 +180,7 @@ static CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
 
 void RegisterMysqlLibraryApi(State *s) {
     if (!s) return;
-    RegisterNativeFunction(s, "mysql.connect", 1, false, mysql_connect);
-    // conn:query and conn:close are registered per-connection as NativeObject methods.
+    RegisterNativeFunction(s, "mysql.connect", 2, false, mysql_connect);
 }
 
 }  // namespace fakelua::mysql

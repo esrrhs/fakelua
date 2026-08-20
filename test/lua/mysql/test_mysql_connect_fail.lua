@@ -1,29 +1,36 @@
 package "MysqlTest"
 
--- 尝试连接一个不存在的端口，验证 pcall 能捕获错误
-function test_connect_fail()
-    local ok, err = pcall(function()
-        -- 端口 1 几乎必然无服务，连接应失败
-        local conn = mysql.connect({
-            host = "127.0.0.1",
-            port = 1,
-            user = "root",
-            password = "irrelevant",
-            db = "test"
-        })
-        -- 如果居然连上了，也手动断开
-        if conn then conn:close() end
-    end)
+-- 尝试连接一个不存在的端口，验证回调收到错误
+function on_connect(conn, err, success)
+    conn.err = err
+    conn.done = true
+end
 
-    -- 我们期望连接失败（ok == false），因为捕获到错误
-    if ok then
-        print("expected connect to fail, but it succeeded")
+function test_connect_fail()
+    local config = {}
+    config["host"] = "127.0.0.1"
+    config["port"] = 1
+    config["user"] = "root"
+    config["password"] = "irrelevant"
+    config["db"] = "test"
+
+    local conn = mysql.connect(config, "on_connect")
+
+    -- 驱动 IO 直到回调触发（最多 200 次 tick）
+    for i = 1, 200 do
+        conn:tick()
+        if conn.done then break end
+    end
+
+    if not conn.done then
+        print("callback never fired")
         return 0
     end
 
-    -- err 应包含错误信息
-    if type(err) ~= "string" or #err == 0 then
-        print("expected error message, got:", type(err), tostring(err))
+    -- 期望收到错误
+    local got_err = conn.err
+    if type(got_err) ~= "string" or #got_err == 0 then
+        print("expected error message, got:", type(got_err), tostring(got_err))
         return 0
     end
 

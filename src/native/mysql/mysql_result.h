@@ -3,11 +3,16 @@
 // mysql_result.h — result set structures for MySQL text protocol.
 
 #include "native/mysql/mysql_protocol.h"
+#include "var/var.h"
 
 #include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
+
+namespace fakelua {
+class State;
+}
 
 namespace fakelua::mysql {
 
@@ -50,5 +55,8 @@ std::vector<std::pair<bool, std::string>> parse_row(const std::vector<char> &pay
 
 // Parse an OK packet payload into a result (status mode for INSERT/UPDATE/DELETE)
 MysqlResult parse_ok_to_result(const std::vector<char> &payload);
+
+// Convert MysqlResult to Lua table (for callback dispatch)
+CVar result_to_lua(::fakelua::State *s, const MysqlResult &result);
 
 }  // namespace fakelua::mysql

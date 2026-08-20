@@ -1,29 +1,22 @@
 #pragma once
 
-// mysql_connection.h — synchronous MySQL client connection (blocking I/O).
-// Not based on the net module: MySQL is request-response, blocking is natural.
+// mysql_connection.h — async MySQL client (callback-based, non-blocking I/O).
+// Built on top of net::TcpClient (RawStream) for event-driven TCP.
 
 #include "native/mysql/mysql_protocol.h"
 #include "native/mysql/mysql_result.h"
-
-#if defined(_WIN32)
-#include <winsock2.h>
-#include <ws2tcpip.h>
-using socket_t = SOCKET;
-constexpr socket_t INVALID_SOCKET_VAL = INVALID_SOCKET;
-#else
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-using socket_t = int;
-constexpr socket_t INVALID_SOCKET_VAL = -1;
-#endif
+#include "native/net/net_socket.h"
 
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
+
+namespace fakelua {
+class State;
+class NativeObject;
+}
 
 namespace fakelua::mysql {
 
@@ -35,39 +28,74 @@ public:
     MysqlConnection(const MysqlConnection &) = delete;
     MysqlConnection &operator=(const MysqlConnection &) = delete;
 
-    // Connect: TCP connect → read handshake → authenticate → OK
+    // Start async TCP connect. on_connect(conn, err) called when done.
     void connect(const std::string &host, uint16_t port,
                  const std::string &user, const std::string &password,
                  const std::string &database);
 
-    // Execute a text query.
-    // SELECT → MysqlResult with rows; INSERT/UPDATE/DELETE → MysqlResult with status.
-    MysqlResult query(const std::string &sql);
+    // Send a query. on_result(result, err) called when response arrives.
+    void query(const std::string &sql);
 
-    // Close connection (send COM_QUIT + close socket)
+    // Close connection
     void close();
 
-    bool connected() const { return sock_ >= 0; }
+    // Pump network events (call periodically from game loop)
+    void tick();
+
+    // Set Lua callback function names (called by native_mysql.cpp)
+    void set_connect_callback(const std::string &name) { connect_cb_ = name; }
+    void set_result_callback(const std::string &name) { result_cb_ = name; }
+    void set_state(::fakelua::State *state) { lua_state_ = state; }
+    void set_native_object(::fakelua::NativeObject *obj) { native_obj_ = obj; }
+
+    bool connected() const { return ready_; }
 
 private:
-    socket_t sock_ = INVALID_SOCKET_VAL;
+    // TCP client from net module (RawStream framing for raw bytes)
+    std::unique_ptr<net::TcpClient> client_;
+    net::NetConfig net_config_;
+
+    // Protocol state
+    enum class State { Idle, Connecting, Handshaking, Ready, Querying, Error };
+    State state_ = State::Idle;
+    ::fakelua::State *lua_state_ = nullptr;  // fakelua State for callback dispatch
+    ::fakelua::NativeObject *native_obj_ = nullptr;  // NativeObject wrapper (for passing to Lua)
+
+    // Raw byte buffer for MySQL packet parsing
+    std::vector<uint8_t> recv_buf_;
+
+    // Protocol state
     uint8_t seq_ = 0;
     uint32_t capabilities_ = 0;
     uint8_t charset_ = 0;
+    bool ready_ = false;
 
-    // ── socket I/O (blocking with timeout) ──
-    void socket_connect(const std::string &host, uint16_t port);
-    void socket_send(const char *data, size_t len);
-    void socket_recv_exact(char *buf, size_t len);  // block until len bytes read
+    // Auth info (saved during connect, used in handshake)
+    std::string user_;
+    std::string password_;
+    std::string database_;
+
+    // Lua callback function names
+    std::string connect_cb_;
+    std::string result_cb_;
+
+    // Pending query info
+    std::string last_sql_;
 
     // ── packet I/O ──
     void send_packet(uint8_t seq, const char *payload, size_t len);
-    // Read one packet (handles multi-packet concatenation for payloads > 16MB).
-    std::vector<char> recv_packet();
 
-    // ── handshake ──
-    void do_handshake(const std::string &user, const std::string &password,
-                      const std::string &database);
+    // ── byte buffer → MySQL packet parsing ──
+    void feed_bytes(const char *data, size_t len);
+    bool try_parse_packet(std::vector<uint8_t> &out_payload);
+
+    // ── protocol handlers ──
+    void handle_handshake_packet(const std::vector<uint8_t> &payload);
+    void handle_query_packet(const std::vector<uint8_t> &payload);
+
+    // ── Lua callback dispatch ──
+    void dispatch_connect(const char *err_msg);
+    void dispatch_result(const MysqlResult &result, const char *err_msg);
 
     // ── helpers ──
     [[noreturn]] static void net_error(const std::string &msg);
