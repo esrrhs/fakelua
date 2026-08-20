@@ -8,6 +8,8 @@
 #include "native/timer/native_timer.h"
 #include "native/serialize/native_serialize.h"
 #include "native/protobuf/native_protobuf.h"
+#include "native/crypto/native_crypto.h"
+#include "native/mysql/native_mysql.h"
 
 namespace fakelua {
 
@@ -17,6 +19,8 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     timer::RegisterTimerLibraryApi(this);
     serialize::RegisterSerializeLibraryApi(this);
     protobuf::RegisterProtobufLibraryApi(this);
+    crypto::RegisterCryptoLibraryApi(this);
+    mysql::RegisterMysqlLibraryApi(this);
 }
 
 }// namespace fakelua
