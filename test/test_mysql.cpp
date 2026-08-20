@@ -42,3 +42,27 @@ TEST(test_mysql, integration_callback_api) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+// 集成测试：预处理语句
+TEST(test_mysql, integration_prepared_statements) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_stmt.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_stmt", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 集成测试：多结果集
+TEST(test_mysql, integration_multi_result) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_multi_result.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_multi_result", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
