@@ -100,6 +100,30 @@ void MysqlConnection::stmt_close(uint32_t stmt_id) {
     send_packet(0, payload.data(), payload.size());
 }
 
+void MysqlConnection::ping() {
+    if (!client_ || !client_->connected()) return;
+
+    // COM_PING = 0x0E
+    std::string payload(1, static_cast<char>(0x0E));
+    send_packet(0, payload.data(), payload.size());
+}
+
+bool MysqlConnection::is_retryable(MysqlErrorType type) {
+    switch (type) {
+        case MysqlErrorType::Connection:
+        case MysqlErrorType::Timeout:
+            return true;   // network issues, can retry
+        case MysqlErrorType::Authentication:
+        case MysqlErrorType::Syntax:
+        case MysqlErrorType::Protocol:
+            return false;  // logic errors, retry won't help
+        case MysqlErrorType::Server:
+        case MysqlErrorType::Unknown:
+        default:
+            return false;  // server errors, don't retry by default
+    }
+}
+
 void MysqlConnection::tick() {
     if (!client_) return;
 
@@ -243,8 +267,54 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
         return;
     }
 
-    dispatch_connect(std::format("unexpected handshake byte 0x{:02x}", type).c_str());
+    set_error(MysqlErrorType::Protocol, 0,
+              std::format("unexpected handshake byte 0x{:02x}", type), "");
+    dispatch_connect(last_error_.message.c_str());
     state_ = State::Error;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error classification (must be before handle_query_packet)
+// ─────────────────────────────────────────────────────────────────────────────
+
+static MysqlErrorType classify_error_code(uint16_t code) {
+    // MySQL error code ranges:
+    // 1000-1999: server errors (ER_HASHCHK, ER_NISAMCHK, etc.)
+    // 2000-2999: client errors (connection, protocol)
+    // 1045: ER_ACCESS_DENIED_ERROR (auth)
+    // 1064: ER_PARSE_ERROR (syntax)
+    // 1205: ER_LOCK_WAIT_TIMEOUT (timeout)
+    // 1213: ER_LOCK_DEADLOCK (server)
+    // 2003: CR_CONN_HOST_ERROR (connection)
+    // 2006: CR_SERVER_GONE_ERROR (connection lost)
+    // 2013: CR_SERVER_LOST (connection lost during query)
+    switch (code) {
+        case 1045:  // ER_ACCESS_DENIED_ERROR
+        case 1698:  // ER_ACCESS_ACCESS_DENIED_ERROR
+            return MysqlErrorType::Authentication;
+        case 1064:  // ER_PARSE_ERROR
+        case 1149:  // ER_SYNTAX_ERROR
+            return MysqlErrorType::Syntax;
+        case 1205:  // ER_LOCK_WAIT_TIMEOUT
+        case 1213:  // ER_LOCK_DEADLOCK
+            return MysqlErrorType::Timeout;
+        case 2003:  // CR_CONN_HOST_ERROR
+        case 2006:  // CR_SERVER_GONE_ERROR
+        case 2013:  // CR_SERVER_LOST
+            return MysqlErrorType::Connection;
+        default:
+            if (code >= 1000 && code < 2000) return MysqlErrorType::Server;
+            if (code >= 2000 && code < 3000) return MysqlErrorType::Connection;
+            return MysqlErrorType::Unknown;
+    }
+}
+
+void MysqlConnection::set_error(MysqlErrorType type, uint16_t code,
+                                const std::string &msg, const std::string &sql_state) {
+    last_error_.type = type;
+    last_error_.code = code;
+    last_error_.message = msg;
+    last_error_.sql_state = sql_state;
 }
 
 void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
@@ -259,6 +329,8 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
 
     if (type == PACKET_ERR) {
         auto err = parse_err(char_payload);
+        auto err_type = classify_error_code(err.error_code);
+        set_error(err_type, err.error_code, err.message, err.sql_state);
         state_ = State::Ready;
         dispatch_result({}, err.message.c_str());
         return;

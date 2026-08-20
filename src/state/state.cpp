@@ -21,6 +21,7 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     protobuf::RegisterProtobufLibraryApi(this);
     crypto::RegisterCryptoLibraryApi(this);
     mysql::RegisterMysqlLibraryApi(this);
+    mysql::RegisterMysqlPoolApi(this);
 }
 
 }// namespace fakelua

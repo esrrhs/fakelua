@@ -20,6 +20,29 @@ class NativeObject;
 
 namespace fakelua::mysql {
 
+// ── Error classification ──
+enum class MysqlErrorType {
+    None = 0,
+    Connection,     // TCP connect failed, connection lost
+    Authentication, // auth failed (wrong password, unsupported plugin)
+    Syntax,         // SQL syntax error
+    Timeout,        // read/connect timeout
+    Protocol,       // protocol parsing error
+    Server,         // server-side error (table not found, duplicate key, etc.)
+    Unknown         // unclassified
+};
+
+struct MysqlError {
+    MysqlErrorType type = MysqlErrorType::None;
+    int code = 0;           // MySQL error code (e.g. 1045, 1064)
+    std::string message;    // error message
+    std::string sql_state;  // 5-char SQL state
+};
+
+}  // namespace fakelua::mysql
+
+namespace fakelua::mysql {
+
 class MysqlConnection {
 public:
     MysqlConnection();
@@ -41,11 +64,23 @@ public:
     void stmt_execute(uint32_t stmt_id, const std::vector<std::string> &params);
     void stmt_close(uint32_t stmt_id);
 
+    // Heartbeat (COM_PING) — for connection pool keepalive
+    void ping();
+
+    // Send raw packet (for pool heartbeat)
+    void send_packet(uint8_t seq, const char *payload, size_t len);
+
     // Close connection
     void close();
 
     // Pump network events (call periodically from game loop)
     void tick();
+
+    // Error info from last operation
+    MysqlError last_error() const { return last_error_; }
+
+    // Check if error is retryable (network issues, not auth/syntax)
+    static bool is_retryable(MysqlErrorType type);
 
     // Set Lua callback function names (called by native_mysql.cpp)
     void set_connect_callback(const std::string &name) { connect_cb_ = name; }
@@ -90,8 +125,8 @@ private:
     // Multi-result support
     std::vector<MysqlResult> pending_results_;
 
-    // ── packet I/O ──
-    void send_packet(uint8_t seq, const char *payload, size_t len);
+    // Error tracking
+    MysqlError last_error_;
 
     // ── byte buffer → MySQL packet parsing ──
     void feed_bytes(const char *data, size_t len);
@@ -104,6 +139,10 @@ private:
     // ── Lua callback dispatch ──
     void dispatch_connect(const char *err_msg);
     void dispatch_result(const MysqlResult &result, const char *err_msg);
+
+    // ── error handling ──
+    void set_error(MysqlErrorType type, uint16_t code,
+                   const std::string &msg, const std::string &sql_state);
 
     // ── helpers ──
     [[noreturn]] static void net_error(const std::string &msg);

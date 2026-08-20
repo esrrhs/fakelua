@@ -34,7 +34,7 @@ static std::string cvar_to_string(CVar v) {
 }
 
 // Retrieve MysqlConnection* from NativeObject
-static MysqlConnection *unwrap_conn(NativeObject *self) {
+MysqlConnection *unwrap_conn_native(NativeObject *self) {
     if (!self) return nullptr;
     return reinterpret_cast<MysqlConnection *>(self->GetInt("__mysql_conn__", 0));
 }
@@ -43,12 +43,12 @@ static MysqlConnection *unwrap_conn(NativeObject *self) {
 // Forward declarations
 // ─────────────────────────────────────────────────────────────────────────────
 
-static CVar conn_query(NativeObject *self, State *s, CVar *args, int n);
-static CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n);
-static CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
-static CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
-static CVar conn_tick(NativeObject *self, State *s, CVar *args, int n);
-static CVar conn_close(NativeObject *self, State *s, CVar *args, int n);
+CVar conn_query(NativeObject *self, State *s, CVar *args, int n);
+CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n);
+CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
+CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
+CVar conn_tick(NativeObject *self, State *s, CVar *args, int n);
+CVar conn_close(NativeObject *self, State *s, CVar *args, int n);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // mysql.connect(config, on_connect) → connection object
@@ -111,7 +111,7 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     auto *nat = NativeObjectManager::Instance().Create(gid, "mysql_connection");
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
     nat->SetFinalizer([](NativeObject *self) {
-        auto *c = unwrap_conn(self);
+        auto *c = unwrap_conn_native(self);
         if (c) {
             delete c;
             self->SetInt("__mysql_conn__", 0);
@@ -135,14 +135,14 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
 // on_result(err, result) called when query completes
 // ─────────────────────────────────────────────────────────────────────────────
 
-static CVar conn_query(NativeObject *self, State *s, CVar *args, int n) {
+CVar conn_query(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 3) ThrowBadArgument(1, "conn:query", "sql and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     std::string sql = cvar_to_string(a0);
     std::string cb_name = cvar_to_string(a1);
 
-    auto *conn = unwrap_conn(self);
+    auto *conn = unwrap_conn_native(self);
     if (!conn) error("conn:query: connection is closed");
 
     conn->set_state(s);
@@ -157,14 +157,14 @@ static CVar conn_query(NativeObject *self, State *s, CVar *args, int n) {
 // on_result(err, stmt_id) called when prepare completes
 // ─────────────────────────────────────────────────────────────────────────────
 
-static CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n) {
+CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 3) ThrowBadArgument(1, "conn:stmt_prepare", "sql and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     std::string sql = cvar_to_string(a0);
     std::string cb_name = cvar_to_string(a1);
 
-    auto *conn = unwrap_conn(self);
+    auto *conn = unwrap_conn_native(self);
     if (!conn) error("conn:stmt_prepare: connection is closed");
 
     conn->set_state(s);
@@ -179,7 +179,7 @@ static CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n) {
 // on_result(err, result) called when execute completes
 // ─────────────────────────────────────────────────────────────────────────────
 
-static CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
+CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 4) ThrowBadArgument(1, "conn:stmt_execute", "stmt_id, params, and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
@@ -200,7 +200,7 @@ static CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
         }
     }
 
-    auto *conn = unwrap_conn(self);
+    auto *conn = unwrap_conn_native(self);
     if (!conn) error("conn:stmt_execute: connection is closed");
 
     conn->set_state(s);
@@ -214,12 +214,12 @@ static CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
 // conn:stmt_close(stmt_id)
 // ─────────────────────────────────────────────────────────────────────────────
 
-static CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n) {
+CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "conn:stmt_close", "stmt_id expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     uint32_t stmt_id = static_cast<uint32_t>(inter::CVarToInteger(a0, 0));
 
-    auto *conn = unwrap_conn(self);
+    auto *conn = unwrap_conn_native(self);
     if (!conn) return inter::NativeToFakeluaNil(s);
 
     conn->stmt_close(stmt_id);
@@ -230,8 +230,8 @@ static CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n) {
 // conn:tick() — pump network events (call periodically from game loop)
 // ─────────────────────────────────────────────────────────────────────────────
 
-static CVar conn_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *conn = unwrap_conn(self);
+CVar conn_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *conn = unwrap_conn_native(self);
     if (!conn) return inter::NativeToFakeluaNil(s);
 
     conn->set_state(s);
@@ -244,8 +244,8 @@ static CVar conn_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) 
 // conn:close()
 // ─────────────────────────────────────────────────────────────────────────────
 
-static CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
-    auto *conn = unwrap_conn(self);
+CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
+    auto *conn = unwrap_conn_native(self);
     if (conn) {
         conn->close();
         delete conn;
