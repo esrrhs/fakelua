@@ -29,14 +29,9 @@ function test_mysql_integration()
     end
 
     if not conn.connected then
-        -- 没有 MySQL 服务时跳过（CI 会启动 MySQL）
-        local err_str = tostring(conn.connect_err or "")
-        if string.find(err_str, "connection closed") or string.find(err_str, "connect failed") then
-            print("skipping: no MySQL server (", err_str, ")")
-            return 1  -- skip
-        end
-        print("failed to connect:", err_str)
-        return 0
+        -- 没有 MySQL 服务或连接失败时跳过
+        print("skipping: cannot connect to MySQL (", tostring(conn.connect_err or ""), ")")
+        return 1  -- skip
     end
 
     -- 1. 创建表

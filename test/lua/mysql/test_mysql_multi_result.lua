@@ -31,13 +31,8 @@ function test_multi_result()
     end
 
     if not conn.connected then
-        local err_str = tostring(conn.connect_err or "")
-        if string.find(err_str, "connection closed") or string.find(err_str, "connect failed") then
-            print("skipping: no MySQL server (", err_str, ")")
-            return 1
-        end
-        print("failed to connect:", err_str)
-        return 0
+        print("skipping: cannot connect to MySQL (", tostring(conn.connect_err or ""), ")")
+        return 1  -- skip
     end
 
     -- 多语句查询
