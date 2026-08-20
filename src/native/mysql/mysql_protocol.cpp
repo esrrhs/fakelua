@@ -329,9 +329,17 @@ std::string build_handshake_response(const HandshakeInfo &info,
     payload.append(username);
     payload.push_back('\0');
 
-    // auth response
+    // auth response — choose hash method based on auth plugin
     std::string scramble = info.scramble_part1 + info.scramble_part2;
-    auto auth = native_password_hash(password, scramble);
+    std::vector<uint8_t> auth;
+
+    if (info.auth_plugin_name == "caching_sha2_password") {
+        auth = caching_sha2_password_hash(password, scramble);
+    } else {
+        // Default: mysql_native_password
+        auto hash = native_password_hash(password, scramble);
+        auth.assign(hash.begin(), hash.end());
+    }
 
     if (caps & CLIENT_PLUGIN_AUTH_LENENC) {
         // length-encoded auth response
@@ -416,6 +424,155 @@ bool parse_eof(const std::vector<char> &payload, uint16_t &warnings, uint16_t &s
     warnings = read_uint16(payload, pos);
     status = read_uint16(payload, pos);
     return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// caching_sha2_password authentication (MySQL 8+ default)
+// ─────────────────────────────────────────────────────────────────────────────
+
+std::vector<uint8_t> caching_sha2_password_hash(const std::string &password, const std::string &scramble) {
+    if (scramble.size() != 20) {
+        protocol_error("caching_sha2_password: scramble must be 20 bytes");
+    }
+
+    // SHA256(password)
+    auto stage1 = crypto::sha256(password);
+
+    // SHA256(SHA256(password))
+    auto stage2 = crypto::sha256(stage1.data(), stage1.size());
+
+    // SHA256(scramble + SHA256(SHA256(password)))
+    std::string combined;
+    combined.reserve(scramble.size() + stage2.size());
+    combined.append(scramble);
+    combined.append(reinterpret_cast<const char *>(stage2.data()), stage2.size());
+    auto hash = crypto::sha256(combined);
+
+    // response = SHA256(password) XOR hash
+    std::vector<uint8_t> response(32);
+    for (size_t i = 0; i < 32; ++i) {
+        response[i] = stage1[i] ^ hash[i];
+    }
+    return response;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Prepared statements (binary protocol)
+// ─────────────────────────────────────────────────────────────────────────────
+
+PrepareResult parse_prepare_response(const std::vector<char> &payload) {
+    PrepareResult result;
+    size_t pos = 0;
+
+    if (payload.empty()) return result;
+
+    // status byte: 0x00 = OK
+    uint8_t status = read_uint8(payload, pos);
+    if (status != 0x00) return result;
+
+    // statement_id (4 bytes)
+    result.statement_id = read_uint32(payload, pos);
+
+    // num_columns (2 bytes)
+    result.num_columns = read_uint16(payload, pos);
+
+    // num_params (2 bytes)
+    result.num_params = read_uint16(payload, pos);
+
+    // filler 1 byte
+    pos += 1;
+
+    // num_warnings (2 bytes)
+    result.num_warnings = read_uint16(payload, pos);
+
+    result.valid = true;
+    return result;
+}
+
+std::string build_stmt_execute(uint32_t statement_id,
+                              const std::vector<std::string> &params) {
+    std::string payload;
+    payload.reserve(128);
+
+    // command byte
+    payload.push_back(static_cast<char>(COM_STMT_EXECUTE));
+
+    // statement_id (4 bytes)
+    write_uint32(payload, statement_id);
+
+    // flags: 0 = CURSOR_TYPE_NO_CURSOR
+    payload.push_back(0x00);
+
+    // iteration_count (4 bytes, always 1)
+    write_uint32(payload, 1);
+
+    if (params.empty()) {
+        return payload;
+    }
+
+    // null bitmap: ceil(num_params / 8) bytes
+    size_t bitmap_size = (params.size() + 7) / 8;
+    payload.append(bitmap_size, '\0');
+
+    // new_params_bind_flag: 1 = bind types
+    payload.push_back(0x01);
+
+    // parameter types: 2 bytes each (MYSQL_TYPE_STRING = 0xfd for simplicity)
+    for (size_t i = 0; i < params.size(); ++i) {
+        write_uint16(payload, 0xfd);  // MYSQL_TYPE_VARCHAR
+    }
+
+    // parameter values: length-encoded strings
+    for (const auto &p : params) {
+        write_lenenc_str(payload, p.data(), p.size());
+    }
+
+    return payload;
+}
+
+std::vector<std::pair<bool, std::string>> parse_binary_row(const std::vector<char> &payload,
+                                                           size_t num_columns) {
+    std::vector<std::pair<bool, std::string>> row;
+    row.reserve(num_columns);
+
+    if (payload.empty()) return row;
+
+    size_t pos = 0;
+
+    // packet header (1 byte, should be 0x00 or length)
+    uint8_t header = read_uint8(payload, pos);
+    if (header != 0x00) {
+        // Not a valid binary row packet
+        return row;
+    }
+
+    // null bitmap: ceil(num_columns / 8) bytes, but bits are stored differently
+    // Bit i (from LSB of byte i/8) is set if column i is NULL
+    size_t bitmap_size = (num_columns + 7 + 2) / 8;  // +2 for offset
+    if (pos + bitmap_size > payload.size()) return row;
+
+    std::vector<uint8_t> bitmap(bitmap_size);
+    for (size_t i = 0; i < bitmap_size; ++i) {
+        bitmap[i] = static_cast<uint8_t>(payload[pos + i]);
+    }
+    pos += bitmap_size;
+
+    for (size_t col = 0; col < num_columns; ++col) {
+        // Check null bitmap (bit position col+2 because of 2-bit offset)
+        size_t bit_pos = col + 2;
+        size_t byte_idx = bit_pos / 8;
+        size_t bit_idx = bit_pos % 8;
+        bool is_null = (byte_idx < bitmap.size()) && (bitmap[byte_idx] & (1 << bit_idx));
+
+        if (is_null) {
+            row.emplace_back(true, "");
+        } else {
+            // Read length-encoded string
+            row.emplace_back(false, read_lenenc_str(payload, pos));
+        }
+    }
+
+    return row;
 }
 
 }  // namespace fakelua::mysql

@@ -64,6 +64,42 @@ void MysqlConnection::close() {
     ready_ = false;
 }
 
+void MysqlConnection::stmt_prepare(const std::string &sql) {
+    if (state_ != State::Ready || !client_ || !client_->connected()) {
+        dispatch_result({}, "connection not ready for prepare");
+        return;
+    }
+
+    // Build COM_STMT_PREPARE packet
+    std::string payload;
+    payload.push_back(static_cast<char>(COM_STMT_PREPARE));
+    payload.append(sql);
+    send_packet(0, payload.data(), payload.size());
+
+    state_ = State::Querying;  // Reuse Querying state for prepare
+}
+
+void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<std::string> &params) {
+    if (state_ != State::Ready || !client_ || !client_->connected()) {
+        dispatch_result({}, "connection not ready for execute");
+        return;
+    }
+
+    std::string payload = build_stmt_execute(stmt_id, params);
+    send_packet(0, payload.data(), payload.size());
+
+    state_ = State::Querying;
+}
+
+void MysqlConnection::stmt_close(uint32_t stmt_id) {
+    if (state_ != State::Ready || !client_ || !client_->connected()) return;
+
+    std::string payload;
+    payload.push_back(static_cast<char>(COM_STMT_CLOSE));
+    write_uint32(payload, stmt_id);
+    send_packet(0, payload.data(), payload.size());
+}
+
 void MysqlConnection::tick() {
     if (!client_) return;
 
@@ -231,14 +267,35 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
     if (type == PACKET_OK) {
         // OK response (INSERT/UPDATE/DELETE)
         MysqlResult result = parse_ok_to_result(char_payload);
+
+        // Check for more results (SERVER_MORE_RESULTS_EXISTS = 0x00000008)
+        if (result.status_flags & 0x00000008) {
+            // Multi-result: save this result, signal more coming
+            pending_results_.push_back(result);
+            // Wait for next packet (don't dispatch yet)
+            return;
+        }
+
         state_ = State::Ready;
         dispatch_result(result, nullptr);
         return;
     }
 
     if (type == PACKET_EOF) {
+        // EOF packet: could be end of result set or between columns/rows
+        // Check if this is a multi-result separator
+        uint16_t status = 0;
+        if (char_payload.size() >= 5) {
+            status = static_cast<uint8_t>(char_payload[3]) |
+                    (static_cast<uint8_t>(char_payload[4]) << 8);
+        }
+
+        if (status & 0x00000008) {
+            // More results coming
+            return;
+        }
+
         // Under CLIENT_DEPRECATE_EOF, 0xFE can be OK-as-EOF
-        // For simplicity, treat as end of empty result
         MysqlResult result;
         result.is_result_set = false;
         state_ = State::Ready;
@@ -257,9 +314,6 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
     for (uint64_t i = 0; i < col_count; ++i) {
         std::vector<uint8_t> col_pkt;
         if (!try_parse_packet(col_pkt)) {
-            // Need more data - but we're in a callback, can't block
-            // Save state and wait for next tick
-            // For now, return partial result
             dispatch_result({}, "incomplete column definitions");
             state_ = State::Ready;
             return;
@@ -279,7 +333,7 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
         if (!eof_pkt.empty()) {
             uint8_t h = eof_pkt[0];
             if (h != PACKET_EOF && h != PACKET_OK) {
-                dispatch_result({}, std::format("expected EOF after columns, got 0x{:02x}", h).c_str());
+                dispatch_result({}, "expected EOF after columns");
                 state_ = State::Ready;
                 return;
             }
@@ -289,12 +343,22 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
     // Read rows until EOF/OK
     while (true) {
         std::vector<uint8_t> row_pkt;
-        if (!try_parse_packet(row_pkt)) break;  // No more packets available
+        if (!try_parse_packet(row_pkt)) break;
         if (row_pkt.empty()) break;
 
         uint8_t h = row_pkt[0];
         if (h == PACKET_EOF || h == PACKET_OK) {
-            break;  // End of result set
+            // Check for more results
+            if (row_pkt.size() >= 5) {
+                uint16_t status = static_cast<uint8_t>(row_pkt[3]) |
+                                 (static_cast<uint8_t>(row_pkt[4]) << 8);
+                if (status & 0x00000008) {
+                    // More results coming - save and continue
+                    pending_results_.push_back(result);
+                    return;
+                }
+            }
+            break;
         }
         std::vector<char> row_char(row_pkt.begin(), row_pkt.end());
         result.rows.push_back(parse_row(row_char, result.columns.size()));

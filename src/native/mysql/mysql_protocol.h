@@ -138,12 +138,44 @@ std::string read_nul_str(const std::vector<char> &buf, size_t &pos);
 std::string make_packet(uint8_t seq, const char *payload, size_t len);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// mysql_native_password authentication (uses crypto::sha1)
+// Authentication (mysql_native_password + caching_sha2_password)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // mysql_native_password: XOR(SHA1(pwd), SHA1(scramble + SHA1(SHA1(pwd))))
 // scramble = 20 bytes from server auth_plugin_data; returns 20-byte response.
 std::array<uint8_t, 20> native_password_hash(const std::string &password, const std::string &scramble);
+
+// caching_sha2_password: XOR(SHA256(pwd), SHA256(scramble + SHA256(SHA256(pwd))))
+// scramble = 20 bytes; returns 32-byte response. Used by MySQL 8+.
+std::vector<uint8_t> caching_sha2_password_hash(const std::string &password, const std::string &scramble);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Prepared statements (binary protocol)
+// ─────────────────────────────────────────────────────────────────────────────
+
+static constexpr uint8_t COM_STMT_PREPARE  = 0x16;
+static constexpr uint8_t COM_STMT_EXECUTE  = 0x17;
+static constexpr uint8_t COM_STMT_CLOSE    = 0x19;
+static constexpr uint8_t COM_STMT_RESET    = 0x1A;
+static constexpr uint8_t COM_STMT_FETCH    = 0x1C;
+
+// Parse COM_STMT_PREPARE response
+struct PrepareResult {
+    uint32_t statement_id = 0;
+    uint16_t num_columns = 0;
+    uint16_t num_params = 0;
+    uint16_t num_warnings = 0;
+    bool valid = false;
+};
+PrepareResult parse_prepare_response(const std::vector<char> &payload);
+
+// Build COM_STMT_EXECUTE packet payload
+std::string build_stmt_execute(uint32_t statement_id,
+                              const std::vector<std::string> &params);
+
+// Parse binary result set row (prepared statement execute result)
+std::vector<std::pair<bool, std::string>> parse_binary_row(const std::vector<char> &payload,
+                                                           size_t num_columns);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handshake parsing

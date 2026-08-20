@@ -36,6 +36,11 @@ public:
     // Send a query. on_result(result, err) called when response arrives.
     void query(const std::string &sql);
 
+    // Prepared statement API
+    void stmt_prepare(const std::string &sql);
+    void stmt_execute(uint32_t stmt_id, const std::vector<std::string> &params);
+    void stmt_close(uint32_t stmt_id);
+
     // Close connection
     void close();
 
@@ -81,6 +86,9 @@ private:
 
     // Pending query info
     std::string last_sql_;
+
+    // Multi-result support
+    std::vector<MysqlResult> pending_results_;
 
     // ── packet I/O ──
     void send_packet(uint8_t seq, const char *payload, size_t len);

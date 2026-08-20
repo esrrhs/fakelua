@@ -44,6 +44,9 @@ static MysqlConnection *unwrap_conn(NativeObject *self) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 static CVar conn_query(NativeObject *self, State *s, CVar *args, int n);
+static CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n);
+static CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
+static CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
 static CVar conn_tick(NativeObject *self, State *s, CVar *args, int n);
 static CVar conn_close(NativeObject *self, State *s, CVar *args, int n);
 
@@ -115,6 +118,9 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
         }
     });
     nat->RegisterMethod("query", conn_query);
+    nat->RegisterMethod("stmt_prepare", conn_stmt_prepare);
+    nat->RegisterMethod("stmt_execute", conn_stmt_execute);
+    nat->RegisterMethod("stmt_close", conn_stmt_close);
     nat->RegisterMethod("tick", conn_tick);
     nat->RegisterMethod("close", conn_close);
 
@@ -143,6 +149,80 @@ static CVar conn_query(NativeObject *self, State *s, CVar *args, int n) {
     conn->set_result_callback(cb_name);
     conn->query(sql);
 
+    return inter::NativeToFakeluaNil(s);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// conn:stmt_prepare(sql, on_result)
+// on_result(err, stmt_id) called when prepare completes
+// ─────────────────────────────────────────────────────────────────────────────
+
+static CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n) {
+    if (n < 3) ThrowBadArgument(1, "conn:stmt_prepare", "sql and callback expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    CVar a1 = inter::GetNativeArg(s, args, n, 1);
+    std::string sql = cvar_to_string(a0);
+    std::string cb_name = cvar_to_string(a1);
+
+    auto *conn = unwrap_conn(self);
+    if (!conn) error("conn:stmt_prepare: connection is closed");
+
+    conn->set_state(s);
+    conn->set_result_callback(cb_name);
+    conn->stmt_prepare(sql);
+
+    return inter::NativeToFakeluaNil(s);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// conn:stmt_execute(stmt_id, params, on_result)
+// on_result(err, result) called when execute completes
+// ─────────────────────────────────────────────────────────────────────────────
+
+static CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
+    if (n < 4) ThrowBadArgument(1, "conn:stmt_execute", "stmt_id, params, and callback expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    CVar a1 = inter::GetNativeArg(s, args, n, 1);
+    CVar a2 = inter::GetNativeArg(s, args, n, 2);
+
+    uint32_t stmt_id = static_cast<uint32_t>(inter::CVarToInteger(a0, 0));
+    std::string cb_name = cvar_to_string(a2);
+
+    // Parse params array
+    std::vector<std::string> params;
+    if (a1.type_ == static_cast<int>(VarType::Table) && a1.data_.t) {
+        // Read array elements (1-based)
+        CVar len_var = table::TableHelper::GetTableStrId(s, a1, "n");
+        int64_t len = inter::CVarToInteger(len_var, 0);
+        for (int64_t i = 1; i <= len; ++i) {
+            CVar elem = table::TableHelper::GetTableInt(s, a1, i);
+            params.push_back(cvar_to_string(elem));
+        }
+    }
+
+    auto *conn = unwrap_conn(self);
+    if (!conn) error("conn:stmt_execute: connection is closed");
+
+    conn->set_state(s);
+    conn->set_result_callback(cb_name);
+    conn->stmt_execute(stmt_id, params);
+
+    return inter::NativeToFakeluaNil(s);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// conn:stmt_close(stmt_id)
+// ─────────────────────────────────────────────────────────────────────────────
+
+static CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n) {
+    if (n < 1) ThrowBadArgument(1, "conn:stmt_close", "stmt_id expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    uint32_t stmt_id = static_cast<uint32_t>(inter::CVarToInteger(a0, 0));
+
+    auto *conn = unwrap_conn(self);
+    if (!conn) return inter::NativeToFakeluaNil(s);
+
+    conn->stmt_close(stmt_id);
     return inter::NativeToFakeluaNil(s);
 }
 
