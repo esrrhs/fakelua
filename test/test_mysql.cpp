@@ -1,5 +1,6 @@
 #include "fakelua.h"
 #include "gtest/gtest.h"
+#include "native/mysql/mysql_connection.h"
 
 using namespace fakelua;
 
@@ -65,4 +66,29 @@ TEST(test_mysql, integration_multi_result) {
     Call(s, JIT_TCC, "MysqlTest.test_multi_result", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
+}
+
+// 集成测试：连接池
+TEST(test_mysql, integration_pool) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_pool.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_pool", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 错误分类单元测试
+TEST(test_mysql, error_classification) {
+    // Test classify_error_code via the public is_retryable interface
+    using namespace fakelua::mysql;
+    EXPECT_TRUE(MysqlConnection::is_retryable(MysqlErrorType::Connection));
+    EXPECT_TRUE(MysqlConnection::is_retryable(MysqlErrorType::Timeout));
+    EXPECT_FALSE(MysqlConnection::is_retryable(MysqlErrorType::Authentication));
+    EXPECT_FALSE(MysqlConnection::is_retryable(MysqlErrorType::Syntax));
+    EXPECT_FALSE(MysqlConnection::is_retryable(MysqlErrorType::Server));
+    EXPECT_FALSE(MysqlConnection::is_retryable(MysqlErrorType::Protocol));
+    EXPECT_FALSE(MysqlConnection::is_retryable(MysqlErrorType::Unknown));
 }

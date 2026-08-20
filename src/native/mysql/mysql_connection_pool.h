@@ -80,7 +80,7 @@ private:
     void send_heartbeat(PoolEntry &entry);
 
     // Auto-reconnect a connection
-    bool reconnect(PoolEntry &entry);
+    void try_reconnect(PoolEntry &entry);
 };
 
 }  // namespace fakelua::mysql

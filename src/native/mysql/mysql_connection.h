@@ -125,6 +125,17 @@ private:
     // Multi-result support
     std::vector<MysqlResult> pending_results_;
 
+    // Incremental result set parser state (for large result sets across ticks)
+    enum class ParsePhase { Columns, Rows, Done };
+    struct ResultSetParser {
+        ParsePhase phase = ParsePhase::Columns;
+        MysqlResult result;
+        uint64_t col_count = 0;
+        uint64_t cols_read = 0;
+        bool in_result_set = false;
+    };
+    std::unique_ptr<ResultSetParser> rs_parser_;
+
     // Error tracking
     MysqlError last_error_;
 

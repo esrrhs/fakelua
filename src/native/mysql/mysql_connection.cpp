@@ -321,6 +321,7 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
     if (payload.empty()) {
         dispatch_result({}, "empty query response");
         state_ = State::Ready;
+        rs_parser_.reset();
         return;
     }
 
@@ -332,6 +333,7 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
         auto err_type = classify_error_code(err.error_code);
         set_error(err_type, err.error_code, err.message, err.sql_state);
         state_ = State::Ready;
+        rs_parser_.reset();
         dispatch_result({}, err.message.c_str());
         return;
     }
@@ -342,102 +344,95 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
 
         // Check for more results (SERVER_MORE_RESULTS_EXISTS = 0x00000008)
         if (result.status_flags & 0x00000008) {
-            // Multi-result: save this result, signal more coming
+            // Multi-result: save this result, wait for next result set
             pending_results_.push_back(result);
-            // Wait for next packet (don't dispatch yet)
             return;
         }
 
         state_ = State::Ready;
+        rs_parser_.reset();
         dispatch_result(result, nullptr);
         return;
     }
 
     if (type == PACKET_EOF) {
         // EOF packet: could be end of result set or between columns/rows
-        // Check if this is a multi-result separator
-        uint16_t status = 0;
-        if (char_payload.size() >= 5) {
-            status = static_cast<uint8_t>(char_payload[3]) |
-                    (static_cast<uint8_t>(char_payload[4]) << 8);
-        }
+        if (rs_parser_ && rs_parser_->in_result_set) {
+            if (rs_parser_->phase == ParsePhase::Rows) {
+                // End of rows — result set complete
+                state_ = State::Ready;
+                MysqlResult result = std::move(rs_parser_->result);
+                bool more_results = false;
 
-        if (status & 0x00000008) {
-            // More results coming
-            return;
+                // Check for more results
+                if (char_payload.size() >= 5) {
+                    uint16_t status = static_cast<uint8_t>(char_payload[3]) |
+                                     (static_cast<uint8_t>(char_payload[4]) << 8);
+                    more_results = (status & 0x00000008);
+                }
+
+                rs_parser_.reset();
+
+                if (more_results) {
+                    // Dispatch this result but keep state for more
+                    // Note: multi-result with result sets is complex;
+                    // we dispatch each result as it completes
+                    dispatch_result(result, nullptr);
+                    state_ = State::Querying;  // still expecting more
+                } else {
+                    dispatch_result(result, nullptr);
+                }
+                return;
+            }
         }
 
         // Under CLIENT_DEPRECATE_EOF, 0xFE can be OK-as-EOF
         MysqlResult result;
         result.is_result_set = false;
         state_ = State::Ready;
+        rs_parser_.reset();
         dispatch_result(result, nullptr);
         return;
     }
 
     // Otherwise: column count (length-encoded integer) → result set
-    MysqlResult result;
-    result.is_result_set = true;
-    size_t pos = 0;
-    uint64_t col_count = read_lenenc_int(char_payload, pos);
+    if (!rs_parser_) {
+        // Start new result set parser
+        rs_parser_ = std::make_unique<ResultSetParser>();
+        rs_parser_->result.is_result_set = true;
+        rs_parser_->in_result_set = true;
+        rs_parser_->phase = ParsePhase::Columns;
 
-    // Read column definitions (each is a separate packet)
-    result.columns.resize(static_cast<size_t>(col_count));
-    for (uint64_t i = 0; i < col_count; ++i) {
-        std::vector<uint8_t> col_pkt;
-        if (!try_parse_packet(col_pkt)) {
-            dispatch_result({}, "incomplete column definitions");
-            state_ = State::Ready;
-            return;
-        }
-        std::vector<char> col_char(col_pkt.begin(), col_pkt.end());
-        result.columns[i] = parse_column_def(col_char);
+        size_t pos = 0;
+        rs_parser_->col_count = read_lenenc_int(char_payload, pos);
+        rs_parser_->cols_read = 0;
+        rs_parser_->result.columns.resize(static_cast<size_t>(rs_parser_->col_count));
     }
 
-    // Read EOF/OK between columns and rows
-    {
-        std::vector<uint8_t> eof_pkt;
-        if (!try_parse_packet(eof_pkt)) {
-            dispatch_result({}, "incomplete EOF after columns");
-            state_ = State::Ready;
-            return;
+    // Feed the packet to the incremental parser
+    if (rs_parser_ && rs_parser_->phase == ParsePhase::Columns) {
+        // This packet is a column definition
+        std::vector<char> col_char(payload.begin(), payload.end());
+        if (rs_parser_->cols_read < rs_parser_->col_count) {
+            rs_parser_->result.columns[rs_parser_->cols_read] = parse_column_def(col_char);
+            ++rs_parser_->cols_read;
         }
-        if (!eof_pkt.empty()) {
-            uint8_t h = eof_pkt[0];
-            if (h != PACKET_EOF && h != PACKET_OK) {
-                dispatch_result({}, "expected EOF after columns");
-                state_ = State::Ready;
-                return;
-            }
+
+        if (rs_parser_->cols_read >= rs_parser_->col_count) {
+            // All columns read, move to rows phase
+            rs_parser_->phase = ParsePhase::Rows;
         }
+        // Wait for more packets (column defs or EOF/rows)
+        return;
     }
 
-    // Read rows until EOF/OK
-    while (true) {
-        std::vector<uint8_t> row_pkt;
-        if (!try_parse_packet(row_pkt)) break;
-        if (row_pkt.empty()) break;
-
-        uint8_t h = row_pkt[0];
-        if (h == PACKET_EOF || h == PACKET_OK) {
-            // Check for more results
-            if (row_pkt.size() >= 5) {
-                uint16_t status = static_cast<uint8_t>(row_pkt[3]) |
-                                 (static_cast<uint8_t>(row_pkt[4]) << 8);
-                if (status & 0x00000008) {
-                    // More results coming - save and continue
-                    pending_results_.push_back(result);
-                    return;
-                }
-            }
-            break;
-        }
-        std::vector<char> row_char(row_pkt.begin(), row_pkt.end());
-        result.rows.push_back(parse_row(row_char, result.columns.size()));
+    if (rs_parser_ && rs_parser_->phase == ParsePhase::Rows) {
+        // This packet is a row (not EOF/OK, those are handled above)
+        std::vector<char> row_char(payload.begin(), payload.end());
+        rs_parser_->result.rows.push_back(parse_row(row_char, rs_parser_->result.columns.size()));
+        // Wait for more rows or EOF
+        return;
     }
-
-    state_ = State::Ready;
-    dispatch_result(result, nullptr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

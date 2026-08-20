@@ -134,7 +134,8 @@ static CVar pool_create(State *s, CVar *args, int n) {
         pool_error(std::format("initialize failed: {}", e.what()));
     }
 
-    auto *nat = NativeObjectManager::Instance().Create(0, "mysql_pool");
+    int64_t gid = NativeObjectManager::Instance().CreateGroup();
+    auto *nat = NativeObjectManager::Instance().Create(gid, "mysql_pool");
     nat->SetInt("__mysql_pool__", reinterpret_cast<int64_t>(pool_obj));
     nat->SetFinalizer([](NativeObject *self) {
         auto *p = unwrap_pool(self);
