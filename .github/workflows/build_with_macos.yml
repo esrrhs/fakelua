@@ -33,8 +33,10 @@ jobs:
         run: |
           HOMEBREW_NO_AUTO_UPDATE=1 brew install mysql
           # Configure MySQL to use mysql_native_password by default
-          echo "[mysqld]" >> /usr/local/etc/my.cnf
-          echo "default-authentication-plugin=mysql_native_password" >> /usr/local/etc/my.cnf
+          # Homebrew on Apple Silicon uses /opt/homebrew/, on Intel uses /usr/local/
+          BREW_PREFIX=$(brew --prefix)
+          echo "[mysqld]" >> "$BREW_PREFIX/etc/my.cnf"
+          echo "default-authentication-plugin=mysql_native_password" >> "$BREW_PREFIX/etc/my.cnf"
           # Start MySQL
           brew services start mysql
           sleep 5
