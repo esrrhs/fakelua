@@ -37,9 +37,13 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     recv_buf_.clear();
     client_->connect();
 
+    fprintf(stderr, "[mysql] connect: connected=%d connecting=%d\n",
+            client_->connected(), client_->connecting());
+
     // If connect() failed immediately (e.g. connection refused), link_ is nullptr
     // and tick() will never fire on_close. Dispatch the error now.
     if (!client_->connected() && !client_->connecting()) {
+        fprintf(stderr, "[mysql] connect failed immediately\n");
         dispatch_connect("connection failed");
         state_ = State::Error;
     }
@@ -137,13 +141,18 @@ void MysqlConnection::tick() {
     // Only tick when we expect data (not idle)
     if (state_ == State::Idle || state_ == State::Error) return;
 
+    fprintf(stderr, "[mysql] tick: state=%d connected=%d connecting=%d\n",
+            static_cast<int>(state_), client_->connected(), client_->connecting());
+
     client_->tick(
         // on_recv: feed raw bytes into MySQL packet parser
         [this](const char *data, size_t len) {
+            fprintf(stderr, "[mysql] recv: %zu bytes\n", len);
             feed_bytes(data, len);
         },
         // on_close: connection lost
         [this]() {
+            fprintf(stderr, "[mysql] connection closed\n");
             if (state_ == State::Connecting || state_ == State::Handshaking) {
                 dispatch_connect("connection closed during handshake");
             } else if (state_ == State::Querying) {
@@ -448,10 +457,19 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 void MysqlConnection::dispatch_connect(const char *err_msg) {
-    if (!lua_state_ || connect_cb_.empty()) return;
+    fprintf(stderr, "[mysql] dispatch_connect: err_msg=%s cb=%s\n",
+            err_msg ? err_msg : "(null)", connect_cb_.c_str());
+
+    if (!lua_state_ || connect_cb_.empty()) {
+        fprintf(stderr, "[mysql] dispatch_connect: no state or no callback\n");
+        return;
+    }
 
     auto func = lua_state_->GetVM().GetFunction(connect_cb_);
-    if (func.Empty()) return;
+    if (func.Empty()) {
+        fprintf(stderr, "[mysql] dispatch_connect: function not found\n");
+        return;
+    }
 
     void *addr = func.GetAddr(JIT_TCC);
     JITType jit_type = JIT_TCC;
@@ -459,10 +477,16 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
         addr = func.GetAddr(JIT_GCC);
         jit_type = JIT_GCC;
     }
-    if (!addr) return;
+    if (!addr) {
+        fprintf(stderr, "[mysql] dispatch_connect: no JIT address\n");
+        return;
+    }
 
     // Ensure we always have a valid error message (never empty string with failure)
     const char *msg = err_msg && err_msg[0] ? err_msg : "connection failed";
+
+    fprintf(stderr, "[mysql] dispatch_connect: calling callback with msg=%s success=%d\n",
+            msg, err_msg ? 0 : 1);
 
     CVar args[3];
     args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_)
