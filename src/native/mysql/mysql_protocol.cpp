@@ -333,7 +333,7 @@ std::string build_handshake_response(const HandshakeInfo &info,
     std::string scramble = info.scramble_part1 + info.scramble_part2;
     std::vector<uint8_t> auth;
 
-    if (info.auth_plugin_name == "caching_sha2_password") {
+    if (info.auth_plugin_name == "caching_sha2_password" || info.auth_plugin_name == "_sha2_password") {
         auth = caching_sha2_password_hash(password, scramble);
     } else {
         // Default: mysql_native_password
