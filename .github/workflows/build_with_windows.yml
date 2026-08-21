@@ -42,17 +42,10 @@ jobs:
           } else {
             $mysql = "mysql"
           }
-          # Configure auth plugin using --skip-ssl to bypass SSL requirement
-          & $mysql -uroot --skip-ssl -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
-          if ($LASTEXITCODE -ne 0) {
-            & $mysql -uroot --get-server-public-key -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
-          }
-          if ($LASTEXITCODE -ne 0) {
-            & $mysql -uroot -proot --skip-ssl -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
-          }
-          if ($LASTEXITCODE -ne 0) {
-            & $mysql -uroot -proot --get-server-public-key -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
-          }
+          # Show MySQL error output for debugging
+          & $mysql -uroot -e "SELECT 1" 2>&1
+          # Configure auth plugin
+          & $mysql -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>&1
           echo "MySQL configured"
 
       - name: Setup MSYS2
