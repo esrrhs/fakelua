@@ -36,6 +36,13 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     state_ = State::Connecting;
     recv_buf_.clear();
     client_->connect();
+
+    // If connect() failed immediately (e.g. connection refused), link_ is nullptr
+    // and tick() will never fire on_close. Dispatch the error now.
+    if (!client_->connected() && !client_->connecting()) {
+        dispatch_connect("connection failed");
+        state_ = State::Error;
+    }
 }
 
 void MysqlConnection::query(const std::string &sql) {
