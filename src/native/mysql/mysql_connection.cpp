@@ -141,18 +141,21 @@ void MysqlConnection::tick() {
     // Only tick when we expect data (not idle)
     if (state_ == State::Idle || state_ == State::Error) return;
 
-    fprintf(stderr, "[mysql] tick: state=%d connected=%d connecting=%d\n",
-            static_cast<int>(state_), client_->connected(), client_->connecting());
+    // Check if TCP connect just completed — transition from Connecting to Handshaking
+    if (state_ == State::Connecting && client_->connected()) {
+        state_ = State::Handshaking;
+        fprintf(stderr, "[mysql] TCP connect completed, now handshaking\n");
+    }
 
     client_->tick(
         // on_recv: feed raw bytes into MySQL packet parser
         [this](const char *data, size_t len) {
-            fprintf(stderr, "[mysql] recv: %zu bytes\n", len);
+            fprintf(stderr, "[mysql] recv: %zu bytes (state=%d)\n", len, static_cast<int>(state_));
             feed_bytes(data, len);
         },
         // on_close: connection lost
         [this]() {
-            fprintf(stderr, "[mysql] connection closed\n");
+            fprintf(stderr, "[mysql] connection closed (state=%d)\n", static_cast<int>(state_));
             if (state_ == State::Connecting || state_ == State::Handshaking) {
                 dispatch_connect("connection closed during handshake");
             } else if (state_ == State::Querying) {
