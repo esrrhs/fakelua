@@ -29,6 +29,23 @@ jobs:
           # Set pkg-config path
           echo "PKG_CONFIG_PATH=$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
 
+      - name: Setup MySQL
+        run: |
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install mysql
+          brew services start mysql
+          # Wait for MySQL to be ready
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 --silent 2>/dev/null; then
+              echo "MySQL is ready"
+              break
+            fi
+            echo "Waiting for MySQL... ($i)"
+            sleep 2
+          done
+          # Set root password and auth plugin
+          mysql -h 127.0.0.1 -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
+          echo "MySQL configured"
+
       - name: Build
         run: |
           set -x
