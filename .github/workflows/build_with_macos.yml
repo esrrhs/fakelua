@@ -42,9 +42,7 @@ jobs:
             echo "Waiting for MySQL... ($i)"
             sleep 2
           done
-          # Set root password and auth plugin
-          mysql -h 127.0.0.1 -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
-          echo "MySQL configured"
+          echo "MySQL ready"
 
       - name: Build
         run: |

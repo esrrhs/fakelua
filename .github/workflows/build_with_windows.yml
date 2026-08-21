@@ -34,19 +34,9 @@ jobs:
             net start MySQL80 2>$true
             net start MySQL 2>$true
           }
-          # Find mysql.exe path
-          $mysqlPath = Get-ChildItem -Path "C:\Program Files\MySQL" -Recurse -Filter "mysql.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($mysqlPath) {
-            Write-Host "Found mysql at: $($mysqlPath.FullName)"
-            $mysql = $mysqlPath.FullName
-          } else {
-            $mysql = "mysql"
-          }
-          # Show MySQL error output for debugging
-          & $mysql -uroot -e "SELECT 1" 2>&1
-          # Configure auth plugin
-          & $mysql -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>&1
-          echo "MySQL configured"
+          # MySQL 8 on Windows uses caching_sha2_password by default
+          # which our client supports. No configuration needed.
+          echo "MySQL started"
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2

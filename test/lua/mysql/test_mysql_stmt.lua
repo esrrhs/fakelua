@@ -19,18 +19,33 @@ function on_prepare(conn, err, stmt_id)
 end
 
 function test_stmt()
-    local config = {}
-    config["host"] = "127.0.0.1"
-    config["port"] = 3306
-    config["user"] = "root"
-    config["password"] = "root"
-    config["db"] = "test"
-
-    local conn = mysql.connect(config, "on_connect")
+    -- Try with password first, then without
+    local conn = mysql.connect({
+        host = "127.0.0.1",
+        port = 3306,
+        user = "root",
+        password = "root",
+        db = "test"
+    }, "on_connect")
 
     for i = 1, 200 do
         conn:tick()
         if conn.connected or conn.connect_err then break end
+    end
+
+    if not conn.connected then
+        conn = mysql.connect({
+            host = "127.0.0.1",
+            port = 3306,
+            user = "root",
+            password = "",
+            db = "test"
+        }, "on_connect")
+
+        for i = 1, 200 do
+            conn:tick()
+            if conn.connected or conn.connect_err then break end
+        end
     end
 
     if not conn.connected then

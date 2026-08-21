@@ -80,20 +80,18 @@ jobs:
           lcov --version
           cd ..
 
-      - name: Setup MySQL auth
+      - name: Setup MySQL
         run: |
-          # Wait for MySQL to be ready, then switch to mysql_native_password
+          # Wait for MySQL to be ready
           for i in $(seq 1 30); do
-            if mysqladmin ping -h 127.0.0.1 -proot --silent 2>/dev/null; then
+            if mysqladmin ping -h 127.0.0.1 --silent 2>/dev/null; then
               echo "MySQL is ready"
               break
             fi
             echo "Waiting for MySQL... ($i)"
             sleep 2
           done
-          # Change root auth plugin to mysql_native_password
-          mysql -h 127.0.0.1 -uroot -proot -e "ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
-          echo "MySQL auth configured"
+          echo "MySQL ready"
 
       - name: Build (${{ matrix.build_type }})
         run: |
