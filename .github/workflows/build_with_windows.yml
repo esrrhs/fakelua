@@ -42,8 +42,14 @@ jobs:
           } else {
             $mysql = "mysql"
           }
-          # Configure auth plugin (try without password first, then with)
-          & $mysql -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
+          # Configure auth plugin (try different methods)
+          & $mysql -uroot --get-server-public-key -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
+          if ($LASTEXITCODE -ne 0) {
+            & $mysql -uroot -proot --get-server-public-key -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
+          }
+          if ($LASTEXITCODE -ne 0) {
+            & $mysql -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
+          }
           if ($LASTEXITCODE -ne 0) {
             & $mysql -uroot -proot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
           }
