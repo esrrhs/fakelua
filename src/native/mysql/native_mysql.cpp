@@ -135,7 +135,7 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 CVar conn_query(NativeObject *self, State *s, CVar *args, int n) {
-    if (n < 3) ThrowBadArgument(1, "conn:query", "sql and callback expected");
+    if (n < 2) ThrowBadArgument(1, "conn:query", "sql and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     std::string sql = cvar_to_string(a0);
@@ -157,7 +157,7 @@ CVar conn_query(NativeObject *self, State *s, CVar *args, int n) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n) {
-    if (n < 3) ThrowBadArgument(1, "conn:stmt_prepare", "sql and callback expected");
+    if (n < 2) ThrowBadArgument(1, "conn:stmt_prepare", "sql and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     std::string sql = cvar_to_string(a0);
@@ -179,7 +179,7 @@ CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
-    if (n < 4) ThrowBadArgument(1, "conn:stmt_execute", "stmt_id, params, and callback expected");
+    if (n < 3) ThrowBadArgument(1, "conn:stmt_execute", "stmt_id, params, and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     CVar a2 = inter::GetNativeArg(s, args, n, 2);
