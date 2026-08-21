@@ -28,15 +28,26 @@ jobs:
           if ($service) {
             Write-Host "Found MySQL service: $($service.Name)"
             Start-Service $service.Name
-            Start-Sleep -Seconds 5
+            Start-Sleep -Seconds 10
           } else {
             Write-Host "MySQL service not found, trying to start..."
             net start MySQL80 2>$true
             net start MySQL 2>$true
           }
-          # Configure auth plugin
-          mysql -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
-          echo "MySQL started"
+          # Find mysql.exe path
+          $mysqlPath = Get-ChildItem -Path "C:\Program Files\MySQL" -Recurse -Filter "mysql.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($mysqlPath) {
+            Write-Host "Found mysql at: $($mysqlPath.FullName)"
+            $mysql = $mysqlPath.FullName
+          } else {
+            $mysql = "mysql"
+          }
+          # Configure auth plugin (try without password first, then with)
+          & $mysql -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
+          if ($LASTEXITCODE -ne 0) {
+            & $mysql -uroot -proot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
+          }
+          echo "MySQL configured"
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
