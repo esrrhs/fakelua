@@ -519,8 +519,15 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
 
     if (rs_parser_ && rs_parser_->phase == ParsePhase::Rows) {
         // This packet is a row (not EOF/OK, those are handled above)
-        std::vector<char> row_char(payload.begin(), payload.end());
-        rs_parser_->result.rows.push_back(parse_row(row_char, rs_parser_->result.columns.size()));
+        try {
+            std::vector<char> row_char(payload.begin(), payload.end());
+            rs_parser_->result.rows.push_back(parse_row(row_char, rs_parser_->result.columns.size()));
+        } catch (const std::exception &e) {
+            fprintf(stderr, "[mysql] parse_row exception: %s\n", e.what());
+            state_ = State::Ready;
+            rs_parser_.reset();
+            dispatch_result({}, e.what());
+        }
         // Wait for more rows or EOF
         return;
     }
