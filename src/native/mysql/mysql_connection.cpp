@@ -498,6 +498,9 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
         rs_parser_->col_count = read_lenenc_int(char_payload, pos);
         rs_parser_->cols_read = 0;
         rs_parser_->result.columns.resize(static_cast<size_t>(rs_parser_->col_count));
+        fprintf(stderr, "[mysql] col_count=%llu, first byte=0x%02x\n",
+                (unsigned long long)rs_parser_->col_count,
+                static_cast<uint8_t>(char_payload[0]));
     }
 
     // Feed the packet to the incremental parser
@@ -505,6 +508,12 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
         // This packet is a column definition
         try {
             std::vector<char> col_char(payload.begin(), payload.end());
+            // Debug: log first 10 bytes of column definition
+            fprintf(stderr, "[mysql] col_def packet: %zu bytes, first 10: ", col_char.size());
+            for (size_t i = 0; i < col_char.size() && i < 10; ++i) {
+                fprintf(stderr, "%02x ", static_cast<uint8_t>(col_char[i]));
+            }
+            fprintf(stderr, "\n");
             if (rs_parser_->cols_read < rs_parser_->col_count) {
                 rs_parser_->result.columns[rs_parser_->cols_read] = parse_column_def(col_char);
                 ++rs_parser_->cols_read;
