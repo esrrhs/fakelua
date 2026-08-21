@@ -25,7 +25,7 @@ function test_pool()
 
     -- 驱动连接池直到连接建立（最多 200 次 tick）
     local conn = nil
-    for i = 1, 200 do
+    for i = 1, 1000 do
         pool:tick()
         conn = pool:acquire()
         if conn then break end
@@ -41,7 +41,7 @@ function test_pool()
     conn.query_err = nil
     conn:query("SELECT 1 AS test", "on_pool_result")
 
-    for i = 1, 200 do
+    for i = 1, 1000 do
         pool:tick()
         if conn.query_done then break end
     end

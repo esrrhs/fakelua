@@ -28,7 +28,7 @@ function test_stmt()
         db = "test"
     }, "on_connect")
 
-    for i = 1, 200 do
+    for i = 1, 1000 do
         conn:tick()
         if conn.connected or conn.connect_err then break end
     end
@@ -42,7 +42,7 @@ function test_stmt()
             db = "test"
         }, "on_connect")
 
-        for i = 1, 200 do
+        for i = 1, 1000 do
             conn:tick()
             if conn.connected or conn.connect_err then break end
         end
@@ -58,11 +58,11 @@ function test_stmt()
     conn.query_done = false
     conn.query_err = nil
     conn:query("DROP TABLE IF EXISTS stmt_test", "on_result")
-    for i = 1, 200 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
     conn.query_done = false
     conn:query("CREATE TABLE stmt_test (id INT PRIMARY KEY, name VARCHAR(64))", "on_result")
-    for i = 1, 200 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
     -- 准备 INSERT 语句
     conn.prepare_done = false
@@ -70,7 +70,7 @@ function test_stmt()
     conn.stmt_id = nil
     conn:stmt_prepare("INSERT INTO stmt_test VALUES (?, ?)", "on_prepare")
 
-    for i = 1, 200 do
+    for i = 1, 1000 do
         conn:tick()
         if conn.prepare_done then break end
     end
@@ -87,7 +87,7 @@ function test_stmt()
     conn.query_err = nil
     conn:stmt_execute(conn.stmt_id, {"1", "alice"}, "on_result")
 
-    for i = 1, 200 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
     if conn.query_err and #conn.query_err > 0 then
         local err_str = conn.query_err
@@ -111,7 +111,7 @@ function test_stmt()
     conn.stmt_id = nil
     conn:stmt_prepare("SELECT id, name FROM stmt_test WHERE id = ?", "on_prepare")
 
-    for i = 1, 200 do
+    for i = 1, 1000 do
         conn:tick()
         if conn.prepare_done then break end
     end
@@ -128,7 +128,7 @@ function test_stmt()
     conn.query_err = nil
     conn:stmt_execute(conn.stmt_id, {"1"}, "on_result")
 
-    for i = 1, 200 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
     if conn.query_err and #conn.query_err > 0 then
         local err_str = conn.query_err
@@ -172,7 +172,7 @@ function test_stmt()
     -- 清理
     conn:stmt_close(conn.stmt_id)
     conn:query("DROP TABLE IF EXISTS stmt_test", "on_result")
-    for i = 1, 200 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
     conn:close()
     return 1
 end

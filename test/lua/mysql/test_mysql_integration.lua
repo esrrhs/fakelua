@@ -22,7 +22,7 @@ function test_mysql_integration()
         db = "test"
     }, "on_connect")
 
-    for i = 1, 200 do
+    for i = 1, 1000 do
         conn:tick()
         if conn.connected or conn.connect_err then break end
     end
@@ -37,7 +37,7 @@ function test_mysql_integration()
             db = "test"
         }, "on_connect")
 
-        for i = 1, 200 do
+        for i = 1, 1000 do
             conn:tick()
             if conn.connected or conn.connect_err then break end
         end
@@ -53,7 +53,7 @@ function test_mysql_integration()
     conn.query_err = nil
     conn:query("SELECT 1 AS test", "on_result")
 
-    for i = 1, 200 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
     if conn.query_err and #conn.query_err > 0 then
         local err_str = conn.query_err

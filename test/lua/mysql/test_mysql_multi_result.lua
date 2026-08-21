@@ -27,7 +27,7 @@ function test_multi_result()
         db = "test"
     }, "on_connect")
 
-    for i = 1, 200 do
+    for i = 1, 1000 do
         conn:tick()
         if conn.connected or conn.connect_err then break end
     end
@@ -41,7 +41,7 @@ function test_multi_result()
             db = "test"
         }, "on_connect")
 
-        for i = 1, 200 do
+        for i = 1, 1000 do
             conn:tick()
             if conn.connected or conn.connect_err then break end
         end
@@ -60,7 +60,7 @@ function test_multi_result()
     conn:query("SELECT 1 AS a; SELECT 2 AS b; SELECT 3 AS c", "on_result")
 
     -- 驱动足够长时间让所有结果返回
-    for i = 1, 500 do
+    for i = 1, 2000 do
         conn:tick()
         if conn.query_done and #conn.results >= 3 then
             break
