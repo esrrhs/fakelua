@@ -337,6 +337,13 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
         return;
     }
 
+    // caching_sha2_password fast auth response (0x01) — wait for next packet
+    if (type == 0x01) {
+        fprintf(stderr, "[mysql] caching_sha2_password fast auth complete, waiting for OK\n");
+        // Stay in Handshaking state — wait for OK/ERR
+        return;
+    }
+
     set_error(MysqlErrorType::Protocol, 0,
               std::format("unexpected handshake byte 0x{:02x}", type), "");
     dispatch_connect(last_error_.message.c_str());
