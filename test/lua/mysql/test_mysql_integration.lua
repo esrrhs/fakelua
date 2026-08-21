@@ -1,6 +1,6 @@
 package "MysqlTest"
 
--- 集成测试：回调式 API（需要本地 MySQL 服务）
+-- 集成测试：回调式 API
 function on_connect(conn, err, success)
     conn.connected = (success == 1)
     conn.connect_err = err
@@ -22,16 +22,15 @@ function test_mysql_integration()
 
     local conn = mysql.connect(config, "on_connect")
 
-    -- 驱动 IO 直到连接完成（最多 200 次 tick）
     for i = 1, 200 do
         conn:tick()
         if conn.connected or conn.connect_err then break end
     end
 
     if not conn.connected then
-        -- 没有 MySQL 服务或连接失败时跳过
-        print("skipping: cannot connect to MySQL (", tostring(conn.connect_err or ""), ")")
-        return 1  -- skip
+        local err_str = conn.connect_err or ""
+        print("failed to connect:", tostring(err_str))
+        return 0
     end
 
     -- 1. 创建表
@@ -41,36 +40,36 @@ function test_mysql_integration()
 
     for i = 1, 200 do conn:tick() if conn.query_done then break end end
     if conn.query_err and #conn.query_err > 0 then
-        print("DROP TABLE failed:", conn.query_err)
+        local err_str = conn.query_err
+        print("DROP TABLE failed:", tostring(err_str))
         conn:close()
         return 0
     end
 
-    -- 2. CREATE TABLE
     conn.query_done = false
-    conn.query_err = nil
     conn:query("CREATE TABLE fakelua_test (id INT PRIMARY KEY, name VARCHAR(64), val FLOAT)", "on_result")
 
     for i = 1, 200 do conn:tick() if conn.query_done then break end end
     if conn.query_err and #conn.query_err > 0 then
-        print("CREATE TABLE failed:", conn.query_err)
+        local err_str = conn.query_err
+        print("CREATE TABLE failed:", tostring(err_str))
         conn:close()
         return 0
     end
 
-    -- 3. INSERT 插入数据
+    -- 2. INSERT 插入数据
     conn.query_done = false
     conn.query_err = nil
     conn:query("INSERT INTO fakelua_test VALUES (1, 'alice', 1.5)", "on_result")
 
     for i = 1, 200 do conn:tick() if conn.query_done then break end end
     if conn.query_err and #conn.query_err > 0 then
-        print("INSERT failed:", conn.query_err)
+        local err_str = conn.query_err
+        print("INSERT failed:", tostring(err_str))
         conn:close()
         return 0
     end
 
-    -- 再插两条
     conn.query_done = false
     conn:query("INSERT INTO fakelua_test VALUES (2, 'bob', 2.7)", "on_result")
     for i = 1, 200 do conn:tick() if conn.query_done then break end end
@@ -79,14 +78,15 @@ function test_mysql_integration()
     conn:query("INSERT INTO fakelua_test VALUES (3, NULL, 3.14)", "on_result")
     for i = 1, 200 do conn:tick() if conn.query_done then break end end
 
-    -- 4. SELECT 查询并验证结果集
+    -- 3. SELECT 查询并验证结果集
     conn.query_done = false
     conn.query_err = nil
     conn:query("SELECT id, name, val FROM fakelua_test ORDER BY id", "on_result")
 
     for i = 1, 200 do conn:tick() if conn.query_done then break end end
     if conn.query_err and #conn.query_err > 0 then
-        print("SELECT failed:", conn.query_err)
+        local err_str = conn.query_err
+        print("SELECT failed:", tostring(err_str))
         conn:close()
         return 0
     end
@@ -129,7 +129,7 @@ function test_mysql_integration()
         return 0
     end
 
-    -- 验证第一行: 1, "alice", "1.5"
+    -- 验证第一行: 1, "alice"
     local row1 = result[3][1]
     if row1[1] ~= "1" or row1[2] ~= "alice" then
         print("row 1 mismatch:", row1[1], row1[2])
@@ -145,18 +145,18 @@ function test_mysql_integration()
         return 0
     end
 
-    -- 5. UPDATE
+    -- 4. UPDATE
     conn.query_done = false
     conn.query_err = nil
     conn:query("UPDATE fakelua_test SET name='charlie' WHERE id=2", "on_result")
 
     for i = 1, 200 do conn:tick() if conn.query_done then break end end
     if conn.query_err and #conn.query_err > 0 then
-        print("UPDATE failed:", conn.query_err)
+        local err_str = conn.query_err
+        print("UPDATE failed:", tostring(err_str))
         conn:close()
         return 0
     end
-    -- 验证 affected_rows
     local update_result = conn.query_result
     if update_result[4] ~= 1 then
         print("UPDATE affected_rows expected 1, got:", update_result[4])
@@ -164,14 +164,15 @@ function test_mysql_integration()
         return 0
     end
 
-    -- 6. DELETE
+    -- 5. DELETE
     conn.query_done = false
     conn.query_err = nil
     conn:query("DELETE FROM fakelua_test WHERE id=3", "on_result")
 
     for i = 1, 200 do conn:tick() if conn.query_done then break end end
     if conn.query_err and #conn.query_err > 0 then
-        print("DELETE failed:", conn.query_err)
+        local err_str = conn.query_err
+        print("DELETE failed:", tostring(err_str))
         conn:close()
         return 0
     end
@@ -182,7 +183,7 @@ function test_mysql_integration()
         return 0
     end
 
-    -- 7. 验证删除后只剩 2 行
+    -- 6. 验证删除后只剩 2 行
     conn.query_done = false
     conn:query("SELECT COUNT(*) FROM fakelua_test", "on_result")
     for i = 1, 200 do conn:tick() if conn.query_done then break end end

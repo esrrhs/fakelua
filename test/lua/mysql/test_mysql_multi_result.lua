@@ -1,6 +1,6 @@
 package "MysqlTest"
 
--- 多结果集测试（需要本地 MySQL 服务）
+-- 多结果集测试
 function on_connect(conn, err, success)
     conn.connected = (success == 1)
     conn.connect_err = err
@@ -11,7 +11,9 @@ function on_result(conn, err, result)
     conn.query_result = result
     conn.query_done = true
     -- 收集多结果
-    if not conn.results then conn.results = {} end
+    if not conn.results then
+        conn.results = {}
+    end
     conn.results[#conn.results + 1] = result
 end
 
@@ -31,8 +33,9 @@ function test_multi_result()
     end
 
     if not conn.connected then
-        print("skipping: cannot connect to MySQL (", tostring(conn.connect_err or ""), ")")
-        return 1  -- skip
+        local err_str = conn.connect_err or ""
+        print("failed to connect:", tostring(err_str))
+        return 0
     end
 
     -- 多语句查询
@@ -44,7 +47,9 @@ function test_multi_result()
     -- 驱动足够长时间让所有结果返回
     for i = 1, 500 do
         conn:tick()
-        if conn.query_done and #conn.results >= 3 then break end
+        if conn.query_done and #conn.results >= 3 then
+            break
+        end
     end
 
     -- 验证收到 3 个结果
@@ -55,7 +60,8 @@ function test_multi_result()
     end
 
     -- 验证每个结果
-    for i, result in ipairs(conn.results) do
+    for i = 1, #conn.results do
+        local result = conn.results[i]
         if result[1] ~= true then
             print("result", i, "is not a result set")
             conn:close()

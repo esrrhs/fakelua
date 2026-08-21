@@ -233,9 +233,10 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
         // Handshake packet (protocol v10)
         HandshakeInfo info = parse_handshake(char_payload);
 
-        // Check auth plugin
+        // Check auth plugin — support both mysql_native_password and caching_sha2_password
         if (!info.auth_plugin_name.empty() &&
-            info.auth_plugin_name != "mysql_native_password") {
+            info.auth_plugin_name != "mysql_native_password" &&
+            info.auth_plugin_name != "caching_sha2_password") {
             dispatch_connect(std::format("unsupported auth plugin '{}'", info.auth_plugin_name).c_str());
             state_ = State::Error;
             return;

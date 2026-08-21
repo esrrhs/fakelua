@@ -1,6 +1,6 @@
 package "MysqlTest"
 
--- 预处理语句测试（需要本地 MySQL 服务）
+-- 预处理语句测试
 function on_connect(conn, err, success)
     conn.connected = (success == 1)
     conn.connect_err = err
@@ -34,8 +34,9 @@ function test_stmt()
     end
 
     if not conn.connected then
-        print("skipping: cannot connect to MySQL (", tostring(conn.connect_err or ""), ")")
-        return 1  -- skip
+        local err_str = conn.connect_err or ""
+        print("failed to connect:", tostring(err_str))
+        return 0
     end
 
     -- 创建测试表
@@ -60,7 +61,8 @@ function test_stmt()
     end
 
     if not conn.stmt_id then
-        print("stmt_prepare failed:", tostring(conn.prepare_err))
+        local err_str = conn.prepare_err or ""
+        print("stmt_prepare failed:", tostring(err_str))
         conn:close()
         return 0
     end
@@ -70,13 +72,11 @@ function test_stmt()
     conn.query_err = nil
     conn:stmt_execute(conn.stmt_id, {"1", "alice"}, "on_result")
 
-    for i = 1, 200 do
-        conn:tick()
-        if conn.query_done then break end
-    end
+    for i = 1, 200 do conn:tick() if conn.query_done then break end end
 
     if conn.query_err and #conn.query_err > 0 then
-        print("stmt_execute failed:", conn.query_err)
+        local err_str = conn.query_err
+        print("stmt_execute failed:", tostring(err_str))
         conn:stmt_close(conn.stmt_id)
         conn:close()
         return 0
@@ -102,7 +102,8 @@ function test_stmt()
     end
 
     if not conn.stmt_id then
-        print("SELECT stmt_prepare failed:", tostring(conn.prepare_err))
+        local err_str = conn.prepare_err or ""
+        print("SELECT stmt_prepare failed:", tostring(err_str))
         conn:close()
         return 0
     end
@@ -112,13 +113,11 @@ function test_stmt()
     conn.query_err = nil
     conn:stmt_execute(conn.stmt_id, {"1"}, "on_result")
 
-    for i = 1, 200 do
-        conn:tick()
-        if conn.query_done then break end
-    end
+    for i = 1, 200 do conn:tick() if conn.query_done then break end end
 
     if conn.query_err and #conn.query_err > 0 then
-        print("SELECT stmt_execute failed:", conn.query_err)
+        local err_str = conn.query_err
+        print("SELECT stmt_execute failed:", tostring(err_str))
         conn:stmt_close(conn.stmt_id)
         conn:close()
         return 0
