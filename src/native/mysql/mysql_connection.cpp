@@ -190,22 +190,36 @@ void MysqlConnection::feed_bytes(const char *data, size_t len) {
         std::vector<uint8_t> payload;
         if (!try_parse_packet(payload)) break;
 
-        // Dispatch based on protocol state
-        switch (state_) {
-            case State::Handshaking:
-                handle_handshake_packet(payload);
-                break;
-            case State::Querying:
-                handle_query_packet(payload);
-                break;
-            case State::Connecting:
-                // Shouldn't receive data before TCP connect completes
-                break;
-            case State::Ready:
-                // Unsolicited packet (shouldn't happen normally)
-                break;
-            default:
-                break;
+        try {
+            // Dispatch based on protocol state
+            switch (state_) {
+                case State::Handshaking:
+                    handle_handshake_packet(payload);
+                    break;
+                case State::Querying:
+                    handle_query_packet(payload);
+                    break;
+                case State::Connecting:
+                    // Shouldn't receive data before TCP connect completes
+                    break;
+                case State::Ready:
+                    // Unsolicited packet (shouldn't happen normally)
+                    break;
+                default:
+                    break;
+            }
+        } catch (const std::exception &e) {
+            // Protocol parsing errors (e.g. unexpected packet type) should not crash.
+            // Report as connection/auth failure instead.
+            fprintf(stderr, "[mysql] feed_bytes exception (state=%d): %s\n",
+                    static_cast<int>(state_), e.what());
+            if (state_ == State::Handshaking || state_ == State::Connecting) {
+                dispatch_connect(e.what());
+            } else if (state_ == State::Querying) {
+                dispatch_result({}, e.what());
+            }
+            state_ = State::Error;
+            break;
         }
     }
 }

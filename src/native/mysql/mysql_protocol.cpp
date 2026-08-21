@@ -329,17 +329,12 @@ std::string build_handshake_response(const HandshakeInfo &info,
     payload.append(username);
     payload.push_back('\0');
 
-    // auth response — choose hash method based on auth plugin
+    // auth response — always compute mysql_native_password hash for the initial response.
+    // If the server requires caching_sha2_password, it will send an Auth Switch Request (0xFE)
+    // and we handle it in handle_handshake_packet().
     std::string scramble = info.scramble_part1 + info.scramble_part2;
-    std::vector<uint8_t> auth;
-
-    if (info.auth_plugin_name == "caching_sha2_password" || info.auth_plugin_name == "_sha2_password") {
-        auth = caching_sha2_password_hash(password, scramble);
-    } else {
-        // Default: mysql_native_password
-        auto hash = native_password_hash(password, scramble);
-        auth.assign(hash.begin(), hash.end());
-    }
+    auto hash = native_password_hash(password, scramble);
+    std::vector<uint8_t> auth(hash.begin(), hash.end());
 
     if (caps & CLIENT_PLUGIN_AUTH_LENENC) {
         // length-encoded auth response
@@ -357,8 +352,13 @@ std::string build_handshake_response(const HandshakeInfo &info,
     }
 
     // auth plugin name (NUL-terminated) — if CLIENT_PLUGIN_AUTH
-    if ((caps & CLIENT_PLUGIN_AUTH) && !info.auth_plugin_name.empty()) {
-        payload.append(info.auth_plugin_name);
+    // Always request mysql_native_password to avoid caching_sha2_password issues.
+    // MySQL 8.0 defaults to caching_sha2_password which requires SSL for full auth
+    // and has been observed to fail silently (fast auth → no OK) over plain TCP.
+    // If the server insists on caching_sha2_password, it sends an Auth Switch Request
+    // (0xFE) which we handle in handle_handshake_packet().
+    if ((caps & CLIENT_PLUGIN_AUTH)) {
+        payload.append("mysql_native_password");
         payload.push_back('\0');
     }
 
