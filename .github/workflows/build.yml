@@ -31,7 +31,6 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
-          --default-authentication-plugin=mysql_native_password
 
     steps:
       - uses: actions/checkout@v4
@@ -80,6 +79,21 @@ jobs:
           sudo ln -s /usr/local/bin/lcov /usr/bin/lcov
           lcov --version
           cd ..
+
+      - name: Setup MySQL auth
+        run: |
+          # Wait for MySQL to be ready, then switch to mysql_native_password
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -proot --silent 2>/dev/null; then
+              echo "MySQL is ready"
+              break
+            fi
+            echo "Waiting for MySQL... ($i)"
+            sleep 2
+          done
+          # Change root auth plugin to mysql_native_password
+          mysql -h 127.0.0.1 -uroot -proot -e "ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>/dev/null || true
+          echo "MySQL auth configured"
 
       - name: Build (${{ matrix.build_type }})
         run: |
