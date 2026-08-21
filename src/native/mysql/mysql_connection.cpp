@@ -454,10 +454,13 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
     }
     if (!addr) return;
 
+    // Ensure we always have a valid error message (never empty string with failure)
+    const char *msg = err_msg && err_msg[0] ? err_msg : "connection failed";
+
     CVar args[3];
     args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_)
                           : inter::NativeToFakeluaNil(lua_state_);
-    args[1] = inter::NativeToFakeluaString(lua_state_, err_msg ? err_msg : "");
+    args[1] = inter::NativeToFakeluaString(lua_state_, msg);
     args[2] = inter::NativeToFakeluaInt(lua_state_, err_msg ? 0 : 1);
 
     inter::DispatchCall(addr, args, 3, jit_type);
@@ -477,11 +480,14 @@ void MysqlConnection::dispatch_result(const MysqlResult &result, const char *err
     }
     if (!addr) return;
 
+    // Ensure we always have a valid error message (never empty string with failure)
+    const char *msg = err_msg && err_msg[0] ? err_msg : "query failed";
+
     CVar args[3];
     args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_)
                           : inter::NativeToFakeluaNil(lua_state_);
     if (err_msg) {
-        args[1] = inter::NativeToFakeluaString(lua_state_, err_msg);
+        args[1] = inter::NativeToFakeluaString(lua_state_, msg);
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
         args[2] = nil;
