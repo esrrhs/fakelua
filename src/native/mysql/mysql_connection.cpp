@@ -503,15 +503,22 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
     // Feed the packet to the incremental parser
     if (rs_parser_ && rs_parser_->phase == ParsePhase::Columns) {
         // This packet is a column definition
-        std::vector<char> col_char(payload.begin(), payload.end());
-        if (rs_parser_->cols_read < rs_parser_->col_count) {
-            rs_parser_->result.columns[rs_parser_->cols_read] = parse_column_def(col_char);
-            ++rs_parser_->cols_read;
-        }
+        try {
+            std::vector<char> col_char(payload.begin(), payload.end());
+            if (rs_parser_->cols_read < rs_parser_->col_count) {
+                rs_parser_->result.columns[rs_parser_->cols_read] = parse_column_def(col_char);
+                ++rs_parser_->cols_read;
+            }
 
-        if (rs_parser_->cols_read >= rs_parser_->col_count) {
-            // All columns read, move to rows phase
-            rs_parser_->phase = ParsePhase::Rows;
+            if (rs_parser_->cols_read >= rs_parser_->col_count) {
+                // All columns read, move to rows phase
+                rs_parser_->phase = ParsePhase::Rows;
+            }
+        } catch (const std::exception &e) {
+            fprintf(stderr, "[mysql] parse_column_def exception: %s\n", e.what());
+            state_ = State::Ready;
+            rs_parser_.reset();
+            dispatch_result({}, e.what());
         }
         // Wait for more packets (column defs or EOF/rows)
         return;
