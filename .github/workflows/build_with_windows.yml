@@ -23,7 +23,18 @@ jobs:
 
       - name: Start MySQL
         run: |
-          net start MySQL80
+          # Find and start MySQL service
+          $service = Get-Service | Where-Object { $_.Name -like "*MySQL*" } | Select-Object -First 1
+          if ($service) {
+            Write-Host "Found MySQL service: $($service.Name)"
+            Start-Service $service.Name
+            Start-Sleep -Seconds 5
+          } else {
+            Write-Host "MySQL service not found, trying to start..."
+            net start MySQL80 2>$true
+            net start MySQL 2>$true
+          }
+          # Configure auth plugin
           mysql -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
           echo "MySQL started"
 
