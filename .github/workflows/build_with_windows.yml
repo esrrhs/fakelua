@@ -16,6 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install MySQL
+        run: |
+          choco install mysql --version=8.0.36 -y
+          echo "MySQL installed"
+
+      - name: Start MySQL
+        run: |
+          net start MySQL80
+          mysql -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root'; FLUSH PRIVILEGES;" 2>$true
+          echo "MySQL started"
+
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
         with:
