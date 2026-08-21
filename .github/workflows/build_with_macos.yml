@@ -60,6 +60,9 @@ jobs:
           else
             MYSQL_CMD="mysql -h 127.0.0.1 -uroot -proot"
           fi
+          # Enable mysql_native_password plugin (disabled by default in MySQL 8.4+)
+          $MYSQL_CMD -e "INSTALL PLUGIN mysql_native_password SONAME 'mysql_native_password.so';" 2>/dev/null || true
+          $MYSQL_CMD -e "SET GLOBAL require_secure_transport = OFF;" 2>/dev/null || true
           $MYSQL_CMD -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root';"
           $MYSQL_CMD -e "CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY 'root';"
           $MYSQL_CMD -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;"
