@@ -95,7 +95,9 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot <<'EOF' 2>/dev/null || true
             ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root';
             CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY 'root';
+            ALTER USER 'root'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY 'root';
             CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'root';
+            ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'root';
             GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
             GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
             CREATE DATABASE IF NOT EXISTS test;
