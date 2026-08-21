@@ -272,10 +272,44 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
         return;
     }
 
-    // Auth switch request (0xFE) - not supported in v1
+    // Auth switch request (0xFE) — server wants us to switch auth plugin
     if (type == PACKET_EOF) {
-        dispatch_connect("auth switch / legacy auth not supported");
-        state_ = State::Error;
+        // Parse auth switch request: 0xFE + NUL-terminated plugin name + auth data
+        std::string plugin_name;
+        std::string auth_data;
+        size_t pos = 1;
+        if (pos < payload.size()) {
+            // Read NUL-terminated plugin name
+            while (pos < payload.size() && payload[pos] != 0) {
+                plugin_name.push_back(static_cast<char>(payload[pos]));
+                ++pos;
+            }
+            if (pos < payload.size()) ++pos; // skip NUL
+            // Read remaining auth data
+            if (pos < payload.size()) {
+                auth_data.assign(char_payload.begin() + static_cast<ssize_t>(pos), char_payload.end());
+            }
+        }
+
+        fprintf(stderr, "[mysql] auth switch: plugin='%s' auth_data_len=%zu\n",
+                plugin_name.c_str(), auth_data.size());
+
+        // Build auth response using the requested plugin
+        std::vector<uint8_t> auth_response;
+        if (plugin_name == "mysql_native_password") {
+            auto hash = native_password_hash(password_, auth_data);
+            auth_response.assign(hash.begin(), hash.end());
+        } else if (plugin_name == "caching_sha2_password" || plugin_name == "_sha2_password") {
+            auth_response = caching_sha2_password_hash(password_, auth_data);
+        } else {
+            dispatch_connect(std::format("auth switch: unsupported plugin '{}'", plugin_name).c_str());
+            state_ = State::Error;
+            return;
+        }
+
+        // Send auth response
+        send_packet(3, reinterpret_cast<const char *>(auth_response.data()), auth_response.size());
+        // Stay in Handshaking state — wait for OK/ERR
         return;
     }
 
