@@ -94,22 +94,9 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     std::string cb_name = cvar_to_string(a1);
     if (cb_name.empty()) ThrowBadArgument(1, "mysql.connect", "callback function expected");
 
-    // Create connection (async)
-    auto *conn = new MysqlConnection();
-    conn->set_state(s);
-    conn->set_connect_callback(cb_name);
-
-    try {
-        conn->connect(host, port, user, password, database);
-    } catch (const std::exception &e) {
-        delete conn;
-        error(std::format("connect failed: {}", e.what()));
-    }
-
-    // Wrap in NativeObject (need a group_id)
+    // Create NativeObject wrapper first (so callbacks can dispatch)
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *nat = NativeObjectManager::Instance().Create(gid, "mysql_connection");
-    nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
     nat->SetFinalizer([](NativeObject *self) {
         auto *c = unwrap_conn_native(self);
         if (c) {
@@ -124,8 +111,20 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     nat->RegisterMethod("tick", conn_tick);
     nat->RegisterMethod("close", conn_close);
 
-    // Set NativeObject on connection (for callback dispatch)
-    conn->set_native_object(nat);
+    // Create connection (async)
+    auto *conn = new MysqlConnection();
+    conn->set_state(s);
+    conn->set_connect_callback(cb_name);
+    conn->set_native_object(nat);  // Must be set before connect() for immediate-failure dispatch
+
+    try {
+        conn->connect(host, port, user, password, database);
+    } catch (const std::exception &e) {
+        delete conn;
+        error(std::format("connect failed: {}", e.what()));
+    }
+
+    nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
 
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
