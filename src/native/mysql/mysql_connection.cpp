@@ -297,10 +297,25 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
         // Build auth response using the requested plugin
         std::vector<uint8_t> auth_response;
         if (plugin_name == "mysql_native_password") {
-            auto hash = native_password_hash(password_, auth_data);
+            // mysql_native_password expects 20-byte scramble
+            std::string scramble = auth_data;
+            if (scramble.size() > 20) scramble.resize(20);
+            auto hash = native_password_hash(password_, scramble);
             auth_response.assign(hash.begin(), hash.end());
         } else if (plugin_name == "caching_sha2_password" || plugin_name == "_sha2_password") {
-            auth_response = caching_sha2_password_hash(password_, auth_data);
+            // caching_sha2_password auth data: 1-byte fast auth type + 20-byte scramble
+            std::string scramble;
+            if (auth_data.size() > 1) {
+                scramble = auth_data.substr(1); // skip fast auth type byte
+            } else {
+                scramble = auth_data;
+            }
+            if (scramble.size() != 20) {
+                dispatch_connect(std::format("auth switch: caching_sha2_password scramble must be 20 bytes, got {}", scramble.size()).c_str());
+                state_ = State::Error;
+                return;
+            }
+            auth_response = caching_sha2_password_hash(password_, scramble);
         } else {
             dispatch_connect(std::format("auth switch: unsupported plugin '{}'", plugin_name).c_str());
             state_ = State::Error;
