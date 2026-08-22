@@ -61,6 +61,6 @@ jobs:
           cmake -DCMAKE_PREFIX_PATH="$(brew --prefix)" ..
           make -j$(sysctl -n hw.ncpu)
           # Run all tests except MySQL integration (Homebrew MySQL 8.4+ lacks mysql_native_password plugin)
-          ctest -V -E "test_mysql.integration"
+          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests --gtest_filter="-test_mysql.integration*")
           ./bin/bench_mark
           ./bin/flua
