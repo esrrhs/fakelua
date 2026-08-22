@@ -10,6 +10,11 @@
 #include "native/protobuf/native_protobuf.h"
 #include "native/crypto/native_crypto.h"
 #include "native/mysql/native_mysql.h"
+<<<<<<< HEAD
+=======
+#include "native/compress/native_compress.h"
+#include "native/json/native_json.h"
+>>>>>>> 239a1d6... feat(json): add native JSON encode/decode module
 
 namespace fakelua {
 
@@ -20,6 +25,8 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     serialize::RegisterSerializeLibraryApi(this);
     protobuf::RegisterProtobufLibraryApi(this);
     crypto::RegisterCryptoLibraryApi(this);
+    compress::RegisterCompressLibraryApi(this);
+    json::RegisterJsonLibraryApi(this);
     mysql::RegisterMysqlLibraryApi(this);
     mysql::RegisterMysqlPoolApi(this);
 }
