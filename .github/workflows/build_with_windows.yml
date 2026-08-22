@@ -68,7 +68,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set -eux
-          cd test/lua && ../build/bin/unit_tests --gtest_filter="-test_mysql.integration*"
+          cd test/lua && ../build/bin/unit_tests.exe --gtest_filter="-test_mysql.integration*"
 
       - name: Run benchmarks and flua
         shell: msys2 {0}
