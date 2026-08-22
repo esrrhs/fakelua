@@ -125,53 +125,33 @@ if (USE_COV)
     set(TARGET_LIB ${TARGET_LIB} gcov)
 endif ()
 
-# ── Compression libraries ──
+# ── Compression libraries (embedded source, no CPM / external deps) ──
 
-# LZ4 — fetched via CPM (no system dev headers guaranteed)
-CPMAddPackage(
-        NAME lz4_src
-        GITHUB_REPOSITORY lz4/lz4
-        GIT_TAG v1.9.4
-        DOWNLOAD_ONLY YES
-)
-if (NOT lz4_src_ADDED)
-    message(FATAL_ERROR "Failed to fetch LZ4 source")
-endif ()
+# LZ4 — embedded in src/native/compress/lz4/
 add_library(lz4 STATIC
-        ${lz4_src_SOURCE_DIR}/lib/lz4.c
-        ${lz4_src_SOURCE_DIR}/lib/lz4hc.c
-        ${lz4_src_SOURCE_DIR}/lib/lz4frame.c
-        ${lz4_src_SOURCE_DIR}/lib/xxhash.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/lz4.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/lz4hc.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/lz4frame.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/xxhash.c
 )
-target_include_directories(lz4 PUBLIC ${lz4_src_SOURCE_DIR}/lib)
+target_include_directories(lz4 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4)
 set(TARGET_LIB ${TARGET_LIB} lz4)
 
 # zlib — system library (universally available)
 find_package(ZLIB REQUIRED)
 set(TARGET_LIB ${TARGET_LIB} ZLIB::ZLIB)
 
-# Zstd — use CPM to fetch and build from source (consistent across all platforms)
-CPMAddPackage(
-        NAME zstd_src
-        GITHUB_REPOSITORY facebook/zstd
-        GIT_TAG v1.5.6
-        DOWNLOAD_ONLY YES
+# Zstd — embedded in src/native/compress/zstd/
+file(GLOB_RECURSE ZSTD_SRCS
+        "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/common/*.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/compress/*.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/decompress/*.c"
 )
-if (zstd_src_ADDED)
-    set(ZSTD_SRC_DIR ${zstd_src_SOURCE_DIR})
-    file(GLOB_RECURSE ZSTD_SRCS
-            "${ZSTD_SRC_DIR}/lib/common/*.c"
-            "${ZSTD_SRC_DIR}/lib/compress/*.c"
-            "${ZSTD_SRC_DIR}/lib/decompress/*.c"
-    )
-    add_library(zstd STATIC ${ZSTD_SRCS})
-    target_include_directories(zstd PUBLIC ${ZSTD_SRC_DIR}/lib)
-    target_include_directories(zstd PRIVATE ${ZSTD_SRC_DIR}/lib/common)
-    # Disable ASM optimizations — we only compile C sources, not assembly
-    target_compile_definitions(zstd PRIVATE ZSTD_DISABLE_ASM)
-    set(TARGET_LIB ${TARGET_LIB} zstd)
-else ()
-    message(WARNING "Failed to fetch Zstd source — zstd support disabled")
-endif ()
+add_library(zstd STATIC ${ZSTD_SRCS})
+target_include_directories(zstd PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd)
+target_include_directories(zstd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/common)
+# Disable ASM optimizations — we only compile C sources, not assembly
+target_compile_definitions(zstd PRIVATE ZSTD_DISABLE_ASM)
+set(TARGET_LIB ${TARGET_LIB} zstd)
 
 target_link_libraries(fakelua ${TARGET_LIB})
