@@ -57,6 +57,7 @@ public:
     bool send(const char *data, size_t len);
 
     [[nodiscard]] bool connected() const { return link_ && link_->connected; }
+    [[nodiscard]] bool connecting() const { return connecting_; }
 
 private:
     NetConfig config_;

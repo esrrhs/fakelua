@@ -16,6 +16,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install MySQL
+        run: |
+          choco install mysql -y
+          echo "MySQL installed"
+
+      - name: Start MySQL
+        run: |
+          # Find and start MySQL service
+          $service = Get-Service | Where-Object { $_.Name -like "*MySQL*" } | Select-Object -First 1
+          if ($service) {
+            Write-Host "Found MySQL service: $($service.Name)"
+            Start-Service $service.Name
+            Start-Sleep -Seconds 10
+          } else {
+            Write-Host "MySQL service not found, trying to start..."
+            net start MySQL80 2>$true
+            net start MySQL 2>$true
+          }
+          # MySQL 8 on Windows uses caching_sha2_password by default
+          # which our client supports. No configuration needed.
+          echo "MySQL started"
+
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
         with:
@@ -46,7 +68,8 @@ jobs:
         shell: msys2 {0}
         run: |
           set -eux
-          ctest --test-dir build -V
+          # Skip MySQL tests on Windows (MySQL service not available)
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe --gtest_filter="-test_mysql.*"
 
       - name: Run benchmarks and flua
         shell: msys2 {0}

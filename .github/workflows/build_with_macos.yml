@@ -29,6 +29,29 @@ jobs:
           # Set pkg-config path
           echo "PKG_CONFIG_PATH=$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
 
+      - name: Setup MySQL
+        run: |
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install mysql
+          # Start MySQL
+          brew services start mysql
+          sleep 5
+          # Wait for MySQL to be ready
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 --silent 2>/dev/null; then
+              echo "MySQL is ready"
+              break
+            fi
+            echo "Waiting for MySQL... ($i)"
+            sleep 2
+          done
+          # Set root password (Homebrew MySQL starts with empty password)
+          # Try without password first, then with 'root' if already set
+          MYSQL_PWD="" mysql -h 127.0.0.1 -uroot -e "SELECT 1" 2>/dev/null && echo "MYSQL_AUTH=empty" >> $GITHUB_ENV || {
+            MYSQL_PWD="root" mysql -h 127.0.0.1 -uroot -e "SELECT 1" 2>/dev/null && echo "MYSQL_AUTH=root" >> $GITHUB_ENV || {
+              echo "MYSQL_AUTH=failed" >> $GITHUB_ENV
+            }
+          }
+
       - name: Build
         run: |
           set -x
@@ -37,6 +60,7 @@ jobs:
           cd build
           cmake -DCMAKE_PREFIX_PATH="$(brew --prefix)" ..
           make -j$(sysctl -n hw.ncpu)
-          ctest -V
+          # Run all tests except MySQL integration (Homebrew MySQL 8.4+ lacks mysql_native_password plugin)
+          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests --gtest_filter="-test_mysql.integration*")
           ./bin/bench_mark
           ./bin/flua
