@@ -42,6 +42,9 @@ struct MysqlResult {
     // OK status mode (INSERT/UPDATE/DELETE or empty result)
     uint64_t affected_rows = 0;
     uint64_t last_insert_id = 0;
+
+    // Statement ID (for COM_STMT_PREPARE response)
+    uint32_t stmt_id = 0;
     uint16_t status_flags = 0;
     std::string info;
 };

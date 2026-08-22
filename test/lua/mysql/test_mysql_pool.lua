@@ -46,7 +46,7 @@ function test_pool()
         if conn.query_done then break end
     end
 
-    if conn.query_err and #conn.query_err > 0 then
+    if conn.query_err ~= nil and #conn.query_err > 0 then
         print("pool query failed:", conn.query_err)
         pool:release(conn)
         pool:close()

@@ -89,7 +89,7 @@ function test_stmt()
 
     for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
-    if conn.query_err and #conn.query_err > 0 then
+    if conn.query_err ~= nil and #conn.query_err > 0 then
         local err_str = conn.query_err
         print("stmt_execute failed:", tostring(err_str))
         conn:stmt_close(conn.stmt_id)
@@ -130,7 +130,7 @@ function test_stmt()
 
     for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
-    if conn.query_err and #conn.query_err > 0 then
+    if conn.query_err ~= nil and #conn.query_err > 0 then
         local err_str = conn.query_err
         print("SELECT stmt_execute failed:", tostring(err_str))
         conn:stmt_close(conn.stmt_id)

@@ -11,10 +11,11 @@ function on_result(conn, err, result)
     conn.query_result = result
     conn.query_done = true
     -- 收集多结果
-    if not conn.results then
+    if type(conn.results) ~= "table" then
         conn.results = {}
     end
-    conn.results[#conn.results + 1] = result
+    local n = #conn.results
+    conn.results[n + 1] = result
 end
 
 function test_multi_result()
@@ -62,7 +63,7 @@ function test_multi_result()
     -- 驱动足够长时间让所有结果返回
     for i = 1, 2000 do
         conn:tick()
-        if conn.query_done and #conn.results >= 3 then
+        if conn.query_done and conn.results ~= nil and #conn.results >= 3 then
             break
         end
     end

@@ -122,6 +122,10 @@ private:
     // Pending query info
     std::string last_sql_;
 
+    // Query type for differentiating query vs stmt_prepare responses
+    enum class QueryType { None, Query, StmtPrepare, StmtExecute };
+    QueryType query_type_ = QueryType::None;
+
     // Multi-result support
     std::vector<MysqlResult> pending_results_;
 

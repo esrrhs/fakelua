@@ -56,6 +56,7 @@ void MysqlConnection::query(const std::string &sql) {
     }
     last_sql_ = sql;
     state_ = State::Querying;
+    query_type_ = QueryType::Query;
 
     // Build COM_QUERY packet
     std::string payload;
@@ -80,6 +81,9 @@ void MysqlConnection::stmt_prepare(const std::string &sql) {
         dispatch_result({}, "connection not ready for prepare");
         return;
     }
+
+    state_ = State::Querying;
+    query_type_ = QueryType::StmtPrepare;
 
     // Build COM_STMT_PREPARE packet
     std::string payload;
@@ -230,7 +234,7 @@ bool MysqlConnection::try_parse_packet(std::vector<uint8_t> &out_payload) {
     // MySQL packet header: 3-byte LE payload length + 1-byte sequence
     uint32_t payload_len = recv_buf_[0] | (static_cast<uint8_t>(recv_buf_[1]) << 8) |
                            (static_cast<uint8_t>(recv_buf_[2]) << 16);
-    // uint8_t seq = recv_buf_[3];
+    uint8_t seq = recv_buf_[3];
 
     if (recv_buf_.size() < 4 + payload_len) return false;  // incomplete
 
@@ -416,6 +420,19 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
         return;
     }
 
+    // Handle COM_STMT_PREPARE response
+    if (query_type_ == QueryType::StmtPrepare) {
+        query_type_ = QueryType::None;
+        state_ = State::Ready;
+        std::vector<char> char_payload(payload.begin(), payload.end());
+        auto prepare_result = parse_prepare_response(char_payload);
+        MysqlResult result;
+        result.is_result_set = false;
+        result.stmt_id = prepare_result.statement_id;
+        dispatch_result(result, prepare_result.valid ? nullptr : "prepare failed");
+        return;
+    }
+
     std::vector<char> char_payload(payload.begin(), payload.end());
     uint8_t type = payload[0];
 
@@ -477,6 +494,13 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
             }
         }
 
+        // EOF after column definitions — move to rows phase
+        if (rs_parser_ && rs_parser_->in_result_set &&
+            rs_parser_->phase == ParsePhase::Columns) {
+            rs_parser_->phase = ParsePhase::Rows;
+            return;
+        }
+
         // Under CLIENT_DEPRECATE_EOF, 0xFE can be OK-as-EOF
         MysqlResult result;
         result.is_result_set = false;
@@ -498,9 +522,7 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
         rs_parser_->col_count = read_lenenc_int(char_payload, pos);
         rs_parser_->cols_read = 0;
         rs_parser_->result.columns.resize(static_cast<size_t>(rs_parser_->col_count));
-        fprintf(stderr, "[mysql] col_count=%llu, first byte=0x%02x\n",
-                (unsigned long long)rs_parser_->col_count,
-                static_cast<uint8_t>(char_payload[0]));
+        return; // Column definition will be parsed in subsequent packets
     }
 
     // Feed the packet to the incremental parser
@@ -508,24 +530,14 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
         // This packet is a column definition
         try {
             std::vector<char> col_char(payload.begin(), payload.end());
-            // Debug: log first 10 bytes of column definition
-            fprintf(stderr, "[mysql] col_def packet: %zu bytes, first 10: ", col_char.size());
-            for (size_t i = 0; i < col_char.size() && i < 10; ++i) {
-                fprintf(stderr, "%02x ", static_cast<uint8_t>(col_char[i]));
-            }
-            fprintf(stderr, "\n");
             if (rs_parser_->cols_read < rs_parser_->col_count) {
                 rs_parser_->result.columns[rs_parser_->cols_read] = parse_column_def(col_char);
                 ++rs_parser_->cols_read;
             }
-
-            if (rs_parser_->cols_read >= rs_parser_->col_count) {
-                // All columns read, move to rows phase
-                rs_parser_->phase = ParsePhase::Rows;
-            }
+            // Don't transition to Rows here — wait for EOF packet
         } catch (const std::exception &e) {
             fprintf(stderr, "[mysql] parse_column_def exception: %s\n", e.what());
-            state_ = State::Ready;
+            state_ = State::Error;
             rs_parser_.reset();
             dispatch_result({}, e.what());
         }
@@ -611,6 +623,10 @@ void MysqlConnection::dispatch_result(const MysqlResult &result, const char *err
     // Ensure we always have a valid error message (never empty string with failure)
     const char *msg = err_msg && err_msg[0] ? err_msg : "query failed";
 
+    fprintf(stderr, "[mysql] dispatch_result: err_msg=%s cb=%s result.is_result_set=%d rows=%zu cols=%zu\n",
+            err_msg ? err_msg : "(null)", result_cb_.c_str(),
+            result.is_result_set, result.rows.size(), result.columns.size());
+
     CVar args[3];
     args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_)
                           : inter::NativeToFakeluaNil(lua_state_);
@@ -619,6 +635,12 @@ void MysqlConnection::dispatch_result(const MysqlResult &result, const char *err
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
         args[2] = nil;
+    } else if (result.stmt_id != 0) {
+        // COM_STMT_PREPARE response: pass statement_id as number
+        CVar nil{};
+        nil.type_ = static_cast<int>(VarType::Nil);
+        args[1] = nil;
+        args[2] = inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(result.stmt_id));
     } else {
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);

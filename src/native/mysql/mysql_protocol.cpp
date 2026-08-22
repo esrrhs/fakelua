@@ -396,7 +396,7 @@ OkResponse parse_ok(const std::vector<char> &payload) {
 ErrResponse parse_err(const std::vector<char> &payload) {
     ErrResponse r;
     size_t pos = 0;
-    if (pos >= payload.size() || payload[pos] != PACKET_ERR) {
+    if (pos >= payload.size() || static_cast<uint8_t>(payload[pos]) != PACKET_ERR) {
         protocol_error("not an ERR packet");
     }
     ++pos;  // skip 0xFF
@@ -517,9 +517,10 @@ std::string build_stmt_execute(uint32_t statement_id,
     // new_params_bind_flag: 1 = bind types
     payload.push_back(0x01);
 
-    // parameter types: 2 bytes each (MYSQL_TYPE_STRING = 0xfd for simplicity)
+    // parameter types: 2 bytes each
+    // Use MYSQL_TYPE_STRING (0xfe) for string parameters as required by MySQL 8.0
     for (size_t i = 0; i < params.size(); ++i) {
-        write_uint16(payload, 0xfd);  // MYSQL_TYPE_VARCHAR
+        write_uint16(payload, 0xfe);  // MYSQL_TYPE_STRING
     }
 
     // parameter values: length-encoded strings
