@@ -167,6 +167,8 @@ if (zstd_src_ADDED)
     add_library(zstd STATIC ${ZSTD_SRCS})
     target_include_directories(zstd PUBLIC ${ZSTD_SRC_DIR}/lib)
     target_include_directories(zstd PRIVATE ${ZSTD_SRC_DIR}/lib/common)
+    # Disable ASM optimizations — we only compile C sources, not assembly
+    target_compile_definitions(zstd PRIVATE ZSTD_DISABLE_ASM)
     set(TARGET_LIB ${TARGET_LIB} zstd)
 else ()
     message(WARNING "Failed to fetch Zstd source — zstd support disabled")
