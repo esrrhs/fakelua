@@ -164,8 +164,9 @@ static CVar pool_acquire(NativeObject *self, State *s, CVar * /*args*/, int /*n*
     auto *conn = pool_obj->pool->acquire();
     if (!conn) return inter::NativeToFakeluaNil(s);
 
-    // Wrap connection in NativeObject for Lua
-    auto *nat = NativeObjectManager::Instance().Create(0, "mysql_connection");
+    // Wrap connection in NativeObject for Lua (use a new group for each connection)
+    int64_t conn_gid = NativeObjectManager::Instance().CreateGroup();
+    auto *nat = NativeObjectManager::Instance().Create(conn_gid, "mysql_connection");
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
     // Note: no finalizer - connection ownership stays with pool
     nat->RegisterMethod("query", conn_query);
