@@ -132,8 +132,8 @@ jobs:
 
           cmake ${CMAKE_FLAGS} ..
           make -j$(nproc)
-          # Run all tests except flaky MySQL integration tests (prepared/multi_result/pool)
-          ctest -V -E "test_mysql.integration_prepared|test_mysql.integration_multi|test_mysql.integration_pool"
+          # Run all tests except MySQL integration tests (flaky on CI)
+          ctest -V -E "test_mysql.integration"
           ./bin/bench_mark
           ./bin/flua
           # MySQL 集成测试（需要 MySQL 服务）
