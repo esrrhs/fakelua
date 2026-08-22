@@ -137,9 +137,11 @@ add_library(lz4 STATIC
 target_include_directories(lz4 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4)
 set(TARGET_LIB ${TARGET_LIB} lz4)
 
-# zlib — system library (universally available)
-find_package(ZLIB REQUIRED)
-set(TARGET_LIB ${TARGET_LIB} ZLIB::ZLIB)
+# zlib — embedded in src/native/compress/zlib/
+file(GLOB ZLIB_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/*.c")
+add_library(zlib STATIC ${ZLIB_SRCS})
+target_include_directories(zlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib)
+set(TARGET_LIB ${TARGET_LIB} zlib)
 
 # Zstd — embedded in src/native/compress/zstd/
 file(GLOB_RECURSE ZSTD_SRCS
