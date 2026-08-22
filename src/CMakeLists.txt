@@ -137,8 +137,20 @@ add_library(lz4 STATIC
 target_include_directories(lz4 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4)
 set(TARGET_LIB ${TARGET_LIB} lz4)
 
-# zlib — embedded in src/native/compress/zlib/
-file(GLOB ZLIB_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/*.c")
+# zlib — embedded in src/native/compress/zlib/ (core only, no gz* file I/O)
+set(ZLIB_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/adler32.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/compress.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/crc32.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/deflate.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/infback.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/inffast.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/inflate.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/inftrees.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/trees.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/uncompr.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/zutil.c
+)
 add_library(zlib STATIC ${ZLIB_SRCS})
 target_include_directories(zlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib)
 set(TARGET_LIB ${TARGET_LIB} zlib)
