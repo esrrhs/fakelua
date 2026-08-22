@@ -150,7 +150,8 @@ set(TARGET_LIB ${TARGET_LIB} lz4)
 find_package(ZLIB REQUIRED)
 set(TARGET_LIB ${TARGET_LIB} ZLIB::ZLIB)
 
-# Zstd — system library (available on modern Linux, otherwise fetch via CPM)
+# Zstd — system library (available on modern Linux and macOS Homebrew)
+# Use pkg-config first, then fall back to find_library for Homebrew paths
 find_package(PkgConfig QUIET)
 if (PkgConfig_FOUND)
     pkg_check_modules(ZSTD QUIET libzstd)
@@ -160,26 +161,38 @@ if (ZSTD_FOUND)
     link_directories(${ZSTD_LIBRARY_DIRS})
     set(TARGET_LIB ${TARGET_LIB} ${ZSTD_LIBRARIES})
 else ()
-    # Fallback: fetch zstd via CPM
-    CPMAddPackage(
-            NAME zstd_src
-            GITHUB_REPOSITORY facebook/zstd
-            GIT_TAG v1.5.6
-            DOWNLOAD_ONLY YES
+    # Fallback: find zstd library manually (works with Homebrew on macOS)
+    find_path(ZSTD_INCLUDE_DIR zstd.h
+        PATHS /opt/homebrew/include /usr/local/include /usr/include
     )
-    if (zstd_src_ADDED)
-        set(ZSTD_SRC_DIR ${zstd_src_SOURCE_DIR})
-        file(GLOB_RECURSE ZSTD_SRCS
-                "${ZSTD_SRC_DIR}/lib/common/*.c"
-                "${ZSTD_SRC_DIR}/lib/compress/*.c"
-                "${ZSTD_SRC_DIR}/lib/decompress/*.c"
-        )
-        add_library(zstd STATIC ${ZSTD_SRCS})
-        target_include_directories(zstd PUBLIC ${ZSTD_SRC_DIR}/lib)
-        target_include_directories(zstd PRIVATE ${ZSTD_SRC_DIR}/lib/common)
-        set(TARGET_LIB ${TARGET_LIB} zstd)
+    find_library(ZSTD_LIBRARY NAMES zstd
+        PATHS /opt/homebrew/lib /usr/local/lib /usr/lib
+    )
+    if (ZSTD_INCLUDE_DIR AND ZSTD_LIBRARY)
+        include_directories(${ZSTD_INCLUDE_DIR})
+        set(TARGET_LIB ${TARGET_LIB} ${ZSTD_LIBRARY})
     else ()
-        message(WARNING "Zstd not found — zstd support disabled")
+        # Last resort: fetch zstd via CPM
+        CPMAddPackage(
+                NAME zstd_src
+                GITHUB_REPOSITORY facebook/zstd
+                GIT_TAG v1.5.6
+                DOWNLOAD_ONLY YES
+        )
+        if (zstd_src_ADDED)
+            set(ZSTD_SRC_DIR ${zstd_src_SOURCE_DIR})
+            file(GLOB_RECURSE ZSTD_SRCS
+                    "${ZSTD_SRC_DIR}/lib/common/*.c"
+                    "${ZSTD_SRC_DIR}/lib/compress/*.c"
+                    "${ZSTD_SRC_DIR}/lib/decompress/*.c"
+            )
+            add_library(zstd STATIC ${ZSTD_SRCS})
+            target_include_directories(zstd PUBLIC ${ZSTD_SRC_DIR}/lib)
+            target_include_directories(zstd PRIVATE ${ZSTD_SRC_DIR}/lib/common)
+            set(TARGET_LIB ${TARGET_LIB} zstd)
+        else ()
+            message(WARNING "Zstd not found — zstd support disabled")
+        endif ()
     endif ()
 endif ()
 
