@@ -181,6 +181,15 @@ target_include_directories(sqlite3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/sql
 if (NOT WIN32)
     target_link_libraries(sqlite3 INTERFACE Threads::Threads)
 endif ()
+# On Windows, SQLite uses MSVC "insecure" functions (strcpy, etc.) and needs
+# _CRT_SECURE_NO_WARNINGS to avoid compilation errors. Also needs /bigobj for
+# the large amalgamated source file.
+if (WIN32)
+    target_compile_definitions(sqlite3 PRIVATE _CRT_SECURE_NO_WARNINGS)
+    if (MSVC)
+        target_compile_options(sqlite3 PRIVATE /bigobj)
+    endif ()
+endif ()
 set(TARGET_LIB ${TARGET_LIB} sqlite3)
 
 target_link_libraries(fakelua ${TARGET_LIB})

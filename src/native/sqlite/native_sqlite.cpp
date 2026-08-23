@@ -119,6 +119,13 @@ static CVar sqlite_open(State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     std::string filename = inter::FakeluaToNativeString(s, a0);
 
+    // Ensure SQLite is initialized (needed on some platforms, especially Windows)
+    static bool initialized = []() {
+        sqlite3_initialize();
+        return true;
+    }();
+    (void)initialized;
+
     sqlite3 *db = nullptr;
     int rc = sqlite3_open(filename.c_str(), &db);
     if (rc != SQLITE_OK) {
