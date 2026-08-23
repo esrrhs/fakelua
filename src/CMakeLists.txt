@@ -171,14 +171,16 @@ target_include_directories(zstd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/native/compr
 target_compile_definitions(zstd PRIVATE ZSTD_DISABLE_ASM)
 set(TARGET_LIB ${TARGET_LIB} zstd)
 
-# SQLite — use system library
-find_package(SQLite3 QUIET)
-if (SQLite3_FOUND)
-    include_directories(${SQLite3_INCLUDE_DIRS})
-    set(TARGET_LIB ${TARGET_LIB} ${SQLite3_LIBRARIES})
-else ()
-    # Fallback: link directly
-    set(TARGET_LIB ${TARGET_LIB} sqlite3)
+# SQLite — embedded in src/native/sqlite/sqlite3/
+set(SQLITE_SRCS
+    ${CMAKE_CURRENT_SOURCE_DIR}/native/sqlite/sqlite3/sqlite3.c
+)
+add_library(sqlite3 STATIC ${SQLITE_SRCS})
+target_include_directories(sqlite3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/sqlite/sqlite3)
+# SQLite needs pthreads on non-Windows; resolved at final link step
+if (NOT WIN32)
+    target_link_libraries(sqlite3 INTERFACE Threads::Threads)
 endif ()
+set(TARGET_LIB ${TARGET_LIB} sqlite3)
 
 target_link_libraries(fakelua ${TARGET_LIB})
