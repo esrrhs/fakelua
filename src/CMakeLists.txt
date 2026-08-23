@@ -31,6 +31,7 @@ aux_source_directory(./native/mysql FAKELUA_SRC_LIST)
 aux_source_directory(./native/compress FAKELUA_SRC_LIST)
 aux_source_directory(./native/json FAKELUA_SRC_LIST)
 aux_source_directory(./native/csv FAKELUA_SRC_LIST)
+aux_source_directory(./native/sqlite FAKELUA_SRC_LIST)
 aux_source_directory(./native/utf8 FAKELUA_SRC_LIST)
 aux_source_directory(./ FAKELUA_SRC_LIST)
 include_directories(./)
@@ -169,5 +170,15 @@ target_include_directories(zstd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/native/compr
 # Disable ASM optimizations — we only compile C sources, not assembly
 target_compile_definitions(zstd PRIVATE ZSTD_DISABLE_ASM)
 set(TARGET_LIB ${TARGET_LIB} zstd)
+
+# SQLite — use system library
+find_package(SQLite3 QUIET)
+if (SQLite3_FOUND)
+    include_directories(${SQLite3_INCLUDE_DIRS})
+    set(TARGET_LIB ${TARGET_LIB} ${SQLite3_LIBRARIES})
+else ()
+    # Fallback: link directly
+    set(TARGET_LIB ${TARGET_LIB} sqlite3)
+endif ()
 
 target_link_libraries(fakelua ${TARGET_LIB})

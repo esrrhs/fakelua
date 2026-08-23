@@ -13,6 +13,7 @@
 #include "native/compress/native_compress.h"
 #include "native/json/native_json.h"
 #include "native/csv/native_csv.h"
+#include "native/sqlite/native_sqlite.h"
 
 namespace fakelua {
 
@@ -26,6 +27,7 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     compress::RegisterCompressLibraryApi(this);
     json::RegisterJsonLibraryApi(this);
     csv::RegisterCsvLibraryApi(this);
+    sqlite::RegisterSqliteLibraryApi(this);
     mysql::RegisterMysqlLibraryApi(this);
     mysql::RegisterMysqlPoolApi(this);
 }
