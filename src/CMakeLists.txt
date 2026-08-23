@@ -181,6 +181,9 @@ target_include_directories(sqlite3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/sql
 if (NOT WIN32)
     target_link_libraries(sqlite3 INTERFACE Threads::Threads)
 endif ()
+# -fPIC is required when a static library is linked into a shared library
+# (the amalgamated sqlite3.c is ~8MB of C code)
+set_target_properties(sqlite3 PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # On Windows, SQLite uses MSVC "insecure" functions (strcpy, etc.) and needs
 # _CRT_SECURE_NO_WARNINGS to avoid compilation errors. Also needs /bigobj for
 # the large amalgamated source file.
