@@ -64,6 +64,11 @@ else ()
     include_directories(${tinycc_src_SOURCE_DIR})
 endif ()
 
+# SQLite — compiled as part of fakelua shared library (not a separate static lib)
+# to avoid CRT mismatch issues on Windows/MSYS2.
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/native/sqlite/sqlite3)
+set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${CMAKE_CURRENT_SOURCE_DIR}/native/sqlite/sqlite3/sqlite3.c)
+
 add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 
 find_package(Threads REQUIRED)
@@ -171,28 +176,5 @@ target_include_directories(zstd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/native/compr
 target_compile_definitions(zstd PRIVATE ZSTD_DISABLE_ASM)
 set(TARGET_LIB ${TARGET_LIB} zstd)
 
-# SQLite — embedded in src/native/sqlite/sqlite3/
-set(SQLITE_SRCS
-    ${CMAKE_CURRENT_SOURCE_DIR}/native/sqlite/sqlite3/sqlite3.c
-)
-add_library(sqlite3 STATIC ${SQLITE_SRCS})
-target_include_directories(sqlite3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/sqlite/sqlite3)
-# SQLite needs pthreads on non-Windows; resolved at final link step
-if (NOT WIN32)
-    target_link_libraries(sqlite3 INTERFACE Threads::Threads)
-endif ()
-# -fPIC is required when a static library is linked into a shared library
-# (the amalgamated sqlite3.c is ~8MB of C code)
-set_target_properties(sqlite3 PROPERTIES POSITION_INDEPENDENT_CODE ON)
-# On Windows, SQLite uses MSVC "insecure" functions (strcpy, etc.) and needs
-# _CRT_SECURE_NO_WARNINGS to avoid compilation errors. Also needs /bigobj for
-# the large amalgamated source file.
-if (WIN32)
-    target_compile_definitions(sqlite3 PRIVATE _CRT_SECURE_NO_WARNINGS)
-    if (MSVC)
-        target_compile_options(sqlite3 PRIVATE /bigobj)
-    endif ()
-endif ()
-set(TARGET_LIB ${TARGET_LIB} sqlite3)
 
 target_link_libraries(fakelua ${TARGET_LIB})
