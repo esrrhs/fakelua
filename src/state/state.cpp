@@ -11,6 +11,7 @@
 #include "native/crypto/native_crypto.h"
 #include "native/mysql/native_mysql.h"
 #include "native/compress/native_compress.h"
+#include "native/json/native_json.h"
 
 namespace fakelua {
 
@@ -22,6 +23,7 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     protobuf::RegisterProtobufLibraryApi(this);
     crypto::RegisterCryptoLibraryApi(this);
     compress::RegisterCompressLibraryApi(this);
+    json::RegisterJsonLibraryApi(this);
     mysql::RegisterMysqlLibraryApi(this);
     mysql::RegisterMysqlPoolApi(this);
 }
