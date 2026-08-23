@@ -120,10 +120,10 @@ static CVar sqlite_open(State *s, CVar *args, int n) {
     std::string filename = inter::FakeluaToNativeString(s, a0);
 
     // Ensure SQLite is initialized (needed on some platforms)
-    static bool initialized = []() {
-        return sqlite3_initialize() == SQLITE_OK;
-    }();
-    (void)initialized;
+    static int init_rc = sqlite3_initialize();
+    if (init_rc != SQLITE_OK) {
+        error(std::format("sqlite.open: sqlite3_initialize failed: {}", init_rc));
+    }
 
     sqlite3 *db = nullptr;
     int rc = sqlite3_open_v2(filename.c_str(), &db,
