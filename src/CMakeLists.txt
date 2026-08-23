@@ -126,4 +126,47 @@ if (USE_COV)
     set(TARGET_LIB ${TARGET_LIB} gcov)
 endif ()
 
+# ── Compression libraries (embedded source, no CPM / external deps) ──
+
+# LZ4 — embedded in src/native/compress/lz4/
+add_library(lz4 STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/lz4.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/lz4hc.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/lz4frame.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/xxhash.c
+)
+target_include_directories(lz4 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4)
+set(TARGET_LIB ${TARGET_LIB} lz4)
+
+# zlib — embedded in src/native/compress/zlib/ (core only, no gz* file I/O)
+set(ZLIB_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/adler32.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/compress.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/crc32.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/deflate.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/infback.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/inffast.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/inflate.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/inftrees.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/trees.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/uncompr.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/zutil.c
+)
+add_library(zlib STATIC ${ZLIB_SRCS})
+target_include_directories(zlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib)
+set(TARGET_LIB ${TARGET_LIB} zlib)
+
+# Zstd — embedded in src/native/compress/zstd/
+file(GLOB_RECURSE ZSTD_SRCS
+        "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/common/*.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/compress/*.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/decompress/*.c"
+)
+add_library(zstd STATIC ${ZSTD_SRCS})
+target_include_directories(zstd PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd)
+target_include_directories(zstd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/common)
+# Disable ASM optimizations — we only compile C sources, not assembly
+target_compile_definitions(zstd PRIVATE ZSTD_DISABLE_ASM)
+set(TARGET_LIB ${TARGET_LIB} zstd)
+
 target_link_libraries(fakelua ${TARGET_LIB})
