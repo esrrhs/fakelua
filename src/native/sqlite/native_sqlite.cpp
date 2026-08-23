@@ -129,8 +129,9 @@ static CVar sqlite_open(State *s, CVar *args, int n) {
     int rc = sqlite3_open_v2(filename.c_str(), &db,
                               SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
     if (rc != SQLITE_OK) {
+        std::string err = db ? sqlite3_errmsg(db) : "unknown error";
         if (db) sqlite3_close(db);
-        error("sqlite.open: cannot open database: " + std::string(sqlite3_errmsg(db)));
+        error("sqlite.open: cannot open database: " + err);
     }
 
     // Create NativeObject wrapper

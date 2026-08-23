@@ -1,16 +1,20 @@
 package "SqliteTest"
 
--- Each test uses a unique db file to avoid conflicts
+-- Use in-memory databases so tests are portable (Windows has no /tmp).
+
+local function open_db()
+    return sqlite.open(":memory:")
+end
 
 function test_open_memory()
-    local db = sqlite.open("/tmp/fakelua_test_open.db")
+    local db = open_db()
     if type(db) ~= "table" then return 0 end
     db:close()
     return 1
 end
 
 function test_create_table()
-    local db = sqlite.open("/tmp/fakelua_test_create.db")
+    local db = open_db()
     local result = db:exec("CREATE TABLE users (id INTEGER, name TEXT)")
     if result ~= nil then return 0 end
     db:close()
@@ -18,7 +22,7 @@ function test_create_table()
 end
 
 function test_insert()
-    local db = sqlite.open("/tmp/fakelua_test_insert.db")
+    local db = open_db()
     db:exec("CREATE TABLE t (id INTEGER, val TEXT)")
     local result = db:exec("INSERT INTO t VALUES (1, 'hello')")
     if result ~= nil then return 0 end
@@ -27,7 +31,7 @@ function test_insert()
 end
 
 function test_select()
-    local db = sqlite.open("/tmp/fakelua_test_select.db")
+    local db = open_db()
     db:exec("CREATE TABLE t (id INTEGER, name TEXT)")
     db:exec("INSERT INTO t VALUES (1, 'Alice')")
     db:exec("INSERT INTO t VALUES (2, 'Bob')")
@@ -43,7 +47,7 @@ function test_select()
 end
 
 function test_select_empty()
-    local db = sqlite.open("/tmp/fakelua_test_empty.db")
+    local db = open_db()
     db:exec("CREATE TABLE t (id INTEGER)")
     local rows = db:exec("SELECT * FROM t")
     if type(rows) ~= "table" then return 0 end
@@ -53,7 +57,7 @@ function test_select_empty()
 end
 
 function test_insert_return_nil()
-    local db = sqlite.open("/tmp/fakelua_test_nil.db")
+    local db = open_db()
     db:exec("CREATE TABLE t (id INTEGER)")
     local result = db:exec("INSERT INTO t VALUES (42)")
     if result ~= nil then return 0 end
@@ -62,13 +66,13 @@ function test_insert_return_nil()
 end
 
 function test_close()
-    local db = sqlite.open("/tmp/fakelua_test_close.db")
+    local db = open_db()
     db:close()
     return 1
 end
 
 function test_multiple_inserts()
-    local db = sqlite.open("/tmp/fakelua_test_multi.db")
+    local db = open_db()
     db:exec("CREATE TABLE t (a INTEGER, b REAL, c TEXT)")
     db:exec("INSERT INTO t VALUES (1, 1.5, 'one')")
     db:exec("INSERT INTO t VALUES (2, 2.5, 'two')")
@@ -83,7 +87,7 @@ function test_multiple_inserts()
 end
 
 function test_select_where()
-    local db = sqlite.open("/tmp/fakelua_test_where.db")
+    local db = open_db()
     db:exec("CREATE TABLE t (id INTEGER, name TEXT)")
     db:exec("INSERT INTO t VALUES (1, 'Alice')")
     db:exec("INSERT INTO t VALUES (2, 'Bob')")
@@ -97,7 +101,7 @@ function test_select_where()
 end
 
 function test_auto_close()
-    local db = sqlite.open("/tmp/fakelua_test_auto.db")
+    local db = open_db()
     db:exec("CREATE TABLE t (id INTEGER)")
     db:exec("INSERT INTO t VALUES (1)")
     -- do not close explicitly; finalizer should handle it
