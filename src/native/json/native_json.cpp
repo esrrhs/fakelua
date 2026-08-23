@@ -4,6 +4,7 @@
 #include "var/var_table.h"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -19,7 +20,7 @@ struct JsonValue {
     double f = 0.0;
     std::string s;
     std::vector<JsonValue> arr;
-    std::vector<std::pair<std::string, JsonValue>> obj;
+    std::vector<std::pair<std::string, std::unique_ptr<JsonValue>>> obj;
 };
 
 // ── JSON Parser ──
@@ -209,7 +210,7 @@ private:
             if (!peek(c) || c != '"') ThrowFakeluaException("JSON parse error: expected string key in object");
             JsonValue key = parse_string();
             expect(':');
-            v.obj.emplace_back(std::move(key.s), parse_value());
+            v.obj.emplace_back(std::move(key.s), std::make_unique<JsonValue>(parse_value()));
             if (!peek(c)) ThrowFakeluaException("JSON parse error: unterminated object");
             if (c == '}') { ++pos; break; }
             expect(',');
@@ -243,7 +244,7 @@ static CVar json_to_lua(State *s, const JsonValue &v) {
     case JsonValue::OBJECT: {
         CVar tbl = table::TableHelper::CreateTable(s);
         for (auto &kv : v.obj) {
-            CVar val = json_to_lua(s, kv.second);
+            CVar val = json_to_lua(s, *kv.second);
             table::TableHelper::SetTableStrId(s, tbl, kv.first.c_str(), val);
         }
         return tbl;
@@ -321,7 +322,7 @@ static JsonValue lua_to_json(CVar v) {
             JsonValue obj{JsonValue::OBJECT};
             for (auto &kv : kvs) {
                 std::string key = inter::FakeluaToNativeString(nullptr, kv.first);
-                obj.obj.emplace_back(std::move(key), lua_to_json(kv.second));
+                obj.obj.emplace_back(std::move(key), std::make_unique<JsonValue>(lua_to_json(kv.second)));
             }
             return obj;
         }
@@ -388,7 +389,7 @@ static void json_encode_val(std::string &out, const JsonValue &v) {
             JsonValue key{JsonValue::STRING, false, 0, 0.0, v.obj[i].first};
             json_encode_val(out, key);
             out += ':';
-            json_encode_val(out, v.obj[i].second);
+            json_encode_val(out, *v.obj[i].second);
         }
         out += '}';
         break;
