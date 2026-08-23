@@ -220,19 +220,19 @@ private:
 
 // ── Convert JsonValue to Lua CVar ──
 
-static CVar json_to_lua(State *s, const JsonParser::JsonValue &v) {
+static CVar json_to_lua(State *s, const JsonValue &v) {
     switch (v.type) {
-    case JsonParser::JsonValue::NIL:
+    case JsonValue::NIL:
         return inter::NativeToFakeluaNil(s);
-    case JsonParser::JsonValue::BOOL:
+    case JsonValue::BOOL:
         return inter::NativeToFakeluaBool(s, v.b);
-    case JsonParser::JsonValue::INT:
+    case JsonValue::INT:
         return inter::NativeToFakeluaInt(s, v.i);
-    case JsonParser::JsonValue::FLOAT:
+    case JsonValue::FLOAT:
         return inter::NativeToFakeluaFloat(s, v.f);
-    case JsonParser::JsonValue::STRING:
+    case JsonValue::STRING:
         return inter::NativeToFakeluaString(s, v.s);
-    case JsonParser::JsonValue::ARRAY: {
+    case JsonValue::ARRAY: {
         CVar tbl = table::TableHelper::CreateTable(s);
         for (size_t i = 0; i < v.arr.size(); i++) {
             CVar elem = json_to_lua(s, v.arr[i]);
@@ -240,7 +240,7 @@ static CVar json_to_lua(State *s, const JsonParser::JsonValue &v) {
         }
         return tbl;
     }
-    case JsonParser::JsonValue::OBJECT: {
+    case JsonValue::OBJECT: {
         CVar tbl = table::TableHelper::CreateTable(s);
         for (auto &kv : v.obj) {
             CVar val = json_to_lua(s, kv.second);
@@ -254,24 +254,24 @@ static CVar json_to_lua(State *s, const JsonParser::JsonValue &v) {
 
 // ── Convert Lua CVar to JsonValue ──
 
-static JsonParser::JsonValue lua_to_json(CVar v) {
+static JsonValue lua_to_json(CVar v) {
     switch (v.type_) {
     case static_cast<int>(VarType::Nil):
-        return JsonParser::JsonValue{JsonParser::JsonValue::NIL};
+        return JsonValue{JsonValue::NIL};
     case static_cast<int>(VarType::Bool):
-        return {JsonParser::JsonValue::BOOL, AsVar(v).GetBool()};
+        return {JsonValue::BOOL, AsVar(v).GetBool()};
     case static_cast<int>(VarType::Int):
-        return {JsonParser::JsonValue::INT, false, v.data_.i};
+        return {JsonValue::INT, false, v.data_.i};
     case static_cast<int>(VarType::Float):
-        return {JsonParser::JsonValue::FLOAT, false, 0, v.data_.f};
+        return {JsonValue::FLOAT, false, 0, v.data_.f};
     case static_cast<int>(VarType::String):
     case static_cast<int>(VarType::StringId): {
         std::string str = inter::FakeluaToNativeString(nullptr, v);
-        return {JsonParser::JsonValue::STRING, false, 0, 0.0, std::move(str)};
+        return {JsonValue::STRING, false, 0, 0.0, std::move(str)};
     }
     case static_cast<int>(VarType::Table): {
         auto *t = v.data_.t;
-        if (!t) return {JsonParser::JsonValue::NIL};
+        if (!t) return {JsonValue::NIL};
 
         // Collect all key-value pairs
         std::vector<std::pair<CVar, CVar>> kvs;
@@ -311,14 +311,14 @@ static JsonParser::JsonValue lua_to_json(CVar v) {
         }
 
         if (is_array && !kvs.empty()) {
-            JsonParser::JsonValue arr{JsonParser::JsonValue::ARRAY};
+            JsonValue arr{JsonValue::ARRAY};
             arr.arr.reserve(kvs.size());
             for (auto &kv : kvs) {
                 arr.arr.push_back(lua_to_json(kv.second));
             }
             return arr;
         } else {
-            JsonParser::JsonValue obj{JsonParser::JsonValue::OBJECT};
+            JsonValue obj{JsonValue::OBJECT};
             for (auto &kv : kvs) {
                 std::string key = inter::FakeluaToNativeString(nullptr, kv.first);
                 obj.obj.emplace_back(std::move(key), lua_to_json(kv.second));
@@ -333,24 +333,24 @@ static JsonParser::JsonValue lua_to_json(CVar v) {
 
 // ── JSON Encoder ──
 
-static void json_encode_val(std::string &out, const JsonParser::JsonValue &v) {
+static void json_encode_val(std::string &out, const JsonValue &v) {
     switch (v.type) {
-    case JsonParser::JsonValue::NIL:
+    case JsonValue::NIL:
         out += "null";
         break;
-    case JsonParser::JsonValue::BOOL:
+    case JsonValue::BOOL:
         out += v.b ? "true" : "false";
         break;
-    case JsonParser::JsonValue::INT:
+    case JsonValue::INT:
         out += std::to_string(v.i);
         break;
-    case JsonParser::JsonValue::FLOAT: {
+    case JsonValue::FLOAT: {
         char buf[64];
         snprintf(buf, sizeof(buf), "%.17g", v.f);
         out += buf;
         break;
     }
-    case JsonParser::JsonValue::STRING:
+    case JsonValue::STRING:
         out += '"';
         for (uint8_t c : v.s) {
             switch (c) {
@@ -373,7 +373,7 @@ static void json_encode_val(std::string &out, const JsonParser::JsonValue &v) {
         }
         out += '"';
         break;
-    case JsonParser::JsonValue::ARRAY:
+    case JsonValue::ARRAY:
         out += '[';
         for (size_t i = 0; i < v.arr.size(); i++) {
             if (i > 0) out += ',';
@@ -381,11 +381,11 @@ static void json_encode_val(std::string &out, const JsonParser::JsonValue &v) {
         }
         out += ']';
         break;
-    case JsonParser::JsonValue::OBJECT:
+    case JsonValue::OBJECT:
         out += '{';
         for (size_t i = 0; i < v.obj.size(); i++) {
             if (i > 0) out += ',';
-            JsonParser::JsonValue key{JsonParser::JsonValue::STRING, false, 0, 0.0, v.obj[i].first};
+            JsonValue key{JsonValue::STRING, false, 0, 0.0, v.obj[i].first};
             json_encode_val(out, key);
             out += ':';
             json_encode_val(out, v.obj[i].second);
@@ -396,6 +396,9 @@ static void json_encode_val(std::string &out, const JsonParser::JsonValue &v) {
 }
 
 // ── Lua Bindings ──
+
+// Forward declaration
+static JsonValue lua_to_json(CVar v);
 
 // json.decode(json_str) → Lua value
 static CVar json_decode(State *s, CVar *args, int n) {
