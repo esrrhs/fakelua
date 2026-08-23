@@ -9,6 +9,19 @@
 
 namespace fakelua::json {
 
+// ── JSON Value ──
+
+struct JsonValue {
+    enum Type { NIL, BOOL, INT, FLOAT, STRING, ARRAY, OBJECT };
+    Type type = NIL;
+    bool b = false;
+    int64_t i = 0;
+    double f = 0.0;
+    std::string s;
+    std::vector<JsonValue> arr;
+    std::vector<std::pair<std::string, JsonValue>> obj;
+};
+
 // ── JSON Parser ──
 
 struct JsonParser {
@@ -42,19 +55,6 @@ struct JsonParser {
         }
         ++pos;
     }
-
-    // Parse a JSON value, return as string (for encoding to Lua)
-    // We build a Lua value directly
-    struct JsonValue {
-        enum Type { NIL, BOOL, INT, FLOAT, STRING, ARRAY, OBJECT };
-        Type type = NIL;
-        bool b = false;
-        int64_t i = 0;
-        double f = 0.0;
-        std::string s;
-        std::vector<JsonValue> arr;
-        std::vector<std::pair<std::string, JsonValue>> obj;
-    };
 
     JsonValue parse_value() {
         uint8_t c;
