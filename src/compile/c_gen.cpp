@@ -1216,6 +1216,13 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 Out() << GenTab() << "CVar " << name << " = kNil;\n";
             }
         }
+
+        // Compile extra expressions for side effects (when exps.size() > names.size())
+        // In Lua, all expressions are evaluated even if their results are not assigned.
+        for (size_t i = names.size(); i < exps.size(); ++i) {
+            const std::string init = CompileExp(exps[i]);
+            Out() << GenTab() << init << ";\n";
+        }
     }
 }
 

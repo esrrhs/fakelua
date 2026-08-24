@@ -13,7 +13,7 @@ CPMAddPackage(
         "gtest_force_shared_crt ON"
 )
 
-aux_source_directory(./ TEST_SRC_LIST)
+file(GLOB TEST_SRC_LIST "*.cpp")
 include_directories(./)
 include_directories(../include)
 include_directories(../src)
