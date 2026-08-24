@@ -1,3 +1,5 @@
+[中文](README.zh.md) | English
+
 # FakeLua Native Libraries
 
 Detailed API reference for all built-in native libraries. Each module lives in its own subdirectory under `src/native/` with a `.h` and `.cpp` file pair.

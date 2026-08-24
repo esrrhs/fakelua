@@ -1,6 +1,4 @@
-[中文](README.zh.md) | English
-
-# Benchmark Results
+# 性能基准测试结果
 
 本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的完整结果。覆盖 **6 大类共 51 个 Lua 性能场景**，每个场景均实现 C++ / Lua 5.4 / FakeLua TCC / FakeLua GCC 四种横向对比（下面的分析聚焦 GCC vs Lua、GCC vs C++）。
 
@@ -295,7 +293,6 @@ BM_CPP_Vector3/100000                                      984,296 ns    527,532
 BM_CPP_Vector3/1000000                                  10,423,974 ns  5,285,754 ns        133
 BM_FakeLua_BinarySearch_GCC/100                             13,922 ns      8,156 ns     85,400
 BM_FakeLua_BinarySearch_GCC/1000                           271,491 ns    156,553 ns      4,320
-BM_FakeLua_BinarySearch_GCC/500                            122,929 ns     67,590 ns     10,333
 BM_FakeLua_BinarySearch_TCC/100                             81,768 ns     52,935 ns     13,579
 BM_FakeLua_BinarySearch_TCC/1000                         1,422,010 ns    874,824 ns        774
 BM_FakeLua_BinarySearch_TCC/500                            660,936 ns    373,850 ns      1,911
@@ -400,7 +397,7 @@ BM_FakeLua_Sieve_GCC/1000                                   63,689 ns     35,024
 BM_FakeLua_Sieve_GCC/500                                    29,989 ns     17,088 ns     40,695
 BM_FakeLua_Sieve_GCC/5000                                  344,444 ns    213,124 ns      3,359
 BM_FakeLua_Sieve_TCC/100                                    29,560 ns     17,487 ns     39,646
-BM_FakeLua_Sieve_TCC/1000                                  263,604 ns    172,742 ns      4,041
+BM_FakeLua_Sieve_TCC/1000                                  263,604 ns    172,424 ns      4,041
 BM_FakeLua_Sieve_TCC/500                                   143,477 ns     85,340 ns      8,216
 BM_FakeLua_Sieve_TCC/5000                                1,780,537 ns  1,041,591 ns        679
 BM_FakeLua_StringByte_GCC/10                                   939 ns        531 ns  1,304,736
@@ -540,7 +537,7 @@ BM_FakeLua_TableRemove_GCC/1000                             84,466 ns     46,212
 BM_FakeLua_TableRemove_GCC/500                              37,355 ns     23,386 ns     28,737
 BM_FakeLua_TableRemove_GCC/5000                            430,685 ns    256,491 ns      2,710
 BM_FakeLua_TableRemove_TCC/100                              41,184 ns     23,119 ns     30,006
-BM_FakeLua_TableRemove_TCC/1000                            419,694 ns    215,409 ns      3,251
+BM_FakeLua_TableRemove_TCC/1000                             419,694 ns    215,409 ns      3,251
 BM_FakeLua_TableRemove_TCC/500                             177,077 ns    107,216 ns      6,561
 BM_FakeLua_TableRemove_TCC/5000                          1,793,838 ns  1,185,962 ns        589
 BM_FakeLua_TableSort_GCC/100                                44,298 ns     28,004 ns     25,024

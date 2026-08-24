@@ -78,7 +78,7 @@ static CVar fib_dispatcher(CVar n_var) {
 }
 ```
 
-With recursive Fibonacci (n=32) as an example, the GCC backend is **36.6x** faster than Lua 5.4, and the TCC backend is **11.2x** faster (see [benchmark/README.md](benchmark/README.md)).
+With recursive Fibonacci (n=32) as an example, the GCC backend is **36.6x** faster than Lua 5.4, and the TCC backend is **11.2x** faster (see [benchmark/README.md](benchmark/README.md) / [中文](benchmark/README.zh.md)).
 
 ### Table Struct Specialization
 
@@ -141,7 +141,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 FakeLua provides 19 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, compression, encryption, serialization, databases, and protobuf.
 
-> **Full API reference:** [src/native/README.md](src/native/README.md)
+> **Full API reference:** [src/native/README.md](src/native/README.md) / [中文](src/native/README.zh.md)
 
 | Category | Modules |
 |----------|---------|
@@ -176,31 +176,6 @@ Key differences:
 - **Invalid patterns don't throw**: `std::regex_error` is caught and returns `nil`, so the script doesn't interrupt.
 - **`string.find`'s `plain` parameter** has the same semantics as Lua: passing `true` degrades to pure substring search, completely bypassing the regex engine — also the fastest path.
 - **Performance**: The regex path is significantly slower than Lua's native pattern engine; prefer `plain` search or `string.sub` / `string.byte` basic operations on hot paths.
-
-## C++ Embedding API
-
-- `CompileFile` / `CompileString` / `Call`, RAII-style `FakeluaStateGuard`
-- `CompileConfig` with `debug_mode`, `skip_jit`, `disable_jit`, `record_c_code` options
-- `NativeObject` with `RegisterMethod` for C++ member binding, `new_native_group`/`del_native_group` for arena management
-- `SetVarInterfaceNewFunc` for custom table implementations
-- `GetLastRecordedCCode()` for debugging generated C code
-
-```cpp
-FakeluaStateGuard guard;
-State* s = guard.GetState();
-CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
-
-int sum = 0;
-Call(s, JIT_GCC, "add", sum, 10, 20); // embed-call a Lua function
-```
-
-## Known Limitations
-
-- Function parameter limit: 32 (`kMaxFunctionInputParams`)
-- Math specialization parameter limit: 8 (`kMaxMathSpecializedParams`)
-- No coroutine, metatable, `require`/`module`, `debug` library
-- No implicit string→number conversion in arithmetic
-- File-level only allows `package "Name"`, `local`, and function definitions
 
 ## Quick Start
 
@@ -272,9 +247,20 @@ Comparing Lua 5.4, FakeLua TCC, FakeLua GCC across 11 algorithms (Release `-O3` 
 | Sieve n=5000 | 353.4 μs | 1.0 ms (0.34x) | 219.3 μs (**1.8x**↑) |
 | FloatPoly n=1000000 | — | — | **34.9x**↑ (浮点特化，GCC 2x 快于 C++) |
 
-> TCC is generally faster than Lua for pure computation; in Table-operation-heavy scenarios, Table struct specialization gives both GCC and TCC a significant boost. Full data available in [benchmark/README.md](benchmark/README.md).
+> TCC is generally faster than Lua for pure computation; in Table-operation-heavy scenarios, Table struct specialization gives both GCC and TCC a significant boost. Full data available in [benchmark/README.md](benchmark/README.md) / [中文](benchmark/README.zh.md).
 
 ## C++ API Reference
+
+### Quick Usage
+
+```cpp
+FakeluaStateGuard guard;
+State* s = guard.GetState();
+CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
+
+int sum = 0;
+Call(s, JIT_GCC, "add", sum, 10, 20); // embed-call a Lua function
+```
 
 ### State Management
 
