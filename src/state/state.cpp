@@ -15,6 +15,7 @@
 #include "native/csv/native_csv.h"
 #include "native/sqlite/native_sqlite.h"
 #include "native/event/native_event.h"
+#include "native/random/native_random.h"
 
 namespace fakelua {
 
@@ -32,6 +33,7 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     mysql::RegisterMysqlLibraryApi(this);
     mysql::RegisterMysqlPoolApi(this);
     event::RegisterEventLibraryApi(this);
+    random::RegisterRandomLibraryApi(this);
 }
 
 }// namespace fakelua
