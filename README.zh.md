@@ -78,7 +78,7 @@ static CVar fib_dispatcher(CVar n_var) {
 }
 ```
 
-以递归 Fibonacci（n=32）为例，GCC 后端比 Lua 5.4 快 **36.6x**，TCC 后端快 **11.2x**（详见 [benchmark/README.md](benchmark/README.md)）。
+以递归 Fibonacci（n=32）为例，GCC 后端比 Lua 5.4 快 **36.6x**，TCC 后端快 **11.2x**（详见 [benchmark/README.zh.md](benchmark/README.zh.md) / [English](benchmark/README.md)）。
 
 ### Table 结构体特化（Table Specialization）
 
@@ -141,7 +141,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 FakeLua 在 `src/native/` 下提供 19 个独立 C++ 原生模块，覆盖数学、字符串、表、IO、网络、定时器、事件、压缩、加密、序列化、数据库、Protobuf 等领域。
 
-> **完整 API 文档：** [src/native/README.md](src/native/README.md)
+> **完整 API 文档：** [src/native/README.zh.md](src/native/README.zh.md) / [English](src/native/README.md)
 
 | 分类 | 模块 |
 |------|------|
@@ -175,31 +175,6 @@ FakeLua 在 `src/native/` 下提供 19 个独立 C++ 原生模块，覆盖数学
 - **非法模式串不抛异常**：`std::regex_error` 被捕获后返回 `nil`
 - **`plain` 参数**：传 `true` 退化为纯子串查找，绕过正则引擎，是最快路径
 - **性能**：正则路径慢于 Lua 原生 pattern，热路径建议优先用 `plain` 查找
-
-## C++ 嵌入 API
-
-- `CompileFile` / `CompileString` / `Call`，RAII 风格 `FakeluaStateGuard`
-- `CompileConfig` 支持 `debug_mode`、`skip_jit`、`disable_jit`、`record_c_code` 配置
-- `NativeObject` 支持 `RegisterMethod` C++ 成员绑定、`new_native_group`/`del_native_group` 组内存池管理
-- `SetVarInterfaceNewFunc` 自定义 Table 实现
-- `GetLastRecordedCCode()` 调试生成的 C 代码
-
-```cpp
-FakeluaStateGuard guard;
-State* s = guard.GetState();
-CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
-
-int sum = 0;
-Call(s, JIT_GCC, "add", sum, 10, 20); // 嵌入调用 Lua 函数
-```
-
-## 当前已知限制
-
-- 函数参数上限 32 个（`kMaxFunctionInputParams`）
-- 数学特化参数上限 8 个（`kMaxMathSpecializedParams`）
-- 不支持协程、元表、`require`/`module`、`debug` 标准库
-- 算术不做字符串→数字的隐式转换
-- 文件级只允许 `package "Name"`、`local`、函数定义
 
 ## 快速上手
 
@@ -271,9 +246,20 @@ ctest --test-dir build -V
 | Sieve n=5000 | 353.4 μs | 1.0 ms（0.34x） | 219.3 μs（**1.8x**↑） |
 | FloatPoly n=1000000 | — | — | **34.9x**↑（浮点特化，GCC 2x 快于 C++） |
 
-> TCC 纯计算类场景普遍快于 Lua；在包含 Table 操作的场景下，Table 结构体特化使 GCC 与 TCC 的 Table 读写性能均大幅提升。完整数据见 [benchmark/README.md](benchmark/README.md)。
+> TCC 纯计算类场景普遍快于 Lua；在包含 Table 操作的场景下，Table 结构体特化使 GCC 与 TCC 的 Table 读写性能均大幅提升。完整数据见 [benchmark/README.zh.md](benchmark/README.zh.md) / [English](benchmark/README.md)。
 
 ## C++ API 详细文档
+
+### 快速使用
+
+```cpp
+FakeluaStateGuard guard;
+State* s = guard.GetState();
+CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
+
+int sum = 0;
+Call(s, JIT_GCC, "add", sum, 10, 20); // 嵌入调用 Lua 函数
+```
 
 ### 状态管理
 
