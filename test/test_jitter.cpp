@@ -353,6 +353,54 @@ TEST(jitter, multi_return_expr_assign) {
     });
 }
 
+// Extra expressions in local declarations are evaluated (side effects)
+TEST(jitter, local_extra_expr_side_effect) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_extra_expr_side_effect.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 2);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[0].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 1);
+    });
+}
+
+// Multiple extra function calls are all evaluated
+TEST(jitter, local_func_call_side_effect) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_extra_expr_side_effect.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test_func_call", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 2);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[0].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 2);
+    });
+}
+
+// Extra expression values are discarded correctly
+TEST(jitter, local_values_discarded) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_extra_expr_side_effect.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test_values_discarded", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 2);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[0].data_.i, 10);
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 99);
+    });
+}
+
 // Global const variable definitions
 TEST(jitter, const_define) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
