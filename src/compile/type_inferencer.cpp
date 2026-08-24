@@ -564,6 +564,12 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
         }
     }
 
+    // Infer types of extra expressions (when exps.size() > names.size())
+    // In Lua, all expressions are evaluated even if their results are not assigned.
+    for (size_t i = names.size(); i < exps.size(); ++i) {
+        InferNode(exps[i], tctx);
+    }
+
     return RecordType(current_map, local_var.get(), T_UNKNOWN);
 }
 
