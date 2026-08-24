@@ -31,6 +31,7 @@ aux_source_directory(./native/mysql FAKELUA_SRC_LIST)
 aux_source_directory(./native/compress FAKELUA_SRC_LIST)
 aux_source_directory(./native/json FAKELUA_SRC_LIST)
 aux_source_directory(./native/csv FAKELUA_SRC_LIST)
+aux_source_directory(./native/sqlite FAKELUA_SRC_LIST)
 aux_source_directory(./native/utf8 FAKELUA_SRC_LIST)
 aux_source_directory(./ FAKELUA_SRC_LIST)
 include_directories(./)
@@ -62,6 +63,11 @@ if (APPLE)
 else ()
     include_directories(${tinycc_src_SOURCE_DIR})
 endif ()
+
+# SQLite — compiled as part of fakelua shared library (not a separate static lib)
+# to avoid CRT mismatch issues on Windows/MSYS2.
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/native/sqlite/sqlite3)
+set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${CMAKE_CURRENT_SOURCE_DIR}/native/sqlite/sqlite3/sqlite3.c)
 
 add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 
@@ -169,5 +175,6 @@ target_include_directories(zstd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/native/compr
 # Disable ASM optimizations — we only compile C sources, not assembly
 target_compile_definitions(zstd PRIVATE ZSTD_DISABLE_ASM)
 set(TARGET_LIB ${TARGET_LIB} zstd)
+
 
 target_link_libraries(fakelua ${TARGET_LIB})
