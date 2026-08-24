@@ -2,20 +2,20 @@
 
 # Benchmark Results
 
-本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的完整结果。覆盖 **6 大类共 51 个 Lua 性能场景**，每个场景均实现 C++ / Lua 5.4 / FakeLua TCC / FakeLua GCC 四种横向对比（下面的分析聚焦 GCC vs Lua、GCC vs C++）。
+This file records the complete results of running `bench_mark` compiled in **Release mode** (`-O3 -DNDEBUG`) locally. It covers **51 Lua performance scenarios across 6 categories**, each with C++ / Lua 5.4 / FakeLua TCC / FakeLua GCC comparisons (analysis focuses on GCC vs Lua and GCC vs C++).
 
-## 运行环境
+## Environment
 
-- 日期：2026-08-14
-- 机器：AMD EPYC 7K62 48-Core Processor，2 X 2595.12 MHz CPU s
-- CPU 缓存：L1d 32 KiB (x2)，L1i 32 KiB (x2)，L2 4096 KiB (x2)，L3 16384 KiB (x1)
-- 构建模式：**Release**（`-O3 -DNDEBUG`），GCC 15.1.0
-- FakeLua GCC JIT：**Release 模式**（`debug_mode=false`，GCC `-O3` 优化）
-- 二进制：`build/bin/bench_mark`
+- Date: 2026-08-14
+- Machine: AMD EPYC 7K62 48-Core Processor, 2 X 2595.12 MHz CPU s
+- CPU Caches: L1d 32 KiB (x2), L1i 32 KiB (x2), L2 4096 KiB (x2), L3 16384 KiB (x1)
+- Build mode: **Release** (`-O3 -DNDEBUG`), GCC 15.1.0
+- FakeLua GCC JIT: **Release mode** (`debug_mode=false`, GCC `-O3` optimization)
+- Binary: `build/bin/bench_mark`
 
-> 绝对耗时强依赖于机器与编译器版本，跨环境不可比。本文件所有数字来自同一次运行，只有同一张表内的比值才有意义。特别地，C++ 参照实现在部分场景会被编译器整体折叠（见下文标注），此时 GCC vs C++ 一列无参考价值。
+> Absolute runtimes are highly dependent on machine and compiler version and are not comparable across environments. All numbers in this file come from a single run; only ratios within the same table are meaningful. In particular, C++ reference implementations in some scenarios may be fully folded by the compiler (see annotations below), in which case the GCC vs C++ column is not informative.
 
-## 运行命令
+## Running
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -25,118 +25,118 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 ---
 
-## 结论
+## Summary
 
-下表取各场景最大参数（最具代表性），**GCC vs Lua** 列表示 FakeLua GCC 相对 Lua 5.4 的加速倍数（>1 表示 FakeLua 更快），**GCC vs C++** 列表示 FakeLua GCC 与手写 C++ 的耗时比值（<1 表示 FakeLua 更快）。
+The table below takes the largest parameter (most representative) for each scenario. The **GCC vs Lua** column shows the speedup of FakeLua GCC relative to Lua 5.4 (>1 means FakeLua is faster); the **GCC vs C++** column shows the runtime ratio of FakeLua GCC to handwritten C++ (<1 means FakeLua is faster).
 
-### 算法（algo）
+### Algorithms (algo)
 
-| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
-|------|------|-----------|-----------|------|
-| Fibonacci | n=32 | **36.6x** | 0.13 | 数值特化，接近 C++ |
-| GCD | 2147483647/1073741823 | 0.45x | 10.8 | 单次调用仅约 0.4 µs，被调用开销主导 |
+| Scenario | Param | GCC vs Lua | GCC vs C++ | Notes |
+|----------|-------|-----------|-----------|-------|
+| Fibonacci | n=32 | **36.6x** | 0.13 | Numeric specialization, close to C++ |
+| GCD | 2147483647/1073741823 | 0.45x | 10.8 | Single call ~0.4 µs, dominated by call overhead |
 | PowMod | 1234567/7654321/1e9+7 | 1.7x | 2.56 | |
-| Sum | n=5M | **30.4x** | 0.06 | GCC 向量化，远快于 C++ |
-| BubbleSort | n=200 | 1.9x | 2.80 | 表下标读写拖累 |
+| Sum | n=5M | **30.4x** | 0.06 | GCC vectorization, far faster than C++ |
+| BubbleSort | n=200 | 1.9x | 2.80 | Table index read/write drag |
 | Sieve | n=5000 | 1.8x | 2.68 | |
 | BinarySearch | n=1000 | 3.7x | 2.40 | |
 | FastPow | 1234567/7654321/1e9+7 | 1.6x | 2.45 | |
-| Popcount | n=100K | **37.3x** | 0.12 | 位运算极致优化 |
+| Popcount | n=100K | **37.3x** | 0.12 | Extreme bitwise optimization |
 | InsertionSort | n=200 | 2.6x | 2.92 | |
 | MatMul | 3×3 | 2.9x | 5.10 | |
-| Vector3 | n=1M | 4.8x | 5.85 | 表特化为结构体，指针偏移 |
-| FloatPoly | n=1M | **34.9x** | 0.49 | 浮点特化，GCC 2x 快于 C++ |
+| Vector3 | n=1M | 4.8x | 5.85 | Table specialized to struct, pointer offset |
+| FloatPoly | n=1M | **34.9x** | 0.49 | Float specialization, GCC 2x faster than C++ |
 
-### 字符串（string）
+### String (string)
 
-| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
-|------|------|-----------|-----------|------|
+| Scenario | Param | GCC vs Lua | GCC vs C++ | Notes |
+|----------|-------|-----------|-----------|-------|
 | StringLen | n=10K | 1.8x | 67.3 | |
 | StringSub | n=10K | 1.3x | 6.15 | |
-| StringRep | n=1000 | 1.1x | 0.16 | CGen `FlStringRep` 内联 |
-| StringReverse | n=10K | 1.7x | 0.26 | CGen `FlStringReverse` 内联 |
-| StringLower | n=10K | **6.1x** | 0.02 | CGen 内联 + ASCII 单遍 |
-| StringUpper | n=10K | **5.0x** | 0.02 | 同上 |
+| StringRep | n=1000 | 1.1x | 0.16 | CGen `FlStringRep` inline |
+| StringReverse | n=10K | 1.7x | 0.26 | CGen `FlStringReverse` inline |
+| StringLower | n=10K | **6.1x** | 0.02 | CGen inline + ASCII single pass |
+| StringUpper | n=10K | **5.0x** | 0.02 | Same as above |
 | StringByte | n=1000 | 1.0x | 37.7 | |
 | StringChar | n=500 | 1.0x | 10.6 | |
-| StringFormat | n=500 | 1.8x | 2.71 | 常量 `"%d"` → `FlFormatInt` |
-| StringFind | n=10K | 0.85x | 19.2 | plain 子串查找（`FlStringFindPlain` 内联，但仍有调用开销） |
-| StringGsub | n=1000 | 0.06x | 38.1 | ECMAScript 正则（见下） |
-| ToNumber | n=1 | 0.53x | 5.65 | CGen `FlTonumber` 十进制整数内联解析（同一输入 `"1234567890"`） |
+| StringFormat | n=500 | 1.8x | 2.71 | Const `"%d"` → `FlFormatInt` |
+| StringFind | n=10K | 0.85x | 19.2 | Plain substring search (`FlStringFindPlain` inline, but still has call overhead) |
+| StringGsub | n=1000 | 0.06x | 38.1 | ECMAScript regex (see below) |
+| ToNumber | n=1 | 0.53x | 5.65 | CGen `FlTonumber` decimal integer inline parse (same input `"1234567890"`) |
 | ToString | n=500 | 0.74x | 0.01 | INT → `FlFormatInt` |
-| StringFindPattern | n=1000 | 0.12x | 39.6 | ECMAScript 正则；已加编译缓存 |
-| StringGmatch | n=1000 | 0.21x | 23.3 | ECMAScript 正则；已加编译缓存 |
+| StringFindPattern | n=1000 | 0.12x | 39.6 | ECMAScript regex; compile cache added |
+| StringGmatch | n=1000 | 0.21x | 23.3 | ECMAScript regex; compile cache added |
 
-> **关于正则比 Lua 慢**：FakeLua 的 `string.find` / `match` / `gmatch` / `gsub` 走的是 **ECMAScript `std::regex`**（已做进程级编译缓存），能力强于 Lua 5.4 自带的 pattern（lookahead、完整字符类、非贪婪等）。因此正则场景慢于 Lua（当前约 0.06~0.21x）**可以接受**，属于能力换性能；后续若要追平 Lua，方向是另做 Lua pattern 引擎，而不是继续抠 `std::regex`。脚本统一用 `[0-9]+`（在 Lua pattern 与 ECMAScript 正则中语义一致）。
+> **On regex being slower than Lua**: FakeLua's `string.find` / `match` / `gmatch` / `gsub` use **ECMAScript `std::regex`** (with process-level compile caching), which is more powerful than Lua 5.4's built-in pattern (lookahead, full character classes, non-greedy, etc.). Therefore regex scenarios being slower than Lua (currently ~0.06~0.21x) is **acceptable** — it's capability for performance. To match Lua in the future, the direction is a separate Lua pattern engine, not further optimizing `std::regex`. Scripts uniformly use `[0-9]+` (semantically identical in Lua pattern and ECMAScript regex).
 
-### 表操作（table）
+### Table Operations (table)
 
-| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
-|------|------|-----------|-----------|------|
+| Scenario | Param | GCC vs Lua | GCC vs C++ | Notes |
+|----------|-------|-----------|-----------|-------|
 | TableInsert | n=5K | **4.0x** | 4.87 | |
 | TableRemove | n=5K | **3.2x** | 2.99 | |
-| TableConcat | n=1000 | 1.0x | 4.16 | arena 一次写入 |
+| TableConcat | n=1000 | 1.0x | 4.16 | Arena single write |
 | TablePack | n=1 | 1.9x | 157 | |
-| TableMove | n=5K | 1.0x | 2.84 | CGen `FlTableMove` + 空表预扩容 |
+| TableMove | n=5K | 1.0x | 2.84 | CGen `FlTableMove` + empty table pre-grow |
 | TableSort | n=1000 | 1.2x | 4.74 | |
 | TableCreate | n=5K | 1.1x | 2.20 | |
 | HashInsert | n=1000 | 2.0x | 0.88 | |
 | HashLookup | n=1000 | 1.9x | 0.45 | |
-| NestedTable | n=10K | 3.4x | 1.39 | 表层指针偏移遍历 |
+| NestedTable | n=10K | 3.4x | 1.39 | Outer table pointer offset traversal |
 
-### 函数调用（function）
+### Function Calls (function)
 
-| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
-|------|------|-----------|-----------|------|
-| EmptyCall | n=100K | **14.1x** | 61561 | C++ 内联为 0 |
-| Recursion | n=25 | **42.9x** | 0.13 | 数值特化 |
-| Variadic | n=1 | 0.91x | 75.4 | vararg 构建开销大 |
+| Scenario | Param | GCC vs Lua | GCC vs C++ | Notes |
+|----------|-------|-----------|-----------|-------|
+| EmptyCall | n=100K | **14.1x** | 61561 | C++ inlined to 0 |
+| Recursion | n=25 | **42.9x** | 0.13 | Numeric specialization |
+| Variadic | n=1 | 0.91x | 75.4 | High vararg construction overhead |
 | MultiReturn | n=10K | **23.3x** | 0.46 | |
 | Closure | n=1000 | 2.1x | 19.4 | |
-| TailRecursion | n=5K | **107.5x** | 0.07 | 尾调用转循环+向量化 |
+| TailRecursion | n=5K | **107.5x** | 0.07 | Tail call to loop + vectorization |
 
-### GC 与内存压力（gc）
+### GC & Memory Pressure (gc)
 
-| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
-|------|------|-----------|-----------|------|
-| TableChurn | n=1000 | **9.3x** | 1.24 | 内存池分配器优势 |
-| StringChurn | n=1000 | 2.2x | 1.47 | 字符串分配是弱项 |
+| Scenario | Param | GCC vs Lua | GCC vs C++ | Notes |
+|----------|-------|-----------|-----------|-------|
+| TableChurn | n=1000 | **9.3x** | 1.24 | Arena allocator advantage |
+| StringChurn | n=1000 | 2.2x | 1.47 | String allocation is a weakness |
 | MixedAlloc | n=1000 | 2.3x | 1.68 | |
 
-### 数学函数（math）
+### Math Functions (math)
 
-| 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
-|------|------|-----------|-----------|------|
-| MathTrig (sin+cos) | n=100K | **5.8x** | 0.87 | 接近 C++ 原生速度 |
-| MathSqrt | n=100K | **22.3x** | 0.48 | GCC 2x 快于 C++ |
+| Scenario | Param | GCC vs Lua | GCC vs C++ | Notes |
+|----------|-------|-----------|-----------|-------|
+| MathTrig (sin+cos) | n=100K | **5.8x** | 0.87 | Close to native C++ speed |
+| MathSqrt | n=100K | **22.3x** | 0.48 | GCC 2x faster than C++ |
 | MathExpLog | n=100K | **4.3x** | 0.87 | |
 | MathMinMax | n=100K | **10.4x** | 0.90 | |
 
-### 核心发现
+### Key Findings
 
-1. **纯数值场景全面领先 Lua 5.4 并接近手写 C++**：Fibonacci 36.6x、TailRecursion 107.5x、Recursion 42.9x、FloatPoly 34.9x、Popcount 37.3x、Sum 30.4x。数值特化让这些函数生成的 C 代码与手写版本几乎一致，剩下的交给 GCC `-O3`。
+1. **Pure numeric scenarios comprehensively beat Lua 5.4 and approach handwritten C++**: Fibonacci 36.6x, TailRecursion 107.5x, Recursion 42.9x, FloatPoly 34.9x, Popcount 37.3x, Sum 30.4x. Numeric specialization makes the generated C code nearly identical to handwritten versions; the rest is handled by GCC `-O3`.
 
-2. **math 库四项全部快于 Lua**（4.3x~22.3x），sin/cos/sqrt 接近 C++ 原生速度。
+2. **All four math library functions are faster than Lua** (4.3x~22.3x); sin/cos/sqrt approach native C++ speed.
 
-3. **string 标准库函数大多快于 Lua**：lower/upper 5-6x、format 1.8x、rep 1.1x、reverse 1.7x，均通过 CGen 内联（`FlStringLower/Upper`、`FlFormatInt`、`FlStringRep`、`FlStringReverse`）避免 `FakeluaCallByName` 的调用开销。当前仅 StringFind (plain) 0.85x 略慢于 Lua，剩余差距为单次调用派发开销。
+3. **Most string standard library functions are faster than Lua**: lower/upper 5-6x, format 1.8x, rep 1.1x, reverse 1.7x — all via CGen inline (`FlStringLower/Upper`, `FlFormatInt`, `FlStringRep`, `FlStringReverse`) avoiding `FakeluaCallByName` overhead. Only StringFind (plain) at 0.85x is slightly slower than Lua, the remaining gap being single-call dispatch overhead.
 
-4. **表操作整体有优势**：table.insert 4.0x、remove 3.2x、sort 1.2x 快于 Lua，move / concat 与 Lua 基本持平。`VarTable` 缓存连续整数键前缀长度使 `#t` 为 O(1)，宿主侧与 JIT 侧共用同一套哈希/桶布局。
+4. **Table operations are overall advantageous**: table.insert 4.0x, remove 3.2x, sort 1.2x faster than Lua; move / concat roughly on par. `VarTable` caches contiguous integer key prefix length making `#t` O(1); host side and JIT side share the same hash/bucket layout.
 
-5. **arena 分配器在表频繁创建场景优势明显**：TableChurn 快于 Lua 9.3x——无 GC、批量释放。
+5. **Arena allocator shows clear advantage in heavy table-creation scenarios**: TableChurn 9.3x faster than Lua — no GC, bulk free.
 
-6. **正则场景慢于 Lua 可接受**（Gsub 0.06x、FindPattern 0.12x、Gmatch 0.21x）：使用更强的 ECMAScript `std::regex`（非 Lua pattern），已加编译缓存；能力不同，不作为追平目标。
+6. **Regex scenarios being slower than Lua is acceptable** (Gsub 0.06x, FindPattern 0.12x, Gmatch 0.21x): uses more powerful ECMAScript `std::regex` (not Lua pattern), with compile caching; different capability, not a target to match.
 
-7. **剩余慢项为调用派发开销主导**：GCD（0.45x）、ToNumber（0.53x）、ToString（0.74x）、Variadic（0.91x）函数体极小（< 1 µs），JIT 的 CVar 装箱/拆箱与调用约定开销占比大，非运算本身慢。需跨函数内联或调用约定优化才能追平。
+7. **Remaining slow items are dominated by call dispatch overhead**: GCD (0.45x), ToNumber (0.53x), ToString (0.74x), Variadic (0.91x) have extremely small function bodies (< 1 µs); JIT CVar boxing/unboxing and calling convention overhead dominate — not the computation itself being slow. Cross-function inlining or calling convention optimization is needed to catch up.
 
-   > 说明：ToNumber 的 bench 两侧解析同一输入字符串 `"1234567890"`。剩余差距主要来自单次 `Call()` 派发与字符串装箱常数开销，非解析本身。
+   > Note: ToNumber bench parses the same input string `"1234567890"` on both sides. The remaining gap is mainly from single `Call()` dispatch and string boxing constant overhead, not parsing itself.
 
 ---
 
-## 完整原始输出
+## Complete Raw Output
 
-以下为 `benchmark_algo.cpp` / `benchmark_string.cpp` / `benchmark_table.cpp` / `benchmark_function.cpp` / `benchmark_gc.cpp` / `benchmark_math.cpp` 全部 51 个场景的完整 google benchmark 输出（含 TCC 数据）：
+Below is the complete google benchmark output for all 51 scenarios from `benchmark_algo.cpp` / `benchmark_string.cpp` / `benchmark_table.cpp` / `benchmark_function.cpp` / `benchmark_gc.cpp` / `benchmark_math.cpp` (including TCC data):
 
-> ⚠️ 其中 `BM_*_StringFindPattern` / `BM_*_StringGmatch` 八行是 `[0-9]+` 修正**之前**的旧数据，两边工作量不对等，不可用于比较；以上文表格中的修正值为准。
+> ⚠️ The eight lines for `BM_*_StringFindPattern` / `BM_*_StringGmatch` are old data from **before** the `[0-9]+` correction; the two sides have unequal workloads and should not be compared. Use the corrected values in the tables above.
 
 ```text
 <string>:1561: warning: assignment of read-only location
