@@ -6,60 +6,62 @@
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/build_with_windows.yml?branch=master&label=Windows">](https://github.com/esrrhs/fakelua/actions/workflows/build_with_windows.yml)
 [![codecov](https://codecov.io/gh/esrrhs/fakelua/graph/badge.svg?token=9ZCUH1Q632)](https://codecov.io/gh/esrrhs/fakelua)
 
-FakeLua 是一个可嵌入的 Lua 子集编译引擎：将 Lua 脚本编译为 C 代码，通过 GCC 后端动态编译为原生机器码执行。提供 C++23 接口，支持脚本与原生代码高效互操作。
+[中文](README.zh.md) | English
 
-## 设计初衷与内存设计哲学
+FakeLua is an embeddable Lua-subset compilation engine: it compiles Lua scripts into C code and dynamically compiles them into native machine code via the GCC backend for execution. It provides a C++23 interface with high-performance interop between scripts and native code.
 
-FakeLua 的设计初衷是为了在**高性能游戏服务器**或类似的实时系统中，解决传统脚本语言（如标准 Lua/LuaJIT）由于**垃圾回收（GC）机制带来的吞吐量抖动和内存膨胀问题**。
+## Design Philosophy & Memory Model
 
-### 1. 脚本定位：高内聚的“业务粘合剂”
-在典型的实时高性能服务器架构中：
-*   **状态与数据驻留 C++**：核心的数据结构（如玩家状态、世界地图、怪物属性、物理引擎）全部保存在高效、紧凑、类型安全的 C++ 宿主侧。
-*   **无状态/浅状态的 Lua 逻辑层**：Lua 只用作纯逻辑处理和业务粘合，负责读取 C++ 数据并调用 C++ 函数进行逻辑运算。脚本内不应该长期留存大规模的数据对象。
+FakeLua was designed to address the **throughput jitter and memory bloat** caused by garbage collection in traditional scripting languages (standard Lua/LuaJIT) when used in **high-performance game servers** or similar real-time systems.
 
-### 2. 内存设计：极速的 Arena 内存池 + 帧重置
-为了配合上述定位，FakeLua **没有引入复杂的动态垃圾回收器**（如三色标记、分代 GC），而是采用了极其高效的 **Arena 内存池（Bump Allocator）**：
-*   **指针碰撞分配 ($O(1)$)**：脚本中创建临时变量（Table, String, Multi 等）时，只需在预分配的连续内存块中移动偏移指针，分配效率接近原生堆栈，没有 `malloc` 的碎片和多余开销。
-*   **单点瞬间清理 ($O(1)$)**：在每帧逻辑执行结束，或者单次请求处理完毕后，直接调用 `State::Reset()`。它会逆序调用已创建对象的析构函数，但无需单独释放每块内存，而是将内存池的偏移指针直接重置为 0。没有复杂的对象图遍历，没有系统级的 `free` 耗时与内存碎片整理，清理操作瞬时完成。
+### 1. Scripting as High-Cohesion "Business Glue"
+In a typical real-time high-performance server architecture:
+*   **State & data reside in C++**: Core data structures (player state, world maps, monster attributes, physics engine) are all stored in efficient, compact, type-safe C++ on the host side.
+*   **Stateless/shallow-state Lua logic layer**: Lua is used only for pure logic processing and business orchestration — reading C++ data and invoking C++ functions. Scripts should not retain large-scale data objects long-term.
 
-这种设计使得 FakeLua 在保持 JIT 原生执行速度的同时，能够彻底消除垃圾回收停顿（GC Pause）对帧率的影响，让内存开销保持在一条完全可预测的、极低的水平线上。
+### 2. Memory: Ultra-Fast Arena Pool + Frame Reset
+To support this positioning, FakeLua **does not implement a complex dynamic garbage collector** (tri-color marking, generational GC, etc.). Instead, it uses an extremely efficient **Arena memory pool (Bump Allocator)**:
+*   **Bump allocation ($O(1)$)**: When creating temporary variables (Table, String, Multi, etc.), FakeLua simply moves an offset pointer within a pre-allocated contiguous memory block. Allocation is nearly as fast as native stack allocation, without `malloc` fragmentation or overhead.
+*   **Instant cleanup ($O(1)$)**: At the end of each frame or request processing, `State::Reset()` is called. It invokes destructors in reverse order, but instead of freeing individual blocks, the pool offset pointer is simply reset to zero. There is no complex object graph traversal, no system-level `free` cost or defragmentation — cleanup is instantaneous.
 
-## 核心特性
+This design allows FakeLua to fully eliminate GC pause impact on frame rates while maintaining JIT native execution speed, keeping memory overhead at a completely predictable, extremely low level.
 
-### 双 JIT 后端
+## Core Features
 
-支持两种 JIT 模式，同一套 API 无缝切换：
+### Dual JIT Backends
 
-- **JIT_GCC**：调用系统 GCC（`-O3`），生成高质量原生代码。这是 FakeLua 实际运行和生产环境采用的主力后端。
-- **JIT_TCC**：内嵌 TinyCC，编译速度极快。主要用于开发调试和测试验证（TCC 源码在 CMake 配置阶段自动拉取，无需系统预装）。
+Supports two JIT modes with a seamless API switch:
+
+- **JIT_GCC**: Invokes system GCC (`-O3`) to generate high-quality native code. This is the primary backend for production use.
+- **JIT_TCC**: Embeds TinyCC for extremely fast compilation. Primarily used for development, debugging, and testing (TCC source is automatically fetched during CMake configuration — no system installation needed).
 
 ```cpp
 int ret = 0;
-// 同一套 Call API，可按需指定 JIT_GCC 或 JIT_TCC 后端
-Call(s, JIT_GCC, "add", ret, 10, 20); // 生产环境推荐：GCC 后端 (-O3 高性能)
-Call(s, JIT_TCC, "add", ret, 10, 20); // 开发调试推荐：TCC 后端 (极速编译)
+// Same Call API, switching between JIT_GCC and JIT_TCC on demand
+Call(s, JIT_GCC, "add", ret, 10, 20); // Production: GCC backend (-O3 high performance)
+Call(s, JIT_TCC, "add", ret, 10, 20); // Development: TCC backend (ultra-fast compilation)
 ```
 
-### 数值参数特化（Numeric Specialization）
+### Numeric Specialization
 
-编译器对函数的数学参数自动做类型推断与特化：
+The compiler automatically performs type inference and specialization for function math parameters:
 
-1. [TypeInferencer](file:///home/project/fakelua/src/compile/type_inferencer.h) 对每个顶层函数运行迭代不动点推断（leave-one-out），识别出真正参与算术运算的参数（math params）。
-2. [CGen](file:///home/project/fakelua/src/compile/c_gen.h) 为每个含数学参数的函数生成 `2^k` 个特化版本（`int64_t` / `double` 组合），以及一个运行时入口分发器，根据实际参数类型路由到对应特化体。
-3. 特化体内的算术运算直接用原生 C 类型（`int64_t`/`double`）计算，比较表达式也生成原生 C `bool` 而非走 [CVar](file:///home/project/fakelua/include/fakelua.h#L198) 装箱路径，彻底消除热路径上的类型判断开销。
+1. [TypeInferencer](src/compile/type_inferencer.h) runs iterative fixed-point inference on each top-level function (leave-one-out) to identify parameters that truly participate in arithmetic (math params).
+2. [CGen](src/compile/c_gen.h) generates $2^k$ specializations (`int64_t` / `double` combinations) plus a runtime entry dispatcher that routes to the appropriate specialization based on actual argument types.
+3. Specialized bodies use native C types (`int64_t`/`double`) for arithmetic and generate native C `bool` for comparisons, completely eliminating boxing overhead on hot paths.
 
 ```lua
--- 示例 Lua 函数：递归计算 Fibonacci
+-- Example Lua function: recursive Fibonacci
 function fib(n)
     if n <= 1 then return n end
     return fib(n - 1) + fib(n - 2)
 end
 ```
 
-编译器自动生成的特化 C 代码：
+Auto-generated specialized C code:
 
 ```c
-// 1. 数值参数特化体：形参/返回值直接提升为原生 int64_t，无需 CVar 装箱与运行时类型判断
+// 1. Numeric specialization: params/return promoted to native int64_t, no CVar boxing
 static int64_t fib_spec_0(int64_t n) {
     if (n <= 1) {
         return n;
@@ -67,51 +69,51 @@ static int64_t fib_spec_0(int64_t n) {
     return fib_spec_0(n - 1) + fib_spec_0(n - 2);
 }
 
-// 2. 通用入口分发器：快速判断传入类型，零开销路由到原生 C 特化函数
+// 2. Generic entry dispatcher: fast type check, zero-overhead routing to native C specialization
 static CVar fib_dispatcher(CVar n_var) {
     if (LIKELY(n_var.type_ == VAR_INT)) {
         return (CVar){.type_ = VAR_INT, .data_.i = fib_spec_0(n_var.data_.i)};
     }
-    // ... 动态路由至 double 特化体或通用 CVar 分支
+    // ... dynamic dispatch to double specialization or generic CVar path
 }
 ```
 
-以递归 Fibonacci（n=32）为例，GCC 后端比 Lua 5.4 快 **43.5x**，TCC 后端快 **11.2x**（详见 [benchmark/README.md](benchmark/README.md)）。
+With recursive Fibonacci (n=32) as an example, the GCC backend is **43.5x** faster than Lua 5.4, and the TCC backend is **11.2x** faster (see [benchmark/README.md](benchmark/README.md)).
 
-### Table 结构体特化（Table Specialization）
+### Table Struct Specialization
 
-如果 Table 构造函数在编译期可以静态推断出其所有 Key（如字符串字面量、显式/隐式整型索引、布尔型、浮点型），编译器会将其特化为 C 语言结构体：
+If a Table constructor can statically infer all its keys at compile time (string literals, explicit/implicit integer indices, booleans, floats), the compiler specializes it as a C struct:
 
-1. **结构体布局生成**：编译器在编译期动态为该 Table 生成对应的 C 结构体布局，各个特化 Key 映射为结构体中固定偏移的成员变量。
-2. **初始化与去重**：构造函数初始化时，会采用单次遍历在 JIT 特化结构体内进行填充（遵循 Lua 左到右的语法顺序），并进行静态 Key 重复性的检查。如果检测到重复 Key 初始化操作，编译期会抛出异常。
-3. **极速指针偏移读写**：对于特化的 Key 读取和写入操作，直接使用指针偏移宏（`FL_SPEC`/`FL_SET_SPEC`）进行极速读写，彻底避免了哈希查找与键值对比。
-4. **动态降级**：如果读写时使用的 Key 是动态变量，则自动回退到常规运行时动态分发逻辑，通过注册在 Table 上的 `spec_get` / `spec_set` 专有函数指针进行回调查找。
+1. **Struct layout generation**: The compiler dynamically generates a C struct layout at compile time, with each specialized key mapped to a fixed-offset member.
+2. **Initialization & deduplication**: Constructor initialization fills the JIT specialized struct in a single pass (following Lua's left-to-right order) and checks for duplicate keys at compile time.
+3. **Ultra-fast pointer-offset access**: For specialized key reads/writes, pointer offset macros (`FL_SPEC`/`FL_SET_SPEC`) are used directly, completely avoiding hash lookups and key comparisons.
+4. **Dynamic fallback**: If the key used for read/write is a dynamic variable, it falls back to runtime dynamic dispatch via registered `spec_get` / `spec_set` function pointers.
 
 ```lua
--- 示例 Lua 代码：定义与读写 Table 字段
+-- Example Lua code: defining and accessing Table fields
 local point = { x = 10, y = 20 }
 point.x = point.x + 5
 ```
 
-编译器自动生成的特化 C 结构体与指针偏移访问代码：
+Auto-generated specialized C struct and pointer-offset access:
 
 ```c
-// 1. 编译期推断 Key 布局，自动生成 C 结构体定义
+// 1. Compile-time key layout inference, auto-generate C struct definition
 typedef struct Table_Spec_1 {
     CVar x;
     CVar y;
 } Table_Spec_1;
 
-// 2. 初始化 Table 时绑定专有 struct 布局与 spec 读写句柄
+// 2. On Table initialization, bind specialized struct layout and spec accessors
 SET_TABLE_SPEC(point, Table_Spec_1, spec_get_fn, spec_set_fn, 2);
 FL_SET_SPEC(Table_Spec_1, point, x, 0, (CVar){.type_ = VAR_INT, .data_.i = 10});
 FL_SET_SPEC(Table_Spec_1, point, y, 1, (CVar){.type_ = VAR_INT, .data_.i = 20});
 
-// 3. 字段读写转换为极速指针成员偏移（彻底免除哈希表查找开销）
+// 3. Field access converted to ultra-fast pointer member offsets (no hash table lookup)
 FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CVar){.type_ = VAR_INT, .data_.i = 5});
 ```
 
-### [CVar](file:///home/project/fakelua/include/fakelua.h#L198)：ABI 安全的跨边界值类型
+### CVar: ABI-Safe Cross-Boundary Value Type
 
 ```cpp
 struct CVar {
@@ -131,39 +133,39 @@ static_assert(std::is_standard_layout_v<CVar>);
 static_assert(std::is_trivially_copyable_v<CVar>);
 ```
 
-[CVar](file:///home/project/fakelua/include/fakelua.h#L198) 是 JIT 代码与 C++ 宿主之间传递值的唯一载体，强制为标准布局（POD），保证 arm64 等平台的 ABI 兼容性。
+CVar is the sole value carrier between JIT code and the C++ host, enforced as standard-layout (POD) to guarantee ABI compatibility across platforms including arm64.
 
 ```cpp
-// 原生 C++ 类型与 JIT ABI 安全载体 CVar 的相互转换
+// Conversion between native C++ types and JIT ABI-safe carrier CVar
 CVar v_int = inter::NativeToFakelua(s, 42);
 int native_int = inter::FakeluaToNative<int>(s, v_int);
 ```
 
-### [VarInterface](file:///home/project/fakelua/include/fakelua.h#L17)：可扩展的复杂类型桥接
+### VarInterface: Extensible Complex Type Bridge
 
-[VarInterface](file:///home/project/fakelua/include/fakelua.h#L17) 是 Lua table 等复杂类型与宿主之间的抽象接口，宿主可按需实现自己的版本接入原有对象系统。库内附带 [SimpleVarImpl](file:///home/project/fakelua/include/fakelua.h#L61) 开箱即用。
+VarInterface is the abstract interface between Lua tables and the host. Hosts can implement their own version to plug into the existing object system. A SimpleVarImpl is included out of the box.
 
 ```cpp
-class CustomVar : public VarInterface { /* 继承并扩展自定义表实现 */ };
+class CustomVar : public VarInterface { /* inherit and extend with custom table implementation */ };
 
-// 注册工厂函数，使 FakeLua 创建的 Table 自动构造为 CustomVar
+// Register factory function so FakeLua tables are automatically constructed as CustomVar
 SetVarInterfaceNewFunc(s, []() { return new CustomVar(); });
 ```
 
-### [NativeObject](file:///home/project/fakelua/include/fakelua.h#L580)：原生对象桥接与组内存池（Group Arena）
+### NativeObject: Native Object Bridge & Group Arena
 
-提供高性能宿主 C++ 原生对象映射能力：
+Provides high-performance host C++ native object mapping:
 
-- **精简宿主公共 API**：在 SDK 头文件中屏蔽底层存储细节（Pimpl），只暴露必要的属性存取（`GetInt`/`SetInt`/`GetFloat`/`SetObject` 等）与迭代方法。
-- **组粒度批次释放（Group Allocation & Arena Destroy）**：禁止单个手动申请或卸载对象。所有 `NativeObject` 均强制在指定的 `group_id` 组池内创建（`NativeObjectManager::Instance().Create(group_id, ...)`），在处理请求或逻辑帧完成后通过 `DestroyGroup(group_id)` 批量一次性释放，与 FakeLua 无 GC、Arena 极速重置的设计哲学高度保持一致。
-- **全局对象（Global Object，string key 索引）**：对于全局管理器、全局计数器等无需归组、直接通过 string key 索引的常驻对象（类似 Lua `_G.xxx`），提供独立于 group 机制的全局对象接口：`new_global_obj(key, type)` 创建、`get_global_obj(key)` 查找、`del_global_obj(key)` 单独销毁。全局对象 `group_id == 0`，不属于任何组，不会被 `DestroyGroup` 误释放，适合跨帧跨组共享的单例场景。
-- **C++ 原生成员回调方法绑定 (Member Method Binding)**：支持直接在 `NativeObject` 上通过 `RegisterMethod` 绑定 C++ 函数/Lambda 方法。在 Lua 中可直接使用冒号语法 `obj:method(args...)` 随时调用 C++ 宿主方法。
-- **C++ 函数自动装箱转换**：C++ 侧注册的 Native 回调可以直接返回 `NativeObject*` 指针，`fakelua.h` 的 `inter::NativeToFakelua` 会自动安全打包并转换为 Lua 可识别的装箱对象。
+- **Clean host public API**: Hides underlying storage details (Pimpl) in the SDK header, exposing only necessary property accessors (`GetInt`/`SetInt`/`GetFloat`/`SetObject`, etc.) and iteration methods.
+- **Group-granularity batch release**: Individual allocation/deallocation is prohibited. All NativeObjects are created within a designated `group_id` pool (`NativeObjectManager::Instance().Create(group_id, ...)`), and batch-released via `DestroyGroup(group_id)` after request/frame processing — fully aligned with FakeLua's GC-free, Arena-reset design philosophy.
+- **Global objects (string key indexing)**: For persistent singletons like global managers or counters that don't belong to any group (similar to Lua `_G.xxx`), a group-independent global object API is provided: `new_global_obj(key, type)` to create, `get_global_obj(key)` to find, `del_global_obj(key)` to destroy individually. Global objects have `group_id == 0` and are not affected by `DestroyGroup`.
+- **C++ native member method binding**: Supports binding C++ functions/Lambdas as methods directly on NativeObjects via `RegisterMethod`. Lua can call them with colon syntax `obj:method(args...)`.
+- **C++ function auto-boxing**: C++ native callbacks can return `NativeObject*` pointers directly, and `fakelua.h`'s `inter::NativeToFakelua` automatically boxes them into Lua-recognizable objects.
 
-#### C++ 成员回调绑定与 Lua 交互示例
+#### C++ Member Method Binding & Lua Interaction Example
 
 ```cpp
-// 1. C++ 宿主侧：在 NativeObject 实例上注册原生成员方法
+// 1. C++ host side: register native member methods on a NativeObject instance
 player->RegisterMethod("take_damage", [](NativeObject *self, State *s, CVar *args, int n) -> CVar {
     int64_t dmg = inter::FakeluaToNative<int64_t>(s, inter::GetNativeArg(s, args, n, 0));
     self->SetInt("hp", self->GetInt("hp") - dmg);
@@ -176,30 +178,30 @@ player->RegisterMethod("is_alive", [](NativeObject *self, State *s, CVar *args, 
 ```
 
 ```lua
--- 2. Lua 侧：使用冒号语法轻松调用绑定的 C++ 成员方法
-player:take_damage(30) -- 执行 C++ 回调，扣减 hp
+-- 2. Lua side: call bound C++ member methods with colon syntax
+player:take_damage(30) -- invoke C++ callback, deduct hp
 
 if player:is_alive() then
     print("Player is still alive, current HP:", player.hp)
 end
 ```
 
-### Package 包管理机制（Package & Zero-Require Modules）
+### Package Module Management (Zero-Require Modules)
 
-FakeLua 提供特有的 `package "ModuleName"` 模块化隔离与零 `require` 跨模块互调能力：
+FakeLua provides a unique `package "ModuleName"` modular isolation and zero-`require` cross-module invocation capability:
 
-- **模块包定义**：在脚本顶部通过 `package "PackageName"` 声明模块归属。当前文件定义的顶层导出函数会自动绑定并挂载到该包的命名空间（如 `Player.AddItem`）下。
-- **跨模块零 `require` 直接互调**：无需显式调用 `require` 加载依赖文件。只要相关包已被编译加载到同一个 `State` 中，跨模块调用（如 `Player.AddItem(...)`）会自动通过动态路由寻址绑定。
+- **Module package definition**: Declare module membership at the top of a script via `package "PackageName"`. Top-level exported functions in the current file are automatically bound to that package's namespace (e.g., `Player.AddItem`).
+- **Zero-require cross-module calls**: No explicit `require` needed to load dependent files. As long as the relevant packages have been compiled and loaded into the same `State`, cross-module calls (e.g., `Player.AddItem(...)`) are automatically bound via dynamic routing.
 
-#### 模块化代码示例
+#### Modular Code Example
 
 ```lua
 -- player.lua
 package "Player"
 
-local BASE_BONUS = 1 -- 包内私有变量
+local BASE_BONUS = 1 -- package-private variable
 
-function AddItem(id, num) -- 导出为 Player.AddItem
+function AddItem(id, num) -- exported as Player.AddItem
     return id + num + BASE_BONUS
 end
 ```
@@ -208,8 +210,8 @@ end
 -- bag.lua
 package "Bag"
 
-function UseItem(id) -- 导出为 Bag.UseItem
-    -- 零 require 直接跨模块调用 Player 包的函数
+function UseItem(id) -- exported as Bag.UseItem
+    -- zero-require cross-module call to Player package function
     return Player.AddItem(id, 10)
 end
 ```
@@ -223,107 +225,142 @@ function test()
 end
 ```
 
-### 多返回值与可变参数（Multi-Return & Varargs）
+### Multi-Return & Varargs
 
-- **多返回值**：函数可以通过 `return a, b` 返回多个值，在赋值或返回语句中正确解包。
-- **参数动态展开**：在函数调用或 Table 构造中，若最后一项是多返回值函数调用，其返回值会自动展开。
-- **可变参数（`...`）**：支持声明和调用 vararg 函数，C++ 侧调用时多余参数自动打包为 Multi，无需手动组装。
-- **C++ 返回值自动解包**：通过 `std::tie(a, b, c)` 接收多返回值，模板自动将 Multi CVar 拆解为各变量。
+- **Multi-return**: Functions can `return a, b` to return multiple values, correctly unpacked in assignments and return statements.
+- **Dynamic expansion**: If the last element in a function call or Table constructor is a multi-return function call, its return values are automatically expanded.
+- **Varargs (`...`)**: Supports declaring and calling vararg functions. Extra arguments from the C++ side are automatically packed as Multi without manual assembly.
+- **C++ return auto-unpacking**: Receive multi-return values via `std::tie(a, b, c)` — templates automatically decompose the Multi CVar into individual variables.
 
 ```lua
--- Lua 侧：定义支持可变参数与多返回值的函数
+-- Lua side: define a function supporting varargs and multi-return
 function calc_multi(a, ...)
     return a, a * 2, "ok"
 end
 ```
 
 ```cpp
-// C++ 侧：传入变长参数并通过 std::tie 自动解包多返回值
+// C++ side: pass varargs and unpack multi-return via std::tie
 int x = 0, y = 0;
 std::string msg;
 Call(s, JIT_GCC, "calc_multi", std::tie(x, y, msg), 10, 20, 30); // x=10, y=20, msg="ok"
 ```
 
-### 标准内置扩展库（Built-in Standard Libraries）
+### Built-in Standard Libraries
 
-FakeLua 提供完整的核心标准库（`math`、`table`、`string`、`os`、`utf8`、`io`、`net`、`serialize`、`protobuf`），完全按照独立 C++ 模块解耦设计（`native_math` / `native_table` / `native_string` / `native_os` / `native_utf8` / `native_io` / `native_net` / `native_serialize` / `native_protobuf`），既支持在 Lua 脚本中直接使用，也支持由 CGen 编译器生成的 C 代码进行 Fast-path 直连调用：
+FakeLua provides a complete core standard library (`math`, `table`, `string`, `os`, `utf8`, `io`, `net`, `event`, `compress`, `crypto`, `csv`, `json`, `mysql`, `sqlite`, `serialize`, `protobuf`), fully designed as independent decoupled C++ modules (`native_math` / `native_table` / `native_string` / `native_os` / `native_utf8` / `native_io` / `native_net` / `native_event` / `native_compress` / `native_crypto` / `native_csv` / `native_json` / `native_mysql` / `native_sqlite` / `native_serialize` / `native_protobuf`), supporting both direct use in Lua scripts and fast-path direct calls from CGen-generated C code:
 
-- **Basic 全局函数**：
-  - **类型与转换**：`type`、`tostring`、`tonumber`
-  - **输入输出**：`print`、`select`
-  - **错误处理**：`error`、`assert`、`pcall`、`xpcall`
-  - **表迭代**：`next`、`pairs`、`ipairs`
-  - **文件加载**：`loadfile`、`dofile`（加载文件并编译，顶层函数注册为全局）
-  - **垃圾回收**：`collectgarbage([opt])`（仅支持 `"count"` 返回内存 KB，其他选项为 no-op）
-  - **版本常量**：`_VERSION`（返回 `"Fakelua 5.3"`）
-- **Math 数学库 (`math.*`)**：
-  - **基础与三角函数**：`math.abs`, `math.floor`, `math.ceil`, `math.min`, `math.max`, `math.sqrt`, `math.sin`, `math.cos`, `math.tan`, `math.asin`, `math.acos`, `math.atan`, `math.sinh`, `math.cosh`, `math.tanh`
-  - **指数、对数与分解**：`math.exp`, `math.log`, `math.log10`, `math.deg`, `math.rad`, `math.modf`, `math.frexp`, `math.atan2`, `math.copysign`
-  - **随机数与数值常量**：`math.random`, `math.randomseed`, 以及数值常量 `math.pi`, `math.huge`, `math.maxinteger`, `math.mininteger`
-- **Table 表操作库 (`table.*`)**：
-  - **数组操作**：`table.insert(list [, pos], value)`、`table.remove(list [, pos])`、`table.concat(list [, sep [, i [, j]]])`、`table.sort(list [, comp])`
-  - **打包与解包**：`table.pack(...)`、`table.unpack(list [, i [, j]])`
-  - **预分配构造**：`table.create(seq_size [, hash_size])`
-- **String 字符串处理库 (`string.*`)**：
-  - **基础操作**：`string.len`、`string.sub`、`string.rep`、`string.reverse`、`string.lower`、`string.upper`
-  - **编码转换**：`string.byte`、`string.char`、`string.charpattern`
-  - **格式化**：`string.format`（支持 `%s` `%d` `%i` `%u` `%x` `%X` `%o` `%f` `%e` `%E` `%g` `%G` `%c` `%q` `%p`）
-  - **正则匹配**：`string.find`、`string.match`、`string.gmatch`、`string.gsub`（⚠️ **采用 ECMAScript 正则语法，而非 Lua pattern**，详见下方[正则匹配](#正则匹配采用-ecmascript-语法而非-lua-pattern)一节）
-  - **序列化与加载**：`string.pack`、`string.packsize`、`string.unpack`、`string.dump`、`load`、`loadstring`、`loadfile`（直接编译文件，顶层函数注册为全局，无需调用闭包）
-- **OS 系统库 (`os.*`)**：
-  - **时间日期**：`os.clock()`、`os.date([format[, time]]])`（支持 `"*t"` 返回时间表 `{year=, month=, day=, hour=, min=, sec=, wday=, yday=, isdst=}`）、`os.difftime(t2, t1)`、`os.time([table])`
-  - **环境执行**：`os.execute([command])`（返回 `(bool|nil, "exit"|"signal"|"error", code)` 三元组）、`os.exit([code[, close]])`、`os.getenv(varname)`
-  - **文件操作**：`os.remove(filename)`、`os.rename(oldname, newname)`、`os.tmpname()`
-  - **区域设置**：`os.setlocale(locale[, category])`
-- **UTF-8 编码库 (`utf8.*`)**：
-  - **编解码**：`utf8.char(...)`、`utf8.codepoint(s [, i [, j]])`、`utf8.codes(s)`
-  - **长度与偏移**：`utf8.len(s [, i [, j]])`、`utf8.offset(s, n [, i])`
-  - **模式常量**：`utf8.charpattern`
-- **IO 文件库 (`io.*`)**：
-  - **文件打开/关闭**：`io.open(filename [, mode])`、`io.close([file])`、`io.tmpfile()`、`io.popen(command [, mode])`（管道执行外部命令）
-  - **读写操作**：`io.read([format ...])`（支持多格式参数，返回多值）、`io.write(...)`、`io.flush()`
-  - **文件定位**：`file:seek([whence [, offset]])`、`file:setvbuf(mode [, size])`（成功返回 file，失败返回 nil+errmsg）
-  - **类型检查**：`io.type(v)`
-  - **标准流**：`io.stdin`、`io.stdout`、`io.stderr`
-  - **文件方法**：`file:read([format])`、`file:write(...)`、`file:flush()`、`file:close()`、`file:seek(...)`、`file:setvbuf(...)`、`file:lines()`（逐行迭代器，用于 `for line in file:lines() do ... end`）
-- **Net 网络库 (`net.*`)**：
-  - **服务端与客户端创建**：`net.server(config)`、`net.client(config)`（支持 `port`, `maxconn`, `backlog`, `nonblocking`, `nodelay`, `keepalive` 等基础配置）
-  - **多种常用封包/解包协议**：通过 `framer` 配置无缝切换：
-    - `"header4"` / `"header4_be"`（默认）：4 字节大端整数长度头
-    - `"header4_le"`：4 字节小端整数长度头
-    - `"header2"` / `"header2_be"`：2 字节大端整数长度头
-    - `"header2_le"`：2 字节小端整数长度头
-    - `"line"`：换行符（`\n` 或 `\r\n`）分隔，自动解包并去除换行符
-    - `"fixed"`：固定包长协议（配合 `fixed_len = N` 配置）
-    - `"raw"`：原始流透传模式
-  - **自定义解包算法（Custom Parser）**：
-    - **Lua 自定义解包**：传入 `parser = "Package.my_parser"`，接收缓冲区字符串，返回 `(payload, consumed_bytes)` 或 `nil`（数据不足）
-    - **C++ 自定义解包**：在 C++ `NetConfig` 中设置 `custom_parser_fn` 与 `custom_encoder_fn`
-  - **事件派发与驱动**：`server:dispatch("Package.on_event")` / `client:dispatch(...)`（注册统一纯函数事件回调入口）、`server:tick()` / `client:tick()`（驱动非阻塞 I/O 与事件分发）
-  - **数据发送与连接管理**：`server:send(connid, data)`、`client:send(data)`、`server:close()`、`client:close()`
-  - **状态与统计读取**：`obj:get_conn_count()`、`obj:get_recv_count()`、`obj:get_last_data()`、`server:get_connid()`、`obj:get_events()`
-- **Timer 定时器库 (`timer.*`)**：
-  - **一次性定时器**：`timer.set(delay_ms, "Package.callback")`（注册定时器并返回 `timer_id`，到期时按函数名派发回调，回调签名为 `function cb(type, timer_id)`，其中 `type == "timer"`）、`timer.del(timer_id)`（删除未触发的定时器）
-  - **驱动定时器**：`timer.tick()`（在主循环中调用，触发所有到期定时器与心跳）
-  - **周期性心跳**：`timer.set_heartbeat(interval_ms, "Package.heartbeat_cb")`（注册全局心跳，到期后自动重新调度，永不自动删除；重复调用覆盖之前的心跳）
-  - **共享状态**：测试可通过 `new_global_obj(key, type)` / `get_global_obj(key)` 创建全局 NativeObject（无需 group_id，直接通过 string key 索引，类似 `_G.xxx`），配合 `timer.register_obj_methods(obj)` 注册 `get_int`/`set_int`/`add_int` 方法，供回调记录状态、测试在 main 读取验证（fakelua 无可变全局变量，NativeObject 代替 `_G`）；其中 `add_int(key, delta)` 将字段值增加 delta，字段不存在时从 0 开始
-- **Serialize 序列化库 (`serialize.*`)**：
-  - **二进制序列化 / 反序列化**：`serialize.encode(value)` 将 Lua 值编码为二进制字符串，`serialize.decode(data)` 将其反序列化回 Lua 值，二者互为逆操作
-  - **类 Protobuf 编码算法**：整数采用 zigzag + varint 编码（小绝对值整数占用更少字节），浮点数采用小端 8 字节 memcpy，字符串采用字典去重（相同字符串第二次起仅存储 varint 引用 id），表递归序列化为键值对序列
-  - **支持的类型**：`nil`、`boolean`、整数、浮点数、字符串（含二进制安全）、表（嵌套）；表中的函数（closure）等不支持类型会被自动跳过，顶层传入不支持类型则报错
-  - **典型用途**：网络消息与 Lua 表之间的零拷贝转换、游戏状态持久化快照
-- **Protobuf 协议库 (`protobuf.*`)**：
-  - **运行时 .proto 解析**：`protobuf.load(proto_text)` 动态解析 proto3 文本，注册所有 message/enum 定义到全局 schema 注册器
-  - **标准 Protobuf 编解码**：`protobuf.encode(message_name, table)` 按 proto 定义将 Lua 表打包为标准 protobuf 二进制，`protobuf.decode(message_name, binary)` 将其反序列化回 Lua 值，输出与官方 protobuf 完全互操作
-  - **Schema 查询**：`protobuf.types()` 返回已注册消息名列表，`protobuf.fields(message_name)` 返回字段信息（name/number/type/label）
-  - **支持的 proto3 特性**：message（含嵌套）、enum、map\<K,V\>、oneof、repeated（packed 默认）、optional（显式 presence）、全部 18 种 scalar type、import（多文件）
-  - **类 Protobuf 编码算法**：tag = field_number << 3 | wire_type；整数 varint（sint 用 zigzag）；浮点数小端 memcpy；string/bytes/message 长度前缀；repeated 标量默认 packed
-  - **典型用途**：游戏服务器跨语言通信（战斗服/登录服/世界服）、客户端协议互操作
+- **Basic global functions**:
+  - **Type & conversion**: `type`, `tostring`, `tonumber`
+  - **I/O**: `print`, `select`
+  - **Error handling**: `error`, `assert`, `pcall`, `xpcall`
+  - **Table iteration**: `next`, `pairs`, `ipairs`
+  - **File loading**: `loadfile`, `dofile` (load and compile file, top-level functions registered as globals)
+  - **Garbage collection**: `collectgarbage([opt])` (only `"count"` returns KB; other options are no-ops)
+- **Version constant**: `_VERSION` (returns `"Fakelua 5.3"`)
+- **Math library (`math.*`)**:
+  - **Basic & trig**: `math.abs`, `math.floor`, `math.ceil`, `math.min`, `math.max`, `math.sqrt`, `math.sin`, `math.cos`, `math.tan`, `math.asin`, `math.acos`, `math.atan`, `math.sinh`, `math.cosh`, `math.tanh`
+  - **Exp/log/decomposition**: `math.exp`, `math.log`, `math.log10`, `math.deg`, `math.rad`, `math.modf`, `math.frexp`, `math.atan2`, `math.copysign`
+  - **Random & constants**: `math.random`, `math.randomseed`, plus `math.pi`, `math.huge`, `math.maxinteger`, `math.mininteger`
+- **Table library (`table.*`)**:
+  - **Array operations**: `table.insert(list [, pos], value)`, `table.remove(list [, pos])`, `table.concat(list [, sep [, i [, j]]])`, `table.sort(list [, comp])`
+  - **Pack & unpack**: `table.pack(...)`, `table.unpack(list [, i [, j]])`
+  - **Pre-allocated construction**: `table.create(seq_size [, hash_size])`
+- **String library (`string.*`)**:
+  - **Basic operations**: `string.len`, `string.sub`, `string.rep`, `string.reverse`, `string.lower`, `string.upper`
+  - **Encoding conversion**: `string.byte`, `string.char`, `string.charpattern`
+  - **Formatting**: `string.format` (supports `%s` `%d` `%i` `%u` `%x` `%X` `%o` `%f` `%e` `%E` `%g` `%G` `%c` `%q` `%p`)
+  - **Regex matching**: `string.find`, `string.match`, `string.gmatch`, `string.gsub` (⚠️ **Uses ECMAScript regex syntax, not Lua patterns** — see [Regex Matching](#regex-matching-uses-ecmascript-syntax-not-lua-patterns))
+  - **Serialization & loading**: `string.pack`, `string.packsize`, `string.unpack`, `string.dump`, `load`, `loadstring`, `loadfile` (directly compile file, top-level functions registered as globals)
+- **OS library (`os.*`)**:
+  - **Date & time**: `os.clock()`, `os.date([format[, time]]))` (supports `"*t"` returning table `{year=, month=, day=, hour=, min=, sec=, wday=, yday=, isdst=}`), `os.difftime(t2, t1)`, `os.time([table])`
+  - **Environment execution**: `os.execute([command])` (returns `(bool|nil, "exit"|"signal"|"error", code)` triple), `os.exit([code[, close]])`, `os.getenv(varname)`
+  - **File operations**: `os.remove(filename)`, `os.rename(oldname, newname)`, `os.tmpname()`
+  - **Locale**: `os.setlocale(locale[, category])`
+- **UTF-8 library (`utf8.*`)**:
+  - **Encoding/decoding**: `utf8.char(...)`, `utf8.codepoint(s [, i [, j]])`, `utf8.codes(s)`
+  - **Length & offset**: `utf8.len(s [, i [, j]])`, `utf8.offset(s, n [, i])`
+  - **Pattern constant**: `utf8.charpattern`
+- **IO library (`io.*`)**:
+  - **File open/close**: `io.open(filename [, mode])`, `io.close([file])`, `io.tmpfile()`, `io.popen(command [, mode])` (pipe to external command)
+  - **Read/write**: `io.read([format ...])` (supports multi-format args, multi-return), `io.write(...)`, `io.flush()`
+  - **File seeking**: `file:seek([whence [, offset]])`, `file:setvbuf(mode [, size])` (returns file on success, nil+errmsg on failure)
+  - **Type check**: `io.type(v)`
+  - **Standard streams**: `io.stdin`, `io.stdout`, `io.stderr`
+  - **File methods**: `file:read([format])`, `file:write(...)`, `file:flush()`, `file:close()`, `file:seek(...)`, `file:setvbuf(...)`, `file:lines()` (line iterator for `for line in file:lines() do ... end`)
+- **Net library (`net.*`)**:
+  - **Server & client creation**: `net.server(config)`, `net.client(config)` (supports `port`, `maxconn`, `backlog`, `nonblocking`, `nodelay`, `keepalive`)
+  - **Framing protocols**: Seamlessly switch via `framer` config:
+    - `"header4"` / `"header4_be"` (default): 4-byte big-endian length header
+    - `"header4_le"`: 4-byte little-endian length header
+    - `"header2"` / `"header2_be"`: 2-byte big-endian length header
+    - `"header2_le"`: 2-byte little-endian length header
+    - `"line"`: newline (`\n` or `\r\n`) delimited, auto-stripped
+    - `"fixed"`: fixed-length protocol (with `fixed_len = N`)
+    - `"raw"`: raw passthrough mode
+  - **Custom parser**: 
+    - **Lua custom parser**: Pass `parser = "Package.my_parser"`, receives buffer string, returns `(payload, consumed_bytes)` or `nil` (insufficient data)
+    - **C++ custom parser**: Set `custom_parser_fn` and `custom_encoder_fn` in C++ `NetConfig`
+  - **Event dispatch & driver**: `server:dispatch("Package.on_event")` / `client:dispatch(...)` (register unified event callback entry), `server:tick()` / `client:tick()` (drive non-blocking I/O and event dispatch)
+  - **Data send & connection management**: `server:send(connid, data)`, `client:send(data)`, `server:close()`, `client:close()`
+  - **Status & statistics**: `obj:get_conn_count()`, `obj:get_recv_count()`, `obj:get_last_data()`, `server:get_connid()`, `obj:get_events()`
+- **Timer library (`timer.*`)**:
+  - **One-shot timer**: `timer.set(delay_ms, "Package.callback")` (register timer, returns `timer_id`; dispatches by function name on expiry; callback signature `function cb(type, timer_id)` where `type == "timer"`), `timer.del(timer_id)` (delete pending timer)
+  - **Driver**: `timer.tick()` (call in main loop to fire due timers and heartbeats)
+  - **Periodic heartbeat**: `timer.set_heartbeat(interval_ms, "Package.heartbeat_cb")` (global heartbeat, auto-reschedules on expiry; repeated calls overwrite previous heartbeat)
+  - **Shared state**: Tests can create global NativeObjects via `new_global_obj(key, type)` / `get_global_obj(key)` (indexed by string key, similar to `_G.xxx`), register `get_int`/`set_int`/`add_int` methods via `timer.register_obj_methods(obj)` for callbacks to record state and tests to verify in main (fakelua has no mutable globals; NativeObject replaces `_G`); `add_int(key, delta)` increments field by delta, starting from 0 if the field doesn't exist
+- **Event library (`event.*`)**:
+  - **Subscription management**: `event.on(event_name, "Package.callback")` (subscribe), `event.once(event_name, "Package.callback")` (subscribe once, auto-remove after fire), `event.off(event_name, "Package.callback")` (unsubscribe)
+  - **Event dispatch**: `event.emit(event_name, arg1, arg2, arg3, arg4)` (fire event, calls all subscribers in order; vararg, up to 4 args forwarded)
+  - **Cleanup**: `event.clear(event_name)` (remove all handlers for an event), `event.clear_all()` (remove all handlers for all events)
+  - **Re-entrancy safe**: `emit` snapshots the handler list before iteration, so handlers can safely call `on`/`off`/`emit` during dispatch
+  - **Typical use**: Game logic layer decoupling (unit death events, building completion events, turn-switch events, etc.)
+- **Compress library (`compress.*`)**:
+  - **LZ4**: `compress.lz4_compress(data)` (LZ4 frame compression, output embeds original size), `compress.lz4_decompress(data)`
+  - **zlib**: `compress.zlib_compress(data, level?)` (zlib deflate, level 1-9, default 6), `compress.zlib_decompress(data)`
+  - **gzip**: `compress.gzip_compress(data, level?)` (gzip format, level 1-9, default 6), `compress.gzip_decompress(data)`
+  - **Zstd**: `compress.zstd_compress(data, level?)` (Zstandard, level 1-22, default 3), `compress.zstd_decompress(data)`
+- **Crypto library (`crypto.*`)**:
+  - **Hash functions**: `crypto.md5(data)` (hex-encoded 128-bit digest), `crypto.sha1(data)` (hex-encoded 160-bit), `crypto.sha256(data)` (hex-encoded 256-bit)
+  - **Encoding**: `crypto.hex_encode(data)` (binary→hex), `crypto.hex_decode(hex)` (hex→binary), `crypto.base64_encode(data)` (binary→base64, RFC 4648), `crypto.base64_decode(data)` (base64→binary)
+  - **AES symmetric encryption**: `crypto.aes_encrypt_ecb(data, key)` / `crypto.aes_decrypt_ecb` (ECB mode, data must be 16-byte aligned), `crypto.aes_encrypt_cbc(data, key, iv)` / `crypto.aes_decrypt_cbc` (CBC mode, PKCS#7 padding), `crypto.aes_encrypt_ctr(data, key, iv)` / `crypto.aes_decrypt_ctr` (CTR stream mode, no padding)
+  - **Stream/block ciphers**: `crypto.rc4(key, data)` (RC4 stream cipher, encrypt = decrypt), `crypto.blowfish_encrypt(key, data)` / `crypto.blowfish_decrypt` (Blowfish ECB), `crypto.des_encrypt(key, data)` / `crypto.des_decrypt` (DES ECB), `crypto.triple_des_encrypt(key, data)` / `crypto.triple_des_decrypt` (3DES ECB)
+- **CSV library (`csv.*`)**:
+  - **Decode**: `csv.decode(str, sep?)` (parse CSV string into table of rows; each row is a 1-indexed table of fields; auto-converts fields to numbers; default separator `,`; handles quoted fields, escaped quotes `""`, BOM, `\r\n` line endings)
+  - **Encode**: `csv.encode(rows, sep?)` (encode table of rows into CSV string; auto-quotes fields containing `"`, separator, `\n`, or `\r`; default separator `,`)
+- **JSON library (`json.*`)**:
+  - **Encode**: `json.encode(value)` (Lua value → JSON string; tables with consecutive integer keys 1..N become JSON arrays, others become JSON objects; floats use `%.17g` precision)
+  - **Decode**: `json.decode(str)` (JSON string → Lua value; `null` → `nil`, integers/floats/arrays/objects correctly converted)
+- **MySQL library (`mysql.*`)**:
+  - **Direct connection**: `mysql.connect(config, "Package.on_connect")` (config `{host, port, user, password, db}`, async connect), `conn:query(sql, "Package.on_result")` (async query, result is table of rows), `conn:stmt_prepare/sql/stmt_execute/stmt_close` (prepared statements), `conn:tick()` (pump network events), `conn:close()`
+  - **Connection pool**: `mysql_pool.create(config)` (config additionally supports `pool_size`, `timeout_ms`, `heartbeat_ms`, `max_retries`), `pool:acquire()/release()/tick()/close()/stats()`
+  - All operations are async callback-based; callback signature: `function cb(err, result)`
+- **SQLite library (`sqlite.*`)**:
+  - **Open database**: `sqlite.open(filename)` (open or create SQLite database, returns db object)
+  - **Execute SQL**: `db:exec(sql)` (execute SQL; SELECT returns table of rows, non-SELECT returns nil)
+  - **Prepared statements**: `db:prepare(sql)` (returns stmt object), `stmt:bind(...)` (bind params, supports nil/int/float/bool/string), `stmt:step()` (execute and return next row, returns nil when done for SELECT), `stmt:reset()` (reset statement preserving bindings), `stmt:columns()` (return column name table), `stmt:close()`
+  - **Helper methods**: `db:last_insert_rowid()` (last insert rowid), `db:changes()` (rows affected by last statement), `db:close()`
+  - All operations synchronous, based on SQLite3 amalgamation source
+- **Object system (Lua-side API)**:
+  - **Group management**: `new_native_group()` (create group, returns `group_id`), `del_native_group(group_id)` (batch-destroy all objects in group, returns count)
+  - **Object creation & lookup**: `new_native_obj(group_id, type, id)` (create object in group), `get_native_obj(type, id)` (find by type+id), `new_global_obj(key, type)` (create global object), `get_global_obj(key)` (find global object), `del_global_obj(key)` (destroy global object)
+- **Serialize library (`serialize.*`)**:
+  - **Binary serialize/deserialize**: `serialize.encode(value)` encodes Lua values to binary strings; `serialize.decode(data)` deserializes back — they are inverse operations
+  - **Protobuf-like encoding**: Integers use zigzag + varint encoding (small integers use fewer bytes); floats use little-endian 8-byte memcpy; strings use deduplication (identical strings store a varint reference ID from the second occurrence); tables recursively serialize as key-value sequences
+  - **Supported types**: `nil`, `boolean`, integer, float, string (binary-safe), table (nested); unsupported types like functions (closures) in tables are skipped; passing an unsupported type at top level errors
+  - **Typical use**: Zero-copy conversion between network messages and Lua tables, game state persistence snapshots
+- **Protobuf library (`protobuf.*`)**:
+  - **Runtime .proto parsing**: `protobuf.load(proto_text)` dynamically parses proto3 text, registers all message/enum definitions to global schema registry
+  - **Standard protobuf encode/decode**: `protobuf.encode(message_name, table)` packs a Lua table into standard protobuf binary per proto definition; `protobuf.decode(message_name, binary)` deserializes back — fully interoperable with official protobuf
+  - **Schema query**: `protobuf.types()` returns registered message names; `protobuf.fields(message_name)` returns field info (name/number/type/label)
+  - **Supported proto3 features**: message (nested), enum, map\<K,V\>, oneof, repeated (packed by default), optional (explicit presence), all 18 scalar types, import (multi-file)
+  - **Protobuf-like encoding**: tag = field_number << 3 | wire_type; varint for integers (zigzag for sint); little-endian memcpy for floats; length-prefixed string/bytes/message; packed repeated scalars by default
+  - **Typical use**: Cross-language communication in game servers (battle/login/world servers), client protocol interop
 
 ```lua
--- 示例：使用标准库完成排序、格式化与数学计算
+-- Example: sorting, formatting, and math using standard libraries
 local scores = { 85, 92, 78, 95 }
-table.sort(scores, function(a, b) return a > b end) -- 降序排序
+table.sort(scores, function(a, b) return a > b end) -- descending sort
 
 local top_student = string.format("Top score: %d, Angle Rad: %.2f", scores[1], math.rad(180))
 local info = table.concat(scores, ", ")
@@ -331,49 +368,49 @@ local info = table.concat(scores, ", ")
 -- info        => "95, 92, 85, 78"
 ```
 
-#### 正则匹配：采用 ECMAScript 语法，而非 Lua pattern
+#### Regex Matching: ECMAScript Syntax, Not Lua Patterns
 
-`string.find` / `string.match` / `string.gmatch` / `string.gsub` 底层由 `std::regex`（`std::regex::ECMAScript`）实现，**不是** Lua 原生的 pattern 引擎。从标准 Lua 迁移脚本时，模式串必须改写：
+`string.find` / `string.match` / `string.gmatch` / `string.gsub` are implemented by `std::regex` (`std::regex::ECMAScript`) under the hood, **not** Lua's native pattern engine. When migrating scripts from standard Lua, patterns must be rewritten:
 
-| 用途 | Lua pattern | FakeLua（ECMAScript 正则） |
+| Purpose | Lua Pattern | FakeLua (ECMAScript Regex) |
 |---|---|---|
-| 数字 | `%d` | `\\d` |
-| 字母 | `%a` | `[A-Za-z]` |
-| 字母或数字 | `%w` | `[A-Za-z0-9]`（注意 `\\w` 额外包含 `_`） |
-| 空白 | `%s` | `\\s` |
-| 转义字面量 | `%.`、`%%` | `\\.`、`%` |
-| 惰性重复 | `-`（如 `.-`） | `?`（如 `.*?`） |
-| 替换串中引用捕获 | `%1`、`%0` | `$1`、`$&` |
+| Digits | `%d` | `\\d` |
+| Letters | `%a` | `[A-Za-z]` |
+| Alphanumeric | `%w` | `[A-Za-z0-9]` (note `\\w` additionally includes `_`) |
+| Whitespace | `%s` | `\\s` |
+| Escape literal | `%.`, `%%` | `\\.`、`%` |
+| Lazy repeat | `-` (e.g. `.-`) | `?` (e.g. `.*?`) |
+| Backreference in replacement | `%1`, `%0` | `$1`, `$&` |
 
-> 由于 Lua 字符串字面量中 `\d` 不是合法转义，正则里的反斜杠需要写成 `"\\d+"`。FakeLua 不支持 `[[...]]` 长字符串，无法用它来规避转义。
+> Since `\d` is not a valid escape in Lua string literals, backslashes in regex patterns must be written as `"\\d+"`. FakeLua does not support `[[...]]` long strings as a workaround.
 >
-> 若脚本需要同时兼容标准 Lua 与 FakeLua，可改用两种引擎语义相同的写法，例如用 `[0-9]+` 代替 `%d+`、用 `[A-Za-z]+` 代替 `%a+`——方括号字符集、`+`、`*`、`()` 捕获在两边含义一致。
+> For scripts that need to be compatible with both standard Lua and FakeLua, use syntax that has the same semantics in both engines, e.g. `[0-9]+` instead of `%d+`, `[A-Za-z]+` instead of `%a+` — bracket character classes, `+`, `*`, `()` capture groups have consistent meaning in both.
 
-主要差异：
+Key differences:
 
-- **`gsub` 的替换串**使用 JS 风格记法：`$1`…`$9`（捕获组）、`$&`（整个匹配）、`` $` ``（匹配前的文本）、`$'`（匹配后的文本）、`$$`（字面 `$`）。Lua 的 `%1` / `%0` 在这里只会被当作普通字符。
-- **可以使用 Lua pattern 没有的能力**：交替 `|`、非贪婪量词 `*?` `+?`、区间重复 `{n,m}`、前瞻断言 `(?=...)` 等 ECMAScript 特性均开箱可用。
-- **不支持 Lua 特有语法**：`%b()`（括号平衡匹配）、`%f[set]`（frontier pattern）以及所有 `%` 字符类。
-- **非法模式串不抛异常**：`std::regex_error` 被捕获后统一返回 `nil`，脚本不会中断，因此模式写错时表现为「永远匹配不到」而非报错。
-- **`string.find` 的 `plain` 参数**语义与 Lua 一致：传 `true` 时退化为纯子串查找，完全绕过正则引擎，也是最快的路径。
-- **性能**：正则路径明显慢于 Lua 原生 pattern 引擎（见 [benchmark/README.md](benchmark/README.md)），热路径上建议优先用 `plain` 查找或 `string.sub` / `string.byte` 等基础操作。
+- **`gsub` replacement strings** use JS-style notation: `$1`…`$9` (capture groups), `$&` (entire match), `` $` `` (text before match), `$'` (text after match), `$$` (literal `$`). Lua's `%1` / `%0` are treated as literal characters here.
+- **Lua-pattern-only features unavailable**: Alternation `|`, non-greedy quantifiers `*?` `+?`, range repeats `{n,m}`, lookahead `(?=...)` and other ECMAScript features are available out of the box.
+- **Lua-specific syntax unsupported**: `%b()` (balanced match), `%f[set]` (frontier pattern), and all `%` character classes.
+- **Invalid patterns don't throw**: `std::regex_error` is caught and returns `nil`, so the script doesn't interrupt — incorrect patterns silently fail to match rather than erroring.
+- **`string.find`'s `plain` parameter** has the same semantics as Lua: passing `true` degrades to pure substring search, completely bypassing the regex engine — also the fastest path.
+- **Performance**: The regex path is significantly slower than Lua's native pattern engine (see [benchmark/README.md](benchmark/README.md)); prefer `plain` search or `string.sub` / `string.byte` basic operations on hot paths.
 
 ```lua
--- Lua pattern 写法（在 FakeLua 中匹配不到，会返回 nil）
+-- Lua pattern (won't match in FakeLua, returns nil)
 local n1 = string.match("abc123", "%d+")      -- nil
 
--- FakeLua 的 ECMAScript 正则写法
+-- FakeLua ECMAScript regex
 local n2 = string.match("abc123", "\\d+")     -- "123"
 
--- gsub 的捕获引用用 $1 而不是 %1
+-- gsub capture references use $1 instead of %1
 local s = string.gsub("hello world", "([a-z]+) ([a-z]+)", "$2 $1")  -- "world hello"
 ```
 
-### C++ 嵌入 API
+### C++ Embedding API
 
-- `CompileFile` / `CompileString` / `Call`，RAII 风格 `FakeluaStateGuard`
-- 支持基本类型、对象、以及自定义 VarInterface 实现的高级映射
-- 支持记录编译生成的 C 代码用于调试和性能分析（`CompileConfig::record_c_code`）
+- `CompileFile` / `CompileString` / `Call`, RAII-style `FakeluaStateGuard`
+- Supports advanced mapping of basic types, objects, and custom VarInterface implementations
+- Supports recording compiled C code for debugging and performance analysis (`CompileConfig::record_c_code`)
 
 ```cpp
 FakeluaStateGuard guard;
@@ -381,22 +418,22 @@ State* s = guard.GetState();
 CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
 
 int sum = 0;
-Call(s, JIT_GCC, "add", sum, 10, 20); // 嵌入调用 Lua 函数
+Call(s, JIT_GCC, "add", sum, 10, 20); // embed-call a Lua function
 ```
 
-### 闭包与 Upvalue 捕获（Closures & Upvalue Capture）
+### Closures & Upvalue Capture
 
-FakeLua 完整支持 Lua 闭包与 Upvalue 捕获：
+FakeLua fully supports Lua closures and upvalue capture:
 
-- **静态 Upvalue 分析**：[ResolveScopes](file:///home/project/fakelua/src/compile/c_gen.cpp) 静态 AST 分析 Pass 自动推导所有局部变量、参数及循环变量的作用域与跨函数捕获关系。
-- **Heap Boxing 共享机制**：被捕获的变量在定义时自动提升为堆分配的 `CVar *` 盒子，多闭包共享同一个堆内存指针，天然实现同作用域下多闭包同步修改共享 Upvalue。
-- **匿名函数与高阶函数**：支持匿名函数表达式 `function(args) body end` 作为值传递（高阶函数如 `map`），以及任意 Callee 调用（如 `tbl[key]()` 或 `(fn)()` 链式调用）。
-- **冒号方法调用**：完整支持 `obj:method(args)` 冒号方法调用语法糖，在 JIT 代码生成中自动将调用者求值并隐式将 `obj` 作为首个 `self` 参数传递给目标闭包。
-- **通用 `for in` 泛型迭代器**：完整支持 Lua 泛型 `for var1, ..., varn in explist do` 迭代器（既保留了 `pairs`/`ipairs` 的原生 C 语言结构体极速表循环，又全面支持无状态迭代器和闭包生成器等自定义迭代函数）。
-- **循环变量独立捕获**：在 `for` 及 `for in` 循环中，每次迭代自动重新 boxing 循环变量，确保迭代内部创建的闭包绑定独立变量副本。
+- **Static upvalue analysis**: [ResolveScopes](src/compile/c_gen.cpp) static AST pass automatically derives scope and cross-function capture relationships for all local variables, parameters, and loop variables.
+- **Heap boxing sharing**: Captured variables are automatically promoted to heap-allocated `CVar *` boxes at definition time; multiple closures share the same heap pointer, naturally synchronizing shared upvalues within the same scope.
+- **Anonymous functions & higher-order functions**: Supports anonymous function expressions `function(args) body end` as values (higher-order functions like `map`), and arbitrary callee calls (e.g., `tbl[key]()` or `(fn)()` chains).
+- **Colon method calls**: Full support for `obj:method(args)` colon syntax sugar — the evaluator implicitly passes the caller as the first `self` parameter to the target closure in JIT codegen.
+- **Generic `for in` iterator**: Full support for Lua generic `for var1, ..., varn in explist do` iterators (preserving native C struct-optimized loops for `pairs`/`ipairs` while fully supporting stateless iterators and closure generators).
+- **Per-iteration loop variable capture**: In `for` and `for in` loops, loop variables are automatically re-boxed each iteration, ensuring closures created inside the loop bind independent variable copies.
 
 ```lua
--- 高阶函数与闭包计数器示例
+-- Higher-order function and closure counter example
 function make_counter(start)
     local count = start
     return function()
@@ -410,9 +447,9 @@ print(counter()) -- 11
 print(counter()) -- 12
 ```
 
-### 全局变量复杂初始化
+### Complex Global Variable Initialization
 
-支持任意复杂表达式作为全局/文件级变量的初始化器：
+Supports arbitrary complex expressions as global/file-level variable initializers:
 
 ```lua
 local x = math.floor(3.14) + 1
@@ -420,50 +457,50 @@ local y = x * 2 - 1
 local z = (x + y) / 2.0
 ```
 
-编译器会将复杂初始化器提取到生成的 `__fakelua_init()` 函数中，在 JIT 加载后立即执行，使全局变量获得正确的运行时值。
+The compiler extracts complex initializers into a generated `__fakelua_init()` function, executed immediately after JIT loading to give globals their correct runtime values.
 
-### 文件级语句限制
+### File-Level Statement Restrictions
 
-文件级（chunk 顶层）只允许三类语句：可选的首行 `package "Name"` 声明、`local` 变量定义、函数定义。
-`if` / `while` / `for` / 赋值等可执行语句必须写在函数体内，否则会在 [semantic_analysis](file:///home/project/fakelua/src/compile/semantic_analysis.h) 的
-`CheckFileLevelStmts` 阶段（预处理改写 AST 之前）直接报错：
+File-level (chunk top) only allows three types of statements: an optional first-line `package "Name"` declaration, `local` variable definitions, and function definitions.
+`if` / `while` / `for` / assignment and other executable statements must be inside function bodies, otherwise [semantic_analysis](src/compile/semantic_analysis.h)'s
+`CheckFileLevelStmts` stage (before AST rewrite) errors directly:
 
 ```lua
 local x = 5
-if x > 3 then -- 编译错误：unsupported file-level statement If
+if x > 3 then -- compile error: unsupported file-level statement If
     x = 10
 end
 ```
 
-文件级 `local` 被视为该文件的常量，会降级成 C 的 `static const`，因此也不允许在文件级对它再次赋值。
+File-level `local` is treated as a const for that file, downgraded to C `static const`, and therefore cannot be reassigned at file level.
 
-## 当前已知限制
+## Known Limitations
 
-### 类型系统限制
-- 类型推导基于静态分析，复杂的动态类型操作无法优化
-- 函数 specialization 基于调用点的 math 参数发现
-- 函数参数上限 32 个（通过常量 `kMaxFunctionInputParams` 统一配置）
-- 数学特化参数上限 8 个（通过常量 [kMaxMathSpecializedParams](file:///home/project/fakelua/include/fakelua.h#L14) 统一配置，超过此限制的数学参数不进行特化，作为普通动态参数处理）
+### Type System Limitations
+- Type inference is based on static analysis; complex dynamic type operations cannot be optimized
+- Function specialization is based on math parameter discovery at call sites
+- Function parameter limit: 32 (configured via `kMaxFunctionInputParams`)
+- Math specialization parameter limit: 8 (configured via [kMaxMathSpecializedParams](include/fakelua.h); math params beyond this limit are not specialized and treated as generic dynamic params)
 
-### 语言特性缺失
-- 不支持协程（coroutine）
-- 不支持元表（metatable）
-- 不支持 `require` / `module` 模块系统（注：fakelua 有独立的 `package "Name"` 模块化机制）
-- 不支持 `rawequal` / `rawget` / `rawset` / `rawlen`（因无元表，这些函数无意义）
-- 不支持 debug 标准库
+### Missing Language Features
+- No coroutine support
+- No metatable support
+- No `require` / `module` system (note: fakelua has its own `package "Name"` modular mechanism)
+- No `rawequal` / `rawget` / `rawset` / `rawlen` (meaningless without metatables)
+- No debug standard library
 
-### 标准库语义差异
-- `string.find` / `match` / `gmatch` / `gsub` 使用 **ECMAScript 正则**而非 Lua pattern：`%d`、`%b()`、`%f[]` 等 Lua 特有语法不可用，`gsub` 替换串需用 `$1` 而非 `%1`（详见[正则匹配](#正则匹配采用-ecmascript-语法而非-lua-pattern)）
-- 算术不做字符串→数字的隐式转换：`"10" + 1` 在 Lua 里能算，在 FakeLua 里会报错
+### Standard Library Semantic Differences
+- `string.find` / `match` / `gmatch` / `gsub` use **ECMAScript regex** not Lua patterns: `%d`, `%b()`, `%f[]` and other Lua-specific syntax are unavailable; `gsub` replacement strings must use `$1` instead of `%1` (see [Regex Matching](#regex-matching-uses-ecmascript-syntax-not-lua-patterns))
+- No implicit string→number conversion in arithmetic: `"10" + 1` works in Lua but errors in FakeLua
 
-## 快速上手
+## Quick Start
 
-### 构建
+### Building
 
-#### 系统要求
-- **C++23** 编译器（GCC 11+ / Clang 16+ / MSVC 2022+）
+#### System Requirements
+- **C++23** compiler (GCC 11+ / Clang 16+ / MSVC 2022+)
 - CMake 3.5+
-- make 或 ninja
+- make or ninja
 
 #### Linux / macOS
 
@@ -472,15 +509,15 @@ cmake -S . -B build
 cmake --build build --parallel
 ```
 
-> macOS 需先 `brew install lua cmake`，并在 cmake 时加 `-DCMAKE_PREFIX_PATH="$(brew --prefix)"`。
+> On macOS, first `brew install lua cmake` and add `-DCMAKE_PREFIX_PATH="$(brew --prefix)"` to the cmake command.
 
-仅构建核心库与命令行工具（不含测试/基准）：
+Build only core library and CLI tools (no tests/benchmarks):
 
 ```bash
 cmake --build build --target fakelua flua --parallel
 ```
 
-#### Windows（MSYS2 + MinGW）
+#### Windows (MSYS2 + MinGW)
 
 ```bash
 cmake -S . -B build -G Ninja
@@ -488,7 +525,7 @@ cmake --build build --parallel
 ctest --test-dir build -V
 ```
 
-### 测试与基准
+### Testing & Benchmarks
 
 ```bash
 cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -497,150 +534,150 @@ ctest --test-dir build -V
 ./build/bin/bench_mark
 ```
 
-> 单元测试与 benchmark 依赖 Lua 开发包（头文件 `lua.h` 和库文件）。
-> - 在 Linux 上：`sudo apt-get install liblua5.4-dev` 或 `liblua5.3-dev`
-> - 在 macOS 上：`brew install lua`
-> - 在 Windows MSYS2 上：`pacman -S mingw-w64-x86_64-lua`
+> Unit tests and benchmarks require the Lua development package (header `lua.h` and library files).
+> - Linux: `sudo apt-get install liblua5.4-dev` or `liblua5.3-dev`
+> - macOS: `brew install lua`
+> - Windows MSYS2: `pacman -S mingw-w64-x86_64-lua`
 
-### 命令行工具 `flua`
+### CLI Tool `flua`
 
 ```bash
 ./build/bin/flua <script.lua> --entry=<func> --jit_type=<0|1> --repeat=<N>
 ```
 
-- `--entry`：入口函数名（默认 `main`）
-- `--jit_type`：`0`=TCC，`1`=GCC
-- `--repeat`：重复调用次数（用于性能测量）
-- `--debug`：是否启用调试模式（默认 `false`，若为 `true` 则输出生成的 C 源码）
+- `--entry`: Entry function name (default `main`)
+- `--jit_type`: `0`=TCC, `1`=GCC
+- `--repeat`: Repeat call count (for performance measurement)
+- `--debug`: Enable debug mode (default `false`; when `true`, outputs generated C source)
 
-## 性能基准
+## Performance Benchmarks
 
-对比 Lua 5.4、FakeLua TCC、FakeLua GCC，覆盖 Fibonacci、GCD、快速幂、线性求和、冒泡排序、筛质数等 11 类算法（Release `-O3` 模式）：
+Comparing Lua 5.4, FakeLua TCC, FakeLua GCC across 11 algorithms: Fibonacci, GCD, fast power, linear sum, bubble sort, prime sieve, etc. (Release `-O3` mode):
 
-| 算法（典型参数） | Lua 5.4 | FakeLua TCC | FakeLua GCC |
+| Algorithm (typical params) | Lua 5.4 | FakeLua TCC | FakeLua GCC |
 |---|---|---|---|
-| Fibonacci n=32 | 297.9 ms | 26.7 ms（**11.2x**↑） | 6.8 ms（**43.5x**↑） |
-| Sum n=5000000 | 33.9 ms | 18.4 ms（**1.8x**↑） | 2.0 ms（**17.1x**↑） |
-| Popcount n=100000 | 18.2 ms | 3.1 ms（**5.9x**↑） | 974.0 μs（**18.7x**↑） |
-| BubbleSort n=200 | 1.5 ms | 3.3 ms（0.45x） | 738.8 μs（**2.0x**↑） |
-| Sieve n=5000 | 353.4 μs | 1.0 ms（0.34x） | 219.3 μs（**1.6x**↑） |
+| Fibonacci n=32 | 297.9 ms | 26.7 ms (**11.2x**↑) | 6.8 ms (**43.5x**↑) |
+| Sum n=5000000 | 33.9 ms | 18.4 ms (**1.8x**↑) | 2.0 ms (**17.1x**↑) |
+| Popcount n=100000 | 18.2 ms | 3.1 ms (**5.9x**↑) | 974.0 μs (**18.7x**↑) |
+| BubbleSort n=200 | 1.5 ms | 3.3 ms (0.45x) | 738.8 μs (**2.0x**↑) |
+| Sieve n=5000 | 353.4 μs | 1.0 ms (0.34x) | 219.3 μs (**1.6x**↑) |
 
-> TCC 纯计算类场景普遍快于 Lua；在包含 Table 操作的场景下，由于引入了 Table 结构体特化，GCC 与 TCC 的 Table 读写性能均得到了大幅度的优化提升。表标准库（`table.insert`/`remove`/`sort`）GCC 后端也快于 Lua 3.6~4.2x。完整数据见 [benchmark/README.md](benchmark/README.md)。
+> TCC is generally faster than Lua for pure computation; in Table-operation-heavy scenarios, Table struct specialization gives both GCC and TCC a significant boost in Table read/write performance. Table standard library (`table.insert`/`remove`/`sort`) on the GCC backend is also 3.6–4.2x faster than Lua. Full data available in [benchmark/README.md](benchmark/README.md).
 
-## C++ API 详细文档
+## C++ API Reference
 
-### 状态管理
+### State Management
 
 ```cpp
-// 手动管理（不推荐，容易泄漏）
-State* s = [FakeluaNewState](file:///home/project/fakelua/include/fakelua.h#L262)([StateConfig](file:///home/project/fakelua/include/fakelua.h#L252){});
-// ... 使用 s ...
-[FakeluaDeleteState](file:///home/project/fakelua/include/fakelua.h#L265)(s);
+// Manual management (not recommended — easy to leak)
+State* s = FakeluaNewState(StateConfig{});
+// ... use s ...
+FakeluaDeleteState(s);
 
-// 或使用 RAII 风格（推荐）
-[FakeluaStateGuard](file:///home/project/fakelua/include/fakelua.h#L268) guard([StateConfig](file:///home/project/fakelua/include/fakelua.h#L252){});
+// Or RAII style (recommended)
+FakeluaStateGuard guard(StateConfig{});
 State* s = guard.GetState();
-// ... 使用 s ...
-// 自动释放
+// ... use s ...
+// automatically freed
 ```
 
-### API 概览
+### API Overview
 
-| 函数 | 功能 |
+| Function | Description |
 |------|------|
-| [`FakeluaNewState()`](file:///home/project/fakelua/include/fakelua.h#L262) | 创建 FakeLua 状态 |
-| [`FakeluaDeleteState()`](file:///home/project/fakelua/include/fakelua.h#L265) | 释放 FakeLua 状态 |
-| [`CompileFile()`](file:///home/project/fakelua/include/fakelua.h#L308) | 编译 Lua 文件 |
-| [`CompileString()`](file:///home/project/fakelua/include/fakelua.h#L311) | 编译 Lua 代码字符串 |
-| [`Call()`](file:///home/project/fakelua/include/fakelua.h#L318) | 调用编译后的函数 |
-| [`GetLastRecordedCCode()`](file:///home/project/fakelua/include/fakelua.h#L315) | 获取最近编译的 C 代码 |
-| [`SetVarInterfaceNewFunc()`](file:///home/project/fakelua/include/fakelua.h#L322) | 设置自定义 VarInterface 工厂 |
-| [`SetDebugLogLevel()`](file:///home/project/fakelua/include/fakelua.h#L329) | 设置全局调试日志级别 |
+| `FakeluaNewState()` | Create FakeLua state |
+| `FakeluaDeleteState()` | Free FakeLua state |
+| `CompileFile()` | Compile a Lua file |
+| `CompileString()` | Compile a Lua code string |
+| `Call()` | Invoke a compiled function |
+| `GetLastRecordedCCode()` | Get the most recently compiled C code |
+| `SetVarInterfaceNewFunc()` | Set custom VarInterface factory |
+| `SetDebugLogLevel()` | Set global debug log level |
 
-### 类型转换
+### Type Conversion
 
-FakeLua 提供 [`inter::NativeToFakelua()`](file:///home/project/fakelua/include/fakelua.h#L355) 和 [`FakeluaToNative()`](file:///home/project/fakelua/include/fakelua.h#L458) 自动推导型转换：
+FakeLua provides `inter::NativeToFakelua()` and `FakeluaToNative()` for automatic deduced conversion:
 
 ```cpp
-// 原生 → FakeLua
+// Native → FakeLua
 CVar v_int = inter::NativeToFakelua(s, 42);
 CVar v_str = inter::NativeToFakelua(s, std::string("hello"));
 CVar v_bool = inter::NativeToFakelua(s, true);
 
-// FakeLua → 原生
+// FakeLua → Native
 int native_int = inter::FakeluaToNative<int>(v_int);
 std::string native_str = inter::FakeluaToNative<std::string>(v_str);
 ```
 
-### Table 与对象互转
+### Table ↔ Object Mapping
 
-通过实现 [`VarInterface`](file:///home/project/fakelua/include/fakelua.h#L17) 可实现 Lua table 与原生对象的双向映射：
+Implementing [VarInterface](include/fakelua.h) enables bidirectional mapping between Lua tables and native objects:
 
 ```cpp
 class CustomVar : public VarInterface {
-    // 实现所有虚函数...
+    // implement all virtual functions...
 };
 
-// 注册工厂函数
+// Register factory function
 SetVarInterfaceNewFunc(s, []() { return new CustomVar(); });
 
-// 之后在 Call 中传递的 table 类型参数会自动构造为 CustomVar 实例
+// Table-type arguments passed in Call will automatically construct CustomVar instances
 ```
 
-## 架构概览
+## Architecture Overview
 
-### 编译流程
+### Compilation Pipeline
 
 ```
-Lua 源码
+Lua source
    ↓
-[词法分析] → tokens (flexer)
+[Lexing] → tokens (flexer)
    ↓
-[语法分析] → AST (bison + syntax_tree)
+[Parsing] → AST (bison + syntax_tree)
    ↓
-[文件级语句校验] → 拒绝非声明语句 (semantic_analysis)
+[File-level stmt check] → reject non-declaration statements (semantic_analysis)
    ↓
-[预处理] → normalized AST (preprocessor)
+[Preprocessing] → normalized AST (preprocessor)
    ↓
-[语义分析] → analysis result (semantic_analysis)
+[Semantic analysis] → analysis result (semantic_analysis)
    ↓
-[类型推导] → type hints (type_inferencer)
+[Type inference] → type hints (type_inferencer)
    ↓
-[C 代码生成] → C 源码 (c_gen)
+[C code generation] → C source (c_gen)
    ↓
-[JIT 编译] → 机器码 (tcc_jit / gcc_jit)
+[JIT compilation] → machine code (tcc_jit / gcc_jit)
    ↓
-[加载执行] → 结果
+[Load & execute] → result
 ```
 
-### 关键组件
+### Key Components
 
-| 模块 | 职责 |
+| Module | Responsibility |
 |------|------|
-| [`lexer/parser`](file:///home/project/fakelua/src/compile/bison/) | Lua 词法和语法解析 |
-| [`syntax_tree`](file:///home/project/fakelua/src/compile/syntax_tree.h) | AST 表示和遍历 |
-| [`preprocessor`](file:///home/project/fakelua/src/compile/preprocessor.h) | Lua 语法规范化（如 functiondef 提升） |
-| [`semantic_analysis`](file:///home/project/fakelua/src/compile/semantic_analysis.h) | 语义和控制流分析（如未定义符号分析等） |
-| [`type_inferencer`](file:///home/project/fakelua/src/compile/type_inferencer.h) | 静态类型推导和 specialization 决策 |
-| [`c_gen`](file:///home/project/fakelua/src/compile/c_gen.h) | C 代码生成和类型驱动优化 |
-| [`compile_common`](file:///home/project/fakelua/src/compile/compile_common.h) | 公共类型推导和代码生成工具 |
-| [`jit/*`](file:///home/project/fakelua/src/jit/) | TCC 和 GCC 后端集成 |
-| [`state`](file:///home/project/fakelua/src/state/) | FakeLua 运行时状态管理 |
-| [`var`](file:///home/project/fakelua/src/var/) | 动态值 CVar 和转换工具 |
+| `lexer/parser` | Lua lexing and parsing |
+| `syntax_tree` | AST representation and traversal |
+| `preprocessor` | Lua syntax normalization (e.g., functiondef hoisting) |
+| `semantic_analysis` | Semantic and control flow analysis (undefined symbol analysis, etc.) |
+| `type_inferencer` | Static type inference and specialization decisions |
+| `c_gen` | C code generation and type-driven optimization |
+| `compile_common` | Common type inference and codegen utilities |
+| `jit/*` | TCC and GCC backend integration |
+| `state` | FakeLua runtime state management |
+| `var` | Dynamic value CVar and conversion utilities |
 
-## 常见问题
+## FAQ
 
-### Q: 为什么选择 Lua 子集而不是完整 Lua？
-A: 完整 Lua 的某些动态特性（如 metatable）很难高效编译。子集实现聚焦于可静态分析的常见模式，通过类型推导和 JIT 编译获得接近 C 的性能。目前已支持多返回值、参数展开与可变参数（varargs），但更复杂的元表（metatable）或协程等特性尚不支持。
+### Q: Why choose a Lua subset over full Lua?
+A: Certain dynamic features of full Lua (e.g., metatables) are difficult to compile efficiently. The subset focuses on statically analyzable common patterns, achieving near-C performance through type inference and JIT compilation. Multi-return, parameter expansion, and varargs are already supported, while metacoroutines and other complex features remain unavailable.
 
-### Q: TCC 和 GCC 后端如何选择？
-A: **GCC** 是实际运行和生产环境采用的主力后端（开启 `-O3` 优化生成高质量原生代码）；**TCC** 编译极快，但优化有限，主要作为开发调试和测试运行使用。
+### Q: How to choose between TCC and GCC backends?
+A: **GCC** is the primary backend for production (with `-O3` optimization generating high-quality native code); **TCC** compiles extremely fast but with limited optimization, primarily for development, debugging, and testing.
 
-### Q: 可以在嵌入式或受限环境中使用吗？
-A: 可以，TCC 后端体积小，编译速度快，适合嵌入式。核心库依赖极少（仅 C++ 标准库），可交叉编译。
+### Q: Can it be used in embedded or constrained environments?
+A: Yes — the TCC backend is small and fast, suitable for embedded use. The core library has minimal dependencies (C++ standard library only) and is cross-compilable.
 
-### Q: 如何调试生成的 C 代码？
-A: 启用 [`CompileConfig::debug_mode`](file:///home/project/fakelua/include/fakelua.h#L232)，查看日志和 C 代码；使用 [`GetLastRecordedCCode()`](file:///home/project/fakelua/include/fakelua.h#L315) 导出 C 代码进行分析。
+### Q: How to debug generated C code?
+A: Enable `CompileConfig::debug_mode` to inspect logs and C code; use `GetLastRecordedCCode()` to export C code for analysis.
 
-### Q: 支持多线程吗？
-A: 每个 [`State`](file:///home/project/fakelua/include/fakelua.h#L259) 当前为线程本地对象，多线程环境中应为每个线程创建独立的 [`State`](file:///home/project/fakelua/include/fakelua.h#L259)。
+### Q: Is multithreading supported?
+A: Each `State` is currently thread-local; in multithreaded environments, create an independent `State` per thread.
