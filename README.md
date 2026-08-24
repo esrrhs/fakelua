@@ -139,13 +139,13 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 ## Built-in Standard Libraries
 
-FakeLua provides 19 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, compression, encryption, serialization, databases, and protobuf.
+FakeLua provides 20 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, random, compression, encryption, serialization, databases, and protobuf.
 
 > **Full API reference:** [src/native/README.md](src/native/README.md) / [中文](src/native/README.zh.md)
 
 | Category | Modules |
 |----------|---------|
-| Core Lua | `math`, `table`, `string`, `os`, `utf8`, `io` |
+| Core Lua | `math`, `table`, `string`, `os`, `utf8`, `io`, `random` |
 | Networking | `net` (TCP server/client), `timer`, `event` |
 | Data | `json`, `csv`, `serialize`, `protobuf` |
 | Database | `mysql` (async + pool), `sqlite` (synchronous) |

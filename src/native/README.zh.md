@@ -18,6 +18,7 @@
 | net | `net/` | TCP 网络：服务端/客户端、帧协议、自定义解析器、异步事件分发 |
 | timer | `timer/` | 定时器：一次性、周期心跳，由 `tick()` 驱动 |
 | event | `event/` | 发布/订阅事件系统：`on`、`once`、`off`、`emit`、`clear`、`clear_all` |
+| random | `random/` | 可种子随机数（PCG-32）：`int`、`float`、`dice`、`chance`、`weighted`、`get_state`、`set_state` |
 | compress | `compress/` | 压缩：LZ4、zlib、gzip、Zstd |
 | crypto | `crypto/` | 加解密：MD5/SHA1/SHA256、hex/base64、AES/RC4/Blowfish/DES/3DES |
 | csv | `csv/` | CSV 解码/编码 |
@@ -273,6 +274,29 @@
 | `event.clear_all()` | 0 | 移除所有事件的所有处理器 |
 
 > 可重入安全：`emit` 在迭代前快照处理器列表。
+
+---
+
+## Random（随机数）
+
+**文件：** `random/native_random.h` · **注册：** `RegisterRandomLibraryApi`
+
+PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new(seed)` 创建独立的 RNG 流，由 NativeObject 支撑。不同种子产生不同序列；相同种子产生相同序列。状态序列化为 hex 字符串，避免 32-bit 截断。
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `random.new(seed)` | 1 | 用给定 seed（整数）创建 RNG 实例 |
+| `rng:int(min, max)` | 2 | [min, max] 均匀整数（含端点） |
+| `rng:float(min, max)` | 2 | [min, max) 均匀浮点数 |
+| `rng:dice(count, sides)` | 2 | `count` 个骰子的总和，每个 [1, sides] |
+| `rng:chance(prob)` | 1 | 以概率 `prob`（0.0–1.0）返回 `true` |
+| `rng:weighted(weights)` | 1 | 从权重表选取 1-based 下标；零权重项不会被选中 |
+| `rng:get_state()` | 0 | 获取 64-bit 内部状态，返回 hex 字符串（如 `"0x1234567890ABCDEF"`） |
+| `rng:set_state(hex_str)` | 1 | 从 hex 字符串恢复 64-bit 内部状态 |
+
+> **多流独立：** 为不同系统创建独立 RNG 实例（如战斗 RNG、掉落 RNG、事件 RNG）。使用单一全局 RNG 会导致跨系统关联——消耗一个系统的随机数会改变所有其他系统的序列。
+
+> **存档/读档：** 使用 `get_state()` / `set_state()` 配合 hex 字符串进行序列化。hex 字符串是 JSON 安全的，且完整保留 64-bit 状态无精度损失。
 
 ---
 
