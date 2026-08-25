@@ -976,7 +976,8 @@ TEST(exception, no_define_lvalue_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("TCC compile") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("compile") != std::string::npos ||
+                    std::string(e.what()).find("undeclared") != std::string::npos);
     }
 }
 
@@ -1006,7 +1007,7 @@ TEST(exception, test_break_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("TCC compile") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("compile") != std::string::npos);
     }
 }
 

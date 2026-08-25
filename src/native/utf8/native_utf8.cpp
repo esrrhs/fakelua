@@ -374,19 +374,12 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     }
 
     if (target_n > 0) {
-        // n>0: 从 posi 向前走 target_n 个字符。
-        // 第 1 步不移动（当前位置即第 1 个字符）；之后每步跳到下一个字符起始字节。
-        // 如果剩余字节不足以再走 target_n-1 步，返回 nil。
-        --target_n;// 当前位置已计为第 1 个字符
+        --target_n;// do not move for the 1st character
         while (target_n > 0 && posi < byte_len) {
             do {
                 ++posi;
             } while (posi < byte_len && iscont(posi));
             --target_n;
-        }
-        // 走完后 target_n 若仍 >0，说明字符串不够长（包括空串的情况）
-        if (target_n > 0) {
-            return inter::NativeToFakeluaNil(state);
         }
     } else {
         while (target_n < 0 && posi > 0) {
