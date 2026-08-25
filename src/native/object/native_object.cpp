@@ -224,6 +224,10 @@ size_t NativeObjectManager::DestroyGroup(int64_t group_id) {
 }
 
 void NativeObjectManager::Clear() {
+    // objects_ 中的对象仍然"存活"（impl_ 非空），必须先调 Destroy 触发 finalizer 再 delete。
+    // zombies_ 中的对象已经由 DestroySingle/GlobalDestroy/DestroyGroup 调用过 Destroy()，
+    // impl_ 已被置 nullptr，只剩一个空壳，只需 delete 释放堆内存即可。
+    // 两个集合保证互不重叠（erase 之后才 push_back），因此不存在 double-free。
     for (auto &[k, v]: objects_) {
         NativeObject::Destroy(v);
         delete v;
@@ -232,6 +236,7 @@ void NativeObjectManager::Clear() {
     group_objects_.clear();
     global_objects_.clear();
     for (auto *z: zombies_) {
+        // impl_ 已为 nullptr（Destroy 已清空），直接释放对象本身
         delete z;
     }
     zombies_.clear();

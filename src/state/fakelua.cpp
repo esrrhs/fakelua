@@ -514,7 +514,12 @@ CVar DispatchCallClosure(State *state, VarClosure *cl, const CVar *args, int arg
     CVar padded[kMaxFunctionInputParams];
     const bool is_vararg = cl->is_vararg;
     if (is_vararg) {
-        const int fixed = expected > 0 ? expected - 1 : 0;
+        // expected_arg_count 对 vararg 函数的含义：
+        //   expected == 0: 纯 vararg（如 function(...))，签名 (VarClosure*, CVar/*multi*/)
+        //   expected == N (N>0): N-1 个固定参数 + 1 个 vararg 槽，签名 (VarClosure*, a0…a_{N-2}, multi)
+        // 因此固定参数槽数 fixed = max(0, expected-1)，vararg 打包后放在 padded[fixed]，
+        // 实际派发参数数量 n_dispatch = max(1, expected)（始终至少传 1 个 vararg 包）。
+        const int fixed = (expected > 0) ? (expected - 1) : 0;
         for (int i = 0; i < fixed; ++i) {
             padded[i] = (i < arg_count && args) ? args[i] : NativeToFakeluaNil(state);
         }
@@ -523,10 +528,10 @@ CVar DispatchCallClosure(State *state, VarClosure *cl, const CVar *args, int arg
         for (int i = 0; i < extra; ++i) {
             SetMultiCVarElement(multi, i, args[fixed + i]);
         }
-        const int multi_slot = (expected > 0) ? (expected - 1) : 0;
-        padded[multi_slot] = multi;
-        const int n = expected > 0 ? expected : 1;
-        return DispatchCall(cl->func_ptr, padded, n, type, cl);
+        // vararg 包放在最后一个槽：fixed 号位置（0-based），即第 expected 个参数槽
+        padded[fixed] = multi;
+        const int n_dispatch = (expected > 0) ? expected : 1;
+        return DispatchCall(cl->func_ptr, padded, n_dispatch, type, cl);
     }
     for (int i = 0; i < expected; ++i) {
         padded[i] = (i < arg_count && args) ? args[i] : NativeToFakeluaNil(state);
