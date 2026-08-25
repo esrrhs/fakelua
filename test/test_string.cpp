@@ -581,3 +581,27 @@ TEST(test_string, test_string_boundary) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, test_string_sub_undeclared_var) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    // fmod 与 C 标准库 math.h 中的 fmod 同名；未在 Lua 中声明时应求值为 nil，
+    // 传给 string.sub 必须抛出异常（与 Lua 5.4 行为一致），不得被当成 C 函数指针调用。
+    const std::string script = R"(
+        function test_fmod_sub()
+            local suA_ub = string.sub(fmod, 3)
+            return 0
+        end
+    )";
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileString(s, script, config);
+        int64_t res = 0;
+        EXPECT_THROW(Call(s, jit_type, "test_fmod_sub", res), std::exception);
+    }
+
+    FakeluaDeleteState(s);
+}
+

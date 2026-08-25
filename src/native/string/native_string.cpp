@@ -910,19 +910,19 @@ void RegisterStringLibraryApi(State *s) {
                     }
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Float)) {
                     char buf[64];
-                    uintptr_t val = 0;
                     int64_t iv = 0;
                     if (DoubleFitsInt64(curr_arg.data_.f, &iv)) {
-                        val = static_cast<uintptr_t>(iv);
-                    } else if (std::isfinite(curr_arg.data_.f) && curr_arg.data_.f >= 0.0 &&
-                               curr_arg.data_.f < static_cast<double>(UINTPTR_MAX) + 1.0) {
-                        val = static_cast<uintptr_t>(curr_arg.data_.f);
-                    }
-                    if (val == 0) {
-                        res.append("0x0");
+                        // 整数值的浮点（如 2.0）允许转为指针地址输出
+                        uintptr_t val = static_cast<uintptr_t>(iv);
+                        if (val == 0) {
+                            res.append("0x0");
+                        } else {
+                            std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
+                            res.append(buf);
+                        }
                     } else {
-                        std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
-                        res.append(buf);
+                        // 非整数浮点（如 1.5、2^63、NaN、Inf）不能作为指针地址，报错
+                        ThrowFakeluaException("bad argument to 'format' (number has no integer representation)");
                     }
                 } else {
                     // 非数值类型（nil 等）：输出 CVar 自身地址

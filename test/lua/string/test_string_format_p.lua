@@ -20,5 +20,18 @@ function test_string_format_p()
     if type(nil_ptr) ~= "string" then return 0 end
     if #nil_ptr == 0 then return 0 end
 
+    -- 整数值的浮点（2.0）应该可以正常转换
+    local float_int = string.format("%p", 2.0)
+    if not string.find(float_int, "0x") then return 1 end
+
+    -- 非整数浮点（1.5）应该抛出异常
+    local ok, err = pcall(function() return string.format("%p", 1.5) end)
+    if ok then return 2 end  -- 应该失败
+    if not string.find(err, "integer representation") then return 3 end
+
+    -- NaN 也应该抛出异常
+    local ok2, err2 = pcall(function() return string.format("%p", 0/0) end)
+    if ok2 then return 4 end
+
     return 5000
 end

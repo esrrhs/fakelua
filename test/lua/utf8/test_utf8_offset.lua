@@ -36,9 +36,25 @@ function test_utf8_offset()
     local o9 = utf8.offset("abc", -1, 3)
     if o9 ~= 2 then return 0 end
 
-    -- 空串：offset("", 1) 为 1（与 Lua 一致）
+    -- 空串：offset("", 1) 为 1（与 Lua 5.4 一致，n 在 [1, len+1] 范围内）
     local o10 = utf8.offset("", 1)
     if o10 ~= 1 then return 0 end
+
+    -- 空串：offset("", 0) 为 1（Lua 5.4：n=0 从当前位置找字符起始，默认 i=1，返回 1）
+    local o11 = utf8.offset("", 0, 1)
+    if o11 ~= 1 then return 0 end
+
+    -- 空串：offset("", 2) 为 nil
+    local o12 = utf8.offset("", 2)
+    if o12 ~= nil then return 0 end
+
+    -- 单字符：offset("a", 2) 为 2（指向字符串末尾之后）
+    local o13 = utf8.offset("a", 2)
+    if o13 ~= 2 then return 0 end
+
+    -- 单字符：offset("a", 3) 为 nil
+    local o14 = utf8.offset("a", 3)
+    if o14 ~= nil then return 0 end
 
     return 6000
 end

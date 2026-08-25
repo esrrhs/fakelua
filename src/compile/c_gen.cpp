@@ -2502,6 +2502,15 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
             std::string ver = std::string("Fakelua ") + FAKELUA_VERSION_STRING;
             return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc(ver));
         }
+
+        // 未声明/未定义的简单变量：Lua 语义中未定义变量求值为 nil。
+        // 若直接输出 raw name，当 name 恰好是 C 标准库符号（如 fmod、sin、cos、time 等）时，
+        // C 编译器会把它解析为 C 函数指针，作为 CVar 传参时引发类型混淆甚至 crash；
+        // 当 name 不是任何 C 符号时则会引起 C 语法/编译错误。
+        if (!var_to_def_map_.contains(v_ptr.get()) && !ir().global_const_vars.contains(name) && !global_const_table_vars_.contains(name)) {
+            return (cur_section_ == Section::Globals) ? "(CVar){.type_ = VAR_NIL}" : "kNil";
+        }
+
         return name;
     } else if (var_kind == VarKind::kSquare) {
         DEBUG_ASSERT(cur_section_ != Section::Globals);
