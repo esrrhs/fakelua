@@ -21,3 +21,14 @@ function test_base64()
 
     return 1
 end
+
+function test_base64_whitespace()
+    if crypto.base64_decode("Zm9v\n") ~= "foo" then return 0 end
+    if crypto.base64_decode("Zm 9v") ~= "foo" then return 0 end
+    return 1
+end
+
+function test_base64_invalid()
+    crypto.base64_decode("!!!!")
+    return 0
+end

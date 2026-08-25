@@ -18,4 +18,7 @@ namespace fakelua::sqlite {
 //   stmt:close()
 void RegisterSqliteLibraryApi(State *s);
 
+// Close sqlite handles belonging to this VM (fd / DbObject leak otherwise).
+void OnStateDeleted(State *s);
+
 }  // namespace fakelua::sqlite

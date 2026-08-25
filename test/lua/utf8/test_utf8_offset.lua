@@ -30,5 +30,15 @@ function test_utf8_offset()
     local o7 = utf8.offset("中文", 0, 2)
     if o7 ~= 1 then return 0 end
 
+    -- 负 n 从位置 i 往回数，不是从字符串末尾
+    local o8 = utf8.offset("abc", -1, 2)
+    if o8 ~= 1 then return 0 end
+    local o9 = utf8.offset("abc", -1, 3)
+    if o9 ~= 2 then return 0 end
+
+    -- 空串：offset("", 1) 为 1（与 Lua 一致）
+    local o10 = utf8.offset("", 1)
+    if o10 ~= 1 then return 0 end
+
     return 6000
 end

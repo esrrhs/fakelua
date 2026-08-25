@@ -81,5 +81,18 @@ function test_table_seqlen()
     if #t10 ~= 10 then return 19 end
     if t10[20] ~= 20 then return 20 end
 
+    -- 11. 特化哈希表：spec_count 是字段个数，不是数组长度
+    local th = {a = 1, b = 2}
+    if #th ~= 0 then return 21 end
+    table.insert(th, "x")
+    if th[1] ~= "x" or #th ~= 1 then return 22 end
+
+    -- 12. 特化混合表：# 应停在连续整数前缀，不能把 name 算进去
+    local tm = {1, 2, name = "x"}
+    if #tm ~= 2 then return 23 end
+    if tm.name ~= "x" then return 24 end
+    table.insert(tm, 3)
+    if #tm ~= 3 or tm[3] ~= 3 then return 25 end
+
     return 8100
 end

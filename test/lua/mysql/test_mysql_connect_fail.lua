@@ -36,3 +36,28 @@ function test_connect_fail()
 
     return 1
 end
+
+function on_connect_and_close(conn, err, success)
+    conn.closed_ok = true
+    conn:close()
+end
+
+function test_close_in_connect_cb()
+    local config = {}
+    config["host"] = "127.0.0.1"
+    config["port"] = 1
+    config["user"] = "root"
+    config["password"] = "irrelevant"
+    config["db"] = "test"
+
+    local conn = mysql.connect(config, "on_connect_and_close")
+    for i = 1, 200 do
+        conn:tick()
+        if conn.closed_ok then break end
+    end
+    if not conn.closed_ok then
+        print("close-in-callback never ran")
+        return 0
+    end
+    return 1
+end

@@ -326,6 +326,7 @@ TEST(test_os, test_os_error_paths) {
     EXPECT_THROW(Call(s, JIT_GCC, "test_os_difftime_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_os_execute_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_os_exit_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_os_exit_nan", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_os_getenv_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_os_remove_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_os_rename_bad_arg", res), std::exception);

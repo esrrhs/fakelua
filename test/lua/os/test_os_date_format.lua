@@ -25,5 +25,11 @@ function test_os_date_format()
     local s6 = os.date("%B")  -- 月份名
     if type(s6) ~= "string" then return 9 end
 
+    -- 超过旧的 256 字节缓冲区时必须仍返回完整结果
+    local longfmt = string.rep("%Y", 80)
+    local slong = os.date(longfmt)
+    if type(slong) ~= "string" then return 10 end
+    if #slong < 80 * 4 then return 11 end
+
     return 5000
 end

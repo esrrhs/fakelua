@@ -5,9 +5,13 @@
 #include "var/var_table.h"
 
 #include <sqlite3.h>
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace fakelua::sqlite {
@@ -35,8 +39,67 @@ static StmtObject *unwrap_stmt(NativeObject *self) {
     return reinterpret_cast<StmtObject *>(self->GetInt("__sqlite_stmt__", 0));
 }
 
+static std::unordered_map<State *, std::vector<NativeObject *>> g_sqlite_wrappers;
+
+static void register_sqlite_wrapper(State *s, NativeObject *nat) {
+    if (!s || !nat) return;
+    nat->SetInt("__sqlite_state__", reinterpret_cast<int64_t>(s));
+    g_sqlite_wrappers[s].push_back(nat);
+}
+
+static void unregister_sqlite_wrapper(NativeObject *nat) {
+    if (!nat) return;
+    auto *st = reinterpret_cast<State *>(nat->GetInt("__sqlite_state__", 0));
+    nat->SetInt("__sqlite_state__", 0);
+    if (!st) return;
+    auto it = g_sqlite_wrappers.find(st);
+    if (it == g_sqlite_wrappers.end()) return;
+    auto &v = it->second;
+    v.erase(std::remove(v.begin(), v.end(), nat), v.end());
+    if (v.empty()) g_sqlite_wrappers.erase(it);
+}
+
+void OnStateDeleted(State *s) {
+    if (!s) return;
+    auto it = g_sqlite_wrappers.find(s);
+    if (it == g_sqlite_wrappers.end()) return;
+    auto wrappers = std::move(it->second);
+    g_sqlite_wrappers.erase(it);
+    for (auto *nat : wrappers) {
+        if (!nat) continue;
+        nat->SetInt("__sqlite_state__", 0);
+        NativeObjectManager::Instance().DestroyGroup(nat->GetGroupId());
+    }
+}
+
 [[noreturn]] static void error(const std::string &msg) {
     ThrowFakeluaException("sqlite: " + msg);
+}
+
+static CVar sqlite_column_to_cvar(State *s, sqlite3_stmt *stmt, int i) {
+    switch (sqlite3_column_type(stmt, i)) {
+    case SQLITE_INTEGER:
+        return inter::NativeToFakeluaLonglong(s, sqlite3_column_int64(stmt, i));
+    case SQLITE_FLOAT:
+        return inter::NativeToFakeluaDouble(s, sqlite3_column_double(stmt, i));
+    case SQLITE_TEXT: {
+        const unsigned char *p = sqlite3_column_text(stmt, i);
+        int n = sqlite3_column_bytes(stmt, i);
+        if (!p || n <= 0) return inter::NativeToFakeluaString(s, "");
+        return inter::NativeToFakeluaStringView(
+            s, std::string_view(reinterpret_cast<const char *>(p), static_cast<size_t>(n)));
+    }
+    case SQLITE_BLOB: {
+        const void *p = sqlite3_column_blob(stmt, i);
+        int n = sqlite3_column_bytes(stmt, i);
+        if (!p || n <= 0) return inter::NativeToFakeluaString(s, "");
+        return inter::NativeToFakeluaStringView(
+            s, std::string_view(static_cast<const char *>(p), static_cast<size_t>(n)));
+    }
+    case SQLITE_NULL:
+    default:
+        return inter::NativeToFakeluaNil(s);
+    }
 }
 
 // ── Forward declarations for stmt methods (used in db_prepare) ──
@@ -83,29 +146,15 @@ CVar db_exec(NativeObject *self, State *s, CVar *args, int n) {
         while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
             CVar row_tbl = table::TableHelper::CreateTable(s);
             for (int i = 0; i < col_count; i++) {
-                CVar val;
-                int type = sqlite3_column_type(stmt, i);
-                switch (type) {
-                case SQLITE_INTEGER:
-                    val = inter::NativeToFakeluaInt(s, sqlite3_column_int64(stmt, i));
-                    break;
-                case SQLITE_FLOAT:
-                    val = inter::NativeToFakeluaFloat(s, sqlite3_column_double(stmt, i));
-                    break;
-                case SQLITE_TEXT:
-                    val = inter::NativeToFakeluaString(s, reinterpret_cast<const char *>(sqlite3_column_text(stmt, i)));
-                    break;
-                case SQLITE_BLOB:
-                    val = inter::NativeToFakeluaString(s, "blob");
-                    break;
-                case SQLITE_NULL:
-                default:
-                    val = inter::NativeToFakeluaNil(s);
-                    break;
-                }
+                CVar val = sqlite_column_to_cvar(s, stmt, i);
                 table::TableHelper::SetTableStrId(s, row_tbl, col_names[i].c_str(), val);
             }
             table::TableHelper::SetTableInt(s, tbl, row_idx++, row_tbl);
+        }
+        if (rc != SQLITE_DONE) {
+            const char *err = sqlite3_errmsg(obj->db);
+            sqlite3_finalize(stmt);
+            error("db:exec: " + std::string(err ? err : "unknown error"));
         }
     } else {
         // Non-SELECT: execute and check for errors
@@ -150,6 +199,7 @@ CVar db_prepare(NativeObject *self, State *s, CVar *args, int n) {
     stmt_obj->db = obj->db;
     stmt_obj->stmt = stmt;
     nat->SetFinalizer([](NativeObject *self) {
+        unregister_sqlite_wrapper(self);
         auto *obj = unwrap_stmt(self);
         if (obj) {
             if (obj->stmt) {
@@ -165,6 +215,7 @@ CVar db_prepare(NativeObject *self, State *s, CVar *args, int n) {
     nat->RegisterMethod("columns", stmt_columns);
     nat->RegisterMethod("close", stmt_close);
     nat->SetInt("__sqlite_stmt__", reinterpret_cast<int64_t>(stmt_obj));
+    register_sqlite_wrapper(s, nat);
 
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
@@ -192,7 +243,10 @@ CVar stmt_bind(NativeObject *self, State *s, CVar *args, int n) {
             rc = sqlite3_bind_int(obj->stmt, i + 1, arg.data_.b ? 1 : 0);
         } else if (arg.type_ == static_cast<int>(VarType::String) || arg.type_ == static_cast<int>(VarType::StringId)) {
             std::string str = inter::FakeluaToNativeString(s, arg);
-            rc = sqlite3_bind_text(obj->stmt, i + 1, str.c_str(), -1, SQLITE_TRANSIENT);
+            if (str.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+                error("stmt:bind: string too large at position " + std::to_string(i + 1));
+            }
+            rc = sqlite3_bind_text(obj->stmt, i + 1, str.data(), static_cast<int>(str.size()), SQLITE_TRANSIENT);
         } else {
             error("stmt:bind: unsupported type at position " + std::to_string(i + 1));
         }
@@ -216,26 +270,7 @@ CVar stmt_step(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
         CVar row = table::TableHelper::CreateTable(s);
         for (int i = 0; i < col_count; i++) {
             const char *name = sqlite3_column_name(obj->stmt, i);
-            CVar val;
-            int type = sqlite3_column_type(obj->stmt, i);
-            switch (type) {
-            case SQLITE_INTEGER:
-                val = inter::NativeToFakeluaInt(s, sqlite3_column_int64(obj->stmt, i));
-                break;
-            case SQLITE_FLOAT:
-                val = inter::NativeToFakeluaFloat(s, sqlite3_column_double(obj->stmt, i));
-                break;
-            case SQLITE_TEXT:
-                val = inter::NativeToFakeluaString(s, reinterpret_cast<const char *>(sqlite3_column_text(obj->stmt, i)));
-                break;
-            case SQLITE_BLOB:
-                val = inter::NativeToFakeluaString(s, "blob");
-                break;
-            case SQLITE_NULL:
-            default:
-                val = inter::NativeToFakeluaNil(s);
-                break;
-            }
+            CVar val = sqlite_column_to_cvar(s, obj->stmt, i);
             table::TableHelper::SetTableStrId(s, row, name ? name : "", val);
         }
         return row;
@@ -283,8 +318,11 @@ CVar stmt_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
 
     int rc = sqlite3_finalize(obj->stmt);
     obj->stmt = nullptr;
+    obj->db = nullptr;
+    delete obj;
+    self->SetInt("__sqlite_stmt__", 0);
     if (rc != SQLITE_OK) {
-        error("stmt:close: " + std::string(sqlite3_errmsg(obj->db)));
+        error(std::string("stmt:close: ") + sqlite3_errstr(rc));
     }
     return inter::NativeToFakeluaNil(s);
 }
@@ -294,7 +332,7 @@ CVar stmt_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
 CVar db_last_insert_rowid(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *obj = unwrap_db(self);
     if (!obj || !obj->db) error("db:last_insert_rowid: database is closed");
-    return inter::NativeToFakeluaInt(s, sqlite3_last_insert_rowid(obj->db));
+    return inter::NativeToFakeluaLonglong(s, sqlite3_last_insert_rowid(obj->db));
 }
 
 // ── db:changes() ──
@@ -302,16 +340,19 @@ CVar db_last_insert_rowid(NativeObject *self, State *s, CVar * /*args*/, int /*n
 CVar db_changes(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *obj = unwrap_db(self);
     if (!obj || !obj->db) error("db:changes: database is closed");
-    return inter::NativeToFakeluaInt(s, sqlite3_changes(obj->db));
+    return inter::NativeToFakeluaLonglong(s, sqlite3_changes64(obj->db));
 }
 
 // ── db:close() ──
 
 CVar db_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *obj = unwrap_db(self);
-    if (obj && obj->db) {
-        sqlite3_close(obj->db);
-        obj->db = nullptr;
+    if (obj) {
+        if (obj->db) {
+            sqlite3_close_v2(obj->db);
+            obj->db = nullptr;
+        }
+        delete obj;
         self->SetInt("__sqlite_db__", 0);
     }
     return inter::NativeToFakeluaNil(s);
@@ -345,10 +386,11 @@ static CVar sqlite_open(State *s, CVar *args, int n) {
     auto *db_obj = new DbObject();
     db_obj->db = db;
     nat->SetFinalizer([](NativeObject *self) {
+        unregister_sqlite_wrapper(self);
         auto *obj = unwrap_db(self);
         if (obj) {
             if (obj->db) {
-                sqlite3_close(obj->db);
+                sqlite3_close_v2(obj->db);
             }
             delete obj;
             self->SetInt("__sqlite_db__", 0);
@@ -360,6 +402,7 @@ static CVar sqlite_open(State *s, CVar *args, int n) {
     nat->RegisterMethod("changes", db_changes);
     nat->RegisterMethod("close", db_close);
     nat->SetInt("__sqlite_db__", reinterpret_cast<int64_t>(db_obj));
+    register_sqlite_wrapper(s, nat);
 
     return inter::NativeToFakeluaNativeObject(s, nat);
 }

@@ -66,3 +66,45 @@ TEST(test_timer, test_heartbeat) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_timer, test_reenter) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./timer/test_timer_reenter.lua", config);
+
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "TimerTest.test_reenter", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_timer, test_heartbeat_nested) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./timer/test_timer_heartbeat_nested.lua", config);
+
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "TimerTest.test_heartbeat_nested", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_timer, test_nested_tick_noop) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./timer/test_timer_reenter.lua", config);
+
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "TimerTest.test_nested_tick_noop", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}

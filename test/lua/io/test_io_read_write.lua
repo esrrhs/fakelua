@@ -41,6 +41,16 @@ function test_io_read_write()
     if l3 ~= "line3" then return 0 end
     if l4 ~= nil then return 0 end
 
+    -- *n 读 inf/nan 不得对 double→int64 做 UB
+    local fn = io.open("test_io_rw.txt", "w")
+    fn:write("inf\n")
+    fn:close()
+    local fn2 = io.open("test_io_rw.txt", "r")
+    local infv = fn2:read("*n")
+    fn2:close()
+    if infv ~= infv then return 0 end
+    if infv ~= math.huge then return 0 end
+
     -- 清理
     os.remove("test_io_rw.txt")
 

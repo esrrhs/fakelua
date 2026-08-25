@@ -140,9 +140,9 @@ CVar result_to_lua(::fakelua::State *s, const MysqlResult &result) {
         // Status mode
         table::TableHelper::SetTableInt(s, tbl, 1, inter::NativeToFakeluaBool(s, false));
         table::TableHelper::SetTableInt(s, tbl, 4,
-            inter::NativeToFakeluaInt(s, static_cast<int64_t>(result.affected_rows)));
+            inter::NativeToFakeluaLonglong(s, static_cast<long long>(result.affected_rows)));
         table::TableHelper::SetTableInt(s, tbl, 5,
-            inter::NativeToFakeluaInt(s, static_cast<int64_t>(result.last_insert_id)));
+            inter::NativeToFakeluaLonglong(s, static_cast<long long>(result.last_insert_id)));
         table::TableHelper::SetTableInt(s, tbl, 6,
             inter::NativeToFakeluaString(s, result.info));
     }

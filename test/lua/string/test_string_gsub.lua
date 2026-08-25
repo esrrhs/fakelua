@@ -30,5 +30,30 @@ function test_string_gsub()
     end)
     if s7 ~= "hello [123] world" then return 0 end
 
+    -- 表超过 8 个键会 rehash：以前只扫 quick_data_，k9 及之后替换失败
+    local gsub_big = {}
+    local gsub_i = 1
+    while gsub_i <= 15 do
+        gsub_big["k" .. gsub_i] = "v" .. gsub_i
+        gsub_i = gsub_i + 1
+    end
+    local s8 = string.gsub("k1 k9 k15 kx", "k\\d+", gsub_big)
+    if s8 ~= "v1 v9 v15 kx" then return 0 end
+
+    -- 捕获组超过旧的 16 槽上限时，第 17 个参数会被丢掉
+    local s9 = string.gsub("abcdefghijklmnopq", "(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)", function(g1, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12, g13, g14, g15, g16, g17)
+        if g17 ~= "q" then return "bad" end
+        return "OK"
+    end)
+    if s9 ~= "OK" then return 0 end
+
+    -- 捕获组少于替换函数形参时，缺的必须是 nil，不能读垃圾寄存器
+    local s10 = string.gsub("ab", "(a)(b)", function(g1, g2, g3)
+        if g3 ~= nil then return "bad" end
+        if g1 ~= "a" or g2 ~= "b" then return "bad" end
+        return "OK"
+    end)
+    if s10 ~= "OK" then return 0 end
+
     return 4000
 end

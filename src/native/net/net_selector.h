@@ -40,6 +40,8 @@ public:
               const std::function<void(void *userdata)> &on_close);
 
 private:
+    void flush_pending();
+
 #if defined(__linux__)
     // 向 epoll 注册 fd（ADD），按需包含 EPOLLOUT
     void apply_epoll_add(socket_t fd, void *userdata, bool want_write);

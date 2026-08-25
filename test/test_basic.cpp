@@ -213,6 +213,21 @@ TEST(test_basic, test_basic_continue) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_basic, test_for_dynamic_continue) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./basic/test_for_dynamic_continue.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_for_dynamic_continue", res);
+        EXPECT_EQ(res, 100);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_basic, test_basic_pcall) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -235,6 +250,14 @@ TEST(test_basic, test_basic_pcall) {
 
         res = 0;
         Call(s, jit_type, "test_pcall_non_function", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_pcall_upvalue", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_pcall_missing_args", res);
         EXPECT_NEAR(res, 5000, 0.5);
 
         // error() 在 JIT 代码里触发运行时错误，pcall 必须能接住它：TCC 的代码页没有
@@ -265,6 +288,10 @@ TEST(test_basic, test_basic_xpcall) {
 
         res = 0;
         Call(s, jit_type, "test_xpcall_error", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+
+        res = 0;
+        Call(s, jit_type, "test_xpcall_many_args", res);
         EXPECT_NEAR(res, 5000, 0.5);
     }
 
@@ -360,6 +387,7 @@ TEST(test_basic, test_basic_boundary_error) {
     EXPECT_THROW(Call(s, JIT_GCC, "test_ipairs_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_collectgarbage_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_tonumber_bad_base", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_call_too_many_args", res), std::exception);
 
     FakeluaDeleteState(s);
 }

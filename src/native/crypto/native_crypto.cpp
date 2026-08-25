@@ -190,9 +190,19 @@ static CVar crypto_hex_decode(State *s, CVar *args, int n) {
     }
     std::string out;
     out.reserve(hex.size() / 2);
+    auto nibble = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    };
     for (size_t i = 0; i < hex.size(); i += 2) {
-        uint8_t byte = static_cast<uint8_t>(std::stoi(hex.substr(i, 2), nullptr, 16));
-        out.push_back(static_cast<char>(byte));
+        int hi = nibble(hex[i]);
+        int lo = nibble(hex[i + 1]);
+        if (hi < 0 || lo < 0) {
+            ThrowFakeluaException("crypto.hex_decode: invalid hex character");
+        }
+        out.push_back(static_cast<char>((hi << 4) | lo));
     }
     return inter::NativeToFakeluaString(s, out);
 }

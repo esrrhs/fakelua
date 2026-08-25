@@ -40,5 +40,21 @@ function test_basic_next()
     local gc_res = collectgarbage("stop")
     if gc_res ~= 0 then return 8 end
 
+    -- bucket 表：next 不得把 quick_data_ 里的旧键再走一遍
+    local tb = {}
+    for i = 1, 12 do tb[i] = i end
+    local nb = 0
+    local kb = nil
+    local seenb = {}
+    while true do
+        local key, val = next(tb, kb)
+        if key == nil then break end
+        if seenb[key] then return 9 end
+        seenb[key] = true
+        nb = nb + 1
+        kb = key
+    end
+    if nb ~= 12 then return 10 end
+
     return 5000
 end

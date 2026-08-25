@@ -9,6 +9,7 @@
 #include <format>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 namespace fakelua::protobuf {
@@ -29,20 +30,6 @@ static bool IsVarType(const CVar &v, VarType t) {
     return v.type_ == VarTypeToInt(t);
 }
 
-// ─── 辅助：判断标量值是否为零值 ───
-
-static bool IsScalarZero(const CVar &v) {
-    if (IsVarType(v, VarType::Nil)) return true;
-    if (IsVarType(v, VarType::Int)) return v.data_.i == 0;
-    if (IsVarType(v, VarType::Float)) return v.data_.f == 0.0;
-    if (IsVarType(v, VarType::Bool)) return !v.data_.b;
-    if (IsVarType(v, VarType::String) || IsVarType(v, VarType::StringId)) {
-        if (!v.data_.s) return true;
-        return v.data_.s->Size() == 0;
-    }
-    return false;
-}
-
 // ─── 辅助：从 CVar 提取字符串（二进制安全）───
 
 static std::string CVarToString(const CVar &v) {
@@ -58,13 +45,24 @@ static std::string CVarToString(const CVar &v) {
     return {};
 }
 
+// ─── 辅助：判断标量值是否为零值 ───
+
+static bool IsScalarZero(const CVar &v) {
+    if (IsVarType(v, VarType::Nil)) return true;
+    if (IsVarType(v, VarType::Int)) return v.data_.i == 0;
+    if (IsVarType(v, VarType::Float)) return v.data_.f == 0.0;
+    if (IsVarType(v, VarType::Bool)) return !v.data_.b;
+    if (IsVarType(v, VarType::String) || IsVarType(v, VarType::StringId)) {
+        return CVarToString(v).empty();
+    }
+    return false;
+}
+
 // ─── 辅助：从 CVar 提取 int64 ───
 
 static int64_t CVarToInt(const CVar &v) {
-    if (IsVarType(v, VarType::Int)) return v.data_.i;
-    if (IsVarType(v, VarType::Float)) return static_cast<int64_t>(v.data_.f);
     if (IsVarType(v, VarType::Bool)) return v.data_.b ? 1 : 0;
-    return 0;
+    return inter::CVarToInteger(v, 0);
 }
 
 // ─── 辅助：从 CVar 提取 double ───
@@ -84,33 +82,11 @@ struct KVPair {
 
 static std::vector<KVPair> CollectKVPairs(const CVar &tbl) {
     std::vector<KVPair> result;
-    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return result;
-
-    VarTable *t = tbl.data_.t;
-    auto add_kv = [&](CVar k, CVar val) {
+    TableHelper::ForEachKV(tbl, [&](CVar k, CVar val) {
         if (k.type_ != static_cast<int>(VarType::Nil)) {
             result.push_back({k, val});
         }
-    };
-
-    if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
-        for (uint32_t i = 0; i < t->spec_count; ++i) {
-            if (t->spec_keys[i].type_ == static_cast<int>(VarType::Nil)) continue;
-            add_kv(t->spec_keys[i], t->spec_vals[i]);
-        }
-    }
-    for (uint32_t i = 0; i < VarTable::QUICK_DATA_SIZE; ++i) {
-        if (t->quick_data_[i].key.type_ == static_cast<int>(VarType::Nil)) continue;
-        add_kv(t->quick_data_[i].key, t->quick_data_[i].val);
-    }
-    if (t->nodes_ && t->bucket_count_ > 0 && t->active_list_) {
-        for (uint32_t i = 0; i < t->count_; ++i) {
-            uint32_t node_idx = t->active_list_[i];
-            const auto &entry = t->nodes_[node_idx].entry;
-            if (entry.key.type_ == static_cast<int>(VarType::Nil)) continue;
-            add_kv(entry.key, entry.val);
-        }
-    }
+    });
     return result;
 }
 
@@ -121,16 +97,24 @@ static bool IsArrayTable(const CVar &tbl, size_t &out_len) {
         out_len = 0;
         return false;
     }
-    auto kvs = CollectKVPairs(tbl);
-    size_t n = kvs.size();
-    if (n == 0) { out_len = 0; return false; }
-
-    // 检查是否所有键都是 1..N 的整数
-    for (size_t i = 0; i < n; ++i) {
-        if (kvs[i].key.type_ != static_cast<int>(VarType::Int)) { out_len = 0; return false; }
-        if (kvs[i].key.data_.i != static_cast<int64_t>(i + 1)) { out_len = 0; return false; }
+    int64_t seq_len = TableHelper::GetTableLen(tbl);
+    if (seq_len <= 0) {
+        out_len = 0;
+        return false;
     }
-    out_len = n;
+    size_t kv_count = 0;
+    bool ok = true;
+    TableHelper::ForEachKV(tbl, [&](CVar k, CVar /*val*/) {
+        ++kv_count;
+        if (k.type_ != static_cast<int>(VarType::Int) || k.data_.i < 1 || k.data_.i > seq_len) {
+            ok = false;
+        }
+    });
+    if (!ok || kv_count != static_cast<size_t>(seq_len)) {
+        out_len = 0;
+        return false;
+    }
+    out_len = static_cast<size_t>(seq_len);
     return true;
 }
 
@@ -169,7 +153,7 @@ static void EncodeScalar(std::string &out, FieldType type, const CVar &v) {
             write_fixed64(out, static_cast<uint64_t>(CVarToInt(v)));
             break;
         case TYPE_BOOL:
-            write_varint(out, (v.type_ == static_cast<int>(VarType::Bool) && v.data_.b) ? 1 : 0);
+            write_varint(out, CVarToInt(v) != 0 ? 1 : 0);
             break;
         case TYPE_ENUM:
             write_varint(out, static_cast<uint64_t>(CVarToInt(v)));
@@ -192,7 +176,13 @@ static void EncodeScalar(std::string &out, FieldType type, const CVar &v) {
 
 // ─── 编码一个字段（含 tag）───
 
-static void EncodeField(std::string &out, const FieldDef &field, const CVar &v, State *s) {
+static constexpr int kMaxProtoDepth = 64;
+
+static std::string EncodeMessageImpl(State *s, const std::string &msg_name, const CVar &table,
+                                     std::unordered_set<VarTable *> &visited, int depth);
+
+static void EncodeField(std::string &out, const FieldDef &field, const CVar &v, State *s,
+                        std::unordered_set<VarTable *> &visited, int depth) {
     uint8_t wire = WireTypeForScalar(field.type);
 
     if (field.is_map) {
@@ -206,13 +196,14 @@ static void EncodeField(std::string &out, const FieldDef &field, const CVar &v, 
             EncodeScalar(entry_buf, field.map_key_type, key);
             // value = field 2
             if (field.map_value_type == TYPE_MESSAGE) {
-                // value 是嵌套 message
                 const MessageDef *msg = ProtobufState::Instance().FindMessage(field.map_value_type_name);
-                if (msg) {
-                    std::string sub = EncodeMessage(s, field.map_value_type_name, val);
-                    write_tag(entry_buf, 2, WIRE_LEN);
-                    write_length_delimited(entry_buf, sub.data(), sub.size());
+                if (!msg) {
+                    ThrowFakeluaException(std::format("protobuf.encode: unknown map value type '{}'",
+                                                      field.map_value_type_name));
                 }
+                std::string sub = EncodeMessageImpl(s, field.map_value_type_name, val, visited, depth + 1);
+                write_tag(entry_buf, 2, WIRE_LEN);
+                write_length_delimited(entry_buf, sub.data(), sub.size());
             } else {
                 std::string val_buf;
                 EncodeScalar(val_buf, field.map_value_type, val);
@@ -246,23 +237,30 @@ static void EncodeField(std::string &out, const FieldDef &field, const CVar &v, 
                     write_tag(out, field.number, wire);
                     if (field.type == TYPE_MESSAGE) {
                         const MessageDef *msg = ProtobufState::Instance().FindMessage(field.type_name);
-                        if (msg) {
-                            std::string sub = EncodeMessage(s, field.type_name, elem);
-                            write_length_delimited(out, sub.data(), sub.size());
+                        if (!msg) {
+                            ThrowFakeluaException(std::format("protobuf.encode: unknown message type '{}'",
+                                                              field.type_name));
                         }
+                        std::string sub = EncodeMessageImpl(s, field.type_name, elem, visited, depth + 1);
+                        write_length_delimited(out, sub.data(), sub.size());
                     } else {
                         EncodeScalar(out, field.type, elem);
                     }
                 }
             } else {
-                // 非数组（可能是单个值当作 repeated）
+                if (IsVarType(v, VarType::Nil) ||
+                    (IsVarType(v, VarType::Table) && CollectKVPairs(v).empty())) {
+                    return;
+                }
                 write_tag(out, field.number, wire);
                 if (field.type == TYPE_MESSAGE) {
                     const MessageDef *msg = ProtobufState::Instance().FindMessage(field.type_name);
-                    if (msg) {
-                        std::string sub = EncodeMessage(s, field.type_name, v);
-                        write_length_delimited(out, sub.data(), sub.size());
+                    if (!msg) {
+                        ThrowFakeluaException(std::format("protobuf.encode: unknown message type '{}'",
+                                                          field.type_name));
                     }
+                    std::string sub = EncodeMessageImpl(s, field.type_name, v, visited, depth + 1);
+                    write_length_delimited(out, sub.data(), sub.size());
                 } else {
                     EncodeScalar(out, field.type, v);
                 }
@@ -275,10 +273,11 @@ static void EncodeField(std::string &out, const FieldDef &field, const CVar &v, 
     write_tag(out, field.number, wire);
     if (field.type == TYPE_MESSAGE) {
         const MessageDef *msg = ProtobufState::Instance().FindMessage(field.type_name);
-        if (msg) {
-            std::string sub = EncodeMessage(s, field.type_name, v);
-            write_length_delimited(out, sub.data(), sub.size());
+        if (!msg) {
+            ThrowFakeluaException(std::format("protobuf.encode: unknown message type '{}'", field.type_name));
         }
+        std::string sub = EncodeMessageImpl(s, field.type_name, v, visited, depth + 1);
+        write_length_delimited(out, sub.data(), sub.size());
     } else {
         EncodeScalar(out, field.type, v);
     }
@@ -286,24 +285,49 @@ static void EncodeField(std::string &out, const FieldDef &field, const CVar &v, 
 
 // ─── 编码 message ───
 
-std::string EncodeMessage(State *s, const std::string &msg_name, const CVar &table) {
+static std::string EncodeMessageImpl(State *s, const std::string &msg_name, const CVar &table,
+                                     std::unordered_set<VarTable *> &visited, int depth) {
+    if (depth > kMaxProtoDepth) {
+        ThrowFakeluaException("protobuf.encode: nesting too deep");
+    }
     const MessageDef *msg = ProtobufState::Instance().FindMessage(msg_name);
     if (!msg) {
         ThrowFakeluaException(std::format("protobuf.encode: unknown message type '{}'", msg_name));
     }
 
-    std::string out;
-    for (const auto &field : msg->fields) {
-        CVar value = GetField(s, table, field.name);
-
-        // 零值抑制（proto3）：标量且非 optional 且为零值 → 跳过
-        if (!field.repeated && !field.is_map && !field.optional && IsScalarZero(value)) {
-            continue;
-        }
-
-        EncodeField(out, field, value, s);
+    VarTable *t = (IsVarType(table, VarType::Table) && table.data_.t) ? table.data_.t : nullptr;
+    if (t && !visited.insert(t).second) {
+        ThrowFakeluaException("protobuf.encode: cyclic table");
     }
+
+    std::string out;
+    try {
+        for (const auto &field : msg->fields) {
+            CVar value = GetField(s, table, field.name);
+
+            if (!field.repeated && !field.is_map && IsVarType(value, VarType::Nil)) {
+                continue;
+            }
+            if (field.repeated || field.is_map) {
+                if (IsVarType(value, VarType::Nil)) continue;
+                if (IsVarType(value, VarType::Table) && CollectKVPairs(value).empty()) continue;
+            } else if (!field.optional && IsScalarZero(value)) {
+                continue;
+            }
+
+            EncodeField(out, field, value, s, visited, depth);
+        }
+    } catch (...) {
+        if (t) visited.erase(t);
+        throw;
+    }
+    if (t) visited.erase(t);
     return out;
+}
+
+std::string EncodeMessage(State *s, const std::string &msg_name, const CVar &table) {
+    std::unordered_set<VarTable *> visited;
+    return EncodeMessageImpl(s, msg_name, table, visited, 0);
 }
 
 // ─── 解码单个标量值 ───
@@ -354,9 +378,28 @@ static CVar DecodeScalar(const std::string &data, size_t &pos, FieldType type, S
     }
 }
 
+static bool FieldWireOk(const FieldDef *field, uint8_t wire_type) {
+    if (field->is_map || field->type == TYPE_MESSAGE) {
+        return wire_type == WIRE_LEN;
+    }
+    if (wire_type == WireTypeForScalar(field->type)) return true;
+    // proto3 packed repeated scalars arrive as length-delimited
+    if (field->repeated && wire_type == WIRE_LEN && IsPackable(field->type)) return true;
+    return false;
+}
+
 // ─── 解码 message ───
 
+static CVar DecodeMessageImpl(State *s, const std::string &msg_name, const std::string &data, int depth);
+
 CVar DecodeMessage(State *s, const std::string &msg_name, const std::string &data) {
+    return DecodeMessageImpl(s, msg_name, data, 0);
+}
+
+static CVar DecodeMessageImpl(State *s, const std::string &msg_name, const std::string &data, int depth) {
+    if (depth > kMaxProtoDepth) {
+        ThrowFakeluaException("protobuf.decode: nesting too deep");
+    }
     const MessageDef *msg = ProtobufState::Instance().FindMessage(msg_name);
     if (!msg) {
         ThrowFakeluaException(std::format("protobuf.decode: unknown message type '{}'", msg_name));
@@ -376,6 +419,11 @@ CVar DecodeMessage(State *s, const std::string &msg_name, const std::string &dat
 
         if (!field) {
             // 未知字段 → 跳过
+            skip_value(data, pos, wire_type);
+            continue;
+        }
+
+        if (!FieldWireOk(field, wire_type)) {
             skip_value(data, pos, wire_type);
             continue;
         }
@@ -401,12 +449,23 @@ CVar DecodeMessage(State *s, const std::string &msg_name, const std::string &dat
                     uint8_t ewire = tag_wire_type(etag);
 
                     if (enum_field == 1) {
+                        if (ewire != WireTypeForScalar(field->map_key_type)) {
+                            skip_value(entry_data, epos, ewire);
+                            continue;
+                        }
                         key = DecodeScalar(entry_data, epos, field->map_key_type, s);
                         has_key = true;
                     } else if (enum_field == 2) {
+                        uint8_t expected = field->map_value_type == TYPE_MESSAGE
+                                               ? static_cast<uint8_t>(WIRE_LEN)
+                                               : WireTypeForScalar(field->map_value_type);
+                        if (ewire != expected) {
+                            skip_value(entry_data, epos, ewire);
+                            continue;
+                        }
                         if (field->map_value_type == TYPE_MESSAGE) {
                             std::string sub = read_length_delimited(entry_data, epos);
-                            val = DecodeMessage(s, field->map_value_type_name, sub);
+                            val = DecodeMessageImpl(s, field->map_value_type_name, sub, depth + 1);
                         } else {
                             val = DecodeScalar(entry_data, epos, field->map_value_type, s);
                         }
@@ -449,7 +508,7 @@ CVar DecodeMessage(State *s, const std::string &msg_name, const std::string &dat
                 idx++;
                 if (field->type == TYPE_MESSAGE) {
                     std::string sub = read_length_delimited(data, pos);
-                    CVar elem = DecodeMessage(s, field->type_name, sub);
+                    CVar elem = DecodeMessageImpl(s, field->type_name, sub, depth + 1);
                     TableHelper::SetTableInt(s, arr, static_cast<int64_t>(idx), elem);
                 } else {
                     CVar elem = DecodeScalar(data, pos, field->type, s);
@@ -462,7 +521,7 @@ CVar DecodeMessage(State *s, const std::string &msg_name, const std::string &dat
         // 普通字段
         if (field->type == TYPE_MESSAGE) {
             std::string sub = read_length_delimited(data, pos);
-            CVar val = DecodeMessage(s, field->type_name, sub);
+            CVar val = DecodeMessageImpl(s, field->type_name, sub, depth + 1);
             TableHelper::SetTableStrId(s, tbl, field->name.c_str(), val);
         } else {
             CVar val = DecodeScalar(data, pos, field->type, s);

@@ -2,12 +2,16 @@
 #include "native/net/net_internal.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
+#include "native/table/native_table.h"
 #include "var/var.h"
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <vector>
 
 namespace fakelua::net {
 
@@ -31,6 +35,10 @@ struct NetObject {
 
     std::unique_ptr<net::TcpServer> server;
     std::unique_ptr<net::TcpClient> client;
+
+    // tick 回调里 Lua 可能 :close()，不能立刻 delete this。延后到 tick 返回。
+    int tick_depth = 0;
+    bool close_pending = false;
 
     static constexpr size_t kMaxEvents = 1024;
 };
@@ -118,15 +126,21 @@ static CVar call_lua_event(State *state, const std::string &func_name,
 // 返回值格式：nil（无操作）或 Multi {command, arg1, arg2, ...}
 // 支持的指令：
 //   "echo", data → 将 data 发回来源连接
+//   "close"      → 延后关闭本对象（tick 回调内安全）
 // ─────────────────────────────────────────────────────────────────────────────
 
 static void handle_callback_return(NetObject *obj, const CVar &ret, int connid) {
+    if (!obj || obj->close_pending) return;
     // 检查是否为 Multi（多返回值）
     if (ret.type_ != static_cast<int>(VarType::Multi)) return;
 
     // 通过 GetMultiCVarElement 访问（避免依赖 VarMulti 完整定义）
     CVar first = inter::GetMultiCVarElement(ret, 0);
     std::string cmd = cvar_to_string(first);
+    if (cmd == "close") {
+        obj->close_pending = true;
+        return;
+    }
     if (cmd == "echo") {
         CVar data_var = inter::GetMultiCVarElement(ret, 1);
         std::string echo_data = cvar_to_string(data_var);
@@ -146,6 +160,39 @@ static NetObject *unwrap(NativeObject *self) {
     return reinterpret_cast<NetObject *>(self->GetInt("__net_obj__", 0));
 }
 
+// 每个 State 上活着的 net NativeObject，DeleteState 时统一关掉 socket。
+static std::unordered_map<State *, std::vector<NativeObject *>> g_net_wrappers;
+
+static void register_net_wrapper(State *s, NativeObject *nat) {
+    if (!s || !nat) return;
+    g_net_wrappers[s].push_back(nat);
+}
+
+static void unregister_net_wrapper(NativeObject *nat) {
+    if (!nat) return;
+    auto *st = reinterpret_cast<State *>(nat->GetInt("__net_state__", 0));
+    nat->SetInt("__net_state__", 0);
+    if (!st) return;
+    auto it = g_net_wrappers.find(st);
+    if (it == g_net_wrappers.end()) return;
+    auto &v = it->second;
+    v.erase(std::remove(v.begin(), v.end(), nat), v.end());
+    if (v.empty()) g_net_wrappers.erase(it);
+}
+
+void OnStateDeleted(State *s) {
+    if (!s) return;
+    auto it = g_net_wrappers.find(s);
+    if (it == g_net_wrappers.end()) return;
+    auto wrappers = std::move(it->second);
+    g_net_wrappers.erase(it);
+    for (auto *nat : wrappers) {
+        if (!nat) continue;
+        nat->SetInt("__net_state__", 0);
+        NativeObjectManager::Instance().DestroyGroup(nat->GetGroupId());
+    }
+}
+
 // 事件记录加上限：超过 kMaxEvents 时丢弃最旧的事件，防止长跑无界增长。
 static void push_event(NetObject *obj, std::string_view ev) {
     if (obj->events.size() >= NetObject::kMaxEvents) {
@@ -154,6 +201,8 @@ static void push_event(NetObject *obj, std::string_view ev) {
     }
     obj->events.emplace_back(ev);
 }
+
+static void release_net_object(NativeObject *self);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NativeObject 方法实现
@@ -187,48 +236,66 @@ static CVar net_dispatch(NativeObject *self, State *s, CVar *args, int n) {
 static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *obj = unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
+    // 回调里再 :tick() 会重入同一 Selector，直接忽略。
+    if (obj->tick_depth > 0) return inter::NativeToFakeluaNil(s);
 
-    if (obj->is_server && obj->server && obj->server->running()) {
-        obj->server->tick(
-            // on_conn
-            [obj](int connid) {
-                obj->conn_count++;
-                obj->server_connid = connid;
-                push_event(obj, "conn");
-                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "conn", connid, nullptr, 0, 0);
-                handle_callback_return(obj, ret, connid);
-            },
-            // on_recv
-            [obj](int connid, const char *data, size_t len) {
-                obj->recv_count++;
-                obj->last_server_data.assign(data, len);
-                push_event(obj, "recv");
-                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", connid, data, len, 0);
-                handle_callback_return(obj, ret, connid);
-            },
-            // on_close
-            [obj](int connid) {
-                push_event(obj, "close");
-                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
-                handle_callback_return(obj, ret, connid);
-            });
-    } else if (!obj->is_server && obj->client) {
-        obj->client->tick(
-            // on_recv
-            [obj](const char *data, size_t len) {
-                obj->recv_count++;
-                obj->last_client_data.assign(data, len);
-                push_event(obj, "recv");
-                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", 0, data, len, 0);
-                handle_callback_return(obj, ret, 0);
-            },
-            // on_close
-            [obj]() {
-                push_event(obj, "close");
-                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", 0, nullptr, 0, 0);
-                handle_callback_return(obj, ret, 0);
-            });
+    auto finish_tick = [self, obj]() {
+        if (obj->tick_depth < 0) obj->tick_depth = 0;
+        if (obj->tick_depth == 0 && obj->close_pending) {
+            release_net_object(self);
+        }
+    };
+
+    obj->tick_depth++;
+    try {
+        if (obj->is_server && obj->server && obj->server->running()) {
+            obj->server->tick(
+                // on_conn
+                [obj](int connid) {
+                    obj->conn_count++;
+                    obj->server_connid = connid;
+                    push_event(obj, "conn");
+                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "conn", connid, nullptr, 0, 0);
+                    handle_callback_return(obj, ret, connid);
+                },
+                // on_recv
+                [obj](int connid, const char *data, size_t len) {
+                    obj->recv_count++;
+                    obj->last_server_data.assign(data, len);
+                    push_event(obj, "recv");
+                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", connid, data, len, 0);
+                    handle_callback_return(obj, ret, connid);
+                },
+                // on_close
+                [obj](int connid) {
+                    push_event(obj, "close");
+                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
+                    handle_callback_return(obj, ret, connid);
+                });
+        } else if (!obj->is_server && obj->client) {
+            obj->client->tick(
+                // on_recv
+                [obj](const char *data, size_t len) {
+                    obj->recv_count++;
+                    obj->last_client_data.assign(data, len);
+                    push_event(obj, "recv");
+                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", 0, data, len, 0);
+                    handle_callback_return(obj, ret, 0);
+                },
+                // on_close
+                [obj]() {
+                    push_event(obj, "close");
+                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", 0, nullptr, 0, 0);
+                    handle_callback_return(obj, ret, 0);
+                });
+        }
+    } catch (...) {
+        obj->tick_depth--;
+        finish_tick();
+        throw;
     }
+    obj->tick_depth--;
+    finish_tick();
 
     return inter::NativeToFakeluaNil(s);
 }
@@ -282,7 +349,10 @@ static CVar net_close_connection(NativeObject *self, State *s, CVar *args, int n
     if (!obj || !obj->is_server || !obj->server) return inter::NativeToFakeluaBool(s, false);
     if (n < 1) ThrowBadArgument(1, "close_connection", "connid expected");
     int connid = static_cast<int>(CheckIntegerArg(inter::GetNativeArg(s, args, n, 0), 1, "close_connection"));
-    obj->server->close_connection(connid);
+    if (!obj->server->close_connection(connid)) return inter::NativeToFakeluaBool(s, false);
+    push_event(obj, "close");
+    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
+    handle_callback_return(obj, ret, connid);
     return inter::NativeToFakeluaBool(s, true);
 }
 
@@ -305,15 +375,16 @@ static void release_net_object(NativeObject *self) {
 
 // server:close() / client:close()
 static CVar net_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    if (!unwrap(self)) return inter::NativeToFakeluaNil(s); // 已关闭，no-op
+    auto *obj = unwrap(self);
+    if (!obj) return inter::NativeToFakeluaNil(s); // 已关闭，no-op
 
-    // 停止 socket、释放 NetObject、清空指针
+    if (obj->tick_depth > 0) {
+        obj->close_pending = true;
+        return inter::NativeToFakeluaNil(s);
+    }
+
+    // 停止 socket、释放 NetObject、清空指针。保留 NativeObject 壳，后续方法 no-op。
     release_net_object(self);
-
-    // 销毁 NativeObject 壳及其 group，回收 NativeObjectManager 中的注册。
-    // 这是本方法的最后一步：此后 self 指针失效，不可再访问。
-    int64_t gid = self->GetGroupId();
-    NativeObjectManager::Instance().DestroyGroup(gid);
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -363,69 +434,16 @@ static CVar net_get_connid(NativeObject *self, State *s, CVar * /*args*/, int /*
 // 从 Lua table 读取字符串键字段（仿 os.time 的模式）
 static int64_t get_table_field(State *s, CVar tbl_cvar, const char *key_name, int64_t default_val) {
     if (tbl_cvar.type_ != static_cast<int>(VarType::Table) || !tbl_cvar.data_.t) return default_val;
-    VarTable *t = tbl_cvar.data_.t;
-    int64_t id = s->GetConstString().Alloc(key_name);
-    CVar key{static_cast<int>(VarType::StringId)};
-    key.data_.i = id;
-
-    if (t->spec_get) {
-        using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
-        auto get_fn = reinterpret_cast<SpecGetFn>(t->spec_get);
-        bool finish = false;
-        CVar r = get_fn(t, key, &finish);
-        if (finish) return inter::CVarToInteger(r, default_val);
-    }
-    // 回退：遍历 quick_data
-    for (const auto &qd : t->quick_data_) {
-        if (qd.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(qd.key) == key_name) {
-            return inter::CVarToInteger(qd.val, default_val);
-        }
-    }
-    // 回退：遍历哈希节点
-    if (t->nodes_ && t->bucket_count_ > 0 && t->active_list_) {
-        for (uint32_t i = 0; i < t->count_; ++i) {
-            uint32_t node_idx = t->active_list_[i];
-            const auto &entry = t->nodes_[node_idx].entry;
-            if (entry.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(entry.key) == key_name) {
-                return inter::CVarToInteger(entry.val, default_val);
-            }
-        }
-    }
-    return default_val;
+    CVar v = table::TableHelper::GetTableStrId(s, tbl_cvar, key_name);
+    return inter::CVarToInteger(v, default_val);
 }
 
 static std::string get_table_field_string(State *s, CVar tbl_cvar, const char *key_name, const std::string &default_val = "") {
     if (tbl_cvar.type_ != static_cast<int>(VarType::Table) || !tbl_cvar.data_.t) return default_val;
-    VarTable *t = tbl_cvar.data_.t;
-    int64_t id = s->GetConstString().Alloc(key_name);
-    CVar key{static_cast<int>(VarType::StringId)};
-    key.data_.i = id;
-
-    if (t->spec_get) {
-        using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
-        auto get_fn = reinterpret_cast<SpecGetFn>(t->spec_get);
-        bool finish = false;
-        CVar r = get_fn(t, key, &finish);
-        if (finish) {
-            std::string res = cvar_to_string(r);
-            return (res.empty() && r.type_ == static_cast<int>(VarType::Nil)) ? default_val : res;
-        }
-    }
-    for (const auto &qd : t->quick_data_) {
-        if (qd.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(qd.key) == key_name) {
-            return cvar_to_string(qd.val);
-        }
-    }
-    if (t->nodes_ && t->bucket_count_ > 0 && t->active_list_) {
-        for (uint32_t i = 0; i < t->count_; ++i) {
-            uint32_t node_idx = t->active_list_[i];
-            const auto &entry = t->nodes_[node_idx].entry;
-            if (entry.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(entry.key) == key_name) {
-                return cvar_to_string(entry.val);
-            }
-        }
-    }
-    return default_val;
+    CVar v = table::TableHelper::GetTableStrId(s, tbl_cvar, key_name);
+    if (v.type_ == static_cast<int>(VarType::Nil)) return default_val;
+    std::string res = cvar_to_string(v);
+    return res.empty() && v.type_ == static_cast<int>(VarType::Nil) ? default_val : res;
 }
 
 static net::FramerType parse_framer_type(const std::string &framer_str) {
@@ -472,7 +490,13 @@ static net::NetConfig parse_config(State *s, CVar *args, int n) {
         }
         cfg.port = static_cast<uint16_t>(port_val);
     }
-    cfg.max_conn = static_cast<int>(get_table_field(s, a0, "maxconn", 1000));
+    {
+        int64_t maxc = get_table_field(s, a0, "maxconn", 1000);
+        if (maxc < 1 || maxc > 100000) {
+            ThrowFakeluaException(std::format("net: maxconn {} out of range (1-100000)", maxc));
+        }
+        cfg.max_conn = static_cast<int>(maxc);
+    }
     cfg.backlog = static_cast<int>(get_table_field(s, a0, "backlog", 128));
     cfg.fixed_packet_len = static_cast<int>(get_table_field(s, a0, "fixed_len", 0));
     if (cfg.fixed_packet_len == 0) {
@@ -612,9 +636,12 @@ static CVar net_server(State *s, CVar *args, int n) {
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *nat = NativeObjectManager::Instance().Create(gid, "net_server");
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
+    nat->SetInt("__net_state__", reinterpret_cast<int64_t>(s));
+    register_net_wrapper(s, nat);
     // 销毁时：配对 net_shutdown（平衡工厂里的 net_init）+ 停 socket + 释放 NetObject。
     // 仅在真正销毁时触发；net_close 已先 release_net_object，此处 __net_obj__ 为 0 是 no-op。
     nat->SetFinalizer([](NativeObject *self) {
+        unregister_net_wrapper(self);
         net::net_shutdown();
         release_net_object(self);
     });
@@ -651,9 +678,12 @@ static CVar net_client(State *s, CVar *args, int n) {
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *nat = NativeObjectManager::Instance().Create(gid, "net_client");
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
+    nat->SetInt("__net_state__", reinterpret_cast<int64_t>(s));
+    register_net_wrapper(s, nat);
     // 销毁时：配对 net_shutdown（平衡工厂里的 net_init）+ 停 socket + 释放 NetObject。
     // 仅在真正销毁时触发；net_close 已先 release_net_object，此处 __net_obj__ 为 0 是 no-op。
     nat->SetFinalizer([](NativeObject *self) {
+        unregister_net_wrapper(self);
         net::net_shutdown();
         release_net_object(self);
     });

@@ -123,11 +123,10 @@ static size_t encoded_packet_size(const NetConfig &cfg, size_t len) {
 
 bool write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, size_t len) {
     if (cfg.custom_encoder_fn) {
-        // 自定义编码：先写入临时缓冲区测量长度，确保能完整放入目标缓冲。
-        CircularBuffer tmp(buf.capacity());
+        size_t room = buf.capacity() - buf.size();
+        CircularBuffer tmp(room + 1);
         cfg.custom_encoder_fn(tmp, data, len);
-        if (tmp.size() > buf.capacity() - buf.size()) return false;
-        // 将临时缓冲内容搬入目标缓冲
+        if (tmp.size() > room) return false;
         size_t n = tmp.size();
         if (n > 0) {
             std::vector<char> tmp_data(n);
@@ -345,6 +344,11 @@ bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&ou
         case FramerType::FixedLength: {
             if (cfg.fixed_packet_len <= 0) return false;
             uint32_t fixed_len = static_cast<uint32_t>(cfg.fixed_packet_len);
+            if (fixed_len > buf.capacity() ||
+                (cfg.max_packet_len > 0 && fixed_len > static_cast<uint32_t>(cfg.max_packet_len))) {
+                out_error = true;
+                return false;
+            }
             if (buf.size() < fixed_len) return false;
             if (parse_tmp.size() < fixed_len) parse_tmp.resize(fixed_len);
             buf.read(parse_tmp.data(), fixed_len);

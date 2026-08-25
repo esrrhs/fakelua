@@ -66,6 +66,15 @@ inline int64_t CheckIntegerArg(const CVar &a, int argno, const char *fname) {
     ThrowBadArgument(argno, fname, "number expected");
 }
 
+// Safe double → int64: false for NaN/Inf, non-integers, and values outside int64.
+inline bool DoubleFitsInt64(double d, int64_t *out) {
+    if (!std::isfinite(d) || std::trunc(d) != d) return false;
+    static constexpr double kInt64Limit = static_cast<double>(INT64_MAX) + 1.0;
+    if (d < -kInt64Limit || d >= kInt64Limit) return false;
+    *out = static_cast<int64_t>(d);
+    return true;
+}
+
 // Reject Bool/Table/Nil where a string is expected. Standard Lua 5.3: luaL_checkstring
 // converts numbers to strings, so we allow Int/Float; Bool/Table/Nil are invalid.
 inline void CheckStringArg(const CVar &a, int argno, const char *fname) {

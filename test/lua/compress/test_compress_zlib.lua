@@ -24,6 +24,10 @@ function test_zlib_level()
     -- Both should decompress to original
     if compress.zlib_decompress(c1) ~= data then return 0 end
     if compress.zlib_decompress(c9) ~= data then return 0 end
+    -- NaN 等级不能 UB，应回落到默认等级
+    local cnan = compress.zlib_compress(data, 0 / 0)
+    if not cnan then return 0 end
+    if compress.zlib_decompress(cnan) ~= data then return 0 end
     return 1
 end
 
@@ -61,4 +65,17 @@ function test_gzip_level()
     if compress.gzip_decompress(c1) ~= data then return 0 end
     if compress.gzip_decompress(c9) ~= data then return 0 end
     return 1
+end
+
+function test_gzip_concat_members()
+    local a = compress.gzip_compress("AAA")
+    local b = compress.gzip_compress("BBB")
+    if compress.gzip_decompress(a .. b) ~= "AAABBB" then return 0 end
+    return 1
+end
+
+function test_gzip_trailing_garbage()
+    local c = compress.gzip_compress("hi")
+    compress.gzip_decompress(c .. "XXX")
+    return 0
 end

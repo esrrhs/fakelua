@@ -124,3 +124,44 @@ function test_roundtrip()
     if decoded.active ~= true then return 0 end
     return 1
 end
+
+-- 超过 quick_data_ 容量的数组：遍历必须走 GET_TABLE_ENTRY 语义，否则会重复/漏键
+function test_encode_array_9()
+    local s = json.encode({1, 2, 3, 4, 5, 6, 7, 8, 9})
+    if s ~= "[1,2,3,4,5,6,7,8,9]" then return 0 end
+    return 1
+end
+
+function test_decode_deep_ok()
+    local s = string.rep("[", 32) .. "1" .. string.rep("]", 32)
+    local v = json.decode(s)
+    local i = 1
+    while i <= 32 do
+        v = v[1]
+        i = i + 1
+    end
+    if v ~= 1 then return 0 end
+    return 1
+end
+
+function test_decode_too_deep()
+    json.decode(string.rep("[", 70) .. "1" .. string.rep("]", 70))
+end
+
+function test_decode_big_int()
+    local v = json.decode("2147483648")
+    if v ~= 2147483648 then return 0 end
+    return 1
+end
+
+function test_decode_invalid_number()
+    json.decode("1.2.3")
+end
+
+function test_decode_invalid_exp()
+    json.decode("1e")
+end
+
+function test_decode_control_char()
+    json.decode('"' .. string.char(1) .. '"')
+end

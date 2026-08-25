@@ -34,6 +34,55 @@ TEST(test_mysql, connect_failure_message) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_mysql, close_in_connect_callback) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_connect_fail.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_close_in_connect_cb", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_mysql, make_packet_empty_payload) {
+    auto pkt = make_packet(3, nullptr, 0);
+    ASSERT_EQ(pkt.size(), 4u);
+    EXPECT_EQ(static_cast<unsigned char>(pkt[0]), 0);
+    EXPECT_EQ(static_cast<unsigned char>(pkt[1]), 0);
+    EXPECT_EQ(static_cast<unsigned char>(pkt[2]), 0);
+    EXPECT_EQ(static_cast<unsigned char>(pkt[3]), 3);
+}
+
+TEST(test_mysql, consume_incomplete_continuation) {
+    std::vector<uint8_t> buf(4 + 100, 0);
+    buf[0] = 0xFF;
+    buf[1] = 0xFF;
+    buf[2] = 0xFF;
+    buf[3] = 0;
+    size_t consumed = 0;
+    std::vector<uint8_t> out;
+    uint8_t seq = 0;
+    EXPECT_FALSE(consume_logical_packet(buf.data(), buf.size(), consumed, out, seq));
+}
+
+TEST(test_mysql, make_and_consume_split_packet) {
+    std::string payload(MAX_PACKET_SIZE + 7, 'x');
+    auto wire = make_packet(4, payload.data(), payload.size());
+    ASSERT_EQ(wire.size(), 4u + MAX_PACKET_SIZE + 4u + 7u);
+
+    size_t consumed = 0;
+    std::vector<uint8_t> out;
+    uint8_t seq = 0;
+    ASSERT_TRUE(consume_logical_packet(reinterpret_cast<const uint8_t *>(wire.data()), wire.size(),
+                                       consumed, out, seq));
+    EXPECT_EQ(consumed, wire.size());
+    EXPECT_EQ(out.size(), payload.size());
+    EXPECT_EQ(seq, 5);
+    EXPECT_EQ(out.front(), static_cast<uint8_t>('x'));
+    EXPECT_EQ(out.back(), static_cast<uint8_t>('x'));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MySQL 协议单元测试（无需真实 MySQL 服务器）
 // ─────────────────────────────────────────────────────────────────────────────
@@ -134,6 +183,71 @@ TEST(test_mysql, parse_binary_row) {
 
     EXPECT_FALSE(row[2].first);
     EXPECT_EQ(row[2].second, "xy");
+}
+
+TEST(test_mysql, build_stmt_execute_null_param) {
+    std::vector<StmtParam> params;
+    params.push_back(StmtParam{false, "hello"});
+    params.push_back(StmtParam{true, ""});
+    auto payload = build_stmt_execute(1, params);
+    ASSERT_GE(payload.size(), 13u);
+    EXPECT_EQ(static_cast<uint8_t>(payload[0]), COM_STMT_EXECUTE);
+    // null bitmap starts at offset 10; bit 1 set for second param
+    EXPECT_EQ(static_cast<uint8_t>(payload[10]), 0x02);
+}
+
+TEST(test_mysql, parse_binary_row_unsigned_tiny) {
+    std::vector<char> payload;
+    payload.push_back(0x00);  // header
+    payload.push_back(0x00);  // null bitmap (1 col + 2 bits → 1 byte)
+    payload.push_back(static_cast<char>(255));
+
+    std::vector<ColType> types{MYSQL_TYPE_TINY};
+    std::vector<uint16_t> signed_flags{0};
+    auto row_s = parse_binary_row(payload, types, signed_flags);
+    ASSERT_EQ(row_s.size(), 1u);
+    EXPECT_EQ(row_s[0].second, "-1");
+
+    std::vector<uint16_t> unsigned_flags{UNSIGNED_FLAG};
+    auto row_u = parse_binary_row(payload, types, unsigned_flags);
+    ASSERT_EQ(row_u.size(), 1u);
+    EXPECT_EQ(row_u[0].second, "255");
+}
+
+TEST(test_mysql, parse_binary_row_datetime) {
+    std::vector<char> payload;
+    payload.push_back(0x00);  // header
+    payload.push_back(0x00);  // null bitmap
+    payload.push_back(7);     // datetime length
+    payload.push_back(static_cast<char>(0xE7)); // year 2023 LE
+    payload.push_back(static_cast<char>(0x07));
+    payload.push_back(8);     // month
+    payload.push_back(25);    // day
+    payload.push_back(11);    // hour
+    payload.push_back(46);    // min
+    payload.push_back(7);     // sec
+
+    std::vector<ColType> types{MYSQL_TYPE_DATETIME};
+    auto row = parse_binary_row(payload, types);
+    ASSERT_EQ(row.size(), 1u);
+    EXPECT_FALSE(row[0].first);
+    EXPECT_EQ(row[0].second, "2023-08-25 11:46:07");
+}
+
+TEST(test_mysql, parse_binary_row_date) {
+    std::vector<char> payload;
+    payload.push_back(0x00);
+    payload.push_back(0x00);
+    payload.push_back(4);
+    payload.push_back(static_cast<char>(0xE7));
+    payload.push_back(static_cast<char>(0x07));
+    payload.push_back(1);
+    payload.push_back(2);
+
+    std::vector<ColType> types{MYSQL_TYPE_DATE};
+    auto row = parse_binary_row(payload, types);
+    ASSERT_EQ(row.size(), 1u);
+    EXPECT_EQ(row[0].second, "2023-01-02");
 }
 
 // ── mysql_native_password 回归测试 ──

@@ -1,6 +1,8 @@
 #include "native/crypto/aes.h"
+#include "util/exception.h"
 
 #include <cstring>
+#include <limits>
 
 namespace fakelua::crypto {
 
@@ -238,6 +240,9 @@ void aes_decrypt_ecb(const uint8_t in[16], uint8_t out[16],
 
 static std::vector<uint8_t> pkcs7_pad(const uint8_t *data, size_t len) {
     uint8_t pad = AES_BLOCK_SIZE - (len % AES_BLOCK_SIZE);
+    if (len > std::numeric_limits<size_t>::max() - pad) {
+        ThrowFakeluaException("aes_encrypt_cbc: payload too large");
+    }
     std::vector<uint8_t> result(len + pad);
     memcpy(result.data(), data, len);
     for (size_t i = len; i < result.size(); ++i) {
@@ -247,11 +252,17 @@ static std::vector<uint8_t> pkcs7_pad(const uint8_t *data, size_t len) {
 }
 
 static std::vector<uint8_t> pkcs7_unpad(const uint8_t *data, size_t len) {
-    if (len == 0 || len % AES_BLOCK_SIZE != 0) return {};
+    if (len == 0 || len % AES_BLOCK_SIZE != 0) {
+        ThrowFakeluaException("aes_decrypt_cbc: invalid padding");
+    }
     uint8_t pad = data[len - 1];
-    if (pad < 1 || pad > AES_BLOCK_SIZE) return {};
+    if (pad < 1 || pad > AES_BLOCK_SIZE) {
+        ThrowFakeluaException("aes_decrypt_cbc: invalid padding");
+    }
     for (size_t i = len - pad; i < len; ++i) {
-        if (data[i] != pad) return {};
+        if (data[i] != pad) {
+            ThrowFakeluaException("aes_decrypt_cbc: invalid padding");
+        }
     }
     return std::vector<uint8_t>(data, data + len - pad);
 }
@@ -284,7 +295,9 @@ std::vector<uint8_t> aes_encrypt_cbc(const uint8_t *data, size_t len,
 std::vector<uint8_t> aes_decrypt_cbc(const uint8_t *data, size_t len,
                                      const uint8_t key[16], AesKeySize key_size,
                                      const uint8_t iv[16]) {
-    if (len == 0 || len % AES_BLOCK_SIZE != 0) return {};
+    if (len == 0 || len % AES_BLOCK_SIZE != 0) {
+        ThrowFakeluaException("aes_decrypt_cbc: ciphertext length must be a multiple of 16");
+    }
 
     std::vector<uint8_t> result(len);
     uint8_t prev[16];

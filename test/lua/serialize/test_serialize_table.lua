@@ -32,3 +32,38 @@ function test_table()
     if d.child.b.c ~= 2 then return 0 end
     return 1
 end
+
+function test_cycle_throw()
+    local t = { a = 1 }
+    t.self = t
+    serialize.encode(t)
+end
+
+-- 超过 quick_data_ 容量的数组，往返后键 1..9 必须齐全且不重复
+function test_array_9()
+    local t = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+    local bin = serialize.encode(t)
+    if not bin then return 0 end
+    local d = serialize.decode(bin)
+    if type(d) ~= "table" then return 0 end
+    for i = 1, 9 do
+        if d[i] ~= i then return 0 end
+    end
+    return 1
+end
+
+function test_decode_too_deep()
+    -- TAG_TABLE + count=1 + key int 1 + nested value, 70 times over nil
+    local payload = string.char(0)
+    local i = 1
+    while i <= 70 do
+        payload = string.char(7, 1, 3, 2) .. payload
+        i = i + 1
+    end
+    serialize.decode(payload)
+end
+
+function test_decode_huge_table()
+    -- TAG_TABLE + huge varint count with no payload
+    serialize.decode(string.char(7, 255, 255, 255, 255, 15))
+end

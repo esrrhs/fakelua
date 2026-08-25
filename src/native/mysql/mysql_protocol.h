@@ -97,6 +97,9 @@ enum ColType : uint8_t {
     MYSQL_TYPE_GEOMETRY    = 255,
 };
 
+// Column definition flags (MySQL protocol)
+static constexpr uint16_t UNSIGNED_FLAG = 0x0020;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Read primitives (little-endian)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -134,8 +137,17 @@ std::string read_nul_str(const std::vector<char> &buf, size_t &pos);
 // Packet framing
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Build a MySQL packet: 3-byte LE length + 1-byte sequence + payload
+// Build MySQL wire packet(s): 3-byte LE length + 1-byte sequence + payload.
+// Payloads larger than MAX_PACKET_SIZE are split; a payload that is an exact
+// multiple of MAX_PACKET_SIZE is terminated by a zero-length packet.
 std::string make_packet(uint8_t seq, const char *payload, size_t len);
+
+// Assemble a logical payload from the wire buffer, concatenating continuation
+// packets (payload_len == MAX_PACKET_SIZE). Returns false if incomplete.
+// On success, `consumed` is the number of wire bytes used and `seq` is the
+// sequence number of the last physical packet.
+bool consume_logical_packet(const uint8_t *buf, size_t buf_len, size_t &consumed,
+                            std::vector<uint8_t> &out_payload, uint8_t &seq);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Authentication (mysql_native_password + caching_sha2_password)
@@ -169,11 +181,22 @@ struct PrepareResult {
 };
 PrepareResult parse_prepare_response(const std::vector<char> &payload);
 
-// Build COM_STMT_EXECUTE packet payload
-std::string build_stmt_execute(uint32_t statement_id,
-                              const std::vector<std::string> &params);
+// COM_STMT_EXECUTE 参数。is_null 时写入 null-bitmap，不附带值。
+struct StmtParam {
+    bool is_null = false;
+    std::string value;
+};
 
-// Parse binary result set row (prepared statement execute result)
+std::string build_stmt_execute(uint32_t statement_id, const std::vector<StmtParam> &params);
+std::string build_stmt_execute(uint32_t statement_id, const std::vector<std::string> &params);
+
+// Parse binary result set row (prepared statement execute result).
+// flags 可为空；非空时与 types 等长，UNSIGNED_FLAG 决定整数按无符号输出。
+std::vector<std::pair<bool, std::string>> parse_binary_row(
+    const std::vector<char> &payload, const std::vector<ColType> &types,
+    const std::vector<uint16_t> &flags = {});
+
+// Convenience: treat every column as a length-encoded string.
 std::vector<std::pair<bool, std::string>> parse_binary_row(const std::vector<char> &payload,
                                                            size_t num_columns);
 

@@ -168,6 +168,21 @@ TEST(test_table, test_table_insert_boundary) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_table, test_table_float_index) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./table/test_table_float_index.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_table_float_index", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_table, test_table_remove_boundary) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -332,6 +347,12 @@ TEST(test_table, test_table_error_paths) {
     EXPECT_THROW(Call(s, JIT_GCC, "test_table_concat_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_table_concat_bad_sep", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_table_move_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_concat_too_many", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_concat_min_max_range", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_create_too_many", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_insert_2pow63", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_remove_2pow63", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_table_sort_nan", res), std::exception);
 
     FakeluaDeleteState(s);
 }

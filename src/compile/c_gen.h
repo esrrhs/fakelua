@@ -289,6 +289,8 @@ private:
     int repeat_depth_ = 0;             // repeat-until 循环嵌套深度（0 表示不在 repeat 内）
     int repeat_label_counter_ = 0;     // repeat 循环标签计数器，保证每个 flua_until_ 标签唯一
     std::vector<int> repeat_label_stack_; // 当前活跃的 repeat 标签 id 栈，栈顶即最近外层 repeat
+    int for_cont_id_ = 0;              // 动态 numeric for 的 continue 标签计数器
+    std::vector<int> for_cont_stack_;  // 动态 numeric for 的 continue 标签栈（while(1)+后置步进）
 
 private:
     struct FuncInfo;

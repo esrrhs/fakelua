@@ -2,7 +2,15 @@
 
 #include "fakelua.h"
 
+#include <functional>
+#include <vector>
+
 namespace fakelua::table {
+
+struct TableKV {
+    CVar key;
+    CVar val;
+};
 
 class TableHelper {
 public:
@@ -16,6 +24,9 @@ public:
     static void SetTable(State *s, CVar tbl, CVar key, CVar val);
     // 分配一张空表（temp arena，帧内有效）。
     static CVar CreateTable(State *s);
+    // 与 GET_TABLE_ENTRY 一致：spec + (quick XOR buckets)，互斥遍历。
+    static void ForEachKV(CVar tbl, const std::function<void(CVar key, CVar val)> &fn);
+    static std::vector<TableKV> CollectKVPairs(CVar tbl);
 };
 
 void RegisterTableLibraryApi(State *s);

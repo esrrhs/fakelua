@@ -222,3 +222,47 @@ TEST(test_sqlite, prepare_multi_rows) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_sqlite, blob) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "SqliteTest.test_blob", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_sqlite, bind_embedded_nul) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "SqliteTest.test_bind_embedded_nul", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_sqlite, delete_state_without_close) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "SqliteTest.test_delete_state_without_close", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_sqlite, stmt_close_after_db_close) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "SqliteTest.test_stmt_close_after_db_close", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

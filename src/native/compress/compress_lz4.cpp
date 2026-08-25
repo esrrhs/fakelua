@@ -1,8 +1,11 @@
 #include "compress_lz4.h"
+#include "util/exception.h"
 
 #include <lz4frame.h>
 
 namespace fakelua::compress {
+
+static constexpr uint64_t kMaxDecompressBytes = 64ull * 1024 * 1024;
 
 std::vector<uint8_t> lz4_compress(const uint8_t *data, size_t len) {
     LZ4F_cctx *cctx = nullptr;
@@ -46,48 +49,73 @@ std::vector<uint8_t> lz4_decompress(const uint8_t *data, size_t len) {
 
     LZ4F_dctx *dctx = nullptr;
     LZ4F_errorCode_t err = LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION);
-    if (LZ4F_isError(err) || !dctx) return {};
+    if (LZ4F_isError(err) || !dctx) {
+        ThrowFakeluaException("lz4_decompress: failed to create context");
+    }
 
     // First pass: get frame info to determine content size
-    LZ4F_frameInfo_t frameInfo;
+    LZ4F_frameInfo_t frameInfo{};
     size_t src_consumed = len;  // INPUT: size of buffer; OUTPUT: bytes consumed
     size_t fi_ret = LZ4F_getFrameInfo(dctx, &frameInfo, data, &src_consumed);
     if (LZ4F_isError(fi_ret)) {
         LZ4F_freeDecompressionContext(dctx);
-        return {};
+        ThrowFakeluaException("lz4_decompress: invalid frame");
     }
 
     uint64_t content_size = frameInfo.contentSize;
+    if (content_size > kMaxDecompressBytes) {
+        LZ4F_freeDecompressionContext(dctx);
+        ThrowFakeluaException("lz4_decompress: payload too large");
+    }
     if (content_size == 0) {
         content_size = len * 10;
         if (content_size < 4096) content_size = 4096;
+        if (content_size > kMaxDecompressBytes) content_size = kMaxDecompressBytes;
     }
 
     std::vector<uint8_t> out(content_size);
     const uint8_t *src = data + src_consumed;
     size_t src_remaining = len - src_consumed;
     size_t dst_pos = 0;
+    size_t last_ret = fi_ret;
 
     while (src_remaining > 0) {
         size_t src_size = src_remaining;
         size_t dst_capacity = out.size() - dst_pos;
         if (dst_capacity == 0) {
-            out.resize(out.size() * 2);
+            if (out.size() >= kMaxDecompressBytes) {
+                LZ4F_freeDecompressionContext(dctx);
+                ThrowFakeluaException("lz4_decompress: payload too large");
+            }
+            uint64_t next = out.size() * 2;
+            if (next > kMaxDecompressBytes) next = kMaxDecompressBytes;
+            out.resize(next);
             dst_capacity = out.size() - dst_pos;
         }
 
-        size_t ret = LZ4F_decompress(dctx, out.data() + dst_pos, &dst_capacity,
+        last_ret = LZ4F_decompress(dctx, out.data() + dst_pos, &dst_capacity,
                                      src, &src_size, nullptr);
-        if (LZ4F_isError(ret)) {
+        if (LZ4F_isError(last_ret)) {
             LZ4F_freeDecompressionContext(dctx);
-            return {};
+            ThrowFakeluaException("lz4_decompress: failed");
         }
 
         dst_pos += dst_capacity;
         src += src_size;
         src_remaining -= src_size;
 
-        if (ret == 0) break;  // frame fully decoded
+        if (last_ret == 0) {
+            if (src_remaining > 0) {
+                LZ4F_freeDecompressionContext(dctx);
+                ThrowFakeluaException("lz4_decompress: trailing garbage");
+            }
+            break;  // frame fully decoded
+        }
+    }
+
+    if (last_ret != 0) {
+        LZ4F_freeDecompressionContext(dctx);
+        ThrowFakeluaException("lz4_decompress: truncated frame");
     }
 
     LZ4F_freeDecompressionContext(dctx);

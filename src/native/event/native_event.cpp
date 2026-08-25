@@ -10,7 +10,7 @@
 namespace fakelua::event {
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 全局事件状态（fakelua 单线程模型，全局状态即可）
+// 每个 State 一份事件状态（避免跨 VM 串数据）
 // ─────────────────────────────────────────────────────────────────────────────
 
 struct EventState {
@@ -20,7 +20,15 @@ struct EventState {
     std::unordered_map<std::string, std::vector<std::string>> once_listeners;
 };
 
-static EventState g_event_state;
+static std::unordered_map<State *, EventState> g_states;
+
+static EventState &event_state(State *s) {
+    return g_states[s];
+}
+
+void OnStateDeleted(State *s) {
+    g_states.erase(s);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 辅助：从 CVar 提取字符串
@@ -82,7 +90,7 @@ static CVar event_on(State *s, CVar *args, int n) {
         ThrowBadArgument(2, "event.on", "func_name must be a non-empty string");
     }
 
-    g_event_state.listeners[event_name].push_back(std::move(func_name));
+    event_state(s).listeners[event_name].push_back(std::move(func_name));
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -102,7 +110,7 @@ static CVar event_once(State *s, CVar *args, int n) {
         ThrowBadArgument(2, "event.once", "func_name must be a non-empty string");
     }
 
-    g_event_state.once_listeners[event_name].push_back(std::move(func_name));
+    event_state(s).once_listeners[event_name].push_back(std::move(func_name));
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -117,8 +125,8 @@ static CVar event_off(State *s, CVar *args, int n) {
     std::string func_name = cvar_to_string(a1);
 
     // 从 listeners 中移除
-    auto it = g_event_state.listeners.find(event_name);
-    if (it != g_event_state.listeners.end()) {
+    auto it = event_state(s).listeners.find(event_name);
+    if (it != event_state(s).listeners.end()) {
         auto &vec = it->second;
         for (auto vit = vec.begin(); vit != vec.end(); ++vit) {
             if (*vit == func_name) {
@@ -127,13 +135,13 @@ static CVar event_off(State *s, CVar *args, int n) {
             }
         }
         if (vec.empty()) {
-            g_event_state.listeners.erase(it);
+            event_state(s).listeners.erase(it);
         }
     }
 
     // 从 once_listeners 中移除
-    auto it2 = g_event_state.once_listeners.find(event_name);
-    if (it2 != g_event_state.once_listeners.end()) {
+    auto it2 = event_state(s).once_listeners.find(event_name);
+    if (it2 != event_state(s).once_listeners.end()) {
         auto &vec = it2->second;
         for (auto vit = vec.begin(); vit != vec.end(); ++vit) {
             if (*vit == func_name) {
@@ -142,7 +150,7 @@ static CVar event_off(State *s, CVar *args, int n) {
             }
         }
         if (vec.empty()) {
-            g_event_state.once_listeners.erase(it2);
+            event_state(s).once_listeners.erase(it2);
         }
     }
 
@@ -167,8 +175,8 @@ static CVar event_emit(State *s, CVar *args, int n) {
     }
 
     // 快照 listeners（防止回调中修改列表导致迭代器失效）
-    auto it = g_event_state.listeners.find(event_name);
-    if (it != g_event_state.listeners.end()) {
+    auto it = event_state(s).listeners.find(event_name);
+    if (it != event_state(s).listeners.end()) {
         std::vector<std::string> snapshot = it->second;
         for (const auto &func_name : snapshot) {
             dispatch_event(s, func_name, event_args, event_arg_count);
@@ -176,10 +184,10 @@ static CVar event_emit(State *s, CVar *args, int n) {
     }
 
     // 一次性回调：触发后清除
-    auto it2 = g_event_state.once_listeners.find(event_name);
-    if (it2 != g_event_state.once_listeners.end()) {
+    auto it2 = event_state(s).once_listeners.find(event_name);
+    if (it2 != event_state(s).once_listeners.end()) {
         std::vector<std::string> snapshot = it2->second;
-        g_event_state.once_listeners.erase(it2);
+        event_state(s).once_listeners.erase(it2);
         for (const auto &func_name : snapshot) {
             dispatch_event(s, func_name, event_args, event_arg_count);
         }
@@ -195,15 +203,15 @@ static CVar event_clear(State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     std::string event_name = cvar_to_string(a0);
 
-    g_event_state.listeners.erase(event_name);
-    g_event_state.once_listeners.erase(event_name);
+    event_state(s).listeners.erase(event_name);
+    event_state(s).once_listeners.erase(event_name);
     return inter::NativeToFakeluaNil(s);
 }
 
 // event.clear_all() — 清除所有事件的所有回调
 static CVar event_clear_all(State *s, CVar * /*args*/, int /*n*/) {
-    g_event_state.listeners.clear();
-    g_event_state.once_listeners.clear();
+    event_state(s).listeners.clear();
+    event_state(s).once_listeners.clear();
     return inter::NativeToFakeluaNil(s);
 }
 

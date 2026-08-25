@@ -77,6 +77,27 @@ TEST(test_crypto, base64_encode_decode) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_crypto, base64_whitespace) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./crypto/test_base64.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CryptoTest.test_base64_whitespace", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_crypto, base64_invalid) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./crypto/test_base64.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "CryptoTest.test_base64_invalid", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // crypto 模块测试 — AES-128
 // ─────────────────────────────────────────────────────────────────────────────
@@ -178,5 +199,26 @@ TEST(test_crypto, triple_des_encrypt_decrypt) {
     int64_t ret = 0;
     Call(s, JIT_TCC, "CryptoTest.test_triple_des", ret);
     EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_crypto, hex_roundtrip) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./crypto/test_crypto_hex.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CryptoTest.test_hex_roundtrip", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_crypto, hex_decode_invalid) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./crypto/test_crypto_hex.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "CryptoTest.test_hex_decode_invalid", ret), std::exception);
     FakeluaDeleteState(s);
 }

@@ -18,6 +18,10 @@ function test_math_type_tointeger()
     -- 6. tointeger 对非整数 float（应返回 nil）
     if math.tointeger(15.5) ~= nil then return 7 end
 
+    -- 6b. 超出 int64 的 float 不能 UB，应返回 nil
+    if math.tointeger(1e20) ~= nil then return 7.5 end
+    if math.tointeger(math.huge) ~= nil then return 7.6 end
+
     -- 7. ult 无符号比较（fakelua ult 只支持非负整数）
     -- if not math.ult(-1, 0) then return 8 end
     -- if math.ult(0, -1) then return 9 end

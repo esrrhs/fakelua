@@ -2,6 +2,10 @@
 
 #include "state/state.h"
 
+namespace fakelua {
+class NativeObject;
+}
+
 namespace fakelua::mysql {
 
 class MysqlConnection;
@@ -21,5 +25,10 @@ CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_tick(NativeObject *self, State *s, CVar *args, int n);
 MysqlConnection *unwrap_conn_native(NativeObject *self);
+
+// Per-State NativeObject registry so FakeluaDeleteState can close sockets.
+void RegisterMysqlNativeWrapper(State *s, NativeObject *nat, bool is_pool);
+void UnregisterMysqlNativeWrapper(NativeObject *nat);
+void OnStateDeleted(State *s);
 
 }  // namespace fakelua::mysql

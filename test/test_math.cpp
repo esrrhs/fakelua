@@ -225,6 +225,38 @@ TEST(test_math, test_math_abs_bad_arg_table) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_math, test_math_jit_guard) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_jit_guard.lua", config);
+
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_sqrt_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_sin_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_fmod_bad_arg", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_randomseed_bad_table", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_modf_bad_arg", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_randomseed_nan) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_jit_guard.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_randomseed_nan", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_math, test_math_abs) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -311,6 +343,35 @@ TEST(test_math, test_math_fmod_ldexp) {
         Call(s, jit_type, "test_math_fmod_ldexp", res);
         EXPECT_NEAR(res, 5000, 0.5);
     }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_ult_ldexp_int) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_ult_ldexp_int.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_ult_ldexp_int", res);
+        EXPECT_NEAR(res, 5000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_ult_2pow63) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_ult_ldexp_int.lua", config);
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_ult_2pow63", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_ult_frac", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_ldexp_2pow63", res), std::exception);
 
     FakeluaDeleteState(s);
 }
@@ -476,6 +537,51 @@ TEST(test_math, test_math_critical_boundary) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_math, test_math_int64_min_arith) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_math_int64_min_arith.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_int64_min_arith", res);
+        EXPECT_EQ(res, 100);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_float_2pow63) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_float_2pow63.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_float_2pow63", res);
+        EXPECT_EQ(res, 100);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_for_int64_overflow) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./math/test_for_int64_overflow.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_for_int64_overflow", res);
+        EXPECT_EQ(res, 100);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 
 TEST(test_math, test_string_sub_overflow) {
     State *s = FakeluaNewState();
@@ -524,6 +630,18 @@ TEST(test_math, test_math_random_reverse) {
     double res = 0;
     // math.random(5,3) 应抛 "interval is empty"
     EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_reverse", res), std::exception);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_random_2pow63) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_critical_boundary.lua", config);
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_2pow63", res), std::exception);
 
     FakeluaDeleteState(s);
 }

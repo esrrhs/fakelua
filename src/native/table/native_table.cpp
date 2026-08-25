@@ -1,7 +1,6 @@
 #include "native/table/native_table.h"
 #include "native/native_common.h"
 #include "compile/c_runtime_header.h"
-#include "jit/jit_error_boundary.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
 #include "state/state.h"
@@ -10,7 +9,9 @@
 #include "var/var_string.h"
 #include "var/var_table.h"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -96,8 +97,23 @@ bool VarKeyEqual(CVar a, CVar b) {
     }
 }
 
-// 与 c_runtime_header.h 的 FlTableHasIntKey 对应。
+// 与 c_runtime_header.h 的 FlTableHasIntKey 对应。必须查 spec，否则特化表的 # 会把
+// spec_count（含 a=1 这种字符串键）当成数组长度。
 bool TableHasIntKey(const VarTable *t, int64_t k) {
+    if (t->spec_get) {
+        using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
+        auto get_fn = reinterpret_cast<SpecGetFn>(t->spec_get);
+        CVar key_cvar{kIntType};
+        key_cvar.data_.i = k;
+        bool finish = false;
+        CVar r = get_fn(const_cast<VarTable *>(t), key_cvar, &finish);
+        if (finish) return r.type_ != kNilType;
+    }
+    if (t->spec_count > 0 && t->spec_keys && t->spec_vals) {
+        for (uint32_t i = 0; i < t->spec_count; ++i) {
+            if (TableHelper::VarKeyEqualInt(t->spec_keys[i], k) && t->spec_vals[i].type_ != kNilType) return true;
+        }
+    }
     if (t->bucket_count_ == 0) {
         for (uint32_t i = 0; i < t->count_; ++i) {
             const auto &qd = t->quick_data_[i];
@@ -115,7 +131,7 @@ bool TableHasIntKey(const VarTable *t, int64_t k) {
 }
 
 int64_t SeqScanFrom(const VarTable *t, int64_t base) {
-    while (TableHasIntKey(t, base + 1)) { base++; }
+    while (base < INT64_MAX && TableHasIntKey(t, base + 1)) { base++; }
     return base;
 }
 
@@ -134,17 +150,17 @@ void SeqNoteIntSet(VarTable *t, int64_t k, bool is_nil) {
         if (k >= 1 && k <= t->seq_len_) t->seq_len_ = k - 1;
         return;
     }
-    if (k == t->seq_len_ + 1) t->seq_len_ = SeqScanFrom(t, k);
+    if (t->seq_len_ < INT64_MAX && k == t->seq_len_ + 1) t->seq_len_ = SeqScanFrom(t, k);
 }
 
 // 与 c_runtime_header.h 的 NORMALIZE_TABLE_KEY 对应：整数值的浮点键归一化为整数键，
 // 使 t[2.0] 与 t[2] 命中同一个槽。
 CVar NormalizeTableKey(CVar k) {
-    if (k.type_ == kFloatType && std::isfinite(k.data_.f)) {
-        double integral = 0.0;
-        if (std::modf(k.data_.f, &integral) == 0.0 && integral >= static_cast<double>(INT64_MIN) && integral <= static_cast<double>(INT64_MAX)) {
+    if (k.type_ == kFloatType) {
+        int64_t iv = 0;
+        if (DoubleFitsInt64(k.data_.f, &iv)) {
             k.type_ = kIntType;
-            k.data_.i = static_cast<int64_t>(integral);
+            k.data_.i = iv;
         }
     }
     return k;
@@ -395,11 +411,47 @@ bool TableHelper::VarKeyEqualInt(CVar k, int64_t idx) {
 // 返回连续整数键前缀长度，与 # 运算符（FlGetTableSeqLen）语义一致。此前这里返回的是
 // 「最大整数键」，与 JIT 内联的 table.insert 用的 # 语义不同，同一段脚本会因为调用点
 // 是否被内联而得到不同结果。
+void TableHelper::ForEachKV(CVar tbl, const std::function<void(CVar key, CVar val)> &fn) {
+    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t || !fn) return;
+    VarTable *t = tbl.data_.t;
+
+    if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
+        for (uint32_t i = 0; i < t->spec_count; ++i) {
+            if (t->spec_keys[i].type_ == static_cast<int>(VarType::Nil)) continue;
+            if (t->spec_vals[i].type_ == static_cast<int>(VarType::Nil)) continue;
+            fn(t->spec_keys[i], t->spec_vals[i]);
+        }
+    }
+
+    if (t->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < t->count_; ++i) {
+            const auto &qd = t->quick_data_[i];
+            if (qd.key.type_ == static_cast<int>(VarType::Nil)) continue;
+            if (qd.val.type_ == static_cast<int>(VarType::Nil)) continue;
+            fn(qd.key, qd.val);
+        }
+    } else if (t->nodes_ && t->active_list_) {
+        for (uint32_t i = 0; i < t->count_; ++i) {
+            uint32_t node_idx = t->active_list_[i];
+            const auto &entry = t->nodes_[node_idx].entry;
+            if (entry.key.type_ == static_cast<int>(VarType::Nil)) continue;
+            if (entry.val.type_ == static_cast<int>(VarType::Nil)) continue;
+            fn(entry.key, entry.val);
+        }
+    }
+}
+
+std::vector<TableKV> TableHelper::CollectKVPairs(CVar tbl) {
+    std::vector<TableKV> result;
+    ForEachKV(tbl, [&](CVar k, CVar v) { result.push_back({k, v}); });
+    return result;
+}
+
 int64_t TableHelper::GetTableLen(CVar tbl) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return 0;
     VarTable *t = tbl.data_.t;
     if (!SeqCacheable(t)) {
-        return SeqScanFrom(t, static_cast<int64_t>(t->spec_count));
+        return SeqScanFrom(t, 0);
     }
     if (t->seq_len_valid_ != 0) {
         return t->seq_len_;
@@ -629,8 +681,8 @@ void RegisterTableLibraryApi(State *s) {
         } else {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
             CVar val = inter::GetNativeArg(state, args, n, 2);
-            CheckNumberArg(pos_var, 2, "table.insert");
-            int64_t pos = inter::CVarToInteger(pos_var, 1);
+            // 2^63 / NaN 经 CVarToInteger 会落到默认 pos=1，插错位置。
+            int64_t pos = CheckIntegerArg(pos_var, 2, "table.insert");
             if (pos < 1 || pos > len + 1) return inter::NativeToFakeluaNil(state);
             for (int64_t i = len; i >= pos; --i) {
                 CVar item = TableHelper::GetTableInt(state, tbl, i);
@@ -651,8 +703,8 @@ void RegisterTableLibraryApi(State *s) {
         int64_t pos = len;
         if (n >= 2) {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
-            CheckNumberArg(pos_var, 2, "table.remove");
-            pos = inter::CVarToInteger(pos_var, len);
+            // 2^63 经 CVarToInteger 会落到默认 #t，误删最后一个元素。
+            pos = CheckIntegerArg(pos_var, 2, "table.remove");
         }
         if (pos < 1 || pos > len) return inter::NativeToFakeluaNil(state);
 
@@ -693,17 +745,27 @@ void RegisterTableLibraryApi(State *s) {
             end_j = inter::CVarToInteger(end_var, end_j);
         }
 
+        if (end_j < start_i) {
+            return inter::NativeToFakeluaStringView(state, "");
+        }
+        uint64_t nparts64 = static_cast<uint64_t>(end_j) - static_cast<uint64_t>(start_i) + 1;
+        // end>=start 时 count 为 0 只会发生在 mininteger..maxinteger 这种 2^64 回绕
+        if (nparts64 == 0 || nparts64 > 10000000ULL) {
+            ThrowFakeluaException("table.concat: too many items");
+        }
+        const size_t nparts = static_cast<size_t>(nparts64);
+
         // 两遍扫描：先算总长再一次写入 arena，避免 std::string 增长 + NativeToFakelua 二次拷贝
         std::vector<std::string> owned;// Int/Float 转字符串的临时缓冲
         std::vector<std::string_view> parts;
-        const int64_t nparts = (end_j >= start_i) ? (end_j - start_i + 1) : 0;
-        parts.reserve(static_cast<size_t>(nparts) + (sep.empty() ? 0 : static_cast<size_t>(nparts)));
+        parts.reserve(nparts + (sep.empty() ? 0 : nparts));
         // parts 保存指向 owned 元素的 view，必须预留足够容量：一旦扩容，
         // SSO 短字符串的数据随对象一起搬走，已保存的 view 会全部悬空。
-        owned.reserve(static_cast<size_t>(nparts));
+        owned.reserve(nparts);
         size_t total = 0;
-        for (int64_t idx = start_i; idx <= end_j; ++idx) {
-            if (idx > start_i && !sep.empty()) {
+        for (uint64_t i = 0; i < nparts64; ++i) {
+            int64_t idx = static_cast<int64_t>(static_cast<uint64_t>(start_i) + i);
+            if (i > 0 && !sep.empty()) {
                 parts.push_back(sep);
                 total += sep.size();
             }
@@ -746,23 +808,21 @@ void RegisterTableLibraryApi(State *s) {
         int64_t start_i = 1;
         if (n >= 2) {
             CVar start_var = inter::GetNativeArg(state, args, n, 1);
-            CheckNumberArg(start_var, 2, "table.unpack");
-            start_i = inter::CVarToInteger(start_var, 1);
+            start_i = CheckIntegerArg(start_var, 2, "table.unpack");
         }
         int64_t end_j = TableHelper::GetTableLen(tbl);
         if (n >= 3) {
             CVar end_var = inter::GetNativeArg(state, args, n, 2);
-            CheckNumberArg(end_var, 3, "table.unpack");
-            end_j = inter::CVarToInteger(end_var, end_j);
+            end_j = CheckIntegerArg(end_var, 3, "table.unpack");
         }
 
         if (start_i > end_j) return inter::AllocMultiCVar(state, 0);
-        int64_t diff = end_j - start_i + 1;
-        if (diff <= 0 || diff > 1000000) return inter::AllocMultiCVar(state, 0);
-        int count = static_cast<int>(diff);
+        uint64_t count64 = static_cast<uint64_t>(end_j) - static_cast<uint64_t>(start_i) + 1;
+        if (count64 == 0 || count64 > 1000000ULL) return inter::AllocMultiCVar(state, 0);
+        int count = static_cast<int>(count64);
         CVar multi = inter::AllocMultiCVar(state, count);
         for (int i = 0; i < count; ++i) {
-            CVar item = TableHelper::GetTableInt(state, tbl, start_i + i);
+            CVar item = TableHelper::GetTableInt(state, tbl, static_cast<int64_t>(static_cast<uint64_t>(start_i) + static_cast<uint64_t>(i)));
             inter::SetMultiCVarElement(multi, i, item);
         }
         return multi;
@@ -793,17 +853,13 @@ void RegisterTableLibraryApi(State *s) {
         if (a1.type_ != static_cast<int>(VarType::Table) || !a1.data_.t || a2.type_ != static_cast<int>(VarType::Table) || !a2.data_.t) {
             ThrowFakeluaException("bad argument to 'table.move' (table expected)");
         }
-        CheckNumberArg(f_var, 2, "table.move");
-        CheckNumberArg(e_var, 3, "table.move");
-        CheckNumberArg(t_var, 4, "table.move");
-
-        int64_t f = inter::CVarToInteger(f_var, 1);
-        int64_t e = inter::CVarToInteger(e_var, 0);
-        int64_t t = inter::CVarToInteger(t_var, 1);
+        int64_t f = CheckIntegerArg(f_var, 2, "table.move");
+        int64_t e = CheckIntegerArg(e_var, 3, "table.move");
+        int64_t t = CheckIntegerArg(t_var, 4, "table.move");
 
         if (e >= f) {
             uint64_t count = static_cast<uint64_t>(e) - static_cast<uint64_t>(f) + 1;
-            if (count > 10000000ULL) return a2;
+            if (count == 0 || count > 10000000ULL) return a2;
             int64_t icount = static_cast<int64_t>(count);
             bool same_table = (a1.type_ == static_cast<int>(VarType::Table) && a2.type_ == static_cast<int>(VarType::Table) && a1.data_.t == a2.data_.t);
             // 空目标表预扩容：避免 1→2→4→… 反复 rehash（大 n 时常数项明显）
@@ -849,9 +905,9 @@ void RegisterTableLibraryApi(State *s) {
             auto comp_func = [&](const CVar &a, const CVar &b) -> bool {
                 CVar res{static_cast<int>(VarType::Nil)};
                 if (cl->func_ptr) {
-                    void *addr = cl->func_ptr;
-                    // 比较器是 JIT 代码：错误必须先在边界转成异常，才能穿过 stable_sort 回到这里
-                    res = RunWithJitErrorBoundary([&] { return reinterpret_cast<CVar (*)(VarClosure *, CVar, CVar)>(addr)(cl, a, b); });
+                    CVar cmp_args[2] = {a, b};
+                    // DispatchCallClosure 走 JIT_TCC 边界，错误能穿过 stable_sort 回到这里
+                    res = inter::DispatchCallClosure(state, cl, cmp_args, 2, JIT_TCC);
                 } else if (cl->code_str) {
                     CVar args_arr[2] = {a, b};
                     res = FlEvalLoadClosure(state, cl, 2, args_arr);
@@ -862,6 +918,12 @@ void RegisterTableLibraryApi(State *s) {
             std::stable_sort(vec.begin(), vec.end(), comp_func);
         } else {
             auto default_comp = [](const CVar &a, const CVar &b) -> bool {
+                // NaN 对 < 双向都是 false，破坏 strict weak ordering，std::stable_sort 是 UB。
+                // 对齐 Lua 5.4：报 invalid order function for sorting。
+                if ((a.type_ == static_cast<int>(VarType::Float) && std::isnan(a.data_.f)) ||
+                    (b.type_ == static_cast<int>(VarType::Float) && std::isnan(b.data_.f))) {
+                    ThrowFakeluaException("invalid order function for sorting");
+                }
                 if (a.type_ == static_cast<int>(VarType::Int) && b.type_ == static_cast<int>(VarType::Int)) {
                     return a.data_.i < b.data_.i;
                 }
@@ -905,13 +967,15 @@ void RegisterTableLibraryApi(State *s) {
     RegisterNativeFunction(s, "table.create", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return CreateEmptyTable(state);
         CVar seq_var = inter::GetNativeArg(state, args, n, 0);
-        CheckNumberArg(seq_var, 1, "table.create");
-        int64_t count = inter::CVarToInteger(seq_var, 0);
+        int64_t count = CheckIntegerArg(seq_var, 1, "table.create");
         if (count < 0) count = 0;
 
         CVar val = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
         CVar tbl_cvar = CreateEmptyTable(state);
         if (val.type_ != static_cast<int>(VarType::Nil)) {
+            if (static_cast<uint64_t>(count) > 10000000ULL) {
+                ThrowFakeluaException("table.create: too many items");
+            }
             for (int64_t i = 1; i <= count; ++i) {
                 TableHelper::SetTableInt(state, tbl_cvar, i, val);
             }

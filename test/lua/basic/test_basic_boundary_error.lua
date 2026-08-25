@@ -32,3 +32,10 @@ end
 function test_tonumber_bad_base()
     tonumber("1", true)
 end
+
+function test_call_too_many_args()
+    -- 动态调用走 FlCallClosure：超过 32 个实参以前会写爆栈上的 raw_arg_arr
+    local call_tbl = {}
+    call_tbl.f = function(x) return x end
+    call_tbl.f(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+end

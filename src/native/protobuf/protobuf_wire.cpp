@@ -71,14 +71,21 @@ void write_varint(std::string &out, uint64_t v) {
 uint64_t read_varint(const std::string &in, size_t &pos) {
     uint64_t result = 0;
     int shift = 0;
+    bool terminated = false;
     while (pos < in.size()) {
         uint8_t b = static_cast<uint8_t>(in[pos++]);
         result |= static_cast<uint64_t>(b & 0x7f) << shift;
-        if ((b & 0x80) == 0) break;
+        if ((b & 0x80) == 0) {
+            terminated = true;
+            break;
+        }
         shift += 7;
         if (shift >= 64) {
             ThrowFakeluaException("protobuf: varint too long");
         }
+    }
+    if (!terminated) {
+        ThrowFakeluaException("protobuf: truncated varint");
     }
     return result;
 }
@@ -92,7 +99,7 @@ void write_fixed32(std::string &out, uint32_t v) {
 }
 
 uint32_t read_fixed32(const std::string &in, size_t &pos) {
-    if (pos + 4 > in.size()) {
+    if (pos > in.size() || 4 > in.size() - pos) {
         ThrowFakeluaException("protobuf: truncated fixed32");
     }
     uint32_t v;
@@ -108,7 +115,7 @@ void write_fixed64(std::string &out, uint64_t v) {
 }
 
 uint64_t read_fixed64(const std::string &in, size_t &pos) {
-    if (pos + 8 > in.size()) {
+    if (pos > in.size() || 8 > in.size() - pos) {
         ThrowFakeluaException("protobuf: truncated fixed64");
     }
     uint64_t v;
@@ -149,11 +156,11 @@ double read_double(const std::string &in, size_t &pos) {
 
 std::string read_length_delimited(const std::string &in, size_t &pos) {
     uint64_t len = read_varint(in, pos);
-    if (pos + len > in.size()) {
+    if (pos > in.size() || len > in.size() - pos) {
         ThrowFakeluaException("protobuf: truncated length-delimited");
     }
-    std::string result(in, pos, len);  // (pos, len) ctor → binary safe
-    pos += len;
+    std::string result(in, pos, static_cast<size_t>(len));
+    pos += static_cast<size_t>(len);
     return result;
 }
 
@@ -165,17 +172,17 @@ void skip_value(const std::string &in, size_t &pos, uint8_t wire_type) {
             read_varint(in, pos);
             break;
         case WIRE_64BIT:
-            if (pos + 8 > in.size()) ThrowFakeluaException("protobuf: skip truncated 64bit");
+            if (pos > in.size() || 8 > in.size() - pos) ThrowFakeluaException("protobuf: skip truncated 64bit");
             pos += 8;
             break;
         case WIRE_LEN: {
             uint64_t len = read_varint(in, pos);
-            if (pos + len > in.size()) ThrowFakeluaException("protobuf: skip truncated len");
-            pos += len;
+            if (pos > in.size() || len > in.size() - pos) ThrowFakeluaException("protobuf: skip truncated len");
+            pos += static_cast<size_t>(len);
             break;
         }
         case WIRE_32BIT:
-            if (pos + 4 > in.size()) ThrowFakeluaException("protobuf: skip truncated 32bit");
+            if (pos > in.size() || 4 > in.size() - pos) ThrowFakeluaException("protobuf: skip truncated 32bit");
             pos += 4;
             break;
         default:

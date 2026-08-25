@@ -17,6 +17,23 @@ function test_string_rep_boundary()
 
     -- 6. 空字符串重复
     if string.rep("", 10) ~= "" then return 0 end
+    if string.rep("", math.maxinteger) ~= "" then return 0 end
+    if string.rep("", math.maxinteger, "") ~= "" then return 0 end
+
+    -- 7. 恰好是整数的 float 仍合法
+    if string.rep("ab", 3.0) ~= "ababab" then return 0 end
 
     return 5000
+end
+
+function test_string_rep_2pow63()
+    string.rep("x", 2^63)
+end
+
+function test_string_rep_nan()
+    string.rep("x", 0/0)
+end
+
+function test_string_rep_frac()
+    string.rep("x", 1.5)
 end

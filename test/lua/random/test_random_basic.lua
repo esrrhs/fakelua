@@ -34,5 +34,12 @@ function test_random_basic()
         if n ~= 5 then return 0 end
     end
 
+    -- Wide signed range: lo+offset must not overflow int64
+    local hi = 9223372036854775807
+    for i = 1, 50 do
+        local n = rng:int(-1, hi)
+        if n < -1 or n > hi then return 0 end
+    end
+
     return 1
 end

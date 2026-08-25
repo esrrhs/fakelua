@@ -121,12 +121,16 @@ static CVar Utf8Char(State *state, CVar *args, int n) {
     for (int i = 0; i < n; ++i) {
         CVar a = inter::GetNativeArg(state, args, n, i);
         CheckNumberArg(a, i + 1, "utf8.char");
-        if (a.type_ == static_cast<int>(VarType::Float)) {
-            if (static_cast<double>(static_cast<int64_t>(a.data_.f)) != a.data_.f) {
+        int64_t cp = 0;
+        if (a.type_ == static_cast<int>(VarType::Int)) {
+            cp = a.data_.i;
+        } else if (a.type_ == static_cast<int>(VarType::Float)) {
+            if (!DoubleFitsInt64(a.data_.f, &cp)) {
                 return inter::NativeToFakeluaNil(state);
             }
+        } else {
+            cp = inter::CVarToInteger(a, -1);
         }
-        int64_t cp = inter::CVarToInteger(a, -1);
         if (cp < 0 || !EncodeUtf8(cp, out)) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -156,9 +160,11 @@ static CVar Utf8Codepoint(State *state, CVar *args, int n) {
     if (n >= 3) CheckNumberArg(j_var, 3, "utf8.codepoint");
     int64_t j = (n >= 3) ? inter::CVarToInteger(j_var, i) : i;
 
-    // Handle negative indices (relative to end)
+    // Handle negative indices (relative to end). Lua u_posrelat: negative j
+    // counts from the end (utf8.codepoint(s, 1, -1) == all code points).
     if (i < 1) i = len + i + 1;
     if (i < 1) i = 1;
+    if (j < 0) j = len + j + 1;
     if (i > len) return inter::NativeToFakeluaNil(state);
     if (j > len) j = len;
     if (i > j) return inter::NativeToFakeluaNil(state);
@@ -323,7 +329,7 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
 
 // ─── utf8.offset(s, n [, i]) ───
 // Returns the byte position of the n-th character in s, starting at position i.
-// n can be negative (count from end).
+// n can be negative (count backward from i, matching Lua 5.4).
 static CVar Utf8Offset(State *state, CVar *args, int n) {
     if (n < 2) return inter::NativeToFakeluaNil(state);
 
@@ -331,7 +337,6 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     CheckStringArg(a0, 1, "utf8.offset");
     std::string s_sv;
     std::string_view sv = GetStringArgView(a0, s_sv);
-    if (sv.empty()) return inter::NativeToFakeluaNil(state);
 
     int64_t byte_len = static_cast<int64_t>(sv.size());
 
@@ -345,56 +350,50 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     if (n >= 3) CheckNumberArg(i_var, 3, "utf8.offset");
     int64_t start_i = (n >= 3) ? inter::CVarToInteger(i_var, 1) : ((target_n >= 0) ? 1 : byte_len + 1);
 
-    // Handle negative start_i
+    // Lua: 1 <= posi <= len+1 (relative negative i counts from the end)
     if (start_i < 1) start_i = byte_len + start_i + 1;
-    if (start_i < 1) start_i = 1;
-    if (start_i > byte_len + 1) start_i = byte_len + 1;
+    if (start_i < 1 || start_i > byte_len + 1) {
+        return inter::NativeToFakeluaNil(state);
+    }
+
+    int64_t posi = start_i - 1;// 0-based, in [0, len]
+    auto iscont = [&](int64_t p) -> bool {
+        return p >= 0 && p < byte_len && (static_cast<unsigned char>(sv[static_cast<size_t>(p)]) & 0xC0) == 0x80;
+    };
 
     if (target_n == 0) {
-        // Return the byte position of the character starting at or before start_i
-        if (start_i > byte_len) return inter::NativeToFakeluaLonglong(state, start_i);
-        size_t pos = static_cast<size_t>(start_i - 1);
-        while (pos > 0 && (static_cast<unsigned char>(sv[pos]) & 0xC0) == 0x80) {
-            --pos;
+        while (posi > 0 && iscont(posi)) {
+            --posi;
         }
-        return inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(pos + 1));
+        return inter::NativeToFakeluaLonglong(state, posi + 1);
+    }
+
+    // n != 0: Lua errors if i points at a continuation byte; we return nil.
+    if (iscont(posi)) {
+        return inter::NativeToFakeluaNil(state);
     }
 
     if (target_n > 0) {
-        // Walk forward from start_i
-        size_t pos = static_cast<size_t>(start_i - 1);
-        int64_t char_count = 0;
-
-        while (pos < sv.size()) {
-            size_t char_start = pos;
-            int64_t cp = DecodeUtf8(sv, pos);
-            if (cp < 0) return inter::NativeToFakeluaNil(state);
-            char_count++;
-            if (char_count == target_n) {
-                return inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(char_start) + 1);
-            }
+        --target_n;// do not move for the 1st character
+        while (target_n > 0 && posi < byte_len) {
+            do {
+                ++posi;
+            } while (posi < byte_len && iscont(posi));
+            --target_n;
         }
-        return inter::NativeToFakeluaNil(state);
     } else {
-        // Walk backward: target_n is negative, count from end
-        // First, decode all characters and record their byte positions
-        std::vector<size_t> char_positions;
-        size_t pos = 0;
-        while (pos < sv.size()) {
-            char_positions.push_back(pos);
-            int64_t cp = DecodeUtf8(sv, pos);
-            if (cp < 0) return inter::NativeToFakeluaNil(state);
+        while (target_n < 0 && posi > 0) {
+            do {
+                --posi;
+            } while (posi > 0 && iscont(posi));
+            ++target_n;
         }
-
-        int64_t total_chars = static_cast<int64_t>(char_positions.size());
-        // target_n is negative: -1 means last char, -2 means second to last, etc.
-        int64_t idx = total_chars + target_n;
-        if (idx < 0) return inter::NativeToFakeluaNil(state);
-
-        // The byte position of the (idx+1)-th character (0-indexed idx)
-        size_t byte_pos = char_positions[static_cast<size_t>(idx)];
-        return inter::NativeToFakeluaLonglong(state, static_cast<int64_t>(byte_pos) + 1);
     }
+
+    if (target_n == 0) {
+        return inter::NativeToFakeluaLonglong(state, posi + 1);
+    }
+    return inter::NativeToFakeluaNil(state);
 }
 
 void RegisterUtf8LibraryApi(State *s) {

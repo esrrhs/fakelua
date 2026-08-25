@@ -30,5 +30,9 @@ function test_utf8_codepoint()
     local h = utf8.codepoint("X")
     if h ~= 88 then return 0 end
 
+    -- j < 0：相对末尾（Lua：utf8.codepoint(s, 1, -1) 覆盖整串）
+    local n1, n2, n3 = utf8.codepoint("ABC", 1, -1)
+    if n1 ~= 65 or n2 ~= 66 or n3 ~= 67 then return 0 end
+
     return 6000
 end

@@ -25,5 +25,9 @@ function test_math_abs()
     -- 6. 字符串隐式转换
     if math.abs("-42") ~= 42 then return 6 end
 
+    -- 7. 超过 32 位的整数不能截断
+    if math.abs(-3000000000) ~= 3000000000 then return 7 end
+    if math.abs(3000000000) ~= 3000000000 then return 7 end
+
     return 5000
 end

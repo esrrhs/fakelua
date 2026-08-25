@@ -10,6 +10,7 @@
 #include <ctime>
 #include <limits>
 #include <string_view>
+#include <vector>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -153,25 +154,31 @@ void RegisterOsLibraryApi(State *s) {
             CVar tbl_cvar{};
             tbl_cvar.type_ = static_cast<int>(VarType::Table);
             tbl_cvar.data_.t = vtbl;
-            TableHelper::SetTableStrId(state, tbl_cvar, "year", inter::NativeToFakeluaInt(state, tm_buf.tm_year + 1900));
-            TableHelper::SetTableStrId(state, tbl_cvar, "month", inter::NativeToFakeluaInt(state, tm_buf.tm_mon + 1));
+            TableHelper::SetTableStrId(state, tbl_cvar, "year", inter::NativeToFakeluaInt(state, static_cast<int64_t>(tm_buf.tm_year) + 1900));
+            TableHelper::SetTableStrId(state, tbl_cvar, "month", inter::NativeToFakeluaInt(state, static_cast<int64_t>(tm_buf.tm_mon) + 1));
             TableHelper::SetTableStrId(state, tbl_cvar, "day", inter::NativeToFakeluaInt(state, tm_buf.tm_mday));
             TableHelper::SetTableStrId(state, tbl_cvar, "hour", inter::NativeToFakeluaInt(state, tm_buf.tm_hour));
             TableHelper::SetTableStrId(state, tbl_cvar, "min", inter::NativeToFakeluaInt(state, tm_buf.tm_min));
             TableHelper::SetTableStrId(state, tbl_cvar, "sec", inter::NativeToFakeluaInt(state, tm_buf.tm_sec));
-            TableHelper::SetTableStrId(state, tbl_cvar, "wday", inter::NativeToFakeluaInt(state, tm_buf.tm_wday + 1));
-            TableHelper::SetTableStrId(state, tbl_cvar, "yday", inter::NativeToFakeluaInt(state, tm_buf.tm_yday + 1));
+            TableHelper::SetTableStrId(state, tbl_cvar, "wday", inter::NativeToFakeluaInt(state, static_cast<int64_t>(tm_buf.tm_wday) + 1));
+            TableHelper::SetTableStrId(state, tbl_cvar, "yday", inter::NativeToFakeluaInt(state, static_cast<int64_t>(tm_buf.tm_yday) + 1));
             TableHelper::SetTableStrId(state, tbl_cvar, "isdst", inter::NativeToFakeluaBool(state, tm_buf.tm_isdst > 0));
             return tbl_cvar;
         }
 
         // Format
-        char buf[256];
-        size_t len = std::strftime(buf, sizeof(buf), std::string(fmt).c_str(), &tm_buf);
-        if (len == 0) {
-            buf[0] = '\0';
+        std::string fmt_s(fmt);
+        std::vector<char> buf(256);
+        for (;;) {
+            size_t n = std::strftime(buf.data(), buf.size(), fmt_s.c_str(), &tm_buf);
+            if (n > 0) {
+                return inter::NativeToFakeluaStringView(state, std::string_view(buf.data(), n));
+            }
+            if (buf.size() >= 65536) {
+                return inter::NativeToFakeluaStringView(state, "");
+            }
+            buf.resize(buf.size() * 2);
         }
-        return inter::NativeToFakeluaStringView(state, std::string_view(buf, len));
     });
 
     // ─── os.difftime(t2, t1) ───
@@ -243,7 +250,11 @@ void RegisterOsLibraryApi(State *s) {
             } else if (a0.type_ == static_cast<int>(VarType::Int)) {
                 code = static_cast<int>(a0.data_.i);
             } else if (a0.type_ == static_cast<int>(VarType::Float)) {
-                code = static_cast<int>(a0.data_.f);
+                int64_t iv = 0;
+                if (!DoubleFitsInt64(a0.data_.f, &iv)) {
+                    ThrowFakeluaException("bad argument #1 to 'os.exit' (number has no integer representation)");
+                }
+                code = static_cast<int>(iv);
             } else {
                 // 标准 Lua：os.exit 的 code 参数必须是 number（或 nil/true/false），String 不合法
                 ThrowFakeluaException("bad argument #1 to 'os.exit' (number expected)");
@@ -372,48 +383,41 @@ void RegisterOsLibraryApi(State *s) {
             ThrowFakeluaException("bad argument #1 to 'os.time' (table expected)");
         }
 
-        // Helper: read a string-keyed field from a table
-        // fakelua 扩展：os.time 的 table 字段可以是 number 或 numeric string（自动转换）
+        // 必须走完整表查找。rehash 后 quick_data_ 仍留着旧副本，只扫它会读到过期 year。
         auto get_field = [&](const char *key_name, int64_t default_val) -> int64_t {
-            VarTable *t = tbl.data_.t;
-            if (!t) return default_val;
-            int64_t id = state->GetConstString().Alloc(key_name);
-            CVar key{static_cast<int>(VarType::StringId)};
-            key.data_.i = id;
-            if (t->spec_get) {
-                using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
-                auto get_fn = reinterpret_cast<SpecGetFn>(t->spec_get);
-                bool finish = false;
-                CVar r = get_fn(t, key, &finish);
-                if (finish) {
-                    return inter::CVarToInteger(r, default_val);
-                }
-            }
-            for (const auto &qd: t->quick_data_) {
-                if (qd.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(qd.key) == key_name) {
-                    return inter::CVarToInteger(qd.val, default_val);
-                }
-            }
-            if (t->nodes_ && t->bucket_count_ > 0) {
-                for (uint32_t i = 0; i < t->count_; ++i) {
-                    uint32_t node_idx = t->active_list_[i];
-                    const auto &entry = t->nodes_[node_idx].entry;
-                    if (entry.key.type_ != static_cast<int>(VarType::Nil) && KeyToStringView(entry.key) == key_name) {
-                        return inter::CVarToInteger(entry.val, default_val);
-                    }
-                }
-            }
-            return default_val;
+            CVar val = TableHelper::GetTableStrId(state, tbl, key_name);
+            return inter::CVarToInteger(val, default_val);
         };
 
+        auto fits_tm_int = [](int64_t v) -> bool {
+            return v >= std::numeric_limits<int>::min() && v <= std::numeric_limits<int>::max();
+        };
+
+        int64_t year = get_field("year", 1900);
+        int64_t month = get_field("month", 1);
+        int64_t day = get_field("day", 1);
+        int64_t hour = get_field("hour", 12);
+        int64_t minute = get_field("min", 0);
+        int64_t sec = get_field("sec", 0);
+        int64_t isdst = get_field("isdst", -1);
+        // year-1900 / month-1 必须能放进 tm 的 int 字段，否则有符号减法本身是 UB
+        if (year < static_cast<int64_t>(std::numeric_limits<int>::min()) + 1900 ||
+            year > static_cast<int64_t>(std::numeric_limits<int>::max()) + 1900 ||
+            month < static_cast<int64_t>(std::numeric_limits<int>::min()) + 1 ||
+            month > std::numeric_limits<int>::max() ||
+            !fits_tm_int(day) || !fits_tm_int(hour) || !fits_tm_int(minute) ||
+            !fits_tm_int(sec) || !fits_tm_int(isdst)) {
+            return inter::NativeToFakeluaNil(state);
+        }
+
         std::tm tm_buf{};
-        tm_buf.tm_year = static_cast<int>(get_field("year", 1900) - 1900);
-        tm_buf.tm_mon = static_cast<int>(get_field("month", 1) - 1);
-        tm_buf.tm_mday = static_cast<int>(get_field("day", 1));
-        tm_buf.tm_hour = static_cast<int>(get_field("hour", 12));
-        tm_buf.tm_min = static_cast<int>(get_field("min", 0));
-        tm_buf.tm_sec = static_cast<int>(get_field("sec", 0));
-        tm_buf.tm_isdst = static_cast<int>(get_field("isdst", -1));
+        tm_buf.tm_year = static_cast<int>(year - 1900);
+        tm_buf.tm_mon = static_cast<int>(month - 1);
+        tm_buf.tm_mday = static_cast<int>(day);
+        tm_buf.tm_hour = static_cast<int>(hour);
+        tm_buf.tm_min = static_cast<int>(minute);
+        tm_buf.tm_sec = static_cast<int>(sec);
+        tm_buf.tm_isdst = static_cast<int>(isdst);
 
         std::time_t t = std::mktime(&tm_buf);
         if (t == -1) {

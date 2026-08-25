@@ -46,3 +46,28 @@ function test_echo()
 
     return conn_count, recv_count, server_data, client_data
 end
+
+function on_close_in_recv(type, connid, data, len, reason)
+    if type == "recv" then
+        return "close"
+    end
+end
+
+function test_close_in_recv()
+    local server = net.server({port = 19991, maxconn = 4})
+    server:dispatch("NetTest.on_close_in_recv")
+    local client = net.client({port = 19991})
+    for i = 1, 40 do
+        server:tick()
+        client:tick()
+    end
+    client:send("bye")
+    for i = 1, 40 do
+        server:tick()
+        client:tick()
+    end
+    client:close()
+    -- close 已在 recv 回调里延后执行，再 close 是 no-op
+    server:close()
+    return 1
+end

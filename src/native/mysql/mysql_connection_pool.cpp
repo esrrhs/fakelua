@@ -1,6 +1,7 @@
 #include "native/mysql/mysql_connection_pool.h"
 
 #include <chrono>
+#include <vector>
 
 namespace fakelua::mysql {
 
@@ -17,10 +18,22 @@ MysqlConnectionPool::MysqlConnectionPool(const PoolConfig &config)
 
 MysqlConnectionPool::~MysqlConnectionPool() {
     close();
+    reap();
+    if (!pool_.empty()) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (auto &entry : pool_) {
+            // tick 栈上仍在用这条连接时不能 unique_ptr 析构，宁可泄漏也不能 UAF
+            if (entry.conn && entry.conn->tick_depth() > 0) {
+                entry.conn.release();
+            }
+        }
+        pool_.clear();
+    }
 }
 
 void MysqlConnectionPool::initialize() {
     std::lock_guard<std::mutex> lock(mutex_);
+    closed_ = false;
     pool_.clear();
     for (int i = 0; i < config_.pool_size; ++i) {
         PoolEntry entry;
@@ -33,7 +46,7 @@ void MysqlConnectionPool::initialize() {
         // Start async connect
         if (entry.conn) {
             entry.conn->connect(config_.host, config_.port, config_.user,
-                               config_.password, config_.database);
+                               config_.password, config_.database, config_.connect_timeout_ms);
         }
         pool_.push_back(std::move(entry));
     }
@@ -41,6 +54,7 @@ void MysqlConnectionPool::initialize() {
 
 MysqlConnection* MysqlConnectionPool::acquire() {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (closed_) return nullptr;
 
     // Try to find a healthy, connected, non-in-use connection (round-robin)
     size_t start = round_robin_;
@@ -69,37 +83,56 @@ void MysqlConnectionPool::release(MysqlConnection *conn) {
 }
 
 void MysqlConnectionPool::tick() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    if (closed_) {
+        reap();
+        return;
+    }
 
+    std::vector<MysqlConnection *> to_tick;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        to_tick.reserve(pool_.size());
+        for (auto &entry : pool_) {
+            if (entry.conn) to_tick.push_back(entry.conn.get());
+        }
+    }
+    for (auto *conn : to_tick) {
+        if (closed_) break;
+        conn->tick();
+    }
+    if (closed_) {
+        reap();
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (closed_) return;
     for (auto &entry : pool_) {
         if (!entry.conn) continue;
 
-        // Always tick to drive async IO (connect, handshake, queries)
-        entry.conn->tick();
-
-        // Update health based on actual connection state
         bool was_healthy = entry.healthy;
         entry.healthy = entry.conn->connected();
 
         if (entry.healthy) {
-            // Reset retry count on successful connection
+            if (!was_healthy) {
+                entry.last_heartbeat = now_ms();
+            }
             if (entry.retry_count > 0) {
                 entry.retry_count = 0;
             }
-
-            // Heartbeat check (only for connections not in use)
             if (!entry.in_use && config_.heartbeat_interval_ms > 0) {
                 int64_t elapsed = now_ms() - entry.last_heartbeat;
                 if (elapsed >= config_.heartbeat_interval_ms) {
                     send_heartbeat(entry);
                 }
             }
-        } else if (was_healthy) {
-            // Connection just lost — initiate reconnect
-            entry.retry_count = 0;  // reset for fresh retry cycle
-            try_reconnect(entry);
         } else if (!entry.in_use) {
-            // Not connected and not in use — try reconnect with backoff
+            if (entry.conn->connecting()) {
+                continue; // handshake in progress, don't tear down
+            }
+            if (was_healthy) {
+                entry.retry_count = 0;
+            }
             try_reconnect(entry);
         }
     }
@@ -107,12 +140,41 @@ void MysqlConnectionPool::tick() {
 
 void MysqlConnectionPool::close() {
     std::lock_guard<std::mutex> lock(mutex_);
+    closed_ = true;
+    bool busy = false;
+    for (auto &entry : pool_) {
+        if (!entry.conn) continue;
+        if (entry.conn->tick_depth() > 0) {
+            entry.conn->request_close();
+            busy = true;
+        } else {
+            entry.conn->close();
+            entry.conn.reset();
+        }
+    }
+    if (!busy) {
+        pool_.clear();
+    }
+}
+
+void MysqlConnectionPool::reap() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!closed_) return;
+    for (auto &entry : pool_) {
+        if (entry.conn && entry.conn->tick_depth() > 0) return;
+    }
     for (auto &entry : pool_) {
         if (entry.conn) {
             entry.conn->close();
+            entry.conn.reset();
         }
     }
     pool_.clear();
+}
+
+size_t MysqlConnectionPool::total_count() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return pool_.size();
 }
 
 size_t MysqlConnectionPool::healthy_count() const {
@@ -128,35 +190,32 @@ size_t MysqlConnectionPool::healthy_count() const {
 
 void MysqlConnectionPool::send_heartbeat(PoolEntry &entry) {
     if (!entry.conn || !entry.healthy) return;
-
-    // Send COM_PING to keep connection alive
-    std::string payload(1, static_cast<char>(0x0E));  // COM_PING = 0x0E
-    entry.conn->send_packet(0, payload.data(), payload.size());
-
-    // Update heartbeat time (optimistic; will be reset if ping fails)
-    entry.last_heartbeat = now_ms();
+    if (entry.conn->ping()) {
+        entry.last_heartbeat = now_ms();
+    }
 }
 
 void MysqlConnectionPool::try_reconnect(PoolEntry &entry) {
-    if (!entry.conn) return;
+    if (!entry.conn || entry.in_use) return;
 
-    // Exponential backoff
     if (entry.retry_count > 0) {
-        int64_t backoff_ms = config_.retry_base_ms * (1 << (entry.retry_count - 1));
+        int shift = entry.retry_count - 1;
+        if (shift > 20) shift = 20;
+        int64_t backoff_ms = static_cast<int64_t>(config_.retry_base_ms) * (1LL << shift);
         int64_t elapsed = now_ms() - entry.last_heartbeat;
-        if (elapsed < backoff_ms) return;  // wait more
+        if (elapsed < backoff_ms) return;
     }
 
     if (entry.retry_count >= config_.max_retries) {
         entry.healthy = false;
-        return;  // exceeded max retries
+        return;
     }
 
     ++entry.retry_count;
 
-    // Attempt reconnect
     entry.conn->close();
-    entry.conn->connect(config_.host, config_.port, config_.user, config_.password, config_.database);
+    entry.conn->connect(config_.host, config_.port, config_.user, config_.password, config_.database,
+                        config_.connect_timeout_ms);
     entry.last_heartbeat = now_ms();
 }
 

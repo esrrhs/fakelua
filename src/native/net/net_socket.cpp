@@ -60,7 +60,9 @@ void TcpServer::stop() {
         close_socket(listen_fd_);
         listen_fd_ = INVALID_SOCKET_VAL;
     }
-    for (int i = 0; i < config_.max_conn; ++i) {
+    // start() 失败时 links_ 为空，必须用 size() 而不是 config_.max_conn，否则越界。
+    const int n = static_cast<int>(links_.size());
+    for (int i = 0; i < n; ++i) {
         if (links_[i] && links_[i]->connected) {
             selector_.remove(links_[i]->fd);
             close_socket(links_[i]->fd);
@@ -72,7 +74,7 @@ void TcpServer::stop() {
     }
     selector_.clear();
     free_indices_.clear();
-    for (int i = 0; i < config_.max_conn; ++i) free_indices_.push_back(config_.max_conn - 1 - i);
+    for (int i = 0; i < n; ++i) free_indices_.push_back(n - 1 - i);
 }
 
 int TcpServer::alloc_link() {
@@ -83,7 +85,7 @@ int TcpServer::alloc_link() {
 }
 
 void TcpServer::free_link(int slot) {
-    if (slot < 0 || slot >= config_.max_conn) return;
+    if (slot < 0 || slot >= static_cast<int>(links_.size())) return;
     links_[slot]->connected = false;
     links_[slot]->fd = INVALID_SOCKET_VAL;
     links_[slot]->recv_buf.clear();
@@ -205,7 +207,8 @@ void TcpServer::tick(const std::function<void(int)> &on_conn,
                   });
 
     // 尝试发送所有连接的缓冲数据（兜底，确保数据在 EPOLLOUT 未触发时也能发出）
-    for (int i = 0; i < config_.max_conn; ++i) {
+    const int n = static_cast<int>(links_.size());
+    for (int i = 0; i < n; ++i) {
         if (links_[i] && links_[i]->connected && !links_[i]->send_buf.empty()) {
             handle_link_write(links_[i], on_close);
         }
@@ -213,26 +216,25 @@ void TcpServer::tick(const std::function<void(int)> &on_conn,
 }
 
 bool TcpServer::send(int conn_id, const char *data, size_t len) {
-    if (conn_id < 0 || conn_id >= config_.max_conn) return false;
+    if (conn_id < 0 || conn_id >= static_cast<int>(links_.size())) return false;
     auto *link = links_[conn_id];
     if (!link || !link->connected) return false;
     // 整包写入失败则返回 false（禁止截断）
     if (!write_packet(link->send_buf, config_, data, len)) return false;
     selector_.set_write_watch(link->fd, true);
-    // 立即尝试发送一次；此处无 close 回调上下文，传入空操作（失败由下一轮 tick 的 write 路径回收）
-    handle_link_write(link, [](int) {});
     return true;
 }
 
-void TcpServer::close_connection(int conn_id) {
-    if (conn_id < 0 || conn_id >= config_.max_conn) return;
+bool TcpServer::close_connection(int conn_id) {
+    if (conn_id < 0 || conn_id >= static_cast<int>(links_.size())) return false;
     auto *link = links_[conn_id];
-    if (!link || !link->connected) return;
+    if (!link || !link->connected) return false;
     selector_.remove(link->fd);
     close_socket(link->fd);
     link->fd = INVALID_SOCKET_VAL;
     link->connected = false;
     free_link(conn_id);
+    return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -286,16 +288,23 @@ void TcpClient::connect() {
 }
 
 void TcpClient::disconnect() {
-    if (link_) {
-        if (link_->fd != INVALID_SOCKET_VAL) {
-            selector_.remove(link_->fd);
-            close_socket(link_->fd);
-            link_->fd = INVALID_SOCKET_VAL;
-        }
-        delete link_;
-        link_ = nullptr;
+    teardown_fd(nullptr);
+    delete link_;
+    link_ = nullptr;
+    connecting_ = false;
+}
+
+void TcpClient::teardown_fd(const std::function<void()> *on_close) {
+    if (!link_) return;
+    const bool was_live = link_->fd != INVALID_SOCKET_VAL || connecting_ || link_->connected;
+    if (link_->fd != INVALID_SOCKET_VAL) {
+        selector_.remove(link_->fd);
+        close_socket(link_->fd);
+        link_->fd = INVALID_SOCKET_VAL;
     }
     connecting_ = false;
+    link_->connected = false;
+    if (on_close && was_live) (*on_close)();
 }
 
 void TcpClient::handle_read(const std::function<void(const char *, size_t)> &on_recv, const std::function<void()> &on_close) {
@@ -318,23 +327,18 @@ void TcpClient::handle_read(const std::function<void(const char *, size_t)> &on_
             bool parse_error = false;
             if (!try_parse_packet(link_->recv_buf, config_, payload, payload_len, parse_error)) {
                 if (parse_error) {
-                    close_socket(link_->fd);
-                    link_->fd = INVALID_SOCKET_VAL;
-                    link_->connected = false;
-                    on_close();
+                    teardown_fd(&on_close);
                 }
                 break;
             }
             on_recv(payload, payload_len);
         }
     } else if (n == 0) {
-        link_->connected = false;
-        on_close();
+        teardown_fd(&on_close);
     } else {
         int err = get_last_socket_error();
         if (!would_block(err)) {
-            link_->connected = false;
-            on_close();
+            teardown_fd(&on_close);
         }
     }
 }
@@ -347,11 +351,7 @@ void TcpClient::handle_write(const std::function<void()> &on_close) {
         int err = 0;
         socklen_t len = sizeof(err);
         if (getsockopt(link_->fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&err), &len) < 0 || err != 0) {
-            close_socket(link_->fd);
-            link_->fd = INVALID_SOCKET_VAL;
-            connecting_ = false;
-            link_->connected = false;
-            on_close();
+            teardown_fd(&on_close);
             return;
         }
         connecting_ = false;
@@ -380,10 +380,7 @@ void TcpClient::handle_write(const std::function<void()> &on_close) {
     } else if (n < 0) {
         int err = get_last_socket_error();
         if (!would_block(err)) {
-            close_socket(link_->fd);
-            link_->fd = INVALID_SOCKET_VAL;
-            link_->connected = false;
-            on_close();
+            teardown_fd(&on_close);
         }
     }
 }
@@ -398,9 +395,7 @@ void TcpClient::tick(const std::function<void(const char *, size_t)> &on_recv, c
                   },
                   [this, &on_close](void * /*ud*/) { handle_write(on_close); },
                   [this, &on_close](void * /*ud*/) {
-                      connecting_ = false;
-                      link_->connected = false;
-                      on_close();
+                      teardown_fd(&on_close);
                   });
 
     if (link_ && link_->connected && !link_->send_buf.empty()) handle_write(on_close);
@@ -411,7 +406,6 @@ bool TcpClient::send(const char *data, size_t len) {
     // 整包写入失败则返回 false（禁止截断）
     if (!write_packet(link_->send_buf, config_, data, len)) return false;
     selector_.set_write_watch(link_->fd, true);
-    handle_write([]() {}); // 立即尝试发送；无 close 回调上下文，传入空操作
     return true;
 }
 

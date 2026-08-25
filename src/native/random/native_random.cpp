@@ -88,7 +88,7 @@ static CVar rng_int(NativeObject *self, State *s, CVar *args, int n) {
         uint32_t hi32 = rng_next_uint32(self);
         uint32_t lo32 = rng_next_uint32(self);
         uint64_t val = (static_cast<uint64_t>(hi32) << 32) | lo32;
-        return inter::NativeToFakeluaInt(s, static_cast<int64_t>(val));
+        return inter::NativeToFakeluaLonglong(s, static_cast<long long>(val));
     }
 
     uint64_t range = static_cast<uint64_t>(hi) - static_cast<uint64_t>(lo) + 1;
@@ -102,8 +102,8 @@ static CVar rng_int(NativeObject *self, State *s, CVar *args, int n) {
         r = (static_cast<uint64_t>(hi32) << 32) | lo32;
     } while (r >= threshold);
 
-    int64_t result = lo + static_cast<int64_t>(r % range);
-    return inter::NativeToFakeluaInt(s, result);
+    int64_t result = static_cast<int64_t>(static_cast<uint64_t>(lo) + (r % range));
+    return inter::NativeToFakeluaLonglong(s, result);
 }
 
 // rng:float(min, max) — 浮点均匀分布 [min, max)
@@ -118,7 +118,7 @@ static CVar rng_float(NativeObject *self, State *s, CVar *args, int n) {
     if (lo >= hi) ThrowBadArgument(2, "rng:float", "max must be > min");
 
     double val = lo + rng_next_unit(self) * (hi - lo);
-    return inter::NativeToFakeluaFloat(s, val);
+    return inter::NativeToFakeluaDouble(s, val);
 }
 
 // rng:dice(count, sides) — 掷 count 个 sides 面骰子，返回总和
@@ -132,6 +132,10 @@ static CVar rng_dice(NativeObject *self, State *s, CVar *args, int n) {
 
     if (count <= 0) ThrowBadArgument(1, "rng:dice", "count must be positive");
     if (sides <= 0) ThrowBadArgument(2, "rng:dice", "sides must be positive");
+    if (count > 100000) ThrowBadArgument(1, "rng:dice", "count too large");
+    if (sides > std::numeric_limits<int64_t>::max() / count) {
+        ThrowBadArgument(2, "rng:dice", "dice sum would overflow");
+    }
 
     int64_t sum = 0;
     for (int64_t i = 0; i < count; i++) {
