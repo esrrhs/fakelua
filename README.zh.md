@@ -139,13 +139,13 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 ## 标准内置扩展库
 
-FakeLua 在 `src/native/` 下提供 19 个独立 C++ 原生模块，覆盖数学、字符串、表、IO、网络、定时器、事件、压缩、加密、序列化、数据库、Protobuf 等领域。
+FakeLua 在 `src/native/` 下提供 20 个独立 C++ 原生模块，覆盖数学、字符串、表、IO、网络、定时器、事件、随机数、压缩、加密、序列化、数据库、Protobuf 等领域。
 
 > **完整 API 文档：** [src/native/README.zh.md](src/native/README.zh.md) / [English](src/native/README.md)
 
 | 分类 | 模块 |
 |------|------|
-| 核心 Lua | `math`、`table`、`string`、`os`、`utf8`、`io` |
+| 核心 Lua | `math`、`table`、`string`、`os`、`utf8`、`io`、`random` |
 | 网络 | `net`（TCP 服务端/客户端）、`timer`、`event` |
 | 数据 | `json`、`csv`、`serialize`、`protobuf` |
 | 数据库 | `mysql`（异步 + 连接池）、`sqlite`（同步） |

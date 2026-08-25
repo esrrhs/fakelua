@@ -20,6 +20,7 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | net | `net/` | TCP networking: server/client with framed protocols, custom parsers, async event dispatch |
 | timer | `timer/` | Timers: one-shot, periodic heartbeat, driven by `tick()` |
 | event | `event/` | Pub/sub event system: `on`, `once`, `off`, `emit`, `clear`, `clear_all` |
+| random | `random/` | Seeded RNG (PCG-32): `int`, `float`, `dice`, `chance`, `weighted`, `get_state`, `set_state` |
 | compress | `compress/` | Compression: LZ4, zlib, gzip, Zstd |
 | crypto | `crypto/` | Cryptography: MD5/SHA1/SHA256, hex/base64, AES/RC4/Blowfish/DES/3DES |
 | csv | `csv/` | CSV decode/encode |
@@ -275,6 +276,29 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | `event.clear_all()` | 0 | Remove all handlers for all events |
 
 > Re-entrancy safe: `emit` snapshots the handler list before iteration.
+
+---
+
+## Random
+
+**File:** `random/native_random.h` · **Registration:** `RegisterRandomLibraryApi`
+
+PCG-32 algorithm: 64-bit state, 32-bit output, period 2^64. Each `random.new(seed)` creates an independent RNG stream backed by a NativeObject. Different seeds produce different sequences; same seed produces identical sequences. State serialized as hex string to avoid 32-bit truncation.
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `random.new(seed)` | 1 | Create RNG instance with given seed (integer) |
+| `rng:int(min, max)` | 2 | Uniform integer in [min, max] (inclusive) |
+| `rng:float(min, max)` | 2 | Uniform float in [min, max) |
+| `rng:dice(count, sides)` | 2 | Sum of `count` dice, each [1, sides] |
+| `rng:chance(prob)` | 1 | `true` with probability `prob` (0.0–1.0) |
+| `rng:weighted(weights)` | 1 | Pick 1-based index from weight table; zero-weight entries never selected |
+| `rng:get_state()` | 0 | Get 64-bit internal state as hex string (e.g. `"0x1234567890ABCDEF"`) |
+| `rng:set_state(hex_str)` | 1 | Restore 64-bit internal state from hex string |
+
+> **Multi-stream:** Create separate RNG instances for independent streams (e.g. combat RNG, loot RNG, event RNG). Using a single global RNG causes cross-system correlation — consuming randoms in one system shifts the sequence for all others.
+
+> **Save/Load:** Use `get_state()` / `set_state()` with hex strings for serialization. The hex string is JSON-safe and preserves the full 64-bit state without precision loss.
 
 ---
 
