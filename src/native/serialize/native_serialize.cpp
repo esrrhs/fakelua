@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace fakelua::serialize {
@@ -98,14 +99,21 @@ static void write_varint(std::string &out, uint64_t v) {
 static uint64_t read_varint(const std::string &in, size_t &pos) {
     uint64_t result = 0;
     int shift = 0;
+    bool terminated = false;
     while (pos < in.size()) {
         uint8_t b = static_cast<uint8_t>(in[pos++]);
         result |= static_cast<uint64_t>(b & 0x7f) << shift;
-        if ((b & 0x80) == 0) break;
+        if ((b & 0x80) == 0) {
+            terminated = true;
+            break;
+        }
         shift += 7;
         if (shift >= 64) {
             ThrowFakeluaException("serialize.decode: varint too long");
         }
+    }
+    if (!terminated) {
+        ThrowFakeluaException("serialize.decode: truncated varint");
     }
     return result;
 }
@@ -142,6 +150,8 @@ static double read_double(const std::string &in, size_t &pos) {
 
 struct EncodeState {
     std::unordered_map<std::string_view, uint32_t> dict;  // 字符串 → 字典 id
+    std::unordered_set<VarTable *> visited;
+    int depth = 0;
 };
 
 static void encode_value(std::string &out, CVar v, EncodeState &state) {
@@ -150,7 +160,7 @@ static void encode_value(std::string &out, CVar v, EncodeState &state) {
             out.push_back(TAG_NIL);
             return;
         case static_cast<int>(VarType::Bool):
-            out.push_back(v.data_.i ? TAG_TRUE : TAG_FALSE);
+            out.push_back(AsVar(v).GetBool() ? TAG_TRUE : TAG_FALSE);
             return;
         case static_cast<int>(VarType::Int):
             out.push_back(TAG_INT);
@@ -172,45 +182,48 @@ static void encode_value(std::string &out, CVar v, EncodeState &state) {
                 state.dict.emplace(sv, id);
                 out.push_back(TAG_STR_NEW);
                 write_varint(out, static_cast<uint64_t>(sv.size()));
-                out.append(sv.data(), sv.size());
+                if (!sv.empty()) {
+                    out.append(sv.data(), sv.size());
+                }
             }
             return;
         }
         case static_cast<int>(VarType::Table): {
             VarTable *t = v.data_.t;
-            // 收集所有键值对（跳过不支持的类型）
+            if (!t) {
+                out.push_back(TAG_TABLE);
+                write_varint(out, 0);
+                return;
+            }
+            if (state.depth >= 64) {
+                ThrowFakeluaException("serialize.encode: nesting too deep");
+            }
+            if (!state.visited.insert(t).second) {
+                ThrowFakeluaException("serialize.encode: cyclic table");
+            }
+            state.depth++;
             std::vector<CVar> keys;
             std::vector<CVar> vals;
-            auto add_kv = [&](CVar k, CVar val) {
-                if (is_supported(k) && is_supported(val)) {
-                    keys.push_back(k);
-                    vals.push_back(val);
+            try {
+                table::TableHelper::ForEachKV(v, [&](CVar k, CVar val) {
+                    if (is_supported(k) && is_supported(val)) {
+                        keys.push_back(k);
+                        vals.push_back(val);
+                    }
+                });
+                out.push_back(TAG_TABLE);
+                write_varint(out, static_cast<uint64_t>(keys.size()));
+                for (size_t i = 0; i < keys.size(); ++i) {
+                    encode_value(out, keys[i], state);
+                    encode_value(out, vals[i], state);
                 }
-            };
-            if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
-                for (uint32_t i = 0; i < t->spec_count; ++i) {
-                    if (t->spec_keys[i].type_ == static_cast<int>(VarType::Nil)) continue;
-                    add_kv(t->spec_keys[i], t->spec_vals[i]);
-                }
+            } catch (...) {
+                state.depth--;
+                state.visited.erase(t);
+                throw;
             }
-            for (uint32_t i = 0; i < VarTable::QUICK_DATA_SIZE; ++i) {
-                if (t->quick_data_[i].key.type_ == static_cast<int>(VarType::Nil)) continue;
-                add_kv(t->quick_data_[i].key, t->quick_data_[i].val);
-            }
-            if (t->nodes_ && t->bucket_count_ > 0 && t->active_list_) {
-                for (uint32_t i = 0; i < t->count_; ++i) {
-                    uint32_t node_idx = t->active_list_[i];
-                    const auto &entry = t->nodes_[node_idx].entry;
-                    if (entry.key.type_ == static_cast<int>(VarType::Nil)) continue;
-                    add_kv(entry.key, entry.val);
-                }
-            }
-            out.push_back(TAG_TABLE);
-            write_varint(out, static_cast<uint64_t>(keys.size()));
-            for (size_t i = 0; i < keys.size(); ++i) {
-                encode_value(out, keys[i], state);
-                encode_value(out, vals[i], state);
-            }
+            state.depth--;
+            state.visited.erase(t);
             return;
         }
         default:
@@ -222,6 +235,7 @@ static void encode_value(std::string &out, CVar v, EncodeState &state) {
 
 struct DecodeState {
     std::vector<std::string> dict;  // id → 字符串
+    int depth = 0;
 };
 
 static CVar decode_value(const std::string &in, size_t &pos, DecodeState &state, State *s) {
@@ -244,11 +258,11 @@ static CVar decode_value(const std::string &in, size_t &pos, DecodeState &state,
             return inter::NativeToFakeluaDouble(s, read_double(in, pos));
         case TAG_STR_NEW: {
             uint64_t len = read_varint(in, pos);
-            if (pos + len > in.size()) {
+            if (len > in.size() - pos) {
                 ThrowFakeluaException("serialize.decode: truncated string");
             }
-            std::string str(in, pos, len);
-            pos += len;
+            std::string str(in, pos, static_cast<size_t>(len));
+            pos += static_cast<size_t>(len);
             uint32_t id = static_cast<uint32_t>(state.dict.size());
             state.dict.push_back(str);
             return inter::NativeToFakeluaString(s, state.dict[id]);
@@ -261,13 +275,27 @@ static CVar decode_value(const std::string &in, size_t &pos, DecodeState &state,
             return inter::NativeToFakeluaString(s, state.dict[id]);
         }
         case TAG_TABLE: {
-            uint64_t count = read_varint(in, pos);
-            CVar tbl = table::TableHelper::CreateTable(s);
-            for (uint64_t i = 0; i < count; ++i) {
-                CVar key = decode_value(in, pos, state, s);
-                CVar val = decode_value(in, pos, state, s);
-                table::TableHelper::SetTable(s, tbl, key, val);
+            if (state.depth >= 64) {
+                ThrowFakeluaException("serialize.decode: nesting too deep");
             }
+            uint64_t count = read_varint(in, pos);
+            // Each key/value pair is at least two tags.
+            if (count > (in.size() - pos) / 2) {
+                ThrowFakeluaException("serialize.decode: table too large");
+            }
+            CVar tbl = table::TableHelper::CreateTable(s);
+            state.depth++;
+            try {
+                for (uint64_t i = 0; i < count; ++i) {
+                    CVar key = decode_value(in, pos, state, s);
+                    CVar val = decode_value(in, pos, state, s);
+                    table::TableHelper::SetTable(s, tbl, key, val);
+                }
+            } catch (...) {
+                state.depth--;
+                throw;
+            }
+            state.depth--;
             return tbl;
         }
         default:
@@ -294,6 +322,9 @@ static CVar serialize_decode(State *s, CVar *args, int n) {
     size_t pos = 0;
     DecodeState state;
     CVar result = decode_value(in, pos, state, s);
+    if (pos != in.size()) {
+        ThrowFakeluaException("serialize.decode: trailing bytes");
+    }
     return result;
 }
 

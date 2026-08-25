@@ -109,6 +109,21 @@ TEST(test_io, test_io_file_lines) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_io, test_lines_after_close) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        CompileFile(s, "./io/test_io_file_lines.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_lines_after_close", res);
+        EXPECT_NEAR(res, 6000, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_io, test_io_long_line) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -184,6 +199,24 @@ TEST(test_io, test_io_input_output) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_io, stdin_survives_other_state) {
+    CompileConfig config;
+    State *a = FakeluaNewState();
+    State *b = FakeluaNewState();
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(b, nullptr);
+    CompileFile(a, "./io/test_io_input_output.lua", config);
+    CompileFile(b, "./io/test_io_input_output.lua", config);
+    double res = 0;
+    Call(a, JIT_TCC, "test_io_input_output", res);
+    EXPECT_NEAR(res, 5000, 0.5);
+    FakeluaDeleteState(a);
+    res = 0;
+    Call(b, JIT_TCC, "test_io_input_output", res);
+    EXPECT_NEAR(res, 5000, 0.5);
+    FakeluaDeleteState(b);
+}
+
 TEST(test_io, test_io_lines_boundary) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -241,9 +274,29 @@ TEST(test_io, test_io_error_paths) {
     EXPECT_THROW(Call(s, JIT_GCC, "test_file_read_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_file_write_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_file_setvbuf_bad_mode", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_file_setvbuf_size_too_large", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_io_open_bad_arg", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_io_open_bad_mode", res), std::exception);
     EXPECT_THROW(Call(s, JIT_GCC, "test_io_popen_bad_arg", res), std::exception);
 
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, delete_state_without_close) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileString(s, R"(
+function test_io_delete_state_without_close()
+    local f = io.tmpfile()
+    if f == nil then return 0 end
+    f:write("hello")
+    return 6000
+end
+)",
+                  config);
+    double res = 0;
+    Call(s, JIT_TCC, "test_io_delete_state_without_close", res);
+    EXPECT_NEAR(res, 6000, 0.5);
     FakeluaDeleteState(s);
 }

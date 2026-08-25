@@ -108,8 +108,23 @@ enum {
 #define CONST_FLAG 0x1
 
 /* 探测整数键 k 是否存在且值非 nil。查找逻辑与 FlGetTableInt 一致，但直接作用于
-   VarTable*，供序列长度计算与缓存维护复用。 */
+   VarTable*，供序列长度计算与缓存维护复用。必须查 spec：特化表的 1..n 只在
+   spec 里，不在 quick/nodes。以前从 spec_count 起扫，等于把字段个数当成 #。 */
 static inline bool FlTableHasIntKey(VarTable *t, int64_t k) {
+    if (t->spec_get) {
+        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+        bool __finish = false;
+        CVar __r = t->spec_get(t, key_cvar, &__finish);
+        if (__finish) return __r.type_ != VAR_NIL;
+    }
+    if (t->spec_count > 0 && t->spec_keys && t->spec_vals) {
+        uint32_t i;
+        for (i = 0; i < t->spec_count; ++i) {
+            if (t->spec_keys[i].type_ == VAR_INT && t->spec_keys[i].data_.i == k && t->spec_vals[i].type_ != VAR_NIL) {
+                return true;
+            }
+        }
+    }
     if (LIKELY(t->bucket_count_ == 0)) {
         uint32_t i;
         for (i = 0; i < t->count_; ++i) {
@@ -134,7 +149,7 @@ static inline bool FlTableHasIntKey(VarTable *t, int64_t k) {
 
 /* 从 base 起向上数连续存在的整数键，返回前缀长度。*/
 static inline int64_t FlSeqScanFrom(VarTable *t, int64_t base) {
-    while (FlTableHasIntKey(t, base + 1)) { base++; }
+    while (base < INT64_MAX && FlTableHasIntKey(t, base + 1)) { base++; }
     return base;
 }
 
@@ -146,7 +161,8 @@ static inline bool FlSeqCacheable(VarTable *t) {
 static inline int64_t FlGetTableSeqLen(VarTable *t) {
     if (!t) return 0;
     if (UNLIKELY(!FlSeqCacheable(t))) {
-        return FlSeqScanFrom(t, (int64_t)t->spec_count);
+        /* spec_count 是特化字段总数（含字符串键），不是数组前缀。从 0 起扫。 */
+        return FlSeqScanFrom(t, 0);
     }
     if (LIKELY(t->seq_len_valid_ != 0)) {
         return t->seq_len_;
@@ -168,7 +184,7 @@ static inline void FlSeqNoteIntSet(VarTable *t, int64_t k, bool is_nil) {
         return;
     }
     /* 只有正好补上 t[len+1] 才会延长前缀，随后继续吸收先前写入的更高键。*/
-    if (k == t->seq_len_ + 1) { t->seq_len_ = FlSeqScanFrom(t, k); }
+    if (t->seq_len_ < INT64_MAX && k == t->seq_len_ + 1) { t->seq_len_ = FlSeqScanFrom(t, k); }
 }
 
 #define TABLE_SIZE(t) ((t)->count_ + (t)->spec_count)
@@ -284,16 +300,26 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
     (v).data_.f = __f; \
 } while(0)
 
+/* 2^63：精确 double，也是第一个无法放入 int64 的整数。
+ * (double)INT64_MAX 会向上舍入成这个值，因此不能用 <= (double)INT64_MAX。 */
+#define FL_INT64_FLOAT_EXCL 9223372036854775808.0
+
+static inline int FlDoubleFitsInt64(double d, int64_t *out) {
+    double ip;
+    if (!isfinite(d)) return 0;
+    if (modf(d, &ip) != 0.0) return 0;
+    if (ip < (double)INT64_MIN || ip >= FL_INT64_FLOAT_EXCL) return 0;
+    *out = (int64_t)ip;
+    return 1;
+}
+
 #define NORMALIZE_TABLE_KEY(key) ({ \
     CVar __k = (key); \
     if (LIKELY(__k.type_ == VAR_FLOAT)) { \
-        double __d = __k.data_.f; \
-        if (isfinite(__d)) { \
-            double __ip; \
-            if (modf(__d, &__ip) == 0.0 && __ip >= (double)INT64_MIN && __ip <= (double)INT64_MAX) { \
-                __k.type_ = VAR_INT; \
-                __k.data_.i = (int64_t)__ip; \
-            } \
+        int64_t __i; \
+        if (FlDoubleFitsInt64(__k.data_.f, &__i)) { \
+            __k.type_ = VAR_INT; \
+            __k.data_.i = __i; \
         } \
     } \
     __k; \
@@ -337,6 +363,11 @@ static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count
 static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
     if (UNLIKELY(cl_var.type_ != VAR_CLOSURE)) {
         FakeluaThrowError(state, "attempt to call a non-function value");
+    }
+    // 与 FakeluaCallByName 一致：先拦超限，再读 varargs。
+    // raw_arg_arr 只有 32 槽，arg_num>32 会栈缓冲溢出。
+    if (UNLIKELY(arg_num < 0 || arg_num > (int)kMaxFunctionInputParams)) {
+        FakeluaThrowError(state, "too many arguments");
     }
     VarClosure *cl = cl_var.data_.cl;
     void *addr = cl->func_ptr;
@@ -1064,12 +1095,9 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 #define CheckInt(v, result) do { \
     if (LIKELY((v).type_ == VAR_INT)) { (result) = (v).data_.i; } \
     else if (UNLIKELY((v).type_ == VAR_FLOAT)) { \
-        double __d = (v).data_.f; \
-        if (!isfinite(__d)) { FakeluaThrowError(_S, "number has no integer representation"); } \
-        double __ip; \
-        if (modf(__d, &__ip) != 0.0) { FakeluaThrowError(_S, "number has no integer representation"); } \
-        if (__ip < (double)INT64_MIN || __ip > (double)INT64_MAX) { FakeluaThrowError(_S, "number has no integer representation"); } \
-        (result) = (int64_t)__ip; \
+        if (!FlDoubleFitsInt64((v).data_.f, &(result))) { \
+            FakeluaThrowError(_S, "number has no integer representation"); \
+        } \
     } else { \
         FakeluaThrowError(_S, "attempt to perform bitwise operation on non-numeric value"); \
         (result) = 0; \
@@ -1096,9 +1124,8 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 #define OpFloorDiv(a, b, res) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { \
-        if (UNLIKELY(_rb.data_.i == 0)) { FakeluaThrowError(_S, "floor division by zero"); } \
-        int64_t _q = _ra.data_.i / _rb.data_.i; \
-        if ((_ra.data_.i ^ _rb.data_.i) < 0 && _ra.data_.i % _rb.data_.i != 0) { _q -= 1; } \
+        int64_t _q; \
+        FlFloorDivInt(_ra.data_.i, _rb.data_.i, _q); \
         SET_INT(res, _q); \
     } else { \
         SET_FLOAT(res, floor(CVAR_TO_DOUBLE(_ra) / CVAR_TO_DOUBLE(_rb))); \
@@ -1113,10 +1140,9 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 #define OpMod(a, b, res) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { \
-        if (UNLIKELY(_rb.data_.i == 0)) { FakeluaThrowError(_S, "modulo by zero"); } \
-        int64_t _q = _ra.data_.i / _rb.data_.i; \
-        if ((_ra.data_.i ^ _rb.data_.i) < 0 && _ra.data_.i % _rb.data_.i != 0) { _q -= 1; } \
-        SET_INT(res, _ra.data_.i - _rb.data_.i * _q); \
+        int64_t _r; \
+        FlModInt(_ra.data_.i, _rb.data_.i, _r); \
+        SET_INT(res, _r); \
     } else { \
         double _fa = CVAR_TO_DOUBLE(_ra); \
         double _fb = CVAR_TO_DOUBLE(_rb); \
@@ -1159,8 +1185,10 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 
 #define OpUnaryMinus(a, res) do { \
     CVar _ra = (a); CheckNum(_ra); \
-    if (LIKELY(_ra.type_ == VAR_INT)) { SET_INT(res, -_ra.data_.i); } \
-    else { SET_FLOAT(res, -_ra.data_.f); } \
+    if (LIKELY(_ra.type_ == VAR_INT)) { \
+        if (UNLIKELY(_ra.data_.i == INT64_MIN)) { SET_FLOAT(res, -(double)_ra.data_.i); } \
+        else { SET_INT(res, -_ra.data_.i); } \
+    } else { SET_FLOAT(res, -_ra.data_.f); } \
 } while(0)
 
 #define OpBitNot(a, res) do { int64_t _ai; CheckInt(a, _ai); SET_INT(res, ~_ai); } while(0)
@@ -1454,7 +1482,7 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
     if (dst.type_ != VAR_TABLE || !dst.data_.t) dst = src;
     if (e < f) return dst;
     uint64_t count = (uint64_t)e - (uint64_t)f + 1;
-    if (count > 10000000ULL) return dst;
+    if (count == 0 || count > 10000000ULL) return dst;
     int64_t icount = (int64_t)count;
     int same = (src.data_.t == dst.data_.t);
     if (same && t > f && t <= e) {
@@ -1491,8 +1519,12 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
 } while(0)
 
 #define FlFloorDivQuotient(a, b, q) do { \
-    (q) = (a) / (b); \
-    if (((a) ^ (b)) < 0 && (a) % (b) != 0) { (q) -= 1; } \
+    if (UNLIKELY((b) == (int64_t)-1)) { \
+        (q) = (int64_t)((uint64_t)0 - (uint64_t)(int64_t)(a)); \
+    } else { \
+        (q) = (a) / (b); \
+        if (((a) ^ (b)) < 0 && (a) % (b) != 0) { (q) -= 1; } \
+    } \
 } while(0)
 
 #define FlFloorDivInt(a, b, result) do { \
@@ -1506,9 +1538,12 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
 #define FlModInt(a, b, result) do { \
     int64_t __fm_a = (a); int64_t __fm_b = (b); \
     if (UNLIKELY(__fm_b == 0)) { FakeluaThrowError(_S, "modulo by zero"); } \
-    int64_t __fm_q; \
-    FlFloorDivQuotient(__fm_a, __fm_b, __fm_q); \
-    (result) = __fm_a - __fm_b * __fm_q; \
+    if (UNLIKELY(__fm_b == (int64_t)-1)) { (result) = 0; } \
+    else { \
+        int64_t __fm_q; \
+        FlFloorDivQuotient(__fm_a, __fm_b, __fm_q); \
+        (result) = __fm_a - __fm_b * __fm_q; \
+    } \
 } while(0)
 
 #define FlModFloat(a, b, result) do { \
@@ -1516,13 +1551,20 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
     (result) = __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
 } while(0)
 
+// 整数 for 步进：用无符号加法探测有符号溢出。溢出返回 0 且不改 *ctrl
+//（避免 maxinteger++ 变成 mininteger 后死循环）。continue 仍走 for 的 incr 子句。
+static inline int FlForIntAdvance(int64_t *ctrl, int64_t step) {
+    int64_t cur = *ctrl;
+    int64_t next = (int64_t)((uint64_t)cur + (uint64_t)step);
+    if ((cur ^ step) >= 0 && (next ^ cur) < 0) return 0;
+    *ctrl = next;
+    return 1;
+}
+
 #define FlToIntChecked(v, result) do { \
-    double __fi_d = (double)(v); \
-    if (!isfinite(__fi_d)) { FakeluaThrowError(_S, "number has no integer representation"); } \
-    double __fi_ip; \
-    if (modf(__fi_d, &__fi_ip) != 0.0) { FakeluaThrowError(_S, "number has no integer representation"); } \
-    if (__fi_ip < (double)INT64_MIN || __fi_ip >= 9223372036854775808.0) { FakeluaThrowError(_S, "number has no integer representation"); } \
-    (result) = (int64_t)__fi_ip; \
+    if (!FlDoubleFitsInt64((double)(v), &(result))) { \
+        FakeluaThrowError(_S, "number has no integer representation"); \
+    } \
 } while(0)
 
 #define FlShiftIntImpl(a, b, result, _right) do { \

@@ -773,6 +773,8 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
     repeat_depth_ = 0;  // 每个函数独立计数，避免跨函数标签名重复
     repeat_label_counter_ = 0;
     repeat_label_stack_.clear();
+    for_cont_id_ = 0;
+    for_cont_stack_.clear();
     CompileStmtBlock(func_block);
     cur_tab_--;
 
@@ -1329,6 +1331,8 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     // 否则内层 continue 会错误地跳到外层 repeat 的 until 标签。
     int saved_repeat_depth = repeat_depth_;
     repeat_depth_ = 0;
+    auto saved_for_cont = for_cont_stack_;
+    for_cont_stack_.clear();
 
     if (const auto native_cond = TryCompileNativeBoolExpr(while_stmt->Exp()); !native_cond.empty()) {
         Out() << GenTab() << "while (" << native_cond << ") {\n";
@@ -1337,6 +1341,7 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
         cur_tab_--;
         Out() << GenTab() << "}\n";
         repeat_depth_ = saved_repeat_depth;
+        for_cont_stack_ = std::move(saved_for_cont);
         return;
     }
 
@@ -1352,6 +1357,7 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     Out() << GenTab() << "}\n";
 
     repeat_depth_ = saved_repeat_depth;
+    for_cont_stack_ = std::move(saved_for_cont);
 }
 
 void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
@@ -1433,6 +1439,9 @@ void CGen::CompileStmtContinue(const SyntaxTreeInterfacePtr &stmt) {
     if (repeat_depth_ > 0 && !repeat_label_stack_.empty()) {
         // 在 repeat-until 循环内，continue 应跳转到 until 条件检查处，而非 C 的 continue（会跳过 until 条件）
         Out() << GenTab() << "goto flua_until_" << repeat_label_stack_.back() << ";\n";
+    } else if (!for_cont_stack_.empty()) {
+        // 动态 numeric for 用 while(1) + 后置步进；C continue 会跳过步进导致死循环。
+        Out() << GenTab() << "goto flua_for_cont_" << for_cont_stack_.back() << ";\n";
     } else {
         Out() << GenTab() << "continue;\n";
     }
@@ -1462,7 +1471,10 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() && LookupNodeType(for_stmt->ExpBegin().get()) == T_INT && LookupNodeType(for_stmt->ExpEnd().get()) == T_INT &&
                                (!for_stmt->ExpStep() || LookupNodeType(for_stmt->ExpStep().get()) == T_INT);
     if (typed_int_for) {
+        auto saved_for_cont = for_cont_stack_;
+        for_cont_stack_.clear();
         CompileTypedNumericForLoop(for_stmt, T_INT);
+        for_cont_stack_ = std::move(saved_for_cont);
         repeat_depth_ = saved_repeat_depth;
         return;
     }
@@ -1473,7 +1485,10 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
                                  (LookupNodeType(for_stmt->ExpBegin().get()) == T_INT || LookupNodeType(for_stmt->ExpBegin().get()) == T_FLOAT) &&
                                  (LookupNodeType(for_stmt->ExpEnd().get()) == T_INT || LookupNodeType(for_stmt->ExpEnd().get()) == T_FLOAT) && step_is_numeric;
     if (typed_float_for) {
+        auto saved_for_cont = for_cont_stack_;
+        for_cont_stack_.clear();
         CompileTypedNumericForLoop(for_stmt, T_FLOAT);
+        for_cont_stack_ = std::move(saved_for_cont);
         repeat_depth_ = saved_repeat_depth;
         return;
     }
@@ -1515,10 +1530,15 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         }
     }
 
+    const auto stop_var = std::format("flua_for_stop_{}", tmp_var_counter_++);
+
     func_temp_decls_ << "    " << type_str << " " << ctrl_var << ";\n";
     func_temp_decls_ << "    " << type_str << " " << end_var << ";\n";
     if (!is_constant_step) {
         func_temp_decls_ << "    " << type_str << " " << step_var << ";\n";
+    }
+    if (loop_type == T_INT) {
+        func_temp_decls_ << "    int " << stop_var << ";\n";
     }
 
     const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
@@ -1528,19 +1548,10 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
 
     if (is_constant_step) {
         if (loop_type == T_INT) {
-            if (step_int_val > 0) {
-                if (step_int_val == 1) {
-                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << "++) {\n";
-                } else {
-                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << " += " << step_int_val << ") {\n";
-                }
-            } else {
-                if (step_int_val == -1) {
-                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << "--) {\n";
-                } else {
-                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << " += " << step_int_val << ") {\n";
-                }
-            }
+            Out() << GenTab() << stop_var << " = 0;\n";
+            const std::string cmp = (step_int_val > 0) ? " <= " : " >= ";
+            Out() << GenTab() << "for (; " << ctrl_var << cmp << end_var << " && !" << stop_var << "; "
+                  << stop_var << " = !FlForIntAdvance(&" << ctrl_var << ", " << step_int_val << "LL)) {\n";
         } else {
             if (step_double_val > 0.0) {
                 if (step_double_val == 1.0) {
@@ -1560,8 +1571,14 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         const auto native_step = CompileNumericExp(for_stmt->ExpStep());
         Out() << GenTab() << step_var << " = " << cast_prefix << "(" << native_step << ");\n";
         Out() << GenTab() << "if (UNLIKELY(" << step_var << " == " << zero_str << ")) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
-        Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var << "); " << ctrl_var
-              << " += " << step_var << ") {\n";
+        if (loop_type == T_INT) {
+            Out() << GenTab() << stop_var << " = 0;\n";
+            Out() << GenTab() << "for (; ((" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var << ")) && !" << stop_var
+                  << "; " << stop_var << " = !FlForIntAdvance(&" << ctrl_var << ", " << step_var << ")) {\n";
+        } else {
+            Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var << "); " << ctrl_var
+                  << " += " << step_var << ") {\n";
+        }
     }
     cur_tab_++;
     if (IsCapturedInStmt(for_stmt.get(), for_stmt->Name())) {
@@ -1591,12 +1608,15 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);
     const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);
 
+    const auto prev_var = std::format("flua_for_prev_{}", tmp_var_counter_++);
+
     func_temp_decls_ << "    CVar " << ctrl_var << ";\n";
     func_temp_decls_ << "    CVar " << end_var << ";\n";
     func_temp_decls_ << "    CVar " << step_var << ";\n";
     func_temp_decls_ << "    bool " << step_pos_var << ";\n";
     func_temp_decls_ << "    bool " << cond_var << ";\n";
     func_temp_decls_ << "    CVar " << cmp_var << ";\n";
+    func_temp_decls_ << "    int64_t " << prev_var << ";\n";
 
     const auto begin_expr = CompileExp(for_stmt->ExpBegin());
     Out() << GenTab() << ctrl_var << " = " << begin_expr << ";\n";
@@ -1642,16 +1662,27 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
         Out() << GenTab() << "CVar " << loop_var_name << " = " << ctrl_var << ";\n";
     }
 
+    const int for_cont_id = ++for_cont_id_;
+    for_cont_stack_.push_back(for_cont_id);
+
     Out() << GenTab() << "{\n";
     cur_tab_++;
     CompileStmtBlock(for_stmt->Block());
     cur_tab_--;
     Out() << GenTab() << "}\n";
 
+    // Lua continue 必须落到步进处；C continue 会回到 while(1) 并跳过 OpAdd。
+    Out() << "flua_for_cont_" << for_cont_id << ":\n";
+    Out() << GenTab() << std::format("if ({0}.type_ == VAR_INT) {1} = {0}.data_.i;\n", ctrl_var, prev_var);
     Out() << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", ctrl_var, step_var, ctrl_var);
+    Out() << GenTab() << std::format(
+            "if ({0}.type_ == VAR_INT && {1}.type_ == VAR_INT && "
+            "({2} ^ {1}.data_.i) >= 0 && ({0}.data_.i ^ {2}) < 0) break;\n",
+            ctrl_var, step_var, prev_var);
 
     cur_tab_--;
     Out() << GenTab() << "}\n";
+    for_cont_stack_.pop_back();
 }
 
 CGen::PairsIpairsKind CGen::TryMatchPairsIpairs(const std::shared_ptr<SyntaxTreeExplist> &explist_ptr, const std::vector<std::string> &names, SyntaxTreeInterfacePtr &out_tbl_arg) {
@@ -1690,6 +1721,8 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     // 否则内层 continue 会错误地跳到外层 repeat 的 until 标签。
     int saved_repeat_depth = repeat_depth_;
     repeat_depth_ = 0;
+    auto saved_for_cont = for_cont_stack_;
+    for_cont_stack_.clear();
 
     const auto namelist = for_in->Namelist();
     DEBUG_ASSERT(namelist->Type() == SyntaxTreeType::NameList);
@@ -1824,6 +1857,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     repeat_depth_ = saved_repeat_depth;
+    for_cont_stack_ = std::move(saved_for_cont);
 }
 
 // ===========================================================================
@@ -2990,47 +3024,46 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         return tmp;
     }
     if (method_name == "sqrt" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = sqrt(" << val_tmp << ")};\n";
+        emit_guarded_unary("sqrt", method_name);
         return tmp;
     }
     if (method_name == "sin" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = sin(" << val_tmp << ")};\n";
+        emit_guarded_unary("sin", method_name);
         return tmp;
     }
     if (method_name == "cos" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = cos(" << val_tmp << ")};\n";
+        emit_guarded_unary("cos", method_name);
         return tmp;
     }
     if (method_name == "tan" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
-        const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = tan(" << val_tmp << ")};\n";
+        emit_guarded_unary("tan", method_name);
         return tmp;
     }
     if (method_name == "pow" && raw_args.size() >= 2) {
         std::string arg1 = CompileExp(raw_args[0]);
         std::string arg2 = CompileExp(raw_args[1]);
+        const auto a1_tmp = std::format("flua_pow_a_{}", tmp_var_counter_++);
+        const auto a2_tmp = std::format("flua_pow_b_{}", tmp_var_counter_++);
         const auto val1_tmp = std::format("flua_val_{}", tmp_var_counter_++);
         const auto val2_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << a1_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << a2_tmp << ";\n";
         func_temp_decls_ << "    double " << val1_tmp << ";\n";
         func_temp_decls_ << "    double " << val2_tmp << ";\n";
-        Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? (double)" << arg1 << ".data_.i : (" << arg1 << ".type_ == VAR_FLOAT ? " << arg1 << ".data_.f : 0.0));\n";
-        Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? (double)" << arg2 << ".data_.i : (" << arg2 << ".type_ == VAR_FLOAT ? " << arg2 << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = pow(" << val1_tmp << ", " << val2_tmp << ")};\n";
+        Out() << GenTab() << a1_tmp << " = " << arg1 << ";\n";
+        Out() << GenTab() << a2_tmp << " = " << arg2 << ";\n";
+        Out() << GenTab() << "if (LIKELY((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && "
+             << "(" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp << ".type_ == VAR_FLOAT))) {\n";
+        Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp
+             << ".data_.i : " << a1_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << val2_tmp << " = (" << a2_tmp << ".type_ == VAR_INT ? (double)" << a2_tmp
+             << ".data_.i : " << a2_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = pow(" << val1_tmp << ", " << val2_tmp
+             << ")};\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.pow\", 2, " << a1_tmp
+             << ", " << a2_tmp << ");\n";
+        Out() << GenTab() << "}\n";
         return tmp;
     }
     if (method_name == "asin" && raw_args.size() == 1) {
@@ -3080,25 +3113,55 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     if (method_name == "fmod" && raw_args.size() >= 2) {
         std::string arg1 = CompileExp(raw_args[0]);
         std::string arg2 = CompileExp(raw_args[1]);
+        const auto a1_tmp = std::format("flua_fmod_a_{}", tmp_var_counter_++);
+        const auto a2_tmp = std::format("flua_fmod_b_{}", tmp_var_counter_++);
         const auto val1_tmp = std::format("flua_val_{}", tmp_var_counter_++);
         const auto val2_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << a1_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << a2_tmp << ";\n";
         func_temp_decls_ << "    double " << val1_tmp << ";\n";
         func_temp_decls_ << "    double " << val2_tmp << ";\n";
-        Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? (double)" << arg1 << ".data_.i : (" << arg1 << ".type_ == VAR_FLOAT ? " << arg1 << ".data_.f : 0.0));\n";
-        Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? (double)" << arg2 << ".data_.i : (" << arg2 << ".type_ == VAR_FLOAT ? " << arg2 << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = fmod(" << val1_tmp << ", " << val2_tmp << ")};\n";
+        Out() << GenTab() << a1_tmp << " = " << arg1 << ";\n";
+        Out() << GenTab() << a2_tmp << " = " << arg2 << ";\n";
+        Out() << GenTab() << "if (LIKELY((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && "
+             << "(" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp << ".type_ == VAR_FLOAT))) {\n";
+        Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp
+             << ".data_.i : " << a1_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << val2_tmp << " = (" << a2_tmp << ".type_ == VAR_INT ? (double)" << a2_tmp
+             << ".data_.i : " << a2_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = fmod(" << val1_tmp << ", " << val2_tmp
+             << ")};\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.fmod\", 2, " << a1_tmp
+             << ", " << a2_tmp << ");\n";
+        Out() << GenTab() << "}\n";
         return tmp;
     }
     if (method_name == "ldexp" && raw_args.size() >= 2) {
         std::string arg1 = CompileExp(raw_args[0]);
         std::string arg2 = CompileExp(raw_args[1]);
+        const auto a1_tmp = std::format("flua_ld_a_{}", tmp_var_counter_++);
+        const auto a2_tmp = std::format("flua_ld_e_{}", tmp_var_counter_++);
         const auto val1_tmp = std::format("flua_val_{}", tmp_var_counter_++);
-        const auto val2_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        const auto exp_tmp = std::format("flua_exp_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << a1_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << a2_tmp << ";\n";
         func_temp_decls_ << "    double " << val1_tmp << ";\n";
-        func_temp_decls_ << "    double " << val2_tmp << ";\n";
-        Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? (double)" << arg1 << ".data_.i : (" << arg1 << ".type_ == VAR_FLOAT ? " << arg1 << ".data_.f : 0.0));\n";
-        Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? (double)" << arg2 << ".data_.i : (" << arg2 << ".type_ == VAR_FLOAT ? " << arg2 << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = ldexp(" << val1_tmp << ", (int)" << val2_tmp << ")};\n";
+        func_temp_decls_ << "    int64_t " << exp_tmp << ";\n";
+        Out() << GenTab() << a1_tmp << " = " << arg1 << ";\n";
+        Out() << GenTab() << a2_tmp << " = " << arg2 << ";\n";
+        Out() << GenTab() << "if (LIKELY((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && "
+             << "(" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp << ".type_ == VAR_FLOAT))) {\n";
+        Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp
+             << ".data_.i : " << a1_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    if (" << a2_tmp << ".type_ == VAR_INT) { " << exp_tmp << " = " << a2_tmp << ".data_.i; } ";
+        Out() << "else { FlToIntChecked(" << a2_tmp << ".data_.f, " << exp_tmp << "); }\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = ldexp(" << val1_tmp
+             << ", (int)" << exp_tmp << ")};\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ldexp\", 2, " << a1_tmp
+             << ", " << a2_tmp << ");\n";
+        Out() << GenTab() << "}\n";
         return tmp;
     }
     if (method_name == "type" && raw_args.size() == 1) {
@@ -3110,32 +3173,67 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     }
     if (method_name == "tointeger" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
+        const auto iv_tmp = std::format("flua_toi_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    int64_t " << iv_tmp << ";\n";
         Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = " << arg << "; } ";
-        Out() << "else if (" << arg << ".type_ == VAR_FLOAT && (double)(int64_t)" << arg << ".data_.f == " << arg << ".data_.f) { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)" << arg
-              << ".data_.f}; } ";
+        Out() << "else if (" << arg << ".type_ == VAR_FLOAT && FlDoubleFitsInt64(" << arg << ".data_.f, &" << iv_tmp << ")) { ";
+        Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << iv_tmp << "}; } ";
         Out() << "else { " << tmp << " = kNil; }\n";
         return tmp;
     }
     if (method_name == "ult" && raw_args.size() >= 2) {
         std::string arg1 = CompileExp(raw_args[0]);
         std::string arg2 = CompileExp(raw_args[1]);
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_BOOL, .data_.b = ((uint64_t)" << arg1 << ".data_.i < (uint64_t)" << arg2 << ".data_.i)};\n";
+        const auto a_tmp = std::format("flua_ult_a_{}", tmp_var_counter_++);
+        const auto b_tmp = std::format("flua_ult_b_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << a_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << b_tmp << ";\n";
+        Out() << GenTab() << a_tmp << " = " << arg1 << ";\n";
+        Out() << GenTab() << b_tmp << " = " << arg2 << ";\n";
+        // 未检查类型时 .data_.i 会读到 float/string 的 union 位型。非 INT 走 native CheckIntegerArg。
+        Out() << GenTab() << "if (LIKELY(" << a_tmp << ".type_ == VAR_INT && " << b_tmp << ".type_ == VAR_INT)) {\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_BOOL, .data_.b = ((uint64_t)" << a_tmp
+             << ".data_.i < (uint64_t)" << b_tmp << ".data_.i)};\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ult\", 2, " << a_tmp
+             << ", " << b_tmp << ");\n";
+        Out() << GenTab() << "}\n";
         return tmp;
     }
     if (method_name == "deg" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
+        const auto arg_tmp = std::format("flua_deg_{}", tmp_var_counter_++);
         const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
         func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp << " * (180.0 / 3.14159265358979323846)};\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT || " << arg_tmp << ".type_ == VAR_FLOAT)) {\n";
+        Out() << GenTab() << "    " << val_tmp << " = (" << arg_tmp << ".type_ == VAR_INT ? (double)" << arg_tmp
+             << ".data_.i : " << arg_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp
+             << " * (180.0 / 3.14159265358979323846)};\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.deg\", 1, " << arg_tmp
+             << ");\n";
+        Out() << GenTab() << "}\n";
         return tmp;
     }
     if (method_name == "rad" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
+        const auto arg_tmp = std::format("flua_rad_{}", tmp_var_counter_++);
         const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
         func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp << " * (3.14159265358979323846 / 180.0)};\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT || " << arg_tmp << ".type_ == VAR_FLOAT)) {\n";
+        Out() << GenTab() << "    " << val_tmp << " = (" << arg_tmp << ".type_ == VAR_INT ? (double)" << arg_tmp
+             << ".data_.i : " << arg_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp
+             << " * (3.14159265358979323846 / 180.0)};\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.rad\", 1, " << arg_tmp
+             << ");\n";
+        Out() << GenTab() << "}\n";
         return tmp;
     }
     if (method_name == "random") {
@@ -3143,9 +3241,14 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             Out() << GenTab() << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = (double)rand() / ((double)RAND_MAX + 1.0)};\n";
         } else if (raw_args.size() == 1) {
             std::string arg = CompileExp(raw_args[0]);
+            const auto a_tmp = std::format("flua_rnd_a_{}", tmp_var_counter_++);
             const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << a_tmp << ";\n";
             func_temp_decls_ << "    int64_t " << val_tmp << ";\n";
-            Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? " << arg << ".data_.i : (int64_t)" << arg << ".data_.f);\n";
+            Out() << GenTab() << a_tmp << " = " << arg << ";\n";
+            Out() << GenTab() << "if (" << a_tmp << ".type_ == VAR_INT) { " << val_tmp << " = " << a_tmp << ".data_.i; } ";
+            Out() << "else if (" << a_tmp << ".type_ == VAR_FLOAT) { FlToIntChecked(" << a_tmp << ".data_.f, " << val_tmp << "); } ";
+            Out() << "else { FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (number expected)\"); " << val_tmp << " = 0; }\n";
             // 与 Lua 5.4 对齐：
             //   random(0)  -> 全范围随机整数（拼 4 个 rand 填满 64 位，跨平台一致）
             //   random(<0) -> 抛异常 "interval is empty"
@@ -3161,12 +3264,22 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         } else {
             std::string arg1 = CompileExp(raw_args[0]);
             std::string arg2 = CompileExp(raw_args[1]);
+            const auto a1_tmp = std::format("flua_rnd_a_{}", tmp_var_counter_++);
+            const auto a2_tmp = std::format("flua_rnd_b_{}", tmp_var_counter_++);
             const auto val1_tmp = std::format("flua_val_{}", tmp_var_counter_++);
             const auto val2_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << a1_tmp << ";\n";
+            func_temp_decls_ << "    CVar " << a2_tmp << ";\n";
             func_temp_decls_ << "    int64_t " << val1_tmp << ";\n";
             func_temp_decls_ << "    int64_t " << val2_tmp << ";\n";
-            Out() << GenTab() << val1_tmp << " = (" << arg1 << ".type_ == VAR_INT ? " << arg1 << ".data_.i : (int64_t)" << arg1 << ".data_.f);\n";
-            Out() << GenTab() << val2_tmp << " = (" << arg2 << ".type_ == VAR_INT ? " << arg2 << ".data_.i : (int64_t)" << arg2 << ".data_.f);\n";
+            Out() << GenTab() << a1_tmp << " = " << arg1 << ";\n";
+            Out() << GenTab() << a2_tmp << " = " << arg2 << ";\n";
+            Out() << GenTab() << "if (" << a1_tmp << ".type_ == VAR_INT) { " << val1_tmp << " = " << a1_tmp << ".data_.i; } ";
+            Out() << "else if (" << a1_tmp << ".type_ == VAR_FLOAT) { FlToIntChecked(" << a1_tmp << ".data_.f, " << val1_tmp << "); } ";
+            Out() << "else { FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (number expected)\"); " << val1_tmp << " = 0; }\n";
+            Out() << GenTab() << "if (" << a2_tmp << ".type_ == VAR_INT) { " << val2_tmp << " = " << a2_tmp << ".data_.i; } ";
+            Out() << "else if (" << a2_tmp << ".type_ == VAR_FLOAT) { FlToIntChecked(" << a2_tmp << ".data_.f, " << val2_tmp << "); } ";
+            Out() << "else { FakeluaThrowError(_S, \"bad argument #2 to 'math.random' (number expected)\"); " << val2_tmp << " = 0; }\n";
             // 与 Lua 5.4 对齐：
             //   l > u -> 抛异常 "interval is empty"
             //   l == u -> 返回 l
@@ -3190,41 +3303,73 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     if (method_name == "randomseed") {
         if (raw_args.empty()) {
             Out() << GenTab() << "srand((unsigned int)time(NULL));\n";
+            Out() << GenTab() << tmp << " = kNil;\n";
         } else {
             std::string arg = CompileExp(raw_args[0]);
-            Out() << GenTab() << "srand((" << arg << ".type_ == VAR_INT ? (unsigned int)" << arg << ".data_.i : (unsigned int)" << arg << ".data_.f));\n";
+            const auto arg_tmp = std::format("flua_rseed_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
+            Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+            // 只内联 INT。Float 的 NaN/Inf/2^63 强转 unsigned 是 UB，交给 native。
+            Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT)) {\n";
+            Out() << GenTab() << "    srand((unsigned int)" << arg_tmp << ".data_.i);\n";
+            Out() << GenTab() << "    " << tmp << " = kNil;\n";
+            Out() << GenTab() << "} else {\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.randomseed\", 1, "
+                 << arg_tmp << ");\n";
+            Out() << GenTab() << "}\n";
         }
-        Out() << GenTab() << tmp << " = kNil;\n";
         return tmp;
     }
     if (method_name == "modf" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
+        const auto arg_tmp = std::format("flua_modf_a_{}", tmp_var_counter_++);
         const auto iptr_tmp = std::format("flua_iptr_{}", tmp_var_counter_++);
         const auto frac_tmp = std::format("flua_frac_{}", tmp_var_counter_++);
         const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
         func_temp_decls_ << "    double " << iptr_tmp << ";\n";
         func_temp_decls_ << "    double " << frac_tmp << ";\n";
         func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << iptr_tmp << " = (double)" << arg << ".data_.i; " << frac_tmp << " = 0.0; } else { " << val_tmp << " = (" << arg
-              << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0); " << frac_tmp << " = modf(" << val_tmp << ", &" << iptr_tmp << "); }\n";
-        Out() << GenTab() << tmp << " = FlAllocMulti(_S, 2);\n";
-        Out() << GenTab() << tmp << ".data_.m->vars[0] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << iptr_tmp << "};\n";
-        Out() << GenTab() << tmp << ".data_.m->vars[1] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << frac_tmp << "};\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT || " << arg_tmp << ".type_ == VAR_FLOAT)) {\n";
+        Out() << GenTab() << "    if (" << arg_tmp << ".type_ == VAR_INT) { " << iptr_tmp << " = (double)" << arg_tmp
+             << ".data_.i; " << frac_tmp << " = 0.0; } else { " << val_tmp << " = " << arg_tmp << ".data_.f; " << frac_tmp
+             << " = modf(" << val_tmp << ", &" << iptr_tmp << "); }\n";
+        Out() << GenTab() << "    " << tmp << " = FlAllocMulti(_S, 2);\n";
+        Out() << GenTab() << "    " << tmp << ".data_.m->vars[0] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << iptr_tmp
+             << "};\n";
+        Out() << GenTab() << "    " << tmp << ".data_.m->vars[1] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << frac_tmp
+             << "};\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.modf\", 1, " << arg_tmp
+             << ");\n";
+        Out() << GenTab() << "}\n";
         return tmp;
     }
     if (method_name == "frexp" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
+        const auto arg_tmp = std::format("flua_frexp_a_{}", tmp_var_counter_++);
         const auto exp_tmp = std::format("flua_exp_{}", tmp_var_counter_++);
         const auto frac_tmp = std::format("flua_frac_{}", tmp_var_counter_++);
         const auto val_tmp = std::format("flua_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
         func_temp_decls_ << "    int " << exp_tmp << " = 0;\n";
         func_temp_decls_ << "    double " << frac_tmp << ";\n";
         func_temp_decls_ << "    double " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << arg << ".type_ == VAR_INT ? (double)" << arg << ".data_.i : (" << arg << ".type_ == VAR_FLOAT ? " << arg << ".data_.f : 0.0));\n";
-        Out() << GenTab() << frac_tmp << " = frexp(" << val_tmp << ", &" << exp_tmp << ");\n";
-        Out() << GenTab() << tmp << " = FlAllocMulti(_S, 2);\n";
-        Out() << GenTab() << tmp << ".data_.m->vars[0] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << frac_tmp << "};\n";
-        Out() << GenTab() << tmp << ".data_.m->vars[1] = (CVar){.type_ = VAR_INT, .data_.i = " << exp_tmp << "};\n";
+        Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT || " << arg_tmp << ".type_ == VAR_FLOAT)) {\n";
+        Out() << GenTab() << "    " << val_tmp << " = (" << arg_tmp << ".type_ == VAR_INT ? (double)" << arg_tmp
+             << ".data_.i : " << arg_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << frac_tmp << " = frexp(" << val_tmp << ", &" << exp_tmp << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FlAllocMulti(_S, 2);\n";
+        Out() << GenTab() << "    " << tmp << ".data_.m->vars[0] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << frac_tmp
+             << "};\n";
+        Out() << GenTab() << "    " << tmp << ".data_.m->vars[1] = (CVar){.type_ = VAR_INT, .data_.i = " << exp_tmp
+             << "};\n";
+        Out() << GenTab() << "} else {\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.frexp\", 1, " << arg_tmp
+             << ");\n";
+        Out() << GenTab() << "}\n";
         return tmp;
     }
 
@@ -3278,40 +3423,81 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         std::string f_arg = CompileExp(raw_args[1]);
         std::string e_arg = CompileExp(raw_args[2]);
         std::string t_arg = CompileExp(raw_args[3]);
-        std::string dst_arg = (raw_args.size() >= 5) ? CompileExp(raw_args[4]) : src_arg;
+        const bool has_dst = raw_args.size() >= 5;
+        std::string dst_arg = has_dst ? CompileExp(raw_args[4]) : src_arg;
         const auto src_tmp = std::format("flua_mv_s_{}", tmp_var_counter_++);
         const auto dst_tmp = std::format("flua_mv_d_{}", tmp_var_counter_++);
+        const auto f_c = std::format("flua_mv_fc_{}", tmp_var_counter_++);
+        const auto e_c = std::format("flua_mv_ec_{}", tmp_var_counter_++);
+        const auto t_c = std::format("flua_mv_tc_{}", tmp_var_counter_++);
         const auto f_tmp = std::format("flua_mv_f_{}", tmp_var_counter_++);
         const auto e_tmp = std::format("flua_mv_e_{}", tmp_var_counter_++);
         const auto t_tmp = std::format("flua_mv_t_{}", tmp_var_counter_++);
         func_temp_decls_ << "    CVar " << src_tmp << ";\n";
         func_temp_decls_ << "    CVar " << dst_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << f_c << ";\n";
+        func_temp_decls_ << "    CVar " << e_c << ";\n";
+        func_temp_decls_ << "    CVar " << t_c << ";\n";
         func_temp_decls_ << "    int64_t " << f_tmp << ";\n";
         func_temp_decls_ << "    int64_t " << e_tmp << ";\n";
         func_temp_decls_ << "    int64_t " << t_tmp << ";\n";
         Out() << GenTab() << src_tmp << " = " << src_arg << ";\n";
         Out() << GenTab() << dst_tmp << " = " << dst_arg << ";\n";
-        Out() << GenTab() << f_tmp << " = (" << f_arg << ".type_ == VAR_INT) ? " << f_arg << ".data_.i : 1;\n";
-        Out() << GenTab() << e_tmp << " = (" << e_arg << ".type_ == VAR_INT) ? " << e_arg << ".data_.i : 0;\n";
-        Out() << GenTab() << t_tmp << " = (" << t_arg << ".type_ == VAR_INT) ? " << t_arg << ".data_.i : 1;\n";
-        Out() << GenTab() << tmp << " = FlTableMove(" << src_tmp << ", " << f_tmp << ", " << e_tmp << ", " << t_tmp << ", " << dst_tmp << ");\n";
+        Out() << GenTab() << f_c << " = " << f_arg << ";\n";
+        Out() << GenTab() << e_c << " = " << e_arg << ";\n";
+        Out() << GenTab() << t_c << " = " << t_arg << ";\n";
+        // 非 INT 下标（如 2.0）不能默认成 1/0，否则会搬错区间。
+        Out() << GenTab() << "if (LIKELY(" << f_c << ".type_ == VAR_INT && " << e_c << ".type_ == VAR_INT && " << t_c
+             << ".type_ == VAR_INT)) {\n";
+        Out() << GenTab() << "    " << f_tmp << " = " << f_c << ".data_.i;\n";
+        Out() << GenTab() << "    " << e_tmp << " = " << e_c << ".data_.i;\n";
+        Out() << GenTab() << "    " << t_tmp << " = " << t_c << ".data_.i;\n";
+        Out() << GenTab() << "    " << tmp << " = FlTableMove(" << src_tmp << ", " << f_tmp << ", " << e_tmp << ", "
+             << t_tmp << ", " << dst_tmp << ");\n";
+        Out() << GenTab() << "} else {\n";
+        if (has_dst) {
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.move\", 5, "
+                 << src_tmp << ", " << f_c << ", " << e_c << ", " << t_c << ", " << dst_tmp << ");\n";
+        } else {
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.move\", 4, "
+                 << src_tmp << ", " << f_c << ", " << e_c << ", " << t_c << ");\n";
+        }
+        Out() << GenTab() << "}\n";
         return tmp;
     }
 
     if (method_name == "create" && !raw_args.empty()) {
         std::string seq_arg = CompileExp(raw_args[0]);
-        std::string val_arg = (raw_args.size() >= 2) ? CompileExp(raw_args[1]) : "kNil";
+        const bool has_val = raw_args.size() >= 2;
+        std::string val_arg = has_val ? CompileExp(raw_args[1]) : "kNil";
+        const auto seq_tmp = std::format("flua_crt_n_{}", tmp_var_counter_++);
+        const auto val_tmp = std::format("flua_crt_v_{}", tmp_var_counter_++);
         const auto count_tmp = std::format("flua_crt_c_{}", tmp_var_counter_++);
         const auto idx_tmp = std::format("flua_crt_i_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << seq_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << val_tmp << ";\n";
         func_temp_decls_ << "    int64_t " << count_tmp << ";\n";
         func_temp_decls_ << "    int64_t " << idx_tmp << ";\n";
-
-        Out() << GenTab() << count_tmp << " = (" << seq_arg << ".type_ == VAR_INT) ? " << seq_arg << ".data_.i : 0;\n";
-        Out() << GenTab() << "SET_TABLE(" << tmp << ");\n";
-        Out() << GenTab() << "if (" << val_arg << ".type_ != VAR_NIL) {\n";
-        Out() << GenTab() << "    for (" << idx_tmp << " = 1; " << idx_tmp << " <= " << count_tmp << "; " << idx_tmp << "++) {\n";
-        Out() << GenTab() << "        FlSetTableInt(" << tmp << ", " << idx_tmp << ", " << val_arg << ");\n";
+        Out() << GenTab() << seq_tmp << " = " << seq_arg << ";\n";
+        Out() << GenTab() << val_tmp << " = " << val_arg << ";\n";
+        Out() << GenTab() << "if (LIKELY(" << seq_tmp << ".type_ == VAR_INT)) {\n";
+        Out() << GenTab() << "    " << count_tmp << " = " << seq_tmp << ".data_.i;\n";
+        Out() << GenTab() << "    SET_TABLE(" << tmp << ");\n";
+        Out() << GenTab() << "    if (" << val_tmp << ".type_ != VAR_NIL) {\n";
+        Out() << GenTab() << "        if ((uint64_t)" << count_tmp << " > 10000000ULL) { FakeluaThrowError(_S, \"table.create: too many items\"); }\n";
+        Out() << GenTab() << "        for (" << idx_tmp << " = 1; " << idx_tmp << " <= " << count_tmp << "; " << idx_tmp
+             << "++) {\n";
+        Out() << GenTab() << "            FlSetTableInt(" << tmp << ", " << idx_tmp << ", " << val_tmp << ");\n";
+        Out() << GenTab() << "        }\n";
         Out() << GenTab() << "    }\n";
+        Out() << GenTab() << "} else {\n";
+        if (has_val) {
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.create\", 2, "
+                 << seq_tmp << ", " << val_tmp << ");\n";
+        } else {
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.create\", 1, "
+                 << seq_tmp << ");\n";
+        }
         Out() << GenTab() << "}\n";
         return tmp;
     }
@@ -3330,78 +3516,155 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
             std::string tbl_arg = CompileExp(raw_args[0]);
             std::string pos_arg = CompileExp(raw_args[1]);
             std::string val_arg = CompileExp(raw_args[2]);
+            const auto tbl_tmp = std::format("flua_ins_t_{}", tmp_var_counter_++);
+            const auto pos_c = std::format("flua_ins_pc_{}", tmp_var_counter_++);
+            const auto val_tmp = std::format("flua_ins_v_{}", tmp_var_counter_++);
             const auto len_tmp = std::format("flua_tbl_len_{}", tmp_var_counter_++);
             const auto pos_tmp = std::format("flua_tbl_pos_{}", tmp_var_counter_++);
             const auto idx_tmp = std::format("flua_tbl_idx_{}", tmp_var_counter_++);
             const auto item_tmp = std::format("flua_tbl_item_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << tbl_tmp << ";\n";
+            func_temp_decls_ << "    CVar " << pos_c << ";\n";
+            func_temp_decls_ << "    CVar " << val_tmp << ";\n";
             func_temp_decls_ << "    int64_t " << len_tmp << ";\n";
             func_temp_decls_ << "    int64_t " << pos_tmp << ";\n";
             func_temp_decls_ << "    int64_t " << idx_tmp << ";\n";
             func_temp_decls_ << "    CVar " << item_tmp << ";\n";
-            Out() << GenTab() << "FlLenInt(" << tbl_arg << ", " << len_tmp << ");\n";
-            Out() << GenTab() << pos_tmp << " = (" << pos_arg << ".type_ == VAR_INT) ? " << pos_arg << ".data_.i : 1;\n";
-            Out() << GenTab() << "for (" << idx_tmp << " = " << len_tmp << "; " << idx_tmp << " >= " << pos_tmp << "; " << idx_tmp << "--) {\n";
-            Out() << GenTab() << "    " << item_tmp << " = FlGetTableInt(" << tbl_arg << ", " << idx_tmp << ");\n";
-            Out() << GenTab() << "    FlSetTableInt(" << tbl_arg << ", " << idx_tmp << " + 1, " << item_tmp << ");\n";
+            Out() << GenTab() << tbl_tmp << " = " << tbl_arg << ";\n";
+            Out() << GenTab() << pos_c << " = " << pos_arg << ";\n";
+            Out() << GenTab() << val_tmp << " = " << val_arg << ";\n";
+            // 2.0 不是 INT：以前默认 pos=1，会插错位置。
+            // pos 必须在 [1, len+1]：越界不得 FlSetTableInt 挖洞；
+            // mininteger 若走进 for (idx >= pos; idx--) 会在 idx 下溢后死循环。
+            Out() << GenTab() << "if (LIKELY(" << pos_c << ".type_ == VAR_INT)) {\n";
+            Out() << GenTab() << "    FlLenInt(" << tbl_tmp << ", " << len_tmp << ");\n";
+            Out() << GenTab() << "    " << pos_tmp << " = " << pos_c << ".data_.i;\n";
+            Out() << GenTab() << "    if (" << pos_tmp << " >= 1 && " << pos_tmp << " <= " << len_tmp << " + 1) {\n";
+            Out() << GenTab() << "        for (" << idx_tmp << " = " << len_tmp << "; " << idx_tmp << " >= " << pos_tmp
+                 << "; " << idx_tmp << "--) {\n";
+            Out() << GenTab() << "            " << item_tmp << " = FlGetTableInt(" << tbl_tmp << ", " << idx_tmp << ");\n";
+            Out() << GenTab() << "            FlSetTableInt(" << tbl_tmp << ", " << idx_tmp << " + 1, " << item_tmp << ");\n";
+            Out() << GenTab() << "        }\n";
+            Out() << GenTab() << "        FlSetTableInt(" << tbl_tmp << ", " << pos_tmp << ", " << val_tmp << ");\n";
+            Out() << GenTab() << "    }\n";
+            Out() << GenTab() << "    " << tmp << " = kNil;\n";
+            Out() << GenTab() << "} else {\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.insert\", 3, "
+                 << tbl_tmp << ", " << pos_c << ", " << val_tmp << ");\n";
             Out() << GenTab() << "}\n";
-            Out() << GenTab() << "FlSetTableInt(" << tbl_arg << ", " << pos_tmp << ", " << val_arg << ");\n";
-            Out() << GenTab() << tmp << " = kNil;\n";
             return tmp;
         }
     }
     if (method_name == "remove" && !raw_args.empty()) {
         std::string tbl_arg = CompileExp(raw_args[0]);
-        std::string pos_arg = (raw_args.size() >= 2) ? CompileExp(raw_args[1]) : "kNil";
+        const bool has_pos = raw_args.size() >= 2;
+        std::string pos_arg = has_pos ? CompileExp(raw_args[1]) : "kNil";
+        const auto tbl_tmp = std::format("flua_rm_t_{}", tmp_var_counter_++);
+        const auto pos_c = std::format("flua_rm_pc_{}", tmp_var_counter_++);
         const auto len_tmp = std::format("flua_tbl_len_{}", tmp_var_counter_++);
         const auto pos_tmp = std::format("flua_tbl_pos_{}", tmp_var_counter_++);
         const auto idx_tmp = std::format("flua_tbl_idx_{}", tmp_var_counter_++);
         const auto item_tmp = std::format("flua_tbl_item_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << tbl_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << pos_c << ";\n";
         func_temp_decls_ << "    int64_t " << len_tmp << ";\n";
         func_temp_decls_ << "    int64_t " << pos_tmp << ";\n";
         func_temp_decls_ << "    int64_t " << idx_tmp << ";\n";
         func_temp_decls_ << "    CVar " << item_tmp << ";\n";
-        Out() << GenTab() << "FlLenInt(" << tbl_arg << ", " << len_tmp << ");\n";
-        Out() << GenTab() << pos_tmp << " = (" << pos_arg << ".type_ == VAR_INT) ? " << pos_arg << ".data_.i : " << len_tmp << ";\n";
-        Out() << GenTab() << "if (" << pos_tmp << " >= 1 && " << pos_tmp << " <= " << len_tmp << ") {\n";
-        Out() << GenTab() << "    " << tmp << " = FlGetTableInt(" << tbl_arg << ", " << pos_tmp << ");\n";
-        Out() << GenTab() << "    for (" << idx_tmp << " = " << pos_tmp << "; " << idx_tmp << " < " << len_tmp << "; " << idx_tmp << "++) {\n";
-        Out() << GenTab() << "        " << item_tmp << " = FlGetTableInt(" << tbl_arg << ", " << idx_tmp << " + 1);\n";
-        Out() << GenTab() << "        FlSetTableInt(" << tbl_arg << ", " << idx_tmp << ", " << item_tmp << ");\n";
+        Out() << GenTab() << tbl_tmp << " = " << tbl_arg << ";\n";
+        Out() << GenTab() << pos_c << " = " << pos_arg << ";\n";
+        // 省略 pos 或 INT 走内联；2.0 以前会当成 #t，删错元素。
+        Out() << GenTab() << "if (LIKELY(" << pos_c << ".type_ == VAR_NIL || " << pos_c << ".type_ == VAR_INT)) {\n";
+        Out() << GenTab() << "    FlLenInt(" << tbl_tmp << ", " << len_tmp << ");\n";
+        Out() << GenTab() << "    " << pos_tmp << " = (" << pos_c << ".type_ == VAR_INT) ? " << pos_c << ".data_.i : "
+             << len_tmp << ";\n";
+        Out() << GenTab() << "    if (" << pos_tmp << " >= 1 && " << pos_tmp << " <= " << len_tmp << ") {\n";
+        Out() << GenTab() << "        " << tmp << " = FlGetTableInt(" << tbl_tmp << ", " << pos_tmp << ");\n";
+        Out() << GenTab() << "        for (" << idx_tmp << " = " << pos_tmp << "; " << idx_tmp << " < " << len_tmp
+             << "; " << idx_tmp << "++) {\n";
+        Out() << GenTab() << "            " << item_tmp << " = FlGetTableInt(" << tbl_tmp << ", " << idx_tmp << " + 1);\n";
+        Out() << GenTab() << "            FlSetTableInt(" << tbl_tmp << ", " << idx_tmp << ", " << item_tmp << ");\n";
+        Out() << GenTab() << "        }\n";
+        Out() << GenTab() << "        FlSetTableInt(" << tbl_tmp << ", " << len_tmp << ", kNil);\n";
+        Out() << GenTab() << "    } else {\n";
+        Out() << GenTab() << "        " << tmp << " = kNil;\n";
         Out() << GenTab() << "    }\n";
-        Out() << GenTab() << "    FlSetTableInt(" << tbl_arg << ", " << len_tmp << ", kNil);\n";
         Out() << GenTab() << "} else {\n";
-        Out() << GenTab() << "    " << tmp << " = kNil;\n";
+        if (has_pos) {
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.remove\", 2, "
+                 << tbl_tmp << ", " << pos_c << ");\n";
+        } else {
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.remove\", 1, "
+                 << tbl_tmp << ");\n";
+        }
         Out() << GenTab() << "}\n";
         return tmp;
     }
     if (method_name == "unpack" && !raw_args.empty()) {
         std::string tbl_arg = CompileExp(raw_args[0]);
-        std::string i_arg = (raw_args.size() >= 2) ? CompileExp(raw_args[1]) : "kNil";
-        std::string j_arg = (raw_args.size() >= 3) ? CompileExp(raw_args[2]) : "kNil";
+        const bool has_i = raw_args.size() >= 2;
+        const bool has_j = raw_args.size() >= 3;
+        std::string i_arg = has_i ? CompileExp(raw_args[1]) : "kNil";
+        std::string j_arg = has_j ? CompileExp(raw_args[2]) : "kNil";
 
+        const auto tbl_tmp = std::format("flua_unp_t_{}", tmp_var_counter_++);
+        const auto i_c = std::format("flua_unp_ic_{}", tmp_var_counter_++);
+        const auto j_c = std::format("flua_unp_jc_{}", tmp_var_counter_++);
         const auto start_tmp = std::format("flua_unp_s_{}", tmp_var_counter_++);
         const auto end_tmp = std::format("flua_unp_e_{}", tmp_var_counter_++);
         const auto count_tmp = std::format("flua_unp_c_{}", tmp_var_counter_++);
+        const auto ucount_tmp = std::format("flua_unp_uc_{}", tmp_var_counter_++);
         const auto idx_tmp = std::format("flua_unp_i_{}", tmp_var_counter_++);
         const auto item_tmp = std::format("flua_unp_val_{}", tmp_var_counter_++);
 
+        func_temp_decls_ << "    CVar " << tbl_tmp << ";\n";
+        func_temp_decls_ << "    CVar " << i_c << ";\n";
+        func_temp_decls_ << "    CVar " << j_c << ";\n";
         func_temp_decls_ << "    int64_t " << start_tmp << ";\n";
         func_temp_decls_ << "    int64_t " << end_tmp << ";\n";
         func_temp_decls_ << "    int64_t " << count_tmp << ";\n";
+        func_temp_decls_ << "    uint64_t " << ucount_tmp << ";\n";
         func_temp_decls_ << "    int64_t " << idx_tmp << ";\n";
         func_temp_decls_ << "    CVar " << item_tmp << ";\n";
 
-        Out() << GenTab() << start_tmp << " = (" << i_arg << ".type_ == VAR_INT) ? " << i_arg << ".data_.i : 1;\n";
-        Out() << GenTab() << "if (" << j_arg << ".type_ == VAR_INT) { " << end_tmp << " = " << j_arg << ".data_.i; } else { FlLenInt(" << tbl_arg << ", " << end_tmp << "); }\n";
-        Out() << GenTab() << "if (" << start_tmp << " <= " << end_tmp << ") {\n";
-        Out() << GenTab() << "    " << count_tmp << " = " << end_tmp << " - " << start_tmp << " + 1;\n";
-        Out() << GenTab() << "    " << tmp << " = FlAllocMulti(_S, (uint32_t)" << count_tmp << ");\n";
-        Out() << GenTab() << "    for (" << idx_tmp << " = 0; " << idx_tmp << " < " << count_tmp << "; " << idx_tmp << "++) {\n";
-        Out() << GenTab() << "        " << item_tmp << " = FlGetTableInt(" << tbl_arg << ", " << start_tmp << " + " << idx_tmp << ");\n";
-        Out() << GenTab() << "        " << tmp << ".data_.m->vars[" << idx_tmp << "] = " << item_tmp << ";\n";
+        Out() << GenTab() << tbl_tmp << " = " << tbl_arg << ";\n";
+        Out() << GenTab() << i_c << " = " << i_arg << ";\n";
+        Out() << GenTab() << j_c << " = " << j_arg << ";\n";
+        // i/j 缺省或 INT 走内联；2.0 以前会当成从 1 解包到 #t。
+        Out() << GenTab() << "if (LIKELY((" << i_c << ".type_ == VAR_NIL || " << i_c << ".type_ == VAR_INT) && ("
+             << j_c << ".type_ == VAR_NIL || " << j_c << ".type_ == VAR_INT))) {\n";
+        Out() << GenTab() << "    " << start_tmp << " = (" << i_c << ".type_ == VAR_INT) ? " << i_c << ".data_.i : 1;\n";
+        Out() << GenTab() << "    if (" << j_c << ".type_ == VAR_INT) { " << end_tmp << " = " << j_c
+             << ".data_.i; } else { FlLenInt(" << tbl_tmp << ", " << end_tmp << "); }\n";
+        Out() << GenTab() << "    if (" << start_tmp << " <= " << end_tmp << ") {\n";
+        Out() << GenTab() << "        " << ucount_tmp << " = (uint64_t)" << end_tmp << " - (uint64_t)" << start_tmp
+             << " + 1;\n";
+        Out() << GenTab() << "        if (" << ucount_tmp << " == 0 || " << ucount_tmp << " > 1000000ULL) {\n";
+        Out() << GenTab() << "            " << tmp << " = FlAllocMulti(_S, 0);\n";
+        Out() << GenTab() << "        } else {\n";
+        Out() << GenTab() << "            " << count_tmp << " = (int64_t)" << ucount_tmp << ";\n";
+        Out() << GenTab() << "            " << tmp << " = FlAllocMulti(_S, (uint32_t)" << count_tmp << ");\n";
+        Out() << GenTab() << "            for (" << idx_tmp << " = 0; " << idx_tmp << " < " << count_tmp << "; "
+             << idx_tmp << "++) {\n";
+        Out() << GenTab() << "                " << item_tmp << " = FlGetTableInt(" << tbl_tmp << ", " << start_tmp
+             << " + " << idx_tmp << ");\n";
+        Out() << GenTab() << "                " << tmp << ".data_.m->vars[" << idx_tmp << "] = " << item_tmp << ";\n";
+        Out() << GenTab() << "            }\n";
+        Out() << GenTab() << "        }\n";
+        Out() << GenTab() << "    } else {\n";
+        Out() << GenTab() << "        " << tmp << " = kNil;\n";
         Out() << GenTab() << "    }\n";
         Out() << GenTab() << "} else {\n";
-        Out() << GenTab() << "    " << tmp << " = kNil;\n";
+        if (has_j) {
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.unpack\", 3, "
+                 << tbl_tmp << ", " << i_c << ", " << j_c << ");\n";
+        } else if (has_i) {
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.unpack\", 2, "
+                 << tbl_tmp << ", " << i_c << ");\n";
+        } else {
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.unpack\", 1, "
+                 << tbl_tmp << ");\n";
+        }
         Out() << GenTab() << "}\n";
         return tmp;
     }
@@ -3597,11 +3860,9 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
         func_temp_decls_ << "    CVar " << n_tmp << ";\n";
         Out() << GenTab() << s_tmp << " = " << s_arg << ";\n";
         Out() << GenTab() << n_tmp << " = " << n_arg << ";\n";
-        const auto val_tmp = std::format("flua_srep_v_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    int64_t " << val_tmp << ";\n";
-        Out() << GenTab() << val_tmp << " = (" << n_tmp << ".type_ == VAR_INT ? " << n_tmp << ".data_.i : (int64_t)(" << n_tmp << ".type_ == VAR_FLOAT ? " << n_tmp << ".data_.f : 0));\n";
+        // 只在 count 已是 INT 时内联。Float（含 2^63 / NaN）不可 (int64_t) 强转，交给 native CheckIntegerArg。
         Out() << GenTab() << "if (LIKELY((" << s_tmp << ".type_ == VAR_STRING || " << s_tmp << ".type_ == VAR_STRINGID) && " << n_tmp << ".type_ == VAR_INT)) {\n";
-        Out() << GenTab() << "    " << tmp << " = FlStringRep(" << s_tmp << ", " << val_tmp << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FlStringRep(" << s_tmp << ", " << n_tmp << ".data_.i);\n";
         Out() << GenTab() << "} else {\n";
         Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.rep\", 2, " << s_tmp << ", " << n_tmp << ");\n";
         Out() << GenTab() << "}\n";

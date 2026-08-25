@@ -45,3 +45,18 @@ function test_io_file_lines()
 
     return 5000
 end
+
+function test_lines_after_close()
+    local f = io.tmpfile()
+    if f == nil then return 0 end
+    f:write("a\nb\n")
+    f:seek("set", 0)
+    local it = f:lines()
+    f:close()
+    local n = 0
+    for line in it do
+        n = n + 1
+    end
+    if n ~= 0 then return 0 end
+    return 6000
+end

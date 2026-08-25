@@ -33,9 +33,18 @@ function test_basic_tonumber()
     if tonumber("0XFF") ~= 255 then return 15 end
     if tonumber("-0x10") ~= -16 then return 16 end
 
+    -- 超过 32 位的十进制整数
+    if tonumber("3000000000") ~= 3000000000 then return 16.5 end
+    -- 自定义进制溢出 int64 时返回 nil，不能有符号溢出
+    if tonumber("ffffffffffffffff", 16) ~= nil then return 16.6 end
+
     -- 首尾空白符包含（Trim）
     if tonumber("   123   ") ~= 123 then return 17 end
     if tonumber("\t0x20\n") ~= 32 then return 18 end
+
+    -- NaN / 超出 int32 的 base 不能截成合法进制
+    if tonumber("10", 0 / 0) ~= nil then return 19 end
+    if tonumber("10", 4294967306) ~= nil then return 20 end
 
     return 5000
 end

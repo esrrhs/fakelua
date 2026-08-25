@@ -580,6 +580,31 @@ TEST(test_net, test_server_close_releases_native_object) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_net, test_close_in_recv) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_server_client.lua", config);
+
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "NetTest.test_close_in_recv", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_net, test_server_stop_without_start) {
+    net_init();
+    {
+        NetConfig cfg;
+        cfg.port = 1;
+        TcpServer srv(cfg);
+        // start() 未成功调用时 links_ 为空，dtor → stop() 不得越界
+    }
+    net_shutdown();
+}
+
 // 测试 10: Lua 层多 Framer 协议测试 (header2_be, header2_le, header4_le, line, fixed, custom_lua)
 TEST(test_net, test_framer_lua_protocols) {
     State *s = FakeluaNewState();

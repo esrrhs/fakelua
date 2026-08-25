@@ -3,6 +3,7 @@
 #include "compile/c_runtime_header.h"
 #include "jit/jit_error_boundary.h"
 #include "native/object/native_object.h"
+#include "native/table/native_table.h"
 #include "state/state.h"
 #include "var/var.h"
 #include "var/var_multi.h"
@@ -10,6 +11,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cinttypes>
+#include <climits>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -67,6 +70,62 @@ const std::regex *GetCachedRegex(std::string_view pattern) {
     }
     auto [ins, _] = g_regex_cache.emplace(std::move(key), std::move(compiled));
     return ins->second.get();
+}
+
+// Lua integer widths are 1..16; we pack through uint64 so cap at 8.
+// Missing size (bare "i"/"I") defaults to sizeof(lua_Integer) == 8.
+static int ParsePackIntegralSize(const char *&p, const char *end) {
+    if (p >= end || *p < '0' || *p > '9') return 8;
+    int sz = 0;
+    while (p < end && *p >= '0' && *p <= '9') {
+        int d = *p - '0';
+        if (sz > (INT_MAX - d) / 10) {
+            ThrowFakeluaException("integral size out of limits");
+        }
+        sz = sz * 10 + d;
+        ++p;
+    }
+    if (sz < 1 || sz > 8) {
+        ThrowFakeluaException("integral size out of limits");
+    }
+    return sz;
+}
+
+static constexpr int kMaxPackBlock = 64 * 1024 * 1024;
+static constexpr int kMaxPackAlign = 32;
+
+// Parse a decimal size that is present in the format. No digits → default_v.
+// Overflow or value outside [minv, maxv] throws (except default_v when absent).
+static int ParsePackDecSize(const char *&p, const char *end, int minv, int maxv, int default_v) {
+    if (p >= end || *p < '0' || *p > '9') return default_v;
+    int64_t sz = 0;
+    while (p < end && *p >= '0' && *p <= '9') {
+        int d = *p - '0';
+        if (sz > (INT64_MAX - d) / 10) {
+            ThrowFakeluaException("size out of limits");
+        }
+        sz = sz * 10 + d;
+        ++p;
+    }
+    if (sz < minv || sz > maxv) {
+        ThrowFakeluaException("size out of limits");
+    }
+    return static_cast<int>(sz);
+}
+
+static void CheckFormatItemSize(std::string_view spec) {
+    int64_t n = 0;
+    for (char ch : spec) {
+        if (ch >= '0' && ch <= '9') {
+            int d = ch - '0';
+            if (n > (1024 * 1024 - d) / 10) {
+                ThrowFakeluaException("invalid format (width or precision too large)");
+            }
+            n = n * 10 + d;
+        } else {
+            n = 0;
+        }
+    }
 }
 
 }// namespace
@@ -134,11 +193,7 @@ int PackMachine::PackSpec(std::string &out, const char *fmt, const char *end, St
         // Handle alignment directive !n
         if (c == '!') {
             ++fmt;
-            align = 0;
-            while (fmt < end && *fmt >= '0' && *fmt <= '9') {
-                align = align * 10 + (*fmt - '0');
-                ++fmt;
-            }
+            align = ParsePackDecSize(fmt, end, 1, kMaxPackAlign, 0);
             if (align <= 0) return -1;
             continue;
         }
@@ -172,11 +227,7 @@ int PackMachine::PackSpec(std::string &out, const char *fmt, const char *end, St
         // Specifiers that take a size argument: i[n], I[n], c[n]
         if (c == 'c') {
             ++fmt;
-            int count = 0;
-            while (fmt < end && *fmt >= '0' && *fmt <= '9') {
-                count = count * 10 + (*fmt - '0');
-                ++fmt;
-            }
+            int count = ParsePackDecSize(fmt, end, 1, kMaxPackBlock, 0);
             if (count <= 0) return -1;
             if (arg_idx >= total_args) return -1;
             CVar val = inter::GetNativeArg(state, args, total_args, arg_idx);
@@ -197,12 +248,7 @@ int PackMachine::PackSpec(std::string &out, const char *fmt, const char *end, St
         if (c == 'i' || c == 'I') {
             bool is_unsigned = (c == 'I');
             ++fmt;
-            int sz = 0;
-            while (fmt < end && *fmt >= '0' && *fmt <= '9') {
-                sz = sz * 10 + (*fmt - '0');
-                ++fmt;
-            }
-            if (sz <= 0) return -1;
+            int sz = ParsePackIntegralSize(fmt, end);
             if (arg_idx >= total_args) return -1;
             CVar val = inter::GetNativeArg(state, args, total_args, arg_idx);
             if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
@@ -336,11 +382,7 @@ int PackMachine::SizeSpec(const char *fmt, const char *end, State *state, CVar *
         }
         if (c == '!') {
             ++fmt;
-            align = 0;
-            while (fmt < end && *fmt >= '0' && *fmt <= '9') {
-                align = align * 10 + (*fmt - '0');
-                ++fmt;
-            }
+            align = ParsePackDecSize(fmt, end, 1, kMaxPackAlign, 0);
             if (align <= 0) return -1;
             continue;
         }
@@ -355,11 +397,7 @@ int PackMachine::SizeSpec(const char *fmt, const char *end, State *state, CVar *
         }
         if (c == 'c') {
             ++fmt;
-            int count = 0;
-            while (fmt < end && *fmt >= '0' && *fmt <= '9') {
-                count = count * 10 + (*fmt - '0');
-                ++fmt;
-            }
+            int count = ParsePackDecSize(fmt, end, 1, kMaxPackBlock, 0);
             if (count <= 0) return -1;
             if (arg_idx >= total_args) return -1;
             ++arg_idx;
@@ -368,12 +406,7 @@ int PackMachine::SizeSpec(const char *fmt, const char *end, State *state, CVar *
         }
         if (c == 'i' || c == 'I') {
             ++fmt;
-            int sz = 0;
-            while (fmt < end && *fmt >= '0' && *fmt <= '9') {
-                sz = sz * 10 + (*fmt - '0');
-                ++fmt;
-            }
-            if (sz <= 0) return -1;
+            int sz = ParsePackIntegralSize(fmt, end);
             if (arg_idx >= total_args) return -1;
             ++arg_idx;
             if (align > 0) {
@@ -540,12 +573,8 @@ void RegisterStringLibraryApi(State *s) {
         std::string_view sv = GetStringArgView(a0, temp);
 
         CVar rep_var = inter::GetNativeArg(state, args, n, 1);
-        // 标准 Lua 5.3：string.rep 的 count 接受 number 或 numeric string
-        if (rep_var.type_ == static_cast<int>(VarType::Nil)) {
-            ThrowFakeluaException("bad argument #2 to 'string.rep' (number expected)");
-        }
-        CheckNumberArg(rep_var, 2, "string.rep");
-        int64_t rep_cnt = inter::CVarToInteger(rep_var, 0);
+        // luaL_checkinteger：2^63 / NaN / 1.5 必须报错，不能 CVarToInteger 回落到 0（变成空串）。
+        int64_t rep_cnt = CheckIntegerArg(rep_var, 2, "string.rep");
         if (rep_cnt <= 0) return inter::NativeToFakeluaStringView(state, "");
 
         std::string sep = "";
@@ -554,6 +583,10 @@ void RegisterStringLibraryApi(State *s) {
             CheckStringArg(a2, 3, "string.rep");
             std::string temp_sep;
             sep = std::string(GetStringArgView(a2, temp_sep));
+        }
+
+        if (sv.empty() && sep.empty()) {
+            return inter::NativeToFakeluaStringView(state, "");
         }
 
         size_t unit_len = sv.size() + sep.size();
@@ -666,7 +699,8 @@ void RegisterStringLibraryApi(State *s) {
             CVar arg0 = inter::GetNativeArg(state, args, n, 0);
             if (arg0.type_ == static_cast<int>(VarType::Int) || arg0.type_ == static_cast<int>(VarType::Float)) {
                 if (arg0.type_ == static_cast<int>(VarType::Float)) {
-                    if (static_cast<double>(static_cast<int64_t>(arg0.data_.f)) != arg0.data_.f) {
+                    int64_t iv = 0;
+                    if (!DoubleFitsInt64(arg0.data_.f, &iv)) {
                         ThrowFakeluaException("bad argument to 'string.char' (number has no integer representation)");
                     }
                 }
@@ -691,7 +725,8 @@ void RegisterStringLibraryApi(State *s) {
                 ThrowFakeluaException("bad argument to 'string.char' (number expected)");
             }
             if (arg_i.type_ == static_cast<int>(VarType::Float)) {
-                if (static_cast<double>(static_cast<int64_t>(arg_i.data_.f)) != arg_i.data_.f) {
+                int64_t iv = 0;
+                if (!DoubleFitsInt64(arg_i.data_.f, &iv)) {
                     ThrowFakeluaException("bad argument to 'string.char' (number has no integer representation)");
                 }
             }
@@ -764,6 +799,10 @@ void RegisterStringLibraryApi(State *s) {
 
             char spec = fmt[i++];
             std::string spec_str(fmt.substr(spec_start, i - spec_start));
+            if (spec == 'n') {
+                ThrowFakeluaException("invalid option '%n' to 'format'");
+            }
+            CheckFormatItemSize(spec_str);
 
             CVar curr_arg = (arg_idx < n) ? inter::GetNativeArg(state, args, n, arg_idx++) : CVar{static_cast<int>(VarType::Nil)};
 
@@ -871,7 +910,14 @@ void RegisterStringLibraryApi(State *s) {
                     }
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Float)) {
                     char buf[64];
-                    auto val = static_cast<uintptr_t>(curr_arg.data_.f);
+                    uintptr_t val = 0;
+                    int64_t iv = 0;
+                    if (DoubleFitsInt64(curr_arg.data_.f, &iv)) {
+                        val = static_cast<uintptr_t>(iv);
+                    } else if (std::isfinite(curr_arg.data_.f) && curr_arg.data_.f >= 0.0 &&
+                               curr_arg.data_.f < static_cast<double>(UINTPTR_MAX) + 1.0) {
+                        val = static_cast<uintptr_t>(curr_arg.data_.f);
+                    }
                     if (val == 0) {
                         res.append("0x0");
                     } else {
@@ -1088,49 +1134,33 @@ void RegisterStringLibraryApi(State *s) {
                     VarClosure *cl = repl_var.data_.cl;
                     void *addr = cl->func_ptr;
                     if (match.size() > 1) {
-                        int call_arg_count = std::min(static_cast<int>(match.size()) - 1, 16);
-                        CVar call_args[16];
-                        for (int i = 0; i < call_arg_count; ++i) {
-                            call_args[i] = inter::NativeToFakeluaStringView(state, match[i + 1].str());
+                        int call_arg_count = static_cast<int>(match.size()) - 1;
+                        if (call_arg_count > static_cast<int>(kMaxFunctionInputParams)) {
+                            call_arg_count = static_cast<int>(kMaxFunctionInputParams);
                         }
-                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, call_args, call_arg_count, JIT_TCC) : FlEvalLoadClosure(state, cl, call_arg_count, call_args);
+                        std::vector<CVar> call_args(static_cast<size_t>(call_arg_count));
+                        for (int i = 0; i < call_arg_count; ++i) {
+                            call_args[static_cast<size_t>(i)] = inter::NativeToFakeluaStringView(state, match[i + 1].str());
+                        }
+                        CVar fn_res = (addr != nullptr) ? inter::DispatchCallClosure(state, cl, call_args.data(), call_arg_count, JIT_TCC)
+                                                        : FlEvalLoadClosure(state, cl, call_arg_count, call_args.data());
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
                         replacement = std::string(KeyToStringView(fn_res));
                     } else {
                         CVar call_arg = inter::NativeToFakeluaStringView(state, match[0].str());
-                        CVar fn_res = (addr != nullptr) ? inter::DispatchCall(addr, &call_arg, 1, JIT_TCC) : FlEvalLoadClosure(state, cl, 1, &call_arg);
+                        CVar fn_res = (addr != nullptr) ? inter::DispatchCallClosure(state, cl, &call_arg, 1, JIT_TCC) : FlEvalLoadClosure(state, cl, 1, &call_arg);
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
                         replacement = std::string(KeyToStringView(fn_res));
                     }
                 } else if (repl_is_table) {
-                    std::string key = (match.size() > 1) ? match[1].str() : match[0].str();
-                    CVar val{static_cast<int>(VarType::Nil)};
-
-                    // 尝试 spec 快速路径（仅当表是 NativeObject 包装时）
-                    VarTable *tbl = repl_var.data_.t;
-                    if (tbl->spec_get) {
-                        using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
-                        auto get_fn = reinterpret_cast<SpecGetFn>(tbl->spec_get);
-                        bool finish = false;
-                        CVar key_cvar = inter::NativeToFakeluaStringView(state, key);
-                        val = get_fn(tbl, key_cvar, &finish);
-                        if (!finish) val = CVar{static_cast<int>(VarType::Nil)};
-                    }
-
-                    // 回退到 quick_data 线性查找
-                    if (val.type_ == static_cast<int>(VarType::Nil)) {
-                        for (const auto &qd: tbl->quick_data_) {
-                            auto sv = KeyToStringView(qd.key);
-                            if (sv == key) {
-                                val = qd.val;
-                                break;
-                            }
-                        }
-                    }
+                    std::string gsub_key = (match.size() > 1) ? match[1].str() : match[0].str();
+                    // 必须走完整表查找（spec + quick XOR buckets）。只扫 quick_data_
+                    // 会在 rehash 后漏掉第 9 个及之后的键，整段匹配原样留下。
+                    CVar val = table::TableHelper::GetTableStrId(state, repl_var, gsub_key.c_str());
 
                     if (val.type_ == static_cast<int>(VarType::Nil)) {
                         replacement = match[0].str();
@@ -1411,11 +1441,7 @@ void RegisterStringLibraryApi(State *s) {
             }
             if (c == '!') {
                 ++fmt_p;
-                pm.align = 0;
-                while (fmt_p < fmt_end && *fmt_p >= '0' && *fmt_p <= '9') {
-                    pm.align = pm.align * 10 + (*fmt_p - '0');
-                    ++fmt_p;
-                }
+                pm.align = ParsePackDecSize(fmt_p, fmt_end, 1, kMaxPackAlign, 0);
                 if (pm.align <= 0) return inter::NativeToFakeluaNil(state);
                 continue;
             }
@@ -1443,11 +1469,7 @@ void RegisterStringLibraryApi(State *s) {
             }
             if (c == 'c') {
                 ++fmt_p;
-                int count = 0;
-                while (fmt_p < fmt_end && *fmt_p >= '0' && *fmt_p <= '9') {
-                    count = count * 10 + (*fmt_p - '0');
-                    ++fmt_p;
-                }
+                int count = ParsePackDecSize(fmt_p, fmt_end, 1, kMaxPackBlock, 0);
                 if (count <= 0) return inter::NativeToFakeluaNil(state);
                 if (val_idx >= values.size()) return inter::NativeToFakeluaNil(state);
                 CVar val = values[val_idx++];
@@ -1472,12 +1494,7 @@ void RegisterStringLibraryApi(State *s) {
             if (c == 'i' || c == 'I') {
                 bool is_unsigned = (c == 'I');
                 ++fmt_p;
-                int sz = 0;
-                while (fmt_p < fmt_end && *fmt_p >= '0' && *fmt_p <= '9') {
-                    sz = sz * 10 + (*fmt_p - '0');
-                    ++fmt_p;
-                }
-                if (sz <= 0) return inter::NativeToFakeluaNil(state);
+                int sz = ParsePackIntegralSize(fmt_p, fmt_end);
                 if (val_idx >= values.size()) return inter::NativeToFakeluaNil(state);
                 CVar val = values[val_idx++];
                 CheckNumberArg(val, val_idx, "string.pack");
@@ -1585,12 +1602,16 @@ void RegisterStringLibraryApi(State *s) {
                     break;
                 }
                 case 'z': {
-                    std::string s_val;
-                    std::string_view sv = GetStringArgView(val, s_val);
-                    if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
+                    if (val.type_ == static_cast<int>(VarType::Nil) ||
+                        val.type_ == static_cast<int>(VarType::Bool) ||
+                        val.type_ == static_cast<int>(VarType::Table)) {
                         ThrowFakeluaException("bad argument to 'pack' (string expected)");
                     }
-                    result.append(sv.data(), sv.size());
+                    std::string s_val;
+                    std::string_view sv = GetStringArgView(val, s_val);
+                    if (!sv.empty()) {
+                        result.append(sv.data(), sv.size());
+                    }
                     result.push_back('\0');
                     break;
                 }
@@ -1644,11 +1665,7 @@ void RegisterStringLibraryApi(State *s) {
             }
             if (c == '!') {
                 ++fmt_p;
-                pm.align = 0;
-                while (fmt_p < fmt_end && *fmt_p >= '0' && *fmt_p <= '9') {
-                    pm.align = pm.align * 10 + (*fmt_p - '0');
-                    ++fmt_p;
-                }
+                pm.align = ParsePackDecSize(fmt_p, fmt_end, 1, kMaxPackAlign, 0);
                 if (pm.align <= 0) return inter::NativeToFakeluaNil(state);
                 continue;
             }
@@ -1663,11 +1680,7 @@ void RegisterStringLibraryApi(State *s) {
             }
             if (c == 'c') {
                 ++fmt_p;
-                int count = 0;
-                while (fmt_p < fmt_end && *fmt_p >= '0' && *fmt_p <= '9') {
-                    count = count * 10 + (*fmt_p - '0');
-                    ++fmt_p;
-                }
+                int count = ParsePackDecSize(fmt_p, fmt_end, 1, kMaxPackBlock, 0);
                 if (count <= 0) return inter::NativeToFakeluaNil(state);
                 total += static_cast<size_t>(count);
                 ++str_arg_idx;  // c[n] 消耗一个参数
@@ -1675,12 +1688,7 @@ void RegisterStringLibraryApi(State *s) {
             }
             if (c == 'i' || c == 'I') {
                 ++fmt_p;
-                int sz = 0;
-                while (fmt_p < fmt_end && *fmt_p >= '0' && *fmt_p <= '9') {
-                    sz = sz * 10 + (*fmt_p - '0');
-                    ++fmt_p;
-                }
-                if (sz <= 0) return inter::NativeToFakeluaNil(state);
+                int sz = ParsePackIntegralSize(fmt_p, fmt_end);
                 if (pm.align > 0) {
                     size_t mod = total % static_cast<size_t>(pm.align);
                     if (mod != 0) total += static_cast<size_t>(pm.align) - mod;
@@ -1758,13 +1766,13 @@ void RegisterStringLibraryApi(State *s) {
         std::string_view data = GetStringArgView(str_var, temp_data);
         if (fmt.empty() || data.empty()) return inter::NativeToFakeluaNil(state);
 
-        int start_pos = 1;
+        int64_t start_pos = 1;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
             if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
                 ThrowFakeluaException("bad argument #3 to 'string.unpack' (number expected)");
             }
-            start_pos = static_cast<int>(inter::CVarToInteger(a2, 1));
+            start_pos = inter::CVarToInteger(a2, 1);
         }
         start_pos = NormalizePos(start_pos, static_cast<int64_t>(data.size()));
         if (start_pos < 1 || start_pos > static_cast<int64_t>(data.size())) {
@@ -1790,11 +1798,7 @@ void RegisterStringLibraryApi(State *s) {
             }
             if (c == '!') {
                 ++fmt_p;
-                pm.align = 0;
-                while (fmt_p < fmt_end && *fmt_p >= '0' && *fmt_p <= '9') {
-                    pm.align = pm.align * 10 + (*fmt_p - '0');
-                    ++fmt_p;
-                }
+                pm.align = ParsePackDecSize(fmt_p, fmt_end, 1, kMaxPackAlign, 0);
                 if (pm.align <= 0) return inter::NativeToFakeluaNil(state);
                 continue;
             }
@@ -1803,8 +1807,13 @@ void RegisterStringLibraryApi(State *s) {
                 ++fmt_p;
                 continue;
             }
-            if (c == '>' || c == '=') {
+            if (c == '>') {
                 pm.big_endian = true;
+                ++fmt_p;
+                continue;
+            }
+            if (c == '=') {
+                pm.big_endian = IsHostBigEndian();
                 ++fmt_p;
                 continue;
             }
@@ -1933,11 +1942,7 @@ void RegisterStringLibraryApi(State *s) {
                 }
                 case 'c': {// fixed-length string (no value consumed from args in unpack)
                     ++fmt_p;
-                    int count = 0;
-                    while (fmt_p < fmt_end && *fmt_p >= '0' && *fmt_p <= '9') {
-                        count = count * 10 + (*fmt_p - '0');
-                        ++fmt_p;
-                    }
+                    int count = ParsePackDecSize(fmt_p, fmt_end, 1, kMaxPackBlock, 0);
                     if (count <= 0) return inter::NativeToFakeluaNil(state);
                     if (!check_available(static_cast<size_t>(count))) return inter::NativeToFakeluaNil(state);
                     results.push_back(inter::NativeToFakeluaStringView(state, std::string_view(data.data() + pos, static_cast<size_t>(count))));
@@ -1948,15 +1953,10 @@ void RegisterStringLibraryApi(State *s) {
                 case 'I': {// sized integer
                     bool is_unsigned = (c == 'I');
                     ++fmt_p;
-                    int sz = 0;
-                    while (fmt_p < fmt_end && *fmt_p >= '0' && *fmt_p <= '9') {
-                        sz = sz * 10 + (*fmt_p - '0');
-                        ++fmt_p;
-                    }
-                    if (sz <= 0) return inter::NativeToFakeluaNil(state);
+                    int sz = ParsePackIntegralSize(fmt_p, fmt_end);
                     align_up();
                     if (!check_available(static_cast<size_t>(sz))) return inter::NativeToFakeluaNil(state);
-                    uint64_t uv;
+                    uint64_t uv = 0;
                     PackMachine::ReadVal(buf + pos, &uv, static_cast<size_t>(sz), pm.big_endian);
                     if (is_unsigned) {
                         results.push_back(inter::NativeToFakeluaInt(state, static_cast<int64_t>(uv)));

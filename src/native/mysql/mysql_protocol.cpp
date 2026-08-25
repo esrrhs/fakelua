@@ -1,6 +1,7 @@
 #include "native/mysql/mysql_protocol.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <format>
 #include <stdexcept>
@@ -188,12 +189,45 @@ std::string read_nul_str(const std::vector<char> &buf, size_t &pos) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 std::string make_packet(uint8_t seq, const char *payload, size_t len) {
+    if (len > 0 && !payload) protocol_error("make_packet: null payload");
     std::string pkt;
-    pkt.reserve(4 + len);
-    write_uint24(pkt, static_cast<uint32_t>(len));
-    pkt.push_back(static_cast<char>(seq));
-    pkt.append(payload, len);
+    size_t off = 0;
+    uint8_t s = seq;
+    uint32_t chunk;
+    do {
+        size_t remaining = len - off;
+        chunk = remaining > MAX_PACKET_SIZE ? MAX_PACKET_SIZE : static_cast<uint32_t>(remaining);
+        pkt.reserve(pkt.size() + 4 + chunk);
+        write_uint24(pkt, chunk);
+        pkt.push_back(static_cast<char>(s++));
+        if (chunk > 0) {
+            pkt.append(payload + off, chunk);
+        }
+        off += chunk;
+    } while (chunk == MAX_PACKET_SIZE);
     return pkt;
+}
+
+bool consume_logical_packet(const uint8_t *buf, size_t buf_len, size_t &consumed,
+                            std::vector<uint8_t> &out_payload, uint8_t &seq) {
+    if (!buf) return false;
+    size_t offset = 0;
+    out_payload.clear();
+    for (;;) {
+        if (buf_len < offset + 4) return false;
+        uint32_t payload_len = static_cast<uint32_t>(buf[offset]) |
+                               (static_cast<uint32_t>(buf[offset + 1]) << 8) |
+                               (static_cast<uint32_t>(buf[offset + 2]) << 16);
+        uint8_t pkt_seq = buf[offset + 3];
+        if (buf_len < offset + 4 + payload_len) return false;
+        out_payload.insert(out_payload.end(), buf + offset + 4, buf + offset + 4 + payload_len);
+        offset += 4 + payload_len;
+        seq = pkt_seq;
+        if (payload_len < MAX_PACKET_SIZE) {
+            consumed = offset;
+            return true;
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -246,12 +280,10 @@ HandshakeInfo parse_handshake(const std::vector<char> &payload) {
     // Connection ID (4 bytes)
     info.connection_id = read_uint32(payload, pos);
 
-    // auth_plugin_data_part_1 (8 bytes)
+    // auth_plugin_data_part_1 (8 bytes) + filler
+    ensure(payload, pos, 9);
     info.scramble_part1.assign(payload.data() + pos, 8);
-    pos += 8;
-
-    // filler 1 (0x00)
-    pos += 1;
+    pos += 9;
 
     // capability_flags_lower (2 bytes)
     info.capabilities_low = read_uint16(payload, pos);
@@ -329,20 +361,22 @@ std::string build_handshake_response(const HandshakeInfo &info,
     payload.append(username);
     payload.push_back('\0');
 
-    // auth response — always compute mysql_native_password hash for the initial response.
-    // If the server requires caching_sha2_password, it will send an Auth Switch Request (0xFE)
-    // and we handle it in handle_handshake_packet().
     std::string scramble = info.scramble_part1 + info.scramble_part2;
-    auto hash = native_password_hash(password, scramble);
-    std::vector<uint8_t> auth(hash.begin(), hash.end());
-
-    if (caps & CLIENT_PLUGIN_AUTH_LENENC) {
-        // length-encoded auth response
-        write_lenenc_str(payload, reinterpret_cast<const char *>(auth.data()), auth.size());
+    if (password.empty()) {
+        if (caps & CLIENT_PLUGIN_AUTH_LENENC) {
+            write_lenenc_str(payload, "", 0);
+        } else {
+            payload.push_back('\0');
+        }
     } else {
-        // 1-byte length prefix + fixed-length response
-        payload.push_back(static_cast<char>(auth.size()));
-        payload.append(reinterpret_cast<const char *>(auth.data()), auth.size());
+        auto hash = native_password_hash(password, scramble);
+        std::vector<uint8_t> auth(hash.begin(), hash.end());
+        if (caps & CLIENT_PLUGIN_AUTH_LENENC) {
+            write_lenenc_str(payload, reinterpret_cast<const char *>(auth.data()), auth.size());
+        } else {
+            payload.push_back(static_cast<char>(auth.size()));
+            payload.append(reinterpret_cast<const char *>(auth.data()), auth.size());
+        }
     }
 
     // database (NUL-terminated) — if CLIENT_CONNECT_WITH_DB
@@ -489,8 +523,7 @@ PrepareResult parse_prepare_response(const std::vector<char> &payload) {
     return result;
 }
 
-std::string build_stmt_execute(uint32_t statement_id,
-                              const std::vector<std::string> &params) {
+std::string build_stmt_execute(uint32_t statement_id, const std::vector<StmtParam> &params) {
     std::string payload;
     payload.reserve(128);
 
@@ -510,9 +543,16 @@ std::string build_stmt_execute(uint32_t statement_id,
         return payload;
     }
 
-    // null bitmap: ceil(num_params / 8) bytes
+    // null bitmap: ceil(num_params / 8) bytes；bit i 对应第 i 个参数（不是结果行的 +2）
+    size_t bitmap_off = payload.size();
     size_t bitmap_size = (params.size() + 7) / 8;
     payload.append(bitmap_size, '\0');
+    for (size_t i = 0; i < params.size(); ++i) {
+        if (params[i].is_null) {
+            payload[bitmap_off + i / 8] = static_cast<char>(
+                static_cast<uint8_t>(payload[bitmap_off + i / 8]) | (1u << (i % 8)));
+        }
+    }
 
     // new_params_bind_flag: 1 = bind types
     payload.push_back(0x01);
@@ -523,57 +563,183 @@ std::string build_stmt_execute(uint32_t statement_id,
         write_uint16(payload, 0xfe);  // MYSQL_TYPE_STRING
     }
 
-    // parameter values: length-encoded strings
+    // parameter values: length-encoded strings（NULL 参数不写值）
     for (const auto &p : params) {
-        write_lenenc_str(payload, p.data(), p.size());
+        if (p.is_null) continue;
+        write_lenenc_str(payload, p.value.data(), p.value.size());
     }
 
     return payload;
 }
 
-std::vector<std::pair<bool, std::string>> parse_binary_row(const std::vector<char> &payload,
-                                                           size_t num_columns) {
-    std::vector<std::pair<bool, std::string>> row;
-    row.reserve(num_columns);
+std::string build_stmt_execute(uint32_t statement_id, const std::vector<std::string> &params) {
+    std::vector<StmtParam> typed;
+    typed.reserve(params.size());
+    for (const auto &p : params) {
+        typed.push_back(StmtParam{false, p});
+    }
+    return build_stmt_execute(statement_id, typed);
+}
 
-    if (payload.empty()) return row;
+static std::string binary_int_to_string(uint64_t v, bool is_signed) {
+    if (is_signed) return std::to_string(static_cast<int64_t>(v));
+    return std::to_string(v);
+}
+
+static bool col_unsigned(const std::vector<uint16_t> &flags, size_t col) {
+    return col < flags.size() && (flags[col] & UNSIGNED_FLAG) != 0;
+}
+
+static std::string parse_binary_time(const std::vector<char> &payload, size_t &pos) {
+    uint8_t len = read_uint8(payload, pos);
+    if (len == 0) return "00:00:00";
+    uint8_t neg = read_uint8(payload, pos);
+    uint32_t days = read_uint32(payload, pos);
+    uint8_t hour = read_uint8(payload, pos);
+    uint8_t min = read_uint8(payload, pos);
+    uint8_t sec = read_uint8(payload, pos);
+    uint32_t micro = 0;
+    if (len >= 12) micro = read_uint32(payload, pos);
+    int64_t total_hour = static_cast<int64_t>(days) * 24 + hour;
+    char buf[40];
+    if (micro) {
+        std::snprintf(buf, sizeof(buf), "%s%lld:%02u:%02u.%06u",
+                      neg ? "-" : "", static_cast<long long>(total_hour), min, sec, micro);
+    } else {
+        std::snprintf(buf, sizeof(buf), "%s%lld:%02u:%02u",
+                      neg ? "-" : "", static_cast<long long>(total_hour), min, sec);
+    }
+    return buf;
+}
+
+static std::string parse_binary_datetime(const std::vector<char> &payload, size_t &pos, bool date_only) {
+    uint8_t len = read_uint8(payload, pos);
+    if (len == 0) return date_only ? "0000-00-00" : "0000-00-00 00:00:00";
+    uint16_t year = read_uint16(payload, pos);
+    uint8_t month = read_uint8(payload, pos);
+    uint8_t day = read_uint8(payload, pos);
+    if (date_only || len == 4) {
+        char buf[16];
+        std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u", year, month, day);
+        return buf;
+    }
+    uint8_t hour = 0, min = 0, sec = 0;
+    uint32_t micro = 0;
+    if (len >= 7) {
+        hour = read_uint8(payload, pos);
+        min = read_uint8(payload, pos);
+        sec = read_uint8(payload, pos);
+    }
+    if (len >= 11) micro = read_uint32(payload, pos);
+    char buf[40];
+    if (micro) {
+        std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u.%06u",
+                      year, month, day, hour, min, sec, micro);
+    } else {
+        std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u",
+                      year, month, day, hour, min, sec);
+    }
+    return buf;
+}
+
+std::vector<std::pair<bool, std::string>> parse_binary_row(
+    const std::vector<char> &payload, const std::vector<ColType> &types,
+    const std::vector<uint16_t> &flags) {
+    std::vector<std::pair<bool, std::string>> row;
+    size_t num_columns = types.size();
+    row.reserve(num_columns);
+    if (payload.empty() || num_columns == 0) return row;
 
     size_t pos = 0;
-
-    // packet header (1 byte, should be 0x00 or length)
     uint8_t header = read_uint8(payload, pos);
-    if (header != 0x00) {
-        // Not a valid binary row packet
-        return row;
-    }
+    if (header != 0x00) return row;
 
-    // null bitmap: ceil(num_columns / 8) bytes, but bits are stored differently
-    // Bit i (from LSB of byte i/8) is set if column i is NULL
-    size_t bitmap_size = (num_columns + 7 + 2) / 8;  // +2 for offset
+    size_t bitmap_size = (num_columns + 7 + 2) / 8;
     if (pos + bitmap_size > payload.size()) return row;
-
     std::vector<uint8_t> bitmap(bitmap_size);
     for (size_t i = 0; i < bitmap_size; ++i) {
         bitmap[i] = static_cast<uint8_t>(payload[pos + i]);
     }
     pos += bitmap_size;
 
-    for (size_t col = 0; col < num_columns; ++col) {
-        // Check null bitmap (bit position col+2 because of 2-bit offset)
+    auto is_null = [&](size_t col) {
         size_t bit_pos = col + 2;
-        size_t byte_idx = bit_pos / 8;
-        size_t bit_idx = bit_pos % 8;
-        bool is_null = (byte_idx < bitmap.size()) && (bitmap[byte_idx] & (1 << bit_idx));
+        return (bitmap[bit_pos / 8] & (1u << (bit_pos % 8))) != 0;
+    };
 
-        if (is_null) {
+    for (size_t col = 0; col < num_columns; ++col) {
+        if (is_null(col)) {
             row.emplace_back(true, "");
-        } else {
-            // Read length-encoded string
+            continue;
+        }
+        ColType t = types[col];
+        bool uns = col_unsigned(flags, col);
+        switch (t) {
+        case MYSQL_TYPE_TINY: {
+            uint8_t v = read_uint8(payload, pos);
+            if (uns) row.emplace_back(false, std::to_string(static_cast<unsigned>(v)));
+            else row.emplace_back(false, std::to_string(static_cast<int>(static_cast<int8_t>(v))));
+            break;
+        }
+        case MYSQL_TYPE_SHORT: {
+            uint16_t v = read_uint16(payload, pos);
+            if (uns) row.emplace_back(false, std::to_string(v));
+            else row.emplace_back(false, std::to_string(static_cast<int>(static_cast<int16_t>(v))));
+            break;
+        }
+        case MYSQL_TYPE_YEAR: {
+            uint16_t v = read_uint16(payload, pos);
+            row.emplace_back(false, std::to_string(v));
+            break;
+        }
+        case MYSQL_TYPE_LONG:
+        case MYSQL_TYPE_INT24: {
+            uint32_t v = read_uint32(payload, pos);
+            if (uns) row.emplace_back(false, std::to_string(v));
+            else row.emplace_back(false, std::to_string(static_cast<int32_t>(v)));
+            break;
+        }
+        case MYSQL_TYPE_LONGLONG: {
+            uint64_t v = read_uint64(payload, pos);
+            row.emplace_back(false, binary_int_to_string(v, !uns));
+            break;
+        }
+        case MYSQL_TYPE_FLOAT: {
+            uint32_t bits = read_uint32(payload, pos);
+            float f;
+            std::memcpy(&f, &bits, 4);
+            row.emplace_back(false, std::to_string(f));
+            break;
+        }
+        case MYSQL_TYPE_DOUBLE: {
+            uint64_t bits = read_uint64(payload, pos);
+            double d;
+            std::memcpy(&d, &bits, 8);
+            row.emplace_back(false, std::to_string(d));
+            break;
+        }
+        case MYSQL_TYPE_DATE:
+            row.emplace_back(false, parse_binary_datetime(payload, pos, true));
+            break;
+        case MYSQL_TYPE_DATETIME:
+        case MYSQL_TYPE_TIMESTAMP:
+            row.emplace_back(false, parse_binary_datetime(payload, pos, false));
+            break;
+        case MYSQL_TYPE_TIME:
+            row.emplace_back(false, parse_binary_time(payload, pos));
+            break;
+        default:
             row.emplace_back(false, read_lenenc_str(payload, pos));
+            break;
         }
     }
-
     return row;
+}
+
+std::vector<std::pair<bool, std::string>> parse_binary_row(const std::vector<char> &payload,
+                                                           size_t num_columns) {
+    std::vector<ColType> types(num_columns, MYSQL_TYPE_VAR_STRING);
+    return parse_binary_row(payload, types);
 }
 
 }  // namespace fakelua::mysql

@@ -23,6 +23,28 @@ TEST(test_native, test_basic_kv) {
     NativeObjectManager::Instance().DestroyGroup(gid);
 }
 
+TEST(test_native, access_after_destroy_group) {
+    int64_t gid = NativeObjectManager::Instance().CreateGroup();
+    auto *obj = NativeObjectManager::Instance().Create(gid, "ghost", 1);
+    obj->SetInt("hp", 9);
+    NativeObjectManager::Instance().DestroyGroup(gid);
+    EXPECT_FALSE(obj->Alive());
+    EXPECT_EQ(obj->GetInt("hp"), 0);
+    EXPECT_FALSE(obj->Has("hp"));
+    EXPECT_FALSE(obj->GetBool("alive"));
+    EXPECT_DOUBLE_EQ(obj->GetFloat("speed"), 0.0);
+    EXPECT_TRUE(obj->GetString("name").empty());
+    EXPECT_EQ(obj->GetObject("bag"), nullptr);
+    obj->SetFloat("x", 1.0);
+    obj->SetBool("y", true);
+    obj->SetString("z", "nope");
+    obj->Del("hp");
+    obj->Clear();
+    obj->RegisterMethod("noop", NativeMethod{});
+    EXPECT_FALSE(obj->HasMethod("noop"));
+    NativeObjectManager::Instance().Clear();
+}
+
 TEST(test_native, test_nested_object) {
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *player = NativeObjectManager::Instance().Create(gid, "player", 1);
@@ -428,6 +450,12 @@ TEST(test_native, test_native_lua_manager_ops) {
     CVar ret4;
     Call(s, JIT_TCC, "test_get_nil_args", ret4);
     EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret4), 5000);
+
+    inter::Reset(s);
+
+    CVar ret5;
+    Call(s, JIT_TCC, "test_access_after_destroy", ret5);
+    EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret5), 5000);
 
     NativeObjectManager::Instance().Clear();
     FakeluaDeleteState(s);

@@ -351,13 +351,13 @@ CVar NativeToFakeluaChar(State *s, char v);
 CVar NativeToFakeluaUchar(State *s, unsigned char v);
 CVar NativeToFakeluaShort(State *s, short v);
 CVar NativeToFakeluaUshort(State *s, unsigned short v);
-CVar NativeToFakeluaInt(State *s, int v);
+CVar NativeToFakeluaInt(State *s, long long v);
 CVar NativeToFakeluaUint(State *s, unsigned int v);
 CVar NativeToFakeluaLong(State *s, long v);
 CVar NativeToFakeluaUlong(State *s, unsigned long v);
 CVar NativeToFakeluaLonglong(State *s, long long v);
 CVar NativeToFakeluaUlonglong(State *s, unsigned long long v);
-CVar NativeToFakeluaFloat(State *s, float v);
+CVar NativeToFakeluaFloat(State *s, double v);
 CVar NativeToFakeluaDouble(State *s, double v);
 CVar NativeToFakeluaCstr(State *s, const char *v);
 CVar NativeToFakeluaStr(State *s, char *v);
@@ -491,7 +491,12 @@ private:
 // type 指出 addr 属于哪个后端：TCC 的代码页没有异常展开表，需要额外的错误跳转边界。
 // 来源不确定的 closure（pcall / table.sort / gsub 的回调）传 JIT_TCC 即可，多一道
 // 边界对 GCC 后端也是安全的。
-CVar DispatchCall(void *addr, const CVar *args, int arg_count, JITType type);
+// cl 为被调闭包（可空）：带 upvalue 的函数必须传入，否则 _CL 为空指针。
+CVar DispatchCall(void *addr, const CVar *args, int arg_count, JITType type, VarClosure *cl = nullptr);
+
+// 按闭包的 C 形参加减参数再 DispatchCall：缺的补 nil，多的丢掉；vararg 的多余实参打进最后的 Multi。
+// pcall/xpcall/gsub 以前按实参个数选函数指针，形参更多时是错误的函数类型（UB）。
+CVar DispatchCallClosure(State *state, VarClosure *cl, const CVar *args, int arg_count, JITType type);
 
 CVar AllocMultiCVar(State *s, int count);
 void SetMultiCVarElement(CVar &multi, int idx, CVar val);
@@ -620,6 +625,7 @@ public:
 
     // ── 元信息读取 ───────────────────────────────────────────────────────────
     [[nodiscard]] const std::string &GetTypeName() const;
+    [[nodiscard]] bool Alive() const;
     [[nodiscard]] int64_t GetId() const;
     void SetId(int64_t id);
     [[nodiscard]] int64_t GetGroupId() const;
@@ -768,6 +774,7 @@ private:
     std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
     std::unordered_map<int64_t, std::vector<NativeObject *>> group_objects_;
     std::unordered_map<std::string, NativeObject *> global_objects_;// key -> obj（全局对象）
+    std::vector<NativeObject *> zombies_;// Destroy 后仍可能被 Lua wrap 引用，等 Clear 再释放
     int64_t next_auto_group_id_ = 0;
     int64_t next_auto_obj_id_ = 0;
 };

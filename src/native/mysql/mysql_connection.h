@@ -52,23 +52,25 @@ public:
     MysqlConnection &operator=(const MysqlConnection &) = delete;
 
     // Start async TCP connect. on_connect(conn, err) called when done.
+    // timeout_ms <= 0 means no client-side connect/handshake timeout.
     void connect(const std::string &host, uint16_t port,
                  const std::string &user, const std::string &password,
-                 const std::string &database);
+                 const std::string &database, int timeout_ms = 0);
 
     // Send a query. on_result(result, err) called when response arrives.
     void query(const std::string &sql);
 
     // Prepared statement API
     void stmt_prepare(const std::string &sql);
-    void stmt_execute(uint32_t stmt_id, const std::vector<std::string> &params);
+    void stmt_execute(uint32_t stmt_id, const std::vector<StmtParam> &params);
     void stmt_close(uint32_t stmt_id);
 
-    // Heartbeat (COM_PING) — for connection pool keepalive
-    void ping();
+    // Heartbeat (COM_PING) — for connection pool keepalive.
+    // Returns false if the ping was not sent (busy / not ready).
+    bool ping();
 
     // Send raw packet (for pool heartbeat)
-    void send_packet(uint8_t seq, const char *payload, size_t len);
+    bool send_packet(uint8_t seq, const char *payload, size_t len);
 
     // Close connection
     void close();
@@ -89,6 +91,15 @@ public:
     void set_native_object(::fakelua::NativeObject *obj) { native_obj_ = obj; }
 
     bool connected() const { return ready_; }
+    bool connecting() const {
+        return state_ == State::Connecting || state_ == State::Handshaking;
+    }
+
+    // Lua :close() during a callback/tick must not delete *this until the
+    // outer native call returns (same pattern as net deferred close).
+    int tick_depth() const { return tick_depth_; }
+    bool close_pending() const { return close_pending_; }
+    void request_close() { close_pending_ = true; }
 
 private:
     // TCP client from net module (RawStream framing for raw bytes)
@@ -137,8 +148,22 @@ private:
         uint64_t col_count = 0;
         uint64_t cols_read = 0;
         bool in_result_set = false;
+        bool binary_rows = false;
     };
     std::unique_ptr<ResultSetParser> rs_parser_;
+
+    // COM_PING in flight — next OK must not be treated as a query result
+    bool ping_inflight_ = false;
+
+    int tick_depth_ = 0;
+    bool close_pending_ = false;
+    std::string pending_connect_err_;
+    int connect_timeout_ms_ = 0;
+    int64_t connect_start_ms_ = 0;
+
+    // COM_STMT_PREPARE 之后还要丢掉 param/column definition + EOF
+    uint16_t prepare_eofs_remaining_ = 0;
+    MysqlResult pending_prepare_result_;
 
     // Error tracking
     MysqlError last_error_;

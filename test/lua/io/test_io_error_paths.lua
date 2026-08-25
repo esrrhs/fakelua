@@ -23,6 +23,12 @@ function test_file_setvbuf_bad_mode()
     f:close()
 end
 
+function test_file_setvbuf_size_too_large()
+    local f = io.tmpfile()
+    f:setvbuf("full", 128 * 1024 * 1024)
+    f:close()
+end
+
 function test_io_open_bad_arg()
     io.open(true)
 end

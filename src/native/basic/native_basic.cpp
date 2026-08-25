@@ -1,5 +1,6 @@
 #include "native/basic/native_basic.h"
 #include "compile/c_runtime_header.h"
+#include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
 #include "native/table/native_table.h"
@@ -11,11 +12,13 @@
 #include "var/var_table.h"
 #include <charconv>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <limits>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace fakelua::basic {
 
@@ -28,8 +31,7 @@ static bool CallClosure(State *state, VarClosure *cl, CVar *args, int n, CVar &r
     try {
         void *addr = cl->func_ptr;
         if (addr != nullptr) {
-            // closure 的后端来源不确定，按需要边界的那一种处理
-            result = inter::DispatchCall(addr, args, n, JIT_TCC);
+            result = inter::DispatchCallClosure(state, cl, args, n, JIT_TCC);
         } else if (cl->code_str) {
             result = FlEvalLoadClosure(state, cl, n, args);
         } else {
@@ -122,54 +124,25 @@ extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
         return inter::NativeToFakeluaNil(state);
     }
-    VarTable *t = tbl.data_.t;
 
-    // 遍历查找 last_key 的下一个
+    // 遍历查找 last_key 的下一个（与 GET_TABLE_ENTRY 一致：spec + quick XOR buckets）
     bool found_last = (last.type_ == static_cast<int>(VarType::Nil));// nil 表示刚开始
     CVar next_key{static_cast<int>(VarType::Nil)};
     CVar next_val{static_cast<int>(VarType::Nil)};
     bool has_next = false;
 
-    // 遍历 spec_keys
-    if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
-        for (uint32_t i = 0; i < t->spec_count && !has_next; ++i) {
-            if (t->spec_keys[i].type_ == static_cast<int>(VarType::Nil)) continue;
-            if (found_last) {
-                next_key = t->spec_keys[i];
-                next_val = t->spec_vals[i];
-                has_next = true;
-            } else if (keys_equal(t->spec_keys[i], last)) {
-                found_last = true;
-            }
-        }
-    }
-    // 遍历 quick_data
-    for (const auto &qd: t->quick_data_) {
-        if (has_next) break;
-        if (qd.key.type_ == static_cast<int>(VarType::Nil)) continue;
+    TableHelper::ForEachKV(tbl, [&](CVar k, CVar v) {
+        if (has_next) return;
         if (found_last) {
-            next_key = qd.key;
-            next_val = qd.val;
+            next_key = k;
+            next_val = v;
             has_next = true;
-        } else if (keys_equal(qd.key, last)) {
+            return;
+        }
+        if (keys_equal(k, last)) {
             found_last = true;
         }
-    }
-    // 遍历 nodes
-    if (t->nodes_ && t->bucket_count_ > 0) {
-        for (uint32_t i = 0; i < t->count_ && !has_next; ++i) {
-            uint32_t node_idx = t->active_list_[i];
-            const auto &entry = t->nodes_[node_idx].entry;
-            if (entry.key.type_ == static_cast<int>(VarType::Nil)) continue;
-            if (found_last) {
-                next_key = entry.key;
-                next_val = entry.val;
-                has_next = true;
-            } else if (keys_equal(entry.key, last)) {
-                found_last = true;
-            }
-        }
-    }
+    });
 
     if (!has_next) return inter::NativeToFakeluaNil(state);
 
@@ -280,7 +253,7 @@ void RegisterBasicLibraryApi(State *s) {
         size_t end = raw.find_last_not_of(" \t\n\r\f\v");
         std::string_view trimmed = raw.substr(start, end - start + 1);
 
-        int base = 10;
+        int64_t base_i = 10;
         bool has_custom_base = false;
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
@@ -288,26 +261,28 @@ void RegisterBasicLibraryApi(State *s) {
                 // 标准 Lua 5.3：tonumber 的 base 可以是 number 或可转换为 number 的 string
                 CheckNumberArg(a1, 2, "tonumber");
                 if (a1.type_ == static_cast<int>(VarType::Float)) {
-                    if (static_cast<double>(static_cast<int64_t>(a1.data_.f)) != a1.data_.f) {
+                    if (!DoubleFitsInt64(a1.data_.f, &base_i)) {
                         return inter::NativeToFakeluaNil(state);
                     }
-                }
-                if (a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
+                } else if (a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
                     double d = inter::CVarToNumber(a1, std::numeric_limits<double>::quiet_NaN());
-                    if (std::isnan(d)) {
+                    if (!std::isfinite(d)) {
                         ThrowFakeluaException("bad argument #2 to 'tonumber' (number expected)");
                     }
-                    base = static_cast<int>(d);
+                    if (!DoubleFitsInt64(d, &base_i)) {
+                        return inter::NativeToFakeluaNil(state);
+                    }
                 } else {
-                    base = static_cast<int>(inter::CVarToInteger(a1, 10));
+                    base_i = inter::CVarToInteger(a1, 10);
                 }
                 has_custom_base = true;
             }
         }
 
-        if (has_custom_base && (base < 2 || base > 36)) {
+        if (has_custom_base && (base_i < 2 || base_i > 36)) {
             return inter::NativeToFakeluaNil(state);
         }
+        int base = static_cast<int>(base_i);
 
         // Auto-detect 0x/0X prefix when no custom base is provided
         auto starts_hex = [](std::string_view s) {
@@ -343,7 +318,6 @@ void RegisterBasicLibraryApi(State *s) {
         } else {
             std::string str(trimmed);
             if (base < 2 || base > 36) return inter::NativeToFakeluaNil(state);
-            int64_t result = 0;
             bool negative = false;
             size_t i = 0;
             if (str[0] == '-') {
@@ -357,6 +331,7 @@ void RegisterBasicLibraryApi(State *s) {
                 i += 2;
             }
             if (i >= str.size()) return inter::NativeToFakeluaNil(state);
+            uint64_t acc = 0;
             for (; i < str.size(); ++i) {
                 char c = str[i];
                 int digit = -1;
@@ -366,9 +341,21 @@ void RegisterBasicLibraryApi(State *s) {
                 else if (c >= 'A' && c <= 'Z')
                     digit = c - 'A' + 10;
                 if (digit < 0 || digit >= base) return inter::NativeToFakeluaNil(state);
-                result = result * base + digit;
+                if (acc > (std::numeric_limits<uint64_t>::max() - static_cast<uint64_t>(digit)) /
+                              static_cast<uint64_t>(base)) {
+                    return inter::NativeToFakeluaNil(state);
+                }
+                acc = acc * static_cast<uint64_t>(base) + static_cast<uint64_t>(digit);
             }
-            if (negative) result = -result;
+            int64_t result = 0;
+            if (negative) {
+                if (acc > static_cast<uint64_t>(INT64_MAX) + 1) return inter::NativeToFakeluaNil(state);
+                if (acc == static_cast<uint64_t>(INT64_MAX) + 1) result = INT64_MIN;
+                else result = -static_cast<int64_t>(acc);
+            } else {
+                if (acc > static_cast<uint64_t>(INT64_MAX)) return inter::NativeToFakeluaNil(state);
+                result = static_cast<int64_t>(acc);
+            }
             return inter::NativeToFakeluaInt(state, result);
         }
     });
@@ -462,14 +449,6 @@ void RegisterBasicLibraryApi(State *s) {
             call_args[i] = inter::GetNativeArg(state, args, n, i + 1);
         }
 
-        int expected = cl->expected_arg_count;
-        if (cl->is_vararg) {
-            int fixed = std::max(0, expected - 1);
-            while (static_cast<int>(call_args.size()) < fixed) {
-                call_args.push_back(inter::NativeToFakeluaNil(state));
-            }
-        }
-
         CVar result{static_cast<int>(VarType::Nil)};
         std::string err_msg;
 
@@ -502,27 +481,15 @@ void RegisterBasicLibraryApi(State *s) {
         int call_arg_count = n - 2;
         if (call_arg_count < 0) call_arg_count = 0;
 
-        constexpr int kMaxArgs = 16;
-        CVar call_args[kMaxArgs];
-        int actual_arg_count = 0;
-        for (int i = 0; i < call_arg_count && i < kMaxArgs; ++i) {
-            call_args[i] = inter::GetNativeArg(state, args, n, i + 2);
-            actual_arg_count++;
-        }
-
-        int expected = cl->expected_arg_count;
-        if (cl->is_vararg) {
-            int fixed = std::max(0, expected - 1);
-            for (int i = actual_arg_count; i < fixed && i < kMaxArgs; ++i) {
-                call_args[i] = inter::NativeToFakeluaNil(state);
-                actual_arg_count++;
-            }
+        std::vector<CVar> call_args(static_cast<size_t>(call_arg_count));
+        for (int i = 0; i < call_arg_count; ++i) {
+            call_args[static_cast<size_t>(i)] = inter::GetNativeArg(state, args, n, i + 2);
         }
 
         CVar result{static_cast<int>(VarType::Nil)};
         std::string err_msg;
 
-        if (CallClosure(state, cl, call_args, actual_arg_count, result, err_msg)) {
+        if (CallClosure(state, cl, call_args.data(), static_cast<int>(call_args.size()), result, err_msg)) {
             return MakeSuccessResult(state, result);
         }
 
@@ -534,7 +501,7 @@ void RegisterBasicLibraryApi(State *s) {
                 void *addr = err_cl->func_ptr;
                 CVar err_result{static_cast<int>(VarType::Nil)};
                 if (addr != nullptr) {
-                    err_result = inter::DispatchCall(addr, &err_arg, 1, JIT_TCC);
+                    err_result = inter::DispatchCallClosure(state, err_cl, &err_arg, 1, JIT_TCC);
                 } else if (err_cl->code_str) {
                     err_result = FlEvalLoadClosure(state, err_cl, 1, &err_arg);
                 } else {
@@ -561,81 +528,28 @@ void RegisterBasicLibraryApi(State *s) {
     // 注意：fakelua 没有元表，所以 rawequal/rawget/rawset/rawlen 不需要实现
 
     // ─── next(table [, index]) ───
-    // 辅助：在表中查找 key 是否匹配
-    auto key_matches = [](CVar key, CVar target) -> bool { return keys_equal(key, target); };
-
-    // 辅助：遍历回调函数
-    using NextCallback = std::function<void(CVar key, CVar val)>;
-    auto traverse_table = [](VarTable *t, NextCallback cb) {
-        // 遍历 spec_keys/spec_vals
-        if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
-            for (uint32_t i = 0; i < t->spec_count; ++i) {
-                if (t->spec_keys[i].type_ != static_cast<int>(VarType::Nil)) {
-                    cb(t->spec_keys[i], t->spec_vals[i]);
-                }
-            }
-        }
-        // 遍历 quick_data
-        for (const auto &qd: t->quick_data_) {
-            if (qd.key.type_ != static_cast<int>(VarType::Nil)) {
-                cb(qd.key, qd.val);
-            }
-        }
-        // 遍历 nodes
-        if (t->nodes_ && t->bucket_count_ > 0) {
-            for (uint32_t i = 0; i < t->count_; ++i) {
-                uint32_t node_idx = t->active_list_[i];
-                const auto &entry = t->nodes_[node_idx].entry;
-                if (entry.key.type_ != static_cast<int>(VarType::Nil)) {
-                    cb(entry.key, entry.val);
-                }
-            }
-        }
-    };
-
-    RegisterNativeFunction(s, "next", 1, true, [&](State *state, CVar *args, int n) -> CVar {
+    RegisterNativeFunction(s, "next", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'next' (table expected)");
         }
-        VarTable *t = tbl.data_.t;
 
         bool has_index = (n >= 2);
         CVar index = has_index ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
 
-        // 空表或 nil index 时返回第一个 key
-        if (!has_index || index.type_ == static_cast<int>(VarType::Nil)) {
-            CVar first_key{static_cast<int>(VarType::Nil)};
-            CVar first_val{static_cast<int>(VarType::Nil)};
-            bool found = false;
-            traverse_table(t, [&](CVar k, CVar v) {
-                if (!found) {
-                    first_key = k;
-                    first_val = v;
-                    found = true;
-                }
-            });
-            if (!found) return inter::NativeToFakeluaNil(state);
-            CVar multi = inter::AllocMultiCVar(state, 2);
-            inter::SetMultiCVarElement(multi, 0, first_key);
-            inter::SetMultiCVarElement(multi, 1, first_val);
-            return multi;
-        }
-
-        // 查找 index 的下一个
-        bool found_index = false;
+        bool found_index = !has_index || index.type_ == static_cast<int>(VarType::Nil);
         CVar next_key{static_cast<int>(VarType::Nil)};
         CVar next_val{static_cast<int>(VarType::Nil)};
         bool has_next = false;
-        traverse_table(t, [&](CVar k, CVar v) {
-            if (has_next) return;// 已经找到下一个
+        TableHelper::ForEachKV(tbl, [&](CVar k, CVar v) {
+            if (has_next) return;
             if (found_index) {
                 next_key = k;
                 next_val = v;
                 has_next = true;
                 return;
             }
-            if (key_matches(k, index)) {
+            if (keys_equal(k, index)) {
                 found_index = true;
             }
         });

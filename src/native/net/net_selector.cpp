@@ -112,12 +112,37 @@ void Selector::apply_epoll_mod(socket_t fd, bool want_write) {
 
 #endif
 
+void Selector::flush_pending() {
+    for (auto fd : pending_remove_) {
+        fd_map_.erase(fd);
+        write_want_.erase(fd);
+#if defined(__linux__)
+        if (epoll_fd_ >= 0) epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
+#endif
+    }
+    pending_remove_.clear();
+    for (size_t i = 0; i < pending_add_.size(); ++i) {
+        socket_t fd = pending_add_[i];
+        void *ud = pending_add_ud_[i];
+#if defined(__linux__)
+        bool want_write = write_want_.count(fd) && write_want_[fd];
+        apply_epoll_add(fd, ud, want_write);
+#else
+        fd_map_[fd] = ud;
+        if (!write_want_.count(fd)) write_want_[fd] = false;
+#endif
+    }
+    pending_add_.clear();
+    pending_add_ud_.clear();
+}
+
 #if !defined(__linux__)
 
 void Selector::wait(int timeout_ms,
                     const std::function<void(void *)> &on_read,
                     const std::function<void(void *)> &on_write,
                     const std::function<void(void *)> &on_close) {
+    flush_pending();
     if (fd_map_.empty()) return;
 
     fd_set read_set, write_set, except_set;
@@ -145,27 +170,22 @@ void Selector::wait(int timeout_ms,
     if (ret <= 0) return;
 
     iterating_ = true;
-    for (auto &[fd, ud] : fd_map_) {
-        if (FD_ISSET(fd, &except_set)) {
-            on_close(ud);
-            continue;
+    try {
+        for (auto &[fd, ud] : fd_map_) {
+            if (FD_ISSET(fd, &except_set)) {
+                on_close(ud);
+                continue;
+            }
+            if (FD_ISSET(fd, &read_set)) on_read(ud);
+            if (has_write && FD_ISSET(fd, &write_set)) on_write(ud);
         }
-        if (FD_ISSET(fd, &read_set)) on_read(ud);
-        if (has_write && FD_ISSET(fd, &write_set)) on_write(ud);
+    } catch (...) {
+        iterating_ = false;
+        flush_pending();
+        throw;
     }
     iterating_ = false;
-
-    for (auto fd : pending_remove_) {
-        fd_map_.erase(fd);
-        write_want_.erase(fd);
-    }
-    pending_remove_.clear();
-    for (size_t i = 0; i < pending_add_.size(); ++i) {
-        fd_map_[pending_add_[i]] = pending_add_ud_[i];
-        write_want_[pending_add_[i]] = false;
-    }
-    pending_add_.clear();
-    pending_add_ud_.clear();
+    flush_pending();
 }
 
 #else // defined(__linux__)
@@ -174,6 +194,7 @@ void Selector::wait(int timeout_ms,
                     const std::function<void(void *)> &on_read,
                     const std::function<void(void *)> &on_write,
                     const std::function<void(void *)> &on_close) {
+    flush_pending();
     if (epoll_fd_ < 0 || fd_map_.empty()) return;
 
     epoll_event events[1024];
@@ -181,39 +202,31 @@ void Selector::wait(int timeout_ms,
     if (nfds <= 0) return;
 
     iterating_ = true;
-    for (int i = 0; i < nfds; ++i) {
-        socket_t event_fd = events[i].data.fd;
-        uint32_t ev = events[i].events;
-        auto it = fd_map_.find(event_fd);
-        if (it == fd_map_.end()) continue;
-        void *ud = it->second;
+    try {
+        for (int i = 0; i < nfds; ++i) {
+            socket_t event_fd = events[i].data.fd;
+            uint32_t ev = events[i].events;
+            auto it = fd_map_.find(event_fd);
+            if (it == fd_map_.end()) continue;
+            void *ud = it->second;
 
-        // 同一轮中若该连接已被关闭（fd 失效），跳过后续事件，避免对无效 fd 操作。
-        if (ud && static_cast<TcpLink *>(ud)->fd == INVALID_SOCKET_VAL) continue;
+            // 同一轮中若该连接已被关闭（fd 失效），跳过后续事件，避免对无效 fd 操作。
+            if (ud && static_cast<TcpLink *>(ud)->fd == INVALID_SOCKET_VAL) continue;
 
-        if (ev & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
-            on_close(ud);
-            continue;
+            if (ev & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+                on_close(ud);
+                continue;
+            }
+            if (ev & EPOLLIN) on_read(ud);
+            if (ev & EPOLLOUT) on_write(ud);
         }
-        if (ev & EPOLLIN) on_read(ud);
-        if (ev & EPOLLOUT) on_write(ud);
+    } catch (...) {
+        iterating_ = false;
+        flush_pending();
+        throw;
     }
     iterating_ = false;
-
-    for (auto fd : pending_remove_) {
-        fd_map_.erase(fd);
-        write_want_.erase(fd);
-        epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
-    }
-    pending_remove_.clear();
-    for (size_t i = 0; i < pending_add_.size(); ++i) {
-        socket_t fd = pending_add_[i];
-        void *ud = pending_add_ud_[i];
-        bool want_write = write_want_.count(fd) && write_want_[fd];
-        apply_epoll_add(fd, ud, want_write);
-    }
-    pending_add_.clear();
-    pending_add_ud_.clear();
+    flush_pending();
 }
 
 #endif

@@ -22,7 +22,8 @@ public:
               const std::function<void(int)> &on_close);
 
     bool send(int conn_id, const char *data, size_t len);
-    void close_connection(int conn_id);
+    // 关闭一条已建立的连接。成功关闭返回 true（调用方可据此派发 close 事件）。
+    bool close_connection(int conn_id);
 
     [[nodiscard]] bool running() const { return listen_fd_ != INVALID_SOCKET_VAL; }
 
@@ -67,6 +68,7 @@ private:
 
     void handle_read(const std::function<void(const char *, size_t)> &on_recv, const std::function<void()> &on_close);
     void handle_write(const std::function<void()> &on_close);
+    void teardown_fd(const std::function<void()> *on_close);
 };
 
 } // namespace fakelua::net

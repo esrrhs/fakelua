@@ -54,3 +54,20 @@ function test_lz4_large_data()
     end
     return 1
 end
+
+function test_lz4_garbage_throw()
+    compress.lz4_decompress("not a lz4 frame")
+    return 0
+end
+
+function test_lz4_truncated_throw()
+    local compressed = compress.lz4_compress(string.rep("abcdefghij", 100))
+    compress.lz4_decompress(string.sub(compressed, 1, 16))
+    return 0
+end
+
+function test_lz4_trailing_garbage()
+    local compressed = compress.lz4_compress("hello")
+    compress.lz4_decompress(compressed .. "XXX")
+    return 0
+end

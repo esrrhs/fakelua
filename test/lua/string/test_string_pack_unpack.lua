@@ -113,6 +113,15 @@ function test_string_pack_unpack()
     local i2v = string.unpack(">i2", packed_i2)
     if i2v ~= -128 then return 44 end
 
+    -- i8 / 大于 32 位的整数往返
+    local packed_i8 = string.pack("<i8", 3000000000)
+    local i8v = string.unpack("<i8", packed_i8)
+    if i8v ~= 3000000000 then return 44.5 end
+
+    -- 裸 i 默认 8 字节
+    local packed_i = string.pack("i", 42)
+    if #packed_i ~= 8 then return 44.6 end
+
     -- c[n] 固定长度字符串解包
     local packed_c = string.pack(">c6", "hello!")
     local cs, cpos = string.unpack(">c6", packed_c)
@@ -131,6 +140,15 @@ function test_string_pack_unpack()
 
     local un_num_data = string.unpack("b", 12345)
     if un_num_data == nil then return 49 end
+
+    -- '=' 必须与 pack 使用同一主机字节序，不能当成大端
+    local native = string.pack("=i4", 1)
+    local back = string.unpack("=i4", native)
+    if back ~= 1 then return 50 end
+
+    -- 位置超出 int32 时不能截成负数再当相对下标
+    local huge_pos = string.unpack(">i4", packed3, 2147483649)
+    if huge_pos ~= nil then return 51 end
 
     return 5000
 end

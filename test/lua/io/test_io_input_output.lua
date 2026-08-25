@@ -13,5 +13,12 @@ function test_io_input_output()
     f:close()
     if io.type(f) ~= "closed file" then return 3 end
 
+    -- 3. 标准流包装是 file
+    if io.type(io.stdin()) ~= "file" then return 4 end
+    if io.type(io.stdout()) ~= "file" then return 5 end
+    if io.type(io.stderr()) ~= "file" then return 6 end
+    if io.type(io.input()) ~= "file" then return 7 end
+    if io.type(io.output()) ~= "file" then return 8 end
+
     return 5000
 end

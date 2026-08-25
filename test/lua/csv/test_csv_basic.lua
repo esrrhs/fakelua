@@ -130,3 +130,7 @@ function test_roundtrip_with_commas()
     if decoded[2][2] ~= "baz, qux" then return 0 end
     return 1
 end
+
+function test_unterminated_quote()
+    csv.decode('"hello')
+end

@@ -167,3 +167,13 @@ TEST(test_csv, roundtrip_with_commas) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_csv, unterminated_quote) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./csv/test_csv_basic.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "CsvTest.test_unterminated_quote", ret), std::exception);
+    FakeluaDeleteState(s);
+}

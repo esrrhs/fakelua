@@ -114,6 +114,27 @@ TEST(test_compress, gzip_level) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_compress, gzip_concat_members) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zlib.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CompressTest.test_gzip_concat_members", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, gzip_trailing_garbage) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zlib.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "CompressTest.test_gzip_trailing_garbage", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // compress 模块测试 — Zstd
 // ─────────────────────────────────────────────────────────────────────────────
@@ -159,5 +180,35 @@ TEST(test_compress, zstd_large_data) {
     int64_t ret = 0;
     Call(s, JIT_TCC, "CompressTest.test_zstd_large_data", ret);
     EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, lz4_garbage) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_lz4.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "CompressTest.test_lz4_garbage_throw", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, lz4_truncated) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_lz4.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "CompressTest.test_lz4_truncated_throw", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, lz4_trailing_garbage) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_lz4.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "CompressTest.test_lz4_trailing_garbage", ret), std::exception);
     FakeluaDeleteState(s);
 }

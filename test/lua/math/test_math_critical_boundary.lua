@@ -44,6 +44,15 @@ function test_math_critical_boundary()
     local ok6 = pcall(function() return math.random(0, 9223372036854775807) end)
     if not ok6 then return 15 end
 
+    -- 2^63 不能当整数上界：native 以前会退化成 random(0)
+    local ok7, err7 = pcall(function() return math.random(2^63) end)
+    if ok7 then return 16 end
+    if not string.find(err7, "integer representation") then return 17 end
+
+    local ok8, err8 = pcall(function() return math.random(1.5) end)
+    if ok8 then return 18 end
+    if not string.find(err8, "integer representation") then return 19 end
+
     return 9999
 end
 
@@ -62,6 +71,10 @@ end
 
 function test_math_random_reverse()
     math.random(5, 3)
+end
+
+function test_math_random_2pow63()
+    math.random(2^63)
 end
 
 -- Bug #1 修复验证：string 库方法 colon 调用不 crash

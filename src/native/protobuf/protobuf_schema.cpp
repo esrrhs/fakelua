@@ -56,23 +56,25 @@ std::vector<std::string> ProtobufState::MessageNames() const {
 }
 
 void ProtobufState::ResolveAll() {
-    // 遍历所有 message 的字段，将 type_name 匹配已注册 enum 的字段从 TYPE_MESSAGE 改为 TYPE_ENUM
-    for (auto &[name, msg] : messages_) {
-        for (auto &field : msg.fields) {
-            if (field.type == TYPE_MESSAGE && !field.type_name.empty()) {
-                if (FindEnum(field.type_name)) {
-                    field.type = TYPE_ENUM;
-                }
+    auto resolve_field = [this](FieldDef &field) {
+        if (field.type == TYPE_MESSAGE && !field.type_name.empty()) {
+            if (FindEnum(field.type_name)) {
+                field.type = TYPE_ENUM;
             }
         }
-        // 递归处理嵌套 message
+        if (field.is_map && field.map_value_type == TYPE_MESSAGE && !field.map_value_type_name.empty()) {
+            if (FindEnum(field.map_value_type_name)) {
+                field.map_value_type = TYPE_ENUM;
+            }
+        }
+    };
+    for (auto &[name, msg] : messages_) {
+        for (auto &field : msg.fields) {
+            resolve_field(field);
+        }
         for (auto &nested : msg.nested_messages) {
             for (auto &field : nested.fields) {
-                if (field.type == TYPE_MESSAGE && !field.type_name.empty()) {
-                    if (FindEnum(field.type_name)) {
-                        field.type = TYPE_ENUM;
-                    }
-                }
+                resolve_field(field);
             }
         }
     }

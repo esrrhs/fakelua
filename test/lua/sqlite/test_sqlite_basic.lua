@@ -298,3 +298,49 @@ function test_prepare_multi_rows()
     db:close()
     return 1
 end
+
+function test_blob()
+    local db = open_db()
+    db:exec("CREATE TABLE t (b BLOB)")
+    db:exec("INSERT INTO t VALUES (X'00ff4142')")
+    local rows = db:exec("SELECT b FROM t")
+    if type(rows) ~= "table" or #rows ~= 1 then return 0 end
+    if rows[1].b ~= string.char(0, 255, 65, 66) then return 0 end
+    db:close()
+    db:close()
+    return 1
+end
+
+function test_bind_embedded_nul()
+    local db = open_db()
+    db:exec("CREATE TABLE t (val TEXT)")
+    local s = "ab" .. string.char(0) .. "cd"
+    local stmt = db:prepare("INSERT INTO t VALUES (?)")
+    stmt:bind(s)
+    stmt:step()
+    stmt:close()
+    local rows = db:exec("SELECT val FROM t")
+    if type(rows) ~= "table" or #rows ~= 1 then return 0 end
+    if rows[1].val ~= s then return 0 end
+    if #rows[1].val ~= 5 then return 0 end
+    db:close()
+    return 1
+end
+
+function test_delete_state_without_close()
+    local db = open_db()
+    db:exec("CREATE TABLE t (id INTEGER)")
+    db:exec("INSERT INTO t VALUES (1)")
+    local stmt = db:prepare("SELECT id FROM t")
+    -- intentionally leave db/stmt open; FakeluaDeleteState must not leak/crash
+    return 1
+end
+
+function test_stmt_close_after_db_close()
+    local db = open_db()
+    db:exec("CREATE TABLE t (id INTEGER)")
+    local stmt = db:prepare("SELECT id FROM t")
+    db:close()
+    stmt:close()
+    return 1
+end

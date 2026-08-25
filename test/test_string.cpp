@@ -300,6 +300,46 @@ TEST(test_string, test_pack_i_bad_arg) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_string, test_pack_i16_throw) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./string/test_pack_i_bad_arg.lua", config);
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_pack_i16_throw", res), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_pack_c_huge_throw) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./string/test_pack_i_bad_arg.lua", config);
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_pack_c_huge_throw", res), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_format_huge_width) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./string/test_pack_i_bad_arg.lua", config);
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_format_huge_width", res), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_format_n_throw) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./string/test_pack_i_bad_arg.lua", config);
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_format_n_throw", res), std::exception);
+    FakeluaDeleteState(s);
+}
+
 TEST(test_string, test_packsize_z_bad_arg) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -494,6 +534,20 @@ TEST(test_string, test_string_rep_boundary) {
         Call(s, jit_type, "test_string_rep_boundary", res);
         EXPECT_NEAR(res, 5000, 0.5);
     }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_string_rep_2pow63) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./string/test_string_rep_boundary.lua", config);
+    double res = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_string_rep_2pow63", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_string_rep_nan", res), std::exception);
+    EXPECT_THROW(Call(s, JIT_GCC, "test_string_rep_frac", res), std::exception);
 
     FakeluaDeleteState(s);
 }

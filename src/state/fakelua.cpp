@@ -1,13 +1,22 @@
 #include "fakelua.h"
 #include "compile/c_runtime_header.h"
 #include "jit/jit_error_boundary.h"
+#include "native/event/native_event.h"
+#include "native/io/native_io.h"
+#include "native/mysql/native_mysql.h"
+#include "native/net/native_net.h"
+#include "native/sqlite/native_sqlite.h"
 #include "native/table/native_table.h"
+#include "native/timer/native_timer.h"
 #include "state/state.h"
 #include "util/common.h"
 #include "util/dispatch_macro.h"
 #include "var/var_multi.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
+#include "var/var_closure.h"
+
+#include <cmath>
 
 namespace fakelua {
 
@@ -46,7 +55,7 @@ CVar NativeToFakeluaUshort(State *state, unsigned short val) {
     return NativeToFakeluaIntHelper(val);
 }
 
-CVar NativeToFakeluaInt(State *state, int val) {
+CVar NativeToFakeluaInt(State *state, long long val) {
     return NativeToFakeluaIntHelper(val);
 }
 
@@ -70,7 +79,7 @@ CVar NativeToFakeluaUlonglong(State *state, unsigned long long val) {
     return NativeToFakeluaIntHelper(val);
 }
 
-CVar NativeToFakeluaFloat(State *state, float val) {
+CVar NativeToFakeluaFloat(State *state, double val) {
     Var ret;
     ret.SetFloat(val);
     return ret;
@@ -203,8 +212,9 @@ int64_t CVarToInteger(const CVar &v, int64_t default_val) {
     if (var.Type() == VarType::Int) return var.GetInt();
     if (var.Type() == VarType::Float) {
         const double d = var.GetFloat();
-        // 超出 int64 范围的 float 强转是 UB，返回默认值让调用方决定。
-        if (d < static_cast<double>(INT64_MIN) || d >= static_cast<double>(INT64_MAX) + 1.0) {
+        // NaN/Inf 以及超出 int64 范围的 float 强转是 UB，返回默认值让调用方决定。
+        if (!std::isfinite(d) || d < static_cast<double>(INT64_MIN) ||
+            d >= static_cast<double>(INT64_MAX) + 1.0) {
             return default_val;
         }
         return static_cast<int64_t>(d);
@@ -223,7 +233,13 @@ int64_t CVarToInteger(const CVar &v, int64_t default_val) {
                 size_t pos = 0;
                 std::string s(sv);
                 double dval = std::stod(s, &pos);
-                if (pos == s.size()) return static_cast<int64_t>(dval);
+                if (pos == s.size()) {
+                    if (!std::isfinite(dval) || dval < static_cast<double>(INT64_MIN) ||
+                        dval >= static_cast<double>(INT64_MAX) + 1.0) {
+                        return default_val;
+                    }
+                    return static_cast<int64_t>(dval);
+                }
             } catch (...) {
             }
         }
@@ -329,7 +345,7 @@ VarInterface *FakeluaToNativeObj(State *state, CVar val) {
 }
 
 CVar NativeToFakeluaNativeObject(State *state, const NativeObject *obj) {
-    if (!obj) {
+    if (!obj || !obj->Alive()) {
         return NativeToFakeluaNil(state);
     }
     return obj->Wrap(state);
@@ -372,6 +388,13 @@ State *FakeluaNewState(const StateConfig &cfg) {
 }
 
 void FakeluaDeleteState(State *state) {
+    if (!state) return;
+    timer::OnStateDeleted(state);
+    event::OnStateDeleted(state);
+    net::OnStateDeleted(state);
+    mysql::OnStateDeleted(state);
+    sqlite::OnStateDeleted(state);
+    io::OnStateDeleted(state);
     delete state;
 }
 
@@ -468,22 +491,54 @@ void ThrowIfMultiCVar(const CVar &v) {
     }
 }
 
-static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count);
+static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count, VarClosure *cl);
 
-CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count, JITType type) {
+CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count, JITType type, VarClosure *cl) {
     // GCC 后端产出的动态库带 .eh_frame，C++ 异常能正常穿过它的帧，不必付边界的代价。
     // TCC 把代码生成在自己的内存代码页里，没有展开表，错误只能靠边界跳回来。
     if (type == JIT_GCC) {
-        return DispatchCallRaw(addr, arg_arr, arg_count);
+        return DispatchCallRaw(addr, arg_arr, arg_count, cl);
     }
-    return RunWithJitErrorBoundary([&] { return DispatchCallRaw(addr, arg_arr, arg_count); });
+    return RunWithJitErrorBoundary([&] { return DispatchCallRaw(addr, arg_arr, arg_count, cl); });
 }
 
-static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count) {
+CVar DispatchCallClosure(State *state, VarClosure *cl, const CVar *args, int arg_count, JITType type) {
+    if (!cl || !cl->func_ptr) {
+        ThrowFakeluaException("closure has no code");
+    }
+    if (!args || arg_count < 0) arg_count = 0;
+    const int expected = cl->expected_arg_count;
+    if (expected < 0 || expected > static_cast<int>(kMaxFunctionInputParams)) {
+        ThrowFakeluaException("too many arguments");
+    }
+    CVar padded[kMaxFunctionInputParams];
+    const bool is_vararg = cl->is_vararg;
+    if (is_vararg) {
+        const int fixed = expected > 0 ? expected - 1 : 0;
+        for (int i = 0; i < fixed; ++i) {
+            padded[i] = (i < arg_count && args) ? args[i] : NativeToFakeluaNil(state);
+        }
+        const int extra = (arg_count > fixed) ? (arg_count - fixed) : 0;
+        CVar multi = AllocMultiCVar(state, extra);
+        for (int i = 0; i < extra; ++i) {
+            SetMultiCVarElement(multi, i, args[fixed + i]);
+        }
+        const int multi_slot = (expected > 0) ? (expected - 1) : 0;
+        padded[multi_slot] = multi;
+        const int n = expected > 0 ? expected : 1;
+        return DispatchCall(cl->func_ptr, padded, n, type, cl);
+    }
+    for (int i = 0; i < expected; ++i) {
+        padded[i] = (i < arg_count && args) ? args[i] : NativeToFakeluaNil(state);
+    }
+    return DispatchCall(cl->func_ptr, padded, expected, type, cl);
+}
+
+static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count, VarClosure *cl) {
     switch (arg_count) {
 #define DCASE(N)                                                                                                                                                                                       \
     case N:                                                                                                                                                                                            \
-        return reinterpret_cast<CVar (*)(VarClosure * DISPATCH_CVAR_##N)>(addr)(nullptr DISPATCH_ARG_##N);
+        return reinterpret_cast<CVar (*)(VarClosure * DISPATCH_CVAR_##N)>(addr)(cl DISPATCH_ARG_##N);
 
         DCASE(0)
         DCASE(1)

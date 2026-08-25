@@ -3,6 +3,8 @@
 #include "native/table/native_table.h"
 #include "var/var_table.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -35,11 +37,16 @@ struct CsvParser {
     }
 
 private:
-    // Skip whitespace-only lines. Returns true if we skipped something.
+    // Skip lines that are empty except for optional CR/LF. Leading spaces on
+    // a real row are field content (RFC 4180) and must not be stripped.
     bool skip_empty_lines() {
         size_t start = pos;
         while (pos < len) {
             uint8_t c = data[pos];
+            if (c == ' ' || c == '\t') {
+                ++pos;
+                continue;
+            }
             if (c == '\n') {
                 ++pos;
                 return true;
@@ -49,13 +56,13 @@ private:
                 if (pos < len && data[pos] == '\n') ++pos;
                 return true;
             }
-            if (c == ' ' || c == '\t') {
-                ++pos;
-                continue;
-            }
-            break;
+            pos = start;
+            return false;
         }
-        return pos > start;
+        if (pos > start) {
+            pos = start;
+        }
+        return false;
     }
 
     void parse_row(std::vector<std::vector<std::string>> &rows) {
@@ -105,11 +112,15 @@ private:
                     field.push_back('"');
                     ++pos;
                 } else {
-                    // End of quoted field — skip trailing whitespace until separator/newline/eof
+                    // End of quoted field — only whitespace is allowed until separator/newline/eof
                     while (pos < len) {
                         uint8_t nc = data[pos];
                         if (nc == separator || nc == '\n' || nc == '\r') break;
-                        ++pos; // skip junk (should be whitespace)
+                        if (nc == ' ' || nc == '\t') {
+                            ++pos;
+                            continue;
+                        }
+                        ThrowFakeluaException("CSV parse error: unexpected character after quoted field");
                     }
                     return;
                 }
@@ -117,6 +128,7 @@ private:
                 field.push_back(static_cast<char>(c));
             }
         }
+        ThrowFakeluaException("CSV parse error: unterminated quoted field");
     }
 
     void parse_unquoted_field(std::string &field) {
@@ -134,18 +146,19 @@ private:
 static CVar field_to_lua(State *s, const std::string &str) {
     if (str.empty()) return inter::NativeToFakeluaString(s, str);
 
-    // Try to parse as number
+    // Keep leading zeros as strings ("001"); reject inf/nan.
     const char *start = str.c_str();
-    char *end = nullptr;
-    // Try integer first
-    long long ival = strtoll(start, &end, 10);
-    if (end && *end == '\0' && end != start) {
-        return inter::NativeToFakeluaInt(s, static_cast<int64_t>(ival));
-    }
-    // Try float
-    double dval = strtod(start, &end);
-    if (end && *end == '\0' && end != start) {
-        return inter::NativeToFakeluaFloat(s, dval);
+    bool leading_zero_int = str.size() > 1 && str[0] == '0' && str[1] >= '0' && str[1] <= '9';
+    if (!leading_zero_int) {
+        char *end = nullptr;
+        long long ival = strtoll(start, &end, 10);
+        if (end && *end == '\0' && end != start) {
+            return inter::NativeToFakeluaLonglong(s, ival);
+        }
+        double dval = strtod(start, &end);
+        if (end && *end == '\0' && end != start && std::isfinite(dval)) {
+            return inter::NativeToFakeluaDouble(s, dval);
+        }
     }
     return inter::NativeToFakeluaString(s, str);
 }
@@ -194,7 +207,7 @@ static std::string cvar_to_string(CVar v) {
         return buf;
     }
     case static_cast<int>(VarType::Bool):
-        return v.data_.i ? "true" : "false";
+        return AsVar(v).GetBool() ? "true" : "false";
     case static_cast<int>(VarType::Nil):
         return "";
     default:
@@ -251,89 +264,36 @@ static CVar csv_encode(State *s, CVar *args, int n) {
     if (a0.type_ == static_cast<int>(VarType::Table)) {
         auto *t = a0.data_.t;
         if (t) {
-            // Collect rows
             struct RowEntry { int64_t key; CVar val; };
             std::vector<RowEntry> row_entries;
+            table::TableHelper::ForEachKV(a0, [&](CVar k, CVar val) {
+                if (k.type_ == static_cast<int>(VarType::Int)) {
+                    row_entries.push_back({k.data_.i, val});
+                }
+            });
 
-            // From spec_keys/spec_vals
-            if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
-                for (uint32_t i = 0; i < t->spec_count; i++) {
-                    if (t->spec_keys[i].type_ == static_cast<int>(VarType::Nil)) continue;
-                    if (t->spec_keys[i].type_ == static_cast<int>(VarType::Int)) {
-                        row_entries.push_back({t->spec_keys[i].data_.i, t->spec_vals[i]});
-                    }
-                }
-            }
-            // From quick_data_
-            for (uint32_t i = 0; i < VarTable::QUICK_DATA_SIZE; i++) {
-                if (t->quick_data_[i].key.type_ == static_cast<int>(VarType::Nil)) continue;
-                if (t->quick_data_[i].key.type_ == static_cast<int>(VarType::Int)) {
-                    row_entries.push_back({t->quick_data_[i].key.data_.i, t->quick_data_[i].val});
-                }
-            }
-            // From nodes_
-            if (t->nodes_ && t->bucket_count_ > 0 && t->active_list_) {
-                for (uint32_t i = 0; i < t->count_; i++) {
-                    uint32_t node_idx = t->active_list_[i];
-                    auto &entry = t->nodes_[node_idx].entry;
-                    if (entry.key.type_ == static_cast<int>(VarType::Nil)) continue;
-                    if (entry.key.type_ == static_cast<int>(VarType::Int)) {
-                        row_entries.push_back({entry.key.data_.i, entry.val});
-                    }
-                }
-            }
-
-            // Sort rows by key
             std::sort(row_entries.begin(), row_entries.end(),
                       [](const RowEntry &a, const RowEntry &b) { return a.key < b.key; });
 
-            // Encode each row
             for (size_t i = 0; i < row_entries.size(); i++) {
                 if (i > 0) out += '\n';
                 const CVar &row_val = row_entries[i].val;
                 if (row_val.type_ == static_cast<int>(VarType::Table)) {
-                    auto *rt = row_val.data_.t;
                     std::vector<std::string> fields;
-                    if (rt) {
-                        // Collect fields
-                        struct FieldEntry { int64_t key; CVar val; };
-                        std::vector<FieldEntry> field_entries;
-
-                        if (rt->spec_keys && rt->spec_vals && rt->spec_count > 0) {
-                            for (uint32_t fi = 0; fi < rt->spec_count; fi++) {
-                                if (rt->spec_keys[fi].type_ == static_cast<int>(VarType::Nil)) continue;
-                                if (rt->spec_keys[fi].type_ == static_cast<int>(VarType::Int)) {
-                                    field_entries.push_back({rt->spec_keys[fi].data_.i, rt->spec_vals[fi]});
-                                }
-                            }
+                    struct FieldEntry { int64_t key; CVar val; };
+                    std::vector<FieldEntry> field_entries;
+                    table::TableHelper::ForEachKV(row_val, [&](CVar k, CVar val) {
+                        if (k.type_ == static_cast<int>(VarType::Int)) {
+                            field_entries.push_back({k.data_.i, val});
                         }
-                        for (uint32_t fi = 0; fi < VarTable::QUICK_DATA_SIZE; fi++) {
-                            if (rt->quick_data_[fi].key.type_ == static_cast<int>(VarType::Nil)) continue;
-                            if (rt->quick_data_[fi].key.type_ == static_cast<int>(VarType::Int)) {
-                                field_entries.push_back({rt->quick_data_[fi].key.data_.i, rt->quick_data_[fi].val});
-                            }
-                        }
-                        if (rt->nodes_ && rt->bucket_count_ > 0 && rt->active_list_) {
-                            for (uint32_t fi = 0; fi < rt->count_; fi++) {
-                                uint32_t node_idx = rt->active_list_[fi];
-                                auto &entry = rt->nodes_[node_idx].entry;
-                                if (entry.key.type_ == static_cast<int>(VarType::Nil)) continue;
-                                if (entry.key.type_ == static_cast<int>(VarType::Int)) {
-                                    field_entries.push_back({entry.key.data_.i, entry.val});
-                                }
-                            }
-                        }
-
-                        std::sort(field_entries.begin(), field_entries.end(),
-                                  [](const FieldEntry &a, const FieldEntry &b) { return a.key < b.key; });
-
-                        for (auto &fe : field_entries) {
-                            fields.push_back(cvar_to_string(fe.val));
-                        }
+                    });
+                    std::sort(field_entries.begin(), field_entries.end(),
+                              [](const FieldEntry &a, const FieldEntry &b) { return a.key < b.key; });
+                    for (auto &fe : field_entries) {
+                        fields.push_back(cvar_to_string(fe.val));
                     }
                     out += encode_row(fields, separator);
                 } else {
-                    // Single value — encode as one field
                     out += cvar_to_string(row_val);
                 }
             }

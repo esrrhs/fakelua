@@ -14,6 +14,10 @@ function test_os_exit_bad_arg()
     os.exit("bad")
 end
 
+function test_os_exit_nan()
+    os.exit(0 / 0)
+end
+
 function test_os_getenv_bad_arg()
     os.getenv(true)
 end

@@ -200,3 +200,76 @@ TEST(test_json, roundtrip) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_json, encode_array_9) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_basic.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "JsonTest.test_encode_array_9", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_json, decode_deep_ok) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_basic.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "JsonTest.test_decode_deep_ok", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_json, decode_too_deep) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_basic.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "JsonTest.test_decode_too_deep", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_json, decode_big_int) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_basic.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "JsonTest.test_decode_big_int", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_json, decode_invalid_number) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_basic.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "JsonTest.test_decode_invalid_number", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_json, decode_invalid_exp) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_basic.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "JsonTest.test_decode_invalid_exp", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_json, decode_control_char) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_basic.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "JsonTest.test_decode_control_char", ret), std::exception);
+    FakeluaDeleteState(s);
+}

@@ -1039,7 +1039,7 @@ TEST(infer, test_infer_typed_int_for_neg_step_1) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_1.lua");
     ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
     ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("--"), std::string::npos);
+    ASSERT_NE(code.find("FlForIntAdvance("), std::string::npos);
     ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -1054,7 +1054,7 @@ TEST(infer, test_infer_typed_int_for_neg_step_2) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_2.lua");
     ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
     ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find(" += -2"), std::string::npos);
+    ASSERT_NE(code.find("FlForIntAdvance("), std::string::npos);
     ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {

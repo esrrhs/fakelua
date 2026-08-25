@@ -6,11 +6,11 @@
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
 #include "var/var.h"
-#include "native/object/native_object.h"  // for NativeSpecGet
 
 #include <cstring>
 #include <memory>
 #include <string>
+#include <unordered_set>
 
 namespace fakelua {
 class NativeObject;
@@ -35,6 +35,7 @@ static MysqlConnection *unwrap_conn(CVar v);
 struct PoolObject {
     std::unique_ptr<MysqlConnectionPool> pool;
     PoolConfig config;
+    std::unordered_set<NativeObject *> wrappers;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -60,6 +61,46 @@ static std::string cvar_to_string(CVar v) {
 static PoolObject *unwrap_pool(NativeObject *self) {
     if (!self) return nullptr;
     return reinterpret_cast<PoolObject *>(self->GetInt("__mysql_pool__", 0));
+}
+
+static void zero_acquired_conn_ptrs(PoolObject *po) {
+    if (!po) return;
+    for (auto *nat : po->wrappers) {
+        if (!nat) continue;
+        auto *c = unwrap_conn_native(nat);
+        if (c) c->set_native_object(nullptr);
+        nat->SetInt("__mysql_conn__", 0);
+    }
+}
+
+static void invalidate_acquired_wrappers(PoolObject *po) {
+    if (!po) return;
+    auto wrappers = std::move(po->wrappers);
+    po->wrappers.clear();
+    for (auto *nat : wrappers) {
+        if (!nat) continue;
+        auto *c = unwrap_conn_native(nat);
+        if (c) c->set_native_object(nullptr);
+        nat->SetInt("__mysql_conn__", 0);
+        nat->SetInt("__mysql_pool_ptr__", 0);
+        nat->SetInt("__mysql_pool_obj__", 0);
+    }
+}
+
+static void detach_acquired_wrapper(NativeObject *nat) {
+    if (!nat) return;
+    auto *po = reinterpret_cast<PoolObject *>(nat->GetInt("__mysql_pool_obj__", 0));
+    auto *c = unwrap_conn_native(nat);
+    if (po) {
+        po->wrappers.erase(nat);
+        if (po->pool && c) {
+            c->set_native_object(nullptr);
+            po->pool->release(c);
+        }
+    }
+    nat->SetInt("__mysql_conn__", 0);
+    nat->SetInt("__mysql_pool_ptr__", 0);
+    nat->SetInt("__mysql_pool_obj__", 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +163,8 @@ static CVar pool_create(State *s, CVar *args, int n) {
 
     if (config.user.empty()) ThrowBadArgument(1, "mysql_pool.create", "user required");
     if (config.pool_size < 1) config.pool_size = 1;
+    if (config.pool_size > 256) config.pool_size = 256;
+    if (config.max_retries < 0) config.max_retries = 0;
 
     auto *pool_obj = new PoolObject();
     pool_obj->config = config;
@@ -137,9 +180,12 @@ static CVar pool_create(State *s, CVar *args, int n) {
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *nat = NativeObjectManager::Instance().Create(gid, "mysql_pool");
     nat->SetInt("__mysql_pool__", reinterpret_cast<int64_t>(pool_obj));
+    RegisterMysqlNativeWrapper(s, nat, true);
     nat->SetFinalizer([](NativeObject *self) {
+        UnregisterMysqlNativeWrapper(self);
         auto *p = unwrap_pool(self);
         if (p) {
+            invalidate_acquired_wrappers(p);
             delete p;
             self->SetInt("__mysql_pool__", 0);
         }
@@ -168,7 +214,15 @@ static CVar pool_acquire(NativeObject *self, State *s, CVar * /*args*/, int /*n*
     int64_t conn_gid = NativeObjectManager::Instance().CreateGroup();
     auto *nat = NativeObjectManager::Instance().Create(conn_gid, "mysql_connection");
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
-    // Note: no finalizer - connection ownership stays with pool
+    nat->SetInt("__mysql_pool_ptr__", reinterpret_cast<int64_t>(pool_obj->pool.get()));
+    nat->SetInt("__mysql_pool_obj__", reinterpret_cast<int64_t>(pool_obj));
+    nat->SetInt("__mysql_owned__", 0);
+    pool_obj->wrappers.insert(nat);
+    RegisterMysqlNativeWrapper(s, nat, false);
+    nat->SetFinalizer([](NativeObject *self) {
+        UnregisterMysqlNativeWrapper(self);
+        detach_acquired_wrapper(self);
+    });
     nat->RegisterMethod("query", conn_query);
     nat->RegisterMethod("stmt_prepare", conn_stmt_prepare);
     nat->RegisterMethod("stmt_execute", conn_stmt_execute);
@@ -190,11 +244,17 @@ static CVar pool_acquire(NativeObject *self, State *s, CVar * /*args*/, int /*n*
 static CVar pool_release(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "pool:release", "connection expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    NativeObject *nat = NativeObject::Unwrap(a0);
+    if (nat) {
+        detach_acquired_wrapper(nat);
+        return inter::NativeToFakeluaNil(s);
+    }
     auto *conn = unwrap_conn(a0);
     if (!conn) return inter::NativeToFakeluaNil(s);
 
     auto *pool_obj = unwrap_pool(self);
     if (pool_obj && pool_obj->pool) {
+        conn->set_native_object(nullptr);
         pool_obj->pool->release(conn);
     }
     return inter::NativeToFakeluaNil(s);
@@ -219,7 +279,9 @@ static CVar pool_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) 
 static CVar pool_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *pool_obj = unwrap_pool(self);
     if (pool_obj && pool_obj->pool) {
+        zero_acquired_conn_ptrs(pool_obj);
         pool_obj->pool->close();
+        pool_obj->pool->reap();
     }
     return inter::NativeToFakeluaNil(s);
 }
@@ -247,13 +309,7 @@ static CVar pool_stats(NativeObject *self, State *s, CVar * /*args*/, int /*n*/)
 // unwrap_conn_native is defined in native_mysql.cpp (shared)
 
 static CVar conn_pool_release(NativeObject *self, State *s, CVar *args, int n) {
-    // Release connection back to pool (instead of closing)
-    auto *conn = unwrap_conn_native(self);
-    if (!conn) return inter::NativeToFakeluaNil(s);
-
-    // Find the pool that owns this connection and release it
-    // For now, just mark as disconnected (pool will detect on next tick)
-    conn->close();
+    detach_acquired_wrapper(self);
     return inter::NativeToFakeluaNil(s);
 }
 

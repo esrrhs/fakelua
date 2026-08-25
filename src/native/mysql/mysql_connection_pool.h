@@ -50,15 +50,22 @@ public:
     // Tick all connections (heartbeat, reconnect)
     void tick();
 
-    // Close all connections
+    // Close all connections. If a connection is inside tick()/Lua callback,
+    // unique_ptrs are kept until reap() (same deferred-close idea as net).
     void close();
 
+    // Destroy idle connections after a deferred close(). Safe to call anytime.
+    void reap();
+
+    bool closed() const { return closed_; }
+
     // Stats
-    size_t total_count() const { return pool_.size(); }
+    size_t total_count() const;
     size_t healthy_count() const;
 
 private:
     PoolConfig config_;
+    bool closed_ = false;
     struct PoolEntry {
         std::unique_ptr<MysqlConnection> conn;
         bool in_use = false;

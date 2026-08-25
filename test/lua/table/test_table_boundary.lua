@@ -11,6 +11,7 @@ function test_table_boundary()
     local t2 = {1, 2, 3}
     table.insert(t2, 10, 99)
     if t2[4] ~= nil then return 4 end
+    if t2[10] ~= nil then return 7 end
 
     -- 4. table.insert: 不指定位置默认追加到末尾
     local t3 = {1, 2}

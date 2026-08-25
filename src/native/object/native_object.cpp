@@ -2,12 +2,14 @@
 #include "jit/vm.h"
 #include "native/basic/native_basic.h"
 #include "native/io/native_io.h"
+#include "native/native_common.h"
 #include "native/os/native_os.h"
 #include "native/utf8/native_utf8.h"
 #include "var/var_multi.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <format>
 
@@ -145,7 +147,17 @@ bool NativeObjectManager::DestroySingle(const std::string &type_name, int64_t id
             }
         }
 
+        // 全局对象也可能走 DestroySingle；必须在 Destroy 之前清索引
+        for (auto gobj = global_objects_.begin(); gobj != global_objects_.end(); ) {
+            if (gobj->second == obj) {
+                gobj = global_objects_.erase(gobj);
+            } else {
+                ++gobj;
+            }
+        }
+
         NativeObject::Destroy(obj);
+        zombies_.push_back(obj);
         objects_.erase(it);
         return true;
     }
@@ -185,6 +197,7 @@ bool NativeObjectManager::GlobalDestroy(const std::string &key) {
     objects_.erase(obj_key);
     global_objects_.erase(it);
     NativeObject::Destroy(obj);
+    zombies_.push_back(obj);
     return true;
 }
 
@@ -203,6 +216,7 @@ size_t NativeObjectManager::DestroyGroup(int64_t group_id) {
             auto key = std::make_pair(obj->GetTypeName(), obj->GetId());
             objects_.erase(key);
             NativeObject::Destroy(obj);
+            zombies_.push_back(obj);
             count++;
         }
     }
@@ -212,11 +226,15 @@ size_t NativeObjectManager::DestroyGroup(int64_t group_id) {
 void NativeObjectManager::Clear() {
     for (auto &[k, v]: objects_) {
         NativeObject::Destroy(v);
+        delete v;
     }
     objects_.clear();
     group_objects_.clear();
-    // global_objects_ 中的对象指针已在 objects_ 中一并销毁，只需清空索引
     global_objects_.clear();
+    for (auto *z: zombies_) {
+        delete z;
+    }
+    zombies_.clear();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -232,7 +250,10 @@ CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar) {
     auto *state = reinterpret_cast<State *>(cl->upvalues[1]->data_.i);
     auto *method_ptr = reinterpret_cast<NativeMethod *>(cl->upvalues[2]->data_.i);
 
-    if (!obj || !method_ptr || !(*method_ptr)) {
+    if (!obj || !obj->impl_) {
+        ThrowFakeluaException("native object is destroyed");
+    }
+    if (!method_ptr || !(*method_ptr)) {
         ThrowFakeluaException("NativeMethodBridge failed: obj or method is null");
     }
 
@@ -311,6 +332,11 @@ CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish) {
     NativeObject *obj = spec->obj;
     State *s = spec->state;
 
+    if (!obj || !obj->impl_) {
+        *finish = true;
+        return {};
+    }
+
     const std::string_view key = KeyToStringView(k);
     if (key.empty()) {
         // key 类型不是字符串，回退到 VarTable 哈希表
@@ -370,6 +396,10 @@ CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish) {
 void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
     auto *spec = static_cast<NativeObjectSpec *>(tbl->spec);
     NativeObject *obj = spec->obj;
+    if (!obj || !obj->impl_) {
+        *finish = true;
+        return;
+    }
 
     const std::string_view key = KeyToStringView(k);
     if (key.empty()) {
@@ -402,9 +432,15 @@ NativeObject::~NativeObject() {
     // 触发销毁回调，让拥有者释放关联的 C++ 资源（在 impl_ 仍有效时调用）。
     if (impl_ && impl_->finalizer) impl_->finalizer(this);
     delete impl_;
+    impl_ = nullptr;
+}
+
+bool NativeObject::Alive() const {
+    return impl_ != nullptr;
 }
 
 void NativeObject::SetFinalizer(const std::function<void(NativeObject *self)> &fn) {
+    if (!impl_) return;
     impl_->finalizer = fn;
 }
 
@@ -417,10 +453,20 @@ NativeObject *NativeObject::Create(int64_t group_id, std::string type_name, int6
 }
 
 void NativeObject::Destroy(NativeObject *obj) {
-    delete obj;
+    if (!obj || !obj->impl_) return;
+    if (obj->impl_->finalizer) {
+        auto fn = std::move(obj->impl_->finalizer);
+        obj->impl_->finalizer = nullptr;
+        fn(obj);
+    }
+    delete obj->impl_;
+    obj->impl_ = nullptr;
 }
 
 CVar NativeObject::Wrap(State *s) const {
+    if (!impl_ || !s) {
+        return inter::NativeToFakeluaNil(s);
+    }
     auto &alloc = s->GetHeap().GetAllocator(false /* temp */);
 
     // ── 分发 VarTable 壳（arena，帧内有效）──────────────────────────────────
@@ -454,66 +500,81 @@ NativeObject *NativeObject::Unwrap(CVar v) {
     if (v.type_ != static_cast<int>(VarType::Table)) return nullptr;
     const VarTable *tbl = v.data_.t;
     if (!tbl || tbl->spec_get != reinterpret_cast<void *>(NativeSpecGet)) return nullptr;
-    return static_cast<NativeObjectSpec *>(tbl->spec)->obj;
+    auto *obj = static_cast<NativeObjectSpec *>(tbl->spec)->obj;
+    if (!obj || !obj->impl_) return nullptr;
+    return obj;
 }
 
 const std::string &NativeObject::GetTypeName() const {
+    static const std::string kDead;
+    if (!impl_) return kDead;
     return impl_->type_name;
 }
 
 bool NativeObject::Has(std::string_view key) const {
+    if (!impl_) return false;
     return impl_->kv.count(std::string(key)) > 0;
 }
 
 void NativeObject::Del(std::string_view key) {
+    if (!impl_) return;
     impl_->kv.erase(std::string(key));
 }
 
 void NativeObject::Clear() {
+    if (!impl_) return;
     impl_->kv.clear();
     impl_->methods.clear();
 }
 
 void NativeObject::RegisterMethod(std::string_view name, NativeMethod method) {
+    if (!impl_) return;
     impl_->methods[std::string(name)] = std::move(method);
 }
 
 bool NativeObject::HasMethod(std::string_view name) const {
+    if (!impl_) return false;
     return impl_->methods.contains(std::string(name));
 }
 
 void NativeObject::UnregisterMethod(std::string_view name) {
+    if (!impl_) return;
     impl_->methods.erase(std::string(name));
 }
 
 size_t NativeObject::Size() const {
-    return impl_->kv.size();
+    return impl_ ? impl_->kv.size() : 0;
 }
 
 // ── Set 系列 ─────────────────────────────────────────────────────────────────
 void NativeObject::SetNil(std::string_view key) {
+    if (!impl_) return;
     impl_->kv.erase(std::string(key));
 }
 
 void NativeObject::SetInt(std::string_view key, int64_t val) {
+    if (!impl_) return;
     auto &f = impl_->kv[std::string(key)];
     f.kind = NativeField::Kind::Int;
     f.i = val;
 }
 
 void NativeObject::SetFloat(std::string_view key, double val) {
+    if (!impl_) return;
     auto &f = impl_->kv[std::string(key)];
     f.kind = NativeField::Kind::Float;
     f.f = val;
 }
 
 void NativeObject::SetBool(std::string_view key, bool val) {
+    if (!impl_) return;
     auto &f = impl_->kv[std::string(key)];
     f.kind = NativeField::Kind::Bool;
     f.b = val;
 }
 
 void NativeObject::SetString(std::string_view key, std::string_view val) {
+    if (!impl_) return;
     auto &f = impl_->kv[std::string(key)];
     f.kind = NativeField::Kind::String;
     f.s = std::string(val);
@@ -521,26 +582,38 @@ void NativeObject::SetString(std::string_view key, std::string_view val) {
 }
 
 void NativeObject::SetObject(std::string_view key, NativeObject *obj) {
+    if (!impl_) return;
     auto &f = impl_->kv[std::string(key)];
     f.kind = NativeField::Kind::Object;
     f.obj = obj;
 }
 
 void NativeObject::SetFromCVar(std::string_view key, CVar v) {
+    if (!impl_) return;
     impl_->kv[std::string(key)] = CVarToNativeField(v);
 }
 
 // ── Get 系列 ─────────────────────────────────────────────────────────────────
 int64_t NativeObject::GetInt(std::string_view key, int64_t def) const {
+    if (!impl_) return def;
     const auto it = impl_->kv.find(std::string(key));
     if (it == impl_->kv.end()) return def;
     const auto &f = it->second;
     if (f.kind == NativeField::Kind::Int) return f.i;
-    if (f.kind == NativeField::Kind::Float) return static_cast<int64_t>(f.f);
+    if (f.kind == NativeField::Kind::Float) {
+        int64_t iv = 0;
+        if (DoubleFitsInt64(f.f, &iv)) return iv;
+        if (!std::isfinite(f.f) || f.f < static_cast<double>(INT64_MIN) ||
+            f.f >= static_cast<double>(INT64_MAX) + 1.0) {
+            return def;
+        }
+        return static_cast<int64_t>(f.f);
+    }
     return def;
 }
 
 double NativeObject::GetFloat(std::string_view key, double def) const {
+    if (!impl_) return def;
     const auto it = impl_->kv.find(std::string(key));
     if (it == impl_->kv.end()) return def;
     const auto &f = it->second;
@@ -550,6 +623,7 @@ double NativeObject::GetFloat(std::string_view key, double def) const {
 }
 
 bool NativeObject::GetBool(std::string_view key, bool def) const {
+    if (!impl_) return def;
     const auto it = impl_->kv.find(std::string(key));
     if (it == impl_->kv.end()) return def;
     const auto &f = it->second;
@@ -558,6 +632,7 @@ bool NativeObject::GetBool(std::string_view key, bool def) const {
 }
 
 std::string NativeObject::GetString(std::string_view key, std::string_view def) const {
+    if (!impl_) return std::string(def);
     const auto it = impl_->kv.find(std::string(key));
     if (it == impl_->kv.end()) return std::string(def);
     const auto &f = it->second;
@@ -566,6 +641,7 @@ std::string NativeObject::GetString(std::string_view key, std::string_view def) 
 }
 
 NativeObject *NativeObject::GetObject(std::string_view key) const {
+    if (!impl_) return nullptr;
     const auto it = impl_->kv.find(std::string(key));
     if (it == impl_->kv.end()) return nullptr;
     const auto &f = it->second;
@@ -574,6 +650,11 @@ NativeObject *NativeObject::GetObject(std::string_view key) const {
 }
 
 CVar NativeObject::GetAsCVar(std::string_view key, State *s) const {
+    if (!impl_) {
+        CVar r{};
+        r.type_ = static_cast<int>(VarType::Nil);
+        return r;
+    }
     const auto it = impl_->kv.find(std::string(key));
     if (it == impl_->kv.end()) {
         CVar r{};
@@ -584,23 +665,26 @@ CVar NativeObject::GetAsCVar(std::string_view key, State *s) const {
 }
 
 int64_t NativeObject::GetId() const {
-    return impl_->id;
+    return impl_ ? impl_->id : 0;
 }
 
 void NativeObject::SetId(int64_t id) {
+    if (!impl_) return;
     impl_->id = id;
 }
 
 int64_t NativeObject::GetGroupId() const {
-    return impl_->group_id;
+    return impl_ ? impl_->group_id : 0;
 }
 
 void NativeObject::SetGroupId(int64_t group_id) {
+    if (!impl_) return;
     impl_->group_id = group_id;
 }
 
 // ── Iterate（只读快照）──────────────────────────────────────────────────────
 void NativeObject::ForEach(const std::function<void(std::string_view, NativeObject::FieldKind)> &fn) const {
+    if (!impl_) return;
     for (const auto &[k, v]: impl_->kv) {
         fn(k, static_cast<NativeObject::FieldKind>(static_cast<int>(v.kind)));
     }

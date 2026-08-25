@@ -26,8 +26,12 @@ void RegisterMathLibraryApi(State *s) {
         if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::abs(a0.data_.f));
         double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
         if (!std::isnan(f)) {
-            if (static_cast<double>(static_cast<int64_t>(f)) == f) {
-                return inter::NativeToFakeluaInt(state, std::abs(static_cast<int64_t>(f)));
+            int64_t iv = 0;
+            if (DoubleFitsInt64(f, &iv)) {
+                if (iv == INT64_MIN) {
+                    return inter::NativeToFakeluaFloat(state, static_cast<double>(iv) * -1.0);
+                }
+                return inter::NativeToFakeluaInt(state, std::abs(iv));
             }
             return inter::NativeToFakeluaFloat(state, std::abs(f));
         }
@@ -69,8 +73,9 @@ void RegisterMathLibraryApi(State *s) {
             }
         }
         if (max_cvar.type_ == static_cast<int>(VarType::String) || max_cvar.type_ == static_cast<int>(VarType::StringId)) {
-            if (static_cast<double>(static_cast<int64_t>(max_v)) == max_v) {
-                return inter::NativeToFakeluaInt(state, static_cast<int64_t>(max_v));
+            int64_t iv = 0;
+            if (DoubleFitsInt64(max_v, &iv)) {
+                return inter::NativeToFakeluaInt(state, iv);
             }
             return inter::NativeToFakeluaFloat(state, max_v);
         }
@@ -92,8 +97,9 @@ void RegisterMathLibraryApi(State *s) {
             }
         }
         if (min_cvar.type_ == static_cast<int>(VarType::String) || min_cvar.type_ == static_cast<int>(VarType::StringId)) {
-            if (static_cast<double>(static_cast<int64_t>(min_v)) == min_v) {
-                return inter::NativeToFakeluaInt(state, static_cast<int64_t>(min_v));
+            int64_t iv = 0;
+            if (DoubleFitsInt64(min_v, &iv)) {
+                return inter::NativeToFakeluaInt(state, iv);
             }
             return inter::NativeToFakeluaFloat(state, min_v);
         }
@@ -250,10 +256,10 @@ void RegisterMathLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
         CheckNumberArg(a0, 1, "math.ldexp");
-        CheckNumberArg(a1, 2, "math.ldexp");
         double v0 = inter::CVarToNumber(a0, 0.0);
-        int v1 = static_cast<int>(inter::CVarToInteger(a1, 0));
-        return inter::NativeToFakeluaFloat(state, std::ldexp(v0, v1));
+        // 指数必须是整数；2^63 经 CVarToInteger 会变成 0（ldexp(x,0)），属错误结果。
+        int64_t exp = CheckIntegerArg(a1, 2, "math.ldexp");
+        return inter::NativeToFakeluaFloat(state, std::ldexp(v0, static_cast<int>(exp)));
     });
 
     RegisterNativeFunction(s, "math.type", 1, false, [](State *state, CVar *args, int n) -> CVar {
@@ -269,8 +275,9 @@ void RegisterMathLibraryApi(State *s) {
         CheckNumberArg(a0, 1, "math.tointeger");
         if (a0.type_ == static_cast<int>(VarType::Int)) return a0;
         double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
-        if (!std::isnan(f) && static_cast<double>(static_cast<int64_t>(f)) == f) {
-            return inter::NativeToFakeluaInt(state, static_cast<int64_t>(f));
+        int64_t iv = 0;
+        if (DoubleFitsInt64(f, &iv)) {
+            return inter::NativeToFakeluaInt(state, iv);
         }
         return inter::NativeToFakeluaNil(state);
     });
@@ -278,10 +285,8 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.ult", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
-        CheckNumberArg(a0, 1, "math.ult");
-        CheckNumberArg(a1, 2, "math.ult");
-        uint64_t u0 = static_cast<uint64_t>(inter::CVarToInteger(a0, 0));
-        uint64_t u1 = static_cast<uint64_t>(inter::CVarToInteger(a1, 0));
+        uint64_t u0 = static_cast<uint64_t>(CheckIntegerArg(a0, 1, "math.ult"));
+        uint64_t u1 = static_cast<uint64_t>(CheckIntegerArg(a1, 2, "math.ult"));
         return inter::NativeToFakeluaBool(state, u0 < u1);
     });
 
@@ -309,7 +314,13 @@ void RegisterMathLibraryApi(State *s) {
             if (a0.type_ != static_cast<int>(VarType::Int) && a0.type_ != static_cast<int>(VarType::Float)) {
                 ThrowFakeluaException("bad argument #1 to 'math.random' (number expected)");
             }
-            int64_t u = inter::CVarToInteger(a0, 0);
+            int64_t u = 0;
+            if (a0.type_ == static_cast<int>(VarType::Int)) {
+                u = a0.data_.i;
+            } else if (!DoubleFitsInt64(a0.data_.f, &u)) {
+                // 2^63 / 1.5 等：CVarToInteger 会截断或回落到 0（变成 random(0)），属错误结果。
+                ThrowBadArgument(1, "math.random", "number has no integer representation");
+            }
             if (u == 0) {
                 // Lua 5.4：math.random(0) 特殊情况，返回全范围随机整数。
                 // 拼 4 个 rand 填满 64 位，避免 Windows 上 RAND_MAX=32767 导致位数不足。
@@ -335,8 +346,18 @@ void RegisterMathLibraryApi(State *s) {
             if (a1.type_ != static_cast<int>(VarType::Int) && a1.type_ != static_cast<int>(VarType::Float)) {
                 ThrowFakeluaException("bad argument #2 to 'math.random' (number expected)");
             }
-            int64_t l = inter::CVarToInteger(a0, 0);
-            int64_t u = inter::CVarToInteger(a1, 0);
+            int64_t l = 0;
+            int64_t u = 0;
+            if (a0.type_ == static_cast<int>(VarType::Int)) {
+                l = a0.data_.i;
+            } else if (!DoubleFitsInt64(a0.data_.f, &l)) {
+                ThrowBadArgument(1, "math.random", "number has no integer representation");
+            }
+            if (a1.type_ == static_cast<int>(VarType::Int)) {
+                u = a1.data_.i;
+            } else if (!DoubleFitsInt64(a1.data_.f, &u)) {
+                ThrowBadArgument(2, "math.random", "number has no integer representation");
+            }
             if (l > u) {
                 // Lua 5.4：空区间报 "interval is empty"
                 ThrowFakeluaException("bad argument #1 to 'math.random' (interval is empty)");
@@ -349,7 +370,7 @@ void RegisterMathLibraryApi(State *s) {
             if (range == 0) return inter::NativeToFakeluaInt(state, l);  // 区间覆盖整个 int64，任意值都可
             uint64_t rv = (static_cast<uint64_t>(std::rand()) << 32) |
                           static_cast<uint64_t>(std::rand());
-            int64_t r = l + static_cast<int64_t>(rv % range);
+            int64_t r = static_cast<int64_t>(static_cast<uint64_t>(l) + (rv % range));
             return inter::NativeToFakeluaInt(state, r);
         }
     });

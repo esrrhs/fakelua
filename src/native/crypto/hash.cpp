@@ -1,5 +1,6 @@
 #include "native/crypto/hash.h"
 #include "native/native_common.h"
+#include "util/exception.h"
 
 #include <cstring>
 
@@ -55,10 +56,23 @@ static int base64_decode_char(char c) {
 }
 
 std::string base64_decode(const uint8_t *data, size_t len) {
-    // Skip trailing '=' padding
-    size_t effective_len = len;
-    while (effective_len > 0 && data[effective_len - 1] == '=') {
+    std::string filtered;
+    filtered.reserve(len);
+    for (size_t i = 0; i < len; ++i) {
+        unsigned char c = data[i];
+        if (c == ' ' || c == '\n' || c == '\r' || c == '\t') continue;
+        filtered.push_back(static_cast<char>(c));
+    }
+
+    const uint8_t *bytes = reinterpret_cast<const uint8_t *>(filtered.data());
+    size_t nlen = filtered.size();
+
+    size_t effective_len = nlen;
+    while (effective_len > 0 && bytes[effective_len - 1] == '=') {
         effective_len--;
+    }
+    if (effective_len % 4 == 1) {
+        ThrowFakeluaException("crypto.base64_decode: invalid input");
     }
 
     std::string out;
@@ -67,8 +81,10 @@ std::string base64_decode(const uint8_t *data, size_t len) {
     for (size_t i = 0; i < effective_len; i += 4) {
         int n[4] = {0, 0, 0, 0};
         for (int j = 0; j < 4 && i + j < effective_len; ++j) {
-            n[j] = base64_decode_char(static_cast<char>(data[i + j]));
-            if (n[j] < 0) n[j] = 0;  // skip invalid chars (like newlines)
+            n[j] = base64_decode_char(static_cast<char>(bytes[i + j]));
+            if (n[j] < 0) {
+                ThrowFakeluaException("crypto.base64_decode: invalid character");
+            }
         }
 
         uint32_t val = (static_cast<uint32_t>(n[0]) << 18) |
@@ -392,6 +408,7 @@ std::array<uint8_t, 32> sha256(const uint8_t *data, size_t len) {
 
 std::vector<uint8_t> rc4(const uint8_t *key, size_t key_len,
                          const uint8_t *data, size_t data_len) {
+    if (key_len == 0) ThrowFakeluaException("rc4: empty key");
     // KSA: Key Scheduling Algorithm
     uint8_t state[256];
     for (int i = 0; i < 256; ++i) state[i] = static_cast<uint8_t>(i);
@@ -631,6 +648,7 @@ static void blowfish_decrypt_block(const uint8_t in[8], uint8_t out[8],
 
 std::vector<uint8_t> blowfish_encrypt(const uint8_t *key, size_t key_len,
                                       const uint8_t *data, size_t data_len) {
+    if (key_len == 0) ThrowFakeluaException("blowfish_encrypt: empty key");
     // Copy the constant init arrays
     uint32_t p[18];
     uint32_t s[4][256];
@@ -674,6 +692,8 @@ std::vector<uint8_t> blowfish_encrypt(const uint8_t *key, size_t key_len,
 
 std::vector<uint8_t> blowfish_decrypt(const uint8_t *key, size_t key_len,
                                       const uint8_t *data, size_t data_len) {
+    if (key_len == 0) ThrowFakeluaException("blowfish_decrypt: empty key");
+    if (data_len % 8 != 0) ThrowFakeluaException("blowfish_decrypt: length must be a multiple of 8");
     // Same key setup as encrypt
     uint32_t p[18];
     uint32_t s[4][256];
@@ -948,6 +968,7 @@ std::vector<uint8_t> des_encrypt(const uint8_t *key, size_t key_len,
 std::vector<uint8_t> des_decrypt(const uint8_t *key, size_t key_len,
                                  const uint8_t *data, size_t data_len) {
     if (key_len < 8) ThrowFakeluaException("des_decrypt: key must be at least 8 bytes");
+    if (data_len % 8 != 0) ThrowFakeluaException("des_decrypt: length must be a multiple of 8");
 
     uint8_t schedule[16][6];
     des_key_setup(key, schedule, true);
@@ -974,6 +995,7 @@ std::vector<uint8_t> triple_des_encrypt(const uint8_t *key, size_t key_len,
 std::vector<uint8_t> triple_des_decrypt(const uint8_t *key, size_t key_len,
                                         const uint8_t *data, size_t data_len) {
     if (key_len < 24) ThrowFakeluaException("triple_des_decrypt: key must be at least 24 bytes");
+    if (data_len % 8 != 0) ThrowFakeluaException("triple_des_decrypt: length must be a multiple of 8");
 
     // 3DES DED: decrypt with K3, encrypt with K2, decrypt with K1
     std::vector<uint8_t> tmp = des_decrypt(key + 16, 8, data, data_len);

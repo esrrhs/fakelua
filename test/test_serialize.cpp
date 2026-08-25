@@ -62,6 +62,47 @@ TEST(test_serialize, test_table) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_serialize, test_array_9) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./serialize/test_serialize_table.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "SerializeTest.test_array_9", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_serialize, test_cycle_throw) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./serialize/test_serialize_table.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "SerializeTest.test_cycle_throw", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_serialize, test_decode_too_deep) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./serialize/test_serialize_table.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "SerializeTest.test_decode_too_deep", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_serialize, test_decode_huge_table) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./serialize/test_serialize_table.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "SerializeTest.test_decode_huge_table", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
 TEST(test_serialize, test_skip) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);

@@ -57,3 +57,14 @@ function test_get_nil_args()
     if r2 ~= nil then return 2 end
     return 5000
 end
+
+function test_access_after_destroy()
+    local gid = new_native_group()
+    local obj = new_native_obj(gid, "ghost", 901)
+    obj.hp = 42
+    del_native_group(gid)
+    if obj.hp ~= nil then return 1 end
+    obj.hp = 1
+    if obj.hp ~= nil then return 2 end
+    return 5000
+end

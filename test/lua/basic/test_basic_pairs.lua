@@ -22,5 +22,20 @@ function test_basic_pairs()
     end
     if keys.x ~= 10 or keys.y ~= 20 then return 3 end
 
+    -- 超过 8 个键会 rehash：以前同时扫 quick_data_ 和桶，会重复遍历
+    local t3 = {}
+    for i = 1, 15 do t3[i] = i * 10 end
+    local n3 = 0
+    local sum3 = 0
+    local seen3 = {}
+    for k, v in pairs(t3) do
+        if seen3[k] then return 4 end
+        seen3[k] = true
+        n3 = n3 + 1
+        sum3 = sum3 + v
+    end
+    if n3 ~= 15 then return 5 end
+    if sum3 ~= 10 * (15 * 16 / 2) then return 6 end
+
     return 5000
 end
