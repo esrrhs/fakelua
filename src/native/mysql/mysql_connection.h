@@ -120,6 +120,7 @@ private:
     uint32_t capabilities_ = 0;
     uint8_t charset_ = 0;
     bool ready_ = false;
+    bool compress_ = false;  // true after handshake negotiates CLIENT_COMPRESS
 
     // Auth info (saved during connect, used in handshake)
     std::string user_;

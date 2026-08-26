@@ -24,6 +24,10 @@ static constexpr uint8_t COM_QUERY  = 0x03;
 static constexpr uint8_t COM_QUIT   = 0x01;
 static constexpr uint32_t MAX_PACKET_SIZE = 0xFFFFFF;  // 16MB - 1
 
+// MySQL compressed protocol: packets smaller than this are sent uncompressed
+// (zlib overhead would make them larger). Matches the server default.
+static constexpr uint32_t MIN_COMPRESS_LENGTH = 50;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Capability flags (from MySQL mysql_com.h — authoritative values)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -60,7 +64,7 @@ enum Capability : uint32_t {
 constexpr uint32_t kMyCapabilities =
     CLIENT_PROTOCOL_41 | CLIENT_SECURE_CONNECTION | CLIENT_PLUGIN_AUTH |
     CLIENT_CONNECT_WITH_DB | CLIENT_LONG_PASSWORD | CLIENT_TRANSACTIONS |
-    CLIENT_MULTI_STATEMENTS | CLIENT_MULTI_RESULTS;
+    CLIENT_MULTI_STATEMENTS | CLIENT_MULTI_RESULTS | CLIENT_COMPRESS;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Column type codes (text protocol returns all values as strings; these are
@@ -148,6 +152,28 @@ std::string make_packet(uint8_t seq, const char *payload, size_t len);
 // sequence number of the last physical packet.
 bool consume_logical_packet(const uint8_t *buf, size_t buf_len, size_t &consumed,
                             std::vector<uint8_t> &out_payload, uint8_t &seq);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compressed packet framing (MySQL compressed protocol — zlib deflate)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Build MySQL compressed wire packet(s): 7-byte header + payload per chunk.
+// Header: 3-byte LE compressed_length + 1-byte seq + 3-byte LE uncompressed_size.
+// Payloads are split on uncompressed MAX_PACKET_SIZE boundaries; each chunk is
+// independently zlib-compressed. Chunks smaller than MIN_COMPRESS_LENGTH, or
+// compression that does not reduce size, are sent with uncompressed_size = 0
+// (receiver treats the payload as raw). A zero-length chunk terminates a payload
+// that is an exact multiple of MAX_PACKET_SIZE.
+std::string make_compressed_packet(uint8_t seq, const char *payload, size_t len);
+
+// Assemble a logical payload from the compressed wire buffer, concatenating
+// continuation chunks. A chunk continues the logical packet when its
+// uncompressed_size == MAX_PACKET_SIZE, or (uncompressed_size == 0 and
+// compressed_length == MAX_PACKET_SIZE). Returns false if incomplete. On success,
+// `consumed` is the number of wire bytes used and `seq` is the sequence number
+// of the last physical packet.
+bool consume_compressed_packet(const uint8_t *buf, size_t buf_len, size_t &consumed,
+                               std::vector<uint8_t> &out_payload, uint8_t &seq);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Authentication (mysql_native_password + caching_sha2_password)

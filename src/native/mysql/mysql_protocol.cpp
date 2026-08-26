@@ -1,4 +1,5 @@
 #include "native/mysql/mysql_protocol.h"
+#include "native/compress/compress_zlib.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -224,6 +225,99 @@ bool consume_logical_packet(const uint8_t *buf, size_t buf_len, size_t &consumed
         offset += 4 + payload_len;
         seq = pkt_seq;
         if (payload_len < MAX_PACKET_SIZE) {
+            consumed = offset;
+            return true;
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compressed packet framing (MySQL compressed protocol — zlib deflate)
+// ─────────────────────────────────────────────────────────────────────────────
+
+std::string make_compressed_packet(uint8_t seq, const char *payload, size_t len) {
+    if (len > 0 && !payload) protocol_error("make_compressed_packet: null payload");
+    std::string pkt;
+    size_t off = 0;
+    uint8_t s = seq;
+    uint32_t chunk;
+    do {
+        size_t remaining = len - off;
+        chunk = remaining > MAX_PACKET_SIZE ? MAX_PACKET_SIZE : static_cast<uint32_t>(remaining);
+
+        if (chunk == 0) {
+            // Zero-length terminator (payload was an exact multiple of MAX_PACKET_SIZE).
+            write_uint24(pkt, 0);
+            pkt.push_back(static_cast<char>(s++));
+            write_uint24(pkt, 0);
+        } else {
+            const uint8_t *data = reinterpret_cast<const uint8_t *>(payload + off);
+            if (chunk >= MIN_COMPRESS_LENGTH) {
+                auto compressed = compress::zlib_compress(data, chunk);
+                if (!compressed.empty() && compressed.size() < chunk) {
+                    // Compression helped — send zlib data.
+                    pkt.reserve(pkt.size() + 7 + compressed.size());
+                    write_uint24(pkt, static_cast<uint32_t>(compressed.size()));
+                    pkt.push_back(static_cast<char>(s++));
+                    write_uint24(pkt, chunk);  // uncompressed_size
+                    pkt.append(reinterpret_cast<const char *>(compressed.data()),
+                               compressed.size());
+                    off += chunk;
+                    if (chunk < MAX_PACKET_SIZE) break;
+                    continue;
+                }
+                // Compression failed or did not reduce size — fall through to raw.
+            }
+            // Send uncompressed (uncompressed_size = 0).
+            pkt.reserve(pkt.size() + 7 + chunk);
+            write_uint24(pkt, chunk);
+            pkt.push_back(static_cast<char>(s++));
+            write_uint24(pkt, 0);
+            pkt.append(payload + off, chunk);
+        }
+        off += chunk;
+    } while (chunk == MAX_PACKET_SIZE);
+    return pkt;
+}
+
+bool consume_compressed_packet(const uint8_t *buf, size_t buf_len, size_t &consumed,
+                               std::vector<uint8_t> &out_payload, uint8_t &seq) {
+    if (!buf) return false;
+    size_t offset = 0;
+    out_payload.clear();
+    uint32_t last_logical_len = 0;
+    for (;;) {
+        if (buf_len < offset + 7) return false;
+        uint32_t comp_len = static_cast<uint32_t>(buf[offset]) |
+                            (static_cast<uint32_t>(buf[offset + 1]) << 8) |
+                            (static_cast<uint32_t>(buf[offset + 2]) << 16);
+        uint8_t pkt_seq = buf[offset + 3];
+        uint32_t uncomp_size = static_cast<uint32_t>(buf[offset + 4]) |
+                               (static_cast<uint32_t>(buf[offset + 5]) << 8) |
+                               (static_cast<uint32_t>(buf[offset + 6]) << 16);
+        offset += 7;
+        if (buf_len < offset + comp_len) return false;
+
+        if (uncomp_size == 0) {
+            // Uncompressed chunk.
+            out_payload.insert(out_payload.end(), buf + offset, buf + offset + comp_len);
+            last_logical_len = comp_len;
+        } else {
+            // Compressed chunk — decompress and verify size.
+            auto decompressed = compress::zlib_decompress(buf + offset, comp_len);
+            if (decompressed.size() != uncomp_size) {
+                protocol_error(std::format(
+                    "compressed packet: decompressed size {} != expected {}",
+                    decompressed.size(), uncomp_size));
+            }
+            out_payload.insert(out_payload.end(), decompressed.begin(), decompressed.end());
+            last_logical_len = uncomp_size;
+        }
+        offset += comp_len;
+        seq = pkt_seq;
+
+        // Last chunk of the logical packet?
+        if (last_logical_len < MAX_PACKET_SIZE) {
             consumed = offset;
             return true;
         }
