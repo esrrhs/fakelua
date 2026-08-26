@@ -211,7 +211,7 @@
 
 **文件：** `net/native_net.h` · **注册：** `RegisterNetLibraryApi`
 
-**配置表字段：** `ip`、`port`、`maxconn`、`backlog`、`nonblocking`、`nodelay`、`keepalive`、`framer`、`parser`、`fixed_len`
+**配置表字段：** `ip`、`port`、`maxconn`、`backlog`、`nonblocking`、`nodelay`、`keepalive`、`framer`、`parser`、`fixed_len`、`ws_path`、`ws_host`、`ws_origin`
 
 **帧协议：**
 
@@ -224,13 +224,18 @@
 | `line` | 换行符分隔，自动去除 |
 | `fixed` | 固定长度（需 `fixed_len = N`） |
 | `raw` | 原始透传 |
+| `websocket` / `ws` | RFC 6455 WebSocket（文本帧） |
 
 **自定义解析器：** `parser = "Package.func"`（Lua）或 `custom_parser_fn`/`custom_encoder_fn`（C++ `NetConfig`）
+
+**WebSocket 额外配置：** `ws_path`（默认 `"/"`）、`ws_host`（客户端 Host，默认 `ip:port`）、`ws_origin`（可选）
 
 | 函数/方法 | 说明 |
 |------|------|
 | `net.server(config)` | 创建 TCP 服务端 |
 | `net.client(config)` | 创建 TCP 客户端 |
+| `net.ws_server(config)` | 创建 WebSocket 服务端（等价于 `framer="websocket"`） |
+| `net.ws_client(config)` | 创建 WebSocket 客户端 |
 | `obj:dispatch(func_name)` | 注册 Lua 回调函数名 |
 | `obj:tick()` | 驱动 IO 和事件分发 |
 | `obj:send(connid, data)` | 发送数据（服务端需指定 connid；客户端省略） |
