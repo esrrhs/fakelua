@@ -66,10 +66,18 @@ else ()
     include_directories(${tinycc_src_SOURCE_DIR})
 endif ()
 
-# SQLite — compiled as part of fakelua shared library (not a separate static lib)
+# SQLite3 amalgamation via CPM — compiled directly into fakelua (not a separate static lib)
 # to avoid CRT mismatch issues on Windows/MSYS2.
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/native/sqlite/sqlite3)
-set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${CMAKE_CURRENT_SOURCE_DIR}/native/sqlite/sqlite3/sqlite3.c)
+CPMAddPackage(
+    NAME sqlite3_amalgamation
+    URL https://www.sqlite.org/2024/sqlite-amalgamation-3450000.zip
+    DOWNLOAD_ONLY YES
+)
+if (NOT sqlite3_amalgamation_ADDED)
+    message(FATAL_ERROR "Failed to fetch SQLite3 amalgamation")
+endif ()
+include_directories(${sqlite3_amalgamation_SOURCE_DIR})
+set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${sqlite3_amalgamation_SOURCE_DIR}/sqlite3.c)
 
 add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 
@@ -135,48 +143,59 @@ if (USE_COV)
     set(TARGET_LIB ${TARGET_LIB} gcov)
 endif ()
 
-# ── Compression libraries (embedded source, no CPM / external deps) ──
+# ── Compression libraries via CPM ──
 
-# LZ4 — embedded in src/native/compress/lz4/
-add_library(lz4 STATIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/lz4.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/lz4hc.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/lz4frame.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4/xxhash.c
+# LZ4
+CPMAddPackage(
+    NAME lz4
+    GITHUB_REPOSITORY lz4/lz4
+    GIT_TAG v1.9.4
+    SOURCE_SUBDIR build/cmake
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        "LZ4_BUILD_CLI OFF"
+        "LZ4_BUILD_LEGACY_LZ4C OFF"
 )
-target_include_directories(lz4 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/lz4)
-set(TARGET_LIB ${TARGET_LIB} lz4)
+if (NOT lz4_ADDED)
+    message(FATAL_ERROR "Failed to fetch LZ4")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} lz4_static)
 
-# zlib — embedded in src/native/compress/zlib/ (core only, no gz* file I/O)
-set(ZLIB_SRCS
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/adler32.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/compress.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/crc32.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/deflate.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/infback.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/inffast.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/inflate.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/inftrees.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/trees.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/uncompr.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib/zutil.c
+# zlib
+CPMAddPackage(
+    NAME zlib
+    GITHUB_REPOSITORY madler/zlib
+    GIT_TAG v1.3.1
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        "ZLIB_BUILD_EXAMPLES OFF"
 )
-add_library(zlib STATIC ${ZLIB_SRCS})
-target_include_directories(zlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zlib)
-set(TARGET_LIB ${TARGET_LIB} zlib)
+if (NOT zlib_ADDED)
+    message(FATAL_ERROR "Failed to fetch zlib")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} zlibstatic)
 
-# Zstd — embedded in src/native/compress/zstd/
-file(GLOB_RECURSE ZSTD_SRCS
-        "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/common/*.c"
-        "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/compress/*.c"
-        "${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/decompress/*.c"
+# Zstd
+CPMAddPackage(
+    NAME zstd
+    GITHUB_REPOSITORY facebook/zstd
+    GIT_TAG v1.5.6
+    SOURCE_SUBDIR build/cmake
+    OPTIONS
+        "ZSTD_BUILD_SHARED_LIB OFF"
+        "ZSTD_BUILD_PROGRAMS OFF"
+        "ZSTD_BUILD_CONTRIB OFF"
+        "ZSTD_BUILD_TESTS OFF"
+        "ZSTD_DISABLE_ASM ON"
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
 )
-add_library(zstd STATIC ${ZSTD_SRCS})
-target_include_directories(zstd PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd)
-target_include_directories(zstd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/native/compress/zstd/common)
-# Disable ASM optimizations — we only compile C sources, not assembly
-target_compile_definitions(zstd PRIVATE ZSTD_DISABLE_ASM)
-set(TARGET_LIB ${TARGET_LIB} zstd)
+if (NOT zstd_ADDED)
+    message(FATAL_ERROR "Failed to fetch zstd")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} libzstd_static)
 
 
 target_link_libraries(fakelua ${TARGET_LIB})
