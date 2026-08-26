@@ -2,6 +2,7 @@
 
 #include "native/net/net_buffer.h"
 #include "native/net/net_common.h"
+#include "native/net/net_websocket.h"
 
 #include <functional>
 #include <unordered_map>
@@ -15,6 +16,8 @@ struct TcpLink {
     CircularBuffer send_buf;
     bool connected = false;
     int conn_id = -1;
+    WsState ws_state = WsState::None;
+    bool ws_handshake_sent = false;
 
     TcpLink();
     ~TcpLink();

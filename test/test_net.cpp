@@ -661,3 +661,83 @@ TEST(test_net, test_framer_lua_protocols) {
 
     FakeluaDeleteState(s);
 }
+
+// WebSocket echo（C++ 引擎层）
+TEST(test_net, test_websocket_echo_cpp) {
+    net_init();
+
+    std::atomic<int> conn_count{0};
+    std::atomic<int> recv_count{0};
+    std::string last_data;
+
+    NetConfig srv_cfg{};
+    srv_cfg.port = 19993;
+    srv_cfg.max_conn = 10;
+    srv_cfg.framer = FramerType::WebSocket;
+    srv_cfg.ws_path = "/";
+    TcpServer server(srv_cfg);
+    server.start();
+    ASSERT_TRUE(server.running());
+
+    NetConfig cli_cfg{};
+    cli_cfg.ip = "127.0.0.1";
+    cli_cfg.port = 19993;
+    cli_cfg.framer = FramerType::WebSocket;
+    cli_cfg.ws_path = "/";
+    TcpClient client(cli_cfg);
+    client.connect();
+
+    for (int i = 0; i < 80; ++i) {
+        server.tick(
+            [&conn_count](int) { conn_count++; },
+            [&recv_count, &last_data](int, const char *data, size_t len) {
+                recv_count++;
+                last_data.assign(data, len);
+            },
+            [](int) {});
+        client.tick([](const char *, size_t) {}, []() {});
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+
+    ASSERT_GE(conn_count, 1) << "websocket handshake should complete";
+    ASSERT_TRUE(client.send("hello ws", 8));
+
+    for (int i = 0; i < 80; ++i) {
+        server.tick(
+            [&conn_count](int) { conn_count++; },
+            [&recv_count, &last_data](int, const char *data, size_t len) {
+                recv_count++;
+                last_data.assign(data, len);
+            },
+            [](int) {});
+        client.tick([](const char *, size_t) {}, []() {});
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+
+    EXPECT_GE(recv_count, 1);
+    EXPECT_EQ(last_data, "hello ws");
+
+    client.disconnect();
+    server.stop();
+    net_shutdown();
+}
+
+// WebSocket echo（Lua 绑定）
+TEST(test_net, test_websocket_echo_lua) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_websocket.lua", config);
+
+    int64_t conn_count = 0, recv_count = 0;
+    std::string server_data, client_data;
+    Call(s, JIT_TCC, "NetWsTest.test_ws_echo", std::tie(conn_count, recv_count, server_data, client_data));
+
+    EXPECT_GE(conn_count, 1) << "ws server should accept connection";
+    EXPECT_GE(recv_count, 1) << "ws server should receive data";
+    EXPECT_EQ(server_data, "hello websocket");
+    EXPECT_EQ(client_data, "echo:hello websocket");
+
+    FakeluaDeleteState(s);
+}

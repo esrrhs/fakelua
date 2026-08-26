@@ -6,3 +6,4 @@
 #include "native/net/net_buffer.h"
 #include "native/net/net_selector.h"
 #include "native/net/net_socket.h"
+#include "native/net/net_websocket.h"

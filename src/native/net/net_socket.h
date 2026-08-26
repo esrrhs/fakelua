@@ -36,7 +36,8 @@ private:
     std::vector<int> free_indices_;
 
     void accept_connections(const std::function<void(int)> &on_conn);
-    void handle_link_read(TcpLink *link, const std::function<void(int, const char *, size_t)> &on_recv,
+    void handle_link_read(TcpLink *link, const std::function<void(int)> &on_conn,
+                          const std::function<void(int, const char *, size_t)> &on_recv,
                           const std::function<void(int)> &on_close);
     void handle_link_write(TcpLink *link, const std::function<void(int)> &on_close);
     void close_link(TcpLink *link, const std::function<void(int)> &on_close);

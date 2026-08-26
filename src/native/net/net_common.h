@@ -29,6 +29,7 @@ enum class FramerType {
     FixedLength,          // 固定长度封包（由 fixed_packet_len 指定）
     RawStream,            // 原始流透传（直接转发收到的字节）
     Custom,               // 自定义解包/封包（支持 Lua 或 C++ 函数）
+    WebSocket,            // RFC 6455 WebSocket 文本/二进制帧
 };
 
 class CircularBuffer;
@@ -58,6 +59,9 @@ struct NetConfig {
     std::string custom_parser_name; // Lua 自定义解包函数名（返回 packet_str 或 nil）
     CustomParserFn custom_parser_fn; // C++ 自定义解包函数
     CustomEncoderFn custom_encoder_fn; // C++ 自定义编码函数
+    std::string ws_path = "/";           // WebSocket 握手路径（默认 /）
+    std::string ws_host;                 // 客户端 Host 头（默认可由 ip:port 推导）
+    std::string ws_origin;               // 客户端 Origin 头（可选）
 };
 
 void net_init();

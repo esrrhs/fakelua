@@ -471,6 +471,9 @@ static net::FramerType parse_framer_type(const std::string &framer_str) {
     if (framer_str == "custom") {
         return net::FramerType::Custom;
     }
+    if (framer_str == "websocket" || framer_str == "ws") {
+        return net::FramerType::WebSocket;
+    }
     return net::FramerType::Header4BigEndian;
 }
 
@@ -516,6 +519,11 @@ static net::NetConfig parse_config(State *s, CVar *args, int n) {
     if (!cfg.custom_parser_name.empty()) {
         cfg.framer = net::FramerType::Custom;
     }
+
+    cfg.ws_path = get_table_field_string(s, a0, "ws_path", "/");
+    if (cfg.ws_path.empty()) cfg.ws_path = "/";
+    cfg.ws_host = get_table_field_string(s, a0, "ws_host", "");
+    cfg.ws_origin = get_table_field_string(s, a0, "ws_origin", "");
 
     return cfg;
 }
@@ -611,9 +619,7 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
     };
 }
 
-// net.server(config) → server object
-static CVar net_server(State *s, CVar *args, int n) {
-    net::NetConfig cfg = parse_config(s, args, n);
+static CVar create_net_server(State *s, net::NetConfig cfg, const char *type_name) {
     if (!cfg.custom_parser_name.empty()) {
         setup_lua_custom_parser(s, cfg, cfg.custom_parser_name);
     }
@@ -628,18 +634,15 @@ static CVar net_server(State *s, CVar *args, int n) {
 
     if (!obj->server->running()) {
         delete obj;
-        net::net_shutdown(); // 平衡工厂开头的 net_init()（未创建 NativeObject，无 finalizer 触发）
-        ThrowFakeluaException(std::format("net.server: failed to listen on port {}", cfg.port));
+        net::net_shutdown();
+        ThrowFakeluaException(std::format("{}: failed to listen on port {}", type_name, cfg.port));
     }
 
-    // 包装为 NativeObject
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(gid, "net_server");
+    auto *nat = NativeObjectManager::Instance().Create(gid, type_name);
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
     nat->SetInt("__net_state__", reinterpret_cast<int64_t>(s));
     register_net_wrapper(s, nat);
-    // 销毁时：配对 net_shutdown（平衡工厂里的 net_init）+ 停 socket + 释放 NetObject。
-    // 仅在真正销毁时触发；net_close 已先 release_net_object，此处 __net_obj__ 为 0 是 no-op。
     nat->SetFinalizer([](NativeObject *self) {
         unregister_net_wrapper(self);
         net::net_shutdown();
@@ -659,9 +662,7 @@ static CVar net_server(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
 
-// net.client(config) → client object
-static CVar net_client(State *s, CVar *args, int n) {
-    net::NetConfig cfg = parse_config(s, args, n);
+static CVar create_net_client(State *s, net::NetConfig cfg, const char *type_name) {
     if (!cfg.custom_parser_name.empty()) {
         setup_lua_custom_parser(s, cfg, cfg.custom_parser_name);
     }
@@ -674,14 +675,11 @@ static CVar net_client(State *s, CVar *args, int n) {
     obj->client = std::make_unique<net::TcpClient>(cfg);
     obj->client->connect();
 
-    // 包装为 NativeObject
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(gid, "net_client");
+    auto *nat = NativeObjectManager::Instance().Create(gid, type_name);
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
     nat->SetInt("__net_state__", reinterpret_cast<int64_t>(s));
     register_net_wrapper(s, nat);
-    // 销毁时：配对 net_shutdown（平衡工厂里的 net_init）+ 停 socket + 释放 NetObject。
-    // 仅在真正销毁时触发；net_close 已先 release_net_object，此处 __net_obj__ 为 0 是 no-op。
     nat->SetFinalizer([](NativeObject *self) {
         unregister_net_wrapper(self);
         net::net_shutdown();
@@ -699,6 +697,34 @@ static CVar net_client(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
 
+// net.server(config) → server object
+static CVar net_server(State *s, CVar *args, int n) {
+    return create_net_server(s, parse_config(s, args, n), "net_server");
+}
+
+// net.client(config) → client object
+static CVar net_client(State *s, CVar *args, int n) {
+    return create_net_client(s, parse_config(s, args, n), "net_client");
+}
+
+// net.ws_server(config) → WebSocket 服务端（等价于 framer="websocket"）
+static CVar net_ws_server(State *s, CVar *args, int n) {
+    net::NetConfig cfg = parse_config(s, args, n);
+    cfg.framer = net::FramerType::WebSocket;
+    cfg.custom_parser_name.clear();
+    cfg.custom_parser_fn = nullptr;
+    return create_net_server(s, cfg, "net_ws_server");
+}
+
+// net.ws_client(config) → WebSocket 客户端
+static CVar net_ws_client(State *s, CVar *args, int n) {
+    net::NetConfig cfg = parse_config(s, args, n);
+    cfg.framer = net::FramerType::WebSocket;
+    cfg.custom_parser_name.clear();
+    cfg.custom_parser_fn = nullptr;
+    return create_net_client(s, cfg, "net_ws_client");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 注册
 // ─────────────────────────────────────────────────────────────────────────────
@@ -708,6 +734,8 @@ void RegisterNetLibraryApi(State *s) {
 
     RegisterNativeFunction(s, "net.server", 1, false, net_server);
     RegisterNativeFunction(s, "net.client", 1, false, net_client);
+    RegisterNativeFunction(s, "net.ws_server", 1, false, net_ws_server);
+    RegisterNativeFunction(s, "net.ws_client", 1, false, net_ws_client);
 }
 
 } // namespace fakelua::net

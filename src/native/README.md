@@ -213,7 +213,7 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 
 **File:** `net/native_net.h` · **Registration:** `RegisterNetLibraryApi`
 
-**Config table fields:** `ip`, `port`, `maxconn`, `backlog`, `nonblocking`, `nodelay`, `keepalive`, `framer`, `parser`, `fixed_len`
+**Config table fields:** `ip`, `port`, `maxconn`, `backlog`, `nonblocking`, `nodelay`, `keepalive`, `framer`, `parser`, `fixed_len`, `ws_path`, `ws_host`, `ws_origin`
 
 **Framer protocols:**
 
@@ -226,13 +226,18 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | `line` | Newline delimited, auto-stripped |
 | `fixed` | Fixed-length (requires `fixed_len = N`) |
 | `raw` | Raw passthrough |
+| `websocket` / `ws` | RFC 6455 WebSocket (text frames) |
 
 **Custom parser:** `parser = "Package.func"` (Lua) or `custom_parser_fn`/`custom_encoder_fn` (C++ `NetConfig`)
+
+**WebSocket extras:** `ws_path` (default `"/"`), `ws_host` (client Host, default `ip:port`), `ws_origin` (optional)
 
 | Function/Method | Description |
 |----------|-------------|
 | `net.server(config)` | Create TCP server |
 | `net.client(config)` | Create TCP client |
+| `net.ws_server(config)` | Create WebSocket server (same as `framer="websocket"`) |
+| `net.ws_client(config)` | Create WebSocket client |
 | `obj:dispatch(func_name)` | Register Lua callback function name |
 | `obj:tick()` | Drive I/O and event dispatch |
 | `obj:send(connid, data)` | Send data (server: specify connid; client: omit) |

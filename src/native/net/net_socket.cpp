@@ -4,6 +4,18 @@
 
 namespace fakelua::net {
 
+namespace {
+
+bool is_websocket(const NetConfig &cfg) { return cfg.framer == FramerType::WebSocket; }
+
+void reset_ws_state(TcpLink *link) {
+    if (!link) return;
+    link->ws_state = WsState::None;
+    link->ws_handshake_sent = false;
+}
+
+} // namespace
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TcpServer
 // ─────────────────────────────────────────────────────────────────────────────
@@ -90,6 +102,7 @@ void TcpServer::free_link(int slot) {
     links_[slot]->fd = INVALID_SOCKET_VAL;
     links_[slot]->recv_buf.clear();
     links_[slot]->send_buf.clear();
+    reset_ws_state(links_[slot]);
     free_indices_.push_back(slot);
 }
 
@@ -117,11 +130,16 @@ void TcpServer::accept_connections(const std::function<void(int)> &on_conn) {
         link->send_buf = CircularBuffer(config_.send_buf_size);
 
         selector_.add(client_fd, link);
-        on_conn(slot);
+        if (is_websocket(config_)) {
+            link->ws_state = WsState::Handshake;
+        } else {
+            on_conn(slot);
+        }
     }
 }
 
-void TcpServer::handle_link_read(TcpLink *link, const std::function<void(int, const char *, size_t)> &on_recv,
+void TcpServer::handle_link_read(TcpLink *link, const std::function<void(int)> &on_conn,
+                                 const std::function<void(int, const char *, size_t)> &on_recv,
                                  const std::function<void(int)> &on_close) {
     if (!link || !link->connected || link->fd == INVALID_SOCKET_VAL) return;
 
@@ -132,6 +150,49 @@ void TcpServer::handle_link_read(TcpLink *link, const std::function<void(int, co
     int err = get_last_socket_error();
     if (n > 0) {
         link->recv_buf.commit_write(n);
+        if (is_websocket(config_)) {
+            if (link->ws_state == WsState::Handshake) {
+                std::string response;
+                bool need_more = false;
+                bool hs_error = false;
+                if (!try_ws_server_handshake(link->recv_buf, config_, response, need_more, hs_error)) {
+                    if (hs_error) {
+                        close_link(link, on_close);
+                    }
+                    return;
+                }
+                link->send_buf.write(response.data(), response.size());
+                link->ws_state = WsState::Open;
+                selector_.set_write_watch(link->fd, true);
+                on_conn(link->conn_id);
+            }
+            if (link->ws_state == WsState::Open) {
+                while (link->ws_state == WsState::Open) {
+                    const char *payload = nullptr;
+                    uint32_t payload_len = 0;
+                    WsOpcode opcode = WsOpcode::Text;
+                    bool parse_error = false;
+                    if (!try_parse_ws_frame(link->recv_buf, config_, true, payload, payload_len, opcode, parse_error)) {
+                        if (parse_error) close_link(link, on_close);
+                        break;
+                    }
+                    if (opcode == WsOpcode::Close) {
+                        close_link(link, on_close);
+                        break;
+                    }
+                    if (opcode == WsOpcode::Ping) {
+                        if (write_ws_pong(link->send_buf, config_, false, payload, payload_len)) {
+                            selector_.set_write_watch(link->fd, true);
+                        }
+                        continue;
+                    }
+                    if (opcode == WsOpcode::Text || opcode == WsOpcode::Binary) {
+                        on_recv(link->conn_id, payload, payload_len);
+                    }
+                }
+            }
+            return;
+        }
         while (true) {
             const char *payload = nullptr;
             uint32_t payload_len = 0;
@@ -196,7 +257,7 @@ void TcpServer::tick(const std::function<void(int)> &on_conn,
                       if (ud == nullptr || static_cast<TcpLink *>(ud)->fd == listen_fd_) {
                           accept_connections(on_conn);
                       } else {
-                          handle_link_read(static_cast<TcpLink *>(ud), on_recv, on_close);
+                          handle_link_read(static_cast<TcpLink *>(ud), on_conn, on_recv, on_close);
                       }
                   },
                   [this, &on_close](void *ud) {
@@ -219,8 +280,12 @@ bool TcpServer::send(int conn_id, const char *data, size_t len) {
     if (conn_id < 0 || conn_id >= static_cast<int>(links_.size())) return false;
     auto *link = links_[conn_id];
     if (!link || !link->connected) return false;
-    // 整包写入失败则返回 false（禁止截断）
-    if (!write_packet(link->send_buf, config_, data, len)) return false;
+    if (is_websocket(config_)) {
+        if (link->ws_state != WsState::Open) return false;
+        if (!write_ws_frame(link->send_buf, config_, false, WsOpcode::Text, data, len)) return false;
+    } else if (!write_packet(link->send_buf, config_, data, len)) {
+        return false;
+    }
     selector_.set_write_watch(link->fd, true);
     return true;
 }
@@ -282,9 +347,20 @@ void TcpClient::connect() {
     link_->recv_buf = CircularBuffer(config_.recv_buf_size);
     link_->send_buf = CircularBuffer(config_.send_buf_size);
     connecting_ = in_progress;
+    if (is_websocket(config_)) {
+        link_->ws_state = WsState::Handshake;
+    }
 
     selector_.add(fd, link_);
     if (connecting_) selector_.set_write_watch(fd, true);
+    if (!connecting_ && is_websocket(config_) && !link_->ws_handshake_sent) {
+        std::string request;
+        std::string key;
+        build_ws_client_handshake_request(config_, request, key);
+        link_->send_buf.write(request.data(), request.size());
+        link_->ws_handshake_sent = true;
+        selector_.set_write_watch(fd, true);
+    }
 }
 
 void TcpClient::disconnect() {
@@ -304,6 +380,7 @@ void TcpClient::teardown_fd(const std::function<void()> *on_close) {
     }
     connecting_ = false;
     link_->connected = false;
+    reset_ws_state(link_);
     if (on_close && was_live) (*on_close)();
 }
 
@@ -321,6 +398,46 @@ void TcpClient::handle_read(const std::function<void(const char *, size_t)> &on_
 #endif
     if (n > 0) {
         link_->recv_buf.commit_write(n);
+        if (is_websocket(config_)) {
+            if (link_->ws_state == WsState::Handshake) {
+                bool done = false;
+                bool need_more = false;
+                bool hs_error = false;
+                if (!try_ws_client_handshake(link_->recv_buf, done, need_more, hs_error)) {
+                    if (hs_error) {
+                        teardown_fd(&on_close);
+                    }
+                    return;
+                }
+                link_->ws_state = WsState::Open;
+            }
+            if (link_->ws_state == WsState::Open) {
+                while (link_->ws_state == WsState::Open) {
+                    const char *payload = nullptr;
+                    uint32_t payload_len = 0;
+                    WsOpcode opcode = WsOpcode::Text;
+                    bool parse_error = false;
+                    if (!try_parse_ws_frame(link_->recv_buf, config_, false, payload, payload_len, opcode, parse_error)) {
+                        if (parse_error) teardown_fd(&on_close);
+                        break;
+                    }
+                    if (opcode == WsOpcode::Close) {
+                        teardown_fd(&on_close);
+                        break;
+                    }
+                    if (opcode == WsOpcode::Ping) {
+                        if (write_ws_pong(link_->send_buf, config_, true, payload, payload_len)) {
+                            selector_.set_write_watch(link_->fd, true);
+                        }
+                        continue;
+                    }
+                    if (opcode == WsOpcode::Text || opcode == WsOpcode::Binary) {
+                        on_recv(payload, payload_len);
+                    }
+                }
+            }
+            return;
+        }
         while (true) {
             const char *payload = nullptr;
             uint32_t payload_len = 0;
@@ -358,6 +475,15 @@ void TcpClient::handle_write(const std::function<void()> &on_close) {
         link_->connected = true;
         // 连接成功后若已有待发数据则保持写监视，否则关闭
         selector_.set_write_watch(link_->fd, !link_->send_buf.empty());
+    }
+
+    if (link_->connected && is_websocket(config_) && link_->ws_state == WsState::Handshake && !link_->ws_handshake_sent) {
+        std::string request;
+        std::string key;
+        build_ws_client_handshake_request(config_, request, key);
+        link_->send_buf.write(request.data(), request.size());
+        link_->ws_handshake_sent = true;
+        selector_.set_write_watch(link_->fd, true);
     }
 
     if (!link_->connected) return;
@@ -403,8 +529,12 @@ void TcpClient::tick(const std::function<void(const char *, size_t)> &on_recv, c
 
 bool TcpClient::send(const char *data, size_t len) {
     if (!link_ || !link_->connected || connecting_) return false;
-    // 整包写入失败则返回 false（禁止截断）
-    if (!write_packet(link_->send_buf, config_, data, len)) return false;
+    if (is_websocket(config_)) {
+        if (link_->ws_state != WsState::Open) return false;
+        if (!write_ws_frame(link_->send_buf, config_, true, WsOpcode::Text, data, len)) return false;
+    } else if (!write_packet(link_->send_buf, config_, data, len)) {
+        return false;
+    }
     selector_.set_write_watch(link_->fd, true);
     return true;
 }
