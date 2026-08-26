@@ -45,6 +45,7 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     connect_start_ms_ = now_ms();
     pending_connect_err_.clear();
     close_pending_ = false;
+    compress_ = false;  // renegotiated on each fresh handshake
 
     net_config_.ip = host;
     net_config_.port = port;
@@ -259,7 +260,8 @@ void MysqlConnection::tick() {
 
 bool MysqlConnection::send_packet(uint8_t seq, const char *payload, size_t len) {
     if (!client_) return false;
-    std::string pkt = make_packet(seq, payload, len);
+    std::string pkt = compress_ ? make_compressed_packet(seq, payload, len)
+                                : make_packet(seq, payload, len);
     return client_->send(pkt.data(), pkt.size());
 }
 
@@ -325,9 +327,9 @@ void MysqlConnection::feed_bytes(const char *data, size_t len) {
 bool MysqlConnection::try_parse_packet(std::vector<uint8_t> &out_payload) {
     size_t consumed = 0;
     uint8_t seq = 0;
-    if (!consume_logical_packet(recv_buf_.data(), recv_buf_.size(), consumed, out_payload, seq)) {
-        return false;
-    }
+    bool ok = compress_ ? consume_compressed_packet(recv_buf_.data(), recv_buf_.size(), consumed, out_payload, seq)
+                        : consume_logical_packet(recv_buf_.data(), recv_buf_.size(), consumed, out_payload, seq);
+    if (!ok) return false;
     recv_buf_.erase(recv_buf_.begin(), recv_buf_.begin() + static_cast<std::ptrdiff_t>(consumed));
     seq_ = seq;
     return true;
@@ -380,6 +382,13 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
 
         capabilities_ = info.capabilities;
         charset_ = info.charset;
+        // Remember whether compression was negotiated. It is enabled only after
+        // the handshake completes (see the PACKET_OK handler below) because the
+        // server sends the auth switch / OK response to the handshake response
+        // uncompressed.
+        if ((kMyCapabilities & info.capabilities) & CLIENT_COMPRESS) {
+            fprintf(stderr, "[mysql] compression negotiated, enabling after handshake\n");
+        }
         // Stay in Handshaking state - wait for auth OK/ERR
         return;
     }
@@ -451,6 +460,13 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
         state_ = State::Ready;
         ready_ = true;
         seq_ = 0;
+        // Handshake is complete — enable compressed protocol now. The server
+        // sends the handshake-response reply (auth switch / this OK) uncompressed,
+        // but all packets after the handshake are compressed.
+        if (capabilities_ & CLIENT_COMPRESS) {
+            compress_ = true;
+            fprintf(stderr, "[mysql] compressed protocol enabled (handshake done)\n");
+        }
         dispatch_connect(nullptr);
         return;
     }

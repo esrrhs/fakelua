@@ -310,6 +310,114 @@ TEST(test_mysql, integration_pool) {
     FakeluaDeleteState(s);
 }
 
+// ── 压缩协议单元测试（无需真实 MySQL 服务器） ──
+
+// 小负载（< MIN_COMPRESS_LENGTH）：走未压缩路径，uncompressed_size == 0。
+TEST(test_mysql, compress_small_payload_uncompressed) {
+    std::string payload = "hello";  // 5 bytes < 50
+    auto wire = make_compressed_packet(0, payload.data(), payload.size());
+    // 7-byte header + 5 bytes raw
+    ASSERT_EQ(wire.size(), 7u + 5u);
+    EXPECT_EQ(static_cast<unsigned char>(wire[0]), 5);   // compressed_length = 5
+    EXPECT_EQ(static_cast<unsigned char>(wire[1]), 0);
+    EXPECT_EQ(static_cast<unsigned char>(wire[2]), 0);
+    EXPECT_EQ(static_cast<unsigned char>(wire[3]), 0);   // seq = 0
+    EXPECT_EQ(static_cast<unsigned char>(wire[4]), 0);   // uncompressed_size = 0
+    EXPECT_EQ(static_cast<unsigned char>(wire[5]), 0);
+    EXPECT_EQ(wire.substr(7), "hello");
+
+    size_t consumed = 0;
+    std::vector<uint8_t> out;
+    uint8_t seq = 0;
+    ASSERT_TRUE(consume_compressed_packet(reinterpret_cast<const uint8_t *>(wire.data()),
+                                          wire.size(), consumed, out, seq));
+    EXPECT_EQ(consumed, wire.size());
+    EXPECT_EQ(seq, 0);
+    std::string result(out.begin(), out.end());
+    EXPECT_EQ(result, "hello");
+}
+
+// 可压缩大负载：压缩后体积应小于原始，且 round-trip 一致。
+TEST(test_mysql, compress_large_payload_roundtrip) {
+    // 高度可压缩数据（全零）
+    std::string payload(1000, '\0');
+    auto wire = make_compressed_packet(2, payload.data(), payload.size());
+    EXPECT_LT(wire.size(), 7u + payload.size());  // compressed must be smaller
+
+    // 验证头部：uncompressed_size == 1000
+    ASSERT_GE(wire.size(), 7u);
+    uint32_t uncomp_size = static_cast<unsigned char>(wire[4]) |
+                           (static_cast<unsigned char>(wire[5]) << 8);
+    EXPECT_EQ(uncomp_size, 1000u);
+    EXPECT_EQ(static_cast<unsigned char>(wire[3]), 2);  // seq = 2
+
+    size_t consumed = 0;
+    std::vector<uint8_t> out;
+    uint8_t seq = 0;
+    ASSERT_TRUE(consume_compressed_packet(reinterpret_cast<const uint8_t *>(wire.data()),
+                                          wire.size(), consumed, out, seq));
+    EXPECT_EQ(consumed, wire.size());
+    EXPECT_EQ(seq, 2);
+    ASSERT_EQ(out.size(), payload.size());
+    EXPECT_EQ(std::string(out.begin(), out.end()), payload);
+}
+
+// 压缩 / 解压 round-trip 对比：压缩后再解压应与原始一致。
+TEST(test_mysql, compress_decompress_roundtrip) {
+    std::string payload = "The quick brown fox jumps over the lazy dog. ";
+    // 重复多次使数据量超过 MIN_COMPRESS_LENGTH
+    std::string big;
+    for (int i = 0; i < 10; ++i) big += payload;
+    ASSERT_GE(big.size(), MIN_COMPRESS_LENGTH);
+
+    auto wire = make_compressed_packet(0, big.data(), big.size());
+
+    size_t consumed = 0;
+    std::vector<uint8_t> out;
+    uint8_t seq = 0;
+    ASSERT_TRUE(consume_compressed_packet(reinterpret_cast<const uint8_t *>(wire.data()),
+                                          wire.size(), consumed, out, seq));
+    EXPECT_EQ(std::string(out.begin(), out.end()), big);
+}
+
+// 超 MAX_PACKET_SIZE 多块：验证分块 + 延续 + 终止。
+TEST(test_mysql, compress_multi_chunk) {
+    // 2 * MAX_PACKET_SIZE + 100 bytes，可压缩
+    size_t total = 2ul * MAX_PACKET_SIZE + 100;
+    std::string payload(total, 'A');
+    auto wire = make_compressed_packet(0, payload.data(), payload.size());
+
+    size_t consumed = 0;
+    std::vector<uint8_t> out;
+    uint8_t seq = 0;
+    ASSERT_TRUE(consume_compressed_packet(reinterpret_cast<const uint8_t *>(wire.data()),
+                                          wire.size(), consumed, out, seq));
+    EXPECT_EQ(consumed, wire.size());
+    ASSERT_EQ(out.size(), payload.size());
+    EXPECT_EQ(std::string(out.begin(), out.end()), payload);
+}
+
+// 精确 MAX_PACKET_SIZE 整除：应追加零长度终止包。
+TEST(test_mysql, compress_exact_multiple_terminator) {
+    // 恰好 1 * MAX_PACKET_SIZE，可压缩
+    std::string payload(MAX_PACKET_SIZE, 'B');
+    auto wire = make_compressed_packet(0, payload.data(), payload.size());
+
+    // 一个压缩块（头 7 字节 + 压缩数据）+ 一个零长度终止包（7 字节）。
+    // 全 'B' 高度可压缩，压缩后远小于 MAX_PACKET_SIZE。
+    EXPECT_GT(wire.size(), 7u);              // at least one chunk header
+    EXPECT_LT(wire.size(), 7u + MAX_PACKET_SIZE);  // compressed is much smaller
+
+    size_t consumed = 0;
+    std::vector<uint8_t> out;
+    uint8_t seq = 0;
+    ASSERT_TRUE(consume_compressed_packet(reinterpret_cast<const uint8_t *>(wire.data()),
+                                          wire.size(), consumed, out, seq));
+    EXPECT_EQ(consumed, wire.size());
+    ASSERT_EQ(out.size(), payload.size());
+    EXPECT_EQ(std::string(out.begin(), out.end()), payload);
+}
+
 // 错误分类单元测试
 TEST(test_mysql, error_classification) {
     // Test classify_error_code via the public is_retryable interface
