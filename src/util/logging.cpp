@@ -1,5 +1,6 @@
 #include "common.h"
 #include "fakelua.h"
+#include "compile/c_runtime_header.h"
 
 #include <cinttypes>
 #include <cstdio>
