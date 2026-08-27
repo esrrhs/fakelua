@@ -281,3 +281,6 @@ endif ()
 set(TARGET_LIB ${TARGET_LIB} spdlog::spdlog)
 
 target_link_libraries(fakelua ${TARGET_LIB})
+
+# Ensure spdlog configuration macros are consistently applied
+target_compile_definitions(fakelua PUBLIC SPDLOG_USE_STD_FORMAT SPDLOG_HEADER_ONLY)
