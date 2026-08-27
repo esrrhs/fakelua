@@ -23,6 +23,10 @@
 | crypto | `crypto/` | 加解密：MD5/SHA1/SHA256、hex/base64、AES/RC4/Blowfish/DES/3DES |
 | csv | `csv/` | CSV 解码/编码 |
 | json | `json/` | JSON 编码/解码 |
+| yaml | `yaml/` | YAML 解码/编码（yaml-cpp） |
+| toml | `toml/` | TOML 解码/编码（toml++） |
+| xml | `xml/` | XML 解码/编码（pugixml） |
+| ini | `ini/` | INI 解码/编码（inih） |
 | mysql | `mysql/` | 异步 MySQL 客户端：直连 + 连接池 |
 | sqlite | `sqlite/` | SQLite3 封装：exec、预处理语句、同步 |
 | serialize | `serialize/` | 二进制序列化：zigzag + varint 编码 + 字符串去重 |
@@ -370,6 +374,67 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 |------|------|------|
 | `json.encode(value)` | 1 | Lua 值 → JSON 字符串；连续整数键 1..N → 数组；浮点数用 `%.17g` |
 | `json.decode(str)` | 1 | JSON 字符串 → Lua 值；`null` → `nil` |
+
+---
+
+## YAML
+
+**文件：** `yaml/native_yaml.h` · **注册：** `RegisterYamlLibraryApi`
+
+基于 [yaml-cpp](https://github.com/jbeder/yaml-cpp) 实现。类型自动推断：整数、浮点、布尔（`true/false/yes/no/on/off` 及其大小写变体）、`null`、字符串、数组（序列）、表（映射）。
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `yaml.decode(str)` | 1 | YAML 字符串 → Lua 值 |
+| `yaml.encode(value)` | 1 | Lua 值 → YAML 字符串 |
+
+---
+
+## TOML
+
+**文件：** `toml/native_toml.h` · **注册：** `RegisterTomlLibraryApi`
+
+基于 [toml++](https://github.com/marzer/tomlplusplus) 实现（header-only，C++17）。完整支持 TOML 类型：字符串、整数、浮点、布尔、日期/时间、数组、表。
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `toml.decode(str)` | 1 | TOML 字符串 → Lua 值 |
+| `toml.encode(value)` | 1 | Lua 值 → TOML 字符串（顶层需为表） |
+
+---
+
+## XML
+
+**文件：** `xml/native_xml.h` · **注册：** `RegisterXmlLibraryApi`
+
+基于 [pugixml](https://github.com/zeux/pugixml) 实现。
+
+**解码约定：**
+- 元素节点 → 表
+- 属性 → `table["_attr_属性名"] = 值`
+- 文本内容 → `table["_text"] = 值`
+- 子元素按标签名分组，同名多个兄弟 → 数组
+- 纯文本节点 → 直接返回字符串
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `xml.decode(str)` | 1 | XML 字符串 → Lua 值（根元素表） |
+| `xml.encode(value)` | 1 | Lua 值 → XML 字符串 |
+
+---
+
+## INI
+
+**文件：** `ini/native_ini.h` · **注册：** `RegisterIniLibraryApi`
+
+基于 [inih](https://github.com/benhoyt/inih) 实现（纯 C 单文件）。
+
+**结构：** `ini.decode` 返回 `table[section][key] = value`。值自动推断数字/布尔/字符串。`ini.encode` 将顶层每个子表视为一个 `[section]`。
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `ini.decode(str)` | 1 | INI 字符串 → Lua 值 |
+| `ini.encode(value)` | 1 | Lua 值 → INI 字符串（顶层需为表，每个子表为一个 section） |
 
 ---
 
