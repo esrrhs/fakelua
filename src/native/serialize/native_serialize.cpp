@@ -1,6 +1,7 @@
 #include "native/serialize/native_serialize.h"
 #include "native/native_common.h"
 #include "native/table/native_table.h"
+#include "util/logging.h"
 #include "var/var.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
@@ -308,12 +309,14 @@ static CVar decode_value(const std::string &in, size_t &pos, DecodeState &state,
 static CVar serialize_encode(State *s, CVar *args, int n) {
     CVar v = inter::GetNativeArg(s, args, n, 0);
     if (!is_supported(v)) {
+        LOG_ERROR("serialize", "serialize.encode: unsupported type: {}", VarTypeToString(static_cast<VarType>(v.type_)));
         ThrowFakeluaException("serialize.encode: unsupported type: " + VarTypeToString(static_cast<VarType>(v.type_)));
     }
     std::string out;
     out.reserve(64);
     EncodeState state;
     encode_value(out, v, state);
+    LOG_DEBUG("serialize", "serialize.encode: bytes={}", out.size());
     return inter::NativeToFakeluaString(s, out);
 }
 
@@ -323,8 +326,10 @@ static CVar serialize_decode(State *s, CVar *args, int n) {
     DecodeState state;
     CVar result = decode_value(in, pos, state, s);
     if (pos != in.size()) {
+        LOG_ERROR("serialize", "serialize.decode: trailing bytes (read={} total={})", pos, in.size());
         ThrowFakeluaException("serialize.decode: trailing bytes");
     }
+    LOG_DEBUG("serialize", "serialize.decode: bytes={}", in.size());
     return result;
 }
 

@@ -1,5 +1,6 @@
 #include "native/event/native_event.h"
 #include "native/native_common.h"
+#include "util/logging.h"
 #include "var/var.h"
 #include "var/var_string.h"
 
@@ -91,6 +92,7 @@ static CVar event_on(State *s, CVar *args, int n) {
     }
 
     event_state(s).listeners[event_name].push_back(std::move(func_name));
+    LOG_DEBUG("event", "event.on: event={} func={}", event_name, func_name);
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -138,6 +140,7 @@ static CVar event_off(State *s, CVar *args, int n) {
             event_state(s).listeners.erase(it);
         }
     }
+    LOG_DEBUG("event", "event.off: event={} func={}", event_name, func_name);
 
     // 从 once_listeners 中移除
     auto it2 = event_state(s).once_listeners.find(event_name);
@@ -178,6 +181,7 @@ static CVar event_emit(State *s, CVar *args, int n) {
     auto it = event_state(s).listeners.find(event_name);
     if (it != event_state(s).listeners.end()) {
         std::vector<std::string> snapshot = it->second;
+        LOG_DEBUG("event", "event.emit: event={} listeners={} args={}", event_name, snapshot.size(), event_arg_count);
         for (const auto &func_name : snapshot) {
             dispatch_event(s, func_name, event_args, event_arg_count);
         }

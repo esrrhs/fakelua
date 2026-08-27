@@ -2,6 +2,7 @@
 #include "native/crypto/hash.h"
 #include "native/crypto/aes.h"
 #include "native/native_common.h"
+#include "util/logging.h"
 
 #include <string>
 
@@ -59,6 +60,7 @@ static CVar crypto_aes_encrypt_ecb(State *s, CVar *args, int n) {
     read_key_arg(s, key_arg, key, "key");
 
     if (data.size() % 16 != 0) {
+        LOG_ERROR("crypto", "aes_encrypt_ecb: data length {} not multiple of 16", data.size());
         ThrowFakeluaException("crypto.aes_encrypt_ecb: data length must be a multiple of 16");
     }
 
@@ -68,6 +70,7 @@ static CVar crypto_aes_encrypt_ecb(State *s, CVar *args, int n) {
                         reinterpret_cast<uint8_t *>(out.data() + i),
                         key, AesKeySize::AES_128);
     }
+    LOG_DEBUG("crypto", "aes_encrypt_ecb: len={}", data.size());
     return inter::NativeToFakeluaString(s, out);
 }
 
@@ -80,6 +83,7 @@ static CVar crypto_aes_decrypt_ecb(State *s, CVar *args, int n) {
     read_key_arg(s, key_arg, key, "key");
 
     if (data.size() % 16 != 0) {
+        LOG_ERROR("crypto", "aes_decrypt_ecb: data length {} not multiple of 16", data.size());
         ThrowFakeluaException("crypto.aes_decrypt_ecb: data length must be a multiple of 16");
     }
 
@@ -89,6 +93,7 @@ static CVar crypto_aes_decrypt_ecb(State *s, CVar *args, int n) {
                         reinterpret_cast<uint8_t *>(out.data() + i),
                         key, AesKeySize::AES_128);
     }
+    LOG_DEBUG("crypto", "aes_decrypt_ecb: len={}", data.size());
     return inter::NativeToFakeluaString(s, out);
 }
 

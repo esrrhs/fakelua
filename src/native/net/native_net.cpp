@@ -3,6 +3,7 @@
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
+#include "util/logging.h"
 #include "var/var.h"
 
 #include <algorithm>
@@ -263,6 +264,7 @@ static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
                     obj->recv_count++;
                     obj->last_server_data.assign(data, len);
                     push_event(obj, "recv");
+                    LOG_DEBUG("net", "server recv: connid={} len={}", connid, len);
                     CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", connid, data, len, 0);
                     handle_callback_return(obj, ret, connid);
                 },
@@ -279,6 +281,7 @@ static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
                     obj->recv_count++;
                     obj->last_client_data.assign(data, len);
                     push_event(obj, "recv");
+                    LOG_DEBUG("net", "client recv: len={}", len);
                     CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", 0, data, len, 0);
                     handle_callback_return(obj, ret, 0);
                 },
@@ -635,8 +638,10 @@ static CVar create_net_server(State *s, net::NetConfig cfg, const char *type_nam
     if (!obj->server->running()) {
         delete obj;
         net::net_shutdown();
+        LOG_ERROR("net", "{}: failed to listen on port {}", type_name, cfg.port);
         ThrowFakeluaException(std::format("{}: failed to listen on port {}", type_name, cfg.port));
     }
+    LOG_DEBUG("net", "{}: listening on port {}", type_name, cfg.port);
 
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *nat = NativeObjectManager::Instance().Create(gid, type_name);
@@ -674,6 +679,8 @@ static CVar create_net_client(State *s, net::NetConfig cfg, const char *type_nam
     obj->is_server = false;
     obj->client = std::make_unique<net::TcpClient>(cfg);
     obj->client->connect();
+
+    LOG_DEBUG("net", "{}: connecting to {}:{}", type_name, cfg.ip, cfg.port);
 
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *nat = NativeObjectManager::Instance().Create(gid, type_name);

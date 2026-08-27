@@ -6,6 +6,7 @@
 
 #include "native/native_common.h"
 #include "native/table/native_table.h"
+#include "util/logging.h"
 #include "var/var_string.h"
 
 #include <format>
@@ -42,8 +43,10 @@ static CVar pb_load(State *s, CVar *args, int n) {
     std::string text = CVarToString(args[0]);
     std::string err = ParseProto(text);
     if (!err.empty()) {
+        LOG_ERROR("protobuf", "protobuf.load failed: {}", err);
         return inter::NativeToFakeluaString(s, err);
     }
+    LOG_DEBUG("protobuf", "protobuf.load: ok (text_len={})", text.size());
     return inter::NativeToFakeluaString(s, "ok");
 }
 
@@ -57,6 +60,7 @@ static CVar pb_encode(State *s, CVar *args, int n) {
     CVar table = args[1];
 
     std::string bin = EncodeMessage(s, msg_name, table);
+    LOG_DEBUG("protobuf", "protobuf.encode: msg={} bytes={}", msg_name, bin.size());
     return inter::NativeToFakeluaString(s, bin);
 }
 
@@ -69,6 +73,7 @@ static CVar pb_decode(State *s, CVar *args, int n) {
     std::string msg_name = CVarToString(args[0]);
     std::string data = CVarToString(args[1]);
 
+    LOG_DEBUG("protobuf", "protobuf.decode: msg={} bytes={}", msg_name, data.size());
     return DecodeMessage(s, msg_name, data);
 }
 
