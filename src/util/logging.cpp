@@ -237,7 +237,7 @@ extern "C" void FakeluaLogLua(int level, CVar msg, const char *file, int line, c
     case VarType::String:
     case VarType::StringId:
         if (msg.data_.s) {
-            msg_str.assign(msg.data_.s->data_, msg.data_.s->size_);
+            msg_str = msg.data_.s->Str();
         }
         break;
     default:
