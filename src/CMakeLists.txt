@@ -265,6 +265,7 @@ set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
 # spdlog — header-only logging library
 # Use header-only mode + std::format to avoid fmt bundling issues on macOS/clang
+# and MinGW compatibility issues with compiled library mode
 CPMAddPackage(
     NAME spdlog
     GITHUB_REPOSITORY gabime/spdlog
@@ -272,6 +273,7 @@ CPMAddPackage(
     OPTIONS
         "SPDLOG_BUILD_SHARED OFF"
         "SPDLOG_USE_STD_FORMAT ON"
+        "SPDLOG_HEADER_ONLY ON"
 )
 if (NOT spdlog_ADDED)
     message(FATAL_ERROR "Failed to fetch spdlog")
