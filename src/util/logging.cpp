@@ -1,4 +1,5 @@
 #include "common.h"
+#include "fakelua.h"
 
 #include <cinttypes>
 #include <cstdio>
