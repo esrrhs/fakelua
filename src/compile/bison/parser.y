@@ -37,7 +37,7 @@ yy::parser::symbol_type yylex(fakelua::MyFlexer* l) {
     auto ret = l->MyYylex();
     std::stringstream ss;
     ss << ret.location;
-    LOG_INFO("bison", "[bison]: bison get token loc: {}", ss.str());
+    LOG_DEBUG("bison", "[bison]: bison get token loc: {}", ss.str());
     return ret;
 }
 
@@ -162,7 +162,7 @@ int yyFlexLexer::yylex() { return -1; }
 chunk:
     block
     {
-    LOG_INFO("bison", "[bison]: chunk: block");
+    LOG_DEBUG("bison", "[bison]: chunk: block");
     l->SetChunk($1);
     }
     ;
@@ -170,13 +170,13 @@ chunk:
 block:
     %empty
     {
-        LOG_INFO("bison", "[bison]: block: empty");
+        LOG_DEBUG("bison", "[bison]: block: empty");
         $$ = std::make_shared<fakelua::SyntaxTreeBlock>(@0);
     }
     |
     block stmt
     {
-        LOG_INFO("bison", "[bison]: block: block stmt");
+        LOG_DEBUG("bison", "[bison]: block: block stmt");
         auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>($1);
         if (block == nullptr) {
             LOG_ERROR("bison", "[bison]: block: block is not a block");
@@ -198,19 +198,19 @@ block:
 stmt:
     retstat
     {
-        LOG_INFO("bison", "[bison]: stmt: retstat");
+        LOG_DEBUG("bison", "[bison]: stmt: retstat");
         $$ = $1;
     }
     |
     SEMICOLON
     {
-        LOG_INFO("bison", "[bison]: stmt: SEMICOLON");
+        LOG_DEBUG("bison", "[bison]: stmt: SEMICOLON");
         $$ = std::make_shared<fakelua::SyntaxTreeEmpty>(@1);
     }
     |
     varlist ASSIGN explist
     {
-        LOG_INFO("bison", "[bison]: stmt: varlist ASSIGN explist");
+        LOG_DEBUG("bison", "[bison]: stmt: varlist ASSIGN explist");
         auto varlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeVarlist>($1);
         auto explist = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>($3);
         if (varlist == nullptr) {
@@ -229,31 +229,31 @@ stmt:
     |
     functioncall
     {
-        LOG_INFO("bison", "[bison]: stmt: functioncall");
+        LOG_DEBUG("bison", "[bison]: stmt: functioncall");
         $$ = $1;
     }
     |
     label
     {
-        LOG_INFO("bison", "[bison]: stmt: label");
+        LOG_DEBUG("bison", "[bison]: stmt: label");
         $$ = $1;
     }
     |
     BREAK
     {
-        LOG_INFO("bison", "[bison]: stmt: BREAK");
+        LOG_DEBUG("bison", "[bison]: stmt: BREAK");
         $$ = std::make_shared<fakelua::SyntaxTreeBreak>(@1);
     }
     |
     CONTINUE
     {
-        LOG_INFO("bison", "[bison]: stmt: CONTINUE");
+        LOG_DEBUG("bison", "[bison]: stmt: CONTINUE");
         $$ = std::make_shared<fakelua::SyntaxTreeContinue>(@1);
     }
     |
     GOTO IDENTIFIER
     {
-        LOG_INFO("bison", "[bison]: stmt: GOTO IDENTIFIER");
+        LOG_DEBUG("bison", "[bison]: stmt: GOTO IDENTIFIER");
         auto go = std::make_shared<fakelua::SyntaxTreeGoto>(@2);
         go->SetLabel($2);
         $$ = go;
@@ -261,13 +261,13 @@ stmt:
     |
     DO block END
     {
-        LOG_INFO("bison", "[bison]: stmt: DO block END");
+        LOG_DEBUG("bison", "[bison]: stmt: DO block END");
         $$ = $2;
     }
     |
     WHILE exp DO block END
     {
-        LOG_INFO("bison", "[bison]: stmt: WHILE exp DO block END");
+        LOG_DEBUG("bison", "[bison]: stmt: WHILE exp DO block END");
         auto while_stmt = std::make_shared<fakelua::SyntaxTreeWhile>(@1);
         auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($2);
         if (exp == nullptr) {
@@ -286,7 +286,7 @@ stmt:
     |
     REPEAT block UNTIL exp
     {
-        LOG_INFO("bison", "[bison]: stmt: REPEAT block UNTIL exp");
+        LOG_DEBUG("bison", "[bison]: stmt: REPEAT block UNTIL exp");
         auto repeat = std::make_shared<fakelua::SyntaxTreeRepeat>(@1);
         auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>($2);
         if (block == nullptr) {
@@ -305,7 +305,7 @@ stmt:
     |
     IF exp THEN block elseifs ELSE block END
     {
-        LOG_INFO("bison", "[bison]: stmt: IF exp THEN block elseifs ELSE block END");
+        LOG_DEBUG("bison", "[bison]: stmt: IF exp THEN block elseifs ELSE block END");
         auto if_stmt = std::make_shared<fakelua::SyntaxTreeIf>(@1);
         auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($2);
         if (exp == nullptr) {
@@ -336,7 +336,7 @@ stmt:
     |
     IF exp THEN block elseifs END
     {
-        LOG_INFO("bison", "[bison]: stmt: IF exp THEN block elseifs END");
+        LOG_DEBUG("bison", "[bison]: stmt: IF exp THEN block elseifs END");
         auto if_stmt = std::make_shared<fakelua::SyntaxTreeIf>(@1);
         auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($2);
         if (exp == nullptr) {
@@ -361,7 +361,7 @@ stmt:
     |
     FOR IDENTIFIER ASSIGN exp COMMA exp DO block END
     {
-        LOG_INFO("bison", "[bison]: stmt: for IDENTIFIER assign exp COMMA exp do block end");
+        LOG_DEBUG("bison", "[bison]: stmt: for IDENTIFIER assign exp COMMA exp do block end");
         auto for_loop_stmt = std::make_shared<fakelua::SyntaxTreeForLoop>(@1);
         for_loop_stmt->SetName($2);
         auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($4);
@@ -387,7 +387,7 @@ stmt:
     |
     FOR IDENTIFIER ASSIGN exp COMMA exp COMMA exp DO block END
     {
-        LOG_INFO("bison", "[bison]: stmt: for IDENTIFIER assign exp COMMA exp COMMA exp do block end");
+        LOG_DEBUG("bison", "[bison]: stmt: for IDENTIFIER assign exp COMMA exp COMMA exp do block end");
         auto for_loop_stmt = std::make_shared<fakelua::SyntaxTreeForLoop>(@1);
         for_loop_stmt->SetName($2);
         auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($4);
@@ -419,7 +419,7 @@ stmt:
     |
     FOR namelist IN explist DO block END
     {
-        LOG_INFO("bison", "[bison]: stmt: for namelist in explist do block end");
+        LOG_DEBUG("bison", "[bison]: stmt: for namelist in explist do block end");
         auto for_in_stmt = std::make_shared<fakelua::SyntaxTreeForIn>(@1);
         auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>($2);
         if (namelist == nullptr) {
@@ -444,7 +444,7 @@ stmt:
     |
     FUNCTION funcname funcbody
     {
-        LOG_INFO("bison", "[bison]: stmt: function funcname funcbody");
+        LOG_DEBUG("bison", "[bison]: stmt: function funcname funcbody");
         auto func_stmt = std::make_shared<fakelua::SyntaxTreeFunction>(@1);
         auto funcname = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncname>($2);
         if (funcname == nullptr) {
@@ -463,7 +463,7 @@ stmt:
     |
     LOCAL FUNCTION IDENTIFIER funcbody
     {
-        LOG_INFO("bison", "[bison]: stmt: local function IDENTIFIER funcbody");
+        LOG_DEBUG("bison", "[bison]: stmt: local function IDENTIFIER funcbody");
         auto local_func_stmt = std::make_shared<fakelua::SyntaxTreeLocalFunction>(@1);
         local_func_stmt->SetName($3);
         auto funcbody = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncbody>($4);
@@ -477,7 +477,7 @@ stmt:
     |
     LOCAL attnamelist
     {
-        LOG_INFO("bison", "[bison]: stmt: local attnamelist");
+        LOG_DEBUG("bison", "[bison]: stmt: local attnamelist");
         auto local_stmt = std::make_shared<fakelua::SyntaxTreeLocalVar>(@1);
         auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>($2);
         if (namelist == nullptr) {
@@ -490,7 +490,7 @@ stmt:
     |
     LOCAL attnamelist ASSIGN explist
     {
-        LOG_INFO("bison", "[bison]: stmt: local attnamelist assign explist");
+        LOG_DEBUG("bison", "[bison]: stmt: local attnamelist assign explist");
         auto local_stmt = std::make_shared<fakelua::SyntaxTreeLocalVar>(@1);
         auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>($2);
         if (namelist == nullptr) {
@@ -511,7 +511,7 @@ stmt:
 attnamelist:
     IDENTIFIER
     {
-        LOG_INFO("bison", "[bison]: attnamelist: IDENTIFIER");
+        LOG_DEBUG("bison", "[bison]: attnamelist: IDENTIFIER");
         auto namelist = std::make_shared<fakelua::SyntaxTreeNamelist>(@1);
         namelist->AddName($1);
         namelist->AddAttrib("");
@@ -520,7 +520,7 @@ attnamelist:
     |
     IDENTIFIER LESS IDENTIFIER MORE
     {
-        LOG_INFO("bison", "[bison]: attnamelist: IDENTIFIER LESS IDENTIFIER MORE");
+        LOG_DEBUG("bison", "[bison]: attnamelist: IDENTIFIER LESS IDENTIFIER MORE");
         auto namelist = std::make_shared<fakelua::SyntaxTreeNamelist>(@1);
         namelist->AddName($1);
         namelist->AddAttrib($3);
@@ -529,7 +529,7 @@ attnamelist:
     |
     attnamelist COMMA IDENTIFIER
     {
-        LOG_INFO("bison", "[bison]: attnamelist: attnamelist COMMA IDENTIFIER");
+        LOG_DEBUG("bison", "[bison]: attnamelist: attnamelist COMMA IDENTIFIER");
         auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>($1);
         if (namelist == nullptr) {
             LOG_ERROR("bison", "[bison]: namelist: namelist is not a namelist");
@@ -542,7 +542,7 @@ attnamelist:
     |
     attnamelist COMMA IDENTIFIER LESS IDENTIFIER MORE
     {
-        LOG_INFO("bison", "[bison]: attnamelist: attnamelist COMMA IDENTIFIER LESS IDENTIFIER MORE");
+        LOG_DEBUG("bison", "[bison]: attnamelist: attnamelist COMMA IDENTIFIER LESS IDENTIFIER MORE");
         auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>($1);
         if (namelist == nullptr) {
             LOG_ERROR("bison", "[bison]: namelist: namelist is not a namelist");
@@ -557,13 +557,13 @@ attnamelist:
 elseifs:
     %empty
     {
-        LOG_INFO("bison", "[bison]: elseifs: empty");
+        LOG_DEBUG("bison", "[bison]: elseifs: empty");
         $$ = std::make_shared<fakelua::SyntaxTreeElseiflist>(@0);
     }
     |
     ELSEIF exp THEN block
     {
-        LOG_INFO("bison", "[bison]: elseifs: elseif exp then block");
+        LOG_DEBUG("bison", "[bison]: elseifs: elseif exp then block");
         auto elseifs = std::make_shared<fakelua::SyntaxTreeElseiflist>(@1);
         auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($2);
         if (exp == nullptr) {
@@ -582,7 +582,7 @@ elseifs:
     |
     elseifs ELSEIF exp THEN block
     {
-        LOG_INFO("bison", "[bison]: elseifs: elseifs elseif exp then block");
+        LOG_DEBUG("bison", "[bison]: elseifs: elseifs elseif exp then block");
         auto elseifs = std::dynamic_pointer_cast<fakelua::SyntaxTreeElseiflist>($1);
         if (elseifs == nullptr) {
             LOG_ERROR("bison", "[bison]: elseifs: elseifs is not a elseifs");
@@ -607,7 +607,7 @@ elseifs:
 retstat:
     RETURN
     {
-        LOG_INFO("bison", "[bison]: retstat: RETURN");
+        LOG_DEBUG("bison", "[bison]: retstat: RETURN");
         auto ret = std::make_shared<fakelua::SyntaxTreeReturn>(@1);
         ret->SetExplist(nullptr);
         $$ = ret;
@@ -615,7 +615,7 @@ retstat:
     |
     RETURN explist
     {
-        LOG_INFO("bison", "[bison]: retstat: RETURN explist");
+        LOG_DEBUG("bison", "[bison]: retstat: RETURN explist");
         auto ret = std::make_shared<fakelua::SyntaxTreeReturn>(@1);
         auto explist = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>($2);
         if (explist == nullptr) {
@@ -630,7 +630,7 @@ retstat:
 label:
     GOTO_TAG IDENTIFIER GOTO_TAG
     {
-            LOG_INFO("bison", "[bison]: label: GOTO_TAG IDENTIFIER GOTO_TAG");
+            LOG_DEBUG("bison", "[bison]: label: GOTO_TAG IDENTIFIER GOTO_TAG");
         auto ret = std::make_shared<fakelua::SyntaxTreeLabel>(@2);
         ret->SetName($2);
         $$ = ret;
@@ -640,7 +640,7 @@ label:
 funcnamelist:
     IDENTIFIER
     {
-        LOG_INFO("bison", "[bison]: funcnamelist: IDENTIFIER");
+        LOG_DEBUG("bison", "[bison]: funcnamelist: IDENTIFIER");
         auto funcnamelist = std::make_shared<fakelua::SyntaxTreeFuncnamelist>(@1);
         funcnamelist->AddName($1);
         $$ = funcnamelist;
@@ -648,7 +648,7 @@ funcnamelist:
     |
     funcnamelist DOT IDENTIFIER
     {
-        LOG_INFO("bison", "[bison]: funcnamelist: funcnamelist DOT IDENTIFIER");
+        LOG_DEBUG("bison", "[bison]: funcnamelist: funcnamelist DOT IDENTIFIER");
         auto funcnamelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncnamelist>($1);
         if (funcnamelist == nullptr) {
             LOG_ERROR("bison", "[bison]: funcnamelist: funcnamelist is not a funcnamelist");
@@ -662,7 +662,7 @@ funcnamelist:
 funcname:
     funcnamelist
     {
-        LOG_INFO("bison", "[bison]: funcname: funcnamelist");
+        LOG_DEBUG("bison", "[bison]: funcname: funcnamelist");
         auto funcname = std::make_shared<fakelua::SyntaxTreeFuncname>(@1);
         auto funcnamelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncnamelist>($1);
         if (funcnamelist == nullptr) {
@@ -675,7 +675,7 @@ funcname:
     |
     funcnamelist COLON IDENTIFIER
     {
-        LOG_INFO("bison", "[bison]: funcname: funcnamelist COLON IDENTIFIER");
+        LOG_DEBUG("bison", "[bison]: funcname: funcnamelist COLON IDENTIFIER");
         auto funcname = std::make_shared<fakelua::SyntaxTreeFuncname>(@1);
         auto funcnamelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncnamelist>($1);
         if (funcnamelist == nullptr) {
@@ -691,7 +691,7 @@ funcname:
 varlist:
     var
     {
-        LOG_INFO("bison", "[bison]: varlist: var");
+        LOG_DEBUG("bison", "[bison]: varlist: var");
         auto varlist = std::make_shared<fakelua::SyntaxTreeVarlist>(@1);
         auto var = std::dynamic_pointer_cast<fakelua::SyntaxTreeVar>($1);
         if (var == nullptr) {
@@ -704,7 +704,7 @@ varlist:
     |
     varlist COMMA var
     {
-        LOG_INFO("bison", "[bison]: varlist: varlist COMMA var");
+        LOG_DEBUG("bison", "[bison]: varlist: varlist COMMA var");
         auto varlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeVarlist>($1);
         if (varlist == nullptr) {
             LOG_ERROR("bison", "[bison]: varlist: varlist is not a varlist");
@@ -723,7 +723,7 @@ varlist:
 var:
     IDENTIFIER
     {
-        LOG_INFO("bison", "[bison]: var: IDENTIFIER");
+        LOG_DEBUG("bison", "[bison]: var: IDENTIFIER");
         auto var = std::make_shared<fakelua::SyntaxTreeVar>(@1);
         var->SetName($1);
         var->SetVarKind(VarKind::kSimple);
@@ -732,7 +732,7 @@ var:
     |
     prefixexp LSQUARE exp RSQUARE
     {
-        LOG_INFO("bison", "[bison]: var: prefixexp LSQUARE exp RSQUARE");
+        LOG_DEBUG("bison", "[bison]: var: prefixexp LSQUARE exp RSQUARE");
         auto var = std::make_shared<fakelua::SyntaxTreeVar>(@2);
         var->SetVarKind(VarKind::kSquare);
         auto prefixexp = std::dynamic_pointer_cast<fakelua::SyntaxTreePrefixexp>($1);
@@ -752,7 +752,7 @@ var:
     |
     prefixexp DOT IDENTIFIER
     {
-        LOG_INFO("bison", "[bison]: var: prefixexp DOT IDENTIFIER");
+        LOG_DEBUG("bison", "[bison]: var: prefixexp DOT IDENTIFIER");
         auto var = std::make_shared<fakelua::SyntaxTreeVar>(@2);
         var->SetVarKind(VarKind::kDot);
         auto prefixexp = std::dynamic_pointer_cast<fakelua::SyntaxTreePrefixexp>($1);
@@ -769,7 +769,7 @@ var:
 namelist:
     IDENTIFIER
     {
-        LOG_INFO("bison", "[bison]: namelist: IDENTIFIER");
+        LOG_DEBUG("bison", "[bison]: namelist: IDENTIFIER");
         auto namelist = std::make_shared<fakelua::SyntaxTreeNamelist>(@1);
         namelist->AddName($1);
         $$ = namelist;
@@ -777,7 +777,7 @@ namelist:
     |
     namelist COMMA IDENTIFIER
     {
-        LOG_INFO("bison", "[bison]: namelist: namelist COMMA IDENTIFIER");
+        LOG_DEBUG("bison", "[bison]: namelist: namelist COMMA IDENTIFIER");
         auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>($1);
         if (namelist == nullptr) {
             LOG_ERROR("bison", "[bison]: namelist: namelist is not a namelist");
@@ -791,7 +791,7 @@ namelist:
 explist:
     exp
     {
-        LOG_INFO("bison", "[bison]: explist: exp");
+        LOG_DEBUG("bison", "[bison]: explist: exp");
         auto explist = std::make_shared<fakelua::SyntaxTreeExplist>(@1);
         auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
         if (exp == nullptr) {
@@ -804,7 +804,7 @@ explist:
     |
     explist COMMA exp
     {
-        LOG_INFO("bison", "[bison]: explist: explist COMMA exp");
+        LOG_DEBUG("bison", "[bison]: explist: explist COMMA exp");
         auto explist = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>($1);
         if (explist == nullptr) {
             LOG_ERROR("bison", "[bison]: explist: explist is not a explist");
@@ -823,7 +823,7 @@ explist:
 exp:
     NIL
     {
-        LOG_INFO("bison", "[bison]: exp: NIL");
+        LOG_DEBUG("bison", "[bison]: exp: NIL");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kNil);
         $$ = exp;
@@ -831,7 +831,7 @@ exp:
     |
     TRUE
     {
-        LOG_INFO("bison", "[bison]: exp: TRUE");
+        LOG_DEBUG("bison", "[bison]: exp: TRUE");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kTrue);
         $$ = exp;
@@ -839,7 +839,7 @@ exp:
     |
     FALSES
     {
-        LOG_INFO("bison", "[bison]: exp: FALSES");
+        LOG_DEBUG("bison", "[bison]: exp: FALSES");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kFalse);
         $$ = exp;
@@ -847,7 +847,7 @@ exp:
     |
     NUMBER
     {
-        LOG_INFO("bison", "[bison]: exp: NUMBER");
+        LOG_DEBUG("bison", "[bison]: exp: NUMBER");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kNumber);
         exp->SetValue($1);
@@ -856,7 +856,7 @@ exp:
     |
     STRING
     {
-        LOG_INFO("bison", "[bison]: exp: STRING");
+        LOG_DEBUG("bison", "[bison]: exp: STRING");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kString);
         exp->SetValue(l->RemoveQuotes($1));
@@ -865,7 +865,7 @@ exp:
     |
     VAR_PARAMS
     {
-        LOG_INFO("bison", "[bison]: exp: VAR_PARAMS");
+        LOG_DEBUG("bison", "[bison]: exp: VAR_PARAMS");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kVarParams);
         $$ = exp;
@@ -873,7 +873,7 @@ exp:
     |
     functiondef
     {
-        LOG_INFO("bison", "[bison]: exp: functiondef");
+        LOG_DEBUG("bison", "[bison]: exp: functiondef");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kFunctionDef);
         auto functiondef = std::dynamic_pointer_cast<fakelua::SyntaxTreeFunctiondef>($1);
@@ -887,7 +887,7 @@ exp:
     |
     prefixexp
     {
-        LOG_INFO("bison", "[bison]: exp: prefixexp");
+        LOG_DEBUG("bison", "[bison]: exp: prefixexp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kPrefixExp);
         auto prefixexp = std::dynamic_pointer_cast<fakelua::SyntaxTreePrefixexp>($1);
@@ -901,7 +901,7 @@ exp:
     |
     tableconstructor
     {
-        LOG_INFO("bison", "[bison]: exp: tableconstructor");
+        LOG_DEBUG("bison", "[bison]: exp: tableconstructor");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kTableConstructor);
         auto tableconstructor = std::dynamic_pointer_cast<fakelua::SyntaxTreeTableconstructor>($1);
@@ -915,7 +915,7 @@ exp:
     |
     exp PLUS exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp PLUS exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp PLUS exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -938,7 +938,7 @@ exp:
     |
     exp MINUS exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp MINUS exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp MINUS exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -961,7 +961,7 @@ exp:
     |
     exp STAR exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp STAR exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp STAR exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -984,7 +984,7 @@ exp:
     |
     exp SLASH exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp SLASH exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp SLASH exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1007,7 +1007,7 @@ exp:
     |
     exp DOUBLE_SLASH exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp DOUBLE_SLASH exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp DOUBLE_SLASH exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1030,7 +1030,7 @@ exp:
     |
     exp POW exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp POW exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp POW exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1053,7 +1053,7 @@ exp:
     |
     exp MOD exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp MOD exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp MOD exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1076,7 +1076,7 @@ exp:
     |
     exp BITAND exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp BITAND exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp BITAND exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1099,7 +1099,7 @@ exp:
     |
     exp BITNOT exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp XOR exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp XOR exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1122,7 +1122,7 @@ exp:
     |
     exp BITOR exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp BITOR exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp BITOR exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1145,7 +1145,7 @@ exp:
     |
     exp RIGHT_SHIFT exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp RIGHT_SHIFT exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp RIGHT_SHIFT exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1168,7 +1168,7 @@ exp:
     |
     exp LEFT_SHIFT exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp LEFT_SHIFT exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp LEFT_SHIFT exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1191,7 +1191,7 @@ exp:
     |
     exp CONCAT exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp CONCAT exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp CONCAT exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1214,7 +1214,7 @@ exp:
     |
     exp LESS exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp LESS exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp LESS exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1237,7 +1237,7 @@ exp:
     |
     exp LESS_EQUAL exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp LESS_EQUAL exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp LESS_EQUAL exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1260,7 +1260,7 @@ exp:
     |
     exp MORE exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp MORE exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp MORE exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1283,7 +1283,7 @@ exp:
     |
     exp MORE_EQUAL exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp MORE_EQUAL exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp MORE_EQUAL exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1306,7 +1306,7 @@ exp:
     |
     exp EQUAL exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp EQUAL exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp EQUAL exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1329,7 +1329,7 @@ exp:
     |
     exp NOT_EQUAL exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp NOT_EQUAL exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp NOT_EQUAL exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1352,7 +1352,7 @@ exp:
     |
     exp AND exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp AND exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp AND exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1375,7 +1375,7 @@ exp:
     |
     exp OR exp
     {
-        LOG_INFO("bison", "[bison]: exp: exp OR exp");
+        LOG_DEBUG("bison", "[bison]: exp: exp OR exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kBinop);
         auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
@@ -1398,7 +1398,7 @@ exp:
     |
     MINUS exp %prec UNARY
     {
-        LOG_INFO("bison", "[bison]: exp: MINUS exp");
+        LOG_DEBUG("bison", "[bison]: exp: MINUS exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kUnop);
         auto unop = std::make_shared<fakelua::SyntaxTreeUnop>(@1);
@@ -1415,7 +1415,7 @@ exp:
     |
     NOT exp %prec UNARY
     {
-        LOG_INFO("bison", "[bison]: exp: NOT exp");
+        LOG_DEBUG("bison", "[bison]: exp: NOT exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kUnop);
         auto unop = std::make_shared<fakelua::SyntaxTreeUnop>(@1);
@@ -1432,7 +1432,7 @@ exp:
     |
     NUMBER_SIGN exp %prec UNARY
     {
-        LOG_INFO("bison", "[bison]: exp: NUMBER_SIGN exp");
+        LOG_DEBUG("bison", "[bison]: exp: NUMBER_SIGN exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kUnop);
         auto unop = std::make_shared<fakelua::SyntaxTreeUnop>(@1);
@@ -1449,7 +1449,7 @@ exp:
     |
     BITNOT exp %prec UNARY
     {
-        LOG_INFO("bison", "[bison]: exp: BITNOT exp");
+        LOG_DEBUG("bison", "[bison]: exp: BITNOT exp");
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kUnop);
         auto unop = std::make_shared<fakelua::SyntaxTreeUnop>(@1);
@@ -1468,7 +1468,7 @@ exp:
 prefixexp:
     var
     {
-        LOG_INFO("bison", "[bison]: prefixexp: var");
+        LOG_DEBUG("bison", "[bison]: prefixexp: var");
         auto prefixexp = std::make_shared<fakelua::SyntaxTreePrefixexp>(@1);
         prefixexp->SetPrefixKind(PrefixExpKind::kVar);
         auto var = std::dynamic_pointer_cast<fakelua::SyntaxTreeVar>($1);
@@ -1482,7 +1482,7 @@ prefixexp:
     |
     functioncall
     {
-        LOG_INFO("bison", "[bison]: prefixexp: functioncall");
+        LOG_DEBUG("bison", "[bison]: prefixexp: functioncall");
         auto prefixexp = std::make_shared<fakelua::SyntaxTreePrefixexp>(@1);
         prefixexp->SetPrefixKind(PrefixExpKind::kFunctionCall);
         auto functioncall = std::dynamic_pointer_cast<fakelua::SyntaxTreeFunctioncall>($1);
@@ -1496,7 +1496,7 @@ prefixexp:
     |
     LPAREN exp RPAREN
     {
-        LOG_INFO("bison", "[bison]: prefixexp: LPAREN exp RPAREN");
+        LOG_DEBUG("bison", "[bison]: prefixexp: LPAREN exp RPAREN");
         auto prefixexp = std::make_shared<fakelua::SyntaxTreePrefixexp>(@1);
         prefixexp->SetPrefixKind(PrefixExpKind::kExp);
         auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($2);
@@ -1511,7 +1511,7 @@ prefixexp:
 functioncall:
     prefixexp args
     {
-        LOG_INFO("bison", "[bison]: functioncall: prefixexp args");
+        LOG_DEBUG("bison", "[bison]: functioncall: prefixexp args");
         auto functioncall = std::make_shared<fakelua::SyntaxTreeFunctioncall>(@1);
         auto prefixexp = std::dynamic_pointer_cast<fakelua::SyntaxTreePrefixexp>($1);
         if (prefixexp == nullptr) {
@@ -1530,7 +1530,7 @@ functioncall:
     |
     prefixexp COLON IDENTIFIER args
     {
-        LOG_INFO("bison", "[bison]: functioncall: prefixexp COLON IDENTIFIER args");
+        LOG_DEBUG("bison", "[bison]: functioncall: prefixexp COLON IDENTIFIER args");
         auto functioncall = std::make_shared<fakelua::SyntaxTreeFunctioncall>(@1);
         auto prefixexp = std::dynamic_pointer_cast<fakelua::SyntaxTreePrefixexp>($1);
         if (prefixexp == nullptr) {
@@ -1552,7 +1552,7 @@ functioncall:
 args:
     LPAREN explist RPAREN
     {
-        LOG_INFO("bison", "[bison]: args: LPAREN explist RPAREN");
+        LOG_DEBUG("bison", "[bison]: args: LPAREN explist RPAREN");
         auto args = std::make_shared<fakelua::SyntaxTreeArgs>(@1);
         auto explist = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>($2);
         if (explist == nullptr) {
@@ -1566,7 +1566,7 @@ args:
     |
     LPAREN RPAREN
     {
-        LOG_INFO("bison", "[bison]: args: LPAREN RPAREN");
+        LOG_DEBUG("bison", "[bison]: args: LPAREN RPAREN");
         auto args = std::make_shared<fakelua::SyntaxTreeArgs>(@1);
         args->SetArgsKind(ArgsKind::kEmpty);
         $$ = args;
@@ -1574,7 +1574,7 @@ args:
     |
     tableconstructor
     {
-        LOG_INFO("bison", "[bison]: args: tableconstructor");
+        LOG_DEBUG("bison", "[bison]: args: tableconstructor");
         auto args = std::make_shared<fakelua::SyntaxTreeArgs>(@1);
         auto tableconstructor = std::dynamic_pointer_cast<fakelua::SyntaxTreeTableconstructor>($1);
         if (tableconstructor == nullptr) {
@@ -1588,7 +1588,7 @@ args:
     |
     STRING
     {
-        LOG_INFO("bison", "[bison]: args: STRING");
+        LOG_DEBUG("bison", "[bison]: args: STRING");
         auto args = std::make_shared<fakelua::SyntaxTreeArgs>(@1);
         auto exp = std::make_shared<fakelua::SyntaxTreeExp>(@1);
         exp->SetExpKind(ExpKind::kString);
@@ -1602,7 +1602,7 @@ args:
 functiondef:
     FUNCTION funcbody
     {
-        LOG_INFO("bison", "[bison]: functiondef: FUNCTION funcbody");
+        LOG_DEBUG("bison", "[bison]: functiondef: FUNCTION funcbody");
         auto functiondef = std::make_shared<fakelua::SyntaxTreeFunctiondef>(@1);
         auto funcbody = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncbody>($2);
         if (funcbody == nullptr) {
@@ -1617,7 +1617,7 @@ functiondef:
 funcbody:
     LPAREN parlist RPAREN block END
     {
-        LOG_INFO("bison", "[bison]: funcbody: LPAREN parlist RPAREN block END");
+        LOG_DEBUG("bison", "[bison]: funcbody: LPAREN parlist RPAREN block END");
         auto funcbody = std::make_shared<fakelua::SyntaxTreeFuncbody>(@1);
         auto parlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeParlist>($2);
         if (parlist == nullptr) {
@@ -1636,7 +1636,7 @@ funcbody:
     |
     LPAREN RPAREN block END
     {
-        LOG_INFO("bison", "[bison]: funcbody: LPAREN RPAREN block END");
+        LOG_DEBUG("bison", "[bison]: funcbody: LPAREN RPAREN block END");
         auto funcbody = std::make_shared<fakelua::SyntaxTreeFuncbody>(@1);
         auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>($3);
         if (block == nullptr) {
@@ -1651,7 +1651,7 @@ funcbody:
 parlist:
     namelist
     {
-        LOG_INFO("bison", "[bison]: parlist: namelist");
+        LOG_DEBUG("bison", "[bison]: parlist: namelist");
         auto parlist = std::make_shared<fakelua::SyntaxTreeParlist>(@1);
         auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>($1);
         if (namelist == nullptr) {
@@ -1664,7 +1664,7 @@ parlist:
     |
     namelist COMMA VAR_PARAMS
     {
-        LOG_INFO("bison", "[bison]: parlist: namelist COMMA VAR_PARAMS");
+        LOG_DEBUG("bison", "[bison]: parlist: namelist COMMA VAR_PARAMS");
         auto parlist = std::make_shared<fakelua::SyntaxTreeParlist>(@1);
         auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>($1);
         if (namelist == nullptr) {
@@ -1678,7 +1678,7 @@ parlist:
     |
     VAR_PARAMS
     {
-        LOG_INFO("bison", "[bison]: parlist: VAR_PARAMS");
+        LOG_DEBUG("bison", "[bison]: parlist: VAR_PARAMS");
         auto parlist = std::make_shared<fakelua::SyntaxTreeParlist>(@1);
         parlist->SetVarParams(true);
         $$ = parlist;
@@ -1688,7 +1688,7 @@ parlist:
 tableconstructor:
     LCURLY fieldlist RCURLY
     {
-        LOG_INFO("bison", "[bison]: tableconstructor: LCURLY fieldlist RCURLY");
+        LOG_DEBUG("bison", "[bison]: tableconstructor: LCURLY fieldlist RCURLY");
         auto tableconstructor = std::make_shared<fakelua::SyntaxTreeTableconstructor>(@1);
         auto fieldlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFieldlist>($2);
         if (fieldlist == nullptr) {
@@ -1701,7 +1701,7 @@ tableconstructor:
     |
     LCURLY RCURLY
     {
-        LOG_INFO("bison", "[bison]: tableconstructor: LCURLY RCURLY");
+        LOG_DEBUG("bison", "[bison]: tableconstructor: LCURLY RCURLY");
         auto tableconstructor = std::make_shared<fakelua::SyntaxTreeTableconstructor>(@1);
         $$ = tableconstructor;
     }
@@ -1710,7 +1710,7 @@ tableconstructor:
 fieldlist:
     field
     {
-        LOG_INFO("bison", "[bison]: fieldlist: field");
+        LOG_DEBUG("bison", "[bison]: fieldlist: field");
         auto fieldlist = std::make_shared<fakelua::SyntaxTreeFieldlist>(@1);
         auto field = std::dynamic_pointer_cast<fakelua::SyntaxTreeField>($1);
         if (field == nullptr) {
@@ -1723,7 +1723,7 @@ fieldlist:
     |
     fieldlist fieldsep field
     {
-        LOG_INFO("bison", "[bison]: fieldlist: fieldlist fieldsep field");
+        LOG_DEBUG("bison", "[bison]: fieldlist: fieldlist fieldsep field");
         auto fieldlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFieldlist>($1);
         if (fieldlist == nullptr) {
             LOG_ERROR("bison", "[bison]: fieldlist: fieldlist is not a fieldlist");
@@ -1742,7 +1742,7 @@ fieldlist:
 field:
     LSQUARE exp RSQUARE ASSIGN exp
     {
-        LOG_INFO("bison", "[bison]: field: LSQUARE exp RSQUARE ASSIGN exp");
+        LOG_DEBUG("bison", "[bison]: field: LSQUARE exp RSQUARE ASSIGN exp");
         auto field = std::make_shared<fakelua::SyntaxTreeField>(@1);
         auto key = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($2);
         if (key == nullptr) {
@@ -1762,7 +1762,7 @@ field:
     |
     IDENTIFIER ASSIGN exp
     {
-        LOG_INFO("bison", "[bison]: field: IDENTIFIER ASSIGN exp");
+        LOG_DEBUG("bison", "[bison]: field: IDENTIFIER ASSIGN exp");
         auto field = std::make_shared<fakelua::SyntaxTreeField>(@1);
         auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($3);
         if (exp == nullptr) {
@@ -1777,7 +1777,7 @@ field:
     |
     exp
     {
-        LOG_INFO("bison", "[bison]: field: exp");
+        LOG_DEBUG("bison", "[bison]: field: exp");
         auto field = std::make_shared<fakelua::SyntaxTreeField>(@1);
         auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>($1);
         if (exp == nullptr) {
@@ -1793,13 +1793,13 @@ field:
 fieldsep:
     COMMA
     {
-        LOG_INFO("bison", "[bison]: fieldsep: COMMA");
+        LOG_DEBUG("bison", "[bison]: fieldsep: COMMA");
         // nothing to do
     }
     |
     SEMICOLON
     {
-        LOG_INFO("bison", "[bison]: fieldsep: SEMICOLON");
+        LOG_DEBUG("bison", "[bison]: fieldsep: SEMICOLON");
         // nothing to do
     }
     ;

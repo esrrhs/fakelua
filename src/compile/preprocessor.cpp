@@ -35,7 +35,7 @@ PreProcessor::PreProcessor(State *s) : s_(s) {
 }
 
 void PreProcessor::Process(const ParseResult &pr, const CompileConfig &cfg) {
-    LOG_INFO("engine", "start PreProcessor::process {}", pr.file_name);
+    LOG_DEBUG("engine", "start PreProcessor::process {}", pr.file_name);
 
     const auto chunk = pr.chunk;
     file_name_ = pr.file_name;
@@ -64,7 +64,7 @@ void PreProcessor::Process(const ParseResult &pr, const CompileConfig &cfg) {
         DumpDebugFile(chunk, debug_step);
     }
 
-    LOG_INFO("engine", "end PreProcessor::compile {}", pr.file_name);
+    LOG_DEBUG("engine", "end PreProcessor::compile {}", pr.file_name);
 }
 
 void PreProcessor::DumpDebugFile(const SyntaxTreeInterfacePtr &chunk, int step) {

@@ -255,7 +255,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     }
 
 #if !defined(_WIN32)
-    LOG_INFO("engine", "GCC JIT compilation finished for {}", pr.file_name);
+    LOG_DEBUG("engine", "GCC JIT compilation finished for {}", pr.file_name);
 #endif
 }
 

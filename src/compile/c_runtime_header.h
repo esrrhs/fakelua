@@ -86,6 +86,10 @@ struct VarTable {
 
 typedef struct State State;
 
+// 全局日志级别（由 C++ 侧初始化和设置）
+// 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Critical, 6=Off
+extern int fakelua_log_level;
+
 #define LIKELY(x)   __builtin_expect(!!(x), 1)
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
 
@@ -1397,6 +1401,34 @@ static inline CVar FlSelectHash(CVar vararg) {
     if (vararg.type_ == VAR_NIL) return (CVar){.type_ = VAR_INT, .data_.i = 0};
     return (CVar){.type_ = VAR_INT, .data_.i = 1};
 }
+
+// 日志级别常量（与 C++ LogLevel 枚举一致）
+// 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Critical, 6=Off
+#define FAKELUA_LOG_TRACE 0
+#define FAKELUA_LOG_DEBUG 1
+#define FAKELUA_LOG_INFO 2
+#define FAKELUA_LOG_WARN 3
+#define FAKELUA_LOG_ERROR 4
+#define FAKELUA_LOG_CRITICAL 5
+
+// 日志级别检查宏：先检查级别，只有启用时才调用 C++ 函数
+// 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
+#define FAKELUA_LOG_CHECK(level) ((level) >= fakelua_log_level)
+
+// 日志宏：级别检查 + 调用 C++ 日志函数
+// 参数 msg 只在级别启用时才会被求值
+#define FAKELUA_LOG_TRACE(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOG_TRACE)) FakeluaLogLua(FAKELUA_LOG_TRACE, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_DEBUG(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOG_DEBUG)) FakeluaLogLua(FAKELUA_LOG_DEBUG, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_INFO(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOG_INFO)) FakeluaLogLua(FAKELUA_LOG_INFO, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_WARN(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOG_WARN)) FakeluaLogLua(FAKELUA_LOG_WARN, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_ERROR(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOG_ERROR)) FakeluaLogLua(FAKELUA_LOG_ERROR, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_CRITICAL(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOG_CRITICAL)) FakeluaLogLua(FAKELUA_LOG_CRITICAL, msg, file, line, func); } while (0)
 
 static inline CVar FlSelectIndex(int64_t idx, CVar vararg) {
     if (vararg.type_ == VAR_MULTI) {

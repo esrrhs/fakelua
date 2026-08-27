@@ -14,6 +14,9 @@
 
 namespace fakelua {
 
+// 全局日志级别变量（供生成的 C 代码通过宏检查）
+int fakelua_log_level = static_cast<int>(LogLevel::Info);
+
 namespace {
 
 // 默认日志格式
@@ -101,6 +104,8 @@ void SetLogLevel(LogLevel level) {
     auto &state = LoggerState::Get();
     std::lock_guard<std::mutex> lock(state.mutex);
     state.level = level;
+    // 同步更新全局变量（供生成的 C 代码宏检查）
+    fakelua_log_level = static_cast<int>(level);
 }
 
 void SetLogFile(const std::string &path, size_t max_size, size_t max_files) {

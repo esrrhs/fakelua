@@ -43,7 +43,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         inter::DispatchCall(init_ptr, nullptr, 0, JIT_TCC);
     }
 
-    LOG_INFO("engine", "TCC JIT compilation finished for {}", pr.file_name);
+    LOG_DEBUG("engine", "TCC JIT compilation finished for {}", pr.file_name);
 }
 
 }// namespace fakelua

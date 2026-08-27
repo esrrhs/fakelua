@@ -16,7 +16,7 @@ Compiler::Compiler(State *s) : s_(s) {
 
 // 编译文件接口
 ParseResult Compiler::CompileFile(const std::string &file, const CompileConfig &cfg) {
-    LOG_INFO("engine", "start CompileFile {}", file);
+    LOG_DEBUG("engine", "start CompileFile {}", file);
     MyFlexer f;
     f.InputFile(file);
     return Compile(f, cfg);
@@ -24,7 +24,7 @@ ParseResult Compiler::CompileFile(const std::string &file, const CompileConfig &
 
 // 编译字符串接口
 ParseResult Compiler::CompileString(const std::string &str, const CompileConfig &cfg) {
-    LOG_INFO("engine", "start CompileString");
+    LOG_DEBUG("engine", "start CompileString");
     MyFlexer f;
     f.InputString(str);
     return Compile(f, cfg);
@@ -32,7 +32,7 @@ ParseResult Compiler::CompileString(const std::string &str, const CompileConfig 
 
 // 核心编译逻辑
 ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
-    LOG_INFO("engine", "start compile {}", f.GetFilename());
+    LOG_DEBUG("engine", "start compile {}", f.GetFilename());
 
     ParseResult pr;
     pr.file_name = f.GetFilename();
@@ -41,7 +41,7 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     LOG_DEBUG("engine", "step 1: parsing AST");
     yy::parser parse(&f);
     auto code = parse.parse();
-    LOG_INFO("engine", "compile ret {}", code);
+    LOG_DEBUG("engine", "compile ret {}", code);
 
     // 检查语法解析结果，解析失败必须抛出异常
     if (code != 0) {
@@ -103,7 +103,7 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
         LOG_DEBUG("engine", "record_c_code: {} bytes", gr.recorded_c_code.size());
     }
 
-    LOG_INFO("engine", "compile finished: {}, functions: {}", pr.file_name, gr.function_names.size());
+    LOG_DEBUG("engine", "compile finished: {}, functions: {}", pr.file_name, gr.function_names.size());
     return pr;
 }
 

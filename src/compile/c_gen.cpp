@@ -74,7 +74,7 @@ bool CGen::ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo 
 
 // 核心编译入口函数：为输入的 AST、推断结果及配置生成 C 代码
 GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const AnalysisResult &ar, const CompileConfig &cfg) {
-    LOG_INFO("engine", "start CGen::Generate {}", pr.file_name);
+    LOG_DEBUG("engine", "start CGen::Generate {}", pr.file_name);
 
     file_name_ = pr.file_name;
     ir_ = ir;
@@ -98,7 +98,7 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Ana
         }
     }
 
-    LOG_INFO("engine", "end CGen::Generate {}, functions: {}", pr.file_name, gr.function_names.size());
+    LOG_DEBUG("engine", "end CGen::Generate {}, functions: {}", pr.file_name, gr.function_names.size());
     return gr;
 }
 
@@ -3991,11 +3991,23 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     // 编译第一个参数为 CVar（消息）
     std::string msg_cvar = CompileExp(raw_args[0]);
 
-    // 生成直接调用 FakeluaLogLua(level, msg_cvar, file, line, func)
-    // 这是一个 C 函数，TCC 可以编译
+    // 生成宏调用：FAKELUA_LOG_DEBUG(msg, file, line, func)
+    // 宏内部先检查级别，只有启用时才调用 C++ 函数
+    // 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
+    const char *log_macro;
+    switch (level) {
+    case 0: log_macro = "FAKELUA_LOG_TRACE"; break;
+    case 1: log_macro = "FAKELUA_LOG_DEBUG"; break;
+    case 2: log_macro = "FAKELUA_LOG_INFO"; break;
+    case 3: log_macro = "FAKELUA_LOG_WARN"; break;
+    case 4: log_macro = "FAKELUA_LOG_ERROR"; break;
+    case 5: log_macro = "FAKELUA_LOG_CRITICAL"; break;
+    default: log_macro = "FAKELUA_LOG_DEBUG"; break;
+    }
+
     const auto tmp = std::format("flua_log_{}", tmp_var_counter_++);
     func_temp_decls_ << "    CVar " << tmp << ";\n";
-    Out() << GenTab() << "FakeluaLogLua(" << level << ", " << msg_cvar << ", "
+    Out() << GenTab() << log_macro << "(" << msg_cvar << ", "
           << "\"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
     Out() << GenTab() << tmp << ".type_ = VAR_NIL;\n";
     return tmp;
