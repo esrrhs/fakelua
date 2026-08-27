@@ -1,6 +1,6 @@
 #include "common.h"
-#include "compile/c_runtime_header.h"
 #include "fakelua.h"
+#include "var/var_type.h"
 
 #include <cinttypes>
 #include <cstdio>
@@ -217,24 +217,24 @@ extern "C" void FakeluaLogLua(int level, CVar msg, const char *file, int line, c
 
     // 将 CVar 转为字符串
     std::string msg_str;
-    switch (msg.type_) {
-    case VAR_NIL:
+    switch (static_cast<VarType>(msg.type_)) {
+    case VarType::Nil:
         msg_str = "nil";
         break;
-    case VAR_BOOL:
+    case VarType::Bool:
         msg_str = (msg.data_.i != 0) ? "true" : "false";
         break;
-    case VAR_INT:
+    case VarType::Int:
         msg_str = std::to_string(msg.data_.i);
         break;
-    case VAR_FLOAT: {
+    case VarType::Float: {
         char buf[64];
         std::snprintf(buf, sizeof(buf), "%.17g", msg.data_.f);
         msg_str = buf;
         break;
     }
-    case VAR_STRING:
-    case VAR_STRINGID:
+    case VarType::String:
+    case VarType::StringId:
         if (msg.data_.s) {
             msg_str.assign(msg.data_.s->data_, msg.data_.s->size_);
         }
