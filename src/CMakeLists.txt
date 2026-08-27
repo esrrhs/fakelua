@@ -35,6 +35,10 @@ aux_source_directory(./native/sqlite FAKELUA_SRC_LIST)
 aux_source_directory(./native/event FAKELUA_SRC_LIST)
 aux_source_directory(./native/random FAKELUA_SRC_LIST)
 aux_source_directory(./native/utf8 FAKELUA_SRC_LIST)
+aux_source_directory(./native/yaml FAKELUA_SRC_LIST)
+aux_source_directory(./native/xml FAKELUA_SRC_LIST)
+aux_source_directory(./native/toml FAKELUA_SRC_LIST)
+aux_source_directory(./native/ini FAKELUA_SRC_LIST)
 aux_source_directory(./ FAKELUA_SRC_LIST)
 include_directories(./)
 include_directories(../include)
@@ -78,6 +82,19 @@ if (NOT sqlite3_amalgamation_ADDED)
 endif ()
 include_directories(${sqlite3_amalgamation_SOURCE_DIR})
 set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${sqlite3_amalgamation_SOURCE_DIR}/sqlite3.c)
+
+# INI (inih) — pure C single-file, compile ini.c directly (like sqlite3)
+CPMAddPackage(
+    NAME inih
+    GITHUB_REPOSITORY benhoyt/inih
+    GIT_TAG r56
+    DOWNLOAD_ONLY YES
+)
+if (NOT inih_ADDED)
+    message(FATAL_ERROR "Failed to fetch inih")
+endif ()
+include_directories(${inih_SOURCE_DIR})
+set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${inih_SOURCE_DIR}/ini.c)
 
 add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 
@@ -197,5 +214,52 @@ if (NOT zstd_ADDED)
 endif ()
 set(TARGET_LIB ${TARGET_LIB} libzstd_static)
 
+# ── Config format libraries via CPM ──
+
+# YAML (yaml-cpp)
+CPMAddPackage(
+    NAME yaml_cpp
+    GITHUB_REPOSITORY jbeder/yaml-cpp
+    GIT_TAG 0.8.0
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        "YAML_CPP_BUILD_TESTS OFF"
+        "YAML_CPP_BUILD_TOOLS OFF"
+        "YAML_CPP_BUILD_CONTRIB OFF"
+        "YAML_CPP_INSTALL OFF"
+)
+if (NOT yaml_cpp_ADDED)
+    message(FATAL_ERROR "Failed to fetch yaml-cpp")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} yaml-cpp::yaml-cpp)
+
+# XML (pugixml)
+CPMAddPackage(
+    NAME pugixml
+    GITHUB_REPOSITORY zeux/pugixml
+    GIT_TAG v1.14
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+)
+if (NOT pugixml_ADDED)
+    message(FATAL_ERROR "Failed to fetch pugixml")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} pugixml::pugixml)
+
+# TOML (toml++) — header-only
+CPMAddPackage(
+    NAME tomlplusplus
+    GITHUB_REPOSITORY marzer/tomlplusplus
+    GIT_TAG v3.4.0
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+)
+if (NOT tomlplusplus_ADDED)
+    message(FATAL_ERROR "Failed to fetch tomlplusplus")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
 target_link_libraries(fakelua ${TARGET_LIB})
