@@ -151,7 +151,7 @@ FakeLua provides 24 independent C++ native modules under `src/native/`, covering
 | Config | `yaml`, `toml`, `xml`, `ini` |
 | Database | `mysql` (async + pool), `sqlite` (synchronous) |
 | Crypto | `compress` (LZ4/zlib/gzip/Zstd), `crypto` (MD5/SHA/AES/RC4/Blowfish/DES) |
-| Logging | `log` (spdlog-based, 7 levels, tagged output) |
+| Logging | `log` (7 levels, tagged output, file rotation) |
 | Object | `object` (NativeObject Lua-side API) |
 
 **Regex note:** `string.find`/`match`/`gmatch`/`gsub` use **ECMAScript regex** (`std::regex::ECMAScript`), not Lua patterns. See [Regex Guide](#regex-matching-ecmascript-syntax-not-lua-patterns) below for migration tips.
@@ -294,7 +294,7 @@ State* s = guard.GetState();
 
 ### Logging API
 
-FakeLua integrates [spdlog](https://github.com/gabime/spdlog) for high-performance logging. Scripts log via the `log` library, while engine code uses tagged `LOG_*` macros.
+FakeLua includes a built-in high-performance logging system. Scripts log via the `log` library, while engine code uses tagged `LOG_*` macros.
 
 **Lua side:**
 

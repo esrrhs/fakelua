@@ -1,108 +1,171 @@
 #include "common.h"
 
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/sinks/rotating_file_sink.h>
+#include <cinttypes>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <string_view>
 
 namespace fakelua {
 
 namespace {
 
 // 默认日志格式
-constexpr const char *kLogPattern = "[%Y-%m-%d %H:%M:%S.%e] [%^%L%$] [%-7s] %v";
+constexpr const char *kTimeFormat = "%Y-%m-%d %H:%M:%S";
 
-// 将 LogLevel 映射到 spdlog::level
-spdlog::level::level_enum ToSpdlogLevel(LogLevel level) {
+// 级别名称
+const char *LevelName(LogLevel level) {
     switch (level) {
-    case LogLevel::Trace: return spdlog::level::trace;
-    case LogLevel::Debug: return spdlog::level::debug;
-    case LogLevel::Info: return spdlog::level::info;
-    case LogLevel::Warn: return spdlog::level::warn;
-    case LogLevel::Error: return spdlog::level::err;
-    case LogLevel::Critical: return spdlog::level::critical;
-    case LogLevel::Off: return spdlog::level::off;
+    case LogLevel::Trace: return "TRACE";
+    case LogLevel::Debug: return "DEBUG";
+    case LogLevel::Info: return "INFO ";
+    case LogLevel::Warn: return "WARN ";
+    case LogLevel::Error: return "ERROR";
+    case LogLevel::Critical: return "CRIT ";
+    case LogLevel::Off: return "OFF  ";
     }
-    return spdlog::level::info;
+    return "INFO ";
 }
 
-// 将 spdlog::level 映射回 LogLevel
-LogLevel FromSpdlogLevel(spdlog::level::level_enum level) {
-    switch (level) {
-    case spdlog::level::trace: return LogLevel::Trace;
-    case spdlog::level::debug: return LogLevel::Debug;
-    case spdlog::level::info: return LogLevel::Info;
-    case spdlog::level::warn: return LogLevel::Warn;
-    case spdlog::level::err: return LogLevel::Error;
-    case spdlog::level::critical: return LogLevel::Critical;
-    case spdlog::level::off: return LogLevel::Off;
-    default: return LogLevel::Info;
-    }
+// 级别对应的输出流
+std::ostream &LevelStream(LogLevel level) {
+    return (level >= LogLevel::Error) ? std::cerr : std::cout;
 }
 
-// 获取或创建全局 logger（线程安全，spdlog 内部保证）
-std::shared_ptr<spdlog::logger> GetLogger() {
-    auto logger = spdlog::get("fakelua");
-    if (!logger) {
-        // 默认：带颜色的控制台输出
-        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        console_sink->set_pattern(kLogPattern);
-        console_sink->set_level(spdlog::level::trace);  // 控制台接受所有级别，由 logger 级别统一过滤
+// 全局状态
+struct LoggerState {
+    std::mutex mutex;
+    LogLevel level = LogLevel::Info;
+    std::ofstream file;
+    std::string file_path;
+    size_t max_size = 10 * 1024 * 1024;
+    size_t max_files = 5;
 
-        logger = std::make_shared<spdlog::logger>("fakelua", console_sink);
-        logger->set_level(spdlog::level::info);  // 默认 Info 级别
-        logger->flush_on(spdlog::level::err);    // Error 及以上自动 flush
-        spdlog::register_logger(logger);
+    static LoggerState &Get() {
+        static LoggerState instance;
+        return instance;
     }
-    return logger;
+};
+
+// 获取当前时间字符串
+std::string CurrentTime() {
+    auto now = std::chrono::system_clock::now();
+    auto now_time_t = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+    std::tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &now_time_t);
+#else
+    localtime_r(&now_time_t, &tm_buf);
+#endif
+
+    char time_buf[64];
+    std::strftime(time_buf, sizeof(time_buf), kTimeFormat, &tm_buf);
+    char result[80];
+    std::snprintf(result, sizeof(result), "%s.%03" PRId64, time_buf, static_cast<int64_t>(ms.count()));
+    return result;
+}
+
+// 滚动日志文件
+void RotateLogs(const std::string &path, size_t max_files) {
+    // 删除最旧的文件
+    std::string oldest = std::format("{}.{}", path, max_files);
+    std::error_code ec;
+    std::filesystem::remove(oldest, ec);
+
+    // 将现有文件向后移动
+    for (size_t i = max_files - 1; i >= 1; --i) {
+        std::string old_name = std::format("{}.{}", path, i);
+        std::string new_name = std::format("{}.{}", path, i + 1);
+        std::filesystem::rename(old_name, new_name, ec);
+    }
+
+    // 将当前文件移动为 .1
+    std::filesystem::rename(path, std::format("{}.1", path), ec);
 }
 
 }  // namespace
 
 void InitLogger() {
-    GetLogger();
+    // LoggerState::Get() 会自动初始化
 }
 
 void SetLogLevel(LogLevel level) {
-    GetLogger()->set_level(ToSpdlogLevel(level));
+    auto &state = LoggerState::Get();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    state.level = level;
 }
 
 void SetLogFile(const std::string &path, size_t max_size, size_t max_files) {
-    auto logger = GetLogger();
+    auto &state = LoggerState::Get();
+    std::lock_guard<std::mutex> lock(state.mutex);
 
-    try {
-        auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(path, max_size, max_files);
-        file_sink->set_pattern(kLogPattern);
-        file_sink->set_level(spdlog::level::trace);  // 文件接受所有级别，由 logger 级别统一过滤
-        logger->sinks().push_back(file_sink);
-    } catch (const spdlog::spdlog_ex &ex) {
-        // 文件创建失败时回退到仅控制台
-        std::cerr << "Failed to create log file: " << ex.what() << std::endl;
+    state.file_path = path;
+    state.max_size = max_size;
+    state.max_files = max_files;
+
+    // 如果文件已存在且超过大小限制，先滚动
+    std::error_code ec;
+    if (std::filesystem::exists(path, ec)) {
+        auto size = std::filesystem::file_size(path, ec);
+        if (size >= max_size) {
+            RotateLogs(path, max_files);
+        }
+    }
+
+    state.file.open(path, std::ios::app);
+    if (!state.file.is_open()) {
+        std::cerr << "Failed to open log file: " << path << std::endl;
     }
 }
 
 bool CheckLogLevel(LogLevel level) {
-    return ToSpdlogLevel(level) >= GetLogger()->level();
+    return level >= LoggerState::Get().level;
 }
 
-void Log(LogLevel level, const std::string_view &tag, const std::string_view &message, const std::source_location &source) {
-    auto logger = GetLogger();
-    auto spd_level = ToSpdlogLevel(level);
+void Log(LogLevel level, const std::string_view &tag, const std::string_view &message,
+         const std::source_location &source) {
+    auto &state = LoggerState::Get();
 
     // 级别检查：不满足直接跳过，不做任何格式化
-    if (spd_level < logger->level()) {
+    if (level < state.level) {
         return;
     }
 
-    // 格式化 tag 和消息
+    std::lock_guard<std::mutex> lock(state.mutex);
+
     std::string tag_str(tag.empty() ? "none" : std::string(tag));
     std::string msg_str(message);
 
-    // 添加源文件位置（Trace/Debug 级别显示）
-    if (spd_level <= spdlog::level::debug) {
+    // Trace/Debug 级别显示源文件位置
+    if (level <= LogLevel::Debug) {
         msg_str = std::format("{} ({}:{}:{})", msg_str, source.file_name(), source.line(), source.column());
     }
 
-    logger->log(spd_level, "[{}] {}", tag_str, msg_str);
+    // 格式化时间戳
+    std::string time_str = CurrentTime();
+
+    // 输出到控制台
+    auto &stream = LevelStream(level);
+    stream << std::format("[{}] [{}] [{}] {}", time_str, LevelName(level), tag_str, msg_str) << std::endl;
+
+    // 输出到文件
+    if (state.file.is_open()) {
+        state.file << std::format("[{}] [{}] [{}] {}", time_str, LevelName(level), tag_str, msg_str) << std::endl;
+        state.file.flush();
+
+        // 检查文件大小，超过限制则滚动
+        auto current_pos = state.file.tellp();
+        if (static_cast<size_t>(current_pos) >= state.max_size) {
+            state.file.close();
+            RotateLogs(state.file_path, state.max_files);
+            state.file.open(state.file_path, std::ios::app);
+        }
+    }
 }
 
 }// namespace fakelua

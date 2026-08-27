@@ -151,7 +151,7 @@ FakeLua 在 `src/native/` 下提供 24 个独立 C++ 原生模块，覆盖数学
 | 配置解析 | `yaml`、`toml`、`xml`、`ini` |
 | 数据库 | `mysql`（异步 + 连接池）、`sqlite`（同步） |
 | 加解密 | `compress`（LZ4/zlib/gzip/Zstd）、`crypto`（MD5/SHA/AES/RC4/Blowfish/DES） |
-| 日志 | `log`（基于 spdlog，7 级别，分类标签输出） |
+| 日志 | `log`（7 级别，分类标签输出，文件滚动） |
 | 对象 | `object`（NativeObject Lua 侧 API） |
 
 > ⚠️ `string.find`/`match`/`gmatch`/`gsub` 底层使用 **ECMAScript 正则**（`std::regex::ECMAScript`），而非 Lua pattern。从标准 Lua 迁移时需改写模式串。
@@ -293,7 +293,7 @@ State* s = guard.GetState();
 
 ### 日志 API
 
-FakeLua 集成了 [spdlog](https://github.com/gabime/spdlog) 高性能日志库。脚本通过 `log` 库输出日志，引擎代码使用带标签的 `LOG_*` 宏。
+FakeLua 内置高性能日志系统。脚本通过 `log` 库输出日志，引擎代码使用带标签的 `LOG_*` 宏。
 
 **Lua 侧：**
 

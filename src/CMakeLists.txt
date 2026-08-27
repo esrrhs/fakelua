@@ -62,10 +62,16 @@ endif ()
 
 set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
 set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
-# Adding tinycc source directory to include path causes conflicts with standard
-# headers (e.g. the 'version' file conflicts with C++20 <version> header).
-# Always use the installed header path as a SYSTEM include instead.
-include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
+if (APPLE)
+    # On macOS, adding tinycc source directory to include path causes conflicts
+    # with standard headers (e.g. the 'version' file conflicts with <version>).
+    # Use the installed header path as a SYSTEM include instead.
+    include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
+else ()
+    # Include only libtcc.h via full path, not the entire source directory,
+    # to avoid 'version' file conflicting with C++20 <version> header.
+    include_directories(${tinycc_src_SOURCE_DIR})
+endif ()
 
 # SQLite3 amalgamation via CPM — compiled directly into fakelua (not a separate static lib)
 # to avoid CRT mismatch issues on Windows/MSYS2.
@@ -259,24 +265,4 @@ if (NOT tomlplusplus_ADDED)
 endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
-# spdlog — header-only logging library
-# Use header-only mode + std::format to avoid fmt bundling issues on macOS/clang
-# and MinGW compatibility issues with compiled library mode
-CPMAddPackage(
-    NAME spdlog
-    GITHUB_REPOSITORY gabime/spdlog
-    GIT_TAG v1.17.0
-    OPTIONS
-        "SPDLOG_BUILD_SHARED OFF"
-        "SPDLOG_USE_STD_FORMAT ON"
-        "SPDLOG_HEADER_ONLY ON"
-)
-if (NOT spdlog_ADDED)
-    message(FATAL_ERROR "Failed to fetch spdlog")
-endif ()
-set(TARGET_LIB ${TARGET_LIB} spdlog::spdlog)
-
 target_link_libraries(fakelua ${TARGET_LIB})
-
-# Ensure spdlog configuration macros are consistently applied
-target_compile_definitions(fakelua PUBLIC SPDLOG_USE_STD_FORMAT SPDLOG_HEADER_ONLY)
