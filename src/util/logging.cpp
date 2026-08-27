@@ -206,10 +206,8 @@ void LogLua(LogLevel level, const std::string_view &tag, const std::string_view 
 }
 
 // C 接口供生成的代码调用
-extern "C" CVar FakeluaLogLua(int level, const char *message, const char *file, int line, const char *func) {
+extern "C" void FakeluaLogLua(int level, const char *message, const char *file, int line, const char *func) {
     fakelua::LogLua(static_cast<fakelua::LogLevel>(level), "script", message ? message : "", file ? file : "", line, func ? func : "");
-    // 返回 nil CVar
-    return CVar{};
 }
 
 }// namespace fakelua

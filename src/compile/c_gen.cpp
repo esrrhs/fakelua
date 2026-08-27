@@ -4009,11 +4009,13 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
         msg_str = tmp;
     }
 
-    // 生成直接调用
+    // 生成直接调用（无返回值语句表达式）
+    Out() << GenTab() << "FakeluaLogLua(" << static_cast<int>(level) << ", "
+          << msg_str << ", \"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
+    // 返回一个 nil CVar 临时变量以满足表达式上下文
     const auto tmp = std::format("flua_log_{}", tmp_var_counter_++);
     func_temp_decls_ << "    CVar " << tmp << ";\n";
-    Out() << GenTab() << tmp << " = FakeluaLogLua(" << static_cast<int>(level) << ", "
-          << msg_str << ", \"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
+    Out() << GenTab() << tmp << ".type_ = VAR_NIL;\n";
     return tmp;
 }
 
