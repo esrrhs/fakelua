@@ -1,6 +1,7 @@
 #include "common.h"
 #include "fakelua.h"
 #include "var/var_type.h"
+#include "var/var_string.h"
 
 #include <cinttypes>
 #include <cstdio>
