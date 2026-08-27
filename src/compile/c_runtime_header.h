@@ -1391,46 +1391,6 @@ static inline CVar FlFormatInt(int64_t v) {
     return r;
 }
 
-// log 多参数拼接辅助：将多个 CVar 用 \t 拼接成一个字符串
-static inline std::string FlJoinStrings(int n, ...) {
-    std::string result;
-    va_list args;
-    va_start(args, n);
-    for (int i = 0; i < n; ++i) {
-        if (i > 0) result += "\t";
-        CVar arg = va_arg(args, CVar);
-        // 简单转字符串
-        switch (arg.type_) {
-        case VAR_NIL:
-            result += "nil";
-            break;
-        case VAR_BOOL:
-            result += (arg.data_.i != 0) ? "true" : "false";
-            break;
-        case VAR_INT:
-            result += std::to_string(arg.data_.i);
-            break;
-        case VAR_FLOAT: {
-            char buf[64];
-            snprintf(buf, sizeof(buf), "%.17g", arg.data_.f);
-            result += buf;
-            break;
-        }
-        case VAR_STRING:
-        case VAR_STRINGID:
-            if (arg.data_.s) {
-                result.append(arg.data_.s->data_, arg.data_.s->size_);
-            }
-            break;
-        default:
-            result += "[?]";
-            break;
-        }
-    }
-    va_end(args);
-    return result;
-}
-
 // select("#", multi) / select(i, multi) 的内联辅助
 static inline CVar FlSelectHash(CVar vararg) {
     if (vararg.type_ == VAR_MULTI) return (CVar){.type_ = VAR_INT, .data_.i = (int64_t)vararg.data_.m->count};

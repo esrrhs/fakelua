@@ -3939,9 +3939,9 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
     return {};
 }
 
-// log.xxx(msg, ...) —— 直接生成 C++ 调用，避免不必要的 format
-// 生成: FakeluaLogLua(level, msg_str, file, line, func)
-// 如果 msg 是字符串字面量，直接内联；否则先 format 再传参
+// log.xxx(msg, ...) —— 直接生成 C 调用，避免不必要的 format
+// 生成: FakeluaLogLua(level, msg_cvar, file, line, func)
+// 消息作为 CVar 传递，字符串格式化在 C++ 侧完成（级别检查前不 format）
 std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,
                                            const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
     if (pe_pre_ptr->GetPrefixKind() != PrefixExpKind::kVar || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
@@ -3957,19 +3957,19 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     }
 
     const std::string &name = callee_var->GetName();
-    LogLevel level;
+    int level;
     if (name == "log.trace") {
-        level = LogLevel::Trace;
+        level = 0;
     } else if (name == "log.debug") {
-        level = LogLevel::Debug;
+        level = 1;
     } else if (name == "log.info") {
-        level = LogLevel::Info;
+        level = 2;
     } else if (name == "log.warn") {
-        level = LogLevel::Warn;
+        level = 3;
     } else if (name == "log.error") {
-        level = LogLevel::Error;
+        level = 4;
     } else if (name == "log.critical") {
-        level = LogLevel::Critical;
+        level = 5;
     } else {
         return {};
     }
@@ -3988,33 +3988,15 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     int line_number = fc->Loc().begin.line;
     std::string func_name = (cur_func_info_ && !cur_func_info_->name.empty()) ? cur_func_info_->name : "global";
 
-    // 获取消息字符串
-    std::string msg_str;
-    if (raw_args.size() == 1) {
-        // 单参数：直接转字符串
-        msg_str = CompileExp(raw_args[0]);
-    } else {
-        // 多参数：用 FlFormat 拼接
-        std::vector<std::string> format_args;
-        for (const auto &arg : raw_args) {
-            format_args.push_back(CompileExp(arg));
-        }
-        const auto tmp = std::format("flua_log_msg_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    std::string " << tmp << ";\n";
-        Out() << GenTab() << tmp << " = FlJoinStrings(" << format_args.size();
-        for (const auto &arg : format_args) {
-            Out() << ", " << arg;
-        }
-        Out() << ");\n";
-        msg_str = tmp;
-    }
+    // 编译第一个参数为 CVar（消息）
+    std::string msg_cvar = CompileExp(raw_args[0]);
 
-    // 生成直接调用（无返回值语句表达式）
-    Out() << GenTab() << "FakeluaLogLua(" << static_cast<int>(level) << ", "
-          << msg_str << ", \"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
-    // 返回一个 nil CVar 临时变量以满足表达式上下文
+    // 生成直接调用 FakeluaLogLua(level, msg_cvar, file, line, func)
+    // 这是一个 C 函数，TCC 可以编译
     const auto tmp = std::format("flua_log_{}", tmp_var_counter_++);
     func_temp_decls_ << "    CVar " << tmp << ";\n";
+    Out() << GenTab() << "FakeluaLogLua(" << level << ", " << msg_cvar << ", "
+          << "\"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
     Out() << GenTab() << tmp << ".type_ = VAR_NIL;\n";
     return tmp;
 }

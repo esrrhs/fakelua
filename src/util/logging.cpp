@@ -205,9 +205,44 @@ void LogLua(LogLevel level, const std::string_view &tag, const std::string_view 
     }
 }
 
-// C 接口供生成的代码调用
-extern "C" void FakeluaLogLua(int level, const char *message, const char *file, int line, const char *func) {
-    fakelua::LogLua(static_cast<fakelua::LogLevel>(level), "script", message ? message : "", file ? file : "", line, func ? func : "");
+// C 接口供生成的代码调用（TCC 兼容）
+// 接受 CVar 消息，在 C++ 侧做字符串转换和级别检查
+extern "C" void FakeluaLogLua(int level, CVar msg, const char *file, int line, const char *func) {
+    // 级别检查：不满足直接跳过，不做任何格式化
+    if (static_cast<LogLevel>(level) < LoggerState::Get().level) {
+        return;
+    }
+
+    // 将 CVar 转为字符串
+    std::string msg_str;
+    switch (msg.type_) {
+    case VAR_NIL:
+        msg_str = "nil";
+        break;
+    case VAR_BOOL:
+        msg_str = (msg.data_.i != 0) ? "true" : "false";
+        break;
+    case VAR_INT:
+        msg_str = std::to_string(msg.data_.i);
+        break;
+    case VAR_FLOAT: {
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%.17g", msg.data_.f);
+        msg_str = buf;
+        break;
+    }
+    case VAR_STRING:
+    case VAR_STRINGID:
+        if (msg.data_.s) {
+            msg_str.assign(msg.data_.s->data_, msg.data_.s->size_);
+        }
+        break;
+    default:
+        msg_str = std::format("[type:{}]", msg.type_);
+        break;
+    }
+
+    fakelua::LogLua(static_cast<fakelua::LogLevel>(level), "script", msg_str, file ? file : "", line, func ? func : "");
 }
 
 }// namespace fakelua
