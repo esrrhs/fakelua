@@ -80,7 +80,7 @@ GccJitter::GccJitter(State *s) : s_(s) {
 }
 
 void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg) {
-    LOG_DEBUG("engine", "GCC JIT compile start: {}, {} functions", pr.file_name, gr.function_names.size());
+    LOG_INFO("engine", "GCC JIT compile start: {}, {} functions", pr.file_name, gr.function_names.size());
     const std::string c_file = GenerateTmpFilename("fakelua_jit_", ".c");
     const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
 #if defined(_WIN32)
@@ -255,7 +255,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     }
 
 #if !defined(_WIN32)
-    LOG_DEBUG("engine", "GCC JIT compilation finished for {}", pr.file_name);
+    LOG_INFO("engine", "GCC JIT compilation finished for {}", pr.file_name);
 #endif
 }
 

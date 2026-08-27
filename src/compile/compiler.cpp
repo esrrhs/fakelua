@@ -16,7 +16,7 @@ Compiler::Compiler(State *s) : s_(s) {
 
 // 编译文件接口
 ParseResult Compiler::CompileFile(const std::string &file, const CompileConfig &cfg) {
-    LOG_DEBUG("engine", "start CompileFile {}", file);
+    LOG_INFO("engine", "start CompileFile {}", file);
     MyFlexer f;
     f.InputFile(file);
     return Compile(f, cfg);
@@ -24,7 +24,7 @@ ParseResult Compiler::CompileFile(const std::string &file, const CompileConfig &
 
 // 编译字符串接口
 ParseResult Compiler::CompileString(const std::string &str, const CompileConfig &cfg) {
-    LOG_DEBUG("engine", "start CompileString");
+    LOG_INFO("engine", "start CompileString");
     MyFlexer f;
     f.InputString(str);
     return Compile(f, cfg);
@@ -103,7 +103,7 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
         LOG_DEBUG("engine", "record_c_code: {} bytes", gr.recorded_c_code.size());
     }
 
-    LOG_DEBUG("engine", "compile finished: {}, functions: {}", pr.file_name, gr.function_names.size());
+    LOG_INFO("engine", "compile finished: {}, functions: {}", pr.file_name, gr.function_names.size());
     return pr;
 }
 

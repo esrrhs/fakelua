@@ -9,7 +9,7 @@ TccJitter::TccJitter(State *s) : s_(s) {
 }
 
 void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg) {
-    LOG_DEBUG("engine", "TCC JIT compile start: {}, {} functions", pr.file_name, gr.function_names.size());
+    LOG_INFO("engine", "TCC JIT compile start: {}, {} functions", pr.file_name, gr.function_names.size());
     const auto handle = std::make_shared<TCCHandle>(s_, cfg);
     ::TCCState *s = handle->GetTCCState();
 
@@ -43,7 +43,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         inter::DispatchCall(init_ptr, nullptr, 0, JIT_TCC);
     }
 
-    LOG_DEBUG("engine", "TCC JIT compilation finished for {}", pr.file_name);
+    LOG_INFO("engine", "TCC JIT compilation finished for {}", pr.file_name);
 }
 
 }// namespace fakelua
