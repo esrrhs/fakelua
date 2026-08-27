@@ -35,7 +35,7 @@ PreProcessor::PreProcessor(State *s) : s_(s) {
 }
 
 void PreProcessor::Process(const ParseResult &pr, const CompileConfig &cfg) {
-    LOG_INFO("start PreProcessor::process {}", pr.file_name);
+    LOG_INFO("engine", "start PreProcessor::process {}", pr.file_name);
 
     const auto chunk = pr.chunk;
     file_name_ = pr.file_name;
@@ -64,7 +64,7 @@ void PreProcessor::Process(const ParseResult &pr, const CompileConfig &cfg) {
         DumpDebugFile(chunk, debug_step);
     }
 
-    LOG_INFO("end PreProcessor::compile {}", pr.file_name);
+    LOG_INFO("engine", "end PreProcessor::compile {}", pr.file_name);
 }
 
 void PreProcessor::DumpDebugFile(const SyntaxTreeInterfacePtr &chunk, int step) {
@@ -80,7 +80,7 @@ void PreProcessor::DumpDebugFile(const SyntaxTreeInterfacePtr &chunk, int step) 
 }
 
 void PreProcessor::PreprocessSplitAssigns(const SyntaxTreeInterfacePtr &chunk) {
-    LOG_INFO("start PreprocessSplitAssigns");
+    LOG_DEBUG("engine", "start PreprocessSplitAssigns");
     WalkSyntaxTree(chunk, [this](const SyntaxTreeInterfacePtr &node) { PreprocessSplitAssign(node); });
 }
 
@@ -153,7 +153,7 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
 }
 
 void PreProcessor::PreprocessTableAssigns(const SyntaxTreeInterfacePtr &chunk) {
-    LOG_INFO("start PreprocessTableAssigns");
+    LOG_DEBUG("engine", "start PreprocessTableAssigns");
     WalkSyntaxTree(chunk, [this](const SyntaxTreeInterfacePtr &node) { PreprocessTableAssign(node); });
 }
 
@@ -219,7 +219,7 @@ void PreProcessor::PreprocessTableAssign(const SyntaxTreeInterfacePtr &node) {
 }
 
 void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &chunk) {
-    LOG_INFO("start PreprocessFunctiondefLocalVars");
+    LOG_DEBUG("engine", "start PreprocessFunctiondefLocalVars");
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
     const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
 
@@ -236,7 +236,7 @@ void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &
                         local_func->SetName(nl->Names()[0]);
                         local_func->SetFuncbody(fdef->Funcbody());
                         new_stmts.push_back(local_func);
-                        LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0], nl->Names()[0]);
+                        LOG_DEBUG("engine", "PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0], nl->Names()[0]);
                         continue;
                     }
                 }
@@ -248,7 +248,7 @@ void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &
 }
 
 void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
-    LOG_INFO("start PreprocessVarargs");
+    LOG_DEBUG("engine", "start PreprocessVarargs");
     WalkSyntaxTree(chunk, [this](const SyntaxTreeInterfacePtr &node) {
         if (!node) return;
 
@@ -311,7 +311,7 @@ void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
             });
         }
     });
-    LOG_INFO("end PreprocessVarargs");
+    LOG_DEBUG("engine", "end PreprocessVarargs");
 }
 
 bool PreProcessor::IsComplexExp(const SyntaxTreeInterfacePtr &exp) {
@@ -354,7 +354,7 @@ std::shared_ptr<SyntaxTreeFunction> PreProcessor::MakeInitFunction(const SyntaxT
 }
 
 void PreProcessor::PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &chunk) {
-    LOG_INFO("start PreprocessGlobalInitializers");
+    LOG_DEBUG("engine", "start PreprocessGlobalInitializers");
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
     const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
 
@@ -451,10 +451,10 @@ void PreProcessor::PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &ch
 
     auto init_func = MakeInitFunction(chunk->Loc(), init_assign_stmts);
     new_stmts.push_back(init_func);
-    LOG_INFO("PreprocessGlobalInitializers: generated __fakelua_init function with {} initializers", init_assign_stmts.size());
+    LOG_DEBUG("engine", "PreprocessGlobalInitializers: generated __fakelua_init function with {} initializers", init_assign_stmts.size());
 
     top_block->SetStmts(new_stmts);
-    LOG_INFO("end PreprocessGlobalInitializers");
+    LOG_DEBUG("engine", "end PreprocessGlobalInitializers");
 }
 
 }// namespace fakelua

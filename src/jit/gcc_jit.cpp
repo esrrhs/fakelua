@@ -80,6 +80,7 @@ GccJitter::GccJitter(State *s) : s_(s) {
 }
 
 void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg) {
+    LOG_DEBUG("engine", "GCC JIT compile start: {}, {} functions", pr.file_name, gr.function_names.size());
     const std::string c_file = GenerateTmpFilename("fakelua_jit_", ".c");
     const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
 #if defined(_WIN32)
@@ -237,6 +238,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 #endif
 
     // ---- Common post-load: register compiled functions + call init ----
+    LOG_DEBUG("engine", "GCC: registering {} functions from {}", gr.function_names.size(), so_file);
     for (const auto &[name, info]: gr.function_names) {
         const std::string &sym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
         void *func_ptr = dlsym_lambda(sym);
@@ -244,7 +246,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
             ThrowFakeluaException(std::format("GCC compile failed, symbol resolution failed for {} in {}", name, so_file));
         }
         s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_GCC, func_ptr, handle, info.is_vararg));
-        LOG_INFO("Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
+        LOG_DEBUG("engine", "Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
 
     void *init_ptr = dlsym_lambda(kInitFunctionName);
@@ -253,7 +255,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     }
 
 #if !defined(_WIN32)
-    LOG_INFO("GCC JIT compilation finished for {}", pr.file_name);
+    LOG_INFO("engine", "GCC JIT compilation finished for {}", pr.file_name);
 #endif
 }
 

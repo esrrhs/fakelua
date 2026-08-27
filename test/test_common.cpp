@@ -71,8 +71,8 @@ TEST(common, escapse_string) {
 
 TEST(common, logging) {
     SetLogLevel(LogLevel::Info);
-    LOG_INFO("Hello, World!");
-    LOG_ERROR("Hello, World!");
+    LOG_INFO("test", "Hello, World!");
+    LOG_ERROR("test", "Hello, World!");
 }
 
 TEST(common, vi_sort) {

@@ -39,6 +39,7 @@ aux_source_directory(./native/yaml FAKELUA_SRC_LIST)
 aux_source_directory(./native/xml FAKELUA_SRC_LIST)
 aux_source_directory(./native/toml FAKELUA_SRC_LIST)
 aux_source_directory(./native/ini FAKELUA_SRC_LIST)
+aux_source_directory(./native/log FAKELUA_SRC_LIST)
 aux_source_directory(./ FAKELUA_SRC_LIST)
 include_directories(./)
 include_directories(../include)
@@ -261,5 +262,19 @@ if (NOT tomlplusplus_ADDED)
     message(FATAL_ERROR "Failed to fetch tomlplusplus")
 endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
+
+# spdlog — header-only logging library
+CPMAddPackage(
+    NAME spdlog
+    GITHUB_REPOSITORY gabime/spdlog
+    GIT_TAG v1.14.1
+    OPTIONS
+        "SPDLOG_BUILD_PIC ON"
+        "SPDLOG_BUILD_SHARED OFF"
+)
+if (NOT spdlog_ADDED)
+    message(FATAL_ERROR "Failed to fetch spdlog")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} spdlog::spdlog)
 
 target_link_libraries(fakelua ${TARGET_LIB})

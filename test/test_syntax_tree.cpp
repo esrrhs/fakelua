@@ -14,7 +14,7 @@ TEST(syntax_tree, CompileString) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -41,7 +41,7 @@ TEST(syntax_tree, label) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[2:1]\n"
@@ -61,7 +61,7 @@ TEST(syntax_tree, assign_simple) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[6:1]\n"
@@ -88,7 +88,7 @@ TEST(syntax_tree, assign) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[2:1]\n"
@@ -158,7 +158,7 @@ TEST(syntax_tree, function_call) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[2:1]\n"
@@ -231,7 +231,7 @@ TEST(syntax_tree, break) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[2:1]\n"
@@ -255,7 +255,7 @@ TEST(syntax_tree, continue) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -297,7 +297,7 @@ TEST(syntax_tree, native_continue) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -325,7 +325,7 @@ TEST(syntax_tree, do_end) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -370,7 +370,7 @@ TEST(syntax_tree, while) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[2:1]\n"
@@ -408,7 +408,7 @@ TEST(syntax_tree, repeat) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -466,7 +466,7 @@ TEST(syntax_tree, if) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -670,7 +670,7 @@ TEST(syntax_tree, string) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -752,7 +752,7 @@ TEST(syntax_tree, number) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -869,7 +869,7 @@ TEST(syntax_tree, for_num) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -955,7 +955,7 @@ TEST(syntax_tree, for_in) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -1071,7 +1071,7 @@ TEST(syntax_tree, function) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[1:1]\n"
                          "  (function)[1:1]\n"
@@ -1213,7 +1213,7 @@ TEST(syntax_tree, var) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -1259,7 +1259,7 @@ TEST(syntax_tree, var_attr) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[1:1]\n"
@@ -1307,7 +1307,7 @@ TEST(syntax_tree, function_call_args) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = ""
                          "(block)[2:1]\n"
@@ -1350,7 +1350,7 @@ TEST(syntax_tree, constructor) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
                          "  (assign)[2:3]\n"
@@ -1392,7 +1392,7 @@ TEST(syntax_tree, function_exp) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
                          "  (assign)[2:3]\n"
@@ -1424,7 +1424,7 @@ TEST(syntax_tree, binop) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
                          "  (assign)[2:3]\n"
@@ -1486,7 +1486,7 @@ TEST(syntax_tree, test_binop_order1) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
                          "  (assign)[2:3]\n"
@@ -1533,7 +1533,7 @@ TEST(syntax_tree, test_binop_order2) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
                          "  (assign)[2:3]\n"
@@ -1606,7 +1606,7 @@ TEST(syntax_tree, test_binop_order3) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
                          "  (assign)[2:3]\n"
@@ -1661,7 +1661,7 @@ TEST(syntax_tree, test_binop_order4) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
                          "  (assign)[2:3]\n"
@@ -1731,7 +1731,7 @@ TEST(syntax_tree, test_binop_order5) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[1:1]\n"
                          "  (assign)[1:2]\n"
@@ -1775,7 +1775,7 @@ TEST(syntax_tree, test_binop_order6) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[1:1]\n"
                          "  (assign)[1:2]\n"
@@ -1832,7 +1832,7 @@ TEST(syntax_tree, test_empty) {
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
-    LOG_INFO("{}", dumpstr);
+    LOG_INFO("test", "{}", dumpstr);
 
     const auto wantstr = "(block)[1:1]\n"
                          "  (empty)[1:1]\n"
