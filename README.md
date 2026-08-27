@@ -292,33 +292,6 @@ State* s = guard.GetState();
 | `SetVarInterfaceNewFunc()` | Set custom VarInterface factory |
 | `SetDebugLogLevel()` | Set global debug log level (deprecated, use `log.set_level` in Lua) |
 
-### Logging API
-
-FakeLua includes a built-in high-performance logging system. Scripts log via the `log` library, while engine code uses tagged `LOG_*` macros.
-
-**Lua side:**
-
-```lua
-log.trace("detailed trace")
-log.debug("debug info")
-log.info("hello {}", "world")
-log.warn("warning: {}", err)
-log.error("error occurred")
-log.critical("critical failure")
-
-log.set_level(1)        -- 0=Trace, 1=Debug, 2=Info (default), 3=Warn, 4=Error, 5=Critical, 6=Off
-log.set_file("/tmp/app.log")  -- also log to rotating file
-```
-
-**C++ side:**
-
-```cpp
-LOG_DEBUG("engine", "compile step {}: {}", 3, "preprocessing");
-LOG_ERROR("mysql", "connect failed: {}", err_msg);
-```
-
-Output format: `[2026-08-27 18:36:52.109] [I] [script ] hello world`
-
 ### Type Conversion
 
 ```cpp

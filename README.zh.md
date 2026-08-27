@@ -291,33 +291,6 @@ State* s = guard.GetState();
 | `SetVarInterfaceNewFunc()` | 设置自定义 VarInterface 工厂 |
 | `SetDebugLogLevel()` | 设置全局调试日志级别（已弃用，Lua 侧推荐 `log.set_level`） |
 
-### 日志 API
-
-FakeLua 内置高性能日志系统。脚本通过 `log` 库输出日志，引擎代码使用带标签的 `LOG_*` 宏。
-
-**Lua 侧：**
-
-```lua
-log.trace("详细追踪信息")
-log.debug("调试信息")
-log.info("hello {}", "world")
-log.warn("警告：{}", err)
-log.error("发生错误")
-log.critical("严重故障")
-
-log.set_level(1)        -- 0=Trace, 1=Debug, 2=Info（默认）, 3=Warn, 4=Error, 5=Critical, 6=Off
-log.set_file("/tmp/app.log")  -- 同时输出到滚动日志文件
-```
-
-**C++ 侧：**
-
-```cpp
-LOG_DEBUG("engine", "编译步骤 {}：{}", 3, "预处理");
-LOG_ERROR("mysql", "连接失败：{}", err_msg);
-```
-
-输出格式：`[2026-08-27 18:36:52.109] [I] [script ] hello world`
-
 ### 类型转换
 
 ```cpp
