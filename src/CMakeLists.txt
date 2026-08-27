@@ -268,7 +268,7 @@ set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 CPMAddPackage(
     NAME spdlog
     GITHUB_REPOSITORY gabime/spdlog
-    GIT_TAG v1.15.0
+    GIT_TAG v1.17.0
     OPTIONS
         "SPDLOG_BUILD_SHARED OFF"
         "SPDLOG_USE_STD_FORMAT ON"
