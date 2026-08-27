@@ -62,14 +62,10 @@ endif ()
 
 set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
 set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
-if (APPLE)
-    # On macOS, adding tinycc source directory to include path causes conflicts
-    # with standard headers (e.g. the 'version' file conflicts with <version>).
-    # Use the installed header path as a SYSTEM include instead.
-    include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
-else ()
-    include_directories(${tinycc_src_SOURCE_DIR})
-endif ()
+# Adding tinycc source directory to include path causes conflicts with standard
+# headers (e.g. the 'version' file conflicts with C++20 <version> header).
+# Always use the installed header path as a SYSTEM include instead.
+include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
 
 # SQLite3 amalgamation via CPM — compiled directly into fakelua (not a separate static lib)
 # to avoid CRT mismatch issues on Windows/MSYS2.
