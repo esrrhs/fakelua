@@ -32,9 +32,13 @@ void SetLogFile(const std::string &path, size_t max_size = 10 * 1024 * 1024, siz
 // 检查某级别是否启用
 bool CheckLogLevel(LogLevel level);
 
-// 核心日志函数
+// 核心日志函数（C++ 侧，自动捕获 source_location）
 void Log(LogLevel level, const std::string_view &tag, const std::string_view &message,
          const std::source_location &source = std::source_location::current());
+
+// Lua 侧日志函数（需手动传入源文件位置信息）
+void LogLua(LogLevel level, const std::string_view &tag, const std::string_view &message,
+            const std::string_view &source_file, int source_line, const std::string_view &function_name);
 
 // 便捷宏 — 带 tag 参数
 #define LOG_TRACE(tag, fmt, ...)                                                                                                                                                                           \

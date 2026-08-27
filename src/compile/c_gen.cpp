@@ -2852,6 +2852,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         return result;
     }
 
+    if (auto result = TryCompileBuiltinLogCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        return result;
+    }
+
     if (auto result = TryCompileBuiltinBasicCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
         return result;
     }
@@ -3933,6 +3937,84 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
 
     // 其余（sub/dump/多参 format/非标准 find 等）仍走慢路径
     return {};
+}
+
+// log.xxx(msg, ...) —— 直接生成 C++ 调用，避免不必要的 format
+// 生成: FakeluaLogLua(level, msg_str, file, line, func)
+// 如果 msg 是字符串字面量，直接内联；否则先 format 再传参
+std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,
+                                           const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
+    if (pe_pre_ptr->GetPrefixKind() != PrefixExpKind::kVar || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+        return {};
+    }
+    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+        return {};
+    }
+    // 局部同名变量遮蔽时不内联
+    if (var_to_def_map_.contains(callee_var.get())) {
+        return {};
+    }
+
+    const std::string &name = callee_var->GetName();
+    LogLevel level;
+    if (name == "log.trace") {
+        level = LogLevel::Trace;
+    } else if (name == "log.debug") {
+        level = LogLevel::Debug;
+    } else if (name == "log.info") {
+        level = LogLevel::Info;
+    } else if (name == "log.warn") {
+        level = LogLevel::Warn;
+    } else if (name == "log.error") {
+        level = LogLevel::Error;
+    } else if (name == "log.critical") {
+        level = LogLevel::Critical;
+    } else {
+        return {};
+    }
+
+    const auto explist_arg = args_ptr->Explist();
+    const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
+    const auto &raw_args = explist_arg_ptr->Exps();
+
+    if (raw_args.empty()) {
+        ThrowError(std::format("{} requires at least 1 argument", name), fc);
+        return {};
+    }
+
+    // 获取当前源文件位置信息
+    const std::string file_name = file_name_;
+    int line_number = fc->Loc().begin.line;
+    std::string func_name = cur_func_name_.empty() ? "global" : cur_func_name_;
+
+    // 获取消息字符串
+    std::string msg_str;
+    if (raw_args.size() == 1) {
+        // 单参数：直接转字符串
+        msg_str = CompileExp(raw_args[0]);
+    } else {
+        // 多参数：用 FlFormat 拼接
+        std::vector<std::string> format_args;
+        for (const auto &arg : raw_args) {
+            format_args.push_back(CompileExp(arg));
+        }
+        const auto tmp = std::format("flua_log_msg_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    std::string " << tmp << ";\n";
+        Out() << GenTab() << tmp << " = FlJoinStrings(" << format_args.size();
+        for (const auto &arg : format_args) {
+            Out() << ", " << arg;
+        }
+        Out() << ");\n";
+        msg_str = tmp;
+    }
+
+    // 生成直接调用
+    const auto tmp = std::format("flua_log_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    CVar " << tmp << ";\n";
+    Out() << GenTab() << tmp << " = FakeluaLogLua(" << static_cast<int>(level) << ", "
+          << msg_str << ", \"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
+    return tmp;
 }
 
 std::string CGen::TryCompileBuiltinBasicCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,

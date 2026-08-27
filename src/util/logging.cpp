@@ -139,12 +139,10 @@ void Log(LogLevel level, const std::string_view &tag, const std::string_view &me
     std::lock_guard<std::mutex> lock(state.mutex);
 
     std::string tag_str(tag.empty() ? "none" : std::string(tag));
-    std::string msg_str(message);
 
-    // Trace/Debug 级别显示源文件位置
-    if (level <= LogLevel::Debug) {
-        msg_str = std::format("{} ({}:{}:{})", msg_str, source.file_name(), source.line(), source.column());
-    }
+    // 构建带位置信息的消息
+    // 格式: message (file:line:function)
+    std::string msg_str = std::format("{} ({}:{}:{})", message, source.file_name(), source.line(), source.function_name());
 
     // 格式化时间戳
     std::string time_str = CurrentTime();
@@ -166,6 +164,52 @@ void Log(LogLevel level, const std::string_view &tag, const std::string_view &me
             state.file.open(state.file_path, std::ios::app);
         }
     }
+}
+
+void LogLua(LogLevel level, const std::string_view &tag, const std::string_view &message,
+            const std::string_view &source_file, int source_line, const std::string_view &function_name) {
+    auto &state = LoggerState::Get();
+
+    // 级别检查：不满足直接跳过，不做任何格式化
+    if (level < state.level) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(state.mutex);
+
+    std::string tag_str(tag.empty() ? "none" : std::string(tag));
+
+    // 构建带位置信息的消息
+    // 格式: message (file:line:function)
+    std::string msg_str = std::format("{} ({}:{}:{})", message, source_file, source_line, function_name);
+
+    // 格式化时间戳
+    std::string time_str = CurrentTime();
+
+    // 输出到控制台
+    auto &stream = LevelStream(level);
+    stream << std::format("[{}] [{}] [{}] {}", time_str, LevelName(level), tag_str, msg_str) << std::endl;
+
+    // 输出到文件
+    if (state.file.is_open()) {
+        state.file << std::format("[{}] [{}] [{}] {}", time_str, LevelName(level), tag_str, msg_str) << std::endl;
+        state.file.flush();
+
+        // 检查文件大小，超过限制则滚动
+        auto current_pos = state.file.tellp();
+        if (static_cast<size_t>(current_pos) >= state.max_size) {
+            state.file.close();
+            RotateLogs(state.file_path, state.max_files);
+            state.file.open(state.file_path, std::ios::app);
+        }
+    }
+}
+
+// C 接口供生成的代码调用
+extern "C" CVar FakeluaLogLua(int level, const char *message, const char *file, int line, const char *func) {
+    fakelua::LogLua(static_cast<fakelua::LogLevel>(level), "script", message ? message : "", file ? file : "", line, func ? func : "");
+    // 返回 nil CVar
+    return CVar{};
 }
 
 }// namespace fakelua
