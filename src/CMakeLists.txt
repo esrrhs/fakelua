@@ -264,13 +264,14 @@ endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
 # spdlog — header-only logging library
+# Use header-only mode + std::format to avoid fmt bundling issues on macOS/clang
 CPMAddPackage(
     NAME spdlog
     GITHUB_REPOSITORY gabime/spdlog
     GIT_TAG v1.14.1
     OPTIONS
-        "SPDLOG_BUILD_PIC ON"
         "SPDLOG_BUILD_SHARED OFF"
+        "SPDLOG_USE_STD_FORMAT ON"
 )
 if (NOT spdlog_ADDED)
     message(FATAL_ERROR "Failed to fetch spdlog")

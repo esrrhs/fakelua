@@ -139,7 +139,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 ## 标准内置扩展库
 
-FakeLua 在 `src/native/` 下提供 20 个独立 C++ 原生模块，覆盖数学、字符串、表、IO、网络、定时器、事件、随机数、压缩、加密、序列化、数据库、Protobuf 等领域。
+FakeLua 在 `src/native/` 下提供 24 个独立 C++ 原生模块，覆盖数学、字符串、表、IO、网络、定时器、事件、随机数、压缩、加密、序列化、数据库、Protobuf、配置解析、日志等领域。
 
 > **完整 API 文档：** [src/native/README.zh.md](src/native/README.zh.md) / [English](src/native/README.md)
 
@@ -148,8 +148,10 @@ FakeLua 在 `src/native/` 下提供 20 个独立 C++ 原生模块，覆盖数学
 | 核心 Lua | `math`、`table`、`string`、`os`、`utf8`、`io`、`random` |
 | 网络 | `net`（TCP 服务端/客户端）、`timer`、`event` |
 | 数据 | `json`、`csv`、`serialize`、`protobuf` |
+| 配置解析 | `yaml`、`toml`、`xml`、`ini` |
 | 数据库 | `mysql`（异步 + 连接池）、`sqlite`（同步） |
 | 加解密 | `compress`（LZ4/zlib/gzip/Zstd）、`crypto`（MD5/SHA/AES/RC4/Blowfish/DES） |
+| 日志 | `log`（基于 spdlog，7 级别，分类标签输出） |
 | 对象 | `object`（NativeObject Lua 侧 API） |
 
 > ⚠️ `string.find`/`match`/`gmatch`/`gsub` 底层使用 **ECMAScript 正则**（`std::regex::ECMAScript`），而非 Lua pattern。从标准 Lua 迁移时需改写模式串。
@@ -287,7 +289,34 @@ State* s = guard.GetState();
 | `Call()` | 调用编译后的函数 |
 | `GetLastRecordedCCode()` | 获取最近编译的 C 代码 |
 | `SetVarInterfaceNewFunc()` | 设置自定义 VarInterface 工厂 |
-| `SetDebugLogLevel()` | 设置全局调试日志级别 |
+| `SetDebugLogLevel()` | 设置全局调试日志级别（已弃用，Lua 侧推荐 `log.set_level`） |
+
+### 日志 API
+
+FakeLua 集成了 [spdlog](https://github.com/gabime/spdlog) 高性能日志库。脚本通过 `log` 库输出日志，引擎代码使用带标签的 `LOG_*` 宏。
+
+**Lua 侧：**
+
+```lua
+log.trace("详细追踪信息")
+log.debug("调试信息")
+log.info("hello {}", "world")
+log.warn("警告：{}", err)
+log.error("发生错误")
+log.critical("严重故障")
+
+log.set_level(1)        -- 0=Trace, 1=Debug, 2=Info（默认）, 3=Warn, 4=Error, 5=Critical, 6=Off
+log.set_file("/tmp/app.log")  -- 同时输出到滚动日志文件
+```
+
+**C++ 侧：**
+
+```cpp
+LOG_DEBUG("engine", "编译步骤 {}：{}", 3, "预处理");
+LOG_ERROR("mysql", "连接失败：{}", err_msg);
+```
+
+输出格式：`[2026-08-27 18:36:52.109] [I] [script ] hello world`
 
 ### 类型转换
 

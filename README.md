@@ -139,7 +139,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 ## Built-in Standard Libraries
 
-FakeLua provides 20 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, random, compression, encryption, serialization, databases, and protobuf.
+FakeLua provides 24 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, random, compression, encryption, serialization, databases, protobuf, config formats, and logging.
 
 > **Full API reference:** [src/native/README.md](src/native/README.md) / [中文](src/native/README.zh.md)
 
@@ -148,8 +148,10 @@ FakeLua provides 20 independent C++ native modules under `src/native/`, covering
 | Core Lua | `math`, `table`, `string`, `os`, `utf8`, `io`, `random` |
 | Networking | `net` (TCP server/client), `timer`, `event` |
 | Data | `json`, `csv`, `serialize`, `protobuf` |
+| Config | `yaml`, `toml`, `xml`, `ini` |
 | Database | `mysql` (async + pool), `sqlite` (synchronous) |
 | Crypto | `compress` (LZ4/zlib/gzip/Zstd), `crypto` (MD5/SHA/AES/RC4/Blowfish/DES) |
+| Logging | `log` (spdlog-based, 7 levels, tagged output) |
 | Object | `object` (NativeObject Lua-side API) |
 
 **Regex note:** `string.find`/`match`/`gmatch`/`gsub` use **ECMAScript regex** (`std::regex::ECMAScript`), not Lua patterns. See [Regex Guide](#regex-matching-ecmascript-syntax-not-lua-patterns) below for migration tips.
@@ -288,7 +290,34 @@ State* s = guard.GetState();
 | `Call()` | Invoke a compiled function |
 | `GetLastRecordedCCode()` | Get the most recently compiled C code |
 | `SetVarInterfaceNewFunc()` | Set custom VarInterface factory |
-| `SetDebugLogLevel()` | Set global debug log level |
+| `SetDebugLogLevel()` | Set global debug log level (deprecated, use `log.set_level` in Lua) |
+
+### Logging API
+
+FakeLua integrates [spdlog](https://github.com/gabime/spdlog) for high-performance logging. Scripts log via the `log` library, while engine code uses tagged `LOG_*` macros.
+
+**Lua side:**
+
+```lua
+log.trace("detailed trace")
+log.debug("debug info")
+log.info("hello {}", "world")
+log.warn("warning: {}", err)
+log.error("error occurred")
+log.critical("critical failure")
+
+log.set_level(1)        -- 0=Trace, 1=Debug, 2=Info (default), 3=Warn, 4=Error, 5=Critical, 6=Off
+log.set_file("/tmp/app.log")  -- also log to rotating file
+```
+
+**C++ side:**
+
+```cpp
+LOG_DEBUG("engine", "compile step {}: {}", 3, "preprocessing");
+LOG_ERROR("mysql", "connect failed: {}", err_msg);
+```
+
+Output format: `[2026-08-27 18:36:52.109] [I] [script ] hello world`
 
 ### Type Conversion
 
