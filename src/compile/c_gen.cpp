@@ -3986,7 +3986,7 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     // 获取当前源文件位置信息
     const std::string file_name = file_name_;
     int line_number = fc->Loc().begin.line;
-    std::string func_name = cur_func_name_.empty() ? "global" : cur_func_name_;
+    std::string func_name = (cur_func_info_ && !cur_func_info_->name.empty()) ? cur_func_info_->name : "global";
 
     // 获取消息字符串
     std::string msg_str;
