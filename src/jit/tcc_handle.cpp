@@ -4,6 +4,10 @@
 #include "jit/vm.h"
 #include <libtcc.h>
 
+// 声明日志函数和变量（定义在 util/logging.cpp）
+extern "C" void FakeluaLogLua(int level, CVar msg, const char *file, int line, const char *fname);
+extern "C" int fakelua_log_level;
+
 namespace fakelua {
 
 TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
