@@ -1617,18 +1617,18 @@ enum {
 
 // 日志宏：级别检查 + 调用 C++ 日志函数
 // 参数 msg 只在级别启用时才会被求值
-#define FAKELUA_LOG_TRACE(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_TRACE)) FakeluaLogLua(FAKELUA_LOGLEVEL_TRACE, msg, file, line, func); } while (0)
-#define FAKELUA_LOG_DEBUG(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_DEBUG)) FakeluaLogLua(FAKELUA_LOGLEVEL_DEBUG, msg, file, line, func); } while (0)
-#define FAKELUA_LOG_INFO(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_INFO)) FakeluaLogLua(FAKELUA_LOGLEVEL_INFO, msg, file, line, func); } while (0)
-#define FAKELUA_LOG_WARN(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_WARN)) FakeluaLogLua(FAKELUA_LOGLEVEL_WARN, msg, file, line, func); } while (0)
-#define FAKELUA_LOG_ERROR(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_ERROR)) FakeluaLogLua(FAKELUA_LOGLEVEL_ERROR, msg, file, line, func); } while (0)
-#define FAKELUA_LOG_CRITICAL(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_CRITICAL)) FakeluaLogLua(FAKELUA_LOGLEVEL_CRITICAL, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_TRACE(msg, file, line, fname) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_TRACE)) FakeluaLogLua(FAKELUA_LOGLEVEL_TRACE, msg, file, line, fname); } while (0)
+#define FAKELUA_LOG_DEBUG(msg, file, line, fname) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_DEBUG)) FakeluaLogLua(FAKELUA_LOGLEVEL_DEBUG, msg, file, line, fname); } while (0)
+#define FAKELUA_LOG_INFO(msg, file, line, fname) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_INFO)) FakeluaLogLua(FAKELUA_LOGLEVEL_INFO, msg, file, line, fname); } while (0)
+#define FAKELUA_LOG_WARN(msg, file, line, fname) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_WARN)) FakeluaLogLua(FAKELUA_LOGLEVEL_WARN, msg, file, line, fname); } while (0)
+#define FAKELUA_LOG_ERROR(msg, file, line, fname) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_ERROR)) FakeluaLogLua(FAKELUA_LOGLEVEL_ERROR, msg, file, line, fname); } while (0)
+#define FAKELUA_LOG_CRITICAL(msg, file, line, fname) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_CRITICAL)) FakeluaLogLua(FAKELUA_LOGLEVEL_CRITICAL, msg, file, line, fname); } while (0)
 
 )";
 
