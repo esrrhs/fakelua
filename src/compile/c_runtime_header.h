@@ -1600,6 +1600,9 @@ static inline int FlForIntAdvance(int64_t *ctrl, int64_t step) {
 // 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Critical, 6=Off
 extern int fakelua_log_level;
 
+// C++ 日志函数声明（供宏调用）
+void FakeluaLogLua(int level, CVar msg, const char *file, int line, const char *fname);
+
 // 日志级别常量（与 C++ LogLevel 枚举一致）
 enum {
     FAKELUA_LOGLEVEL_TRACE = 0,
