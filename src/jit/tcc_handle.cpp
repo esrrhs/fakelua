@@ -6,6 +6,9 @@
 
 namespace fakelua {
 
+// 前向声明 CVar（完整定义在 fakelua.h）
+struct CVar;
+
 // 声明日志函数和变量（定义在 util/logging.cpp）
 extern "C" void FakeluaLogLua(int level, CVar msg, const char *file, int line, const char *fname);
 extern "C" int fakelua_log_level;
