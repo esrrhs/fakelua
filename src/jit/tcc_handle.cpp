@@ -5,7 +5,7 @@
 #include <libtcc.h>
 
 // 声明日志函数和变量（定义在 util/logging.cpp）
-extern "C" void FakeluaLogLua(int level, CVar msg, const char *file, int line, const char *fname);
+extern "C" void FakeluaLogLua(int level, fakelua::CVar msg, const char *file, int line, const char *fname);
 extern "C" int fakelua_log_level;
 
 namespace fakelua {
