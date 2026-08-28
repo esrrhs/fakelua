@@ -3989,7 +3989,7 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     const auto &raw_args = explist_arg_ptr->Exps();
 
     if (raw_args.empty()) {
-        ThrowError(std::format("{} requires at least 1 argument", name), fc);
+        ThrowError(std::format("log.{} requires at least 1 argument", method_name), fc);
         return {};
     }
 
