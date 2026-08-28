@@ -86,10 +86,6 @@ struct VarTable {
 
 typedef struct State State;
 
-// 全局日志级别（由 C++ 侧初始化和设置）
-// 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Critical, 6=Off
-extern int fakelua_log_level;
-
 #define LIKELY(x)   __builtin_expect(!!(x), 1)
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
 
@@ -1402,37 +1398,6 @@ static inline CVar FlSelectHash(CVar vararg) {
     return (CVar){.type_ = VAR_INT, .data_.i = 1};
 }
 
-// 日志级别常量（与 C++ LogLevel 枚举一致）
-// 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Critical, 6=Off
-enum {
-    FAKELUA_LOGLEVEL_TRACE = 0,
-    FAKELUA_LOGLEVEL_DEBUG = 1,
-    FAKELUA_LOGLEVEL_INFO = 2,
-    FAKELUA_LOGLEVEL_WARN = 3,
-    FAKELUA_LOGLEVEL_ERROR = 4,
-    FAKELUA_LOGLEVEL_CRITICAL = 5,
-    FAKELUA_LOGLEVEL_OFF = 6,
-};
-
-// 日志级别检查宏：先检查级别，只有启用时才调用 C++ 函数
-// 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
-#define FAKELUA_LOG_CHECK(level) ((level) >= fakelua_log_level)
-
-// 日志宏：级别检查 + 调用 C++ 日志函数
-// 参数 msg 只在级别启用时才会被求值
-#define FAKELUA_LOG_TRACE(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_TRACE)) FakeluaLogLua(FAKELUA_LOGLEVEL_TRACE, msg, file, line, func); } while (0)
-#define FAKELUA_LOG_DEBUG(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_DEBUG)) FakeluaLogLua(FAKELUA_LOGLEVEL_DEBUG, msg, file, line, func); } while (0)
-#define FAKELUA_LOG_INFO(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_INFO)) FakeluaLogLua(FAKELUA_LOGLEVEL_INFO, msg, file, line, func); } while (0)
-#define FAKELUA_LOG_WARN(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_WARN)) FakeluaLogLua(FAKELUA_LOGLEVEL_WARN, msg, file, line, func); } while (0)
-#define FAKELUA_LOG_ERROR(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_ERROR)) FakeluaLogLua(FAKELUA_LOGLEVEL_ERROR, msg, file, line, func); } while (0)
-#define FAKELUA_LOG_CRITICAL(msg, file, line, func) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_CRITICAL)) FakeluaLogLua(FAKELUA_LOGLEVEL_CRITICAL, msg, file, line, func); } while (0)
-
 static inline CVar FlSelectIndex(int64_t idx, CVar vararg) {
     if (vararg.type_ == VAR_MULTI) {
         VarMulti *m = vararg.data_.m;
@@ -1630,6 +1595,40 @@ static inline int FlForIntAdvance(int64_t *ctrl, int64_t step) {
         (result) = 0; \
     } \
 } while(0)
+
+// 全局日志级别（由 C++ 侧初始化和设置）
+// 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Critical, 6=Off
+extern int fakelua_log_level;
+
+// 日志级别常量（与 C++ LogLevel 枚举一致）
+enum {
+    FAKELUA_LOGLEVEL_TRACE = 0,
+    FAKELUA_LOGLEVEL_DEBUG = 1,
+    FAKELUA_LOGLEVEL_INFO = 2,
+    FAKELUA_LOGLEVEL_WARN = 3,
+    FAKELUA_LOGLEVEL_ERROR = 4,
+    FAKELUA_LOGLEVEL_CRITICAL = 5,
+    FAKELUA_LOGLEVEL_OFF = 6,
+};
+
+// 日志级别检查宏：先检查级别，只有启用时才调用 C++ 函数
+// 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
+#define FAKELUA_LOG_CHECK(level) ((level) >= fakelua_log_level)
+
+// 日志宏：级别检查 + 调用 C++ 日志函数
+// 参数 msg 只在级别启用时才会被求值
+#define FAKELUA_LOG_TRACE(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_TRACE)) FakeluaLogLua(FAKELUA_LOGLEVEL_TRACE, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_DEBUG(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_DEBUG)) FakeluaLogLua(FAKELUA_LOGLEVEL_DEBUG, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_INFO(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_INFO)) FakeluaLogLua(FAKELUA_LOGLEVEL_INFO, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_WARN(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_WARN)) FakeluaLogLua(FAKELUA_LOGLEVEL_WARN, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_ERROR(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_ERROR)) FakeluaLogLua(FAKELUA_LOGLEVEL_ERROR, msg, file, line, func); } while (0)
+#define FAKELUA_LOG_CRITICAL(msg, file, line, func) \
+    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_CRITICAL)) FakeluaLogLua(FAKELUA_LOGLEVEL_CRITICAL, msg, file, line, func); } while (0)
 
 )";
 
