@@ -4001,7 +4001,7 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     // 编译第一个参数为 CVar（消息）
     std::string msg_cvar = CompileExp(raw_args[0]);
 
-    // 生成宏调用：FAKELUA_LOG_DEBUG(msg, file, line, func)
+    // 生成宏调用：FAKELUA_LOG_DEBUG(msg, file, line, fname)
     // 宏内部先检查级别，只有启用时才调用 C++ 函数
     // 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
     const char *log_macro;
@@ -4015,12 +4015,16 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     default: log_macro = "FAKELUA_LOG_DEBUG"; break;
     }
 
-    const auto tmp = std::format("flua_log_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    CVar " << tmp << ";\n";
-    Out() << GenTab() << log_macro << "(" << msg_cvar << ", "
+    // 使用临时变量避免 TCC 预处理器把 CVar 初始化中的逗号当成参数分隔符
+    const auto msg_tmp = std::format("flua_log_msg_{}", tmp_var_counter_++);
+    const auto ret_tmp = std::format("flua_log_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    CVar " << msg_tmp << ";\n";
+    func_temp_decls_ << "    CVar " << ret_tmp << ";\n";
+    Out() << GenTab() << msg_tmp << " = " << msg_cvar << ";\n";
+    Out() << GenTab() << log_macro << "(" << msg_tmp << ", "
           << "\"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
-    Out() << GenTab() << tmp << ".type_ = VAR_NIL;\n";
-    return tmp;
+    Out() << GenTab() << ret_tmp << ".type_ = VAR_NIL;\n";
+    return ret_tmp;
 }
 
 std::string CGen::TryCompileBuiltinBasicCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,
