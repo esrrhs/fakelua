@@ -12,10 +12,6 @@
 #include <string>
 #include <string_view>
 
-// 全局日志级别变量（供生成的 C 代码通过宏检查）
-// 使用 C 链接，以便 TCC 生成的代码可以链接到它
-extern "C" int fakelua_log_level = static_cast<int>(fakelua::LogLevel::Info);
-
 namespace fakelua {
 namespace {
 
@@ -55,6 +51,11 @@ struct LoggerState {
         return instance;
     }
 };
+
+// 获取当前日志级别（供生成的 C 代码通过宏检查）
+// 使用 C 链接，以便 TCC 生成的代码可以链接到它
+// 使用函数而非全局变量，避免 Windows DLL 导入需要 __declspec(dllimport) 的问题
+extern "C" int GetLogLevel() { return static_cast<int>(LoggerState::Get().level); }
 
 // 获取当前时间字符串
 std::string CurrentTime() {
@@ -104,8 +105,6 @@ void SetLogLevel(LogLevel level) {
     auto &state = LoggerState::Get();
     std::lock_guard<std::mutex> lock(state.mutex);
     state.level = level;
-    // 同步更新全局变量（供生成的 C 代码宏检查）
-    fakelua_log_level = static_cast<int>(level);
 }
 
 void SetLogFile(const std::string &path, size_t max_size, size_t max_files) {

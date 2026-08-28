@@ -1596,9 +1596,10 @@ static inline int FlForIntAdvance(int64_t *ctrl, int64_t step) {
     } \
 } while(0)
 
-// 全局日志级别（由 C++ 侧初始化和设置）
-// 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Critical, 6=Off
-extern int fakelua_log_level;
+// 获取当前日志级别（由 C++ 侧初始化和设置）
+// 返回值: 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Critical, 6=Off
+// 使用函数而非全局变量，避免 Windows DLL 导入需要 __declspec(dllimport) 的问题
+extern int GetLogLevel();
 
 // C++ 日志函数声明（供宏调用）
 void FakeluaLogLua(int level, CVar msg, const char *file, int line, const char *fname);
@@ -1616,7 +1617,7 @@ enum {
 
 // 日志级别检查宏：先检查级别，只有启用时才调用 C++ 函数
 // 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
-#define FAKELUA_LOG_CHECK(level) ((level) >= fakelua_log_level)
+#define FAKELUA_LOG_CHECK(level) ((level) >= GetLogLevel())
 
 // 日志宏：级别检查 + 调用 C++ 日志函数
 // 参数 msg 只在级别启用时才会被求值
