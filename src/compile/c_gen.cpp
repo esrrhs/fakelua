@@ -3939,36 +3939,46 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
     return {};
 }
 
-// log.xxx(msg, ...) —— 直接生成 C 调用，避免不必要的 format
-// 生成: FakeluaLogLua(level, msg_cvar, file, line, func)
-// 消息作为 CVar 传递，字符串格式化在 C++ 侧完成（级别检查前不 format）
+// log.xxx(msg, ...) —— 直接生成 C 宏调用，避免不必要的参数求值
+// 生成: FAKELUA_LOG_DEBUG(msg, file, line, func)
+// 宏内部先检查级别，只有启用时才调用 C++ 函数
+// 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
 std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,
                                            const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
     if (pe_pre_ptr->GetPrefixKind() != PrefixExpKind::kVar || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
         return {};
     }
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
-    if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kDot) {
+        return {};
+    }
+    // log.xxx 的形式：base 是 log（kSimple），field 是 trace/debug/info/warn/error/critical
+    const auto prefix_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(callee_var->GetPrefixexp());
+    if (!prefix_pe || prefix_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+        return {};
+    }
+    const auto prefix_var = std::dynamic_pointer_cast<SyntaxTreeVar>(prefix_pe->GetValue());
+    if (!prefix_var || prefix_var->GetVarKind() != VarKind::kSimple || prefix_var->GetName() != "log") {
         return {};
     }
     // 局部同名变量遮蔽时不内联
-    if (var_to_def_map_.contains(callee_var.get())) {
+    if (var_to_def_map_.contains(prefix_var.get())) {
         return {};
     }
 
-    const std::string &name = callee_var->GetName();
+    const std::string method_name = callee_var->GetName();
     int level;
-    if (name == "log.trace") {
+    if (method_name == "trace") {
         level = 0;
-    } else if (name == "log.debug") {
+    } else if (method_name == "debug") {
         level = 1;
-    } else if (name == "log.info") {
+    } else if (method_name == "info") {
         level = 2;
-    } else if (name == "log.warn") {
+    } else if (method_name == "warn") {
         level = 3;
-    } else if (name == "log.error") {
+    } else if (method_name == "error") {
         level = 4;
-    } else if (name == "log.critical") {
+    } else if (method_name == "critical") {
         level = 5;
     } else {
         return {};
