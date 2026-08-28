@@ -14,7 +14,7 @@
 
 // 全局日志级别变量（供生成的 C 代码通过宏检查）
 // 使用 C 链接，以便 TCC 生成的代码可以链接到它
-extern "C" int fakelua_log_level = static_cast<int>(LogLevel::Info);
+extern "C" int fakelua_log_level = static_cast<int>(fakelua::LogLevel::Info);
 
 namespace fakelua {
 namespace {
