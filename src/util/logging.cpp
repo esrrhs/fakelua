@@ -149,8 +149,8 @@ void Log(LogLevel level, const std::string_view &tag, const std::string_view &me
     std::string tag_str(tag.empty() ? "none" : std::string(tag));
 
     // 构建带位置信息的消息
-    // 格式: message (file:line:function)
-    std::string msg_str = std::format("{} ({}:{}:{})", message, source.file_name(), source.line(), source.function_name());
+    // 格式: message [file:line:function]
+    std::string msg_str = std::format("{} [{}:{}:{}]", message, source.file_name(), source.line(), source.function_name());
 
     // 格式化时间戳
     std::string time_str = CurrentTime();
@@ -188,8 +188,8 @@ void LogLua(LogLevel level, const std::string_view &tag, const std::string_view 
     std::string tag_str(tag.empty() ? "none" : std::string(tag));
 
     // 构建带位置信息的消息
-    // 格式: message (file:line:function)
-    std::string msg_str = std::format("{} ({}:{}:{})", message, source_file, source_line, function_name);
+    // 格式: message [file:line:function]
+    std::string msg_str = std::format("{} [{}:{}:{}]", message, source_file, source_line, function_name);
 
     // 格式化时间戳
     std::string time_str = CurrentTime();
