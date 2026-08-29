@@ -2,6 +2,7 @@
 #include "native/native_common.h"
 #include "native/table/native_table.h"
 #include "native/object/native_object.h"
+#include "util/logging.h"
 #include "var/var_table.h"
 
 #include <sqlite3.h>
@@ -126,9 +127,11 @@ CVar db_exec(NativeObject *self, State *s, CVar *args, int n) {
     if (rc != SQLITE_OK) {
         const char *err = sqlite3_errmsg(obj->db);
         if (stmt) sqlite3_finalize(stmt);
+        LOG_ERROR("sqlite", "db:exec prepare failed: err={}", err ? err : "unknown error");
         error("db:exec: " + std::string(err ? err : "unknown error"));
     }
 
+    LOG_DEBUG("sqlite", "db:exec: sql={}", sql);
     int col_count = sqlite3_column_count(stmt);
     CVar tbl = table::TableHelper::CreateTable(s);
 
@@ -266,6 +269,7 @@ CVar stmt_step(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
 
     int rc = sqlite3_step(obj->stmt);
     if (rc == SQLITE_ROW) {
+        LOG_DEBUG("sqlite", "stmt:step: row ready");
         int col_count = sqlite3_column_count(obj->stmt);
         CVar row = table::TableHelper::CreateTable(s);
         for (int i = 0; i < col_count; i++) {
@@ -275,8 +279,10 @@ CVar stmt_step(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
         }
         return row;
     } else if (rc == SQLITE_DONE) {
+        LOG_DEBUG("sqlite", "stmt:step: done");
         return inter::NativeToFakeluaNil(s);
     } else {
+        LOG_ERROR("sqlite", "stmt:step failed: err={}", sqlite3_errmsg(obj->db));
         error("stmt:step: " + std::string(sqlite3_errmsg(obj->db)));
     }
 }

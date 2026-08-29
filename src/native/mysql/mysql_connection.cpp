@@ -1,6 +1,7 @@
 #include "native/mysql/mysql_connection.h"
 #include "native/mysql/mysql_result.h"
 #include "native/native_common.h"
+#include "util/logging.h"
 
 #include <chrono>
 #include <cstddef>
@@ -61,13 +62,12 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     recv_buf_.clear();
     client_->connect();
 
-    fprintf(stderr, "[mysql] connect: connected=%d connecting=%d\n",
-            client_->connected(), client_->connecting());
+    LOG_DEBUG("mysql", "connect: connected={} connecting={}", client_->connected(), client_->connecting());
 
     // Immediate TCP failure (e.g. refused): do not dispatch here — Lua close()
     // in a nested callback would delete *this while connect() is still on stack.
     if (!client_->connected() && !client_->connecting()) {
-        fprintf(stderr, "[mysql] connect failed immediately\n");
+        LOG_DEBUG("mysql", "connect failed immediately");
         pending_connect_err_ = "connection failed";
         state_ = State::Error;
     }
@@ -222,7 +222,7 @@ void MysqlConnection::tick() {
     // TCP connect may already be complete (localhost often connects immediately).
     if (state_ == State::Connecting && client_->connected()) {
         state_ = State::Handshaking;
-        fprintf(stderr, "[mysql] TCP connect completed, now handshaking\n");
+        LOG_DEBUG("mysql", "TCP connect completed, now handshaking");
     }
 
     client_->tick(
@@ -232,12 +232,12 @@ void MysqlConnection::tick() {
             if (state_ == State::Connecting && client_ && client_->connected()) {
                 state_ = State::Handshaking;
             }
-            fprintf(stderr, "[mysql] recv: %zu bytes (state=%d)\n", len, static_cast<int>(state_));
+            LOG_TRACE("mysql", "recv: {} bytes (state={})", len, static_cast<int>(state_));
             feed_bytes(data, len);
         },
         // on_close: connection lost
         [this]() {
-            fprintf(stderr, "[mysql] connection closed (state=%d)\n", static_cast<int>(state_));
+            LOG_DEBUG("mysql", "connection closed (state={})", static_cast<int>(state_));
             if (!close_pending_) {
                 if (state_ == State::Connecting || state_ == State::Handshaking) {
                     dispatch_connect("connection closed during handshake");
@@ -311,8 +311,7 @@ void MysqlConnection::feed_bytes(const char *data, size_t len) {
         } catch (const std::exception &e) {
             // Protocol parsing errors (e.g. unexpected packet type) should not crash.
             // Report as connection/auth failure instead.
-            fprintf(stderr, "[mysql] feed_bytes exception (state=%d): %s\n",
-                    static_cast<int>(state_), e.what());
+            LOG_ERROR("mysql", "feed_bytes exception (state={}): {}", static_cast<int>(state_), e.what());
             if (state_ == State::Handshaking || state_ == State::Connecting) {
                 dispatch_connect(e.what());
             } else if (state_ == State::Querying) {
@@ -387,7 +386,7 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
         // server sends the auth switch / OK response to the handshake response
         // uncompressed.
         if ((kMyCapabilities & info.capabilities) & CLIENT_COMPRESS) {
-            fprintf(stderr, "[mysql] compression negotiated, enabling after handshake\n");
+            LOG_DEBUG("mysql", "compression negotiated, enabling after handshake");
         }
         // Stay in Handshaking state - wait for auth OK/ERR
         return;
@@ -412,8 +411,7 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
             }
         }
 
-        fprintf(stderr, "[mysql] auth switch: plugin='%s' auth_data_len=%zu\n",
-                plugin_name.c_str(), auth_data.size());
+        LOG_DEBUG("mysql", "auth switch: plugin='{}' auth_data_len={}", plugin_name.c_str(), auth_data.size());
 
         // Build auth response using the requested plugin
         std::vector<uint8_t> auth_response;
@@ -465,7 +463,7 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
         // but all packets after the handshake are compressed.
         if (capabilities_ & CLIENT_COMPRESS) {
             compress_ = true;
-            fprintf(stderr, "[mysql] compressed protocol enabled (handshake done)\n");
+            LOG_DEBUG("mysql", "compressed protocol enabled (handshake done)");
         }
         dispatch_connect(nullptr);
         return;
@@ -479,7 +477,7 @@ void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payloa
             state_ = State::Error;
             return;
         }
-        fprintf(stderr, "[mysql] caching_sha2_password fast auth complete, waiting for OK\n");
+        LOG_DEBUG("mysql", "caching_sha2_password fast auth complete, waiting for OK");
         // Stay in Handshaking state — wait for OK/ERR
         return;
     }
@@ -625,7 +623,7 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
                 rs_parser_->result.rows.push_back(parse_row(char_payload, rs_parser_->result.columns.size()));
             }
         } catch (const std::exception &e) {
-            fprintf(stderr, "[mysql] parse_row exception: %s\n", e.what());
+            LOG_ERROR("mysql", "parse_row exception: {}", e.what());
             state_ = State::Ready;
             query_type_ = QueryType::None;
             rs_parser_.reset();
@@ -715,7 +713,7 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
                 ++rs_parser_->cols_read;
             }
         } catch (const std::exception &e) {
-            fprintf(stderr, "[mysql] parse_column_def exception: %s\n", e.what());
+            LOG_ERROR("mysql", "parse_column_def exception: {}", e.what());
             state_ = State::Error;
             query_type_ = QueryType::None;
             rs_parser_.reset();
@@ -732,17 +730,16 @@ void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
 void MysqlConnection::dispatch_connect(const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
     if (close_pending_) return;
-    fprintf(stderr, "[mysql] dispatch_connect: err_msg=%s cb=%s\n",
-            err_msg ? err_msg : "(null)", connect_cb_.c_str());
+    LOG_DEBUG("mysql", "dispatch_connect: err_msg={} cb={}", err_msg ? err_msg : "(null)", connect_cb_.c_str());
 
     if (!lua_state_ || connect_cb_.empty()) {
-        fprintf(stderr, "[mysql] dispatch_connect: no state or no callback\n");
+        LOG_DEBUG("mysql", "dispatch_connect: no state or no callback");
         return;
     }
 
     auto func = lua_state_->GetVM().GetFunction(connect_cb_);
     if (func.Empty()) {
-        fprintf(stderr, "[mysql] dispatch_connect: function not found\n");
+        LOG_DEBUG("mysql", "dispatch_connect: function not found");
         return;
     }
 
@@ -753,7 +750,7 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
         jit_type = JIT_GCC;
     }
     if (!addr) {
-        fprintf(stderr, "[mysql] dispatch_connect: no JIT address\n");
+        LOG_DEBUG("mysql", "dispatch_connect: no JIT address");
         return;
     }
 
@@ -764,11 +761,11 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
     if (err_msg && err_msg[0]) {
         args[1] = inter::NativeToFakeluaString(lua_state_, err_msg);
         args[2] = inter::NativeToFakeluaInt(lua_state_, 0);
-        fprintf(stderr, "[mysql] dispatch_connect: calling callback with msg=%s success=0\n", err_msg);
+        LOG_DEBUG("mysql", "dispatch_connect: calling callback with msg={} success=0", err_msg);
     } else {
         args[1] = inter::NativeToFakeluaNil(lua_state_);
         args[2] = inter::NativeToFakeluaInt(lua_state_, 1);
-        fprintf(stderr, "[mysql] dispatch_connect: calling callback success=1\n");
+        LOG_DEBUG("mysql", "dispatch_connect: calling callback success=1");
     }
 
     inter::DispatchCall(addr, args, 3, jit_type);
@@ -793,7 +790,7 @@ void MysqlConnection::dispatch_result(const MysqlResult &result, const char *err
     // Ensure we always have a valid error message (never empty string with failure)
     const char *msg = err_msg && err_msg[0] ? err_msg : "query failed";
 
-    fprintf(stderr, "[mysql] dispatch_result: err_msg=%s cb=%s result.is_result_set=%d rows=%zu cols=%zu\n",
+    LOG_DEBUG("mysql", "dispatch_result: err_msg={} cb={} result.is_result_set={} rows={} cols={}",
             err_msg ? err_msg : "(null)", result_cb_.c_str(),
             result.is_result_set, result.rows.size(), result.columns.size());
 

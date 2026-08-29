@@ -250,10 +250,9 @@ void TypeInferencer::DumpTypesToTmpFile(const ParseResult &pr, const InferResult
             }
         }
         ofs.close();
-        std::cerr << "TypeInferencer: Type inference results dumped to " << dumpfile << std::endl;
-        LOG_INFO("Type inference results generated: {}", dumpfile);
+        LOG_DEBUG("engine", "Type inference results dumped to {}", dumpfile);
     } else {
-        LOG_ERROR("Failed to open output file: {}", dumpfile);
+        LOG_ERROR("engine", "Failed to open output file: {}", dumpfile);
     }
 }
 
@@ -344,22 +343,28 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 // ===========================================================================
 
 InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfig &cfg) {
+    LOG_DEBUG("engine", "InferTypes: start for {}", pr.file_name);
     file_level_types_.clear();
     InferResult ir;
     EvalTypeSnapshot current_map;
     TypeEnvironment env;
     TraversalContext tctx{current_map, env, nullptr, ir.var_define_nodes, ir.shadowed_decls};
 
+    LOG_DEBUG("engine", "InferTypes: step 1 - InferNode");
     InferNode(pr.chunk, tctx);
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
     ir.main_eval_types = current_map;
+    LOG_DEBUG("engine", "InferTypes: InferNode complete, {} types inferred", current_map.size());
 
+    LOG_DEBUG("engine", "InferTypes: step 2 - CollectGlobalConstVars");
     CollectGlobalConstVars(pr, current_map, ir);
 
     // 在正常推断之后，通过三个阶段发现数学参数并生成特化信息：
     // IdentifyMathParams：多轮迭代识别数学参数
+    LOG_DEBUG("engine", "InferTypes: step 3 - IdentifyMathParams");
     const auto math_func_info = IdentifyMathParams(pr, ir);
     if (!math_func_info.empty()) {
+        LOG_DEBUG("engine", "InferTypes: found {} math-param functions", math_func_info.size());
         // GenerateInitialSnapshots：生成各特化版本的初始类型快照
         GenerateInitialSnapshots(ir, math_func_info);
         // InferSpecializationReturnTypes：不动点迭代精化返回类型
@@ -372,23 +377,28 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     }
 
     // 分析 table 形状，填充 table_spec_infos（流不敏感字段并集 + optional 标记）
+    LOG_DEBUG("engine", "InferTypes: step 4 - AnalyzeTableShapes");
     AnalyzeTableShapes(pr.chunk, ir);
 
     // 预计算 per-spec-type 字段布局元数据（按 spec 类型名去重）。
     // CGen 据此发射 typedef / getter / setter 以及字段名/C 字段名/索引/类型查询，
     // 不再自行计算字段布局。
+    LOG_DEBUG("engine", "InferTypes: step 5 - ComputeSpecTypeMetadata");
     ComputeSpecTypeMetadata(ir);
 
     // 预计算数学参数特化上下文（per func+bitmask）：snapshot 指针 + param_types + param_names。
     // CGen::CompileFuncBody 据此初始化发射上下文，不再自行做 MathParamKindOf 推导、snapshot 选择
     // 或 param_types / param_names 初始填充。
+    LOG_DEBUG("engine", "InferTypes: step 6 - ComputeSpecFuncContext");
     ComputeSpecFuncContext(ir, math_func_info);
 
     // 流敏感前向分析：为每处 Var 字段引用节点标注「该程序点上该变量的 spec 类型名」。
     // CGen 在 CompileVar（kSquare/kDot）里通过 var_spec_annotations[node] 读取，
     // 不再自行维护 table_spec_types_ / global_table_spec_types_ 等流敏感状态。
+    LOG_DEBUG("engine", "InferTypes: step 7 - ComputeVarSpecAnnotations");
     ComputeVarSpecAnnotations(pr, ir);
 
+    LOG_DEBUG("engine", "InferTypes: complete for {}", pr.file_name);
     return ir;
 }
 
@@ -942,13 +952,13 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
                 continue;
             }
             if (math_indices.size() > kMaxMathSpecializedParams) {
-                LOG_INFO("TypeInferencer: {} math params for {} exceeds limit {}, treating all as dynamic", math_indices.size(), info.name, kMaxMathSpecializedParams);
+                LOG_DEBUG("engine", "TypeInferencer: {} math params for {} exceeds limit {}, treating all as dynamic", math_indices.size(), info.name, kMaxMathSpecializedParams);
                 continue;
             }
             ir.math_param_positions[info.name] = math_indices;
             math_func_info[info.name] = info;
             new_discovery = true;
-            LOG_INFO("TypeInferencer: {} math params for {} (pass {})", math_indices.size(), info.name, pass);
+            LOG_DEBUG("engine", "TypeInferencer: {} math params for {} (pass {})", math_indices.size(), info.name, pass);
         }
         if (!new_discovery) {
             break;

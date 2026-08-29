@@ -20,6 +20,7 @@
 #include "native/xml/native_xml.h"
 #include "native/toml/native_toml.h"
 #include "native/ini/native_ini.h"
+#include "native/log/native_log.h"
 
 namespace fakelua {
 
@@ -42,6 +43,7 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     xml::RegisterXmlLibraryApi(this);
     toml::RegisterTomlLibraryApi(this);
     ini::RegisterIniLibraryApi(this);
+    log::RegisterLogLibraryApi(this);
 }
 
 }// namespace fakelua

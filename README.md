@@ -139,7 +139,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 ## Built-in Standard Libraries
 
-FakeLua provides 20 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, random, compression, encryption, serialization, databases, and protobuf.
+FakeLua provides 24 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, random, compression, encryption, serialization, databases, protobuf, config formats, and logging.
 
 > **Full API reference:** [src/native/README.md](src/native/README.md) / [中文](src/native/README.zh.md)
 
@@ -148,8 +148,10 @@ FakeLua provides 20 independent C++ native modules under `src/native/`, covering
 | Core Lua | `math`, `table`, `string`, `os`, `utf8`, `io`, `random` |
 | Networking | `net` (TCP server/client), `timer`, `event` |
 | Data | `json`, `csv`, `serialize`, `protobuf` |
+| Config | `yaml`, `toml`, `xml`, `ini` |
 | Database | `mysql` (async + pool), `sqlite` (synchronous) |
 | Crypto | `compress` (LZ4/zlib/gzip/Zstd), `crypto` (MD5/SHA/AES/RC4/Blowfish/DES) |
+| Logging | `log` (7 levels, tagged output, file rotation) |
 | Object | `object` (NativeObject Lua-side API) |
 
 **Regex note:** `string.find`/`match`/`gmatch`/`gsub` use **ECMAScript regex** (`std::regex::ECMAScript`), not Lua patterns. See [Regex Guide](#regex-matching-ecmascript-syntax-not-lua-patterns) below for migration tips.
@@ -288,7 +290,7 @@ State* s = guard.GetState();
 | `Call()` | Invoke a compiled function |
 | `GetLastRecordedCCode()` | Get the most recently compiled C code |
 | `SetVarInterfaceNewFunc()` | Set custom VarInterface factory |
-| `SetDebugLogLevel()` | Set global debug log level |
+| `SetDebugLogLevel()` | Set global debug log level (deprecated, use `log.set_level` in Lua) |
 
 ### Type Conversion
 

@@ -9,17 +9,21 @@ TccJitter::TccJitter(State *s) : s_(s) {
 }
 
 void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg) {
+    LOG_INFO("engine", "TCC JIT compile start: {}, {} functions", pr.file_name, gr.function_names.size());
     const auto handle = std::make_shared<TCCHandle>(s_, cfg);
     ::TCCState *s = handle->GetTCCState();
 
+    LOG_DEBUG("engine", "TCC: compiling {} bytes of C code", gr.c_code.size());
     if (tcc_compile_string(s, gr.c_code.c_str()) == -1) {
         ThrowFakeluaException(std::format("TCC compile failed, tcc_compile_string failed for {}", pr.file_name));
     }
 
+    LOG_DEBUG("engine", "TCC: relocating");
     if (tcc_relocate(s) == -1) {
         ThrowFakeluaException(std::format("TCC compile failed, tcc_relocate failed for {}", pr.file_name));
     }
 
+    LOG_DEBUG("engine", "TCC: registering {} functions", gr.function_names.size());
     for (const auto &[name, info]: gr.function_names) {
         const std::string &sym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
         void *func_ptr = tcc_get_symbol(s, sym.c_str());
@@ -31,7 +35,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         // 被存放到 State 的 Vm 中（见 src/jit/vm_function.h 的 handle_ 成员）。
         // 因此只要 VmFunction 还活着，func_ptr 就保证可用；State 析构才会一并释放。
         s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_TCC, func_ptr, handle, info.is_vararg));
-        LOG_INFO("Registered function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
+        LOG_DEBUG("engine", "Registered function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
 
     void *init_ptr = tcc_get_symbol(s, kInitFunctionName);
@@ -39,7 +43,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         inter::DispatchCall(init_ptr, nullptr, 0, JIT_TCC);
     }
 
-    LOG_INFO("TCC JIT compilation finished for {}", pr.file_name);
+    LOG_INFO("engine", "TCC JIT compilation finished for {}", pr.file_name);
 }
 
 }// namespace fakelua

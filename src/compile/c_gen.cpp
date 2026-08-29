@@ -74,7 +74,7 @@ bool CGen::ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo 
 
 // 核心编译入口函数：为输入的 AST、推断结果及配置生成 C 代码
 GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const AnalysisResult &ar, const CompileConfig &cfg) {
-    LOG_INFO("start CGen::Generate {}", pr.file_name);
+    LOG_DEBUG("engine", "start CGen::Generate {}", pr.file_name);
 
     file_name_ = pr.file_name;
     ir_ = ir;
@@ -83,20 +83,22 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Ana
     // 运行构建主流程
     GenResult gr = Build(pr, cfg);
 
+    LOG_DEBUG("engine", "CGen::Build complete: {} functions, {} bytes of C code",
+              gr.function_names.size(), gr.c_code.size());
+
     // 如果开启了调试模式，将生成的 C 代码转储到临时文件中以供调试
     if (cfg.debug_mode) {
         const auto dumpfile = GenerateTmpFilename("fakelua_jit_", ".c");
         if (std::ofstream ofs(dumpfile); ofs.is_open()) {
             ofs << gr.c_code;
             ofs.close();
-            std::cerr << "CGen::Generate: C code dumped to " << dumpfile << std::endl;
-            LOG_INFO("C code generated: {}", dumpfile);
+            LOG_DEBUG("engine", "C code dumped to {}", dumpfile);
         } else {
-            LOG_ERROR("Failed to open output file: {}", dumpfile);
+            LOG_ERROR("engine", "Failed to open output file: {}", dumpfile);
         }
     }
 
-    LOG_INFO("end CGen::Generate {}, functions: {}", pr.file_name, gr.function_names.size());
+    LOG_DEBUG("engine", "end CGen::Generate {}, functions: {}", pr.file_name, gr.function_names.size());
     return gr;
 }
 
@@ -2850,6 +2852,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         return result;
     }
 
+    if (auto result = TryCompileBuiltinLogCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        return result;
+    }
+
     if (auto result = TryCompileBuiltinBasicCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
         return result;
     }
@@ -3931,6 +3937,94 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
 
     // 其余（sub/dump/多参 format/非标准 find 等）仍走慢路径
     return {};
+}
+
+// log.xxx(msg, ...) —— 直接生成 C 宏调用，避免不必要的参数求值
+// 生成: FAKELUA_LOG_DEBUG(msg, file, line, func)
+// 宏内部先检查级别，只有启用时才调用 C++ 函数
+// 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
+std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,
+                                           const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
+    if (pe_pre_ptr->GetPrefixKind() != PrefixExpKind::kVar || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+        return {};
+    }
+    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kDot) {
+        return {};
+    }
+    // log.xxx 的形式：base 是 log（kSimple），field 是 trace/debug/info/warn/error/critical
+    const auto prefix_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(callee_var->GetPrefixexp());
+    if (!prefix_pe || prefix_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+        return {};
+    }
+    const auto prefix_var = std::dynamic_pointer_cast<SyntaxTreeVar>(prefix_pe->GetValue());
+    if (!prefix_var || prefix_var->GetVarKind() != VarKind::kSimple || prefix_var->GetName() != "log") {
+        return {};
+    }
+    // 局部同名变量遮蔽时不内联
+    if (var_to_def_map_.contains(prefix_var.get())) {
+        return {};
+    }
+
+    const std::string method_name = callee_var->GetName();
+    int level;
+    if (method_name == "trace") {
+        level = 0;
+    } else if (method_name == "debug") {
+        level = 1;
+    } else if (method_name == "info") {
+        level = 2;
+    } else if (method_name == "warn") {
+        level = 3;
+    } else if (method_name == "error") {
+        level = 4;
+    } else if (method_name == "critical") {
+        level = 5;
+    } else {
+        return {};
+    }
+
+    const auto explist_arg = args_ptr->Explist();
+    const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
+    const auto &raw_args = explist_arg_ptr->Exps();
+
+    if (raw_args.empty()) {
+        ThrowError(std::format("log.{} requires at least 1 argument", method_name), fc);
+        return {};
+    }
+
+    // 获取当前源文件位置信息
+    const std::string file_name = file_name_;
+    int line_number = fc->Loc().begin.line;
+    std::string func_name = (cur_func_info_ && !cur_func_info_->name.empty()) ? cur_func_info_->name : "global";
+
+    // 编译第一个参数为 CVar（消息）
+    std::string msg_cvar = CompileExp(raw_args[0]);
+
+    // 生成宏调用：FAKELUA_LOG_DEBUG(msg, file, line, fname)
+    // 宏内部先检查级别，只有启用时才调用 C++ 函数
+    // 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
+    const char *log_macro;
+    switch (level) {
+    case 0: log_macro = "FAKELUA_LOG_TRACE"; break;
+    case 1: log_macro = "FAKELUA_LOG_DEBUG"; break;
+    case 2: log_macro = "FAKELUA_LOG_INFO"; break;
+    case 3: log_macro = "FAKELUA_LOG_WARN"; break;
+    case 4: log_macro = "FAKELUA_LOG_ERROR"; break;
+    case 5: log_macro = "FAKELUA_LOG_CRITICAL"; break;
+    default: log_macro = "FAKELUA_LOG_DEBUG"; break;
+    }
+
+    // 使用临时变量避免 TCC 预处理器把 CVar 初始化中的逗号当成参数分隔符
+    const auto msg_tmp = std::format("flua_log_msg_{}", tmp_var_counter_++);
+    const auto ret_tmp = std::format("flua_log_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    CVar " << msg_tmp << ";\n";
+    func_temp_decls_ << "    CVar " << ret_tmp << ";\n";
+    Out() << GenTab() << msg_tmp << " = " << msg_cvar << ";\n";
+    Out() << GenTab() << log_macro << "(" << msg_tmp << ", "
+          << "\"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
+    Out() << GenTab() << ret_tmp << ".type_ = VAR_NIL;\n";
+    return ret_tmp;
 }
 
 std::string CGen::TryCompileBuiltinBasicCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,

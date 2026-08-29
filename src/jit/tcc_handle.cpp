@@ -6,6 +6,13 @@
 
 namespace fakelua {
 
+// 前向声明 CVar（完整定义在 fakelua.h）
+struct CVar;
+
+// 声明日志函数（定义在 util/logging.cpp）
+extern "C" void FakeluaLogLua(int level, CVar msg, const char *file, int line, const char *fname);
+extern "C" int GetLogLevel();
+
 TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
     const auto &config = s->GetStateConfig();
     tcc_state_ = tcc_new();
@@ -32,6 +39,8 @@ TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
     tcc_add_symbol(tcc_state_, "FakeluaThrowError", reinterpret_cast<void *>(FakeluaThrowError));
     tcc_add_symbol(tcc_state_, "FakeluaCallByName", reinterpret_cast<void *>(FakeluaCallByName));
     tcc_add_symbol(tcc_state_, "FlEvalLoadClosure", reinterpret_cast<void *>(FlEvalLoadClosure));
+    tcc_add_symbol(tcc_state_, "FakeluaLogLua", reinterpret_cast<void *>(FakeluaLogLua));
+    tcc_add_symbol(tcc_state_, "GetLogLevel", reinterpret_cast<void *>(GetLogLevel));
     tcc_define_symbol(tcc_state_, "FAKELUA_JIT_TYPE", std::to_string(static_cast<int>(JIT_TCC)).c_str());
 }
 

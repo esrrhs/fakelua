@@ -2,6 +2,7 @@
 #include "native/timer/heap_timer.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
+#include "util/logging.h"
 #include "var/var.h"
 #include "var/var_string.h"
 
@@ -180,9 +181,11 @@ static CVar timer_set(State *s, CVar *args, int n) {
     auto id = ts.heap.Add(static_cast<uint32_t>(delay_val));
     if (id == 0) {
         // 堆已满（达到 int32_max），返回 nil
+        LOG_ERROR("timer", "timer.set failed: heap full (delay_ms={})", delay_val);
         return inter::NativeToFakeluaNil(s);
     }
     ts.callbacks[id] = std::move(fname);
+    LOG_DEBUG("timer", "timer.set: id={} delay_ms={}", id, delay_val);
     return inter::NativeToFakeluaInt(s, static_cast<int64_t>(id));
 }
 
@@ -201,6 +204,7 @@ static CVar timer_del(State *s, CVar *args, int n) {
     bool ok = ts.heap.Del(id);
     if (ts.callbacks.erase(id) > 0) ok = true;
     if (ts.in_tick) ts.cancelled_this_tick.insert(id);
+    LOG_DEBUG("timer", "timer.del: id={} ok={}", id, ok);
     return inter::NativeToFakeluaBool(s, ok);
 }
 
@@ -228,6 +232,7 @@ static CVar timer_tick(State *s, CVar * /*args*/, int /*n*/) {
         }
         for (auto &[id, cb] : to_fire) {
             if (ts.cancelled_this_tick.count(id)) continue;
+            LOG_DEBUG("timer", "timer.fire: id={}", id);
             call_lua_timer_event(s, cb, id);
         }
 

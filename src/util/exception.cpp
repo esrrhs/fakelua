@@ -22,7 +22,7 @@ std::string StacktraceCurrent() {
 
 std::string BuildFakeluaErrorMessage(const std::string &msg) {
     const auto stack = StacktraceCurrent();
-    LOG_ERROR("fakelua error: {}\n{}", msg, stack);
+    LOG_ERROR("engine", "fakelua error: {}\n{}", msg, stack);
     return std::format("fakelua error: {}\n{}", msg, stack);
 }
 

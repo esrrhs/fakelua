@@ -39,6 +39,7 @@ aux_source_directory(./native/yaml FAKELUA_SRC_LIST)
 aux_source_directory(./native/xml FAKELUA_SRC_LIST)
 aux_source_directory(./native/toml FAKELUA_SRC_LIST)
 aux_source_directory(./native/ini FAKELUA_SRC_LIST)
+aux_source_directory(./native/log FAKELUA_SRC_LIST)
 aux_source_directory(./ FAKELUA_SRC_LIST)
 include_directories(./)
 include_directories(../include)
@@ -67,6 +68,8 @@ if (APPLE)
     # Use the installed header path as a SYSTEM include instead.
     include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
 else ()
+    # Include only libtcc.h via full path, not the entire source directory,
+    # to avoid 'version' file conflicting with C++20 <version> header.
     include_directories(${tinycc_src_SOURCE_DIR})
 endif ()
 

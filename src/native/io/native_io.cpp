@@ -2,6 +2,7 @@
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
+#include "util/logging.h"
 #include "var/var.h"
 
 #include <algorithm>
@@ -304,13 +305,16 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         if (!fp) return inter::NativeToFakeluaNil(state);
 
         std::string temp;
+        size_t total_written = 0;
         for (int i = 0; i < n; i++) {
             CVar a = inter::GetNativeArg(state, args, n, i);
             std::string_view sv = ArgToStringView(a, state, temp, i + 1, "file:write");
             if (!sv.empty()) {
                 std::fwrite(sv.data(), 1, sv.size(), fp);
+                total_written += sv.size();
             }
         }
+        LOG_DEBUG("io", "file:write: bytes={}", total_written);
         // 返回 self 以支持链式调用
         return inter::NativeToFakeluaNativeObject(state, self);
     });
@@ -334,6 +338,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         int ret = is_popen ? ::pclose(fp) : std::fclose(fp);
         self->SetInt(kFpKey, 0);
         if (ret == 0) {
+            LOG_DEBUG("io", "file:close: success");
             return inter::NativeToFakeluaBool(state, true);
         }
         return inter::NativeToFakeluaNil(state);
@@ -480,12 +485,14 @@ void RegisterIoLibraryApi(State *s) {
         }
         FILE *fp = std::fopen(std::string(filename).c_str(), mode.c_str());
         if (!fp) {
+            LOG_ERROR("io", "io.open failed: filename={} mode={} err={}", filename, mode, std::strerror(errno));
             auto multi = inter::AllocMultiCVar(state, 3);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
             inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaString(state, std::strerror(errno)));
             inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, errno));
             return multi;
         }
+        LOG_DEBUG("io", "io.open: filename={} mode={}", filename, mode);
         auto *obj = MakeIoFile(state, fp);
         return inter::NativeToFakeluaNativeObject(state, obj);
     });
