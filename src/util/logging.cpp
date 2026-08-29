@@ -147,20 +147,19 @@ void Log(LogLevel level, const std::string_view &tag, const std::string_view &me
 
     std::string tag_str(tag.empty() ? "none" : std::string(tag));
 
-    // 构建带位置信息的消息
-    // 格式: message [file:line:function]
-    std::string msg_str = std::format("{} [{}:{}:{}]", message, source.file_name(), source.line(), source.function_name());
-
     // 格式化时间戳
     std::string time_str = CurrentTime();
 
+    // 构建位置信息字符串 [file:line:function]
+    std::string loc_str = std::format("[{}:{}:{}]", source.file_name(), source.line(), source.function_name());
+
     // 输出到控制台
     auto &stream = LevelStream(level);
-    stream << std::format("[{}] [{}] [{}] {}", time_str, LevelName(level), tag_str, msg_str) << std::endl;
+    stream << std::format("[{}] [{}] [{}] {} {}", time_str, LevelName(level), tag_str, loc_str, message) << std::endl;
 
     // 输出到文件
     if (state.file.is_open()) {
-        state.file << std::format("[{}] [{}] [{}] {}", time_str, LevelName(level), tag_str, msg_str) << std::endl;
+        state.file << std::format("[{}] [{}] [{}] {} {}", time_str, LevelName(level), tag_str, loc_str, message) << std::endl;
         state.file.flush();
 
         // 检查文件大小，超过限制则滚动
@@ -186,20 +185,19 @@ void LogLua(LogLevel level, const std::string_view &tag, const std::string_view 
 
     std::string tag_str(tag.empty() ? "none" : std::string(tag));
 
-    // 构建带位置信息的消息
-    // 格式: message [file:line:function]
-    std::string msg_str = std::format("{} [{}:{}:{}]", message, source_file, source_line, function_name);
-
     // 格式化时间戳
     std::string time_str = CurrentTime();
 
+    // 构建位置信息字符串 [file:line:function]
+    std::string loc_str = std::format("[{}:{}:{}]", source_file, source_line, function_name);
+
     // 输出到控制台
     auto &stream = LevelStream(level);
-    stream << std::format("[{}] [{}] [{}] {}", time_str, LevelName(level), tag_str, msg_str) << std::endl;
+    stream << std::format("[{}] [{}] [{}] {} {}", time_str, LevelName(level), tag_str, loc_str, message) << std::endl;
 
     // 输出到文件
     if (state.file.is_open()) {
-        state.file << std::format("[{}] [{}] [{}] {}", time_str, LevelName(level), tag_str, msg_str) << std::endl;
+        state.file << std::format("[{}] [{}] [{}] {} {}", time_str, LevelName(level), tag_str, loc_str, message) << std::endl;
         state.file.flush();
 
         // 检查文件大小，超过限制则滚动
