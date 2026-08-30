@@ -56,3 +56,40 @@ function test_log_pcall()
     end
     return 1
 end
+
+-- 测试 log.trace 基本输出
+function test_log_trace()
+    log.trace("trace message")
+    return 1
+end
+
+-- 测试 log.critical 基本输出
+function test_log_critical()
+    log.critical("critical message")
+    return 1
+end
+
+-- 测试 log.set_file
+function test_log_set_file()
+    log.set_file("/tmp/test_fakelua_log.txt")
+    log.info("write to file")
+    return 1
+end
+
+-- 测试 log.set_level 错误参数（非整数）
+function test_set_level_bad_arg()
+    local ok, err = pcall(function() log.set_level("bad") end)
+    if ok then
+        return 0
+    end
+    return 1
+end
+
+-- 测试 log.info 无参数（应抛异常）
+function test_log_info_no_args()
+    local ok, err = pcall(function() log.info() end)
+    if ok then
+        return 0
+    end
+    return 1
+end

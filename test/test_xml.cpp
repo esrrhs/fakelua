@@ -80,3 +80,107 @@ TEST(test_xml, roundtrip) {
         FakeluaDeleteState(s);
     }
 }
+
+TEST(test_xml, encode_multi_attrs) {
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./xml/test_xml_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "XmlTest.test_encode_multi_attrs", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}
+
+TEST(test_xml, encode_text_node) {
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./xml/test_xml_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "XmlTest.test_encode_text_node", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}
+
+TEST(test_xml, encode_scalar_types) {
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./xml/test_xml_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "XmlTest.test_encode_scalar_types", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}
+
+TEST(test_xml, encode_array) {
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./xml/test_xml_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "XmlTest.test_encode_array", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}
+
+TEST(test_xml, encode_cyclic) {
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./xml/test_xml_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "XmlTest.test_encode_cyclic", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}
+
+TEST(test_xml, encode_nested) {
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./xml/test_xml_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "XmlTest.test_encode_nested", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}
+
+TEST(test_xml, encode_top_scalar) {
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./xml/test_xml_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "XmlTest.test_encode_top_scalar", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}
+
+TEST(test_xml, encode_empty_table) {
+    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./xml/test_xml_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "XmlTest.test_encode_empty_table", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}

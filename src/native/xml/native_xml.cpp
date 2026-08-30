@@ -235,7 +235,13 @@ static CVar xml_encode(State *s, CVar *args, int n) {
                         }
                         auto vkvs = table::TableHelper::CollectKVPairs(kvs[0].val);
                         for (auto &vkv : vkvs) {
-                            std::string vk = inter::FakeluaToNativeString(nullptr, vkv.key);
+                            std::string vk;
+                            if (vkv.key.type_ == static_cast<int>(VarType::Int)) {
+                                // 整数键用 "item" 作为标签名（XML 标签不能以数字开头）
+                                vk = "item";
+                            } else {
+                                vk = inter::FakeluaToNativeString(nullptr, vkv.key);
+                            }
                             add_xml_child(doc, root, vk, vkv.val, 1, visited);
                         }
                         visited.erase(vt);
