@@ -255,11 +255,18 @@ TEST(test_log, script_info_no_args) {
 
 // 测试 C++ 侧 SetLogFile 和文件输出
 TEST(test_log, set_log_file) {
+    // 使用跨平台临时路径
+#ifdef _WIN32
+    const char *log_path = "test_cpp_log_tmp.txt";
+#else
+    const char *log_path = "/tmp/test_cpp_log_tmp.txt";
+#endif
+
     // 删除旧文件，确保干净状态
-    std::remove("/tmp/test_cpp_log.txt");
+    std::remove(log_path);
 
     // 设置日志文件
-    SetLogFile("/tmp/test_cpp_log.txt", 1024 * 1024, 3);
+    SetLogFile(log_path, 1024 * 1024, 3);
     SetLogLevel(LogLevel::Trace);
 
     // 验证日志级别设置正确
@@ -274,7 +281,7 @@ TEST(test_log, set_log_file) {
     SetLogFile("", 0, 0);
 
     // 验证文件存在
-    std::ifstream f("/tmp/test_cpp_log.txt");
+    std::ifstream f(log_path);
     EXPECT_TRUE(f.is_open());
     if (f.is_open()) {
         std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
@@ -283,6 +290,9 @@ TEST(test_log, set_log_file) {
         EXPECT_NE(content.find("debug file log 456"), std::string::npos);
         f.close();
     }
+
+    // 清理临时文件
+    std::remove(log_path);
 
     // 恢复默认日志级别
     SetLogLevel(LogLevel::Info);

@@ -71,7 +71,7 @@ end
 
 -- 测试 log.set_file
 function test_log_set_file()
-    log.set_file("/tmp/test_fakelua_log.txt")
+    log.set_file("test_fakelua_log_tmp.txt")
     log.info("write to file")
     return 1
 end
