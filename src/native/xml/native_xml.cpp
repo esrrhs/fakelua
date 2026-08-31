@@ -170,9 +170,9 @@ static void add_xml_child(pugi::xml_document &doc, pugi::xml_node parent, const 
             std::sort(kvs.begin(), kvs.end(), [](const table::TableKV &a, const table::TableKV &b) {
                 return a.key.data_.i < b.key.data_.i;
             });
-            // Emit each array item as a child named "item" under the parent element.
+            // Emit each array item as a child named "item" under the newly-created element.
             for (auto &kv : kvs) {
-                add_xml_child(doc, parent, "item", kv.val, depth + 1, visited);
+                add_xml_child(doc, child, "item", kv.val, depth + 1, visited);
             }
         } else {
             for (auto &kv : kvs) {

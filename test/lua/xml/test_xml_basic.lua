@@ -121,3 +121,25 @@ function test_encode_empty_table()
     if type(s) ~= "string" then return 0 end
     return 1
 end
+
+-- 回归测试：非顶层 array 必须挂在其所属元素下，而不是父节点的兄弟位置
+function test_encode_nested_array_parent()
+    local s = xml.encode({root = {list = {{a = "x"}, {a = "y"}}}})
+    if type(s) ~= "string" then return 0 end
+    -- 期望 <list><item>...</item><item>...</item></list>，而不是 <list/> 后接兄弟 <item>
+    -- 简单校验 </list> 出现在最后一个 </item> 之后（说明 item 在 list 内）
+    local last_item = 0
+    local pos = 1
+    while true do
+        local a, b = s:find("</item>", pos, true)
+        if not a then break end
+        last_item = a
+        pos = b + 1
+    end
+    local list_close = s:find("</list>", 1, true)
+    if last_item == 0 or list_close == nil then return 0 end
+    if list_close < last_item then return 0 end
+    -- 且不应出现 <list /> 或 <list/> 自闭合
+    if s:find("<list ?/>", 1, false) ~= nil then return 0 end
+    return 1
+end
