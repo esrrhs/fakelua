@@ -1,0 +1,5 @@
+Reading tracefile /home/project/fakelua/new_cov/new_coverage_src.info
+Summary coverage rate:
+  lines......: 81.6% (16608 of 20344 lines)
+  functions..: 90.1% (1078 of 1197 functions)
+  branches...: no data found
