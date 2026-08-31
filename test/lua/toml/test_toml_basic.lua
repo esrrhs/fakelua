@@ -151,3 +151,23 @@ function test_encode_cyclic()
     if ok then return 0 end
     return 1
 end
+
+-- 回归测试：array-of-array 不应崩溃（之前会抛 FakeluaToNativeString 异常 abort）
+function test_encode_array_of_array()
+    local ok, s = pcall(function() return toml.encode({ matrix = { {1,2,3}, {4,5,6} } }) end)
+    if not ok then return 0 end
+    if type(s) ~= "string" then return 0 end
+    -- 输出应包含所有六个数字
+    if s:find("1", 1, true) == nil then return 0 end
+    if s:find("6", 1, true) == nil then return 0 end
+    return 1
+end
+
+-- 回归测试：array 里嵌套数组，多层
+function test_encode_array_deep_nested()
+    local ok, s = pcall(function() return toml.encode({ nested = { { {1,2}, {3,4} }, { {5,6} } } }) end)
+    if not ok then return 0 end
+    if type(s) ~= "string" then return 0 end
+    if s:find("5", 1, true) == nil then return 0 end
+    return 1
+end
