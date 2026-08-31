@@ -111,6 +111,11 @@ void SetLogFile(const std::string &path, size_t max_size, size_t max_files) {
     auto &state = LoggerState::Get();
     std::lock_guard<std::mutex> lock(state.mutex);
 
+    // 先关闭旧文件
+    if (state.file.is_open()) {
+        state.file.close();
+    }
+
     state.file_path = path;
     state.max_size = max_size;
     state.max_files = max_files;
@@ -124,9 +129,11 @@ void SetLogFile(const std::string &path, size_t max_size, size_t max_files) {
         }
     }
 
-    state.file.open(path, std::ios::app);
-    if (!state.file.is_open()) {
-        std::cerr << "Failed to open log file: " << path << std::endl;
+    if (!path.empty()) {
+        state.file.open(path, std::ios::app);
+        if (!state.file.is_open()) {
+            std::cerr << "Failed to open log file: " << path << std::endl;
+        }
     }
 }
 
