@@ -63,3 +63,5 @@ test_results.log
 .antigravitycli/
 .mimocode/
 .cache/
+base_cov/
+new_cov/

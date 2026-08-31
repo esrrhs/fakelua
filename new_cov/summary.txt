@@ -1,3 +1,0 @@
-New coverage rate:
-  lines......: 82.1% (16703 of 20344 lines)
-  functions..: 90.1% (1079 of 1197 functions)
