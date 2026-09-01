@@ -674,6 +674,260 @@ TEST(test_math, test_err_match) {
     FakeluaDeleteState(s);
 }
 
+// Math unified tests (GCC backend for coverage)
+TEST(test_math, unified_abs_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_abs_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_floor_ceil_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_floor_ceil_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_sqrt_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_sqrt_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_pow_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_pow_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_trig_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_trig_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_asin_acos) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_asin_acos", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_atan_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_atan_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_exp_log_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_exp_log_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_hyperbolic) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_hyperbolic", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_fmod_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_fmod_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_ldexp_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_ldexp_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_deg_rad_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_deg_rad_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_copysign_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_copysign_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_modf_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_modf_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_frexp_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_frexp_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_type_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_type_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_tointeger_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_tointeger_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_ult_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_ult_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_max_min_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_max_min_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_random_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_random_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_random_m) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_random_m", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_random_m_n) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_random_m_n", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, unified_randomseed_various) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_unified.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "MathUnified.test_math_randomseed_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
 // Math edge case tests
 TEST(test_math, math_random_zero) {
     State *s = FakeluaNewState();

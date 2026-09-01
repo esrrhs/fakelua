@@ -831,3 +831,169 @@ TEST(test_io, file_seek_invalid_whence) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+// IO file operations tests (GCC backend for coverage)
+TEST(test_io, file_read_bytes_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_file_read_bytes", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, file_read_zero_bytes_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_file_read_zero_bytes", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, file_setvbuf_no_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_file_setvbuf_no", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, file_setvbuf_full_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_file_setvbuf_full", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, file_setvbuf_line_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_file_setvbuf_line", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, file_seek_set_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_file_seek_set", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, file_seek_end_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_file_seek_end", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, file_seek_cur_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_file_seek_cur", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, file_flush_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_file_flush", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, file_lines_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_file_lines", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, io_popen_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_io_popen", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, io_tmpfile_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_io_tmpfile", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, io_type_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_io_type", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, io_close_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_io_close", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, io_flush_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_file_ops.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "IoFileOps.test_io_flush", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

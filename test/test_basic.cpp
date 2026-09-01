@@ -1087,3 +1087,114 @@ TEST(test_basic, pairs_empty) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+// Basic iterator tests (GCC backend for coverage)
+TEST(test_basic, pairs_basic_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_iterators.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "BasicIterators.test_pairs_basic", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, pairs_empty_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_iterators.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "BasicIterators.test_pairs_empty", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, pairs_array_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_iterators.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "BasicIterators.test_pairs_array", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, ipairs_basic_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_iterators.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "BasicIterators.test_ipairs_basic", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, ipairs_empty_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_iterators.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "BasicIterators.test_ipairs_empty", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, ipairs_index_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_iterators.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "BasicIterators.test_ipairs_index", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, next_basic_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_iterators.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "BasicIterators.test_next_basic", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, next_empty_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_iterators.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "BasicIterators.test_next_empty", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, select_basic_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_iterators.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "BasicIterators.test_select_basic", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, select_negative_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_iterators.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "BasicIterators.test_select_negative", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
