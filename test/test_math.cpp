@@ -1159,3 +1159,125 @@ TEST(test_math, math_floor_ceil_int) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+// Random branches and additional coverage tests
+// Normal tests use TCC backend, exception tests use GCC backend (TCC doesn't support C++ exception propagation)
+TEST(test_math, random_branches) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_random_branches.lua", config);
+    int64_t ret = 0;
+    // Normal tests use TCC
+    Call(s, JIT_TCC, "MathRandomBranches.test_random_single_arg", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_random_two_args", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_random_zero", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_random_same_bounds", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_random_large_range", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_random_full_uint64", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    // Exception tests use GCC (TCC doesn't support C++ exception propagation)
+    EXPECT_THROW(Call(s, JIT_GCC, "MathRandomBranches.test_random_negative_interval", ret), std::exception);
+    ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "MathRandomBranches.test_random_empty_interval", ret), std::exception);
+    ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "MathRandomBranches.test_random_bad_type", ret), std::exception);
+    ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "MathRandomBranches.test_random_two_args_bad_type", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, modf_frexp) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_random_branches.lua", config);
+    int64_t ret = 0;
+    // All normal tests use TCC
+    Call(s, JIT_TCC, "MathRandomBranches.test_modf_float", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_modf_negative", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_modf_integer", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_modf_zero", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_frexp_positive", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_frexp_one", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_frexp_zero", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_frexp_fraction", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, pow_trig_coverage) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_random_branches.lua", config);
+    int64_t ret = 0;
+    // All normal tests use TCC
+    Call(s, JIT_TCC, "MathRandomBranches.test_pow_basic", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_pow_negative_exp", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_pow_zero_exp", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_tan", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_tan_pi_over_4", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_exp", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_log10", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_log10_one", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_sinh", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_cosh", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_tanh", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_deg", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_rad", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "MathRandomBranches.test_sqrt_edge", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

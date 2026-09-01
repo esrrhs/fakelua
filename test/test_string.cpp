@@ -672,3 +672,67 @@ TEST(test_string, gsub_count) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+// 测试 string.pack/packsize 更多覆盖
+// All normal tests use TCC backend
+TEST(test_string, pack_coverage) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./string/test_string_pack.lua", config);
+    int64_t ret = 0;
+    // All normal tests use TCC
+    Call(s, JIT_TCC, "StringPack.test_pack_various_sizes", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_pack_integers", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_pack_int64", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_pack_float_double", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_pack_z", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_pack_c", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_pack_X", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_pack_endian", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_pack_align", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_packsize_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 测试 string.pack 更多格式和边界 (使用已存在的 test_string_pack.lua 中的函数)
+// All normal tests use TCC backend
+TEST(test_string, pack_advanced) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./string/test_string_pack.lua", config);
+    int64_t ret = 0;
+    // All normal tests use TCC
+    Call(s, JIT_TCC, "StringPack.test_pack_X", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_pack_endian", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_pack_align", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "StringPack.test_packsize_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

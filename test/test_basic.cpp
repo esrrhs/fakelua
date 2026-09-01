@@ -1198,3 +1198,102 @@ TEST(test_basic, select_negative_gcc) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+// 测试 pairs/ipairs 迭代器覆盖
+// Normal tests use TCC backend
+TEST(test_basic, pairs_ipairs_iterators) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_pairs_coverage.lua", config);
+    int64_t ret = 0;
+    // All normal tests use TCC
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_pairs_iterator_basic", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_pairs_iterator_empty", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_pairs_iterator_array", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_ipairs_iterator_basic", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_ipairs_iterator_empty", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_ipairs_iterator_index", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_next_basic", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_next_empty", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_select_basic", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_select_negative", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 测试 tonumber/totype/type 边界情况
+// Normal tests use TCC backend
+TEST(test_basic, tonumber_tostring_type) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_pairs_coverage.lua", config);
+    int64_t ret = 0;
+    // All normal tests use TCC
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_non_string_non_number", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_string_number", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_invalid_string", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_hex", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_invalid_digit_for_base", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_float", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_tostring_already_string", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_tostring_number", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_type_userdata", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_type_various", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 测试 xpcall
+// All normal tests use TCC backend (xpcall catches errors in Lua, no C++ exception)
+TEST(test_basic, xpcall_coverage) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_pairs_coverage.lua", config);
+    int64_t ret = 0;
+    // All normal tests use TCC
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_xpcall_with_handler", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "BasicPairsCoverage.test_xpcall_success", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
