@@ -15,6 +15,16 @@ jobs:
       fail-fast: false
       matrix:
         build_type: [debug, release, asan, cov]
+        test_group: [A, B, C, D]
+        exclude:
+          # Only run full test suite on cov build for coverage accuracy
+          # Other builds use parallel test groups for speed
+          - build_type: debug
+            test_group: D
+          - build_type: release
+            test_group: D
+          - build_type: asan
+            test_group: D
 
     runs-on: ubuntu-24.04
 
@@ -132,17 +142,45 @@ jobs:
 
           cmake ${CMAKE_FLAGS} ..
           make -j$(nproc)
-          # Run all tests except MySQL integration tests (flaky on CI)
-          # Must run from test/lua so relative Lua file paths resolve correctly
-          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests --gtest_filter="-test_mysql.integration*")
+
+      - name: Test Group A (basic/math/string/json)
+        if: matrix.test_group == 'A'
+        run: |
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests \
+            --gtest_filter="test_basic.*:test_math.*:test_string.*:test_json.*:test_serialize.*:test_algo.*:test_random.*:test_table.*:test_common.*"
+
+      - name: Test Group B (io/compress/log/crypto)
+        if: matrix.test_group == 'B'
+        run: |
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests \
+            --gtest_filter="test_io.*:test_compress.*:test_log.*:test_crypto.*:test_csv.*:test_exception.*:test_utf8.*:test_os.*:test_package.*"
+
+      - name: Test Group C (net/event/timer/protobuf)
+        if: matrix.test_group == 'C'
+        run: |
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests \
+            --gtest_filter="test_net.*:test_event.*:test_timer.*:test_protobuf.*:test_ini.*:test_toml.*:test_yaml.*:test_xml.*:test_native.*"
+
+      - name: Test Group D (mysql/sqlite/misc)
+        if: matrix.test_group == 'D' && matrix.build_type == 'cov'
+        run: |
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests \
+            --gtest_filter="test_mysql.*:test_sqlite.*:test_closure.*:test_infer.*:test_jitter.*:test_runtime.*:test_state.*:test_syntax_tree.*:test_util.*:test_var.*:test_vm_cvar_call.*"
+
+      - name: Run benchmarks and flua
+        if: matrix.test_group == 'A'
+        run: |
+          cd build
           ./bin/bench_mark
           ./bin/flua
-          # MySQL 集成测试（需要 MySQL 服务）
-          # Only run callback_api test for now; prepared/multi_result/pool need more work
-          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests --gtest_filter="test_mysql.integration_callback_api")
+
+      - name: MySQL integration tests
+        if: matrix.test_group == 'D' && matrix.build_type == 'cov'
+        run: |
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests --gtest_filter="test_mysql.integration_callback_api"
 
       - name: Coverage report
-        if: matrix.build_type == 'cov'
+        if: matrix.build_type == 'cov' && matrix.test_group == 'D'
         run: |
           set -x
           cd build
