@@ -395,8 +395,6 @@ void FakeluaDeleteState(State *state) {
     mysql::OnStateDeleted(state);
     sqlite::OnStateDeleted(state);
     io::OnStateDeleted(state);
-    // Clean up NativeObjects created for this state to prevent memory leaks
-    NativeObjectManager::Instance().Clear();
     delete state;
 }
 
