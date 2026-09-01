@@ -28,6 +28,10 @@ jobs:
 
     runs-on: ubuntu-24.04
 
+    env:
+      # Disable leak detection for ASAN builds (known leaks in third-party libs)
+      ASAN_OPTIONS: detect_leaks=0
+
     services:
       mysql:
         image: mysql:8.0
@@ -133,7 +137,6 @@ jobs:
               ;;
             asan)
               CMAKE_FLAGS="-DUSE_ASAN=ON"
-              export ASAN_OPTIONS=detect_leaks=0
               ;;
             cov)
               CMAKE_FLAGS="-DUSE_COV=ON"
