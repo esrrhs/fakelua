@@ -323,3 +323,4 @@ TEST(test_log, level_trace) {
     // 恢复
     SetLogLevel(LogLevel::Info);
 }
+

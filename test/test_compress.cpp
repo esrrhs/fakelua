@@ -183,6 +183,95 @@ TEST(test_compress, zstd_large_data) {
     FakeluaDeleteState(s);
 }
 
+// Zstd extra edge case tests
+TEST(test_compress, zstd_decompress_empty) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_decompress_empty", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_decompress_invalid) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_decompress_invalid", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_compress_level_too_low) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_compress_level_too_low", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_compress_level_too_high) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_compress_level_too_high", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_compress_empty) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_compress_empty", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_extra_large_data) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_large_data", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_various_levels) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_various_levels", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_binary_with_nulls) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_binary_with_nulls", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
 TEST(test_compress, lz4_garbage) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
