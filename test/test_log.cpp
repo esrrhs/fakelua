@@ -324,3 +324,53 @@ TEST(test_log, level_trace) {
     SetLogLevel(LogLevel::Info);
 }
 
+// 测试脚本侧 log 格式化各种类型（GCC 后端以生成覆盖率）
+TEST(test_log, script_format_types) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./log/test_log_format_types.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_nil", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_bool", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_integer", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_float", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_string", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_mixed", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_debug_format", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_warn_format", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_error_format", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_trace_format", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_critical_format", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 测试脚本侧 log 错误参数（GCC 后端）
+TEST(test_log, script_error_args) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./log/test_log_format_types.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_set_level_bad_arg", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_set_level_no_arg", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_set_file_no_arg", ret);
+    EXPECT_EQ(ret, 1);
+    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_no_args", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+

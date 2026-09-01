@@ -301,3 +301,114 @@ TEST(test_compress, lz4_trailing_garbage) {
     EXPECT_THROW(Call(s, JIT_GCC, "CompressTest.test_lz4_trailing_garbage", ret), std::exception);
     FakeluaDeleteState(s);
 }
+
+// Compress error path tests (GCC backend for coverage)
+TEST(test_compress, zstd_decompress_empty_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_error_paths.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "CompressErrorPaths.test_zstd_decompress_empty", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_decompress_invalid_frame_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_error_paths.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "CompressErrorPaths.test_zstd_decompress_invalid_frame", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_compress_level_boundary_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_error_paths.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "CompressErrorPaths.test_zstd_compress_level_boundary", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_large_data_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_error_paths.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "CompressErrorPaths.test_zstd_large_data", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, zstd_binary_with_nulls_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_error_paths.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "CompressErrorPaths.test_zstd_binary_with_nulls", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, lz4_decompress_invalid_frame_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_error_paths.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "CompressErrorPaths.test_lz4_decompress_invalid_frame", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, lz4_decompress_truncated_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_error_paths.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "CompressErrorPaths.test_lz4_decompress_truncated", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, lz4_decompress_trailing_garbage_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_error_paths.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "CompressErrorPaths.test_lz4_decompress_trailing_garbage", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, lz4_large_data_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_error_paths.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "CompressErrorPaths.test_lz4_large_data", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_compress, lz4_binary_with_nulls_gcc) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_error_paths.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_GCC, "CompressErrorPaths.test_lz4_binary_with_nulls", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
