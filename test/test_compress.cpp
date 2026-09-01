@@ -412,3 +412,40 @@ TEST(test_compress, lz4_binary_with_nulls_gcc) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+// 测试 zstd 边界情况
+// Normal tests use TCC, exception tests use GCC (TCC doesn't support C++ exception propagation)
+TEST(test_compress, zstd_edge_cases) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./compress/test_compress_zstd_edge.lua", config);
+    int64_t ret = 0;
+    // Empty input returns empty result (no exception)
+    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_decompress_empty_input", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    // Exception tests use GCC
+    EXPECT_THROW(Call(s, JIT_GCC, "CompressZstdEdge.test_zstd_decompress_truncated", ret), std::exception);
+    ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "CompressZstdEdge.test_zstd_decompress_random_data", ret), std::exception);
+    ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "CompressZstdEdge.test_zstd_decompress_trailing_garbage", ret), std::exception);
+    ret = 0;
+    // Normal tests use TCC
+    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_compress_level_min", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_compress_level_max", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_compress_level_out_of_range", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_large_file", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_binary_with_nulls", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

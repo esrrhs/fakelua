@@ -374,3 +374,72 @@ TEST(test_log, script_error_args) {
     FakeluaDeleteState(s);
 }
 
+// 测试所有日志级别带各种参数类型（覆盖 FormatArgs）
+// Normal tests use TCC backend
+TEST(test_log, all_levels_with_types) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./log/test_log_all_levels.lua", config);
+    int64_t ret = 0;
+    // All normal tests use TCC
+    Call(s, JIT_TCC, "LogAllLevels.test_log_trace_various_types", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "LogAllLevels.test_log_debug_various_types", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "LogAllLevels.test_log_warn_various_types", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "LogAllLevels.test_log_error_various_types", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "LogAllLevels.test_log_critical_various_types", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "LogAllLevels.test_log_info_mixed_types", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "LogAllLevels.test_log_info_booleans", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "LogAllLevels.test_log_info_nil_only", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "LogAllLevels.test_log_info_float_only", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "LogAllLevels.test_log_info_integer_only", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 测试日志级别切换和错误参数
+// Normal tests use TCC, exception tests use GCC (TCC doesn't support C++ exception propagation)
+TEST(test_log, level_transitions_and_errors) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./log/test_log_all_levels.lua", config);
+    int64_t ret = 0;
+    // Normal tests use TCC
+    Call(s, JIT_TCC, "LogAllLevels.test_log_all_level_transitions", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    Call(s, JIT_TCC, "LogAllLevels.test_log_set_level_boundary", ret);
+    EXPECT_EQ(ret, 1);
+    ret = 0;
+    // Exception tests use GCC
+    EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_set_level_invalid", ret), std::exception);
+    ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_set_level_no_arg", ret), std::exception);
+    ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_set_file_invalid", ret), std::exception);
+    ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_set_file_no_arg", ret), std::exception);
+    ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_info_no_args", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
