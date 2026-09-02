@@ -224,6 +224,10 @@ size_t NativeObjectManager::DestroyGroup(int64_t group_id) {
 }
 
 void NativeObjectManager::Clear() {
+    // Purge io-layer caches first so that subsequent FakeluaDeleteState calls
+    // (which invoke io::OnStateDeleted) no longer reference freed NativeObjects.
+    io::OnNativeObjectManagerCleared();
+
     // objects_ 中的对象仍然"存活"（impl_ 非空），必须先调 Destroy 触发 finalizer 再 delete。
     // zombies_ 中的对象已经由 DestroySingle/GlobalDestroy/DestroyGroup 调用过 Destroy()，
     // impl_ 已被置 nullptr，只剩一个空壳，只需 delete 释放堆内存即可。
@@ -241,6 +245,7 @@ void NativeObjectManager::Clear() {
     }
     zombies_.clear();
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NativeMethodBridge — 宿主 C++ 成员回调的方法派发桥接
