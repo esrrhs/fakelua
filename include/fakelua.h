@@ -67,40 +67,100 @@ struct VarInterface {
 struct SimpleVarImpl final : public VarInterface {
     SimpleVarImpl() = default;
 
-    ~SimpleVarImpl() override = default;
+    ~SimpleVarImpl() override {
+        ClearTable();
+    }
 
     [[nodiscard]] Type ViGetType() const override {
         return type_;
     }
 
+    void ClearTable() {
+        if (type_ == Type::TABLE) {
+            for (auto &[k, v] : table_) {
+                delete k;
+                delete v;
+            }
+            table_.clear();
+        }
+    }
+
     void ViSetNil() override {
+        ClearTable();
         type_ = Type::NIL;
     }
 
     void ViSetBool(bool v) override {
+        ClearTable();
         type_ = Type::BOOL;
         bool_ = v;
     }
 
     void ViSetInt(int64_t v) override {
+        ClearTable();
         type_ = Type::INT;
         int_ = v;
     }
 
     void ViSetFloat(double v) override {
+        ClearTable();
         type_ = Type::FLOAT;
         float_ = v;
     }
 
     void ViSetString(const std::string_view &v) override {
+        ClearTable();
         type_ = Type::STRING;
         string_ = v;
     }
 
     void ViSetTable(const std::vector<std::pair<VarInterface *, VarInterface *>> &kv) override {
+        ClearTable();
         type_ = Type::TABLE;
-        table_ = kv;
+        table_.reserve(kv.size());
+        for (const auto &[k, v] : kv) {
+            table_.emplace_back(CloneFrom(k), CloneFrom(v));
+        }
     }
+
+private:
+    // Deep-clone a VarInterface into a heap-allocated SimpleVarImpl.
+    // SimpleVarImpl owns the returned pointer.
+    static SimpleVarImpl *CloneFrom(VarInterface *src) {
+        auto *dst = new SimpleVarImpl();
+        if (!src) return dst;
+        switch (src->ViGetType()) {
+            case Type::NIL:
+                break;// default is NIL
+            case Type::BOOL:
+                dst->ViSetBool(src->ViGetBool());
+                break;
+            case Type::INT:
+                dst->ViSetInt(src->ViGetInt());
+                break;
+            case Type::FLOAT:
+                dst->ViSetFloat(src->ViGetFloat());
+                break;
+            case Type::STRING:
+                dst->ViSetString(src->ViGetString());
+                break;
+            case Type::TABLE: {
+                std::vector<std::pair<VarInterface *, VarInterface *>> sub;
+                sub.reserve(src->ViGetTableSize());
+                for (size_t i = 0; i < src->ViGetTableSize(); ++i) {
+                    auto [sk, sv] = src->ViGetTableKv(static_cast<int>(i));
+                    sub.emplace_back(CloneFrom(sk), CloneFrom(sv));
+                }
+                // Directly assign the already-cloned sub-entries to avoid double clone.
+                dst->type_ = Type::TABLE;
+                dst->table_ = std::move(sub);
+                break;
+            }
+        }
+        return dst;
+    }
+
+public:
 
     [[nodiscard]] bool ViGetBool() const override {
         return bool_;
@@ -743,6 +803,10 @@ void RegisterNativeFunction(State *s, const std::string &name, bool is_vararg, s
 class NativeObjectManager {
 public:
     static NativeObjectManager &Instance();
+
+    ~NativeObjectManager() {
+        Clear();
+    }
 
     // 1. 申请/定义组 (Group Arena) 统一由管理器自增发号分配
     int64_t CreateGroup();

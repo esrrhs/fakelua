@@ -86,7 +86,28 @@ void OnStateDeleted(State *s) {
             NativeObjectManager::Instance().DestroyGroup(nat->GetGroupId());
         }
     }
-    g_io_std.erase(s);
+    auto it_std = g_io_std.find(s);
+    if (it_std != g_io_std.end()) {
+        auto &stdf = it_std->second;
+        if (stdf.in) {
+            NativeObjectManager::Instance().DestroyGroup(stdf.in->GetGroupId());
+        }
+        if (stdf.out) {
+            NativeObjectManager::Instance().DestroyGroup(stdf.out->GetGroupId());
+        }
+        if (stdf.err) {
+            NativeObjectManager::Instance().DestroyGroup(stdf.err->GetGroupId());
+        }
+        g_io_std.erase(it_std);
+    }
+}
+
+// Called by NativeObjectManager::Clear() BEFORE it destroys all NativeObjects.
+// Wiping these maps prevents OnStateDeleted from holding dangling pointers into
+// already-freed objects when the state is deleted after Clear().
+void OnNativeObjectManagerCleared() {
+    g_io_wrappers.clear();
+    g_io_std.clear();
 }
 
 // ─── 行读取辅助函数 ───

@@ -326,6 +326,10 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
                 }
             }
             dst->ViSetTable(kvs);
+            for (auto &[k, v] : kvs) {
+                delete k;
+                delete v;
+            }
             break;
         }
         case VarType::Closure:
@@ -442,7 +446,12 @@ void RegisterNativeVarFunction(State *s, const std::string &name, int arg_count,
             vi_args.push_back(inter::FakeluaToNativeObj(state, arg_i));
         }
         VarInterface *res_vi = safe_cb(state, vi_args);
-        return inter::NativeToFakeluaVarInterface(state, res_vi);
+        for (auto *vi : vi_args) {
+            delete vi;
+        }
+        CVar ret = inter::NativeToFakeluaVarInterface(state, res_vi);
+        delete res_vi;
+        return ret;
     });
 }
 
