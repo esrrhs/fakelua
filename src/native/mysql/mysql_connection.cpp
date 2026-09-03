@@ -4,8 +4,8 @@
 #include "util/logging.h"
 
 #include <chrono>
-#include <cstddef>
 #include <cstring>
+#include <string>
 
 namespace fakelua::mysql {
 
@@ -22,11 +22,12 @@ struct TickDepthGuard {
     ~TickDepthGuard() { if (depth > 0) --depth; }
 };
 
-constexpr uint64_t kMaxResultColumns = 4096;
-
 }  // namespace
 
-MysqlConnection::MysqlConnection() = default;
+MysqlConnection::MysqlConnection()
+    : work_(boost::asio::make_work_guard(io_ctx_))
+{
+}
 
 MysqlConnection::~MysqlConnection() {
     close();
@@ -39,144 +40,273 @@ MysqlConnection::~MysqlConnection() {
 void MysqlConnection::connect(const std::string &host, uint16_t port,
                               const std::string &user, const std::string &password,
                               const std::string &database, int timeout_ms) {
+    // Store connection parameters
+    host_ = host;
+    port_ = port;
     user_ = user;
     password_ = password;
     database_ = database;
-    connect_timeout_ms_ = timeout_ms;
+    timeout_ms_ = timeout_ms;
     connect_start_ms_ = now_ms();
     pending_connect_err_.clear();
     close_pending_ = false;
-    compress_ = false;  // renegotiated on each fresh handshake
-
-    net_config_.ip = host;
-    net_config_.port = port;
-    net_config_.non_blocking = true;
-    net_config_.no_delay = true;
-    net_config_.framer = net::FramerType::RawStream;
-    net_config_.max_packet_len = static_cast<int>(MAX_PACKET_SIZE);
-    net_config_.recv_buf_size = 256 * 1024;
-    net_config_.send_buf_size = 256 * 1024;
-
-    client_ = std::make_unique<net::TcpClient>(net_config_);
     state_ = State::Connecting;
-    recv_buf_.clear();
-    client_->connect();
 
-    LOG_DEBUG("mysql", "connect: connected={} connecting={}", client_->connected(), client_->connecting());
+    // Reset connection state
+    conn_.close();
+    pending_results_.clear();
+    prepared_statements_.clear();
+    next_stmt_id_ = 1;
+    last_error_ = {};
 
-    // Immediate TCP failure (e.g. refused): do not dispatch here — Lua close()
-    // in a nested callback would delete *this while connect() is still on stack.
-    if (!client_->connected() && !client_->connecting()) {
-        LOG_DEBUG("mysql", "connect failed immediately");
-        pending_connect_err_ = "connection failed";
-        state_ = State::Error;
-    }
+    // Start asynchronous connect
+    boost::asio::ip::tcp::resolver resolver(io_ctx_);
+    auto endpoints = resolver.resolve(host, std::to_string(port));
+
+    boost::asio::async_connect(conn_.lowest_layer(), endpoints,
+        [this](const boost::system::error_code& ec, const boost::asio::ip::tcp::endpoint&) {
+            if (ec) {
+                pending_connect_err_ = ec.message();
+                state_ = State::Error;
+                return;
+            }
+
+            // Start MySQL handshake
+            boost::mysql::ssl_mode ssl_mode = boost::mysql::ssl_mode::disable;
+            boost::mysql::handshake_params params(user_, password_, database_);
+            if (timeout_ms_ > 0) {
+                params.expires_after(std::chrono::milliseconds(timeout_ms_));
+            }
+
+            conn_.async_handshake(ssl_mode, params,
+                [this](const boost::system::error_code& ec, boost::mysql::handshake_output) {
+                    if (ec) {
+                        pending_connect_err_ = ec.message();
+                        state_ = State::Error;
+                        return;
+                    }
+                    state_ = State::Ready;
+                    ready_ = true;
+                });
+        });
 }
 
 void MysqlConnection::query(const std::string &sql) {
     if (close_pending_) return;
-    if (state_ != State::Ready || !client_ || !client_->connected()) {
+    if (state_ != State::Ready || !conn_.lowest_layer().is_open()) {
         dispatch_result({}, "connection not ready");
         return;
     }
-    if (ping_inflight_) {
-        dispatch_result({}, "connection busy (ping in progress)");
-        return;
-    }
-    last_sql_ = sql;
 
-    // Build COM_QUERY packet
-    std::string payload;
-    payload.push_back(static_cast<char>(COM_QUERY));
-    payload.append(sql);
-    if (!send_packet(0, payload.data(), payload.size())) {
-        dispatch_result({}, "failed to send query");
-        return;
-    }
+    last_sql_ = sql;
     state_ = State::Querying;
     query_type_ = QueryType::Query;
-}
 
-void MysqlConnection::close() {
-    if (client_ && client_->connected() && state_ != State::Idle) {
-        // Send COM_QUIT
-        std::string payload(1, static_cast<char>(COM_QUIT));
-        send_packet(0, payload.data(), payload.size());
-    }
-    client_.reset();
-    state_ = State::Idle;
-    ready_ = false;
-    ping_inflight_ = false;
-    query_type_ = QueryType::None;
-    prepare_eofs_remaining_ = 0;
-    rs_parser_.reset();
+    // Execute query asynchronously
+    conn_.async_query(sql,
+        [this](const boost::system::error_code& err, boost::mysql::results result) {
+            if (err) {
+                pending_result_err_ = err.message();
+                pending_result_ = true;
+                state_ = State::Ready;
+                return;
+            }
+            pending_result_data_ = std::move(result);
+            pending_result_ = true;
+            state_ = State::Ready;
+        });
 }
 
 void MysqlConnection::stmt_prepare(const std::string &sql) {
     if (close_pending_) return;
-    if (state_ != State::Ready || !client_ || !client_->connected()) {
+    if (state_ != State::Ready || !conn_.lowest_layer().is_open()) {
         dispatch_result({}, "connection not ready for prepare");
         return;
     }
-    if (ping_inflight_) {
-        dispatch_result({}, "connection busy (ping in progress)");
-        return;
-    }
 
-    // Build COM_STMT_PREPARE packet
-    std::string payload;
-    payload.push_back(static_cast<char>(COM_STMT_PREPARE));
-    payload.append(sql);
-    if (!send_packet(0, payload.data(), payload.size())) {
-        dispatch_result({}, "failed to send prepare");
-        return;
-    }
     state_ = State::Querying;
     query_type_ = QueryType::StmtPrepare;
+
+    // Prepare statement asynchronously
+    conn_.async_prepare(sql,
+        [this](const boost::system::error_code& err, boost::mysql::prepared_statement stmt) {
+            if (err) {
+                pending_result_err_ = err.message();
+                pending_result_ = true;
+                state_ = State::Ready;
+                return;
+            }
+
+            // Store prepared statement and return statement ID
+            uint32_t stmt_id = next_stmt_id_++;
+            prepared_statements_[stmt_id] = std::move(stmt);
+
+            // Create result with statement ID
+            boost::mysql::results result;
+            result.emplace_back();
+            result.front().affected_rows = 0; // Not used for prepare
+            result.front().last_insert_id = 0;
+            result.front().stmt_id = stmt_id;
+
+            pending_result_data_ = std::move(result);
+            pending_result_ = true;
+            state_ = State::Ready;
+        });
 }
 
 void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam> &params) {
     if (close_pending_) return;
-    if (state_ != State::Ready || !client_ || !client_->connected()) {
+    if (state_ != State::Ready || !conn_.lowest_layer().is_open()) {
         dispatch_result({}, "connection not ready for execute");
         return;
     }
-    if (ping_inflight_) {
-        dispatch_result({}, "connection busy (ping in progress)");
-        return;
-    }
 
-    std::string payload = build_stmt_execute(stmt_id, params);
-    if (!send_packet(0, payload.data(), payload.size())) {
-        dispatch_result({}, "failed to send execute");
+    // Find prepared statement
+    auto it = prepared_statements_.find(stmt_id);
+    if (it == prepared_statements_.end()) {
+        dispatch_result({}, "statement not prepared");
         return;
     }
 
     state_ = State::Querying;
     query_type_ = QueryType::StmtExecute;
+
+    // Convert StmtParam to boost::mysql::tuple
+    boost::mysql::tuple tuple_params;
+    for (const auto& param : params) {
+        if (param.is_null) {
+            tuple_params.push_back(nullptr);
+        } else {
+            tuple_params.push_back(param.value);
+        }
+    }
+
+    // Execute prepared statement asynchronously
+    conn_.async_execute(it->second, tuple_params,
+        [this](const boost::system::error_code& err, boost::mysql::results result) {
+            if (err) {
+                pending_result_err_ = err.message();
+                pending_result_ = true;
+                state_ = State::Ready;
+                return;
+            }
+            pending_result_data_ = std::move(result);
+            pending_result_ = true;
+            state_ = State::Ready;
+        });
 }
 
 void MysqlConnection::stmt_close(uint32_t stmt_id) {
     if (close_pending_) return;
-    if (state_ != State::Ready || !client_ || !client_->connected()) return;
-    if (ping_inflight_) return;
+    if (state_ != State::Ready || !conn_.lowest_layer().is_open()) return;
 
-    std::string payload;
-    payload.push_back(static_cast<char>(COM_STMT_CLOSE));
-    write_uint32(payload, stmt_id);
-    send_packet(0, payload.data(), payload.size());
+    // Remove prepared statement from cache
+    prepared_statements_.erase(stmt_id);
+
+    // Note: Boost.MySQL doesn't require explicit statement close when destroying
+    // the prepared_statement object, which we do by erasing from the map
 }
 
 bool MysqlConnection::ping() {
     if (close_pending_) return false;
-    if (state_ != State::Ready || query_type_ != QueryType::None || ping_inflight_) return false;
-    if (!client_ || !client_->connected()) return false;
+    if (state_ != State::Ready || !conn_.lowest_layer().is_open()) return false;
 
-    std::string payload(1, static_cast<char>(0x0E));
-    if (!send_packet(0, payload.data(), payload.size())) return false;
-    ping_inflight_ = true;
+    // Ping asynchronously
+    conn_.async_ping(
+        [this](const boost::system::error_code& err) {
+            if (err) {
+                pending_result_err_ = err.message();
+                pending_result_ = true;
+                state_ = State::Error;
+            } else {
+                pending_result_ = true;
+                state_ = State::Ready;
+            }
+        });
+
     return true;
 }
+
+void MysqlConnection::close() {
+    if (!conn_.lowest_layer().is_open()) return;
+
+    // Close the connection
+    boost::system::error_code ec;
+    conn_.close(ec);
+    if (ec) {
+        LOG_DEBUG("mysql", "Error closing connection: {}", ec.message());
+    }
+
+    state_ = State::Idle;
+    ready_ = false;
+    conn_.close();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Network event pumping
+// ─────────────────────────────────────────────────────────────────────────────
+
+void MysqlConnection::tick() {
+    if (tick_depth_ > 0) return;
+    TickDepthGuard guard(tick_depth_);
+
+    // Handle connection timeout
+    if (state_ == State::Connecting && timeout_ms_ > 0) {
+        if (now_ms() - connect_start_ms_ >= static_cast<int64_t>(timeout_ms_)) {
+            pending_connect_err_ = "connect timeout";
+            state_ = State::Error;
+            close();
+            return;
+        }
+    }
+
+    // Process any pending async operations by running io_context for a short time
+    // We use poll_one to process exactly one handler (if available) to avoid blocking
+    io_ctx_.poll_one();
+
+    // Handle pending connection result
+    if (pending_connect_) {
+        pending_connect_ = false;
+        if (!pending_connect_err_.empty()) {
+            dispatch_connect(pending_connect_err_.c_str());
+        } else {
+            dispatch_connect(nullptr);
+        }
+        pending_connect_err_.clear();
+    }
+
+    // Handle pending query result
+    if (pending_result_) {
+        pending_result_ = false;
+        if (!pending_result_err_.empty()) {
+            dispatch_result({}, pending_result_err_.c_str());
+        } else {
+            dispatch_result(pending_result_data_, nullptr);
+        }
+        pending_result_err_.clear();
+    }
+
+    // Handle connection state transitions based on lowest layer state
+    if (!conn_.lowest_layer().is_open()) {
+        if (state_ != State::Idle && state_ != State::Error) {
+            if (state_ == State::Connecting || state_ == State::Handshaking) {
+                pending_connect_err_ = "connection closed during handshake";
+                state_ = State::Error;
+            } else if (state_ == State::Querying) {
+                pending_result_err_ = "connection closed during query";
+                state_ = State::Error;
+            } else {
+                state_ = State::Error;
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error handling
+// ─────────────────────────────────────────────────────────────────────────────
+
+MysqlError MysqlConnection::last_error() const { return last_error_; }
 
 bool MysqlConnection::is_retryable(MysqlErrorType type) {
     switch (type) {
@@ -194,543 +324,29 @@ bool MysqlConnection::is_retryable(MysqlErrorType type) {
     }
 }
 
-void MysqlConnection::tick() {
-    if (tick_depth_ > 0) return;
-    TickDepthGuard guard(tick_depth_);
+void MysqlConnection::set_connect_callback(const std::string &name) { connect_cb_ = name; }
+void MysqlConnection::set_result_callback(const std::string &name) { result_cb_ = name; }
+void MysqlConnection::set_state(::fakelua::State *state) { lua_state_ = state; }
+void MysqlConnection::set_native_object(::fakelua::NativeObject *obj) { native_obj_ = obj; }
 
-    if (!pending_connect_err_.empty()) {
-        std::string msg = std::move(pending_connect_err_);
-        pending_connect_err_.clear();
-        dispatch_connect(msg.c_str());
-        return;
-    }
-
-    if (!client_) return;
-
-    // Only tick when we expect data (not idle / terminal error)
-    if (state_ == State::Idle || state_ == State::Error) return;
-
-    if ((state_ == State::Connecting || state_ == State::Handshaking) && connect_timeout_ms_ > 0) {
-        if (now_ms() - connect_start_ms_ >= connect_timeout_ms_) {
-            dispatch_connect("connect timeout");
-            close();
-            state_ = State::Error;
-            return;
-        }
-    }
-
-    // TCP connect may already be complete (localhost often connects immediately).
-    if (state_ == State::Connecting && client_->connected()) {
-        state_ = State::Handshaking;
-        LOG_DEBUG("mysql", "TCP connect completed, now handshaking");
-    }
-
-    client_->tick(
-        // on_recv: feed raw bytes into MySQL packet parser
-        [this](const char *data, size_t len) {
-            // Connect can complete in the same wait as the first handshake bytes.
-            if (state_ == State::Connecting && client_ && client_->connected()) {
-                state_ = State::Handshaking;
-            }
-            LOG_TRACE("mysql", "recv: {} bytes (state={})", len, static_cast<int>(state_));
-            feed_bytes(data, len);
-        },
-        // on_close: connection lost
-        [this]() {
-            LOG_DEBUG("mysql", "connection closed (state={})", static_cast<int>(state_));
-            if (!close_pending_) {
-                if (state_ == State::Connecting || state_ == State::Handshaking) {
-                    dispatch_connect("connection closed during handshake");
-                } else if (state_ == State::Querying) {
-                    dispatch_result({}, "connection closed during query");
-                }
-            }
-            state_ = State::Idle;
-            ready_ = false;
-        });
-
-    if (client_ && state_ == State::Connecting && client_->connected()) {
-        state_ = State::Handshaking;
-    }
+bool MysqlConnection::connected() const { return ready_; }
+bool MysqlConnection::connecting() const {
+    return state_ == State::Connecting || state_ == State::Handshaking;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Packet I/O
-// ─────────────────────────────────────────────────────────────────────────────
-
-bool MysqlConnection::send_packet(uint8_t seq, const char *payload, size_t len) {
-    if (!client_) return false;
-    std::string pkt = compress_ ? make_compressed_packet(seq, payload, len)
-                                : make_packet(seq, payload, len);
-    return client_->send(pkt.data(), pkt.size());
-}
+int MysqlConnection::tick_depth() const { return tick_depth_; }
+bool MysqlConnection::close_pending() const { return close_pending_; }
+void MysqlConnection::request_close() { close_pending_ = true; }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Byte buffer → MySQL packet parsing
-// ─────────────────────────────────────────────────────────────────────────────
-
-void MysqlConnection::feed_bytes(const char *data, size_t len) {
-    recv_buf_.insert(recv_buf_.end(), data, data + len);
-
-    if (state_ == State::Connecting && client_ && client_->connected()) {
-        state_ = State::Handshaking;
-    }
-
-    // Parse all complete packets in the buffer
-    while (true) {
-        if (close_pending_) break;
-        // Handshake bytes can arrive in the same wait as TCP connect completion.
-        // Keep them buffered until we have entered Handshaking.
-        if (state_ == State::Connecting) break;
-
-        std::vector<uint8_t> payload;
-        if (!try_parse_packet(payload)) break;
-
-        try {
-            // Dispatch based on protocol state
-            switch (state_) {
-                case State::Handshaking:
-                    handle_handshake_packet(payload);
-                    break;
-                case State::Querying:
-                    handle_query_packet(payload);
-                    break;
-                case State::Connecting:
-                    break;
-                case State::Ready:
-                    if (ping_inflight_ && query_type_ == QueryType::None && !rs_parser_ &&
-                        !payload.empty() && payload[0] == PACKET_OK) {
-                        ping_inflight_ = false;
-                    } else if (ping_inflight_ && !payload.empty() && payload[0] == PACKET_ERR) {
-                        ping_inflight_ = false;
-                    }
-                    break;
-                default:
-                    break;
-            }
-        } catch (const std::exception &e) {
-            // Protocol parsing errors (e.g. unexpected packet type) should not crash.
-            // Report as connection/auth failure instead.
-            LOG_ERROR("mysql", "feed_bytes exception (state={}): {}", static_cast<int>(state_), e.what());
-            if (state_ == State::Handshaking || state_ == State::Connecting) {
-                dispatch_connect(e.what());
-            } else if (state_ == State::Querying) {
-                dispatch_result({}, e.what());
-            }
-            state_ = State::Error;
-            break;
-        }
-    }
-}
-
-bool MysqlConnection::try_parse_packet(std::vector<uint8_t> &out_payload) {
-    size_t consumed = 0;
-    uint8_t seq = 0;
-    bool ok = compress_ ? consume_compressed_packet(recv_buf_.data(), recv_buf_.size(), consumed, out_payload, seq)
-                        : consume_logical_packet(recv_buf_.data(), recv_buf_.size(), consumed, out_payload, seq);
-    if (!ok) return false;
-    recv_buf_.erase(recv_buf_.begin(), recv_buf_.begin() + static_cast<std::ptrdiff_t>(consumed));
-    seq_ = seq;
-    return true;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Protocol handlers
-// ─────────────────────────────────────────────────────────────────────────────
-
-void MysqlConnection::handle_handshake_packet(const std::vector<uint8_t> &payload) {
-    // Convert to char vector for existing parse functions
-    std::vector<char> char_payload(payload.begin(), payload.end());
-
-    if (payload.empty()) {
-        dispatch_connect("empty handshake packet");
-        state_ = State::Error;
-        return;
-    }
-
-    uint8_t type = payload[0];
-
-    if (type == PACKET_ERR) {
-        auto err = parse_err(char_payload);
-        dispatch_connect(err.message.c_str());
-        state_ = State::Error;
-        return;
-    }
-
-    if (type == 0x0A) {
-        // Handshake packet (protocol v10)
-        HandshakeInfo info = parse_handshake(char_payload);
-
-        // Check auth plugin — support mysql_native_password, caching_sha2_password, and _sha2_password (MySQL 8 variant)
-        if (!info.auth_plugin_name.empty() &&
-            info.auth_plugin_name != "mysql_native_password" &&
-            info.auth_plugin_name != "caching_sha2_password" &&
-            info.auth_plugin_name != "_sha2_password") {
-            dispatch_connect(std::format("unsupported auth plugin '{}'", info.auth_plugin_name).c_str());
-            state_ = State::Error;
-            return;
-        }
-
-        // Build and send handshake response
-        std::string response = build_handshake_response(info, user_, password_, database_);
-        if (!send_packet(static_cast<uint8_t>(seq_ + 1), response.data(), response.size())) {
-            dispatch_connect("failed to send handshake response");
-            state_ = State::Error;
-            return;
-        }
-
-        capabilities_ = info.capabilities;
-        charset_ = info.charset;
-        // Remember whether compression was negotiated. It is enabled only after
-        // the handshake completes (see the PACKET_OK handler below) because the
-        // server sends the auth switch / OK response to the handshake response
-        // uncompressed.
-        if ((kMyCapabilities & info.capabilities) & CLIENT_COMPRESS) {
-            LOG_DEBUG("mysql", "compression negotiated, enabling after handshake");
-        }
-        // Stay in Handshaking state - wait for auth OK/ERR
-        return;
-    }
-
-    // Auth switch request (0xFE) — server wants us to switch auth plugin
-    if (type == PACKET_EOF) {
-        // Parse auth switch request: 0xFE + NUL-terminated plugin name + auth data
-        std::string plugin_name;
-        std::string auth_data;
-        size_t pos = 1;
-        if (pos < payload.size()) {
-            // Read NUL-terminated plugin name
-            while (pos < payload.size() && payload[pos] != 0) {
-                plugin_name.push_back(static_cast<char>(payload[pos]));
-                ++pos;
-            }
-            if (pos < payload.size()) ++pos; // skip NUL
-            // Read remaining auth data
-            if (pos < payload.size()) {
-                auth_data.assign(char_payload.begin() + static_cast<ssize_t>(pos), char_payload.end());
-            }
-        }
-
-        LOG_DEBUG("mysql", "auth switch: plugin='{}' auth_data_len={}", plugin_name.c_str(), auth_data.size());
-
-        // Build auth response using the requested plugin
-        std::vector<uint8_t> auth_response;
-        if (password_.empty()) {
-            // 空密码：初始握手与 AuthSwitch 都发空 token，不要再 hash。
-            auth_response.clear();
-        } else if (plugin_name == "mysql_native_password") {
-            // mysql_native_password expects 20-byte scramble
-            std::string scramble = auth_data;
-            if (scramble.size() > 20) scramble.resize(20);
-            auto hash = native_password_hash(password_, scramble);
-            auth_response.assign(hash.begin(), hash.end());
-        } else if (plugin_name == "caching_sha2_password" || plugin_name == "_sha2_password") {
-            // AuthSwitchRequest remaining data is the scramble (optional trailing NUL), not a type byte.
-            std::string scramble = auth_data;
-            if (!scramble.empty() && scramble.back() == '\0') scramble.pop_back();
-            if (scramble.size() > 20) scramble.resize(20);
-            if (scramble.size() != 20) {
-                dispatch_connect(std::format("auth switch: caching_sha2_password scramble must be 20 bytes, got {}", scramble.size()).c_str());
-                state_ = State::Error;
-                return;
-            }
-            auth_response = caching_sha2_password_hash(password_, scramble);
-        } else {
-            dispatch_connect(std::format("auth switch: unsupported plugin '{}'", plugin_name).c_str());
-            state_ = State::Error;
-            return;
-        }
-
-        // Send auth response
-        if (!send_packet(static_cast<uint8_t>(seq_ + 1),
-                    reinterpret_cast<const char *>(auth_response.data()),
-                    auth_response.size())) {
-            dispatch_connect("failed to send auth response");
-            state_ = State::Error;
-            return;
-        }
-        // Stay in Handshaking state — wait for OK/ERR
-        return;
-    }
-
-    // Could be OK after handshake response (some servers skip the handshake packet)
-    if (type == PACKET_OK) {
-        state_ = State::Ready;
-        ready_ = true;
-        seq_ = 0;
-        // Handshake is complete — enable compressed protocol now. The server
-        // sends the handshake-response reply (auth switch / this OK) uncompressed,
-        // but all packets after the handshake are compressed.
-        if (capabilities_ & CLIENT_COMPRESS) {
-            compress_ = true;
-            LOG_DEBUG("mysql", "compressed protocol enabled (handshake done)");
-        }
-        dispatch_connect(nullptr);
-        return;
-    }
-
-    // caching_sha2_password AuthMoreData (0x01)
-    // 0x03 = fast auth success, wait for OK; 0x04 = full auth (RSA/SSL)，本模块不支持。
-    if (type == 0x01) {
-        if (payload.size() > 1 && payload[1] == 0x04) {
-            dispatch_connect("caching_sha2_password full authentication (RSA/SSL) is not supported");
-            state_ = State::Error;
-            return;
-        }
-        LOG_DEBUG("mysql", "caching_sha2_password fast auth complete, waiting for OK");
-        // Stay in Handshaking state — wait for OK/ERR
-        return;
-    }
-
-    set_error(MysqlErrorType::Protocol, 0,
-              std::format("unexpected handshake byte 0x{:02x}", type), "");
-    dispatch_connect(last_error_.message.c_str());
-    state_ = State::Error;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Error classification (must be before handle_query_packet)
-// ─────────────────────────────────────────────────────────────────────────────
-
-static MysqlErrorType classify_error_code(uint16_t code) {
-    // MySQL error code ranges:
-    // 1000-1999: server errors (ER_HASHCHK, ER_NISAMCHK, etc.)
-    // 2000-2999: client errors (connection, protocol)
-    // 1045: ER_ACCESS_DENIED_ERROR (auth)
-    // 1064: ER_PARSE_ERROR (syntax)
-    // 1205: ER_LOCK_WAIT_TIMEOUT (timeout)
-    // 1213: ER_LOCK_DEADLOCK (server)
-    // 2003: CR_CONN_HOST_ERROR (connection)
-    // 2006: CR_SERVER_GONE_ERROR (connection lost)
-    // 2013: CR_SERVER_LOST (connection lost during query)
-    switch (code) {
-        case 1045:  // ER_ACCESS_DENIED_ERROR
-        case 1698:  // ER_ACCESS_ACCESS_DENIED_ERROR
-            return MysqlErrorType::Authentication;
-        case 1064:  // ER_PARSE_ERROR
-        case 1149:  // ER_SYNTAX_ERROR
-            return MysqlErrorType::Syntax;
-        case 1205:  // ER_LOCK_WAIT_TIMEOUT
-        case 1213:  // ER_LOCK_DEADLOCK
-            return MysqlErrorType::Timeout;
-        case 2003:  // CR_CONN_HOST_ERROR
-        case 2006:  // CR_SERVER_GONE_ERROR
-        case 2013:  // CR_SERVER_LOST
-            return MysqlErrorType::Connection;
-        default:
-            if (code >= 1000 && code < 2000) return MysqlErrorType::Server;
-            if (code >= 2000 && code < 3000) return MysqlErrorType::Connection;
-            return MysqlErrorType::Unknown;
-    }
-}
-
-void MysqlConnection::set_error(MysqlErrorType type, uint16_t code,
-                                const std::string &msg, const std::string &sql_state) {
-    last_error_.type = type;
-    last_error_.code = code;
-    last_error_.message = msg;
-    last_error_.sql_state = sql_state;
-}
-
-void MysqlConnection::handle_query_packet(const std::vector<uint8_t> &payload) {
-    if (payload.empty()) {
-        dispatch_result({}, "empty query response");
-        state_ = State::Ready;
-        rs_parser_.reset();
-        return;
-    }
-
-    std::vector<char> char_payload(payload.begin(), payload.end());
-    uint8_t type = payload[0];
-
-    if (query_type_ == QueryType::StmtPrepare) {
-        if (prepare_eofs_remaining_ > 0) {
-            if (type == PACKET_ERR) {
-                auto err = parse_err(char_payload);
-                set_error(classify_error_code(err.error_code), err.error_code, err.message, err.sql_state);
-                prepare_eofs_remaining_ = 0;
-                query_type_ = QueryType::None;
-                state_ = State::Ready;
-                dispatch_result({}, err.message.c_str());
-                return;
-            }
-            if (type == PACKET_EOF) {
-                --prepare_eofs_remaining_;
-                if (prepare_eofs_remaining_ == 0) {
-                    query_type_ = QueryType::None;
-                    state_ = State::Ready;
-                    dispatch_result(pending_prepare_result_, nullptr);
-                }
-                return;
-            }
-            // param / column definition packet — discard
-            return;
-        }
-        if (type == PACKET_ERR) {
-            auto err = parse_err(char_payload);
-            set_error(classify_error_code(err.error_code), err.error_code, err.message, err.sql_state);
-            query_type_ = QueryType::None;
-            state_ = State::Ready;
-            dispatch_result({}, err.message.c_str());
-            return;
-        }
-        auto prepare_result = parse_prepare_response(char_payload);
-        pending_prepare_result_ = MysqlResult{};
-        pending_prepare_result_.is_result_set = false;
-        pending_prepare_result_.stmt_id = prepare_result.statement_id;
-        if (!prepare_result.valid) {
-            query_type_ = QueryType::None;
-            state_ = State::Ready;
-            dispatch_result({}, "prepare failed");
-            return;
-        }
-        prepare_eofs_remaining_ = static_cast<uint16_t>(
-            (prepare_result.num_params > 0 ? 1 : 0) + (prepare_result.num_columns > 0 ? 1 : 0));
-        if (prepare_eofs_remaining_ == 0) {
-            query_type_ = QueryType::None;
-            state_ = State::Ready;
-            dispatch_result(pending_prepare_result_, nullptr);
-        }
-        return;
-    }
-
-    if (type == PACKET_ERR) {
-        auto err = parse_err(char_payload);
-        auto err_type = classify_error_code(err.error_code);
-        set_error(err_type, err.error_code, err.message, err.sql_state);
-        ping_inflight_ = false;
-        query_type_ = QueryType::None;
-        state_ = State::Ready;
-        rs_parser_.reset();
-        dispatch_result({}, err.message.c_str());
-        return;
-    }
-
-    // Binary rows start with 0x00; do not treat them as OK while reading rows.
-    if (rs_parser_ && rs_parser_->phase == ParsePhase::Rows && type != PACKET_EOF) {
-        try {
-            if (rs_parser_->binary_rows) {
-                std::vector<ColType> types;
-                std::vector<uint16_t> flags;
-                types.reserve(rs_parser_->result.columns.size());
-                flags.reserve(rs_parser_->result.columns.size());
-                for (const auto &c : rs_parser_->result.columns) {
-                    types.push_back(c.type);
-                    flags.push_back(c.flags);
-                }
-                rs_parser_->result.rows.push_back(parse_binary_row(char_payload, types, flags));
-            } else {
-                rs_parser_->result.rows.push_back(parse_row(char_payload, rs_parser_->result.columns.size()));
-            }
-        } catch (const std::exception &e) {
-            LOG_ERROR("mysql", "parse_row exception: {}", e.what());
-            state_ = State::Ready;
-            query_type_ = QueryType::None;
-            rs_parser_.reset();
-            dispatch_result({}, e.what());
-        }
-        return;
-    }
-
-    if (type == PACKET_OK) {
-        if (ping_inflight_ && query_type_ == QueryType::None && !rs_parser_) {
-            ping_inflight_ = false;
-            return;
-        }
-        MysqlResult result = parse_ok_to_result(char_payload);
-        if (result.status_flags & 0x00000008) {
-            dispatch_result(result, nullptr);
-            return;
-        }
-        query_type_ = QueryType::None;
-        state_ = State::Ready;
-        rs_parser_.reset();
-        dispatch_result(result, nullptr);
-        return;
-    }
-
-    if (type == PACKET_EOF) {
-        if (rs_parser_ && rs_parser_->in_result_set) {
-            if (rs_parser_->phase == ParsePhase::Rows) {
-                MysqlResult result = std::move(rs_parser_->result);
-                bool more_results = false;
-                if (char_payload.size() >= 5) {
-                    uint16_t status = static_cast<uint8_t>(char_payload[3]) |
-                                     (static_cast<uint8_t>(char_payload[4]) << 8);
-                    more_results = (status & 0x00000008);
-                }
-                rs_parser_.reset();
-                dispatch_result(result, nullptr);
-                if (more_results) {
-                    state_ = State::Querying;
-                } else {
-                    query_type_ = QueryType::None;
-                    state_ = State::Ready;
-                }
-                return;
-            }
-        }
-
-        if (rs_parser_ && rs_parser_->in_result_set &&
-            rs_parser_->phase == ParsePhase::Columns) {
-            rs_parser_->phase = ParsePhase::Rows;
-            return;
-        }
-
-        MysqlResult result;
-        result.is_result_set = false;
-        query_type_ = QueryType::None;
-        state_ = State::Ready;
-        rs_parser_.reset();
-        dispatch_result(result, nullptr);
-        return;
-    }
-
-    if (!rs_parser_) {
-        rs_parser_ = std::make_unique<ResultSetParser>();
-        rs_parser_->result.is_result_set = true;
-        rs_parser_->in_result_set = true;
-        rs_parser_->phase = ParsePhase::Columns;
-        rs_parser_->binary_rows = (query_type_ == QueryType::StmtExecute);
-        size_t pos = 0;
-        rs_parser_->col_count = read_lenenc_int(char_payload, pos);
-        if (rs_parser_->col_count > kMaxResultColumns) {
-            rs_parser_.reset();
-            query_type_ = QueryType::None;
-            state_ = State::Error;
-            dispatch_result({}, "too many columns in result set");
-            return;
-        }
-        rs_parser_->cols_read = 0;
-        rs_parser_->result.columns.resize(static_cast<size_t>(rs_parser_->col_count));
-        return;
-    }
-
-    if (rs_parser_->phase == ParsePhase::Columns) {
-        try {
-            if (rs_parser_->cols_read < rs_parser_->col_count) {
-                rs_parser_->result.columns[rs_parser_->cols_read] = parse_column_def(char_payload);
-                ++rs_parser_->cols_read;
-            }
-        } catch (const std::exception &e) {
-            LOG_ERROR("mysql", "parse_column_def exception: {}", e.what());
-            state_ = State::Error;
-            query_type_ = QueryType::None;
-            rs_parser_.reset();
-            dispatch_result({}, e.what());
-        }
-        return;
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Lua callback dispatch (same mechanism as net module's call_lua_event)
+// Helper methods
 // ─────────────────────────────────────────────────────────────────────────────
 
 void MysqlConnection::dispatch_connect(const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
     if (close_pending_) return;
-    LOG_DEBUG("mysql", "dispatch_connect: err_msg={} cb={}", err_msg ? err_msg : "(null)", connect_cb_.c_str());
+    LOG_DEBUG("mysql", "dispatch_connect: err_msg={} cb={}",
+              err_msg ? err_msg : "(null)", connect_cb_.c_str());
 
     if (!lua_state_ || connect_cb_.empty()) {
         LOG_DEBUG("mysql", "dispatch_connect: no state or no callback");
@@ -771,7 +387,7 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
     inter::DispatchCall(addr, args, 3, jit_type);
 }
 
-void MysqlConnection::dispatch_result(const MysqlResult &result, const char *err_msg) {
+void MysqlConnection::dispatch_result(const boost::mysql::results &result, const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
     if (close_pending_) return;
     if (!lua_state_ || result_cb_.empty()) return;
@@ -790,9 +406,9 @@ void MysqlConnection::dispatch_result(const MysqlResult &result, const char *err
     // Ensure we always have a valid error message (never empty string with failure)
     const char *msg = err_msg && err_msg[0] ? err_msg : "query failed";
 
-    LOG_DEBUG("mysql", "dispatch_result: err_msg={} cb={} result.is_result_set={} rows={} cols={}",
-            err_msg ? err_msg : "(null)", result_cb_.c_str(),
-            result.is_result_set, result.rows.size(), result.columns.size());
+    LOG_DEBUG("mysql", "dispatch_result: err_msg={} cb={} result.rows={}",
+              err_msg ? err_msg : "(null)", result_cb_.c_str(),
+              result.size() > 0 ? result.front().rows.size() : 0);
 
     CVar args[3];
     args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_)
@@ -802,12 +418,12 @@ void MysqlConnection::dispatch_result(const MysqlResult &result, const char *err
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
         args[2] = nil;
-    } else if (result.stmt_id != 0) {
+    } else if (!result.empty() && result.front().stmt_id != 0) {
         // COM_STMT_PREPARE response: pass statement_id as number
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
         args[1] = nil;
-        args[2] = inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(result.stmt_id));
+        args[2] = inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(result.front().stmt_id));
     } else {
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
@@ -818,8 +434,12 @@ void MysqlConnection::dispatch_result(const MysqlResult &result, const char *err
     inter::DispatchCall(addr, args, 3, jit_type);
 }
 
-[[noreturn]] void MysqlConnection::net_error(const std::string &msg) {
-    ThrowFakeluaException("mysql net: " + msg);
+void MysqlConnection::set_error(MysqlErrorType type, uint16_t code,
+                                const std::string &msg, const std::string &sql_state) {
+    last_error_.type = type;
+    last_error_.code = code;
+    last_error_.message = msg;
+    last_error_.sql_state = sql_state;
 }
 
 }  // namespace fakelua::mysql

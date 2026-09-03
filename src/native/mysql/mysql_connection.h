@@ -1,16 +1,20 @@
 #pragma once
 
-// mysql_connection.h — async MySQL client (callback-based, non-blocking I/O).
-// Built on top of net::TcpClient (RawStream) for event-driven TCP.
+// mysql_connection.h — async MySQL client using Boost.MySQL
+// Built on top of boost::mysql::connection for asynchronous MySQL operations.
 
+#include <boost/mysql.hpp>
+#include <boost/asio.hpp>
+
+// Keep the existing protocol and result headers for StmtParam and compatibility
 #include "native/mysql/mysql_protocol.h"
 #include "native/mysql/mysql_result.h"
-#include "native/net/net_socket.h"
 
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace fakelua {
@@ -69,9 +73,6 @@ public:
     // Returns false if the ping was not sent (busy / not ready).
     bool ping();
 
-    // Send raw packet (for pool heartbeat)
-    bool send_packet(uint8_t seq, const char *payload, size_t len);
-
     // Close connection
     void close();
 
@@ -102,30 +103,18 @@ public:
     void request_close() { close_pending_ = true; }
 
 private:
-    // TCP client from net module (RawStream framing for raw bytes)
-    std::unique_ptr<net::TcpClient> client_;
-    net::NetConfig net_config_;
+    // Boost.Asio I/O context for asynchronous operations
+    boost::asio::io_context io_ctx_;
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work_;
 
-    // Protocol state
+    // Boost.MySQL connection
+    boost::mysql::connection conn_;
+
+    // State tracking
     enum class State { Idle, Connecting, Handshaking, Ready, Querying, Error };
     State state_ = State::Idle;
     ::fakelua::State *lua_state_ = nullptr;  // fakelua State for callback dispatch
     ::fakelua::NativeObject *native_obj_ = nullptr;  // NativeObject wrapper (for passing to Lua)
-
-    // Raw byte buffer for MySQL packet parsing
-    std::vector<uint8_t> recv_buf_;
-
-    // Protocol state
-    uint8_t seq_ = 0;
-    uint32_t capabilities_ = 0;
-    uint8_t charset_ = 0;
-    bool ready_ = false;
-    bool compress_ = false;  // true after handshake negotiates CLIENT_COMPRESS
-
-    // Auth info (saved during connect, used in handshake)
-    std::string user_;
-    std::string password_;
-    std::string database_;
 
     // Lua callback function names
     std::string connect_cb_;
@@ -139,54 +128,38 @@ private:
     QueryType query_type_ = QueryType::None;
 
     // Multi-result support
-    std::vector<MysqlResult> pending_results_;
+    std::vector<boost::mysql::results> pending_results_;
 
-    // Incremental result set parser state (for large result sets across ticks)
-    enum class ParsePhase { Columns, Rows, Done };
-    struct ResultSetParser {
-        ParsePhase phase = ParsePhase::Columns;
-        MysqlResult result;
-        uint64_t col_count = 0;
-        uint64_t cols_read = 0;
-        bool in_result_set = false;
-        bool binary_rows = false;
-    };
-    std::unique_ptr<ResultSetParser> rs_parser_;
-
-    // COM_PING in flight — next OK must not be treated as a query result
-    bool ping_inflight_ = false;
-
-    int tick_depth_ = 0;
-    bool close_pending_ = false;
-    std::string pending_connect_err_;
-    int connect_timeout_ms_ = 0;
-    int64_t connect_start_ms_ = 0;
-
-    // COM_STMT_PREPARE 之后还要丢掉 param/column definition + EOF
-    uint16_t prepare_eofs_remaining_ = 0;
-    MysqlResult pending_prepare_result_;
+    // Prepared statement cache: map from statement ID to prepared statement
+    std::unordered_map<uint32_t, boost::mysql::prepared_statement> prepared_statements_;
+    uint32_t next_stmt_id_ = 1;
 
     // Error tracking
     MysqlError last_error_;
 
-    // ── byte buffer → MySQL packet parsing ──
-    void feed_bytes(const char *data, size_t len);
-    bool try_parse_packet(std::vector<uint8_t> &out_payload);
+    // Connection parameters for reconnect
+    std::string host_;
+    std::string user_;
+    std::string password_;
+    std::string database_;
+    uint16_t port_ = 3306;
+    int timeout_ms_ = 0;
 
-    // ── protocol handlers ──
-    void handle_handshake_packet(const std::vector<uint8_t> &payload);
-    void handle_query_packet(const std::vector<uint8_t> &payload);
+    // Timing
+    int64_t connect_start_ms_ = 0;
 
-    // ── Lua callback dispatch ──
+    // Lua callback dispatch flags (to avoid reentrancy)
+    bool pending_connect_ = false;
+    std::string pending_connect_err_;
+    bool pending_result_ = false;
+    boost::mysql::results pending_result_data_;
+    std::string pending_result_err_;
+
+    // Helpers
     void dispatch_connect(const char *err_msg);
-    void dispatch_result(const MysqlResult &result, const char *err_msg);
-
-    // ── error handling ──
+    void dispatch_result(const boost::mysql::results &result, const char *err_msg);
     void set_error(MysqlErrorType type, uint16_t code,
                    const std::string &msg, const std::string &sql_state);
-
-    // ── helpers ──
-    [[noreturn]] static void net_error(const std::string &msg);
 };
 
 }  // namespace fakelua::mysql
