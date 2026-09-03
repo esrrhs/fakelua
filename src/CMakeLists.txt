@@ -265,4 +265,40 @@ if (NOT tomlplusplus_ADDED)
 endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
+# Fetch Boost (header-only for our needs)
+CPMAddPackage(
+    NAME boost
+    GITHUB_REPOSITORY boostorg/boost
+    GIT_TAG boost-1.90.0
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        "Boost_NO_BOOST_CMAKE ON"
+        "Boost_NO_SYSTEM_PATHS ON"
+)
+if (NOT boost_ADDED)
+    message(FATAL_ERROR "Failed to fetch boost")
+endif()
+set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
+
+# Fetch boost-mysql
+CPMAddPackage(
+    NAME boost-mysql
+    GITHUB_REPOSITORY boostorg/mysql
+    GIT_TAG boost-1.90.0
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        "BOOST_MYSQL_BUILD_EXAMPLES OFF"
+        "BOOST_MYSQL_BUILD_TESTS OFF"
+)
+if (NOT boost-mysql_ADDED)
+    message(FATAL_ERROR "Failed to fetch boost-mysql")
+endif()
+
+# OpenSSL and Threads required by Boost.MySQL
+find_package(OpenSSL REQUIRED)
+find_package(Boost REQUIRED COMPONENTS asio system)
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Boost::asio Boost::system boost_mysql)
+
 target_link_libraries(fakelua ${TARGET_LIB})
