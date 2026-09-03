@@ -1,10 +1,6 @@
 package "MysqlTest"
 
 -- 预处理语句测试
-local g_query_result = nil
-local g_stmt_id = nil
-local g_prepare_err = nil
-
 function on_connect(conn, err, success)
     conn.connected = (success == 1)
     conn.connect_err = err
@@ -12,13 +8,36 @@ end
 
 function on_result(conn, err, result)
     conn.query_err = err
-    g_query_result = result
+    if result then
+        conn.result_is_result_set = result[1] == true
+        if result[3] then
+            conn.result_row_count = #result[3]
+            if result[3][1] then
+                conn.result_row1_col1 = result[3][1][1]
+                conn.result_row1_col2 = result[3][1][2]
+            else
+                conn.result_row1_col1 = nil
+                conn.result_row1_col2 = nil
+            end
+        else
+            conn.result_row_count = nil
+            conn.result_row1_col1 = nil
+            conn.result_row1_col2 = nil
+        end
+        conn.result_affected_rows = result[4]
+    else
+        conn.result_is_result_set = false
+        conn.result_row_count = nil
+        conn.result_row1_col1 = nil
+        conn.result_row1_col2 = nil
+        conn.result_affected_rows = nil
+    end
     conn.query_done = true
 end
 
 function on_prepare(conn, err, stmt_id)
-    g_stmt_id = stmt_id
-    g_prepare_err = err
+    conn.stmt_id = stmt_id
+    conn.prepare_err = err
     conn.prepare_done = true
 end
 
@@ -70,8 +89,8 @@ function test_stmt()
 
     -- 准备 INSERT 语句
     conn.prepare_done = false
-    g_prepare_err = nil
-    g_stmt_id = nil
+    conn.prepare_err = nil
+    conn.stmt_id = nil
     conn:stmt_prepare("INSERT INTO stmt_test VALUES (?, ?)", "on_prepare")
 
     for i = 1, 1000 do
@@ -79,8 +98,8 @@ function test_stmt()
         if conn.prepare_done then break end
     end
 
-    if not g_stmt_id then
-        local err_str = g_prepare_err or ""
+    if not conn.stmt_id then
+        local err_str = conn.prepare_err or ""
         print("stmt_prepare failed:", tostring(err_str))
         conn:close()
         return 0
@@ -89,8 +108,12 @@ function test_stmt()
     -- 执行插入
     conn.query_done = false
     conn.query_err = nil
-    g_query_result = nil
-    conn:stmt_execute(g_stmt_id, {"1", "alice"}, "on_result")
+    conn.result_is_result_set = nil
+    conn.result_row_count = nil
+    conn.result_row1_col1 = nil
+    conn.result_row1_col2 = nil
+    conn.result_affected_rows = nil
+    conn:stmt_execute(conn.stmt_id, {"1", "alice"}, "on_result")
 
     for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
@@ -105,24 +128,17 @@ function test_stmt()
     end
 
     -- 验证插入成功
-    local insert_result = g_query_result
-    if not insert_result then
-        print("INSERT affected_rows expected 1, got:", "nil")
-        conn:stmt_close(g_stmt_id)
-        conn:close()
-        return 0
-    end
-    if insert_result[4] ~= 1 then
-        print("INSERT affected_rows expected 1, got:", insert_result[4])
-        conn:stmt_close(g_stmt_id)
+    if conn.result_affected_rows ~= 1 then
+        print("INSERT affected_rows expected 1, got:", conn.result_affected_rows)
+        conn:stmt_close(conn.stmt_id)
         conn:close()
         return 0
     end
 
     -- 准备 SELECT 语句
     conn.prepare_done = false
-    g_stmt_id = nil
-    g_prepare_err = nil
+    conn.stmt_id = nil
+    conn.prepare_err = nil
     conn:stmt_prepare("SELECT id, name FROM stmt_test WHERE id = ?", "on_prepare")
 
     for i = 1, 1000 do
@@ -130,8 +146,8 @@ function test_stmt()
         if conn.prepare_done then break end
     end
 
-    if not g_stmt_id then
-        local err_str = g_prepare_err or ""
+    if not conn.stmt_id then
+        local err_str = conn.prepare_err or ""
         print("SELECT stmt_prepare failed:", tostring(err_str))
         conn:close()
         return 0
@@ -140,8 +156,12 @@ function test_stmt()
     -- 执行查询
     conn.query_done = false
     conn.query_err = nil
-    g_query_result = nil
-    conn:stmt_execute(g_stmt_id, {"1"}, "on_result")
+    conn.result_is_result_set = nil
+    conn.result_row_count = nil
+    conn.result_row1_col1 = nil
+    conn.result_row1_col2 = nil
+    conn.result_affected_rows = nil
+    conn:stmt_execute(conn.stmt_id, {"1"}, "on_result")
 
     for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
@@ -149,45 +169,36 @@ function test_stmt()
         if #conn.query_err > 0 then
             local err_str = conn.query_err
             print("SELECT stmt_execute failed:", tostring(err_str))
-            conn:stmt_close(g_stmt_id)
+            conn:stmt_close(conn.stmt_id)
             conn:close()
             return 0
         end
     end
 
     -- 验证查询结果
-    local result = g_query_result
-    if not result then
-        print("SELECT returned nil")
-        conn:stmt_close(g_stmt_id)
+    if conn.result_is_result_set ~= true then
+        print("expected result set, got:", conn.result_is_result_set)
+        conn:stmt_close(conn.stmt_id)
         conn:close()
         return 0
     end
 
-    if result[1] ~= true then
-        print("expected result set, got:", result[1])
-        conn:stmt_close(g_stmt_id)
+    if conn.result_row_count ~= 1 then
+        print("expected 1 row, got:", conn.result_row_count)
+        conn:stmt_close(conn.stmt_id)
         conn:close()
         return 0
     end
 
-    if #result[3] ~= 1 then
-        print("expected 1 row, got:", #result[3])
-        conn:stmt_close(g_stmt_id)
-        conn:close()
-        return 0
-    end
-
-    local row = result[3][1]
-    if row[1] ~= "1" or row[2] ~= "alice" then
-        print("row mismatch:", row[1], row[2])
-        conn:stmt_close(g_stmt_id)
+    if conn.result_row1_col1 ~= "1" or conn.result_row1_col2 ~= "alice" then
+        print("row mismatch:", conn.result_row1_col1, conn.result_row1_col2)
+        conn:stmt_close(conn.stmt_id)
         conn:close()
         return 0
     end
 
     -- 清理
-    conn:stmt_close(g_stmt_id)
+    conn:stmt_close(conn.stmt_id)
     conn:query("DROP TABLE IF EXISTS stmt_test", "on_result")
     for i = 1, 1000 do conn:tick() if conn.query_done then break end end
     conn:close()

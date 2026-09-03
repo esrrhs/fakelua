@@ -1,8 +1,6 @@
 package "MysqlTest"
 
 -- 连接池测试（需要本地 MySQL 服务）
-local g_query_result = nil
-
 function on_pool_connect(conn, err, success)
     conn.connected = (success == 1)
     conn.connect_err = err
@@ -10,7 +8,11 @@ end
 
 function on_pool_result(conn, err, result)
     conn.query_err = err
-    g_query_result = result
+    if result and result[3] and result[3][1] then
+        conn.result_first_value = result[3][1][1]
+    else
+        conn.result_first_value = nil
+    end
     conn.query_done = true
 end
 
@@ -41,7 +43,7 @@ function test_pool()
     -- 验证连接可用
     conn.query_done = false
     conn.query_err = nil
-    g_query_result = nil
+    conn.result_first_value = nil
     conn:query("SELECT 1 AS test", "on_pool_result")
 
     for i = 1, 1000 do
@@ -59,15 +61,8 @@ function test_pool()
     end
 
     -- 验证结果
-    local result = g_query_result
-    if not result then
-        print("pool query result mismatch:", "nil")
-        pool:release(conn)
-        pool:close()
-        return 0
-    end
-    if result[3][1][1] ~= "1" then
-        print("pool query result mismatch:", result[3][1][1])
+    if conn.result_first_value ~= "1" then
+        print("pool query result mismatch:", conn.result_first_value)
         pool:release(conn)
         pool:close()
         return 0

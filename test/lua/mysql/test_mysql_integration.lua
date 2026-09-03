@@ -1,8 +1,6 @@
 package "MysqlTest"
 
 -- 集成测试：回调式 API
-local g_query_result = nil
-
 function on_connect(conn, err, success)
     conn.connected = (success == 1)
     conn.connect_err = err
@@ -10,7 +8,17 @@ end
 
 function on_result(conn, err, result)
     conn.query_err = err
-    g_query_result = result
+    if result then
+        conn.result_is_result_set = result[1] == true
+        if result[3] and result[3][1] and result[3][1][1] then
+            conn.result_first_value = result[3][1][1]
+        else
+            conn.result_first_value = nil
+        end
+    else
+        conn.result_is_result_set = false
+        conn.result_first_value = nil
+    end
     conn.query_done = true
 end
 
@@ -53,7 +61,8 @@ function test_mysql_integration()
 
     conn.query_done = false
     conn.query_err = nil
-    g_query_result = nil
+    conn.result_is_result_set = nil
+    conn.result_first_value = nil
     conn:query("SELECT 1 AS test", "on_result")
 
     for i = 1, 1000 do conn:tick() if conn.query_done then break end end
@@ -65,6 +74,12 @@ function test_mysql_integration()
             conn:close()
             return 0
         end
+    end
+
+    if conn.result_is_result_set ~= true or conn.result_first_value ~= "1" then
+        print("query result mismatch:", conn.result_first_value)
+        conn:close()
+        return 0
     end
 
     conn:close()
