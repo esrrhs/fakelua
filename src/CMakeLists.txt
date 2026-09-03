@@ -5,6 +5,7 @@ project(libfakelua)
 include(ExternalProject)
 include(GNUInstallDirs)
 include(ProcessorCount)
+find_package(PkgConfig QUIET)
 
 aux_source_directory(compile/bison FAKELUA_SRC_LIST)
 aux_source_directory(compile/flex FAKELUA_SRC_LIST)
@@ -161,6 +162,32 @@ set(TARGET_LIB ${TARGET_LIB} tinycc_embedded)
 
 if (USE_COV)
     set(TARGET_LIB ${TARGET_LIB} gcov)
+endif ()
+
+if (PkgConfig_FOUND)
+    pkg_search_module(MYSQLCLIENT QUIET mysqlclient libmariadb mariadb)
+endif ()
+
+find_path(FAKELUA_MYSQL_INCLUDE_DIR
+    NAMES mysql.h
+    HINTS ${MYSQLCLIENT_INCLUDE_DIRS}
+    PATH_SUFFIXES mysql
+)
+find_library(FAKELUA_MYSQL_LIBRARY
+    NAMES mysqlclient mariadb libmysql libmariadb mariadbclient
+    HINTS ${MYSQLCLIENT_LIBRARY_DIRS}
+)
+
+if (NOT FAKELUA_MYSQL_INCLUDE_DIR OR NOT FAKELUA_MYSQL_LIBRARY)
+    message(FATAL_ERROR "MySQL client development files not found")
+endif ()
+
+include_directories(${FAKELUA_MYSQL_INCLUDE_DIR})
+set(TARGET_LIB ${TARGET_LIB} ${FAKELUA_MYSQL_LIBRARY})
+if (MYSQLCLIENT_LINK_LIBRARIES)
+    set(TARGET_LIB ${TARGET_LIB} ${MYSQLCLIENT_LINK_LIBRARIES})
+elseif (MYSQLCLIENT_LIBRARIES)
+    set(TARGET_LIB ${TARGET_LIB} ${MYSQLCLIENT_LIBRARIES})
 endif ()
 
 # ── Compression libraries via CPM ──

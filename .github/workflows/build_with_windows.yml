@@ -48,6 +48,7 @@ jobs:
             make
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-libmariadbclient
             mingw-w64-x86_64-lua
             mingw-w64-x86_64-ninja
 
