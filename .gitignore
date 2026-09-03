@@ -57,6 +57,8 @@ coverage_html/
 *.gcov
 *.gcda
 *.gcno
+test/lua/test_fakelua_log_tmp.txt
+test/lua/test_cpp_log_tmp.txt
 src/compile/bison/parser.gv
 src/compile/bison/parser.xml
 test_results.log
