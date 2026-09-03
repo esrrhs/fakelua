@@ -5,6 +5,12 @@
 
 #include <mysql.h>
 
+#ifndef WIN32
+#include <sys/select.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#endif
+
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -47,6 +53,35 @@ std::string copy_mysql_string(const char *s) {
 unsigned int timeout_seconds_from_ms(int timeout_ms) {
     if (timeout_ms <= 0) return 0;
     return static_cast<unsigned int>((timeout_ms + 999) / 1000);
+}
+
+bool mysql_socket_valid(my_socket fd) {
+#ifdef WIN32
+    return fd != INVALID_SOCKET;
+#else
+    return fd >= 0;
+#endif
+}
+
+void wait_for_mysql_socket(MYSQL *mysql, int timeout_ms) {
+    if (!mysql || timeout_ms < 0) return;
+    my_socket fd = mysql->net.fd;
+    if (!mysql_socket_valid(fd)) return;
+
+    fd_set readfds;
+    fd_set writefds;
+    fd_set exceptfds;
+    FD_ZERO(&readfds);
+    FD_ZERO(&writefds);
+    FD_ZERO(&exceptfds);
+    FD_SET(fd, &readfds);
+    FD_SET(fd, &writefds);
+    FD_SET(fd, &exceptfds);
+
+    timeval tv{};
+    tv.tv_sec = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+    (void)select(static_cast<int>(fd) + 1, &readfds, &writefds, &exceptfds, &tv);
 }
 
 MysqlErrorType classify_error_code(uint16_t code) {
@@ -490,7 +525,10 @@ void MysqlConnection::tick_connect() {
         mysql, host_.c_str(), user_.c_str(), safe_cstr(password_), safe_cstr(database_),
         port_, nullptr, CLIENT_MULTI_STATEMENTS | CLIENT_MULTI_RESULTS);
 
-    if (status == NET_ASYNC_NOT_READY) return;
+    if (status == NET_ASYNC_NOT_READY) {
+        wait_for_mysql_socket(mysql, 5);
+        return;
+    }
     if (status == NET_ASYNC_COMPLETE) {
         ready_ = true;
         state_ = State::Ready;
@@ -528,7 +566,10 @@ void MysqlConnection::tick_operation() {
     if (phase_ == AsyncPhase::Start) {
         const auto status = mysql_real_query_nonblocking(
             mysql, pending_sql_.c_str(), static_cast<unsigned long>(pending_sql_.size()));
-        if (status == NET_ASYNC_NOT_READY) return;
+        if (status == NET_ASYNC_NOT_READY) {
+            wait_for_mysql_socket(mysql, 5);
+            return;
+        }
         if (status == NET_ASYNC_COMPLETE) {
             phase_ = AsyncPhase::StoreResult;
             return;
@@ -556,7 +597,10 @@ void MysqlConnection::tick_operation() {
     if (phase_ == AsyncPhase::StoreResult) {
         MYSQL_RES *res = nullptr;
         const auto status = mysql_store_result_nonblocking(mysql, &res);
-        if (status == NET_ASYNC_NOT_READY) return;
+        if (status == NET_ASYNC_NOT_READY) {
+            wait_for_mysql_socket(mysql, 5);
+            return;
+        }
         if (status == NET_ASYNC_ERROR) {
             auto err = make_error_from_handle(mysql, "store result failed");
             set_error(err.type, static_cast<uint16_t>(err.code), err.message, err.sql_state);
@@ -599,7 +643,10 @@ void MysqlConnection::tick_operation() {
 
     if (phase_ == AsyncPhase::NextResult) {
         const auto status = mysql_next_result_nonblocking(mysql);
-        if (status == NET_ASYNC_NOT_READY) return;
+        if (status == NET_ASYNC_NOT_READY) {
+            wait_for_mysql_socket(mysql, 5);
+            return;
+        }
         if (status == NET_ASYNC_COMPLETE) {
             phase_ = AsyncPhase::StoreResult;
             return;

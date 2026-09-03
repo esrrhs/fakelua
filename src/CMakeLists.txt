@@ -74,18 +74,24 @@ else ()
     include_directories(${tinycc_src_SOURCE_DIR})
 endif ()
 
-# SQLite3 amalgamation via CPM — compiled directly into fakelua (not a separate static lib)
-# to avoid CRT mismatch issues on Windows/MSYS2.
-CPMAddPackage(
-    NAME sqlite3_amalgamation
-    URL https://www.sqlite.org/2024/sqlite-amalgamation-3450000.zip
-    DOWNLOAD_ONLY YES
-)
-if (NOT sqlite3_amalgamation_ADDED)
-    message(FATAL_ERROR "Failed to fetch SQLite3 amalgamation")
+find_package(SQLite3 QUIET)
+if (SQLite3_FOUND AND TARGET SQLite::SQLite3)
+    include_directories(${SQLite3_INCLUDE_DIRS})
+    set(TARGET_LIB ${TARGET_LIB} SQLite::SQLite3)
+else ()
+    # SQLite3 amalgamation via CPM — compiled directly into fakelua (not a separate static lib)
+    # to avoid CRT mismatch issues on Windows/MSYS2.
+    CPMAddPackage(
+        NAME sqlite3_amalgamation
+        URL https://www.sqlite.org/2024/sqlite-amalgamation-3450000.zip
+        DOWNLOAD_ONLY YES
+    )
+    if (NOT sqlite3_amalgamation_ADDED)
+        message(FATAL_ERROR "Failed to fetch SQLite3 amalgamation")
+    endif ()
+    include_directories(${sqlite3_amalgamation_SOURCE_DIR})
+    set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${sqlite3_amalgamation_SOURCE_DIR}/sqlite3.c)
 endif ()
-include_directories(${sqlite3_amalgamation_SOURCE_DIR})
-set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${sqlite3_amalgamation_SOURCE_DIR}/sqlite3.c)
 
 # INI (inih) — pure C single-file, compile ini.c directly (like sqlite3)
 CPMAddPackage(

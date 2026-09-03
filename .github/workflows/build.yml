@@ -137,13 +137,10 @@ jobs:
 
           cmake ${CMAKE_FLAGS} ..
           make -j$(nproc)
-          # Run all tests except MySQL integration tests (flaky on CI)
           # Must run from test/lua so relative Lua file paths resolve correctly
-          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests --gtest_filter="-test_mysql.integration*")
+          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
           ./bin/bench_mark
           ./bin/flua
-          # MySQL 集成测试（需要 MySQL 服务）
-          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests --gtest_filter="test_mysql.integration_*")
 
       - name: Coverage report
         if: matrix.build_type == 'cov'

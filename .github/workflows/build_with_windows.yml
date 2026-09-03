@@ -34,8 +34,23 @@ jobs:
             net start MySQL80 2>$true
             net start MySQL 2>$true
           }
-          # MySQL 8 on Windows uses caching_sha2_password by default
-          # which our client supports. No configuration needed.
+          $mysql = (Get-Command mysql.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1)
+          if (-not $mysql) {
+            $mysql = Get-ChildItem "C:\\Program Files\\MySQL" -Recurse -Filter mysql.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName -First 1
+          }
+          if (-not $mysql) {
+            throw "mysql.exe not found"
+          }
+          & $mysql -h 127.0.0.1 -uroot -e "SELECT 1" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            & $mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE IF NOT EXISTS test;"
+          } else {
+            & $mysql -h 127.0.0.1 -uroot -proot -e "SELECT 1" 2>$null
+            if ($LASTEXITCODE -ne 0) {
+              throw "unable to authenticate to local MySQL as root"
+            }
+            & $mysql -h 127.0.0.1 -uroot -proot -e "CREATE DATABASE IF NOT EXISTS test;"
+          }
           echo "MySQL started"
 
       - name: Setup MSYS2
@@ -69,8 +84,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set -eux
-          # Skip MySQL tests on Windows (MySQL service not available)
-          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe --gtest_filter="-test_mysql.*"
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe
 
       - name: Run benchmarks and flua
         shell: msys2 {0}
