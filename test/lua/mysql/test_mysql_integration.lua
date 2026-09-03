@@ -1,6 +1,8 @@
 package "MysqlTest"
 
 -- 集成测试：回调式 API
+local g_query_result = nil
+
 function on_connect(conn, err, success)
     conn.connected = (success == 1)
     conn.connect_err = err
@@ -8,7 +10,7 @@ end
 
 function on_result(conn, err, result)
     conn.query_err = err
-    conn.query_result = result
+    g_query_result = result
     conn.query_done = true
 end
 
@@ -51,6 +53,7 @@ function test_mysql_integration()
 
     conn.query_done = false
     conn.query_err = nil
+    g_query_result = nil
     conn:query("SELECT 1 AS test", "on_result")
 
     for i = 1, 1000 do conn:tick() if conn.query_done then break end end

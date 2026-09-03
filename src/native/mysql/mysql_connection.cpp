@@ -555,54 +555,29 @@ void MysqlConnection::tick_operation() {
         return;
     }
 
-    if (phase_ == AsyncPhase::DispatchPrepare) {
-        state_ = State::Ready;
-        operation_ = OperationType::None;
-        phase_ = AsyncPhase::None;
-        dispatch_result(pending_result_, nullptr);
-        return;
-    }
-
-    if (phase_ == AsyncPhase::Start) {
-        const auto status = mysql_real_query_nonblocking(
-            mysql, pending_sql_.c_str(), static_cast<unsigned long>(pending_sql_.size()));
-        if (status == NET_ASYNC_NOT_READY) {
-            wait_for_mysql_socket(mysql, 5);
-            return;
-        }
-        if (status == NET_ASYNC_COMPLETE) {
-            phase_ = AsyncPhase::StoreResult;
+    while (true) {
+        if (phase_ == AsyncPhase::DispatchPrepare) {
+            ready_ = true;
+            state_ = State::Ready;
+            operation_ = OperationType::None;
+            phase_ = AsyncPhase::None;
+            dispatch_result(pending_result_, nullptr);
             return;
         }
 
-        auto err = make_error_from_handle(mysql, "query failed");
-        set_error(err.type, static_cast<uint16_t>(err.code), err.message, err.sql_state);
-        const bool connection_error = last_error_.type == MysqlErrorType::Connection ||
-                                      last_error_.type == MysqlErrorType::Timeout ||
-                                      last_error_.type == MysqlErrorType::Protocol;
-        if (operation_ != OperationType::Heartbeat) {
-            dispatch_result({}, last_error_.message.c_str());
-        }
-        ready_ = !connection_error;
-        state_ = connection_error ? State::Error : State::Ready;
-        operation_ = OperationType::None;
-        phase_ = AsyncPhase::None;
-        if (connection_error) {
-            close();
-            state_ = State::Error;
-        }
-        return;
-    }
+        if (phase_ == AsyncPhase::Start) {
+            const auto status = mysql_real_query_nonblocking(
+                mysql, pending_sql_.c_str(), static_cast<unsigned long>(pending_sql_.size()));
+            if (status == NET_ASYNC_NOT_READY) {
+                wait_for_mysql_socket(mysql, 5);
+                return;
+            }
+            if (status == NET_ASYNC_COMPLETE) {
+                phase_ = AsyncPhase::StoreResult;
+                continue;
+            }
 
-    if (phase_ == AsyncPhase::StoreResult) {
-        MYSQL_RES *res = nullptr;
-        const auto status = mysql_store_result_nonblocking(mysql, &res);
-        if (status == NET_ASYNC_NOT_READY) {
-            wait_for_mysql_socket(mysql, 5);
-            return;
-        }
-        if (status == NET_ASYNC_ERROR) {
-            auto err = make_error_from_handle(mysql, "store result failed");
+            auto err = make_error_from_handle(mysql, "query failed");
             set_error(err.type, static_cast<uint16_t>(err.code), err.message, err.sql_state);
             const bool connection_error = last_error_.type == MysqlErrorType::Connection ||
                                           last_error_.type == MysqlErrorType::Timeout ||
@@ -614,7 +589,6 @@ void MysqlConnection::tick_operation() {
             state_ = connection_error ? State::Error : State::Ready;
             operation_ = OperationType::None;
             phase_ = AsyncPhase::None;
-            if (res) mysql_free_result(res);
             if (connection_error) {
                 close();
                 state_ = State::Error;
@@ -622,58 +596,82 @@ void MysqlConnection::tick_operation() {
             return;
         }
 
-        pending_result_ = res ? result_from_mysql_res(res) : status_result_from_mysql(mysql);
-        if (res) mysql_free_result(res);
+        if (phase_ == AsyncPhase::StoreResult) {
+            MYSQL_RES *res = nullptr;
+            const auto store_status = mysql_store_result_nonblocking(mysql, &res);
+            if (store_status == NET_ASYNC_NOT_READY) {
+                wait_for_mysql_socket(mysql, 5);
+                return;
+            }
+            if (store_status == NET_ASYNC_ERROR) {
+                auto err = make_error_from_handle(mysql, "store result failed");
+                set_error(err.type, static_cast<uint16_t>(err.code), err.message, err.sql_state);
+                const bool connection_error = last_error_.type == MysqlErrorType::Connection ||
+                                              last_error_.type == MysqlErrorType::Timeout ||
+                                              last_error_.type == MysqlErrorType::Protocol;
+                if (operation_ != OperationType::Heartbeat) {
+                    dispatch_result({}, last_error_.message.c_str());
+                }
+                ready_ = !connection_error;
+                state_ = connection_error ? State::Error : State::Ready;
+                operation_ = OperationType::None;
+                phase_ = AsyncPhase::None;
+                if (res) mysql_free_result(res);
+                if (connection_error) {
+                    close();
+                    state_ = State::Error;
+                }
+                return;
+            }
 
-        if (operation_ != OperationType::Heartbeat) {
-            dispatch_result(pending_result_, nullptr);
-        }
-
-        if (mysql_more_results(mysql)) {
+            pending_result_ = res ? result_from_mysql_res(res) : status_result_from_mysql(mysql);
+            if (res) mysql_free_result(res);
             phase_ = AsyncPhase::NextResult;
-            return;
+            continue;
         }
 
-        ready_ = true;
-        state_ = State::Ready;
-        operation_ = OperationType::None;
-        phase_ = AsyncPhase::None;
-        return;
-    }
+        if (phase_ == AsyncPhase::NextResult) {
+            const bool dispatch_allowed = operation_ != OperationType::Heartbeat;
+            const auto next_status = mysql_next_result_nonblocking(mysql);
+            if (next_status == NET_ASYNC_NOT_READY) {
+                wait_for_mysql_socket(mysql, 5);
+                return;
+            }
+            if (next_status == NET_ASYNC_COMPLETE) {
+                if (dispatch_allowed) {
+                    dispatch_result(pending_result_, nullptr);
+                }
+                phase_ = AsyncPhase::StoreResult;
+                continue;
+            }
+            if (next_status == NET_ASYNC_COMPLETE_NO_MORE_RESULTS) {
+                ready_ = true;
+                state_ = State::Ready;
+                operation_ = OperationType::None;
+                phase_ = AsyncPhase::None;
+                if (dispatch_allowed) {
+                    dispatch_result(pending_result_, nullptr);
+                }
+                return;
+            }
 
-    if (phase_ == AsyncPhase::NextResult) {
-        const auto status = mysql_next_result_nonblocking(mysql);
-        if (status == NET_ASYNC_NOT_READY) {
-            wait_for_mysql_socket(mysql, 5);
-            return;
-        }
-        if (status == NET_ASYNC_COMPLETE) {
-            phase_ = AsyncPhase::StoreResult;
-            return;
-        }
-        if (status == NET_ASYNC_COMPLETE_NO_MORE_RESULTS) {
-            ready_ = true;
-            state_ = State::Ready;
+            auto err = make_error_from_handle(mysql, "next result failed");
+            set_error(err.type, static_cast<uint16_t>(err.code), err.message, err.sql_state);
+            const bool connection_error = last_error_.type == MysqlErrorType::Connection ||
+                                          last_error_.type == MysqlErrorType::Timeout ||
+                                          last_error_.type == MysqlErrorType::Protocol;
+            if (operation_ != OperationType::Heartbeat) {
+                dispatch_result({}, last_error_.message.c_str());
+            }
+            ready_ = !connection_error;
+            state_ = connection_error ? State::Error : State::Ready;
             operation_ = OperationType::None;
             phase_ = AsyncPhase::None;
+            if (connection_error) {
+                close();
+                state_ = State::Error;
+            }
             return;
-        }
-
-        auto err = make_error_from_handle(mysql, "next result failed");
-        set_error(err.type, static_cast<uint16_t>(err.code), err.message, err.sql_state);
-        const bool connection_error = last_error_.type == MysqlErrorType::Connection ||
-                                      last_error_.type == MysqlErrorType::Timeout ||
-                                      last_error_.type == MysqlErrorType::Protocol;
-        if (operation_ != OperationType::Heartbeat) {
-            dispatch_result({}, last_error_.message.c_str());
-        }
-        ready_ = !connection_error;
-        state_ = connection_error ? State::Error : State::Ready;
-        operation_ = OperationType::None;
-        phase_ = AsyncPhase::None;
-        if (connection_error) {
-            close();
-            state_ = State::Error;
         }
     }
 }

@@ -1,6 +1,8 @@
 package "MysqlTest"
 
 -- 多结果集测试
+local g_results = {}
+
 function on_connect(conn, err, success)
     conn.connected = (success == 1)
     conn.connect_err = err
@@ -8,14 +10,9 @@ end
 
 function on_result(conn, err, result)
     conn.query_err = err
-    conn.query_result = result
     conn.query_done = true
-    -- 收集多结果
-    if type(conn.results) ~= "table" then
-        conn.results = {}
-    end
-    local n = #conn.results
-    conn.results[n + 1] = result
+    local n = #g_results
+    g_results[n + 1] = result
 end
 
 function test_multi_result()
@@ -55,7 +52,7 @@ function test_multi_result()
     end
 
     -- 多语句查询
-    conn.results = {}
+    g_results = {}
     conn.query_done = false
     conn.query_err = nil
     conn:query("SELECT 1 AS a; SELECT 2 AS b; SELECT 3 AS c", "on_result")
@@ -63,21 +60,21 @@ function test_multi_result()
     -- 驱动足够长时间让所有结果返回
     for i = 1, 2000 do
         conn:tick()
-        if conn.query_done and conn.results ~= nil and #conn.results >= 3 then
+        if conn.query_done and #g_results >= 3 then
             break
         end
     end
 
     -- 验证收到 3 个结果
-    if #conn.results < 3 then
-        print("expected 3 results, got:", #conn.results)
+    if #g_results < 3 then
+        print("expected 3 results, got:", #g_results)
         conn:close()
         return 0
     end
 
     -- 验证每个结果
-    for i = 1, #conn.results do
-        local result = conn.results[i]
+    for i = 1, #g_results do
+        local result = g_results[i]
         if result[1] ~= true then
             print("result", i, "is not a result set")
             conn:close()

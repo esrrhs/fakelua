@@ -1,0 +1,112 @@
+[2026-09-03 09:37:03.790] [INFO ] [script] [./log/test_log_basic.lua:75:test_log_set_file] write to file
+[2026-09-03 09:37:03.790] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-03 09:37:03.792] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-03 09:37:03.803] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-03 09:37:03.803] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-03 09:37:03.875] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-03 09:37:03.875] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-03 09:37:03.876] [INFO ] [script] [./log/test_log_basic.lua:75:test_log_set_file] write to file
+[2026-09-03 09:37:03.876] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-03 09:37:03.878] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-03 09:37:03.888] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-03 09:37:03.889] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-03 09:37:03.961] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-03 09:37:03.961] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-03 09:37:03.961] [ERROR] [engine] [/home/runner/work/fakelua/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.set_level' (integer expected)
+stacktrace:
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0xca) [0x7f22659ca52a]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x4d) [0x7f22659cad5d]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x3c) [0x7f22658c06a1]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x1ea) [0x7f22659e73fa]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(+0x2bf6c8) [0x7f2265abf6c8]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(FakeluaCallByName+0x3d1) [0x7f22659dfa51]
+[0x5585ce3a90e3]
+
+[2026-09-03 09:37:03.962] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-03 09:37:03.963] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-03 09:37:03.974] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-03 09:37:03.974] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-03 09:37:04.048] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-03 09:37:04.048] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-03 09:37:04.051] [ERROR] [engine] [/home/runner/work/fakelua/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.set_level' (integer expected)
+stacktrace:
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0xca) [0x7f22659ca52a]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x4d) [0x7f22659cad5d]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x3c) [0x7f22658c06a1]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x1ea) [0x7f22659e73fa]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(+0x2bf6c8) [0x7f2265abf6c8]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(FakeluaCallByName+0x3d1) [0x7f22659dfa51]
+/tmp/fakelua/fakelua_jit_477537.so(__fl_func_14+0x67) [0x7f2265e0ff9d]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(+0x1c2edd) [0x7f22659c2edd]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x71) [0x7f22659c2fe1]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua5inter19DispatchCallClosureEPNS_5StateEPNS_10VarClosureEPKNS_4CVarEiNS_7JITTypeE+0x1c5) [0x7f22659c34a5]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(+0x1e5278) [0x7f22659e5278]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(+0x1e5f80) [0x7f22659e5f80]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(FakeluaCallByName+0x3d1) [0x7f22659dfa51]
+/tmp/fakelua/fakelua_jit_477537.so(test_set_level_bad_arg+0x67) [0x7f2265e0fe46]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x98) [0x7f22659c3008]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7fakelua4CallIRlJEEEvPNS_5StateENS_7JITTypeERKSt17basic_string_viewIcSt11char_traitsIcEEOT_DpOT0_+0xcd) [0x5585b8de544d]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN38test_log_script_set_level_bad_arg_Test8TestBodyEv+0x414) [0x5585b8f61374]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing8internal35HandleExceptionsInMethodIfSupportedINS_4TestEvEET0_PT_MS4_FS3_vEPKc+0x51) [0x5585b908c041]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing4Test3RunEv+0xd6) [0x5585b9078f66]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing8TestInfo3RunEv+0x165) [0x5585b90790f5]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing9TestSuite3RunEv+0x1ef) [0x5585b90792ef]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing8internal12UnitTestImpl11RunAllTestsEv+0x60c) [0x5585b90847bc]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing8UnitTest3RunEv+0x81) [0x5585b90794b1]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(main+0x23) [0x5585b8d3dd13]
+/lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca) [0x7f226502a1ca]
+/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b) [0x7f226502a28b]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_start+0x25) [0x5585b8d95875]
+
+[2026-09-03 09:37:04.051] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-03 09:37:04.053] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-03 09:37:04.064] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-03 09:37:04.064] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-03 09:37:04.136] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-03 09:37:04.136] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-03 09:37:04.137] [ERROR] [engine] [/home/runner/work/fakelua/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.xxx' (message expected)
+stacktrace:
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0xca) [0x7f22659ca52a]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x4d) [0x7f22659cad5d]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x3c) [0x7f22658c06a1]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x1ea) [0x7f22659e73fa]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(+0x2c137b) [0x7f2265ac137b]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(FakeluaCallByName+0x3d1) [0x7f22659dfa51]
+[0x5585ce3a9361]
+
+[2026-09-03 09:37:04.137] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-03 09:37:04.138] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-03 09:37:04.150] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-03 09:37:04.150] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-03 09:37:04.222] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-03 09:37:04.222] [INFO ] [engine] [/home/runner/work/fakelua/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-03 09:37:04.225] [ERROR] [engine] [/home/runner/work/fakelua/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.xxx' (message expected)
+stacktrace:
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0xca) [0x7f22659ca52a]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x4d) [0x7f22659cad5d]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x3c) [0x7f22658c06a1]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x1ea) [0x7f22659e73fa]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(+0x2c137b) [0x7f2265ac137b]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(FakeluaCallByName+0x3d1) [0x7f22659dfa51]
+/tmp/fakelua/fakelua_jit_985391.so(__fl_func_16+0x35) [0x7f2265e10147]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(+0x1c2edd) [0x7f22659c2edd]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x71) [0x7f22659c2fe1]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua5inter19DispatchCallClosureEPNS_5StateEPNS_10VarClosureEPKNS_4CVarEiNS_7JITTypeE+0x1c5) [0x7f22659c34a5]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(+0x1e5278) [0x7f22659e5278]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(+0x1e5f80) [0x7f22659e5f80]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(FakeluaCallByName+0x3d1) [0x7f22659dfa51]
+/tmp/fakelua/fakelua_jit_985391.so(test_log_info_no_args+0x67) [0x7f2265e10022]
+/home/runner/work/fakelua/fakelua/build/lib/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x98) [0x7f22659c3008]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7fakelua4CallIRlJEEEvPNS_5StateENS_7JITTypeERKSt17basic_string_viewIcSt11char_traitsIcEEOT_DpOT0_+0xcd) [0x5585b8de544d]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN33test_log_script_info_no_args_Test8TestBodyEv+0x414) [0x5585b8f61a44]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing8internal35HandleExceptionsInMethodIfSupportedINS_4TestEvEET0_PT_MS4_FS3_vEPKc+0x51) [0x5585b908c041]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing4Test3RunEv+0xd6) [0x5585b9078f66]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing8TestInfo3RunEv+0x165) [0x5585b90790f5]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing9TestSuite3RunEv+0x1ef) [0x5585b90792ef]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing8internal12UnitTestImpl11RunAllTestsEv+0x60c) [0x5585b90847bc]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_ZN7testing8UnitTest3RunEv+0x81) [0x5585b90794b1]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(main+0x23) [0x5585b8d3dd13]
+/lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca) [0x7f226502a1ca]
+/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b) [0x7f226502a28b]
+/home/runner/work/fakelua/fakelua/build/bin/unit_tests(_start+0x25) [0x5585b8d95875]
+
