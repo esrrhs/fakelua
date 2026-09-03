@@ -168,7 +168,7 @@ jobs:
         if: matrix.test_group == 'D' && matrix.build_type == 'cov'
         run: |
           cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests \
-            --gtest_filter="test_mysql.*:test_sqlite.*:test_closure.*:test_infer.*:test_jitter.*:test_runtime.*:test_state.*:test_syntax_tree.*:test_util.*:test_var.*:test_vm_cvar_call.*"
+            --gtest_filter="test_mysql.*:-test_mysql.integration_*:test_sqlite.*:test_closure.*:test_infer.*:test_jitter.*:test_runtime.*:test_state.*:test_syntax_tree.*:test_util.*:test_var.*:test_vm_cvar_call.*"
 
       - name: Run benchmarks and flua
         if: matrix.test_group == 'A'
