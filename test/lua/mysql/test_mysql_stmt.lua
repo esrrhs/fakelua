@@ -94,18 +94,26 @@ function test_stmt()
 
     for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
-    if conn.query_err ~= nil and #conn.query_err > 0 then
-        local err_str = conn.query_err
-        print("stmt_execute failed:", tostring(err_str))
-        conn:stmt_close(conn.stmt_id)
-        conn:close()
-        return 0
+    if type(conn.query_err) == "string" then
+        if #conn.query_err > 0 then
+            local err_str = conn.query_err
+            print("stmt_execute failed:", tostring(err_str))
+            conn:stmt_close(conn.stmt_id)
+            conn:close()
+            return 0
+        end
     end
 
     -- 验证插入成功
     local insert_result = g_query_result
-    if not insert_result or insert_result[4] ~= 1 then
-        print("INSERT affected_rows expected 1, got:", insert_result and insert_result[4] or "nil")
+    if not insert_result then
+        print("INSERT affected_rows expected 1, got:", "nil")
+        conn:stmt_close(g_stmt_id)
+        conn:close()
+        return 0
+    end
+    if insert_result[4] ~= 1 then
+        print("INSERT affected_rows expected 1, got:", insert_result[4])
         conn:stmt_close(g_stmt_id)
         conn:close()
         return 0
@@ -137,12 +145,14 @@ function test_stmt()
 
     for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
-    if conn.query_err ~= nil and #conn.query_err > 0 then
-        local err_str = conn.query_err
-        print("SELECT stmt_execute failed:", tostring(err_str))
-        conn:stmt_close(g_stmt_id)
-        conn:close()
-        return 0
+    if type(conn.query_err) == "string" then
+        if #conn.query_err > 0 then
+            local err_str = conn.query_err
+            print("SELECT stmt_execute failed:", tostring(err_str))
+            conn:stmt_close(g_stmt_id)
+            conn:close()
+            return 0
+        end
     end
 
     -- 验证查询结果

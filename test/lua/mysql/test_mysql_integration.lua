@@ -58,7 +58,7 @@ function test_mysql_integration()
 
     for i = 1, 1000 do conn:tick() if conn.query_done then break end end
 
-    if conn.query_err ~= nil then
+    if type(conn.query_err) == "string" then
         if #conn.query_err > 0 then
             local err_str = conn.query_err
             print("query failed:", tostring(err_str))

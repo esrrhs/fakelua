@@ -19,6 +19,7 @@
 #include <format>
 #include <stdexcept>
 #include <string_view>
+#include <thread>
 #include <utility>
 
 namespace fakelua::mysql {
@@ -63,10 +64,15 @@ bool mysql_socket_valid(my_socket fd) {
 #endif
 }
 
-void wait_for_mysql_socket(MYSQL *mysql, int timeout_ms) {
+void wait_for_mysql_socket(MYSQL *mysql, int timeout_ms, bool wait_write) {
     if (!mysql || timeout_ms < 0) return;
     my_socket fd = mysql->net.fd;
-    if (!mysql_socket_valid(fd)) return;
+    if (!mysql_socket_valid(fd)) {
+        if (timeout_ms > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(timeout_ms));
+        }
+        return;
+    }
 
     fd_set readfds;
     fd_set writefds;
@@ -75,13 +81,19 @@ void wait_for_mysql_socket(MYSQL *mysql, int timeout_ms) {
     FD_ZERO(&writefds);
     FD_ZERO(&exceptfds);
     FD_SET(fd, &readfds);
-    FD_SET(fd, &writefds);
     FD_SET(fd, &exceptfds);
+    if (wait_write) {
+        FD_SET(fd, &writefds);
+    }
 
     timeval tv{};
     tv.tv_sec = timeout_ms / 1000;
     tv.tv_usec = (timeout_ms % 1000) * 1000;
-    (void)select(static_cast<int>(fd) + 1, &readfds, &writefds, &exceptfds, &tv);
+    const int rc = select(static_cast<int>(fd) + 1, &readfds, wait_write ? &writefds : nullptr,
+                          &exceptfds, &tv);
+    if (rc == 0 && timeout_ms > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(timeout_ms));
+    }
 }
 
 MysqlErrorType classify_error_code(uint16_t code) {
@@ -526,7 +538,7 @@ void MysqlConnection::tick_connect() {
         port_, nullptr, CLIENT_MULTI_STATEMENTS | CLIENT_MULTI_RESULTS);
 
     if (status == NET_ASYNC_NOT_READY) {
-        wait_for_mysql_socket(mysql, 5);
+        wait_for_mysql_socket(mysql, 5, true);
         return;
     }
     if (status == NET_ASYNC_COMPLETE) {
@@ -569,7 +581,7 @@ void MysqlConnection::tick_operation() {
             const auto status = mysql_real_query_nonblocking(
                 mysql, pending_sql_.c_str(), static_cast<unsigned long>(pending_sql_.size()));
             if (status == NET_ASYNC_NOT_READY) {
-                wait_for_mysql_socket(mysql, 5);
+                wait_for_mysql_socket(mysql, 5, false);
                 return;
             }
             if (status == NET_ASYNC_COMPLETE) {
@@ -600,7 +612,7 @@ void MysqlConnection::tick_operation() {
             MYSQL_RES *res = nullptr;
             const auto store_status = mysql_store_result_nonblocking(mysql, &res);
             if (store_status == NET_ASYNC_NOT_READY) {
-                wait_for_mysql_socket(mysql, 5);
+                wait_for_mysql_socket(mysql, 5, false);
                 return;
             }
             if (store_status == NET_ASYNC_ERROR) {
@@ -626,15 +638,27 @@ void MysqlConnection::tick_operation() {
 
             pending_result_ = res ? result_from_mysql_res(res) : status_result_from_mysql(mysql);
             if (res) mysql_free_result(res);
-            phase_ = AsyncPhase::NextResult;
-            continue;
+            if (mysql_more_results(mysql)) {
+                phase_ = AsyncPhase::NextResult;
+                continue;
+            }
+
+            const bool dispatch_allowed = operation_ != OperationType::Heartbeat;
+            ready_ = true;
+            state_ = State::Ready;
+            operation_ = OperationType::None;
+            phase_ = AsyncPhase::None;
+            if (dispatch_allowed) {
+                dispatch_result(pending_result_, nullptr);
+            }
+            return;
         }
 
         if (phase_ == AsyncPhase::NextResult) {
             const bool dispatch_allowed = operation_ != OperationType::Heartbeat;
             const auto next_status = mysql_next_result_nonblocking(mysql);
             if (next_status == NET_ASYNC_NOT_READY) {
-                wait_for_mysql_socket(mysql, 5);
+                wait_for_mysql_socket(mysql, 5, false);
                 return;
             }
             if (next_status == NET_ASYNC_COMPLETE) {
