@@ -177,6 +177,11 @@ private:
     int tick_depth_ = 0;
     bool close_pending_ = false;
 
+    // Persistent diagnostics object for async operations. Boost.MySQL stores
+    // a reference to this object internally and writes to it during async
+    // completion, so it MUST outlive the async operation (member, not stack-local).
+    boost::mysql::diagnostics async_diag_;
+
     // Helpers
     void dispatch_connect(const char *err_msg);
     void dispatch_result(const boost::mysql::results &result, const char *err_msg);

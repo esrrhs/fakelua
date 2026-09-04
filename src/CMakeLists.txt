@@ -62,16 +62,10 @@ endif ()
 
 set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
 set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
-if (APPLE)
-    # On macOS, adding tinycc source directory to include path causes conflicts
-    # with standard headers (e.g. the 'version' file conflicts with <version>).
-    # Use the installed header path as a SYSTEM include instead.
-    include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
-else ()
-    # Include only libtcc.h via full path, not the entire source directory,
-    # to avoid 'version' file conflicting with C++20 <version> header.
-    include_directories(${tinycc_src_SOURCE_DIR})
-endif ()
+# On ALL platforms, use the installed header path to avoid 'version' file conflicting
+# with C++20 <version> header. The tinycc source directory contains a 'version' file
+# that gets picked up by #include <version> when the source dir is in include path.
+include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
 
 # SQLite3 amalgamation via CPM — compiled directly into fakelua (not a separate static lib)
 # to avoid CRT mismatch issues on Windows/MSYS2.
@@ -313,20 +307,6 @@ include_directories(${BOOST_SOURCE_DIR}/libs/integer/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/cstdint/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/winapi/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/nowide/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/type_traits/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/align/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/detail/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/smart_ptr/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/utility/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/move/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/function/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/bind/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/ref/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/predef/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/integer/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/cstdint/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/winapi/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/nowide/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/static_assert/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/exception/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/iterator/include)
@@ -335,15 +315,13 @@ include_directories(${BOOST_SOURCE_DIR}/libs/serialization/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/any/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/pool/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/array/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/core/include)
 
 # OpenSSL and Threads required by Boost.MySQL
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
-# Use system libraries for OpenSSL and Threads
-# Boost.Asio, Boost.System, Boost.MySQL are all header-only from our fetched Boost 1.90
-# No library linking needed for them (they're all header-only in Boost 1.90+)
-set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads)
+# Boost.MySQL is header-only, but boost_charconv has compiled components for float parsing
+# Link boost_charconv library (required for boost::charconv::from_chars/to_chars)
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv)
 
 target_link_libraries(fakelua PRIVATE ${TARGET_LIB})

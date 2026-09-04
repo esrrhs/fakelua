@@ -77,7 +77,7 @@ ENDIF ()
 
 add_executable(unit_tests ${TEST_SRC_LIST})
 
-target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${LUA_LIBRARIES})
+target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${LUA_LIBRARIES} dl)
 
 add_test(NAME unit COMMAND ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/unit_tests
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})

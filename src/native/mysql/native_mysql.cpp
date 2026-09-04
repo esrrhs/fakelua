@@ -120,6 +120,7 @@ CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_tick(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_close(NativeObject *self, State *s, CVar *args, int n);
+CVar conn_ping(NativeObject *self, State *s, CVar *args, int n);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // mysql.connect(config, on_connect) → connection object
@@ -192,6 +193,7 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     nat->RegisterMethod("stmt_close", conn_stmt_close);
     nat->RegisterMethod("tick", conn_tick);
     nat->RegisterMethod("close", conn_close);
+    nat->RegisterMethod("ping", conn_ping);
     nat->SetInt("__mysql_owned__", 1);
     RegisterMysqlNativeWrapper(s, nat, false);
 
@@ -360,6 +362,17 @@ CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
         self->SetInt("__mysql_conn__", 0);
     }
     return inter::NativeToFakeluaNil(s);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// conn:ping() — send COM_PING heartbeat (for connection pool keepalive)
+// ─────────────────────────────────────────────────────────────────────────────
+
+CVar conn_ping(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *conn = unwrap_conn_native(self);
+    if (!conn) return inter::NativeToFakeluaBool(s, false);
+    bool sent = conn->ping();
+    return inter::NativeToFakeluaBool(s, sent);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

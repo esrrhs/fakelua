@@ -75,8 +75,7 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     params.multi_queries = true;  // preserve legacy multi-statement behavior
 
     // Start asynchronous connect
-    boost::mysql::diagnostics diag2;
-    conn_.async_connect(params, diag2, [this](boost::mysql::error_code ec) {
+    conn_.async_connect(params, async_diag_, [this](boost::mysql::error_code ec) {
         if (ec) {
             pending_connect_err_ = ec.message();
             state_ = State::Error;
@@ -278,9 +277,11 @@ void MysqlConnection::tick() {
         }
     }
 
-    // Process any pending async operations by running io_context for a short time
-    // We use poll_one to process exactly one handler (if available) to avoid blocking
-    io_ctx_.poll_one();
+    // Process all ready async operations by running io_context.
+    // poll() (non-blocking) handles ALL currently-ready handlers, advancing
+    // the entire async pipeline (socket read -> protocol parse -> completion
+    // callback) within a single tick(), avoiding per-frame starvation.
+    io_ctx_.poll();
 
     // Handle pending connection result
     if (pending_connect_) {
