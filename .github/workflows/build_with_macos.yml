@@ -51,6 +51,8 @@ jobs:
               echo "MYSQL_AUTH=failed" >> $GITHUB_ENV
             }
           }
+          # Create test database (required for integration tests)
+          MYSQL_PWD="" mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE IF NOT EXISTS test" 2>/dev/null || true
 
       - name: Build
         run: |
