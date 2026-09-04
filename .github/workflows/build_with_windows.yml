@@ -56,9 +56,10 @@ jobs:
         run: |
           set -eux
           rm -rf build
-          # GCC 16.2.0 workaround: _errno macro conflict in std::wcstoll etc.
-          # See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115275
-          cmake -S . -B build -G Ninja -DFAKELUA_TINYCC_GIT_URL=https://github.com/TinyCC/tinycc.git -DCMAKE_CXX_FLAGS="-D_GLIBCXX_USE_C99_STDIO=0"
+          # GCC 16.2.0 workarounds for MinGW:
+          # 1. _errno macro conflict in std::wcstoll etc. (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115275)
+          # 2. snprintf not found in std/boost::system::detail namespaces
+          cmake -S . -B build -G Ninja -DFAKELUA_TINYCC_GIT_URL=https://github.com/TinyCC/tinycc.git -DCMAKE_CXX_FLAGS="-D_GLIBCXX_USE_C99_STDIO=0 -D__STDC_WANT_LIB_EXT1__=1 -D_HAS_SNPRINTF=1 -D__snprintf=snprintf"
 
       - name: Build
         shell: msys2 {0}
