@@ -129,7 +129,7 @@ if (WIN32)
             BUILD_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && make -j${FAKELUA_TINYCC_BUILD_JOBS}"
             INSTALL_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && make install"
             COMMAND ${CMAKE_COMMAND} -E make_directory ${TINYCC_LIBTCC_INCLUDE_DIR}
-            COMMAND ${CMAKE_COMMAND} -E copy ${TINYCC_PREFIX_DIR}/include/libtcc.h ${TINYCC_LIBTCC_INCLUDE_DIR}/libtcc.h
+            COMMAND ${CMAKE_COMMAND} -E copy ${TINYCC_PREFIX_DIR}/libtcc/libtcc.h ${TINYCC_LIBTCC_INCLUDE_DIR}/libtcc.h
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
 else ()
