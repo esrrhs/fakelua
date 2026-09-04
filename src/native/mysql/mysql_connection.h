@@ -3,6 +3,10 @@
 // mysql_connection.h — async MySQL client using Boost.MySQL
 // Built on top of boost::mysql::any_connection for asynchronous MySQL operations.
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 #include <boost/mysql.hpp>
 #include <boost/asio.hpp>
 
