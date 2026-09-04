@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <ranges>
+#include <sstream>
 #include <string>
 #include <type_traits>
 
@@ -200,8 +201,12 @@ public:
                 break;
             case Type::FLOAT:
                 // Workaround for MinGW GCC 16.2.0: std::to_string(double) is ambiguous
-                // Cast to long double to disambiguate, then convert back to string
-                ret = std::to_string(static_cast<long double>(float_));
+                // Use ostringstream instead
+                {
+                    std::ostringstream oss;
+                    oss << float_;
+                    ret = oss.str();
+                }
                 break;
             case Type::STRING:
                 ret = std::format("\"{}\"", string_);
