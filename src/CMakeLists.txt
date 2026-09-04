@@ -275,16 +275,17 @@ if (MINGW)
 endif()
 
 # Fetch Boost 1.90+ source for MySQL headers (header-only mode for Asio/System/MySQL)
-# Note: MinGW flags must be set at project level (add_compile_options above)
-# because CPM's CMAKE_CXX_FLAGS option doesn't reliably pass to Boost's build
+# Windows MinGW workarounds for GCC 16.2.0 stdlib bugs
+# Must pass flags to Boost CMake build via CPM OPTIONS
 if (MINGW)
     CPMAddPackage(
         NAME boost
         GITHUB_REPOSITORY boostorg/boost
         GIT_TAG boost-1.90.0
         OPTIONS
-            "BUILD_SHARED_LIBS OFF"
-            "CMAKE_POSITION_INDEPENDENT_CODE ON"
+            "BUILD_SHARED_LIBS=OFF"
+            "CMAKE_POSITION_INDEPENDENT_CODE=ON"
+            "CMAKE_CXX_FLAGS=-D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS"
     )
 else()
     CPMAddPackage(
@@ -292,8 +293,8 @@ else()
         GITHUB_REPOSITORY boostorg/boost
         GIT_TAG boost-1.90.0
         OPTIONS
-            "BUILD_SHARED_LIBS OFF"
-            "CMAKE_POSITION_INDEPENDENT_CODE ON"
+            "BUILD_SHARED_LIBS=OFF"
+            "CMAKE_POSITION_INDEPENDENT_CODE=ON"
     )
 endif()
 if (NOT boost_ADDED)
