@@ -63,19 +63,12 @@ endif ()
 
 set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
 set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
-if (APPLE)
-    # On macOS, adding tinycc source directory to include path causes conflicts
-    # with standard headers (e.g. the 'version' file conflicts with <version>).
-    # Use the installed header path as a SYSTEM include instead.
-    include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
-else ()
-    # On Windows/Linux, use the source directory which only contains libtcc.h
-    # The installed include path contains win32 headers (wchar.h, time.h, etc.)
-    # that conflict with system headers when added via SYSTEM include.
-    # The 'version' file in source dir doesn't conflict with <version> header
-    # since it's 'VERSION' (uppercase) not 'version'.
-    include_directories(${tinycc_src_SOURCE_DIR})
-endif ()
+# Create a dedicated include directory for libtcc.h only.
+# We can't use either the source dir (Windows case-insensitive FS matches VERSION to <version>
+# C++20 header) or the install dir (contains win32 headers wchar.h/time.h that conflict with
+# system headers when added as SYSTEM include). So we copy libtcc.h to its own dir.
+set(TINYCC_LIBTCC_INCLUDE_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_include")
+include_directories(${TINYCC_LIBTCC_INCLUDE_DIR})
 
 # SQLite3 amalgamation via CPM — compiled directly into fakelua (not a separate static lib)
 # to avoid CRT mismatch issues on Windows/MSYS2.
@@ -135,6 +128,8 @@ if (WIN32)
                 COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && ./configure --prefix=${TINYCC_PREFIX_DIR} --enable-static --extra-cflags=-fPIC"
             BUILD_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && make -j${FAKELUA_TINYCC_BUILD_JOBS}"
             INSTALL_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && make install"
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${TINYCC_LIBTCC_INCLUDE_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy ${TINYCC_PREFIX_DIR}/include/libtcc.h ${TINYCC_LIBTCC_INCLUDE_DIR}/libtcc.h
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
 else ()
@@ -144,6 +139,8 @@ else ()
             CONFIGURE_COMMAND ${tinycc_src_SOURCE_DIR}/configure --prefix=${TINYCC_PREFIX_DIR} --extra-cflags=-fPIC
             BUILD_COMMAND make -j${FAKELUA_TINYCC_BUILD_JOBS}
             INSTALL_COMMAND make install
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${TINYCC_LIBTCC_INCLUDE_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy ${TINYCC_PREFIX_DIR}/include/libtcc.h ${TINYCC_LIBTCC_INCLUDE_DIR}/libtcc.h
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
 endif ()
