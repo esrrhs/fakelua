@@ -169,19 +169,22 @@ void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam
 
     // Build a tuple of boost::mysql::field parameters. NULLs become nullptr_t
     // (boost::optional-like empty optional). Non-null values become strings.
-    std::vector<boost::mysql::field> fields;
-    fields.reserve(params.size());
+    // Store as member so iterators passed to bound_statement remain valid
+    // until the async callback fires (otherwise UAF).
+    pending_stmt_fields_.clear();
+    pending_stmt_fields_.reserve(params.size());
     for (const auto &p : params) {
         if (p.is_null) {
-            fields.emplace_back(nullptr);
+            pending_stmt_fields_.emplace_back(nullptr);
         } else {
-            fields.emplace_back(p.value);
+            pending_stmt_fields_.emplace_back(p.value);
         }
     }
 
-    conn_.async_execute(it->second.bind(fields.begin(), fields.end()),
+    conn_.async_execute(it->second.bind(pending_stmt_fields_.begin(), pending_stmt_fields_.end()),
                         pending_result_data_,
                         [this](boost::mysql::error_code err) {
+                            pending_stmt_fields_.clear();
                             if (err) {
                                 pending_result_err_ = err.message();
                                 pending_result_data_ = {};

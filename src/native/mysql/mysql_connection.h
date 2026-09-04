@@ -201,6 +201,10 @@ private:
     // MUST outlive the async operation (member, not stack-local).
     std::optional<boost::mysql::connect_params> pending_connect_params_;
 
+    // Persistent bind params for stmt_execute. bound_statement stores iterators
+    // into the fields vector, so the vector MUST outlive the async operation.
+    std::vector<boost::mysql::field> pending_stmt_fields_;
+
     // Helpers
     void dispatch_connect(const char *err_msg);
     void dispatch_result(const boost::mysql::results &result, const char *err_msg);
