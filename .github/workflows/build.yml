@@ -138,8 +138,8 @@ jobs:
           ./bin/bench_mark
           ./bin/flua
           # MySQL 集成测试（需要 MySQL 服务）
-          # Only run callback_api test for now; prepared/multi_result/pool need more work
-          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests --gtest_filter="test_mysql.integration_callback_api")
+          # Now that we use Boost.MySQL, run all integration tests
+          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests --gtest_filter="test_mysql.integration*")
 
       # If PR #395 adds test groups, Group D's mysql tests need to exclude flaky integration tests:
       # -test_mysql.integration_* (prepared_statements, multi_result, pool are flaky)
