@@ -265,7 +265,7 @@ if (NOT tomlplusplus_ADDED)
 endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
-# Fetch Boost (header-only for our needs)
+# Fetch Boost 1.90+ source for MySQL headers (header-only mode for Asio/System/MySQL)
 CPMAddPackage(
     NAME boost
     GITHUB_REPOSITORY boostorg/boost
@@ -273,32 +273,77 @@ CPMAddPackage(
     OPTIONS
         "BUILD_SHARED_LIBS OFF"
         "CMAKE_POSITION_INDEPENDENT_CODE ON"
-        "Boost_NO_BOOST_CMAKE ON"
-        "Boost_NO_SYSTEM_PATHS ON"
 )
 if (NOT boost_ADDED)
     message(FATAL_ERROR "Failed to fetch boost")
 endif()
 set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
 
-# Fetch boost-mysql
-CPMAddPackage(
-    NAME boost-mysql
-    GITHUB_REPOSITORY boostorg/mysql
-    GIT_TAG boost-1.90.0
-    OPTIONS
-        "BUILD_SHARED_LIBS OFF"
-        "CMAKE_POSITION_INDEPENDENT_CODE ON"
-        "BOOST_MYSQL_BUILD_EXAMPLES OFF"
-        "BOOST_MYSQL_BUILD_TESTS OFF"
-)
-if (NOT boost-mysql_ADDED)
-    message(FATAL_ERROR "Failed to fetch boost-mysql")
-endif()
+# Include ALL Boost headers needed for MySQL + Asio + System
+# This is the comprehensive include path approach since FindBoost doesn't work with CPM
+include_directories(${BOOST_SOURCE_DIR})
+include_directories(${BOOST_SOURCE_DIR}/libs/mysql/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/asio/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/system/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/assert/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/charconv/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/compat/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/config/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/container/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/core/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/describe/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/endian/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/intrusive/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/mp11/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/optional/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/throw_exception/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/variant2/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/pfr/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/type_traits/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/align/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/detail/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/smart_ptr/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/utility/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/move/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/function/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/bind/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/ref/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/predef/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/integer/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/cstdint/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/winapi/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/nowide/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/type_traits/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/align/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/detail/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/smart_ptr/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/utility/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/move/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/function/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/bind/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/ref/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/predef/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/integer/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/cstdint/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/winapi/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/nowide/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/static_assert/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/exception/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/iterator/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/mpl/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/serialization/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/any/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/pool/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/array/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/core/include)
 
 # OpenSSL and Threads required by Boost.MySQL
 find_package(OpenSSL REQUIRED)
-find_package(Boost REQUIRED COMPONENTS asio system)
-set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Boost::asio Boost::system boost_mysql)
+find_package(Threads REQUIRED)
 
-target_link_libraries(fakelua ${TARGET_LIB})
+# Use system libraries for OpenSSL and Threads
+# Boost.Asio, Boost.System, Boost.MySQL are all header-only from our fetched Boost 1.90
+# No library linking needed for them (they're all header-only in Boost 1.90+)
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads)
+
+target_link_libraries(fakelua PRIVATE ${TARGET_LIB})

@@ -1,0 +1,472 @@
+[2026-09-02 13:09:07.613] [INFO ] [script] [./log/test_log_basic.lua:75:test_log_set_file] write to file
+[2026-09-02 13:09:07.640] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 13:09:07.663] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 13:09:07.705] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 13:09:07.710] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 13:09:08.014] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 13:09:08.014] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 13:09:08.017] [INFO ] [script] [./log/test_log_basic.lua:75:test_log_set_file] write to file
+[2026-09-02 13:09:08.027] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 13:09:08.093] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 13:09:08.146] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 13:09:08.146] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 13:09:08.586] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 13:09:08.595] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 13:09:08.616] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.set_level' (integer expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f24975f64ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f2496267990]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f2496269f07]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f2495d68550]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f24962eb7de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xba37da) [0x7f249669e7da]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f24962c603b]
+[0x6270000d70e3]
+
+[2026-09-02 13:09:08.621] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 13:09:08.637] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 13:09:08.742] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 13:09:08.742] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 13:09:09.148] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 13:09:09.148] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 13:09:09.165] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.set_level' (integer expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f24975f64ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f2496267990]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f2496269f07]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f2495d68550]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f24962eb7de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xba37da) [0x7f249669e7da]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f24962c603b]
+/tmp/fakelua/fakelua_jit_537524.so(__fl_func_14+0x63) [0x7f2450ef5862]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x743cb6) [0x7f249623ecb6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x746d9d) [0x7f2496241d9d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x14c) [0x7f24962420ec]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter19DispatchCallClosureEPNS_5StateEPNS_10VarClosureEPKNS_4CVarEiNS_7JITTypeE+0x4cd) [0x7f2496243b8d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ea68f) [0x7f24962e568f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ebac4) [0x7f24962e6ac4]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f24962c603b]
+/tmp/fakelua/fakelua_jit_537524.so(test_set_level_bad_arg+0x66) [0x7f2450ef570f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x743cb6) [0x7f249623ecb6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x19b) [0x7f249624213b]
+../../build_asan/bin/unit_tests(_ZN7fakelua4CallIRlJEEEvPNS_5StateENS_7JITTypeERKSt17basic_string_viewIcSt11char_traitsIcEEOT_DpOT0_+0x3dd) [0xbea61d]
+../../build_asan/bin/unit_tests(_ZN38test_log_script_set_level_bad_arg_Test8TestBodyEv+0x10f1) [0x11bd561]
+../../build_asan/bin/unit_tests(_ZN7testing8internal35HandleExceptionsInMethodIfSupportedINS_4TestEvEET0_PT_MS4_FS3_vEPKc+0x155) [0x16b61d5]
+../../build_asan/bin/unit_tests(_ZN7testing4Test3RunEv+0x17b) [0x1648c7b]
+../../build_asan/bin/unit_tests(_ZN7testing8TestInfo3RunEv+0x599) [0x1649279]
+../../build_asan/bin/unit_tests(_ZN7testing9TestSuite3RunEv+0xa55) [0x167f245]
+../../build_asan/bin/unit_tests(_ZN7testing8internal12UnitTestImpl11RunAllTestsEv+0x1e5b) [0x169aa6b]
+../../build_asan/bin/unit_tests(_ZN7testing8UnitTest3RunEv+0x1d1) [0x169bdc1]
+../../build_asan/bin/unit_tests(main+0x78) [0x8f9848]
+/lib64/libc.so.6(__libc_start_main+0xf3) [0x7f24948ca493]
+../../build_asan/bin/unit_tests(_start+0x2e) [0xa80fee]
+
+[2026-09-02 13:09:09.176] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 13:09:09.235] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 13:09:09.276] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 13:09:09.276] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 13:09:09.788] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 13:09:09.788] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 13:09:09.794] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.xxx' (message expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f24975f64ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f2496267990]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f2496269f07]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f2495d68550]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f24962eb7de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xba722f) [0x7f24966a222f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f24962c603b]
+[0x62700011d361]
+
+[2026-09-02 13:09:09.799] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 13:09:09.812] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 13:09:09.830] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 13:09:09.831] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 13:09:10.048] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 13:09:10.049] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 13:09:10.055] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.xxx' (message expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f24975f64ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f2496267990]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f2496269f07]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f2495d68550]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f24962eb7de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xba722f) [0x7f24966a222f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f24962c603b]
+/tmp/fakelua/fakelua_jit_815509.so(__fl_func_16+0x31) [0x7f2450df2a07]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x743cb6) [0x7f249623ecb6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x746d9d) [0x7f2496241d9d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x14c) [0x7f24962420ec]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter19DispatchCallClosureEPNS_5StateEPNS_10VarClosureEPKNS_4CVarEiNS_7JITTypeE+0x4cd) [0x7f2496243b8d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ea68f) [0x7f24962e568f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ebac4) [0x7f24962e6ac4]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f24962c603b]
+/tmp/fakelua/fakelua_jit_815509.so(test_log_info_no_args+0x66) [0x7f2450df28e6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x743cb6) [0x7f249623ecb6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x19b) [0x7f249624213b]
+../../build_asan/bin/unit_tests(_ZN7fakelua4CallIRlJEEEvPNS_5StateENS_7JITTypeERKSt17basic_string_viewIcSt11char_traitsIcEEOT_DpOT0_+0x3dd) [0xbea61d]
+../../build_asan/bin/unit_tests(_ZN33test_log_script_info_no_args_Test8TestBodyEv+0x10f1) [0x11beec1]
+../../build_asan/bin/unit_tests(_ZN7testing8internal35HandleExceptionsInMethodIfSupportedINS_4TestEvEET0_PT_MS4_FS3_vEPKc+0x155) [0x16b61d5]
+../../build_asan/bin/unit_tests(_ZN7testing4Test3RunEv+0x17b) [0x1648c7b]
+../../build_asan/bin/unit_tests(_ZN7testing8TestInfo3RunEv+0x599) [0x1649279]
+../../build_asan/bin/unit_tests(_ZN7testing9TestSuite3RunEv+0xa55) [0x167f245]
+../../build_asan/bin/unit_tests(_ZN7testing8internal12UnitTestImpl11RunAllTestsEv+0x1e5b) [0x169aa6b]
+../../build_asan/bin/unit_tests(_ZN7testing8UnitTest3RunEv+0x1d1) [0x169bdc1]
+../../build_asan/bin/unit_tests(main+0x78) [0x8f9848]
+/lib64/libc.so.6(__libc_start_main+0xf3) [0x7f24948ca493]
+../../build_asan/bin/unit_tests(_start+0x2e) [0xa80fee]
+
+[2026-09-02 17:21:57.161] [INFO ] [script] [./log/test_log_basic.lua:75:test_log_set_file] write to file
+[2026-09-02 17:21:57.165] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 17:21:57.189] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:21:57.224] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:21:57.224] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:21:57.719] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:21:57.719] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 17:21:57.720] [INFO ] [script] [./log/test_log_basic.lua:75:test_log_set_file] write to file
+[2026-09-02 17:21:57.722] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 17:21:57.748] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:21:57.805] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:21:57.805] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:21:58.400] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:21:58.400] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 17:21:58.404] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.set_level' (integer expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f201359e4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f201220f6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f2012211c37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f2011d0d5f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f20122934de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xba66da) [0x7f20126466da]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f201226dd6b]
+[0x6270000360e3]
+
+[2026-09-02 17:21:58.405] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 17:21:58.434] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:21:58.555] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:21:58.558] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:21:59.120] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:21:59.120] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 17:21:59.127] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.set_level' (integer expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f201359e4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f201220f6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f2012211c37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f2011d0d5f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f20122934de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xba66da) [0x7f20126466da]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f201226dd6b]
+/tmp/fakelua/fakelua_jit_242120.so(__fl_func_14+0x63) [0x7f1fd064b862]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f20121e48a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x74798d) [0x7f20121e798d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x14c) [0x7f20121e7cdc]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter19DispatchCallClosureEPNS_5StateEPNS_10VarClosureEPKNS_4CVarEiNS_7JITTypeE+0x4cd) [0x7f20121e977d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ed38f) [0x7f201228d38f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ee7c4) [0x7f201228e7c4]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f201226dd6b]
+/tmp/fakelua/fakelua_jit_242120.so(test_set_level_bad_arg+0x66) [0x7f1fd064b70f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f20121e48a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x19b) [0x7f20121e7d2b]
+../../build_asan/bin/unit_tests(_ZN7fakelua4CallIRlJEEEvPNS_5StateENS_7JITTypeERKSt17basic_string_viewIcSt11char_traitsIcEEOT_DpOT0_+0x3dd) [0xbe9d5d]
+../../build_asan/bin/unit_tests(_ZN38test_log_script_set_level_bad_arg_Test8TestBodyEv+0x10f1) [0x11c0561]
+../../build_asan/bin/unit_tests(_ZN7testing8internal35HandleExceptionsInMethodIfSupportedINS_4TestEvEET0_PT_MS4_FS3_vEPKc+0x155) [0x16bb1d5]
+../../build_asan/bin/unit_tests(_ZN7testing4Test3RunEv+0x17b) [0x164dc7b]
+../../build_asan/bin/unit_tests(_ZN7testing8TestInfo3RunEv+0x599) [0x164e279]
+../../build_asan/bin/unit_tests(_ZN7testing9TestSuite3RunEv+0xa55) [0x1684245]
+../../build_asan/bin/unit_tests(_ZN7testing8internal12UnitTestImpl11RunAllTestsEv+0x1e5b) [0x169fa6b]
+../../build_asan/bin/unit_tests(_ZN7testing8UnitTest3RunEv+0x1d1) [0x16a0dc1]
+../../build_asan/bin/unit_tests(main+0x78) [0x8f94a8]
+/lib64/libc.so.6(__libc_start_main+0xf3) [0x7f201086f493]
+../../build_asan/bin/unit_tests(_start+0x2e) [0xa8072e]
+
+[2026-09-02 17:21:59.129] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 17:21:59.177] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:21:59.235] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:21:59.235] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:21:59.843] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:21:59.843] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 17:21:59.845] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.xxx' (message expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f201359e4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f201220f6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f2012211c37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f2011d0d5f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f20122934de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xbaa12f) [0x7f201264a12f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f201226dd6b]
+[0x6270000ad361]
+
+[2026-09-02 17:21:59.848] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 17:21:59.867] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:21:59.924] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:21:59.924] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:22:00.405] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:22:00.405] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 17:22:00.411] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.xxx' (message expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f201359e4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f201220f6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f2012211c37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f2011d0d5f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f20122934de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xbaa12f) [0x7f201264a12f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f201226dd6b]
+/tmp/fakelua/fakelua_jit_457916.so(__fl_func_16+0x31) [0x7f1fccfbfa07]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f20121e48a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x74798d) [0x7f20121e798d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x14c) [0x7f20121e7cdc]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter19DispatchCallClosureEPNS_5StateEPNS_10VarClosureEPKNS_4CVarEiNS_7JITTypeE+0x4cd) [0x7f20121e977d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ed38f) [0x7f201228d38f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ee7c4) [0x7f201228e7c4]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f201226dd6b]
+/tmp/fakelua/fakelua_jit_457916.so(test_log_info_no_args+0x66) [0x7f1fccfbf8e6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f20121e48a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x19b) [0x7f20121e7d2b]
+../../build_asan/bin/unit_tests(_ZN7fakelua4CallIRlJEEEvPNS_5StateENS_7JITTypeERKSt17basic_string_viewIcSt11char_traitsIcEEOT_DpOT0_+0x3dd) [0xbe9d5d]
+../../build_asan/bin/unit_tests(_ZN33test_log_script_info_no_args_Test8TestBodyEv+0x10f1) [0x11c1ec1]
+../../build_asan/bin/unit_tests(_ZN7testing8internal35HandleExceptionsInMethodIfSupportedINS_4TestEvEET0_PT_MS4_FS3_vEPKc+0x155) [0x16bb1d5]
+../../build_asan/bin/unit_tests(_ZN7testing4Test3RunEv+0x17b) [0x164dc7b]
+../../build_asan/bin/unit_tests(_ZN7testing8TestInfo3RunEv+0x599) [0x164e279]
+../../build_asan/bin/unit_tests(_ZN7testing9TestSuite3RunEv+0xa55) [0x1684245]
+../../build_asan/bin/unit_tests(_ZN7testing8internal12UnitTestImpl11RunAllTestsEv+0x1e5b) [0x169fa6b]
+../../build_asan/bin/unit_tests(_ZN7testing8UnitTest3RunEv+0x1d1) [0x16a0dc1]
+../../build_asan/bin/unit_tests(main+0x78) [0x8f94a8]
+/lib64/libc.so.6(__libc_start_main+0xf3) [0x7f201086f493]
+../../build_asan/bin/unit_tests(_start+0x2e) [0xa8072e]
+
+[2026-09-02 17:52:26.123] [INFO ] [script] [./log/test_log_basic.lua:75:test_log_set_file] write to file
+[2026-09-02 17:52:26.128] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 17:52:26.138] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:52:26.180] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:52:26.180] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:52:26.391] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:52:26.391] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 17:52:26.392] [INFO ] [script] [./log/test_log_basic.lua:75:test_log_set_file] write to file
+[2026-09-02 17:52:26.394] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 17:52:26.411] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:52:26.427] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:52:26.427] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:52:26.638] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:52:26.638] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 17:52:26.641] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.set_level' (integer expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f66ca6ea4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f66c935b6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f66c935dc37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f66c8e595f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f66c93df4de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xba66da) [0x7f66c97926da]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f66c93b9d6b]
+[0x62700006e0e3]
+
+[2026-09-02 17:52:26.643] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 17:52:26.658] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:52:26.675] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:52:26.675] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:52:26.912] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:52:26.912] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 17:52:26.919] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.set_level' (integer expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f66ca6ea4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f66c935b6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f66c935dc37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f66c8e595f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f66c93df4de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xba66da) [0x7f66c97926da]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f66c93b9d6b]
+/tmp/fakelua/fakelua_jit_744227.so(__fl_func_14+0x63) [0x7f66841e1862]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f66c93308a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x74798d) [0x7f66c933398d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x14c) [0x7f66c9333cdc]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter19DispatchCallClosureEPNS_5StateEPNS_10VarClosureEPKNS_4CVarEiNS_7JITTypeE+0x4cd) [0x7f66c933577d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ed38f) [0x7f66c93d938f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ee7c4) [0x7f66c93da7c4]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f66c93b9d6b]
+/tmp/fakelua/fakelua_jit_744227.so(test_set_level_bad_arg+0x66) [0x7f66841e170f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f66c93308a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x19b) [0x7f66c9333d2b]
+../../build_asan/bin/unit_tests(_ZN7fakelua4CallIRlJEEEvPNS_5StateENS_7JITTypeERKSt17basic_string_viewIcSt11char_traitsIcEEOT_DpOT0_+0x3dd) [0xbe9d5d]
+../../build_asan/bin/unit_tests(_ZN38test_log_script_set_level_bad_arg_Test8TestBodyEv+0x10f1) [0x11c0561]
+../../build_asan/bin/unit_tests(_ZN7testing8internal35HandleExceptionsInMethodIfSupportedINS_4TestEvEET0_PT_MS4_FS3_vEPKc+0x155) [0x16bb1d5]
+../../build_asan/bin/unit_tests(_ZN7testing4Test3RunEv+0x17b) [0x164dc7b]
+../../build_asan/bin/unit_tests(_ZN7testing8TestInfo3RunEv+0x599) [0x164e279]
+../../build_asan/bin/unit_tests(_ZN7testing9TestSuite3RunEv+0xa55) [0x1684245]
+../../build_asan/bin/unit_tests(_ZN7testing8internal12UnitTestImpl11RunAllTestsEv+0x1e5b) [0x169fa6b]
+../../build_asan/bin/unit_tests(_ZN7testing8UnitTest3RunEv+0x1d1) [0x16a0dc1]
+../../build_asan/bin/unit_tests(main+0x78) [0x8f94a8]
+/lib64/libc.so.6(__libc_start_main+0xf3) [0x7f66c79bb493]
+../../build_asan/bin/unit_tests(_start+0x2e) [0xa8072e]
+
+[2026-09-02 17:52:26.933] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 17:52:26.958] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:52:26.975] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:52:26.975] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:52:27.189] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:52:27.189] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 17:52:27.193] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.xxx' (message expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f66ca6ea4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f66c935b6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f66c935dc37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f66c8e595f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f66c93df4de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xbaa12f) [0x7f66c979612f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f66c93b9d6b]
+[0x62700008e361]
+
+[2026-09-02 17:52:27.216] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 17:52:27.224] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:52:27.240] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:52:27.240] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 17:52:27.509] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 17:52:27.510] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 17:52:27.516] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.xxx' (message expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f66ca6ea4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f66c935b6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f66c935dc37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f66c8e595f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f66c93df4de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xbaa12f) [0x7f66c979612f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f66c93b9d6b]
+/tmp/fakelua/fakelua_jit_147297.so(__fl_func_16+0x31) [0x7f6683e54a07]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f66c93308a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x74798d) [0x7f66c933398d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x14c) [0x7f66c9333cdc]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter19DispatchCallClosureEPNS_5StateEPNS_10VarClosureEPKNS_4CVarEiNS_7JITTypeE+0x4cd) [0x7f66c933577d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ed38f) [0x7f66c93d938f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ee7c4) [0x7f66c93da7c4]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f66c93b9d6b]
+/tmp/fakelua/fakelua_jit_147297.so(test_log_info_no_args+0x66) [0x7f6683e548e6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f66c93308a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x19b) [0x7f66c9333d2b]
+../../build_asan/bin/unit_tests(_ZN7fakelua4CallIRlJEEEvPNS_5StateENS_7JITTypeERKSt17basic_string_viewIcSt11char_traitsIcEEOT_DpOT0_+0x3dd) [0xbe9d5d]
+../../build_asan/bin/unit_tests(_ZN33test_log_script_info_no_args_Test8TestBodyEv+0x10f1) [0x11c1ec1]
+../../build_asan/bin/unit_tests(_ZN7testing8internal35HandleExceptionsInMethodIfSupportedINS_4TestEvEET0_PT_MS4_FS3_vEPKc+0x155) [0x16bb1d5]
+../../build_asan/bin/unit_tests(_ZN7testing4Test3RunEv+0x17b) [0x164dc7b]
+../../build_asan/bin/unit_tests(_ZN7testing8TestInfo3RunEv+0x599) [0x164e279]
+../../build_asan/bin/unit_tests(_ZN7testing9TestSuite3RunEv+0xa55) [0x1684245]
+../../build_asan/bin/unit_tests(_ZN7testing8internal12UnitTestImpl11RunAllTestsEv+0x1e5b) [0x169fa6b]
+../../build_asan/bin/unit_tests(_ZN7testing8UnitTest3RunEv+0x1d1) [0x16a0dc1]
+../../build_asan/bin/unit_tests(main+0x78) [0x8f94a8]
+/lib64/libc.so.6(__libc_start_main+0xf3) [0x7f66c79bb493]
+../../build_asan/bin/unit_tests(_start+0x2e) [0xa8072e]
+
+[2026-09-02 20:26:01.296] [INFO ] [script] [./log/test_log_basic.lua:75:test_log_set_file] write to file
+[2026-09-02 20:26:01.300] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 20:26:01.309] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 20:26:01.321] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 20:26:01.321] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 20:26:01.473] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 20:26:01.474] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 20:26:01.474] [INFO ] [script] [./log/test_log_basic.lua:75:test_log_set_file] write to file
+[2026-09-02 20:26:01.476] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 20:26:01.487] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 20:26:01.500] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 20:26:01.500] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 20:26:01.658] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 20:26:01.658] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 20:26:01.659] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.set_level' (integer expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f0fc47cc4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f0fc343d6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f0fc343fc37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f0fc2f3b5f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f0fc34c14de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xba66da) [0x7f0fc38746da]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f0fc349bd6b]
+[0x6270001320e3]
+
+[2026-09-02 20:26:01.660] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 20:26:01.668] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 20:26:01.697] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 20:26:01.697] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 20:26:01.850] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 20:26:01.850] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 20:26:01.854] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.set_level' (integer expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f0fc47cc4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f0fc343d6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f0fc343fc37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f0fc2f3b5f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f0fc34c14de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xba66da) [0x7f0fc38746da]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f0fc349bd6b]
+/tmp/fakelua/fakelua_jit_430064.so(__fl_func_14+0x63) [0x7f0f7e0f6862]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f0fc34128a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x74798d) [0x7f0fc341598d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x14c) [0x7f0fc3415cdc]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter19DispatchCallClosureEPNS_5StateEPNS_10VarClosureEPKNS_4CVarEiNS_7JITTypeE+0x4cd) [0x7f0fc341777d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ed38f) [0x7f0fc34bb38f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ee7c4) [0x7f0fc34bc7c4]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f0fc349bd6b]
+/tmp/fakelua/fakelua_jit_430064.so(test_set_level_bad_arg+0x66) [0x7f0f7e0f670f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f0fc34128a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x19b) [0x7f0fc3415d2b]
+../../build_asan/bin/unit_tests(_ZN7fakelua4CallIRlJEEEvPNS_5StateENS_7JITTypeERKSt17basic_string_viewIcSt11char_traitsIcEEOT_DpOT0_+0x3dd) [0xbe9d5d]
+../../build_asan/bin/unit_tests(_ZN38test_log_script_set_level_bad_arg_Test8TestBodyEv+0x10f1) [0x11c0561]
+../../build_asan/bin/unit_tests(_ZN7testing8internal35HandleExceptionsInMethodIfSupportedINS_4TestEvEET0_PT_MS4_FS3_vEPKc+0x155) [0x16bb1d5]
+../../build_asan/bin/unit_tests(_ZN7testing4Test3RunEv+0x17b) [0x164dc7b]
+../../build_asan/bin/unit_tests(_ZN7testing8TestInfo3RunEv+0x599) [0x164e279]
+../../build_asan/bin/unit_tests(_ZN7testing9TestSuite3RunEv+0xa55) [0x1684245]
+../../build_asan/bin/unit_tests(_ZN7testing8internal12UnitTestImpl11RunAllTestsEv+0x1e5b) [0x169fa6b]
+../../build_asan/bin/unit_tests(_ZN7testing8UnitTest3RunEv+0x1d1) [0x16a0dc1]
+../../build_asan/bin/unit_tests(main+0x78) [0x8f94a8]
+/lib64/libc.so.6(__libc_start_main+0xf3) [0x7f0fc1a9d493]
+../../build_asan/bin/unit_tests(_start+0x2e) [0xa8072e]
+
+[2026-09-02 20:26:01.856] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 20:26:01.867] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 20:26:01.880] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 20:26:01.880] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 20:26:02.032] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 20:26:02.032] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 20:26:02.036] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.xxx' (message expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f0fc47cc4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f0fc343d6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f0fc343fc37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f0fc2f3b5f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f0fc34c14de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xbaa12f) [0x7f0fc387812f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f0fc349bd6b]
+[0x6270000c6361]
+
+[2026-09-02 20:26:02.037] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:19:fakelua::ParseResult fakelua::Compiler::CompileFile(const std::string&, const fakelua::CompileConfig&)] start CompileFile ./log/test_log_basic.lua
+[2026-09-02 20:26:02.047] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:12:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 20:26:02.060] [INFO ] [engine] [/home/project/fakelua/src/jit/tcc_jit.cpp:46:void fakelua::TccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] TCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 20:26:02.060] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:83:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compile start: ./log/test_log_basic.lua, 32 functions
+[2026-09-02 20:26:02.209] [INFO ] [engine] [/home/project/fakelua/src/jit/gcc_jit.cpp:258:void fakelua::GccJitter::Compile(const fakelua::ParseResult&, const fakelua::GenResult&, const fakelua::CompileConfig&)] GCC JIT compilation finished for ./log/test_log_basic.lua
+[2026-09-02 20:26:02.209] [INFO ] [engine] [/home/project/fakelua/src/compile/compiler.cpp:106:fakelua::ParseResult fakelua::Compiler::Compile(fakelua::MyFlexer&, const fakelua::CompileConfig&)] compile finished: ./log/test_log_basic.lua, functions: 32
+[2026-09-02 20:26:02.213] [ERROR] [engine] [/home/project/fakelua/src/util/exception.cpp:25:std::string fakelua::BuildFakeluaErrorMessage(const std::string&)] fakelua error: bad argument #1 to 'log.xxx' (message expected)
+stacktrace:
+/lib64/libasan.so.5(+0xb14ac) [0x7f0fc47cc4ac]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua17StacktraceCurrentB5cxx11Ev+0x240) [0x7f0fc343d6c0]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua24BuildFakeluaErrorMessageERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x257) [0x7f0fc343fc37]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua21ThrowFakeluaExceptionERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0x94) [0x7f0fc2f3b5f6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua16ThrowBadArgumentEiPKcS1_+0x159e) [0x7f0fc34c14de]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0xbaa12f) [0x7f0fc387812f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f0fc349bd6b]
+/tmp/fakelua/fakelua_jit_788828.so(__fl_func_16+0x31) [0x7f0f7dff3a07]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f0fc34128a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x74798d) [0x7f0fc341598d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x14c) [0x7f0fc3415cdc]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter19DispatchCallClosureEPNS_5StateEPNS_10VarClosureEPKNS_4CVarEiNS_7JITTypeE+0x4cd) [0x7f0fc341777d]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ed38f) [0x7f0fc34bb38f]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7ee7c4) [0x7f0fc34bc7c4]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(FakeluaCallByName+0x129b) [0x7f0fc349bd6b]
+/tmp/fakelua/fakelua_jit_788828.so(test_log_info_no_args+0x66) [0x7f0f7dff38e6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(+0x7448a6) [0x7f0fc34128a6]
+/home/project/fakelua/build_asan/lib64/libfakelua.so(_ZN7fakelua5inter12DispatchCallEPvPKNS_4CVarEiNS_7JITTypeEPNS_10VarClosureE+0x19b) [0x7f0fc3415d2b]
+../../build_asan/bin/unit_tests(_ZN7fakelua4CallIRlJEEEvPNS_5StateENS_7JITTypeERKSt17basic_string_viewIcSt11char_traitsIcEEOT_DpOT0_+0x3dd) [0xbe9d5d]
+../../build_asan/bin/unit_tests(_ZN33test_log_script_info_no_args_Test8TestBodyEv+0x10f1) [0x11c1ec1]
+../../build_asan/bin/unit_tests(_ZN7testing8internal35HandleExceptionsInMethodIfSupportedINS_4TestEvEET0_PT_MS4_FS3_vEPKc+0x155) [0x16bb1d5]
+../../build_asan/bin/unit_tests(_ZN7testing4Test3RunEv+0x17b) [0x164dc7b]
+../../build_asan/bin/unit_tests(_ZN7testing8TestInfo3RunEv+0x599) [0x164e279]
+../../build_asan/bin/unit_tests(_ZN7testing9TestSuite3RunEv+0xa55) [0x1684245]
+../../build_asan/bin/unit_tests(_ZN7testing8internal12UnitTestImpl11RunAllTestsEv+0x1e5b) [0x169fa6b]
+../../build_asan/bin/unit_tests(_ZN7testing8UnitTest3RunEv+0x1d1) [0x16a0dc1]
+../../build_asan/bin/unit_tests(main+0x78) [0x8f94a8]
+/lib64/libc.so.6(__libc_start_main+0xf3) [0x7f0fc1a9d493]
+../../build_asan/bin/unit_tests(_start+0x2e) [0xa8072e]
+

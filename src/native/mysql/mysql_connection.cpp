@@ -1,10 +1,12 @@
 #include "native/mysql/mysql_connection.h"
-#include "native/mysql/mysql_result.h"
 #include "native/native_common.h"
+#include "native/table/native_table.h"
 #include "util/logging.h"
+#include "var/var.h"
 
 #include <chrono>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 
 namespace fakelua::mysql {
@@ -25,8 +27,8 @@ struct TickDepthGuard {
 }  // namespace
 
 MysqlConnection::MysqlConnection()
-    : work_(boost::asio::make_work_guard(io_ctx_))
-{
+    : work_(boost::asio::make_work_guard(io_ctx_)),
+      conn_(io_ctx_) {
 }
 
 MysqlConnection::~MysqlConnection() {
@@ -49,51 +51,47 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     timeout_ms_ = timeout_ms;
     connect_start_ms_ = now_ms();
     pending_connect_err_.clear();
+    pending_connect_ = false;
     close_pending_ = false;
     state_ = State::Connecting;
+    ready_ = false;
 
     // Reset connection state
-    conn_.close();
+    boost::mysql::error_code ec;
+    boost::mysql::diagnostics diag;
+    conn_.close(ec, diag);  // idempotent: closes any prior session
     pending_results_.clear();
     prepared_statements_.clear();
     next_stmt_id_ = 1;
     last_error_ = {};
 
+    // Build connect_params
+    boost::mysql::connect_params params;
+    params.server_address.emplace_host_and_port(host, port);
+    params.username = user;
+    params.password = password;
+    params.database = database;
+    params.ssl = boost::mysql::ssl_mode::disable;
+    params.multi_queries = true;  // preserve legacy multi-statement behavior
+
     // Start asynchronous connect
-    boost::asio::ip::tcp::resolver resolver(io_ctx_);
-    auto endpoints = resolver.resolve(host, std::to_string(port));
-
-    boost::asio::async_connect(conn_.lowest_layer(), endpoints,
-        [this](const boost::system::error_code& ec, const boost::asio::ip::tcp::endpoint&) {
-            if (ec) {
-                pending_connect_err_ = ec.message();
-                state_ = State::Error;
-                return;
-            }
-
-            // Start MySQL handshake
-            boost::mysql::ssl_mode ssl_mode = boost::mysql::ssl_mode::disable;
-            boost::mysql::handshake_params params(user_, password_, database_);
-            if (timeout_ms_ > 0) {
-                params.expires_after(std::chrono::milliseconds(timeout_ms_));
-            }
-
-            conn_.async_handshake(ssl_mode, params,
-                [this](const boost::system::error_code& ec, boost::mysql::handshake_output) {
-                    if (ec) {
-                        pending_connect_err_ = ec.message();
-                        state_ = State::Error;
-                        return;
-                    }
-                    state_ = State::Ready;
-                    ready_ = true;
-                });
-        });
+    boost::mysql::diagnostics diag2;
+    conn_.async_connect(params, diag2, [this](boost::mysql::error_code ec) {
+        if (ec) {
+            pending_connect_err_ = ec.message();
+            state_ = State::Error;
+            pending_connect_ = true;
+            return;
+        }
+        state_ = State::Ready;
+        ready_ = true;
+        pending_connect_ = true;
+    });
 }
 
 void MysqlConnection::query(const std::string &sql) {
     if (close_pending_) return;
-    if (state_ != State::Ready || !conn_.lowest_layer().is_open()) {
+    if (state_ != State::Ready || !ready_) {
         dispatch_result({}, "connection not ready");
         return;
     }
@@ -102,24 +100,25 @@ void MysqlConnection::query(const std::string &sql) {
     state_ = State::Querying;
     query_type_ = QueryType::Query;
 
-    // Execute query asynchronously
-    conn_.async_query(sql,
-        [this](const boost::system::error_code& err, boost::mysql::results result) {
-            if (err) {
-                pending_result_err_ = err.message();
-                pending_result_ = true;
-                state_ = State::Ready;
-                return;
-            }
-            pending_result_data_ = std::move(result);
-            pending_result_ = true;
-            state_ = State::Ready;
-        });
+    // Execute query asynchronously (with diagnostics for error reporting)
+    conn_.async_execute(sql, pending_result_data_,
+                        [this](boost::mysql::error_code err) {
+                            if (err) {
+                                pending_result_err_ = err.message();
+                                pending_result_data_ = {};
+                                pending_result_ = true;
+                                state_ = State::Ready;
+                                return;
+                            }
+                            pending_result_err_.clear();
+                            pending_result_ = true;
+                            state_ = State::Ready;
+                        });
 }
 
 void MysqlConnection::stmt_prepare(const std::string &sql) {
     if (close_pending_) return;
-    if (state_ != State::Ready || !conn_.lowest_layer().is_open()) {
+    if (state_ != State::Ready || !ready_) {
         dispatch_result({}, "connection not ready for prepare");
         return;
     }
@@ -128,42 +127,39 @@ void MysqlConnection::stmt_prepare(const std::string &sql) {
     query_type_ = QueryType::StmtPrepare;
 
     // Prepare statement asynchronously
-    conn_.async_prepare(sql,
-        [this](const boost::system::error_code& err, boost::mysql::prepared_statement stmt) {
-            if (err) {
-                pending_result_err_ = err.message();
-                pending_result_ = true;
-                state_ = State::Ready;
-                return;
-            }
-
-            // Store prepared statement and return statement ID
-            uint32_t stmt_id = next_stmt_id_++;
-            prepared_statements_[stmt_id] = std::move(stmt);
-
-            // Create result with statement ID
-            boost::mysql::results result;
-            result.emplace_back();
-            result.front().affected_rows = 0; // Not used for prepare
-            result.front().last_insert_id = 0;
-            result.front().stmt_id = stmt_id;
-
-            pending_result_data_ = std::move(result);
+    conn_.async_prepare_statement(sql, [this](boost::mysql::error_code err, boost::mysql::statement stmt) {
+        if (err) {
+            pending_result_err_ = err.message();
+            pending_result_data_ = {};
             pending_result_ = true;
             state_ = State::Ready;
-        });
+            return;
+        }
+
+        // Allocate a Lua-side statement ID and remember the boost statement.
+        uint32_t stmt_id = next_stmt_id_++;
+        prepared_statements_[stmt_id] = std::move(stmt);
+
+        // Build a results-shaped reply that carries the statement id.
+        pending_stmt_id_ = stmt_id;
+        has_pending_stmt_id_ = true;
+        pending_result_data_ = {};
+        pending_result_err_.clear();
+        pending_result_ = true;
+        state_ = State::Ready;
+    });
 }
 
 void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam> &params) {
     if (close_pending_) return;
-    if (state_ != State::Ready || !conn_.lowest_layer().is_open()) {
+    if (state_ != State::Ready || !ready_) {
         dispatch_result({}, "connection not ready for execute");
         return;
     }
 
     // Find prepared statement
     auto it = prepared_statements_.find(stmt_id);
-    if (it == prepared_statements_.end()) {
+    if (it == prepared_statements_.end() || !it->second.valid()) {
         dispatch_result({}, "statement not prepared");
         return;
     }
@@ -171,75 +167,97 @@ void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam
     state_ = State::Querying;
     query_type_ = QueryType::StmtExecute;
 
-    // Convert StmtParam to boost::mysql::tuple
-    boost::mysql::tuple tuple_params;
-    for (const auto& param : params) {
-        if (param.is_null) {
-            tuple_params.push_back(nullptr);
+    // Build a tuple of boost::mysql::field parameters. NULLs become nullptr_t
+    // (boost::optional-like empty optional). Non-null values become strings.
+    std::vector<boost::mysql::field> fields;
+    fields.reserve(params.size());
+    for (const auto &p : params) {
+        if (p.is_null) {
+            fields.emplace_back(nullptr);
         } else {
-            tuple_params.push_back(param.value);
+            fields.emplace_back(p.value);
         }
     }
 
-    // Execute prepared statement asynchronously
-    conn_.async_execute(it->second, tuple_params,
-        [this](const boost::system::error_code& err, boost::mysql::results result) {
-            if (err) {
-                pending_result_err_ = err.message();
-                pending_result_ = true;
-                state_ = State::Ready;
-                return;
-            }
-            pending_result_data_ = std::move(result);
-            pending_result_ = true;
-            state_ = State::Ready;
-        });
+    conn_.async_execute(it->second.bind(fields.begin(), fields.end()),
+                        pending_result_data_,
+                        [this](boost::mysql::error_code err) {
+                            if (err) {
+                                pending_result_err_ = err.message();
+                                pending_result_data_ = {};
+                                pending_result_ = true;
+                                state_ = State::Ready;
+                                return;
+                            }
+                            pending_result_err_.clear();
+                            pending_result_ = true;
+                            state_ = State::Ready;
+                        });
 }
 
 void MysqlConnection::stmt_close(uint32_t stmt_id) {
     if (close_pending_) return;
-    if (state_ != State::Ready || !conn_.lowest_layer().is_open()) return;
+    if (state_ != State::Ready || !ready_) {
+        prepared_statements_.erase(stmt_id);
+        return;
+    }
 
-    // Remove prepared statement from cache
-    prepared_statements_.erase(stmt_id);
+    auto it = prepared_statements_.find(stmt_id);
+    if (it == prepared_statements_.end()) return;
+    if (!it->second.valid()) {
+        prepared_statements_.erase(it);
+        return;
+    }
 
-    // Note: Boost.MySQL doesn't require explicit statement close when destroying
-    // the prepared_statement object, which we do by erasing from the map
+    // Close server-side statement. Note: this is synchronous; the legacy
+    // implementation also did not network-roundtrip here.
+    boost::mysql::statement stmt = std::move(it->second);
+    prepared_statements_.erase(it);
+    boost::mysql::error_code ec;
+    boost::mysql::diagnostics diag;
+    conn_.close_statement(stmt, ec, diag);
+    if (ec) {
+        LOG_DEBUG("mysql", "close_statement error: {}", ec.message());
+    }
 }
 
 bool MysqlConnection::ping() {
     if (close_pending_) return false;
-    if (state_ != State::Ready || !conn_.lowest_layer().is_open()) return false;
+    if (state_ != State::Ready || !ready_) return false;
 
-    // Ping asynchronously
-    conn_.async_ping(
-        [this](const boost::system::error_code& err) {
-            if (err) {
-                pending_result_err_ = err.message();
-                pending_result_ = true;
-                state_ = State::Error;
-            } else {
-                pending_result_ = true;
-                state_ = State::Ready;
-            }
-        });
+    conn_.async_ping([this](boost::mysql::error_code err) {
+        if (err) {
+            pending_result_err_ = err.message();
+            pending_result_ = true;
+            state_ = State::Error;
+        } else {
+            pending_result_ = true;
+            state_ = State::Ready;
+        }
+    });
 
     return true;
 }
 
 void MysqlConnection::close() {
-    if (!conn_.lowest_layer().is_open()) return;
+    if (state_ == State::Idle && !ready_ && prepared_statements_.empty()) {
+        // already closed
+        return;
+    }
 
-    // Close the connection
-    boost::system::error_code ec;
-    conn_.close(ec);
+    // Close the connection (best effort).
+    boost::mysql::error_code ec;
+    boost::mysql::diagnostics diag;
+    conn_.close(ec, diag);
     if (ec) {
         LOG_DEBUG("mysql", "Error closing connection: {}", ec.message());
     }
 
     state_ = State::Idle;
     ready_ = false;
-    conn_.close();
+    pending_results_.clear();
+    prepared_statements_.clear();
+    next_stmt_id_ = 1;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -256,7 +274,7 @@ void MysqlConnection::tick() {
             pending_connect_err_ = "connect timeout";
             state_ = State::Error;
             close();
-            return;
+            pending_connect_ = true;
         }
     }
 
@@ -278,27 +296,22 @@ void MysqlConnection::tick() {
     // Handle pending query result
     if (pending_result_) {
         pending_result_ = false;
+        bool had_stmt_id = has_pending_stmt_id_;
+        uint32_t stmt_id_for_dispatch = pending_stmt_id_;
+        has_pending_stmt_id_ = false;
+        pending_stmt_id_ = 0;
         if (!pending_result_err_.empty()) {
             dispatch_result({}, pending_result_err_.c_str());
+        } else if (had_stmt_id) {
+            // COM_STMT_PREPARE response: pass stmt_id through a synthetic result.
+            dispatch_stmt_id_ = stmt_id_for_dispatch;
+            dispatch_result(pending_result_data_, nullptr);
+            dispatch_stmt_id_ = 0;
         } else {
             dispatch_result(pending_result_data_, nullptr);
         }
         pending_result_err_.clear();
-    }
-
-    // Handle connection state transitions based on lowest layer state
-    if (!conn_.lowest_layer().is_open()) {
-        if (state_ != State::Idle && state_ != State::Error) {
-            if (state_ == State::Connecting || state_ == State::Handshaking) {
-                pending_connect_err_ = "connection closed during handshake";
-                state_ = State::Error;
-            } else if (state_ == State::Querying) {
-                pending_result_err_ = "connection closed during query";
-                state_ = State::Error;
-            } else {
-                state_ = State::Error;
-            }
-        }
+        pending_result_data_ = {};
     }
 }
 
@@ -406,24 +419,25 @@ void MysqlConnection::dispatch_result(const boost::mysql::results &result, const
     // Ensure we always have a valid error message (never empty string with failure)
     const char *msg = err_msg && err_msg[0] ? err_msg : "query failed";
 
-    LOG_DEBUG("mysql", "dispatch_result: err_msg={} cb={} result.rows={}",
-              err_msg ? err_msg : "(null)", result_cb_.c_str(),
-              result.size() > 0 ? result.front().rows.size() : 0);
+    LOG_DEBUG("mysql", "dispatch_result: err_msg={} cb={} stmt_id_dispatch={}",
+              err_msg ? err_msg : "(null)", result_cb_.c_str(), dispatch_stmt_id_);
 
     CVar args[3];
     args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_)
                           : inter::NativeToFakeluaNil(lua_state_);
+
     if (err_msg) {
         args[1] = inter::NativeToFakeluaString(lua_state_, msg);
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
         args[2] = nil;
-    } else if (!result.empty() && result.front().stmt_id != 0) {
-        // COM_STMT_PREPARE response: pass statement_id as number
+    } else if (dispatch_stmt_id_ != 0) {
+        // COM_STMT_PREPARE response: surface the statement id as a number.
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
         args[1] = nil;
-        args[2] = inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(result.front().stmt_id));
+        args[2] = inter::NativeToFakeluaInt(lua_state_,
+                                            static_cast<int64_t>(dispatch_stmt_id_));
     } else {
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
@@ -440,6 +454,141 @@ void MysqlConnection::set_error(MysqlErrorType type, uint16_t code,
     last_error_.code = code;
     last_error_.message = msg;
     last_error_.sql_state = sql_state;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// result_to_lua: convert Boost.MySQL results to the same Lua-table shape that
+// the legacy COM_STMT_PREPARE-free result format produced:
+//   {is_result_set, columns, rows, affected_rows, last_insert_id, info}
+// columns: { {name, type}, ... }    (1-indexed)
+// rows:    { {col1, col2, ...}, ... }  (NULL → nil, others → string)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// static
+std::pair<bool, std::string> MysqlConnection::field_to_string(const boost::mysql::field_view &fv) {
+    using boost::mysql::field_kind;
+    switch (fv.kind()) {
+        case field_kind::null:
+            return {true, ""};
+        case field_kind::int64:
+            return {false, std::to_string(fv.as_int64())};
+        case field_kind::uint64:
+            return {false, std::to_string(fv.as_uint64())};
+        case field_kind::string:
+            return {false, std::string(fv.as_string().data(), fv.as_string().size())};
+        case field_kind::blob:
+            return {false, std::string(reinterpret_cast<const char *>(fv.as_blob().data()),
+                                       fv.as_blob().size())};
+        case field_kind::float_:
+            return {false, std::to_string(fv.as_float())};
+        case field_kind::double_:
+            return {false, std::to_string(fv.as_double())};
+        case field_kind::date: {
+            auto d = fv.as_date();
+            char buf[16];
+            std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u", d.year(), d.month(), d.day());
+            return {false, std::string(buf)};
+        }
+        case field_kind::datetime: {
+            auto dt = fv.as_datetime();
+            char buf[64];
+            if (dt.hour() || dt.minute() || dt.second() || dt.microsecond()) {
+                std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u.%06u",
+                              dt.year(), dt.month(), dt.day(),
+                              dt.hour(), dt.minute(), dt.second(), dt.microsecond());
+            } else {
+                std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u",
+                              dt.year(), dt.month(), dt.day());
+            }
+            return {false, std::string(buf)};
+        }
+        case field_kind::time: {
+            // boost::mysql::time is std::chrono::microseconds.
+            auto t = fv.as_time();
+            auto total_us = t.count();
+            bool negative = (total_us < 0);
+            auto abs_us = negative ? -total_us : total_us;
+            auto us = static_cast<long long>(abs_us % 1000000);
+            auto total_s = abs_us / 1000000;
+            auto hh = static_cast<long long>(total_s / 3600);
+            auto mm = static_cast<long long>((total_s / 60) % 60);
+            auto ss = static_cast<long long>(total_s % 60);
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "%s%02lld:%02lld:%02lld.%06lld",
+                          negative ? "-" : "", hh, mm, ss, us);
+            return {false, std::string(buf)};
+        }
+    }
+    return {false, ""};
+}
+
+CVar MysqlConnection::result_to_lua(::fakelua::State *s, const boost::mysql::results &result) {
+    using namespace fakelua;
+
+    CVar tbl = table::TableHelper::CreateTable(s);
+
+    if (!result.has_value()) {
+        // Empty / uninitialized: surface as status-only with zero affected.
+        table::TableHelper::SetTableInt(s, tbl, 1, inter::NativeToFakeluaBool(s, false));
+        table::TableHelper::SetTableInt(s, tbl, 4, inter::NativeToFakeluaLonglong(s, 0));
+        table::TableHelper::SetTableInt(s, tbl, 5, inter::NativeToFakeluaLonglong(s, 0));
+        return tbl;
+    }
+
+    // Inspect metadata to decide
+    auto first_meta = result.meta();
+    bool has_meta = first_meta.begin() != first_meta.end();
+
+    if (has_meta) {
+        // ── Result set: {true, columns, rows} ──
+        table::TableHelper::SetTableInt(s, tbl, 1, inter::NativeToFakeluaBool(s, true));
+
+        // columns at key 2
+        CVar cols_tbl = table::TableHelper::CreateTable(s);
+        int64_t col_idx = 1;
+        for (const auto &col : first_meta) {
+            CVar col_tbl = table::TableHelper::CreateTable(s);
+            table::TableHelper::SetTableInt(s, col_tbl, 1,
+                inter::NativeToFakeluaString(s, std::string(col.column_name())));
+            // column_type() returns a column_type enum; expose its underlying value.
+            table::TableHelper::SetTableInt(s, col_tbl, 2,
+                inter::NativeToFakeluaInt(s, static_cast<int64_t>(col.type())));
+            table::TableHelper::SetTableInt(s, cols_tbl, col_idx++, col_tbl);
+        }
+        table::TableHelper::SetTableInt(s, tbl, 2, cols_tbl);
+
+        // rows at key 3
+        CVar rows_tbl = table::TableHelper::CreateTable(s);
+        int64_t row_idx = 1;
+        for (auto row_view : result.rows()) {
+            CVar row_tbl = table::TableHelper::CreateTable(s);
+            int64_t col_pos = 1;
+            for (const auto &fv : row_view) {
+                auto [is_null, value] = field_to_string(fv);
+                if (is_null) {
+                    table::TableHelper::SetTableInt(s, row_tbl, col_pos,
+                                                    inter::NativeToFakeluaNil(s));
+                } else {
+                    table::TableHelper::SetTableInt(s, row_tbl, col_pos,
+                                                    inter::NativeToFakeluaString(s, value));
+                }
+                ++col_pos;
+            }
+            table::TableHelper::SetTableInt(s, rows_tbl, row_idx++, row_tbl);
+        }
+        table::TableHelper::SetTableInt(s, tbl, 3, rows_tbl);
+    } else {
+        // ── Status reply: {false, _, _, affected_rows, last_insert_id, info} ──
+        table::TableHelper::SetTableInt(s, tbl, 1, inter::NativeToFakeluaBool(s, false));
+        table::TableHelper::SetTableInt(s, tbl, 4,
+            inter::NativeToFakeluaLonglong(s, static_cast<long long>(result.affected_rows())));
+        table::TableHelper::SetTableInt(s, tbl, 5,
+            inter::NativeToFakeluaLonglong(s, static_cast<long long>(result.last_insert_id())));
+        table::TableHelper::SetTableInt(s, tbl, 6,
+            inter::NativeToFakeluaString(s, std::string(result.info())));
+    }
+
+    return tbl;
 }
 
 }  // namespace fakelua::mysql

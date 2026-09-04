@@ -1,14 +1,10 @@
 #pragma once
 
 // mysql_connection.h — async MySQL client using Boost.MySQL
-// Built on top of boost::mysql::connection for asynchronous MySQL operations.
+// Built on top of boost::mysql::any_connection for asynchronous MySQL operations.
 
 #include <boost/mysql.hpp>
 #include <boost/asio.hpp>
-
-// Keep the existing protocol and result headers for StmtParam and compatibility
-#include "native/mysql/mysql_protocol.h"
-#include "native/mysql/mysql_result.h"
 
 #include <cstdint>
 #include <functional>
@@ -16,6 +12,23 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+// Forward declaration for CVar
+namespace fakelua {
+struct CVar;
+class State;
+class NativeObject;
+}
+
+namespace fakelua::mysql {
+
+// COM_STMT_EXECUTE 参数。is_null 时写入 null-bitmap，不附带值。
+struct StmtParam {
+    bool is_null = false;
+    std::string value;
+};
+
+}  // namespace fakelua::mysql
 
 namespace fakelua {
 class State;
@@ -80,35 +93,33 @@ public:
     void tick();
 
     // Error info from last operation
-    MysqlError last_error() const { return last_error_; }
+    MysqlError last_error() const;
 
     // Check if error is retryable (network issues, not auth/syntax)
     static bool is_retryable(MysqlErrorType type);
 
     // Set Lua callback function names (called by native_mysql.cpp)
-    void set_connect_callback(const std::string &name) { connect_cb_ = name; }
-    void set_result_callback(const std::string &name) { result_cb_ = name; }
-    void set_state(::fakelua::State *state) { lua_state_ = state; }
-    void set_native_object(::fakelua::NativeObject *obj) { native_obj_ = obj; }
+    void set_connect_callback(const std::string &name);
+    void set_result_callback(const std::string &name);
+    void set_state(::fakelua::State *state);
+    void set_native_object(::fakelua::NativeObject *obj);
 
-    bool connected() const { return ready_; }
-    bool connecting() const {
-        return state_ == State::Connecting || state_ == State::Handshaking;
-    }
+    bool connected() const;
+    bool connecting() const;
 
     // Lua :close() during a callback/tick must not delete *this until the
     // outer native call returns (same pattern as net deferred close).
-    int tick_depth() const { return tick_depth_; }
-    bool close_pending() const { return close_pending_; }
-    void request_close() { close_pending_ = true; }
+    int tick_depth() const;
+    bool close_pending() const;
+    void request_close();
 
 private:
     // Boost.Asio I/O context for asynchronous operations
     boost::asio::io_context io_ctx_;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work_;
 
-    // Boost.MySQL connection
-    boost::mysql::connection conn_;
+    // Boost.MySQL connection (modern any_connection API)
+    boost::mysql::any_connection conn_;
 
     // State tracking
     enum class State { Idle, Connecting, Handshaking, Ready, Querying, Error };
@@ -131,7 +142,7 @@ private:
     std::vector<boost::mysql::results> pending_results_;
 
     // Prepared statement cache: map from statement ID to prepared statement
-    std::unordered_map<uint32_t, boost::mysql::prepared_statement> prepared_statements_;
+    std::unordered_map<uint32_t, boost::mysql::statement> prepared_statements_;
     uint32_t next_stmt_id_ = 1;
 
     // Error tracking
@@ -154,12 +165,35 @@ private:
     bool pending_result_ = false;
     boost::mysql::results pending_result_data_;
     std::string pending_result_err_;
+    // When stmt_prepare completes, the callback receives (err, stmt_id)
+    // rather than a row set. We carry that id through tick() to dispatch_result.
+    bool has_pending_stmt_id_ = false;
+    uint32_t pending_stmt_id_ = 0;
+    // Set transiently in tick() right before dispatching, read by dispatch_result.
+    uint32_t dispatch_stmt_id_ = 0;
+
+    // Connection state
+    bool ready_ = false;
+    int tick_depth_ = 0;
+    bool close_pending_ = false;
 
     // Helpers
     void dispatch_connect(const char *err_msg);
     void dispatch_result(const boost::mysql::results &result, const char *err_msg);
     void set_error(MysqlErrorType type, uint16_t code,
                    const std::string &msg, const std::string &sql_state);
+
+    // Convert Boost.MySQL results to Lua table
+    static CVar result_to_lua(::fakelua::State *s, const boost::mysql::results &result);
+    // Convert one Boost.MySQL field to (is_null, string_value).
+    static std::pair<bool, std::string> field_to_string(const boost::mysql::field_view &fv);
+
+private:
+    // Async connect handler signature expects (error_code, diagnostics)
+    // but we use a lambda that only captures error_code. This is OK since
+    // Boost.Asio's completion token machinery supports it.
+    // When we need to pass diagnostics for error reporting, we use the
+    // overload that takes diagnostics& as a parameter.
 };
 
 }  // namespace fakelua::mysql
