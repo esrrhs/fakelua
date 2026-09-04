@@ -49,16 +49,6 @@ if (NOT FAKELUA_TINYCC_BUILD_JOBS GREATER 0)
     set(FAKELUA_TINYCC_BUILD_JOBS 1)
 endif ()
 
-# Windows MinGW workarounds for GCC 16.2.0 - must be set before CPM for Boost build
-if (MINGW)
-    # 1. _errno macro conflict in std::wcstoll etc. (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115275)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_C99_STDIO=0")
-    # 2. std::snprintf not available - need __USE_MINGW_ANSI_STDIO=1 to expose C99 stdio in std::
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__USE_MINGW_ANSI_STDIO=1")
-    # 3. Suppress MSVC-style deprecation warnings
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_CRT_SECURE_NO_WARNINGS")
-endif()
-
 set(FAKELUA_TINYCC_GIT_URL "https://github.com/TinyCC/tinycc.git" CACHE STRING "TinyCC git repository URL")
 set(FAKELUA_TINYCC_GIT_TAG "mob" CACHE STRING "TinyCC git branch/tag/commit")
 CPMAddPackage(
@@ -271,14 +261,27 @@ endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
 # Fetch Boost 1.90+ source for MySQL headers (header-only mode for Asio/System/MySQL)
-CPMAddPackage(
-    NAME boost
-    GITHUB_REPOSITORY boostorg/boost
-    GIT_TAG boost-1.90.0
-    OPTIONS
-        "BUILD_SHARED_LIBS OFF"
-        "CMAKE_POSITION_INDEPENDENT_CODE ON"
-)
+# Windows MinGW workarounds for GCC 16.2.0 - must be passed to Boost CMake build
+if (MINGW)
+    CPMAddPackage(
+        NAME boost
+        GITHUB_REPOSITORY boostorg/boost
+        GIT_TAG boost-1.90.0
+        OPTIONS
+            "BUILD_SHARED_LIBS OFF"
+            "CMAKE_POSITION_INDEPENDENT_CODE ON"
+            "CMAKE_CXX_FLAGS=-D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS"
+    )
+else()
+    CPMAddPackage(
+        NAME boost
+        GITHUB_REPOSITORY boostorg/boost
+        GIT_TAG boost-1.90.0
+        OPTIONS
+            "BUILD_SHARED_LIBS OFF"
+            "CMAKE_POSITION_INDEPENDENT_CODE ON"
+    )
+endif()
 if (NOT boost_ADDED)
     message(FATAL_ERROR "Failed to fetch boost")
 endif()
