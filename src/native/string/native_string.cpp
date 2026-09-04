@@ -836,7 +836,7 @@ void RegisterStringLibraryApi(State *s) {
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Int)) {
                     sval = std::to_string(curr_arg.data_.i);
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Float)) {
-                    sval = std::to_string(curr_arg.data_.f);
+                    sval = DoubleToString(curr_arg.data_.f);
                 } else {
                     sval = AsVar(curr_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
                 }
@@ -2018,7 +2018,7 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
             if (uv.type_ == static_cast<int>(VarType::Int)) {
                 upval_decls += "local x = " + std::to_string(uv.data_.i) + "\n";
             } else if (uv.type_ == static_cast<int>(VarType::Float)) {
-                upval_decls += "local x = " + std::to_string(uv.data_.f) + "\n";
+                upval_decls += "local x = " + DoubleToString(uv.data_.f) + "\n";
             } else if (uv.type_ == static_cast<int>(VarType::Bool)) {
                 upval_decls += "local x = " + std::string(uv.data_.b ? "true\n" : "false\n");
             }

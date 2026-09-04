@@ -4,6 +4,7 @@
 #include "var/var_closure.h"
 #include <cmath>
 #include <limits>
+#include <sstream>
 #include <string>
 
 namespace fakelua {
@@ -12,6 +13,21 @@ namespace fakelua {
 // Shared helpers for native library argument validation and error reporting.
 // Used across native_math, native_table, native_utf8, native_string, native_io.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Safe double-to-string conversion. std::to_string has ambiguous overloads
+// for double/long double on MinGW GCC 16.2.0, so use ostringstream here.
+inline std::string DoubleToString(double v) {
+    std::ostringstream oss;
+    oss << v;
+    return oss.str();
+}
+
+// Safe long-double-to-string conversion (same reason as DoubleToString).
+inline std::string LongDoubleToString(long double v) {
+    std::ostringstream oss;
+    oss << v;
+    return oss.str();
+}
 
 // Throw a standardized "bad argument #N to 'fname' (expected)" exception.
 [[noreturn]] inline void ThrowBadArgument(int argno, const char *fname, const char *expected) {

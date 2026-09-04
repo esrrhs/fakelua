@@ -201,7 +201,6 @@ public:
                 break;
             case Type::FLOAT:
                 // Workaround for MinGW GCC 16.2.0: std::to_string(double) is ambiguous
-                // Use ostringstream instead
                 {
                     std::ostringstream oss;
                     oss << float_;

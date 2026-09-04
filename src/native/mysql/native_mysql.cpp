@@ -291,7 +291,7 @@ CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
             } else if (elem.type_ == static_cast<int>(VarType::Int)) {
                 p.value = std::to_string(elem.data_.i);
             } else if (elem.type_ == static_cast<int>(VarType::Float)) {
-                p.value = std::to_string(elem.data_.f);
+                p.value = DoubleToString(elem.data_.f);
             } else if (elem.type_ == static_cast<int>(VarType::Bool)) {
                 p.value = elem.data_.b ? "1" : "0";
             } else {
