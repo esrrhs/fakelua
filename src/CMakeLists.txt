@@ -273,6 +273,7 @@ set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 if (MINGW)
     # Set cache variables BEFORE CPMAddPackage so they propagate to Boost's build
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS" CACHE STRING "" FORCE)
+    add_compile_definitions(_GLIBCXX_USE_C99_STDIO=0 __USE_MINGW_ANSI_STDIO=1 _CRT_SECURE_NO_WARNINGS)
     add_compile_options(-D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS)
 endif()
 
@@ -285,6 +286,7 @@ if (MINGW)
         OPTIONS
             "BUILD_SHARED_LIBS=OFF"
             "CMAKE_POSITION_INDEPENDENT_CODE=ON"
+            "CMAKE_CXX_FLAGS=-D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS"
     )
 else()
     CPMAddPackage(
