@@ -305,27 +305,27 @@ set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
 
 # Workaround for MinGW GCC 16.2.0: std::snprintf is not declared because
 # MinGW's <cstdio> doesn't put snprintf in std namespace even with
-# __USE_MINGW_ANSI_STDIO=1. Patch the boost headers that use std::snprintf.
+# __USE_MINGW_ANSI_STDIO=1. Patch all boost headers that use std::snprintf.
 if (MINGW)
-    # snprintf.hpp - change "using std::snprintf;" to "using ::snprintf;"
-    file(READ "${BOOST_SOURCE_DIR}/libs/system/include/boost/system/detail/snprintf.hpp" _SNPRINTF_HPP)
-    string(REPLACE "using std::snprintf;" "using ::snprintf;" _SNPRINTF_HPP "${_SNPRINTF_HPP}")
-    file(WRITE "${BOOST_SOURCE_DIR}/libs/system/include/boost/system/detail/snprintf.hpp" "${_SNPRINTF_HPP}")
-
-    # source_location.hpp - change "std::snprintf(" to "::snprintf("
-    file(READ "${BOOST_SOURCE_DIR}/libs/assert/include/boost/assert/source_location.hpp" _ASSERT_HPP)
-    string(REPLACE "std::snprintf(" "::snprintf(" _ASSERT_HPP "${_ASSERT_HPP}")
-    file(WRITE "${BOOST_SOURCE_DIR}/libs/assert/include/boost/assert/source_location.hpp" "${_ASSERT_HPP}")
-
-    # fallback_routines.hpp - change "std::snprintf" to "::snprintf"
-    file(READ "${BOOST_SOURCE_DIR}/libs/charconv/include/boost/charconv/detail/fallback_routines.hpp" _FALLBACK_HPP)
-    string(REPLACE "std::snprintf" "::snprintf" _FALLBACK_HPP "${_FALLBACK_HPP}")
-    file(WRITE "${BOOST_SOURCE_DIR}/libs/charconv/include/boost/charconv/detail/fallback_routines.hpp" "${_FALLBACK_HPP}")
-
-    # config.ipp - change "std::snprintf" to "::snprintf"
-    file(READ "${BOOST_SOURCE_DIR}/libs/asio/include/boost/asio/impl/config.ipp" _CONFIG_HPP)
-    string(REPLACE "std::snprintf" "::snprintf" _CONFIG_HPP "${_CONFIG_HPP}")
-    file(WRITE "${BOOST_SOURCE_DIR}/libs/asio/include/boost/asio/impl/config.ipp" "${_CONFIG_HPP}")
+    set(_BOOST_SNPRINTF_FILES
+        "${BOOST_SOURCE_DIR}/libs/system/include/boost/system/detail/snprintf.hpp"
+        "${BOOST_SOURCE_DIR}/libs/assert/include/boost/assert/source_location.hpp"
+        "${BOOST_SOURCE_DIR}/libs/charconv/include/boost/charconv/detail/fallback_routines.hpp"
+        "${BOOST_SOURCE_DIR}/libs/asio/include/boost/asio/impl/config.ipp"
+        "${BOOST_SOURCE_DIR}/libs/static_string/include/boost/static_string/static_string.hpp"
+        "${BOOST_SOURCE_DIR}/libs/uuid/include/boost/uuid/string_generator.hpp"
+        "${BOOST_SOURCE_DIR}/libs/core/include/boost/core/type_name.hpp"
+        "${BOOST_SOURCE_DIR}/libs/regex/src/posix_api.cpp"
+        "${BOOST_SOURCE_DIR}/libs/numeric/odeint/include/boost/numeric/odeint/integrate/max_step_checker.hpp"
+        "${BOOST_SOURCE_DIR}/libs/compute/include/boost/compute/detail/parameter_cache.hpp"
+    )
+    foreach(_FILE ${_BOOST_SNPRINTF_FILES})
+        if (EXISTS "${_FILE}")
+            file(READ "${_FILE}" _CONTENT)
+            string(REPLACE "std::snprintf" "::snprintf" _CONTENT "${_CONTENT}")
+            file(WRITE "${_FILE}" "${_CONTENT}")
+        endif()
+    endforeach()
 endif()
 
 # Include ALL Boost headers needed for MySQL + Asio + System
