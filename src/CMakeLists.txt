@@ -49,14 +49,14 @@ if (NOT FAKELUA_TINYCC_BUILD_JOBS GREATER 0)
     set(FAKELUA_TINYCC_BUILD_JOBS 1)
 endif ()
 
-# Windows MinGW workarounds for GCC 16.2.0
+# Windows MinGW workarounds for GCC 16.2.0 - must be set before CPM for Boost build
 if (MINGW)
     # 1. _errno macro conflict in std::wcstoll etc. (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115275)
-    add_compile_options(-D_GLIBCXX_USE_C99_STDIO=0)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_C99_STDIO=0")
     # 2. std::snprintf not available - need __USE_MINGW_ANSI_STDIO=1 to expose C99 stdio in std::
-    add_compile_options(-D__USE_MINGW_ANSI_STDIO=1)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__USE_MINGW_ANSI_STDIO=1")
     # 3. Suppress MSVC-style deprecation warnings
-    add_compile_options(-D_CRT_SECURE_NO_WARNINGS)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_CRT_SECURE_NO_WARNINGS")
 endif()
 
 set(FAKELUA_TINYCC_GIT_URL "https://github.com/TinyCC/tinycc.git" CACHE STRING "TinyCC git repository URL")
