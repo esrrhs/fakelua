@@ -305,13 +305,27 @@ set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
 
 # Workaround for MinGW GCC 16.2.0: std::snprintf is not declared because
 # MinGW's <cstdio> doesn't put snprintf in std namespace even with
-# __USE_MINGW_ANSI_STDIO=1. Use a forced include header that adds the
-# `using ::snprintf;` declaration explicitly before boost headers are parsed.
+# __USE_MINGW_ANSI_STDIO=1. Patch the boost headers that use std::snprintf.
 if (MINGW)
-    set(_MINGW_SNPRINTF_FIX "${CMAKE_CURRENT_SOURCE_DIR}/platform/mingw_snprintf_fix.hpp")
-    include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/platform)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include \"${_MINGW_SNPRINTF_FIX}\"" CACHE STRING "" FORCE)
-    add_compile_options(-include "${_MINGW_SNPRINTF_FIX}")
+    # snprintf.hpp - change "using std::snprintf;" to "using ::snprintf;"
+    file(READ "${BOOST_SOURCE_DIR}/libs/system/include/boost/system/detail/snprintf.hpp" _SNPRINTF_HPP)
+    string(REPLACE "using std::snprintf;" "using ::snprintf;" _SNPRINTF_HPP "${_SNPRINTF_HPP}")
+    file(WRITE "${BOOST_SOURCE_DIR}/libs/system/include/boost/system/detail/snprintf.hpp" "${_SNPRINTF_HPP}")
+
+    # source_location.hpp - change "std::snprintf(" to "::snprintf("
+    file(READ "${BOOST_SOURCE_DIR}/libs/assert/include/boost/assert/source_location.hpp" _ASSERT_HPP)
+    string(REPLACE "std::snprintf(" "::snprintf(" _ASSERT_HPP "${_ASSERT_HPP}")
+    file(WRITE "${BOOST_SOURCE_DIR}/libs/assert/include/boost/assert/source_location.hpp" "${_ASSERT_HPP}")
+
+    # fallback_routines.hpp - change "std::snprintf" to "::snprintf"
+    file(READ "${BOOST_SOURCE_DIR}/libs/charconv/include/boost/charconv/detail/fallback_routines.hpp" _FALLBACK_HPP)
+    string(REPLACE "std::snprintf" "::snprintf" _FALLBACK_HPP "${_FALLBACK_HPP}")
+    file(WRITE "${BOOST_SOURCE_DIR}/libs/charconv/include/boost/charconv/detail/fallback_routines.hpp" "${_FALLBACK_HPP}")
+
+    # config.ipp - change "std::snprintf" to "::snprintf"
+    file(READ "${BOOST_SOURCE_DIR}/libs/asio/include/boost/asio/impl/config.ipp" _CONFIG_HPP)
+    string(REPLACE "std::snprintf" "::snprintf" _CONFIG_HPP "${_CONFIG_HPP}")
+    file(WRITE "${BOOST_SOURCE_DIR}/libs/asio/include/boost/asio/impl/config.ipp" "${_CONFIG_HPP}")
 endif()
 
 # Include ALL Boost headers needed for MySQL + Asio + System
