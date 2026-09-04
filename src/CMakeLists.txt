@@ -275,6 +275,8 @@ if (MINGW)
 endif()
 
 # Fetch Boost 1.90+ source for MySQL headers (header-only mode for Asio/System/MySQL)
+# Note: MinGW flags must be set at project level (add_compile_options above)
+# because CPM's CMAKE_CXX_FLAGS option doesn't reliably pass to Boost's build
 if (MINGW)
     CPMAddPackage(
         NAME boost
@@ -283,7 +285,6 @@ if (MINGW)
         OPTIONS
             "BUILD_SHARED_LIBS OFF"
             "CMAKE_POSITION_INDEPENDENT_CODE ON"
-            "CMAKE_CXX_FLAGS=-D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS"
     )
 else()
     CPMAddPackage(
