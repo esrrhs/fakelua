@@ -5,14 +5,15 @@
 
 #if defined(_WIN32)
 // Boost.Asio needs WinSock2, but windows.h pulls in WinSock1 by default.
-// We define _WINSOCK2API_ before including windows.h to prevent WinSock1
-// from being included. Then Boost.Asio's WinSock2 include is a no-op.
-#ifndef _WINSOCK2API_
+// Define WIN32_LEAN_AND_MEAN before windows.h so it skips WinSock1.
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
-#define _WINSOCK2API_
-#define _WINSOCKAPI_
 #endif
 #include <windows.h>
+// Now include winsock2.h after windows.h but before any Boost.Asio include.
+// If windows.h already pulled in winsock1 (which it shouldn't with WIN32_LEAN_AND_MEAN),
+// the _WINSOCKAPI_ guard should prevent double-inclusion.
+#include <winsock2.h>
 #endif
 
 #include <boost/mysql.hpp>
