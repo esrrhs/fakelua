@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdio>
 #include <format>
 #include <functional>
 #include <memory>
@@ -199,9 +200,17 @@ public:
             case Type::INT:
                 ret = std::to_string(int_);
                 break;
-            case Type::FLOAT:
-                ret = std::to_string(float_);
+            case Type::FLOAT: {
+                // Use ::snprintf with %f instead of std::to_string(double) because:
+                // - MinGW GCC 16.2.0 has ambiguous overloads for std::to_string(double)
+                // - libc++ (macOS) uses Ryu Printf which strips trailing zeros (gives "1" instead of "1.000000")
+                // ::snprintf with %f consistently produces "1.000000" on all platforms, matching test expectations.
+                // Use ::snprintf (global namespace) because std::snprintf may not be in std:: on MinGW.
+                char buf[64];
+                ::snprintf(buf, sizeof(buf), "%f", float_);
+                ret = buf;
                 break;
+            }
             case Type::STRING:
                 ret = std::format("\"{}\"", string_);
                 break;

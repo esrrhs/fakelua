@@ -15,18 +15,22 @@ namespace fakelua {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Safe double-to-string conversion. std::to_string has ambiguous overloads
-// for double/long double on MinGW GCC 16.2.0, so use ostringstream here.
+// for double/long double on MinGW GCC 16.2.0, and libc++ uses Ryu Printf
+// which produces "1" instead of "1.000000" for whole numbers. Use ::snprintf
+// with %f for consistent output ("1.000000") across all platforms.
+// Use ::snprintf (global namespace) because std::snprintf may not be in std::
+// on MinGW even with __USE_MINGW_ANSI_STDIO=1.
 inline std::string DoubleToString(double v) {
-    std::ostringstream oss;
-    oss << v;
-    return oss.str();
+    char buf[64];
+    ::snprintf(buf, sizeof(buf), "%f", v);
+    return buf;
 }
 
 // Safe long-double-to-string conversion (same reason as DoubleToString).
 inline std::string LongDoubleToString(long double v) {
-    std::ostringstream oss;
-    oss << v;
-    return oss.str();
+    char buf[64];
+    ::snprintf(buf, sizeof(buf), "%Lf", v);
+    return buf;
 }
 
 // Throw a standardized "bad argument #N to 'fname' (expected)" exception.

@@ -306,7 +306,6 @@ set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
 # Workaround for MinGW GCC 16.2.0: std::snprintf is not declared because
 # MinGW's <cstdio> doesn't put snprintf in std namespace even with
 # __USE_MINGW_ANSI_STDIO=1. Patch all boost headers that use std::snprintf.
-# Also patch fakelua.h because std::to_string(double) is ambiguous on MinGW.
 if (MINGW)
     set(_BOOST_SNPRINTF_FILES
         "${BOOST_SOURCE_DIR}/libs/system/include/boost/system/detail/snprintf.hpp"
@@ -327,16 +326,6 @@ if (MINGW)
             file(WRITE "${_FILE}" "${_CONTENT}")
         endif()
     endforeach()
-
-    # Patch fakelua.h to replace std::to_string(float_) with ostringstream version
-    # because std::to_string(double) is ambiguous on MinGW GCC 16.2.0.
-    # Use a more specific pattern that targets the ViToString FLOAT case.
-    file(READ "${CMAKE_SOURCE_DIR}/../include/fakelua.h" _FAKELUA_H)
-    string(REPLACE
-        "case Type::FLOAT:\n                ret = std::to_string(float_);\n                break;"
-        "case Type::FLOAT:\n                // Patched by CMake for MinGW\n                { std::ostringstream oss; oss << float_; ret = oss.str(); }\n                break;"
-        _FAKELUA_H "${_FAKELUA_H}")
-    file(WRITE "${CMAKE_SOURCE_DIR}/../include/fakelua.h" "${_FAKELUA_H}")
 endif()
 
 # Include ALL Boost headers needed for MySQL + Asio + System
