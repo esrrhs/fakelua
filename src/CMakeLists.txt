@@ -63,10 +63,19 @@ endif ()
 
 set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
 set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
-# On ALL platforms, use the installed header path to avoid 'version' file conflicting
-# with C++20 <version> header. The tinycc source directory contains a 'version' file
-# that gets picked up by #include <version> when the source dir is in include path.
-include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
+if (APPLE)
+    # On macOS, adding tinycc source directory to include path causes conflicts
+    # with standard headers (e.g. the 'version' file conflicts with <version>).
+    # Use the installed header path as a SYSTEM include instead.
+    include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
+else ()
+    # On Windows/Linux, use the source directory which only contains libtcc.h
+    # The installed include path contains win32 headers (wchar.h, time.h, etc.)
+    # that conflict with system headers when added via SYSTEM include.
+    # The 'version' file in source dir doesn't conflict with <version> header
+    # since it's 'VERSION' (uppercase) not 'version'.
+    include_directories(${tinycc_src_SOURCE_DIR})
+endif ()
 
 # SQLite3 amalgamation via CPM — compiled directly into fakelua (not a separate static lib)
 # to avoid CRT mismatch issues on Windows/MSYS2.
@@ -260,8 +269,15 @@ if (NOT tomlplusplus_ADDED)
 endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
+# Windows MinGW workarounds for GCC 16.2.0 stdlib bugs
+# - _errno macro conflict: _GLIBCXX_USE_C99_STDIO=0
+# - snprintf not in std namespace: __USE_MINGW_ANSI_STDIO=1
+# - CRT secure warnings: _CRT_SECURE_NO_WARNINGS
+if (MINGW)
+    add_compile_options(-D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS)
+endif()
+
 # Fetch Boost 1.90+ source for MySQL headers (header-only mode for Asio/System/MySQL)
-# Windows MinGW workarounds for GCC 16.2.0 - must be passed to Boost CMake build
 if (MINGW)
     CPMAddPackage(
         NAME boost
