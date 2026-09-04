@@ -199,7 +199,9 @@ public:
                 ret = std::to_string(int_);
                 break;
             case Type::FLOAT:
-                ret = std::to_string(float_);
+                // Workaround for MinGW GCC 16.2.0: std::to_string(double) is ambiguous
+                // Cast to long double to disambiguate, then convert back to string
+                ret = std::to_string(static_cast<long double>(float_));
                 break;
             case Type::STRING:
                 ret = std::format("\"{}\"", string_);
