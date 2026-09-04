@@ -481,9 +481,9 @@ std::pair<bool, std::string> MysqlConnection::field_to_string(const boost::mysql
             return {false, std::string(reinterpret_cast<const char *>(fv.as_blob().data()),
                                        fv.as_blob().size())};
         case field_kind::float_:
-            return {false, std::to_string(fv.as_float())};
+            return {false, DoubleToString(fv.as_float())};
         case field_kind::double_:
-            return {false, std::to_string(fv.as_double())};
+            return {false, DoubleToString(fv.as_double())};
         case field_kind::date: {
             auto d = fv.as_date();
             char buf[16];

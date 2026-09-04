@@ -4,6 +4,14 @@
 // Built on top of boost::mysql::any_connection for asynchronous MySQL operations.
 
 #if defined(_WIN32)
+// Boost.Asio needs WinSock2, but windows.h pulls in WinSock1 by default.
+// We define _WINSOCK2API_ before including windows.h to prevent WinSock1
+// from being included. Then Boost.Asio's WinSock2 include is a no-op.
+#ifndef _WINSOCK2API_
+#define WIN32_LEAN_AND_MEAN
+#define _WINSOCK2API_
+#define _WINSOCKAPI_
+#endif
 #include <windows.h>
 #endif
 
