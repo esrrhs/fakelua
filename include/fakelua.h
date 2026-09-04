@@ -200,12 +200,7 @@ public:
                 ret = std::to_string(int_);
                 break;
             case Type::FLOAT:
-                // Workaround for MinGW GCC 16.2.0: std::to_string(double) is ambiguous
-                {
-                    std::ostringstream oss;
-                    oss << float_;
-                    ret = oss.str();
-                }
+                ret = std::to_string(float_);
                 break;
             case Type::STRING:
                 ret = std::format("\"{}\"", string_);
