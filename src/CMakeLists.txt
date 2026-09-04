@@ -303,17 +303,15 @@ if (NOT boost_ADDED)
 endif()
 set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
 
-# Workaround for MinGW GCC 16.2.0: boost headers use `std::snprintf` which
-# fails because MinGW's <cstdio> doesn't put snprintf in std namespace
-# even with __USE_MINGW_ANSI_STDIO=1. Patch headers to use ::snprintf instead.
+# Workaround for MinGW GCC 16.2.0: std::snprintf is not declared because
+# MinGW's <cstdio> doesn't put snprintf in std namespace even with
+# __USE_MINGW_ANSI_STDIO=1. Use a forced include header that adds the
+# `using ::snprintf;` declaration explicitly before boost headers are parsed.
 if (MINGW)
-    file(READ "${BOOST_SOURCE_DIR}/libs/system/include/boost/system/detail/snprintf.hpp" _SNPRINTF_HPP)
-    string(REPLACE "using std::snprintf;" "using ::snprintf;" _SNPRINTF_HPP "${_SNPRINTF_HPP}")
-    file(WRITE "${BOOST_SOURCE_DIR}/libs/system/include/boost/system/detail/snprintf.hpp" "${_SNPRINTF_HPP}")
-
-    file(READ "${BOOST_SOURCE_DIR}/libs/assert/include/boost/assert/source_location.hpp" _ASSERT_HPP)
-    string(REPLACE "std::snprintf(" "::snprintf(" _ASSERT_HPP "${_ASSERT_HPP}")
-    file(WRITE "${BOOST_SOURCE_DIR}/libs/assert/include/boost/assert/source_location.hpp" "${_ASSERT_HPP}")
+    set(_MINGW_SNPRINTF_FIX "${CMAKE_CURRENT_SOURCE_DIR}/platform/mingw_snprintf_fix.hpp")
+    include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/platform)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include \"${_MINGW_SNPRINTF_FIX}\"" CACHE STRING "" FORCE)
+    add_compile_options(-include "${_MINGW_SNPRINTF_FIX}")
 endif()
 
 # Include ALL Boost headers needed for MySQL + Asio + System
