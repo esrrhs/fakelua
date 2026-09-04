@@ -65,17 +65,18 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     next_stmt_id_ = 1;
     last_error_ = {};
 
-    // Build connect_params
-    boost::mysql::connect_params params;
-    params.server_address.emplace_host_and_port(host, port);
-    params.username = user;
-    params.password = password;
-    params.database = database;
-    params.ssl = boost::mysql::ssl_mode::disable;
-    params.multi_queries = true;  // preserve legacy multi-statement behavior
+    // Build connect_params (stored as member so it outlives the async callback lambda).
+    pending_connect_params_.emplace();
+    pending_connect_params_->server_address.emplace_host_and_port(host, port);
+    pending_connect_params_->username = user;
+    pending_connect_params_->password = password;
+    pending_connect_params_->database = database;
+    pending_connect_params_->ssl = boost::mysql::ssl_mode::disable;
+    pending_connect_params_->multi_queries = true;  // preserve legacy multi-statement behavior
 
     // Start asynchronous connect
-    conn_.async_connect(params, async_diag_, [this](boost::mysql::error_code ec) {
+    conn_.async_connect(*pending_connect_params_, async_diag_, [this](boost::mysql::error_code ec) {
+        pending_connect_params_.reset();
         if (ec) {
             pending_connect_err_ = ec.message();
             state_ = State::Error;

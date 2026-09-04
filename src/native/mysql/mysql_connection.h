@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -194,6 +195,11 @@ private:
     // a reference to this object internally and writes to it during async
     // completion, so it MUST outlive the async operation (member, not stack-local).
     boost::mysql::diagnostics async_diag_;
+
+    // Persistent connect_params for async_connect. async_connect stores a
+    // reference to params internally (any_address holds strings/views), so it
+    // MUST outlive the async operation (member, not stack-local).
+    std::optional<boost::mysql::connect_params> pending_connect_params_;
 
     // Helpers
     void dispatch_connect(const char *err_msg);
