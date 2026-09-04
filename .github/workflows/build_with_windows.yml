@@ -56,11 +56,7 @@ jobs:
         run: |
           set -eux
           rm -rf build
-          # GCC 16.2.0 workarounds for MinGW:
-          # 1. _errno macro conflict in std::wcstoll etc. (https://gcc.gnu.org/bugzilla/show_bug.cgi?id=115275)
-          # 2. std::snprintf not available - need __USE_MINGW_ANSI_STDIO=1 to expose C99 stdio in std::
-          # 3. Define _CRT_SECURE_NO_WARNINGS to suppress MSVC-style deprecation warnings
-          cmake -S . -B build -G Ninja -DFAKELUA_TINYCC_GIT_URL=https://github.com/TinyCC/tinycc.git -DCMAKE_CXX_FLAGS="-D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS"
+          cmake -S . -B build -G Ninja -DFAKELUA_TINYCC_GIT_URL=https://github.com/TinyCC/tinycc.git
 
       - name: Build
         shell: msys2 {0}
