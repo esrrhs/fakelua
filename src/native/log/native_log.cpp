@@ -29,7 +29,8 @@ static std::string FormatArgs(State *s, CVar *args, int n) {
             break;
         case static_cast<int>(VarType::Float): {
             char buf[64];
-            std::snprintf(buf, sizeof(buf), "%.17g", arg.data_.f);
+            // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+            ::snprintf(buf, sizeof(buf), "%.17g", arg.data_.f);
             result += buf;
             break;
         }

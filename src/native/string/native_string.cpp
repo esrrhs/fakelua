@@ -905,7 +905,8 @@ void RegisterStringLibraryApi(State *s) {
                     if (val == 0) {
                         res.append("0x0");
                     } else {
-                        std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
+                        // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
                         res.append(buf);
                     }
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Float)) {
@@ -917,7 +918,8 @@ void RegisterStringLibraryApi(State *s) {
                         if (val == 0) {
                             res.append("0x0");
                         } else {
-                            std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
+                            // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
                             res.append(buf);
                         }
                     } else {
@@ -927,7 +929,8 @@ void RegisterStringLibraryApi(State *s) {
                 } else {
                     // 非数值类型（nil 等）：输出 CVar 自身地址
                     char buf[64];
-                    std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, reinterpret_cast<uintptr_t>(&curr_arg));
+                    // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, reinterpret_cast<uintptr_t>(&curr_arg));
                     res.append(buf);
                 }
             } else {

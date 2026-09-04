@@ -73,7 +73,8 @@ std::string CurrentTime() {
     char time_buf[64];
     std::strftime(time_buf, sizeof(time_buf), kTimeFormat, &tm_buf);
     char result[80];
-    std::snprintf(result, sizeof(result), "%s.%03" PRId64, time_buf, static_cast<int64_t>(ms.count()));
+    // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+    ::snprintf(result, sizeof(result), "%s.%03" PRId64, time_buf, static_cast<int64_t>(ms.count()));
     return result;
 }
 
@@ -239,7 +240,8 @@ extern "C" void FakeluaLogLua(int level, CVar msg, const char *file, int line, c
         break;
     case VarType::Float: {
         char buf[64];
-        std::snprintf(buf, sizeof(buf), "%.17g", msg.data_.f);
+        // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+        ::snprintf(buf, sizeof(buf), "%.17g", msg.data_.f);
         msg_str = buf;
         break;
     }

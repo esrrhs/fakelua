@@ -487,18 +487,21 @@ std::pair<bool, std::string> MysqlConnection::field_to_string(const boost::mysql
         case field_kind::date: {
             auto d = fv.as_date();
             char buf[16];
-            std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u", d.year(), d.month(), d.day());
+            // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+::snprintf(buf, sizeof(buf), "%04u-%02u-%02u", d.year(), d.month(), d.day());
             return {false, std::string(buf)};
         }
         case field_kind::datetime: {
             auto dt = fv.as_datetime();
             char buf[64];
             if (dt.hour() || dt.minute() || dt.second() || dt.microsecond()) {
-                std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u.%06u",
+                // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+::snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u.%06u",
                               dt.year(), dt.month(), dt.day(),
                               dt.hour(), dt.minute(), dt.second(), dt.microsecond());
             } else {
-                std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u",
+                // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+::snprintf(buf, sizeof(buf), "%04u-%02u-%02u",
                               dt.year(), dt.month(), dt.day());
             }
             return {false, std::string(buf)};
@@ -515,7 +518,8 @@ std::pair<bool, std::string> MysqlConnection::field_to_string(const boost::mysql
             auto mm = static_cast<long long>((total_s / 60) % 60);
             auto ss = static_cast<long long>(total_s % 60);
             char buf[32];
-            std::snprintf(buf, sizeof(buf), "%s%02lld:%02lld:%02lld.%06lld",
+            // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+::snprintf(buf, sizeof(buf), "%s%02lld:%02lld:%02lld.%06lld",
                           negative ? "-" : "", hh, mm, ss, us);
             return {false, std::string(buf)};
         }

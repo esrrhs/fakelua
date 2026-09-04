@@ -213,7 +213,8 @@ static CVar rng_weighted(NativeObject *self, State *s, CVar *args, int n) {
 static CVar rng_get_state_method(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     uint64_t state = rng_get_state(self);
     char buf[20];
-    std::snprintf(buf, sizeof(buf), "0x%016llX", static_cast<unsigned long long>(state));
+    // Use ::snprintf to avoid std::snprintf not being declared on MinGW
+    ::snprintf(buf, sizeof(buf), "0x%016llX", static_cast<unsigned long long>(state));
     return inter::NativeToFakeluaString(s, std::string(buf));
 }
 
