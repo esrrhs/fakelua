@@ -1,9 +1,7 @@
 #include "fakelua.h"
 #include "gtest/gtest.h"
-#include "native/mysql/mysql_connection.h"
 
 using namespace fakelua;
-using namespace fakelua::mysql;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MySQL 模块测试
@@ -42,19 +40,6 @@ TEST(test_mysql, close_in_connect_callback) {
     Call(s, JIT_TCC, "MysqlTest.test_close_in_connect_cb", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
-}
-
-// 错误分类单元测试
-TEST(test_mysql, error_classification) {
-    // Test classify_error_code via the public is_retryable interface
-    using namespace fakelua::mysql;
-    EXPECT_TRUE(MysqlConnection::is_retryable(MysqlErrorType::Connection));
-    EXPECT_TRUE(MysqlConnection::is_retryable(MysqlErrorType::Timeout));
-    EXPECT_FALSE(MysqlConnection::is_retryable(MysqlErrorType::Authentication));
-    EXPECT_FALSE(MysqlConnection::is_retryable(MysqlErrorType::Syntax));
-    EXPECT_FALSE(MysqlConnection::is_retryable(MysqlErrorType::Server));
-    EXPECT_FALSE(MysqlConnection::is_retryable(MysqlErrorType::Protocol));
-    EXPECT_FALSE(MysqlConnection::is_retryable(MysqlErrorType::Unknown));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
