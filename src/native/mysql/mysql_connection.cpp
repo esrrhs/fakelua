@@ -282,10 +282,13 @@ void MysqlConnection::tick() {
     }
 
     // Process all ready async operations by running io_context.
-    // poll() (non-blocking) handles ALL currently-ready handlers, advancing
-    // the entire async pipeline (socket read -> protocol parse -> completion
-    // callback) within a single tick(), avoiding per-frame starvation.
+    // poll() handles currently-ready handlers. If an async operation is in progress,
+    // wait up to 1ms (matching net::TcpClient's 1ms wait_timeout_ms) so tight Lua loops
+    // don't starve async I/O.
     io_ctx_.poll();
+    if (!pending_connect_ && !pending_result_ && (state_ == State::Connecting || state_ == State::Querying)) {
+        io_ctx_.run_for(std::chrono::milliseconds(1));
+    }
 
     // Handle pending connection result
     if (pending_connect_) {
@@ -485,27 +488,24 @@ std::pair<bool, std::string> MysqlConnection::field_to_string(const boost::mysql
             return {false, std::string(reinterpret_cast<const char *>(fv.as_blob().data()),
                                        fv.as_blob().size())};
         case field_kind::float_:
-            return {false, DoubleToString(fv.as_float())};
+            return {false, std::to_string(fv.as_float())};
         case field_kind::double_:
-            return {false, DoubleToString(fv.as_double())};
+            return {false, std::to_string(fv.as_double())};
         case field_kind::date: {
             auto d = fv.as_date();
             char buf[16];
-            // Use ::snprintf to avoid std::snprintf not being declared on MinGW
-::snprintf(buf, sizeof(buf), "%04u-%02u-%02u", d.year(), d.month(), d.day());
+            std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u", d.year(), d.month(), d.day());
             return {false, std::string(buf)};
         }
         case field_kind::datetime: {
             auto dt = fv.as_datetime();
             char buf[64];
             if (dt.hour() || dt.minute() || dt.second() || dt.microsecond()) {
-                // Use ::snprintf to avoid std::snprintf not being declared on MinGW
-::snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u.%06u",
+                std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u %02u:%02u:%02u.%06u",
                               dt.year(), dt.month(), dt.day(),
                               dt.hour(), dt.minute(), dt.second(), dt.microsecond());
             } else {
-                // Use ::snprintf to avoid std::snprintf not being declared on MinGW
-::snprintf(buf, sizeof(buf), "%04u-%02u-%02u",
+                std::snprintf(buf, sizeof(buf), "%04u-%02u-%02u",
                               dt.year(), dt.month(), dt.day());
             }
             return {false, std::string(buf)};
@@ -522,8 +522,7 @@ std::pair<bool, std::string> MysqlConnection::field_to_string(const boost::mysql
             auto mm = static_cast<long long>((total_s / 60) % 60);
             auto ss = static_cast<long long>(total_s % 60);
             char buf[32];
-            // Use ::snprintf to avoid std::snprintf not being declared on MinGW
-::snprintf(buf, sizeof(buf), "%s%02lld:%02lld:%02lld.%06lld",
+            std::snprintf(buf, sizeof(buf), "%s%02lld:%02lld:%02lld.%06lld",
                           negative ? "-" : "", hh, mm, ss, us);
             return {false, std::string(buf)};
         }

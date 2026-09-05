@@ -836,7 +836,7 @@ void RegisterStringLibraryApi(State *s) {
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Int)) {
                     sval = std::to_string(curr_arg.data_.i);
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Float)) {
-                    sval = DoubleToString(curr_arg.data_.f);
+                    sval = std::to_string(curr_arg.data_.f);
                 } else {
                     sval = AsVar(curr_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
                 }
@@ -905,8 +905,7 @@ void RegisterStringLibraryApi(State *s) {
                     if (val == 0) {
                         res.append("0x0");
                     } else {
-                        // Use ::snprintf to avoid std::snprintf not being declared on MinGW
-::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
+                        std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
                         res.append(buf);
                     }
                 } else if (curr_arg.type_ == static_cast<int>(VarType::Float)) {
@@ -918,8 +917,7 @@ void RegisterStringLibraryApi(State *s) {
                         if (val == 0) {
                             res.append("0x0");
                         } else {
-                            // Use ::snprintf to avoid std::snprintf not being declared on MinGW
-::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
+                            std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, val);
                             res.append(buf);
                         }
                     } else {
@@ -929,8 +927,7 @@ void RegisterStringLibraryApi(State *s) {
                 } else {
                     // 非数值类型（nil 等）：输出 CVar 自身地址
                     char buf[64];
-                    // Use ::snprintf to avoid std::snprintf not being declared on MinGW
-::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, reinterpret_cast<uintptr_t>(&curr_arg));
+                    std::snprintf(buf, sizeof(buf), "0x%" PRIxPTR, reinterpret_cast<uintptr_t>(&curr_arg));
                     res.append(buf);
                 }
             } else {
@@ -2018,7 +2015,7 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
             if (uv.type_ == static_cast<int>(VarType::Int)) {
                 upval_decls += "local x = " + std::to_string(uv.data_.i) + "\n";
             } else if (uv.type_ == static_cast<int>(VarType::Float)) {
-                upval_decls += "local x = " + DoubleToString(uv.data_.f) + "\n";
+                upval_decls += "local x = " + std::to_string(uv.data_.f) + "\n";
             } else if (uv.type_ == static_cast<int>(VarType::Bool)) {
                 upval_decls += "local x = " + std::string(uv.data_.b ? "true\n" : "false\n");
             }

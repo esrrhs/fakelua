@@ -136,7 +136,8 @@ else ()
     ExternalProject_Add(tinycc_external
             SOURCE_DIR ${tinycc_src_SOURCE_DIR}
             BINARY_DIR ${TINYCC_BUILD_DIR}
-            CONFIGURE_COMMAND ${tinycc_src_SOURCE_DIR}/configure --prefix=${TINYCC_PREFIX_DIR} --extra-cflags=-fPIC
+            CONFIGURE_COMMAND ${CMAKE_COMMAND} -E copy_directory ${tinycc_src_SOURCE_DIR} ${TINYCC_BUILD_DIR}
+                COMMAND sh -c "cd ${TINYCC_BUILD_DIR} && ./configure --prefix=${TINYCC_PREFIX_DIR} --extra-cflags=-fPIC"
             BUILD_COMMAND make -j${FAKELUA_TINYCC_BUILD_JOBS}
             INSTALL_COMMAND make install
             COMMAND ${CMAKE_COMMAND} -E make_directory ${TINYCC_LIBTCC_INCLUDE_DIR}
@@ -266,67 +267,23 @@ if (NOT tomlplusplus_ADDED)
 endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
-# Windows MinGW workarounds for GCC 16.2.0 stdlib bugs
-# - _errno macro conflict: _GLIBCXX_USE_C99_STDIO=0
-# - snprintf not in std namespace: __USE_MINGW_ANSI_STDIO=1
-# - CRT secure warnings: _CRT_SECURE_NO_WARNINGS
-if (MINGW)
-    # Set cache variables BEFORE CPMAddPackage so they propagate to Boost's build
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS" CACHE STRING "" FORCE)
-    add_compile_definitions(_GLIBCXX_USE_C99_STDIO=0 __USE_MINGW_ANSI_STDIO=1 _CRT_SECURE_NO_WARNINGS)
-    add_compile_options(-D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS)
+if (WIN32)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS)
 endif()
 
 # Fetch Boost 1.90+ source for MySQL headers (header-only mode for Asio/System/MySQL)
-if (MINGW)
-    CPMAddPackage(
-        NAME boost
-        GITHUB_REPOSITORY boostorg/boost
-        GIT_TAG boost-1.90.0
-        OPTIONS
-            "BUILD_SHARED_LIBS=OFF"
-            "CMAKE_POSITION_INDEPENDENT_CODE=ON"
-            "CMAKE_CXX_FLAGS=-D_GLIBCXX_USE_C99_STDIO=0 -D__USE_MINGW_ANSI_STDIO=1 -D_CRT_SECURE_NO_WARNINGS"
-    )
-else()
-    CPMAddPackage(
-        NAME boost
-        GITHUB_REPOSITORY boostorg/boost
-        GIT_TAG boost-1.90.0
-        OPTIONS
-            "BUILD_SHARED_LIBS=OFF"
-            "CMAKE_POSITION_INDEPENDENT_CODE=ON"
-    )
-endif()
+CPMAddPackage(
+    NAME boost
+    GITHUB_REPOSITORY boostorg/boost
+    GIT_TAG boost-1.90.0
+    OPTIONS
+        "BUILD_SHARED_LIBS=OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE=ON"
+)
 if (NOT boost_ADDED)
     message(FATAL_ERROR "Failed to fetch boost")
 endif()
 set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
-
-# Workaround for MinGW GCC 16.2.0: std::snprintf is not declared because
-# MinGW's <cstdio> doesn't put snprintf in std namespace even with
-# __USE_MINGW_ANSI_STDIO=1. Patch all boost headers that use std::snprintf.
-if (MINGW)
-    set(_BOOST_SNPRINTF_FILES
-        "${BOOST_SOURCE_DIR}/libs/system/include/boost/system/detail/snprintf.hpp"
-        "${BOOST_SOURCE_DIR}/libs/assert/include/boost/assert/source_location.hpp"
-        "${BOOST_SOURCE_DIR}/libs/charconv/include/boost/charconv/detail/fallback_routines.hpp"
-        "${BOOST_SOURCE_DIR}/libs/asio/include/boost/asio/impl/config.ipp"
-        "${BOOST_SOURCE_DIR}/libs/static_string/include/boost/static_string/static_string.hpp"
-        "${BOOST_SOURCE_DIR}/libs/uuid/include/boost/uuid/string_generator.hpp"
-        "${BOOST_SOURCE_DIR}/libs/core/include/boost/core/type_name.hpp"
-        "${BOOST_SOURCE_DIR}/libs/regex/src/posix_api.cpp"
-        "${BOOST_SOURCE_DIR}/libs/numeric/odeint/include/boost/numeric/odeint/integrate/max_step_checker.hpp"
-        "${BOOST_SOURCE_DIR}/libs/compute/include/boost/compute/detail/parameter_cache.hpp"
-    )
-    foreach(_FILE ${_BOOST_SNPRINTF_FILES})
-        if (EXISTS "${_FILE}")
-            file(READ "${_FILE}" _CONTENT)
-            string(REPLACE "std::snprintf" "::snprintf" _CONTENT "${_CONTENT}")
-            file(WRITE "${_FILE}" "${_CONTENT}")
-        endif()
-    endforeach()
-endif()
 
 # Include ALL Boost headers needed for MySQL + Asio + System
 # This is the comprehensive include path approach since FindBoost doesn't work with CPM
