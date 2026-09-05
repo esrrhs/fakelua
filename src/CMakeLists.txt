@@ -48,6 +48,7 @@ ProcessorCount(FAKELUA_TINYCC_BUILD_JOBS)
 if (NOT FAKELUA_TINYCC_BUILD_JOBS GREATER 0)
     set(FAKELUA_TINYCC_BUILD_JOBS 1)
 endif ()
+
 set(FAKELUA_TINYCC_GIT_URL "https://github.com/TinyCC/tinycc.git" CACHE STRING "TinyCC git repository URL")
 set(FAKELUA_TINYCC_GIT_TAG "mob" CACHE STRING "TinyCC git branch/tag/commit")
 CPMAddPackage(
@@ -62,16 +63,12 @@ endif ()
 
 set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
 set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
-if (APPLE)
-    # On macOS, adding tinycc source directory to include path causes conflicts
-    # with standard headers (e.g. the 'version' file conflicts with <version>).
-    # Use the installed header path as a SYSTEM include instead.
-    include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
-else ()
-    # Include only libtcc.h via full path, not the entire source directory,
-    # to avoid 'version' file conflicting with C++20 <version> header.
-    include_directories(${tinycc_src_SOURCE_DIR})
-endif ()
+# Create a dedicated include directory for libtcc.h only.
+# We can't use either the source dir (Windows case-insensitive FS matches VERSION to <version>
+# C++20 header) or the install dir (contains win32 headers wchar.h/time.h that conflict with
+# system headers when added as SYSTEM include). So we copy libtcc.h to its own dir.
+set(TINYCC_LIBTCC_INCLUDE_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_include")
+include_directories(${TINYCC_LIBTCC_INCLUDE_DIR})
 
 # SQLite3 amalgamation via CPM — compiled directly into fakelua (not a separate static lib)
 # to avoid CRT mismatch issues on Windows/MSYS2.
@@ -131,15 +128,20 @@ if (WIN32)
                 COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && ./configure --prefix=${TINYCC_PREFIX_DIR} --enable-static --extra-cflags=-fPIC"
             BUILD_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && make -j${FAKELUA_TINYCC_BUILD_JOBS}"
             INSTALL_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && make install"
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${TINYCC_LIBTCC_INCLUDE_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy ${TINYCC_PREFIX_DIR}/libtcc/libtcc.h ${TINYCC_LIBTCC_INCLUDE_DIR}/libtcc.h
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
 else ()
     ExternalProject_Add(tinycc_external
             SOURCE_DIR ${tinycc_src_SOURCE_DIR}
             BINARY_DIR ${TINYCC_BUILD_DIR}
-            CONFIGURE_COMMAND ${tinycc_src_SOURCE_DIR}/configure --prefix=${TINYCC_PREFIX_DIR} --extra-cflags=-fPIC
+            CONFIGURE_COMMAND ${CMAKE_COMMAND} -E copy_directory ${tinycc_src_SOURCE_DIR} ${TINYCC_BUILD_DIR}
+                COMMAND sh -c "cd ${TINYCC_BUILD_DIR} && ./configure --prefix=${TINYCC_PREFIX_DIR} --extra-cflags=-fPIC"
             BUILD_COMMAND make -j${FAKELUA_TINYCC_BUILD_JOBS}
             INSTALL_COMMAND make install
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${TINYCC_LIBTCC_INCLUDE_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy ${TINYCC_PREFIX_DIR}/include/libtcc.h ${TINYCC_LIBTCC_INCLUDE_DIR}/libtcc.h
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
 endif ()
@@ -265,4 +267,73 @@ if (NOT tomlplusplus_ADDED)
 endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
-target_link_libraries(fakelua ${TARGET_LIB})
+if (WIN32)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS)
+endif()
+
+# Fetch Boost 1.90+ source for MySQL headers (header-only mode for Asio/System/MySQL)
+CPMAddPackage(
+    NAME boost
+    GITHUB_REPOSITORY boostorg/boost
+    GIT_TAG boost-1.90.0
+    OPTIONS
+        "BUILD_SHARED_LIBS=OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE=ON"
+)
+if (NOT boost_ADDED)
+    message(FATAL_ERROR "Failed to fetch boost")
+endif()
+set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
+
+# Include ALL Boost headers needed for MySQL + Asio + System
+# This is the comprehensive include path approach since FindBoost doesn't work with CPM
+include_directories(${BOOST_SOURCE_DIR})
+include_directories(${BOOST_SOURCE_DIR}/libs/mysql/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/asio/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/system/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/assert/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/charconv/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/compat/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/config/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/container/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/core/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/describe/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/endian/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/intrusive/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/mp11/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/optional/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/throw_exception/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/variant2/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/pfr/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/type_traits/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/align/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/detail/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/smart_ptr/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/utility/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/move/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/function/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/bind/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/ref/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/predef/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/integer/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/cstdint/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/winapi/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/nowide/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/static_assert/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/exception/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/iterator/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/mpl/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/serialization/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/any/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/pool/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/array/include)
+
+# OpenSSL and Threads required by Boost.MySQL
+find_package(OpenSSL REQUIRED)
+find_package(Threads REQUIRED)
+
+# Boost.MySQL is header-only, but boost_charconv has compiled components for float parsing
+# Link boost_charconv library (required for boost::charconv::from_chars/to_chars)
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv)
+
+target_link_libraries(fakelua PRIVATE ${TARGET_LIB})

@@ -723,7 +723,7 @@ public:
     void SetFinalizer(const std::function<void(NativeObject *self)> &fn);
 
     // 枚举所有字段（只读快照）
-    enum class FieldKind { Nil, Int, Float, Bool, String, Object };
+    enum class FieldKind { Nil, Int, Float, Bool, String, Object, Table };
     void ForEach(const std::function<void(std::string_view key, FieldKind kind)> &fn) const;
 
     // CVar ↔ NativeObject 转换

@@ -68,7 +68,8 @@ jobs:
         shell: msys2 {0}
         run: |
           set -eux
-          # Skip MySQL tests on Windows (MySQL service not available)
+          # Skip MySQL tests on Windows: choco-installed MySQL is not pre-configured
+          # with the test credentials (root/root) that integration tests expect.
           cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe --gtest_filter="-test_mysql.*"
 
       - name: Run benchmarks and flua

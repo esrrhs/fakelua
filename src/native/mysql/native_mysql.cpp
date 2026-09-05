@@ -1,8 +1,6 @@
 #include "native/mysql/native_mysql.h"
 #include "native/mysql/mysql_connection.h"
 #include "native/mysql/mysql_connection_pool.h"
-#include "native/mysql/mysql_result.h"
-#include "native/mysql/mysql_protocol.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
@@ -122,6 +120,7 @@ CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_tick(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_close(NativeObject *self, State *s, CVar *args, int n);
+CVar conn_ping(NativeObject *self, State *s, CVar *args, int n);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // mysql.connect(config, on_connect) → connection object
@@ -194,6 +193,7 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     nat->RegisterMethod("stmt_close", conn_stmt_close);
     nat->RegisterMethod("tick", conn_tick);
     nat->RegisterMethod("close", conn_close);
+    nat->RegisterMethod("ping", conn_ping);
     nat->SetInt("__mysql_owned__", 1);
     RegisterMysqlNativeWrapper(s, nat, false);
 
@@ -280,9 +280,17 @@ CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
     std::vector<StmtParam> params;
     if (a1.type_ == static_cast<int>(VarType::Table) && a1.data_.t) {
         CVar len_var = table::TableHelper::GetTableStrId(s, a1, "n");
-        int64_t len = (len_var.type_ == static_cast<int>(VarType::Int))
-                          ? len_var.data_.i
-                          : table::TableHelper::GetTableLen(a1);
+        int64_t len = 0;
+        if (len_var.type_ == static_cast<int>(VarType::Int)) {
+            len = len_var.data_.i;
+        } else {
+            len = table::TableHelper::GetTableLen(a1);
+            table::TableHelper::ForEachKV(a1, [&](CVar k, CVar /*v*/) {
+                if (k.type_ == static_cast<int>(VarType::Int) && k.data_.i > len) {
+                    len = k.data_.i;
+                }
+            });
+        }
         for (int64_t i = 1; i <= len; ++i) {
             CVar elem = table::TableHelper::GetTableInt(s, a1, i);
             StmtParam p;
@@ -362,6 +370,17 @@ CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
         self->SetInt("__mysql_conn__", 0);
     }
     return inter::NativeToFakeluaNil(s);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// conn:ping() — send COM_PING heartbeat (for connection pool keepalive)
+// ─────────────────────────────────────────────────────────────────────────────
+
+CVar conn_ping(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *conn = unwrap_conn_native(self);
+    if (!conn) return inter::NativeToFakeluaBool(s, false);
+    bool sent = conn->ping();
+    return inter::NativeToFakeluaBool(s, sent);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

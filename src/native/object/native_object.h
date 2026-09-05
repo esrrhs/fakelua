@@ -22,7 +22,7 @@ namespace fakelua {
 // NativeField: 单个字段的值，存活于 C++ 堆，不依赖 fakelua arena
 // ─────────────────────────────────────────────────────────────────────────────
 struct NativeField {
-    enum class Kind { Nil, Int, Float, Bool, String, Object };
+    enum class Kind { Nil, Int, Float, Bool, String, Object, Table };
 
     Kind kind = Kind::Nil;
     int64_t i = 0;
@@ -30,6 +30,7 @@ struct NativeField {
     bool b = false;
     std::string s;              // Kind::String 时的原始字符串
     NativeObject *obj = nullptr;// Kind::Object 时的嵌套对象（不拥有）
+    VarTable *t = nullptr;      // Kind::Table 时的 Lua 表指针
 
     // 惰性构建 VarString 缓存（存在 C++ 堆，供 spec_get 返回 VAR_STRING CVar）
     // 当 s 内容变化时重建；由于 fakelua 是单线程的，此处不加锁。

@@ -1,7 +1,6 @@
 #include "native/mysql/native_mysql.h"
 #include "native/mysql/mysql_connection_pool.h"
 #include "native/mysql/mysql_connection.h"
-#include "native/mysql/mysql_result.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"

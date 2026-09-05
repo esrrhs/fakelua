@@ -46,17 +46,25 @@ function test_pool()
         if conn.query_done then break end
     end
 
-    if conn.query_err ~= nil and #conn.query_err > 0 then
-        print("pool query failed:", conn.query_err)
-        pool:release(conn)
-        pool:close()
-        return 0
+    if conn.query_err ~= nil then
+        if #conn.query_err > 0 then
+            print("pool query failed:", conn.query_err)
+            pool:release(conn)
+            pool:close()
+            return 0
+        end
     end
 
     -- 验证结果
     local result = conn.query_result
-    if not result or result[3][1][1] ~= "1" then
-        print("pool query result mismatch:", result and result[3][1][1] or "nil")
+    if not result then
+        print("pool query result mismatch: nil")
+        pool:release(conn)
+        pool:close()
+        return 0
+    end
+    if result[3][1][1] ~= "1" then
+        print("pool query result mismatch:", result[3][1][1])
         pool:release(conn)
         pool:close()
         return 0
