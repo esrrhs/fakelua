@@ -78,7 +78,9 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     conn_.async_connect(*pending_connect_params_, async_diag_, [this](boost::mysql::error_code ec) {
         pending_connect_params_.reset();
         if (ec) {
-            pending_connect_err_ = ec.message();
+            // Prefix a stable English token: Boost.Asio's ec.message() is
+            // localized on Windows (e.g. WSAECONNREFUSED -> 中文系统文案).
+            pending_connect_err_ = "connect failed: " + ec.message();
             state_ = State::Error;
             pending_connect_ = true;
             return;

@@ -271,6 +271,21 @@ if (WIN32)
     add_compile_definitions(WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS)
 endif()
 
+# OpenSSL must be resolved before Boost: Boost.MySQL's CMake disables itself
+# when OpenSSL is missing. On MSYS2/MinGW, FindOpenSSL often needs an explicit
+# prefix because CLion/standalone CMake does not search /mingw64 by default.
+if (WIN32 AND NOT OPENSSL_ROOT_DIR)
+    get_filename_component(_fakelua_mingw_bin "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    get_filename_component(_fakelua_mingw_root "${_fakelua_mingw_bin}" DIRECTORY)
+    if (EXISTS "${_fakelua_mingw_root}/include/openssl/ssl.h")
+        set(OPENSSL_ROOT_DIR "${_fakelua_mingw_root}")
+        list(APPEND CMAKE_PREFIX_PATH "${_fakelua_mingw_root}")
+        message(STATUS "Using OpenSSL from compiler prefix: ${OPENSSL_ROOT_DIR}")
+    endif()
+endif()
+find_package(OpenSSL REQUIRED)
+find_package(Threads REQUIRED)
+
 # Fetch Boost 1.90+ source for MySQL headers (header-only mode for Asio/System/MySQL)
 CPMAddPackage(
     NAME boost
@@ -328,12 +343,12 @@ include_directories(${BOOST_SOURCE_DIR}/libs/any/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/pool/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/array/include)
 
-# OpenSSL and Threads required by Boost.MySQL
-find_package(OpenSSL REQUIRED)
-find_package(Threads REQUIRED)
-
 # Boost.MySQL is header-only, but boost_charconv has compiled components for float parsing
 # Link boost_charconv library (required for boost::charconv::from_chars/to_chars)
 set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv)
+if (WIN32)
+    # OpenSSL and Boost.Asio on MinGW
+    set(TARGET_LIB ${TARGET_LIB} crypt32 bcrypt ws2_32)
+endif()
 
 target_link_libraries(fakelua PRIVATE ${TARGET_LIB})
