@@ -63,8 +63,12 @@ function test_multi_result()
     -- 驱动足够长时间让所有结果返回
     for i = 1, 2000 do
         conn:tick()
-        if conn.query_done and conn.results ~= nil and #conn.results >= 3 then
-            break
+        if conn.query_done then
+            if conn.results ~= nil then
+                if #conn.results >= 3 then
+                    break
+                end
+            end
         end
     end
 

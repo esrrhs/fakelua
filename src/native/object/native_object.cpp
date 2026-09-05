@@ -50,6 +50,14 @@ CVar NativeFieldToCVar(const NativeField &field, State *s) {
                 r.type_ = static_cast<int>(VarType::Nil);
             }
             break;
+        case NativeField::Kind::Table:
+            if (field.t != nullptr) {
+                r.type_ = static_cast<int>(VarType::Table);
+                r.data_.t = field.t;
+            } else {
+                r.type_ = static_cast<int>(VarType::Nil);
+            }
+            break;
     }
     return r;
 }
@@ -79,13 +87,15 @@ NativeField CVarToNativeField(CVar v) {
             f.kind = NativeField::Kind::Nil;
         }
     } else if (t == static_cast<int>(VarType::Table)) {
-        // 如果是 NativeObject 的 wrapper，记录引用；否则视为 nil
+        // 如果是 NativeObject 的 wrapper，记录引用；否则记录 table
         NativeObject *nested = NativeObject::Unwrap(v);
         if (nested) {
             f.kind = NativeField::Kind::Object;
             f.obj = nested;
+        } else if (v.data_.t) {
+            f.kind = NativeField::Kind::Table;
+            f.t = v.data_.t;
         }
-        // 纯 lua table 不做深拷贝，直接忽略
     }
     // Multi / Closure 类型不做转换，保持 Nil
     return f;

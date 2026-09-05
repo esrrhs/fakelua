@@ -439,6 +439,7 @@ void MysqlConnection::dispatch_result(const boost::mysql::results &result, const
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
         args[2] = nil;
+        inter::DispatchCall(addr, args, 3, jit_type);
     } else if (dispatch_stmt_id_ != 0) {
         // COM_STMT_PREPARE response: surface the statement id as a number.
         CVar nil{};
@@ -446,14 +447,25 @@ void MysqlConnection::dispatch_result(const boost::mysql::results &result, const
         args[1] = nil;
         args[2] = inter::NativeToFakeluaInt(lua_state_,
                                             static_cast<int64_t>(dispatch_stmt_id_));
+        inter::DispatchCall(addr, args, 3, jit_type);
     } else {
-        CVar nil{};
-        nil.type_ = static_cast<int>(VarType::Nil);
-        args[1] = nil;
-        args[2] = result_to_lua(lua_state_, result);
+        if (result.empty()) {
+            CVar nil{};
+            nil.type_ = static_cast<int>(VarType::Nil);
+            args[1] = nil;
+            args[2] = table::TableHelper::CreateTable(lua_state_);
+            inter::DispatchCall(addr, args, 3, jit_type);
+        } else {
+            for (size_t i = 0; i < result.size(); ++i) {
+                CVar nil{};
+                nil.type_ = static_cast<int>(VarType::Nil);
+                args[1] = nil;
+                args[2] = resultset_to_lua(lua_state_, result[i]);
+                inter::DispatchCall(addr, args, 3, jit_type);
+                if (close_pending_) break;
+            }
+        }
     }
-
-    inter::DispatchCall(addr, args, 3, jit_type);
 }
 
 void MysqlConnection::set_error(MysqlErrorType type, uint16_t code,
@@ -531,6 +543,13 @@ std::pair<bool, std::string> MysqlConnection::field_to_string(const boost::mysql
 }
 
 CVar MysqlConnection::result_to_lua(::fakelua::State *s, const boost::mysql::results &result) {
+    if (result.empty()) {
+        return table::TableHelper::CreateTable(s);
+    }
+    return resultset_to_lua(s, result[0]);
+}
+
+CVar MysqlConnection::resultset_to_lua(::fakelua::State *s, const boost::mysql::resultset_view &result) {
     using namespace fakelua;
 
     CVar tbl = table::TableHelper::CreateTable(s);

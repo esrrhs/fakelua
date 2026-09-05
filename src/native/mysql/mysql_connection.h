@@ -205,6 +205,7 @@ private:
                    const std::string &msg, const std::string &sql_state);
 
     // Convert Boost.MySQL results to Lua table
+    static CVar resultset_to_lua(::fakelua::State *s, const boost::mysql::resultset_view &result);
     static CVar result_to_lua(::fakelua::State *s, const boost::mysql::results &result);
     // Convert one Boost.MySQL field to (is_null, string_value).
     static std::pair<bool, std::string> field_to_string(const boost::mysql::field_view &fv);
