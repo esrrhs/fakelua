@@ -280,9 +280,17 @@ CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
     std::vector<StmtParam> params;
     if (a1.type_ == static_cast<int>(VarType::Table) && a1.data_.t) {
         CVar len_var = table::TableHelper::GetTableStrId(s, a1, "n");
-        int64_t len = (len_var.type_ == static_cast<int>(VarType::Int))
-                          ? len_var.data_.i
-                          : table::TableHelper::GetTableLen(a1);
+        int64_t len = 0;
+        if (len_var.type_ == static_cast<int>(VarType::Int)) {
+            len = len_var.data_.i;
+        } else {
+            len = table::TableHelper::GetTableLen(a1);
+            table::TableHelper::ForEachKV(a1, [&](CVar k, CVar /*v*/) {
+                if (k.type_ == static_cast<int>(VarType::Int) && k.data_.i > len) {
+                    len = k.data_.i;
+                }
+            });
+        }
         for (int64_t i = 1; i <= len; ++i) {
             CVar elem = table::TableHelper::GetTableInt(s, a1, i);
             StmtParam p;

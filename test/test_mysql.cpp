@@ -92,3 +92,75 @@ TEST(test_mysql, integration_pool) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+// 集成测试：SQL 错误与连接恢复 (P0)
+TEST(test_mysql, integration_query_error) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_query_error.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_query_error", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 集成测试：数据类型转换与 NULL 列支持 (P0)
+TEST(test_mysql, integration_datatypes_and_null) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_datatypes.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_datatypes", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 集成测试：DML 写操作状态包与自增 ID / 受影响行 (P0)
+TEST(test_mysql, integration_dml_status) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_dml.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_dml", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 集成测试：预处理语句 NULL 参数绑定、类型转换与复用 (P0)
+TEST(test_mysql, integration_stmt_params) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_stmt_params.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_stmt_params", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 集成测试：连接池连接耗尽与通过 conn:close() 归还 (P1)
+TEST(test_mysql, integration_pool_advanced) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_pool_adv.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_pool_advanced", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 集成测试：连接生命周期、ping 心跳、重复关闭幂等与关闭后防护 (P1)
+TEST(test_mysql, integration_ping_and_lifecycle) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_lifecycle.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_lifecycle", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

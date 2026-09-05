@@ -1,5 +1,6 @@
 #include "native/object/native_object.h"
 #include "jit/vm.h"
+#include "jit/jit_error_boundary.h"
 #include "native/basic/native_basic.h"
 #include "native/io/native_io.h"
 #include "native/native_common.h"
@@ -299,7 +300,9 @@ CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar) {
         call_n = total_arg_count;
     }
 
-    return (*method_ptr)(actual_self, state, call_args, call_n);
+    return GuardJitEntry([&]() -> CVar {
+        return (*method_ptr)(actual_self, state, call_args, call_n);
+    });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
