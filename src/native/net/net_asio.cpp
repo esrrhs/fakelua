@@ -17,7 +17,8 @@ bool is_websocket(const NetConfig &cfg) { return cfg.framer == FramerType::WebSo
 
 void set_socket_options(boost::asio::ip::tcp::socket &sock, const NetConfig &cfg) {
     boost::system::error_code ec;
-    sock.non_blocking(true, ec);
+    // Do not set non_blocking(true): on Windows IOCP a reactor-style
+    // write_some from the poll() thread can wait on the same IOCP and deadlock.
     if (cfg.keep_alive) {
         sock.set_option(boost::asio::socket_base::keep_alive(true), ec);
     }
@@ -201,29 +202,12 @@ void AsioConn::do_write() {
     auto region = send_buf_.readable_region();
     if (region.second == 0) return;
 
-    // 先尝试非阻塞同步写
-    boost::system::error_code ec;
-    size_t written = socket_.write_some(boost::asio::buffer(region.first, region.second), ec);
-    if (written > 0) {
-        send_buf_.commit_read(written);
-        if (!send_buf_.empty()) {
-            do_write();
-        }
-        return;
-    }
-
-    if (ec == boost::asio::error::would_block || ec == boost::asio::error::try_again) {
-        // 内核发送缓冲已满，转异步写
-        writing_ = true;
-        auto wait_region = send_buf_.readable_region();
-        auto self = shared_from_this();
-        socket_.async_write_some(boost::asio::buffer(wait_region.first, wait_region.second),
-                                 [self](boost::system::error_code ec, size_t bytes) {
-                                     self->on_write(ec, bytes);
-                                 });
-    } else if (ec) {
-        close();
-    }
+    writing_ = true;
+    auto self = shared_from_this();
+    socket_.async_write_some(boost::asio::buffer(region.first, region.second),
+                             [self](boost::system::error_code ec, size_t bytes) {
+                                 self->on_write(ec, bytes);
+                             });
 }
 
 void AsioConn::on_write(boost::system::error_code ec, size_t bytes) {
@@ -293,6 +277,7 @@ void TcpServer::stop() {
     conns_.clear();
     events_.clear();
 
+    ioc_.poll();
     ioc_.stop();
     ioc_.restart();
 }
@@ -391,6 +376,7 @@ void TcpClient::disconnect() {
         conn_.reset();
     }
     events_.clear();
+    ioc_.poll();
     ioc_.stop();
     ioc_.restart();
 }
