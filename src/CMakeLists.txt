@@ -334,6 +334,7 @@ find_package(Threads REQUIRED)
 
 # Boost.MySQL is header-only, but boost_charconv has compiled components for float parsing
 # Link boost_charconv library (required for boost::charconv::from_chars/to_chars)
-set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv)
+# boost_system required for non-header-only Boost.Asio (TCP/net native code)
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv boost_system)
 
 target_link_libraries(fakelua PRIVATE ${TARGET_LIB})

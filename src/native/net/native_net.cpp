@@ -1,5 +1,5 @@
 #include "native/net/native_net.h"
-#include "native/net/net_internal.h"
+#include "native/net/net_asio.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
@@ -233,11 +233,48 @@ static CVar net_dispatch(NativeObject *self, State *s, CVar *args, int n) {
     return inter::NativeToFakeluaNil(s);
 }
 
+// 派发单条事件给 Lua（在 tick() 同步上下文里执行，保留 tick_depth/close_pending 语义）
+static void dispatch_event_for(NetObject *obj, const ConnEvent &ev) {
+    if (!obj) return;
+    switch (ev.kind) {
+        case EventKind::Connect:
+            obj->conn_count++;
+            obj->server_connid = ev.conn_id;
+            push_event(obj, "conn");
+            {
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "conn", ev.conn_id, nullptr, 0, 0);
+                handle_callback_return(obj, ret, ev.conn_id);
+            }
+            break;
+        case EventKind::Recv:
+            obj->recv_count++;
+            if (obj->is_server) obj->last_server_data = ev.data;
+            else obj->last_client_data = ev.data;
+            push_event(obj, "recv");
+            LOG_DEBUG("net", "{} recv: connid={} len={}", obj->is_server ? "server" : "client", ev.conn_id,
+                      ev.data.size());
+            {
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", ev.conn_id,
+                                          ev.data.data(), ev.data.size(), 0);
+                handle_callback_return(obj, ret, ev.conn_id);
+            }
+            break;
+        case EventKind::Close:
+            push_event(obj, "close");
+            {
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", ev.conn_id, nullptr, 0, 0);
+                handle_callback_return(obj, ret, ev.conn_id);
+            }
+            break;
+    }
+}
+
 // server:tick() — 驱动 IO 处理
+// 新版：Boost.Asio 引擎在后台线程跑，事件入队；tick() 排空队列并同步派发 Lua 回调。
+// tick_depth + close_pending 语义保持不变。
 static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *obj = unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
-    // 回调里再 :tick() 会重入同一 Selector，直接忽略。
     if (obj->tick_depth > 0) return inter::NativeToFakeluaNil(s);
 
     auto finish_tick = [self, obj]() {
@@ -250,47 +287,9 @@ static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     obj->tick_depth++;
     try {
         if (obj->is_server && obj->server && obj->server->running()) {
-            obj->server->tick(
-                // on_conn
-                [obj](int connid) {
-                    obj->conn_count++;
-                    obj->server_connid = connid;
-                    push_event(obj, "conn");
-                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "conn", connid, nullptr, 0, 0);
-                    handle_callback_return(obj, ret, connid);
-                },
-                // on_recv
-                [obj](int connid, const char *data, size_t len) {
-                    obj->recv_count++;
-                    obj->last_server_data.assign(data, len);
-                    push_event(obj, "recv");
-                    LOG_DEBUG("net", "server recv: connid={} len={}", connid, len);
-                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", connid, data, len, 0);
-                    handle_callback_return(obj, ret, connid);
-                },
-                // on_close
-                [obj](int connid) {
-                    push_event(obj, "close");
-                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
-                    handle_callback_return(obj, ret, connid);
-                });
+            obj->server->drain_events_with([obj](const ConnEvent &ev) { dispatch_event_for(obj, ev); });
         } else if (!obj->is_server && obj->client) {
-            obj->client->tick(
-                // on_recv
-                [obj](const char *data, size_t len) {
-                    obj->recv_count++;
-                    obj->last_client_data.assign(data, len);
-                    push_event(obj, "recv");
-                    LOG_DEBUG("net", "client recv: len={}", len);
-                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", 0, data, len, 0);
-                    handle_callback_return(obj, ret, 0);
-                },
-                // on_close
-                [obj]() {
-                    push_event(obj, "close");
-                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", 0, nullptr, 0, 0);
-                    handle_callback_return(obj, ret, 0);
-                });
+            obj->client->drain_events_with([obj](const ConnEvent &ev) { dispatch_event_for(obj, ev); });
         }
     } catch (...) {
         obj->tick_depth--;

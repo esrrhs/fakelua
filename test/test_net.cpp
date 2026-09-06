@@ -1,6 +1,6 @@
 #include "fakelua.h"
 #include "gtest/gtest.h"
-#include "native/net/net_internal.h"
+#include "native/net/net_asio.h"
 #include "var/var_type.h"
 #include "var/var_string.h"
 
