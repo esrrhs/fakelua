@@ -71,3 +71,60 @@ function test_close_in_recv()
     server:close()
     return 1
 end
+
+function test_slot_reuse_repeated_connect()
+    local srv = net.server({port = 19985, maxconn = 2})
+    srv:dispatch("NetTest.on_server_event")
+
+    local success_count = 0
+    for iter = 1, 6 do
+        local client = net.client({port = 19985})
+        client:dispatch("NetTest.on_client_event")
+        for i = 1, 15 do
+            srv:tick()
+            client:tick()
+        end
+        local ok = client:send("ping_" .. iter)
+        if ok then
+            for i = 1, 15 do
+                srv:tick()
+                client:tick()
+            end
+            if client:get_last_data() == "echo:ping_" .. iter then
+                success_count = success_count + 1
+            end
+        end
+        client:close()
+        for i = 1, 5 do
+            srv:tick()
+        end
+    end
+    srv:close()
+    return success_count
+end
+
+function test_client_connect_fail()
+    local client = net.client({port = 19921})
+    client:dispatch("NetTest.on_client_event")
+    for i = 1, 30 do
+        client:tick()
+    end
+    local sent = client:send("should fail")
+    client:close()
+    return sent and 0 or 1
+end
+
+function test_send_buffer_full()
+    local srv = net.server({port = 19986, maxconn = 2, sendbuf = 64})
+    local cli = net.client({port = 19986})
+    for i = 1, 15 do
+        srv:tick()
+        cli:tick()
+    end
+    local big = string.rep("A", 1024)
+    local ok = srv:send(srv:get_connid(), big)
+    srv:close()
+    cli:close()
+    return ok and 0 or 1
+end
+

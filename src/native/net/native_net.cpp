@@ -503,6 +503,18 @@ static net::NetConfig parse_config(State *s, CVar *args, int n) {
         cfg.max_conn = static_cast<int>(maxc);
     }
     cfg.backlog = static_cast<int>(get_table_field(s, a0, "backlog", 128));
+    {
+        int64_t sbs = get_table_field(s, a0, "send_buf_size", 0);
+        if (sbs == 0) sbs = get_table_field(s, a0, "sendbuf", 0);
+        if (sbs > 0) cfg.send_buf_size = static_cast<int>(sbs);
+
+        int64_t rbs = get_table_field(s, a0, "recv_buf_size", 0);
+        if (rbs == 0) rbs = get_table_field(s, a0, "recvbuf", 0);
+        if (rbs > 0) cfg.recv_buf_size = static_cast<int>(rbs);
+
+        int64_t mpl = get_table_field(s, a0, "max_packet_len", 0);
+        if (mpl > 0) cfg.max_packet_len = static_cast<int>(mpl);
+    }
     cfg.fixed_packet_len = static_cast<int>(get_table_field(s, a0, "fixed_len", 0));
     if (cfg.fixed_packet_len == 0) {
         cfg.fixed_packet_len = static_cast<int>(get_table_field(s, a0, "fixed_packet_len", 0));
@@ -510,6 +522,7 @@ static net::NetConfig parse_config(State *s, CVar *args, int n) {
     cfg.non_blocking = get_table_field(s, a0, "nonblocking", 1) != 0;
     cfg.no_delay = get_table_field(s, a0, "nodelay", 1) != 0;
     cfg.keep_alive = get_table_field(s, a0, "keepalive", 1) != 0;
+
 
     std::string framer_str = get_table_field_string(s, a0, "framer", "");
     cfg.framer = parse_framer_type(framer_str);

@@ -238,3 +238,64 @@ TEST(test_net, test_websocket_echo_lua) {
 
     FakeluaDeleteState(s);
 }
+
+// 测试 11: server stop 后再 start 能重新成功绑定监听（验证 stop 后重新打开 bug 修复）
+TEST(test_net, test_server_stop_restart) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_create_destroy.lua", config);
+
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "NetCreate.test_server_stop_restart", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}
+
+// 测试 12: 反复 connect + close，验证 slot 自动释放并复用（maxconn=2 时成功服务 6 次客户端连接）
+TEST(test_net, test_slot_reuse_repeated_connect) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_server_client.lua", config);
+
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "NetTest.test_slot_reuse_repeated_connect", ret);
+    EXPECT_EQ(ret, 6);
+
+    FakeluaDeleteState(s);
+}
+
+// 测试 13: 对未监听端口进行 client 连接 — 正确处理连接失败，send 返回 false
+TEST(test_net, test_client_connect_fail) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_server_client.lua", config);
+
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "NetTest.test_client_connect_fail", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}
+
+// 测试 14: 发送数据超过缓冲区容量 — 返回 false 不截断
+TEST(test_net, test_send_buffer_full) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_server_client.lua", config);
+
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "NetTest.test_send_buffer_full", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}
+

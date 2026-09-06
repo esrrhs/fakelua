@@ -1,13 +1,14 @@
 #pragma once
 
-// net_asio.h — Boost.Asio 重写的 TCP 引擎
+// net_asio.h — Boost.Asio 基于单线程非阻塞模型的 TCP 引擎
 //
 // 设计要点：
-// - 每个 TcpServer / TcpClient 拥有独立的 io_context + 后台工作线程（与 mysql_connection.cpp 同模式）
-// - 读循环通过 async_read_some + CircularBuffer + framer 解包，每解出一个完整包就在引擎内排队
-// - 写循环使用 asio::async_write_some 配合每连接的发送缓冲
-// - Lua 侧 :tick() 调用 drain_events() 把排队的回调派发出去（保持原 tick_depth / close_pending 语义）
-// - 所有 framer 类型、custom Lua parser、WebSocket handshake 全部复用现有 net_buffer/net_websocket
+// - 纯单线程非阻塞架构：移除后台工作线程，所有 IO 操作（accept/read/write/resolve/connect）
+//   在 tick() 调用的同一线程上通过 ioc_.poll() 驱动，与 fakelua 单线程极简模型完全契合。
+// - 零数据竞争、零锁开销：无多线程竞争，无 std::mutex 开销。
+// - 纯非阻塞 tick()：移除无事件时的强制 sleep_for(1ms)，消除帧延迟与 CPU 浪费。
+// - 连接槽自动回收：连接关闭时自动重置 slot，彻底解决连接池泄漏和 DoS 风险。
+// - 幂等 close 控制：杜绝 duplicate Close 事件风暴。
 
 #include "native/net/net_buffer.h"
 #include "native/net/net_common.h"
@@ -17,21 +18,19 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <thread>
 #include <vector>
 
 namespace fakelua::net {
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 事件队列：引擎线程产生，tick 线程（Lua）消费
+// 事件队列：单线程驱动产生，tick() 时派发给 Lua
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum class EventKind {
-    Connect, // server 端：新连接已建立
-    Recv,    // server 端：完整包解出；client 端：完整包解出
-    Close,   // 任意连接关闭
+    Connect, // server 端：新连接已建立；client 端：连接已建立
+    Recv,    // 完整包解出
+    Close,   // 连接关闭
 };
 
 struct ConnEvent {
@@ -51,20 +50,20 @@ public:
     AsioConn(boost::asio::io_context &ioc, const NetConfig &cfg, int conn_id, bool from_client, EventSink sink);
     ~AsioConn();
 
-    // server 端 accept 后调用，开始读循环
+    // server 端 accept 后 / client 端 connect 后调用，开始读循环
     void start();
-    // 主动关闭
-    void close();
+    // 主动关闭（notify_sink 控制是否通知外部 sink，避免主动 close 时重复发 Close 事件）
+    void close(bool notify_sink = true);
 
-    // server 端 accept 后 / client 端 connect 后：用外部 socket 替换内部默认构造的 socket
+    // 用外部已连接/已接收的 socket 替换内部 socket
     void reset_socket(boost::asio::ip::tcp::socket sock);
 
     // 写入数据（按 cfg.framer 自动封包）
     bool send(const char *data, size_t len);
-    // 写入原始字节（用于 WS 客户端握手请求，不走 framer）
+    // 写入原始字节（用于 WS 客户端握手请求等）
     bool send_raw(const char *data, size_t len);
 
-    [[nodiscard]] bool is_open() const { return socket_.is_open(); }
+    [[nodiscard]] bool is_open() const { return !closed_ && socket_.is_open(); }
     [[nodiscard]] int conn_id() const { return conn_id_; }
 
 private:
@@ -78,12 +77,11 @@ private:
     int conn_id_;
     bool from_client_ = false;
     EventSink sink_;
+    bool closed_ = false;
 
     CircularBuffer recv_buf_;
     CircularBuffer send_buf_;
 
-    // 当前正在 async_write 的剩余字节，避免与新的 send() 竞争
-    std::vector<char> write_inflight_;
     bool writing_ = false;
 
     // WebSocket 状态机
@@ -92,7 +90,7 @@ private:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 服务端：异步 acceptor
+// 服务端：单线程非阻塞 acceptor
 // ─────────────────────────────────────────────────────────────────────────────
 
 class TcpServer {
@@ -103,10 +101,10 @@ public:
     void start();
     void stop();
 
-    // 排空事件并对每条事件调用 dispatcher（在 Lua 调用 tick() 时同步触发 Lua 回调）
+    // 排空并派发事件（单线程 ioc_.poll() 驱动就绪 IO）
     void drain_events_with(const std::function<void(const ConnEvent &)> &dispatcher);
 
-    // 兼容旧 tick() 接口：把 ConnEvent 拆成 3 个 std::function 回调
+    // 兼容旧 tick() 接口
     void tick(const std::function<void(int)> &on_conn,
               const std::function<void(int, const char *, size_t)> &on_recv,
               const std::function<void(int)> &on_close) {
@@ -127,27 +125,20 @@ public:
 private:
     void do_accept();
     void on_accept(boost::system::error_code ec, boost::asio::ip::tcp::socket sock);
-
-    void worker_loop();
     void emit_event(ConnEvent ev);
 
     NetConfig config_;
     boost::asio::io_context ioc_;
     boost::asio::ip::tcp::acceptor acceptor_{ioc_};
-    std::thread worker_;
     bool acceptor_open_ = false;
 
     // 连接表：conn_id → shared_ptr<AsioConn>
     std::vector<std::shared_ptr<AsioConn>> conns_;
-    std::mutex conns_mu_;
-
-    // 事件队列
-    std::mutex events_mu_;
     std::vector<ConnEvent> events_;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 客户端
+// 客户端：单线程非阻塞连接
 // ─────────────────────────────────────────────────────────────────────────────
 
 class TcpClient {
@@ -167,7 +158,7 @@ public:
               const std::function<void()> &on_close) {
         drain_events_with([&](const ConnEvent &ev) {
             switch (ev.kind) {
-                case EventKind::Connect: /* client: ignore */ break;
+                case EventKind::Connect: break;
                 case EventKind::Recv:    on_recv(ev.data.data(), ev.data.size()); break;
                 case EventKind::Close:   on_close(); break;
             }
@@ -180,18 +171,14 @@ private:
     void do_resolve();
     void on_resolve(boost::system::error_code ec, boost::asio::ip::tcp::resolver::results_type results);
     void on_connect(boost::system::error_code ec, boost::asio::ip::tcp::socket sock);
-
-    void worker_loop();
     void emit_event(ConnEvent ev);
 
     NetConfig config_;
     boost::asio::io_context ioc_;
-    boost::asio::ip::tcp::resolver resolver_;
-    std::thread worker_;
+    boost::asio::ip::tcp::resolver resolver_{ioc_};
     std::shared_ptr<AsioConn> conn_;
     bool connecting_ = false;
 
-    std::mutex events_mu_;
     std::vector<ConnEvent> events_;
 };
 
