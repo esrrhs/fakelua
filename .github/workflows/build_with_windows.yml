@@ -12,9 +12,27 @@ permissions:
 jobs:
   build:
     runs-on: windows-2022
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .cache/ccache
+          key: windows-ccache-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            windows-ccache-${{ github.ref }}-
+            windows-ccache-
+
+      - name: Cache CPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: .cache/CPM
+          key: windows-cpm-${{ hashFiles('**/CMakeLists.txt', 'cmake/*.cmake') }}
+          restore-keys: |
+            windows-cpm-
 
       - name: Install MySQL
         run: |
@@ -93,11 +111,16 @@ jobs:
             mingw-w64-x86_64-lua
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-ccache
 
       - name: Configure
         shell: msys2 {0}
         run: |
           set -eux
+          WORKSPACE_DIR="$(pwd)"
+          export CCACHE_DIR="${WORKSPACE_DIR}/.cache/ccache"
+          export CPM_SOURCE_CACHE="${WORKSPACE_DIR}/.cache/CPM"
+          ccache --max-size=2G
           rm -rf build
           cmake -S . -B build -G Ninja -DFAKELUA_TINYCC_GIT_URL=https://github.com/TinyCC/tinycc.git
 
@@ -105,7 +128,11 @@ jobs:
         shell: msys2 {0}
         run: |
           set -eux
+          WORKSPACE_DIR="$(pwd)"
+          export CCACHE_DIR="${WORKSPACE_DIR}/.cache/ccache"
+          export CPM_SOURCE_CACHE="${WORKSPACE_DIR}/.cache/CPM"
           cmake --build build --parallel
+          ccache -s
 
       - name: Test
         shell: msys2 {0}
@@ -113,10 +140,17 @@ jobs:
           set -eux
           cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe
 
-      - name: Run benchmarks and flua
+      - name: Run flua
+        shell: msys2 {0}
+        run: |
+          set -eux
+          cd build/bin
+          ./flua.exe
+
+      - name: Run benchmarks
+        if: github.event_name != 'pull_request'
         shell: msys2 {0}
         run: |
           set -eux
           cd build/bin
           ./bench_mark.exe
-          ./flua.exe

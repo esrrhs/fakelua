@@ -35,6 +35,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-${{ matrix.build_type }}
+          max-size: 2G
+
+      - name: Cache CPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/CPM
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', 'cmake/*.cmake') }}
+          restore-keys: |
+            cpm-${{ runner.os }}-
+
       - name: Setup Lua
         timeout-minutes: 10
         run: |
@@ -109,6 +123,7 @@ jobs:
       - name: Build (${{ matrix.build_type }})
         run: |
           set -x
+          export CPM_SOURCE_CACHE=$HOME/.cache/CPM
           rm -rf build
           mkdir build
           cd build
@@ -132,10 +147,13 @@ jobs:
 
           cmake ${CMAKE_FLAGS} ..
           make -j$(nproc)
+          ccache -s
           # Run all tests (including MySQL integration tests)
           # Must run from test/lua so relative Lua file paths resolve correctly
           (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
-          ./bin/bench_mark
+          if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ matrix.build_type }}" = "release" ]; then
+            ./bin/bench_mark
+          fi
           ./bin/flua
 
       # If PR #395 adds test groups, Group D's mysql tests need to exclude flaky integration tests:
