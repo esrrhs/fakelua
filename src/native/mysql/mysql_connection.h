@@ -123,7 +123,6 @@ public:
 private:
     // Boost.Asio I/O context for asynchronous operations
     boost::asio::io_context io_ctx_;
-    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work_;
 
     // Boost.MySQL connection (modern any_connection API)
     boost::mysql::any_connection conn_;

@@ -27,8 +27,7 @@ struct TickDepthGuard {
 }  // namespace
 
 MysqlConnection::MysqlConnection()
-    : work_(boost::asio::make_work_guard(io_ctx_)),
-      conn_(io_ctx_) {
+    : conn_(io_ctx_) {
 }
 
 MysqlConnection::~MysqlConnection() {
@@ -54,12 +53,15 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     pending_connect_ = false;
     close_pending_ = false;
     state_ = State::Connecting;
-    ready_ = false;
 
     // Reset connection state
-    boost::mysql::error_code ec;
-    boost::mysql::diagnostics diag;
-    conn_.close(ec, diag);  // idempotent: closes any prior session
+    if (ready_) {
+        boost::mysql::error_code ec;
+        boost::mysql::diagnostics diag;
+        conn_.close(ec, diag);
+    }
+    ready_ = false;
+    io_ctx_.restart();
     pending_results_.clear();
     prepared_statements_.clear();
     next_stmt_id_ = 1;
@@ -250,13 +252,20 @@ void MysqlConnection::close() {
         return;
     }
 
-    // Close the connection (best effort).
-    boost::mysql::error_code ec;
-    boost::mysql::diagnostics diag;
-    conn_.close(ec, diag);
-    if (ec) {
-        LOG_DEBUG("mysql", "Error closing connection: {}", ec.message());
+    // Only attempt clean protocol-level close if the connection was actually established.
+    // Calling conn_.close() on an unestablished or failed connection attempts transport
+    // shutdown on an invalid stream state, which can hang on Windows IOCP.
+    if (ready_) {
+        boost::mysql::error_code ec;
+        boost::mysql::diagnostics diag;
+        conn_.close(ec, diag);
+        if (ec) {
+            LOG_DEBUG("mysql", "Error closing connection: {}", ec.message());
+        }
     }
+
+    io_ctx_.stop();
+    io_ctx_.poll();
 
     state_ = State::Idle;
     ready_ = false;
@@ -281,6 +290,10 @@ void MysqlConnection::tick() {
             close();
             pending_connect_ = true;
         }
+    }
+
+    if (io_ctx_.stopped()) {
+        io_ctx_.restart();
     }
 
     // Process all ready async operations by running io_context.
