@@ -34,9 +34,51 @@ jobs:
             net start MySQL80 2>$true
             net start MySQL 2>$true
           }
-          # MySQL 8 on Windows uses caching_sha2_password by default
-          # which our client supports. No configuration needed.
           echo "MySQL started"
+
+      - name: Configure MySQL
+        run: |
+          $bins = @(
+            "$env:ChocolateyInstall\bin",
+            "C:\tools\mysql\current\bin"
+          )
+          Get-ChildItem "C:\Program Files\MySQL" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $p = Join-Path $_.FullName "bin"
+            if (Test-Path (Join-Path $p "mysql.exe")) { $bins += $p }
+          }
+          $env:Path = ($bins + $env:Path) -join ';'
+          Get-Command mysql, mysqladmin -ErrorAction Stop | ForEach-Object { Write-Host "Using $($_.Source)" }
+
+          $ready = $false
+          for ($i = 1; $i -le 30; $i++) {
+            & mysqladmin -h 127.0.0.1 --protocol=tcp ping 2>$null
+            if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+            Write-Host "Waiting for MySQL... ($i)"
+            Start-Sleep -Seconds 2
+          }
+          if (-not $ready) { throw "MySQL did not become ready" }
+
+          $sql = @"
+          CREATE DATABASE IF NOT EXISTS test;
+          CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY 'root';
+          ALTER USER 'root'@'127.0.0.1' IDENTIFIED BY 'root';
+          ALTER USER 'root'@'localhost' IDENTIFIED BY 'root';
+          GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;
+          GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
+          FLUSH PRIVILEGES;
+          "@
+          $configured = $false
+          foreach ($pwd in @('', 'root')) {
+            if ($pwd -eq '') {
+              & mysql -h 127.0.0.1 -uroot --protocol=tcp -e $sql
+            } else {
+              & mysql -h 127.0.0.1 -uroot "-p$pwd" --protocol=tcp -e $sql
+            }
+            if ($LASTEXITCODE -eq 0) { $configured = $true; break }
+          }
+          if (-not $configured) { throw "Failed to configure MySQL test user (root/root) and database" }
+          & mysql -h 127.0.0.1 -uroot -proot --protocol=tcp -e "SELECT 1"
+          echo "MySQL configured (root/root, database test)"
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
@@ -50,6 +92,7 @@ jobs:
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-lua
             mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-openssl
 
       - name: Configure
         shell: msys2 {0}
@@ -68,9 +111,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set -eux
-          # Skip MySQL tests on Windows: choco-installed MySQL is not pre-configured
-          # with the test credentials (root/root) that integration tests expect.
-          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe --gtest_filter="-test_mysql.*"
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe
 
       - name: Run benchmarks and flua
         shell: msys2 {0}

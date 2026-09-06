@@ -18,15 +18,6 @@ include_directories(./)
 include_directories(../include)
 include_directories(../src)
 include_directories(../src/platform)
-# Boost (Asio and others) — used by net module's tests
-include_directories(${CMAKE_BINARY_DIR}/_deps/boost-src)
-include_directories(${CMAKE_BINARY_DIR}/_deps/boost-src/libs/asio/include)
-include_directories(${CMAKE_BINARY_DIR}/_deps/boost-src/libs/system/include)
-include_directories(${CMAKE_BINARY_DIR}/_deps/boost-src/libs/config/include)
-include_directories(${CMAKE_BINARY_DIR}/_deps/boost-src/libs/throw_exception/include)
-include_directories(${CMAKE_BINARY_DIR}/_deps/boost-src/libs/assert/include)
-include_directories(${CMAKE_BINARY_DIR}/_deps/boost-src/libs/core/include)
-include_directories(${CMAKE_BINARY_DIR}/_deps/boost-src/libs/detail/include)
 
 find_package(PkgConfig QUIET)
 set(LUA_FOUND FALSE)
@@ -89,10 +80,6 @@ add_executable(unit_tests ${TEST_SRC_LIST})
 # dl is only available on Linux. macOS and Windows don't need it.
 if (NOT WIN32 AND NOT APPLE)
     target_link_libraries(unit_tests PRIVATE dl)
-endif ()
-# test_net.cpp uses Winsock APIs directly, requires ws2_32 on Windows.
-if (WIN32)
-    target_link_libraries(unit_tests PRIVATE ws2_32)
 endif ()
 target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${LUA_LIBRARIES})
 
