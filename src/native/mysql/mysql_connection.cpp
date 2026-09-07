@@ -8,6 +8,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 #include <boost/asio/bind_cancellation_slot.hpp>
 
@@ -56,6 +57,23 @@ void MysqlConnection::teardown_transport() {
     if (cancel_signal_) {
         cancel_signal_->emit(boost::asio::cancellation_type::all);
     }
+
+    // Drain any in-flight async operations WHILE conn_ is still alive so that
+    // completion handlers (and Boost.MySQL internal algos) do not touch freed memory.
+    if (op_in_progress_) {
+        if (io_ctx_.stopped()) {
+            io_ctx_.restart();
+        }
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
+        while (op_in_progress_ && std::chrono::steady_clock::now() < deadline) {
+            if (io_ctx_.poll() == 0) {
+                if (io_ctx_.run_one_for(std::chrono::milliseconds(10)) == 0) {
+                    std::this_thread::yield();
+                }
+            }
+        }
+    }
+
     // Transport-level close via destructor (no blocking COM_QUIT). Socket close
     // posts IOCP completions; drain them so ~io_context does not hang on Windows.
     conn_.reset();

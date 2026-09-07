@@ -179,6 +179,7 @@ function test_stmt()
 
     -- 清理
     conn:stmt_close(conn.stmt_id)
+    conn.query_done = false
     conn:query("DROP TABLE IF EXISTS stmt_test", "on_result")
     for i = 1, 1000 do conn:tick() if conn.query_done then break end os.sleep(1) end
     conn:close()
