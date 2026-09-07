@@ -43,11 +43,22 @@ void MysqlConnection::drain_iocp() {
     if (io_ctx_.stopped()) {
         io_ctx_.restart();
     }
-    // Windows ~io_context waits until outstanding_work == 0. There is no discard
-    // API; poll() only reaps already-queued IOCP packets so the destructor can return.
     int drained = 0;
     while (io_ctx_.poll() != 0) {
         ++drained;
+    }
+    for (int i = 0; i < 5; ++i) {
+        if (io_ctx_.stopped()) {
+            io_ctx_.restart();
+        }
+        if (io_ctx_.run_one_for(std::chrono::milliseconds(10)) != 0) {
+            ++drained;
+            while (io_ctx_.poll() != 0) {
+                ++drained;
+            }
+        } else {
+            break;
+        }
     }
     fprintf(stderr, "[MYSQL_DEBUG] drain_iocp drained %d events\n", drained); fflush(stderr);
 }
@@ -67,11 +78,11 @@ void MysqlConnection::teardown_transport() {
     // Drain any in-flight async operations WHILE conn_ is still alive so that
     // completion handlers (and Boost.MySQL internal algos) do not touch freed memory.
     if (op_in_progress_) {
-        if (io_ctx_.stopped()) {
-            io_ctx_.restart();
-        }
         auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
         while (op_in_progress_ && std::chrono::steady_clock::now() < deadline) {
+            if (io_ctx_.stopped()) {
+                io_ctx_.restart();
+            }
             if (io_ctx_.poll() == 0) {
                 if (io_ctx_.run_one_for(std::chrono::milliseconds(10)) == 0) {
                     std::this_thread::yield();
@@ -86,7 +97,6 @@ void MysqlConnection::teardown_transport() {
     conn_.reset();
     fprintf(stderr, "[MYSQL_DEBUG] conn_.reset() done\n"); fflush(stderr);
     drain_iocp();
-    io_ctx_.stop();
     cancel_signal_.reset();
     op_in_progress_ = false;
     ready_ = false;
