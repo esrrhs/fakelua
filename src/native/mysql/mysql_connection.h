@@ -124,8 +124,9 @@ private:
     // Boost.Asio I/O context for asynchronous operations
     boost::asio::io_context io_ctx_;
 
-    // Boost.MySQL connection (modern any_connection API)
-    boost::mysql::any_connection conn_;
+    // Unique so close() can destroy the socket, then poll io_ctx_ to drop
+    // outstanding IOCP work. Windows ~io_context cannot discard leftover ops.
+    std::unique_ptr<boost::mysql::any_connection> conn_;
 
     // Cancellation signal to abort in-flight async operations on close
     std::unique_ptr<boost::asio::cancellation_signal> cancel_signal_;
@@ -206,6 +207,12 @@ private:
     void dispatch_result(const boost::mysql::results &result, const char *err_msg);
     void set_error(MysqlErrorType type, uint16_t code,
                    const std::string &msg, const std::string &sql_state);
+
+    // Cancel, destroy any_connection (no blocking COM_QUIT), poll io_ctx_ so
+    // Windows ~io_context is not left waiting on outstanding IOCP work.
+    void teardown_transport();
+    void drain_iocp();
+    void ensure_conn();
 
     // Convert Boost.MySQL results to Lua table
     static CVar resultset_to_lua(::fakelua::State *s, const boost::mysql::resultset_view &result);

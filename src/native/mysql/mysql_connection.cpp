@@ -8,7 +8,6 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
-#include <thread>
 
 #include <boost/asio/bind_cancellation_slot.hpp>
 
@@ -29,12 +28,41 @@ struct TickDepthGuard {
 
 }  // namespace
 
-MysqlConnection::MysqlConnection()
-    : conn_(io_ctx_) {
+MysqlConnection::MysqlConnection() {
+    ensure_conn();
 }
 
 MysqlConnection::~MysqlConnection() {
     close();
+}
+
+void MysqlConnection::drain_iocp() {
+    if (io_ctx_.stopped()) {
+        io_ctx_.restart();
+    }
+    // Windows ~io_context waits until outstanding_work == 0. There is no discard
+    // API; poll() only reaps already-queued IOCP packets so the destructor can return.
+    while (io_ctx_.poll() != 0) {
+    }
+}
+
+void MysqlConnection::ensure_conn() {
+    if (!conn_) {
+        conn_ = std::make_unique<boost::mysql::any_connection>(io_ctx_);
+    }
+}
+
+void MysqlConnection::teardown_transport() {
+    if (cancel_signal_) {
+        cancel_signal_->emit(boost::asio::cancellation_type::all);
+    }
+    // Transport-level close via destructor (no blocking COM_QUIT). Socket close
+    // posts IOCP completions; drain them so ~io_context does not hang on Windows.
+    conn_.reset();
+    drain_iocp();
+    cancel_signal_.reset();
+    op_in_progress_ = false;
+    ready_ = false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,14 +85,14 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     close_pending_ = false;
     state_ = State::Connecting;
 
-    // Reset connection state
-    if (ready_) {
-        boost::mysql::error_code ec;
-        boost::mysql::diagnostics diag;
-        conn_.close(ec, diag);
+    if (ready_ || op_in_progress_) {
+        teardown_transport();
     }
+    ensure_conn();
     ready_ = false;
-    io_ctx_.restart();
+    if (io_ctx_.stopped()) {
+        io_ctx_.restart();
+    }
     pending_results_.clear();
     prepared_statements_.clear();
     next_stmt_id_ = 1;
@@ -82,7 +110,7 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     // Start asynchronous connect
     cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
     op_in_progress_ = true;
-    conn_.async_connect(*pending_connect_params_, async_diag_,
+    conn_->async_connect(*pending_connect_params_, async_diag_,
         boost::asio::bind_cancellation_slot(
             cancel_signal_->slot(),
             [this](boost::mysql::error_code ec) {
@@ -105,7 +133,7 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
 }
 
 void MysqlConnection::query(const std::string &sql) {
-    if (close_pending_) return;
+    if (close_pending_ || !conn_) return;
     if (state_ != State::Ready || !ready_) {
         dispatch_result({}, "connection not ready");
         return;
@@ -118,7 +146,7 @@ void MysqlConnection::query(const std::string &sql) {
     // Execute query asynchronously (with diagnostics for error reporting)
     cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
     op_in_progress_ = true;
-    conn_.async_execute(sql, pending_result_data_,
+    conn_->async_execute(sql, pending_result_data_,
                         boost::asio::bind_cancellation_slot(
                             cancel_signal_->slot(),
                             [this](boost::mysql::error_code err) {
@@ -137,7 +165,7 @@ void MysqlConnection::query(const std::string &sql) {
 }
 
 void MysqlConnection::stmt_prepare(const std::string &sql) {
-    if (close_pending_) return;
+    if (close_pending_ || !conn_) return;
     if (state_ != State::Ready || !ready_) {
         dispatch_result({}, "connection not ready for prepare");
         return;
@@ -149,7 +177,7 @@ void MysqlConnection::stmt_prepare(const std::string &sql) {
     // Prepare statement asynchronously
     cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
     op_in_progress_ = true;
-    conn_.async_prepare_statement(sql,
+    conn_->async_prepare_statement(sql,
         boost::asio::bind_cancellation_slot(
             cancel_signal_->slot(),
             [this](boost::mysql::error_code err, boost::mysql::statement stmt) {
@@ -177,7 +205,7 @@ void MysqlConnection::stmt_prepare(const std::string &sql) {
 }
 
 void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam> &params) {
-    if (close_pending_) return;
+    if (close_pending_ || !conn_) return;
     if (state_ != State::Ready || !ready_) {
         dispatch_result({}, "connection not ready for execute");
         return;
@@ -209,7 +237,7 @@ void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam
 
     cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
     op_in_progress_ = true;
-    conn_.async_execute(it->second.bind(pending_stmt_fields_.begin(), pending_stmt_fields_.end()),
+    conn_->async_execute(it->second.bind(pending_stmt_fields_.begin(), pending_stmt_fields_.end()),
                         pending_result_data_,
                         boost::asio::bind_cancellation_slot(
                             cancel_signal_->slot(),
@@ -230,7 +258,7 @@ void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam
 }
 
 void MysqlConnection::stmt_close(uint32_t stmt_id) {
-    if (close_pending_) return;
+    if (close_pending_ || !conn_) return;
     if (state_ != State::Ready || !ready_) {
         prepared_statements_.erase(stmt_id);
         return;
@@ -249,19 +277,19 @@ void MysqlConnection::stmt_close(uint32_t stmt_id) {
     prepared_statements_.erase(it);
     boost::mysql::error_code ec;
     boost::mysql::diagnostics diag;
-    conn_.close_statement(stmt, ec, diag);
+    conn_->close_statement(stmt, ec, diag);
     if (ec) {
         LOG_DEBUG("mysql", "close_statement error: {}", ec.message());
     }
 }
 
 bool MysqlConnection::ping() {
-    if (close_pending_) return false;
+    if (close_pending_ || !conn_) return false;
     if (state_ != State::Ready || !ready_) return false;
 
     cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
     op_in_progress_ = true;
-    conn_.async_ping(boost::asio::bind_cancellation_slot(
+    conn_->async_ping(boost::asio::bind_cancellation_slot(
         cancel_signal_->slot(),
         [this](boost::mysql::error_code err) {
             op_in_progress_ = false;
@@ -279,49 +307,13 @@ bool MysqlConnection::ping() {
 }
 
 void MysqlConnection::close() {
-    if (state_ == State::Idle && !ready_ && prepared_statements_.empty() && !op_in_progress_) {
-        // already closed
+    if (!conn_ && state_ == State::Idle && !ready_ && prepared_statements_.empty() && !op_in_progress_) {
         return;
     }
 
-    if (cancel_signal_) {
-        cancel_signal_->emit(boost::asio::cancellation_type::all);
-    }
-
-    // Drain any in-flight async operations so Asio/IOCP outstanding_work reaches 0.
-    // On Windows IOCP, destroying an io_context with outstanding work causes
-    // win_iocp_io_context::shutdown() to hang infinitely in GetQueuedCompletionStatus.
-    if (op_in_progress_) {
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
-        while (op_in_progress_ && std::chrono::steady_clock::now() < deadline) {
-            if (io_ctx_.stopped()) {
-                io_ctx_.restart();
-            }
-            if (io_ctx_.run_one_for(std::chrono::milliseconds(10)) == 0) {
-                std::this_thread::yield();
-            }
-        }
-    }
-
-    // Only attempt clean protocol-level close if the connection was actually established.
-    // Calling conn_.close() on an unestablished or failed connection attempts transport
-    // shutdown on an invalid stream state, which can hang on Windows IOCP.
-    if (ready_) {
-        boost::mysql::error_code ec;
-        boost::mysql::diagnostics diag;
-        conn_.close(ec, diag);
-        if (ec) {
-            LOG_DEBUG("mysql", "Error closing connection: {}", ec.message());
-        }
-    }
-
-    if (io_ctx_.stopped()) {
-        io_ctx_.restart();
-    }
-    io_ctx_.poll();
+    teardown_transport();
 
     state_ = State::Idle;
-    ready_ = false;
     pending_connect_ = false;
     pending_result_ = false;
     pending_results_.clear();
