@@ -18,6 +18,7 @@ function test_pool_advanced()
         pool:tick()
         conn1 = pool:acquire()
         if conn1 then break end
+        os.sleep(1)
     end
 
     if not conn1 then
@@ -31,6 +32,7 @@ function test_pool_advanced()
         pool:tick()
         conn2 = pool:acquire()
         if conn2 then break end
+        os.sleep(1)
     end
 
     if not conn2 then

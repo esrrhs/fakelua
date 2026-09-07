@@ -23,12 +23,13 @@ function test_pool()
         heartbeat_ms = 0  -- disable heartbeat for test
     })
 
-    -- 驱动连接池直到连接建立（最多 200 次 tick）
+    -- 驱动连接池直到连接建立（最多 1000 次 tick）
     local conn = nil
     for i = 1, 1000 do
         pool:tick()
         conn = pool:acquire()
         if conn then break end
+        os.sleep(1)
     end
 
     if not conn then

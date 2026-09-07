@@ -60,6 +60,7 @@ function test_lifecycle()
     -- 驱动 tick 确保 ping 操作完成
     for i = 1, 100 do
         conn:tick()
+        os.sleep(1)
     end
 
     -- 2. 验证关闭及重复关闭 (double close) 幂等不崩溃
