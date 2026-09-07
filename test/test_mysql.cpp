@@ -32,19 +32,14 @@ TEST(test_mysql, connect_failure_message) {
 }
 
 TEST(test_mysql, close_in_connect_callback) {
-    fprintf(stderr, "[TEST_DEBUG] close_in_connect_callback start\n"); fflush(stderr);
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_connect_fail.lua", config);
     int64_t ret = 0;
-    fprintf(stderr, "[TEST_DEBUG] Calling test_close_in_connect_cb...\n"); fflush(stderr);
     Call(s, JIT_TCC, "MysqlTest.test_close_in_connect_cb", ret);
-    fprintf(stderr, "[TEST_DEBUG] Call returned: %lld\n", static_cast<long long>(ret)); fflush(stderr);
     EXPECT_EQ(ret, 1);
-    fprintf(stderr, "[TEST_DEBUG] Calling FakeluaDeleteState(s)...\n"); fflush(stderr);
     FakeluaDeleteState(s);
-    fprintf(stderr, "[TEST_DEBUG] close_in_connect_callback finished\n"); fflush(stderr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

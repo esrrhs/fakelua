@@ -105,12 +105,9 @@ static void maybe_release_owned_conn(NativeObject *self) {
     if (self->GetInt("__mysql_owned__", 0) == 0) return;
     auto *conn = unwrap_conn_native(self);
     if (!conn || conn->tick_depth() > 0 || !conn->close_pending()) return;
-    fprintf(stderr, "[MYSQL_DEBUG] maybe_release_owned_conn: calling conn->close()\n"); fflush(stderr);
     conn->close();
-    fprintf(stderr, "[MYSQL_DEBUG] maybe_release_owned_conn: calling delete conn\n"); fflush(stderr);
-    delete conn;
     self->SetInt("__mysql_conn__", 0);
-    fprintf(stderr, "[MYSQL_DEBUG] maybe_release_owned_conn: done\n"); fflush(stderr);
+    delete conn;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -182,12 +179,12 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
         UnregisterMysqlNativeWrapper(self);
         auto *c = unwrap_conn_native(self);
         if (c) {
+            self->SetInt("__mysql_conn__", 0);
             if (c->tick_depth() > 0) {
                 c->request_close();
             } else {
                 delete c;
             }
-            self->SetInt("__mysql_conn__", 0);
         }
     });
     nat->RegisterMethod("query", conn_query);
@@ -369,8 +366,8 @@ CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
             return inter::NativeToFakeluaNil(s);
         }
         conn->close();
-        delete conn;
         self->SetInt("__mysql_conn__", 0);
+        delete conn;
     }
     return inter::NativeToFakeluaNil(s);
 }
