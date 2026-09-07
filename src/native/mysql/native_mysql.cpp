@@ -105,7 +105,9 @@ static void maybe_release_owned_conn(NativeObject *self) {
     if (self->GetInt("__mysql_owned__", 0) == 0) return;
     auto *conn = unwrap_conn_native(self);
     if (!conn || conn->tick_depth() > 0 || !conn->close_pending()) return;
+    fprintf(stderr, "[DEBUG_NAT] maybe_release_owned_conn calling conn->close\n"); fflush(stderr);
     conn->close();
+    fprintf(stderr, "[DEBUG_NAT] maybe_release_owned_conn done\n"); fflush(stderr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -174,6 +176,7 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     int64_t gid = NativeObjectManager::Instance().CreateGroup();
     auto *nat = NativeObjectManager::Instance().Create(gid, "mysql_connection");
     nat->SetFinalizer([](NativeObject *self) {
+        fprintf(stderr, "[DEBUG_NAT] Finalizer start\n"); fflush(stderr);
         UnregisterMysqlNativeWrapper(self);
         auto *c = unwrap_conn_native(self);
         if (c) {
@@ -181,9 +184,12 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
             if (c->tick_depth() > 0) {
                 c->request_close();
             } else {
+                fprintf(stderr, "[DEBUG_NAT] Finalizer deleting c\n"); fflush(stderr);
                 delete c;
+                fprintf(stderr, "[DEBUG_NAT] Finalizer deleted c\n"); fflush(stderr);
             }
         }
+        fprintf(stderr, "[DEBUG_NAT] Finalizer done\n"); fflush(stderr);
     });
     nat->RegisterMethod("query", conn_query);
     nat->RegisterMethod("stmt_prepare", conn_stmt_prepare);

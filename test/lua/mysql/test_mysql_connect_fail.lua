@@ -40,8 +40,11 @@ function test_connect_fail()
 end
 
 function on_connect_and_close(conn, err, success)
+    print("[DEBUG_LUA] on_connect_and_close 1")
     conn.closed_ok = true
+    print("[DEBUG_LUA] on_connect_and_close 2 (before close)")
     conn:close()
+    print("[DEBUG_LUA] on_connect_and_close 3 (after close)")
 end
 
 function test_close_in_connect_cb()
@@ -53,14 +56,18 @@ function test_close_in_connect_cb()
     config["db"] = "test"
     config["timeout_ms"] = 1000
 
+    print("[DEBUG_LUA] test_close_in_connect_cb start")
     local conn = mysql.connect(config, "on_connect_and_close")
+    print("[DEBUG_LUA] mysql.connect returned")
     for i = 1, 1500 do
         conn:tick()
         if conn.closed_ok then
+            print("[DEBUG_LUA] closed_ok detected at i=" .. tostring(i))
             break
         end
         os.sleep(1)
     end
+    print("[DEBUG_LUA] loop finished")
     if not conn.closed_ok then
         return 0
     end

@@ -34,11 +34,15 @@ MysqlConnection::MysqlConnection() {
 }
 
 MysqlConnection::~MysqlConnection() {
+    fprintf(stderr, "[DEBUG_CONN] ~MysqlConnection start\n"); fflush(stderr);
     close();
+    fprintf(stderr, "[DEBUG_CONN] ~MysqlConnection after close, before io_ctx_.stop\n"); fflush(stderr);
     io_ctx_.stop();
+    fprintf(stderr, "[DEBUG_CONN] ~MysqlConnection done\n"); fflush(stderr);
 }
 
 void MysqlConnection::drain_iocp() {
+    fprintf(stderr, "[DEBUG_CONN] drain_iocp start\n"); fflush(stderr);
     for (int i = 0; i < 5; ++i) {
         if (io_ctx_.stopped()) {
             io_ctx_.restart();
@@ -46,6 +50,7 @@ void MysqlConnection::drain_iocp() {
         while (io_ctx_.poll() != 0) {}
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+    fprintf(stderr, "[DEBUG_CONN] drain_iocp done\n"); fflush(stderr);
 }
 
 void MysqlConnection::ensure_conn() {
@@ -55,6 +60,7 @@ void MysqlConnection::ensure_conn() {
 }
 
 void MysqlConnection::teardown_transport() {
+    fprintf(stderr, "[DEBUG_CONN] teardown_transport start op_in_progress=%d\n", op_in_progress_ ? 1 : 0); fflush(stderr);
     if (cancel_signal_) {
         cancel_signal_->emit(boost::asio::cancellation_type::all);
     }
@@ -71,15 +77,19 @@ void MysqlConnection::teardown_transport() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
         }
+        fprintf(stderr, "[DEBUG_CONN] in-flight ops drained, op_in_progress=%d\n", op_in_progress_ ? 1 : 0); fflush(stderr);
     }
 
     // Transport-level close via destructor (no blocking COM_QUIT). Socket close
     // posts IOCP completions; drain them so ~io_context does not hang on Windows.
+    fprintf(stderr, "[DEBUG_CONN] before conn_.reset\n"); fflush(stderr);
     conn_.reset();
+    fprintf(stderr, "[DEBUG_CONN] after conn_.reset, calling drain_iocp\n"); fflush(stderr);
     drain_iocp();
     cancel_signal_.reset();
     op_in_progress_ = false;
     ready_ = false;
+    fprintf(stderr, "[DEBUG_CONN] teardown_transport done\n"); fflush(stderr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
