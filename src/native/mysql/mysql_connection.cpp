@@ -5,6 +5,7 @@
 #include "var/var.h"
 
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -21,6 +22,34 @@ int64_t now_ms() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count();
 }
 
+// Opt-in via FAKELUA_ASIO_DIAG=1. Diagnoses the Windows hang where ~io_context
+// blocks forever in GetQueuedCompletionStatus(INFINITE) because an operation
+// left outstanding work that is never reaped.
+bool asio_diag_enabled() {
+    static const bool enabled = std::getenv("FAKELUA_ASIO_DIAG") != nullptr;
+    return enabled;
+}
+
+// Reports whether io_ctx still holds outstanding work, without ever blocking
+// indefinitely: a drained context stops immediately, one with outstanding work
+// burns the whole probe window. Runs ready handlers, so only call it at points
+// where draining is already intended.
+void probe_outstanding_work(boost::asio::io_context &io_ctx, const void *conn, const char *where) {
+    if (!asio_diag_enabled()) return;
+    constexpr auto probe_window = std::chrono::milliseconds(50);
+    auto start = std::chrono::steady_clock::now();
+    if (io_ctx.stopped()) {
+        io_ctx.restart();
+    }
+    io_ctx.run_for(probe_window);
+    auto elapsed = std::chrono::steady_clock::now() - start;
+    bool outstanding = elapsed >= probe_window / 2;
+    fprintf(stderr, "[ASIO_DIAG] conn=%p %s: %s (probe %lldus)\n", conn, where,
+            outstanding ? "WORK OUTSTANDING" : "drained",
+            static_cast<long long>(std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()));
+    fflush(stderr);
+}
+
 struct TickDepthGuard {
     int &depth;
     explicit TickDepthGuard(int &d) : depth(d) { ++depth; }
@@ -34,7 +63,11 @@ MysqlConnection::MysqlConnection() {
 }
 
 MysqlConnection::~MysqlConnection() {
+    probe_outstanding_work(io_ctx_, this, "dtor-enter");
     close();
+    // Last observation point: everything after this is member destruction, and
+    // ~io_context is where Windows hangs.
+    probe_outstanding_work(io_ctx_, this, "dtor-before-io_context-destruction");
     io_ctx_.stop();
 }
 
@@ -56,6 +89,7 @@ void MysqlConnection::ensure_conn() {
 }
 
 void MysqlConnection::teardown_transport() {
+    probe_outstanding_work(io_ctx_, this, "teardown-enter");
     if (cancel_signal_) {
         cancel_signal_->emit(boost::asio::cancellation_type::all);
     }
@@ -73,12 +107,14 @@ void MysqlConnection::teardown_transport() {
             }
         }
     }
+    probe_outstanding_work(io_ctx_, this, op_in_progress_ ? "teardown-cancel-wait-timed-out" : "teardown-op-completed");
 
     // Transport-level close via destructor (no blocking COM_QUIT / close()).
     // Socket close posts IOCP completions; drain them so ~io_context does not
     // wait forever on GetQueuedCompletionStatus(INFINITE).
     conn_.reset();
     drain_iocp();
+    probe_outstanding_work(io_ctx_, this, "teardown-after-conn-reset");
     if (!io_ctx_.stopped()) {
         io_ctx_.stop();
     }
@@ -358,6 +394,7 @@ void MysqlConnection::tick() {
                 cancel_signal_->emit(boost::asio::cancellation_type::all);
             }
             pending_connect_ = true;
+            probe_outstanding_work(io_ctx_, this, "tick-connect-timeout-cancelled");
         }
     }
 
@@ -371,6 +408,7 @@ void MysqlConnection::tick() {
 
     // Handle pending connection result
     if (pending_connect_) {
+        probe_outstanding_work(io_ctx_, this, "tick-before-connect-dispatch");
         pending_connect_ = false;
         if (!pending_connect_err_.empty()) {
             dispatch_connect(pending_connect_err_.c_str());
