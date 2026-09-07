@@ -34,7 +34,9 @@ MysqlConnection::MysqlConnection() {
 }
 
 MysqlConnection::~MysqlConnection() {
+    fprintf(stderr, "[MYSQL_DEBUG] ~MysqlConnection() start\n"); fflush(stderr);
     close();
+    fprintf(stderr, "[MYSQL_DEBUG] ~MysqlConnection() done\n"); fflush(stderr);
 }
 
 void MysqlConnection::drain_iocp() {
@@ -43,8 +45,11 @@ void MysqlConnection::drain_iocp() {
     }
     // Windows ~io_context waits until outstanding_work == 0. There is no discard
     // API; poll() only reaps already-queued IOCP packets so the destructor can return.
+    int drained = 0;
     while (io_ctx_.poll() != 0) {
+        ++drained;
     }
+    fprintf(stderr, "[MYSQL_DEBUG] drain_iocp drained %d events\n", drained); fflush(stderr);
 }
 
 void MysqlConnection::ensure_conn() {
@@ -54,6 +59,7 @@ void MysqlConnection::ensure_conn() {
 }
 
 void MysqlConnection::teardown_transport() {
+    fprintf(stderr, "[MYSQL_DEBUG] teardown_transport start: op_in_progress=%d\n", op_in_progress_ ? 1 : 0); fflush(stderr);
     if (cancel_signal_) {
         cancel_signal_->emit(boost::asio::cancellation_type::all);
     }
@@ -72,16 +78,19 @@ void MysqlConnection::teardown_transport() {
                 }
             }
         }
+        fprintf(stderr, "[MYSQL_DEBUG] in-flight ops drained, op_in_progress=%d\n", op_in_progress_ ? 1 : 0); fflush(stderr);
     }
 
     // Transport-level close via destructor (no blocking COM_QUIT). Socket close
     // posts IOCP completions; drain them so ~io_context does not hang on Windows.
     conn_.reset();
+    fprintf(stderr, "[MYSQL_DEBUG] conn_.reset() done\n"); fflush(stderr);
     drain_iocp();
     io_ctx_.stop();
     cancel_signal_.reset();
     op_in_progress_ = false;
     ready_ = false;
+    fprintf(stderr, "[MYSQL_DEBUG] teardown_transport exit\n"); fflush(stderr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

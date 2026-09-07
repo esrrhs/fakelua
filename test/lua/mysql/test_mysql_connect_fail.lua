@@ -40,8 +40,10 @@ function test_connect_fail()
 end
 
 function on_connect_and_close(conn, err, success)
+    print("[LUA_DEBUG] on_connect_and_close callback triggered, calling conn:close()...")
     conn.closed_ok = true
     conn:close()
+    print("[LUA_DEBUG] on_connect_and_close: conn:close() returned")
 end
 
 function test_close_in_connect_cb()
@@ -53,15 +55,20 @@ function test_close_in_connect_cb()
     config["db"] = "test"
     config["timeout_ms"] = 1000
 
+    print("[LUA_DEBUG] test_close_in_connect_cb: starting mysql.connect...")
     local conn = mysql.connect(config, "on_connect_and_close")
     for i = 1, 1500 do
         conn:tick()
-        if conn.closed_ok then break end
+        if conn.closed_ok then
+            print("[LUA_DEBUG] test_close_in_connect_cb: observed closed_ok at iteration " .. tostring(i))
+            break
+        end
         os.sleep(1)
     end
     if not conn.closed_ok then
-        print("close-in-callback never ran")
+        print("[LUA_DEBUG] close-in-callback never ran")
         return 0
     end
+    print("[LUA_DEBUG] test_close_in_connect_cb returning 1")
     return 1
 end

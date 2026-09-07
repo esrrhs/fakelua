@@ -105,9 +105,12 @@ static void maybe_release_owned_conn(NativeObject *self) {
     if (self->GetInt("__mysql_owned__", 0) == 0) return;
     auto *conn = unwrap_conn_native(self);
     if (!conn || conn->tick_depth() > 0 || !conn->close_pending()) return;
+    fprintf(stderr, "[MYSQL_DEBUG] maybe_release_owned_conn: calling conn->close()\n"); fflush(stderr);
     conn->close();
+    fprintf(stderr, "[MYSQL_DEBUG] maybe_release_owned_conn: calling delete conn\n"); fflush(stderr);
     delete conn;
     self->SetInt("__mysql_conn__", 0);
+    fprintf(stderr, "[MYSQL_DEBUG] maybe_release_owned_conn: done\n"); fflush(stderr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
