@@ -106,8 +106,6 @@ static void maybe_release_owned_conn(NativeObject *self) {
     auto *conn = unwrap_conn_native(self);
     if (!conn || conn->tick_depth() > 0 || !conn->close_pending()) return;
     conn->close();
-    self->SetInt("__mysql_conn__", 0);
-    delete conn;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -230,7 +228,7 @@ CVar conn_query(NativeObject *self, State *s, CVar *args, int n) {
     std::string cb_name = cvar_to_string(a1);
 
     auto *conn = unwrap_conn_native(self);
-    if (!conn) error("conn:query: connection is closed");
+    if (!conn || !conn->connected()) error("conn:query: connection is closed");
 
     conn->set_state(s);
     conn->set_result_callback(cb_name);
@@ -253,7 +251,7 @@ CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n) {
     std::string cb_name = cvar_to_string(a1);
 
     auto *conn = unwrap_conn_native(self);
-    if (!conn) error("conn:stmt_prepare: connection is closed");
+    if (!conn || !conn->connected()) error("conn:stmt_prepare: connection is closed");
 
     conn->set_state(s);
     conn->set_result_callback(cb_name);
@@ -310,7 +308,7 @@ CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
     }
 
     auto *conn = unwrap_conn_native(self);
-    if (!conn) error("conn:stmt_execute: connection is closed");
+    if (!conn || !conn->connected()) error("conn:stmt_execute: connection is closed");
 
     conn->set_state(s);
     conn->set_result_callback(cb_name);
@@ -330,7 +328,7 @@ CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n) {
     uint32_t stmt_id = static_cast<uint32_t>(inter::CVarToInteger(a0, 0));
 
     auto *conn = unwrap_conn_native(self);
-    if (!conn) return inter::NativeToFakeluaNil(s);
+    if (!conn || !conn->connected()) return inter::NativeToFakeluaNil(s);
 
     conn->stmt_close(stmt_id);
     maybe_release_owned_conn(self);
@@ -366,8 +364,6 @@ CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
             return inter::NativeToFakeluaNil(s);
         }
         conn->close();
-        self->SetInt("__mysql_conn__", 0);
-        delete conn;
     }
     return inter::NativeToFakeluaNil(s);
 }
@@ -378,7 +374,7 @@ CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
 
 CVar conn_ping(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *conn = unwrap_conn_native(self);
-    if (!conn) return inter::NativeToFakeluaBool(s, false);
+    if (!conn || !conn->connected()) return inter::NativeToFakeluaBool(s, false);
     bool sent = conn->ping();
     return inter::NativeToFakeluaBool(s, sent);
 }

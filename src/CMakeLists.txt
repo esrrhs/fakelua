@@ -268,7 +268,7 @@ endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
 if (WIN32)
-    add_compile_definitions(WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS BOOST_ASIO_DISABLE_CONNECTEX)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS)
 endif()
 
 # OpenSSL must be resolved before Boost: Boost.MySQL's CMake disables itself
