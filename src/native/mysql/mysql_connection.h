@@ -127,6 +127,9 @@ private:
     // Boost.MySQL connection (modern any_connection API)
     boost::mysql::any_connection conn_;
 
+    // Cancellation signal to abort in-flight async operations on close
+    std::unique_ptr<boost::asio::cancellation_signal> cancel_signal_;
+
     // State tracking
     enum class State { Idle, Connecting, Handshaking, Ready, Querying, Error };
     State state_ = State::Idle;

@@ -8,6 +8,9 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <thread>
+
+#include <boost/asio/bind_cancellation_slot.hpp>
 
 namespace fakelua::mysql {
 
@@ -77,20 +80,24 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     pending_connect_params_->multi_queries = true;  // preserve legacy multi-statement behavior
 
     // Start asynchronous connect
-    conn_.async_connect(*pending_connect_params_, async_diag_, [this](boost::mysql::error_code ec) {
-        pending_connect_params_.reset();
-        if (ec) {
-            // Prefix a stable English token: Boost.Asio's ec.message() is
-            // localized on Windows (e.g. WSAECONNREFUSED -> 中文系统文案).
-            pending_connect_err_ = "connect failed: " + ec.message();
-            state_ = State::Error;
-            pending_connect_ = true;
-            return;
-        }
-        state_ = State::Ready;
-        ready_ = true;
-        pending_connect_ = true;
-    });
+    cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    conn_.async_connect(*pending_connect_params_, async_diag_,
+        boost::asio::bind_cancellation_slot(
+            cancel_signal_->slot(),
+            [this](boost::mysql::error_code ec) {
+                pending_connect_params_.reset();
+                if (ec) {
+                    // Prefix a stable English token: Boost.Asio's ec.message() is
+                    // localized on Windows (e.g. WSAECONNREFUSED -> 中文系统文案).
+                    pending_connect_err_ = "connect failed: " + ec.message();
+                    state_ = State::Error;
+                    pending_connect_ = true;
+                    return;
+                }
+                state_ = State::Ready;
+                ready_ = true;
+                pending_connect_ = true;
+            }));
 }
 
 void MysqlConnection::query(const std::string &sql) {
@@ -105,19 +112,22 @@ void MysqlConnection::query(const std::string &sql) {
     query_type_ = QueryType::Query;
 
     // Execute query asynchronously (with diagnostics for error reporting)
+    cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
     conn_.async_execute(sql, pending_result_data_,
-                        [this](boost::mysql::error_code err) {
-                            if (err) {
-                                pending_result_err_ = err.message();
-                                pending_result_data_ = {};
+                        boost::asio::bind_cancellation_slot(
+                            cancel_signal_->slot(),
+                            [this](boost::mysql::error_code err) {
+                                if (err) {
+                                    pending_result_err_ = err.message();
+                                    pending_result_data_ = {};
+                                    pending_result_ = true;
+                                    state_ = State::Ready;
+                                    return;
+                                }
+                                pending_result_err_.clear();
                                 pending_result_ = true;
                                 state_ = State::Ready;
-                                return;
-                            }
-                            pending_result_err_.clear();
-                            pending_result_ = true;
-                            state_ = State::Ready;
-                        });
+                            }));
 }
 
 void MysqlConnection::stmt_prepare(const std::string &sql) {
@@ -131,27 +141,31 @@ void MysqlConnection::stmt_prepare(const std::string &sql) {
     query_type_ = QueryType::StmtPrepare;
 
     // Prepare statement asynchronously
-    conn_.async_prepare_statement(sql, [this](boost::mysql::error_code err, boost::mysql::statement stmt) {
-        if (err) {
-            pending_result_err_ = err.message();
-            pending_result_data_ = {};
-            pending_result_ = true;
-            state_ = State::Ready;
-            return;
-        }
+    cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    conn_.async_prepare_statement(sql,
+        boost::asio::bind_cancellation_slot(
+            cancel_signal_->slot(),
+            [this](boost::mysql::error_code err, boost::mysql::statement stmt) {
+                if (err) {
+                    pending_result_err_ = err.message();
+                    pending_result_data_ = {};
+                    pending_result_ = true;
+                    state_ = State::Ready;
+                    return;
+                }
 
-        // Allocate a Lua-side statement ID and remember the boost statement.
-        uint32_t stmt_id = next_stmt_id_++;
-        prepared_statements_[stmt_id] = std::move(stmt);
+                // Allocate a Lua-side statement ID and remember the boost statement.
+                uint32_t stmt_id = next_stmt_id_++;
+                prepared_statements_[stmt_id] = std::move(stmt);
 
-        // Build a results-shaped reply that carries the statement id.
-        pending_stmt_id_ = stmt_id;
-        has_pending_stmt_id_ = true;
-        pending_result_data_ = {};
-        pending_result_err_.clear();
-        pending_result_ = true;
-        state_ = State::Ready;
-    });
+                // Build a results-shaped reply that carries the statement id.
+                pending_stmt_id_ = stmt_id;
+                has_pending_stmt_id_ = true;
+                pending_result_data_ = {};
+                pending_result_err_.clear();
+                pending_result_ = true;
+                state_ = State::Ready;
+            }));
 }
 
 void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam> &params) {
@@ -185,21 +199,24 @@ void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam
         }
     }
 
+    cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
     conn_.async_execute(it->second.bind(pending_stmt_fields_.begin(), pending_stmt_fields_.end()),
                         pending_result_data_,
-                        [this](boost::mysql::error_code err) {
-                            pending_stmt_fields_.clear();
-                            if (err) {
-                                pending_result_err_ = err.message();
-                                pending_result_data_ = {};
+                        boost::asio::bind_cancellation_slot(
+                            cancel_signal_->slot(),
+                            [this](boost::mysql::error_code err) {
+                                pending_stmt_fields_.clear();
+                                if (err) {
+                                    pending_result_err_ = err.message();
+                                    pending_result_data_ = {};
+                                    pending_result_ = true;
+                                    state_ = State::Ready;
+                                    return;
+                                }
+                                pending_result_err_.clear();
                                 pending_result_ = true;
                                 state_ = State::Ready;
-                                return;
-                            }
-                            pending_result_err_.clear();
-                            pending_result_ = true;
-                            state_ = State::Ready;
-                        });
+                            }));
 }
 
 void MysqlConnection::stmt_close(uint32_t stmt_id) {
@@ -232,16 +249,19 @@ bool MysqlConnection::ping() {
     if (close_pending_) return false;
     if (state_ != State::Ready || !ready_) return false;
 
-    conn_.async_ping([this](boost::mysql::error_code err) {
-        if (err) {
-            pending_result_err_ = err.message();
-            pending_result_ = true;
-            state_ = State::Error;
-        } else {
-            pending_result_ = true;
-            state_ = State::Ready;
-        }
-    });
+    cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    conn_.async_ping(boost::asio::bind_cancellation_slot(
+        cancel_signal_->slot(),
+        [this](boost::mysql::error_code err) {
+            if (err) {
+                pending_result_err_ = err.message();
+                pending_result_ = true;
+                state_ = State::Error;
+            } else {
+                pending_result_ = true;
+                state_ = State::Ready;
+            }
+        }));
 
     return true;
 }
@@ -250,6 +270,10 @@ void MysqlConnection::close() {
     if (state_ == State::Idle && !ready_ && prepared_statements_.empty()) {
         // already closed
         return;
+    }
+
+    if (cancel_signal_) {
+        cancel_signal_->emit(boost::asio::cancellation_type::all);
     }
 
     // Only attempt clean protocol-level close if the connection was actually established.
@@ -264,11 +288,14 @@ void MysqlConnection::close() {
         }
     }
 
-    io_ctx_.stop();
     io_ctx_.poll();
+    io_ctx_.stop();
+    io_ctx_.restart();
 
     state_ = State::Idle;
     ready_ = false;
+    pending_connect_ = false;
+    pending_result_ = false;
     pending_results_.clear();
     prepared_statements_.clear();
     next_stmt_id_ = 1;
@@ -298,11 +325,11 @@ void MysqlConnection::tick() {
 
     // Process all ready async operations by running io_context.
     // poll() handles currently-ready handlers. If an async operation is in progress,
-    // wait up to 1ms (matching net::TcpClient's 1ms wait_timeout_ms) so tight Lua loops
-    // don't starve async I/O.
+    // wait 1ms so tight Lua loops don't starve async I/O.
     io_ctx_.poll();
     if (!pending_connect_ && !pending_result_ && (state_ == State::Connecting || state_ == State::Querying)) {
-        io_ctx_.run_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        io_ctx_.poll();
     }
 
     // Handle pending connection result
