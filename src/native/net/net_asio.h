@@ -14,6 +14,9 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifndef BOOST_ASIO_DISABLE_CONNECTEX
+#define BOOST_ASIO_DISABLE_CONNECTEX
+#endif
 #endif
 
 #include "native/net/net_buffer.h"

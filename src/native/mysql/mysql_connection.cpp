@@ -34,23 +34,19 @@ MysqlConnection::MysqlConnection() {
 }
 
 MysqlConnection::~MysqlConnection() {
-    fprintf(stderr, "[DEBUG_CONN] ~MysqlConnection start\n"); fflush(stderr);
     close();
-    fprintf(stderr, "[DEBUG_CONN] ~MysqlConnection after close, before io_ctx_.stop\n"); fflush(stderr);
     io_ctx_.stop();
-    fprintf(stderr, "[DEBUG_CONN] ~MysqlConnection done\n"); fflush(stderr);
 }
 
 void MysqlConnection::drain_iocp() {
-    fprintf(stderr, "[DEBUG_CONN] drain_iocp start\n"); fflush(stderr);
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 8; ++i) {
         if (io_ctx_.stopped()) {
             io_ctx_.restart();
         }
-        while (io_ctx_.poll() != 0) {}
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (io_ctx_.poll() == 0) {
+            break;
+        }
     }
-    fprintf(stderr, "[DEBUG_CONN] drain_iocp done\n"); fflush(stderr);
 }
 
 void MysqlConnection::ensure_conn() {
@@ -60,15 +56,14 @@ void MysqlConnection::ensure_conn() {
 }
 
 void MysqlConnection::teardown_transport() {
-    fprintf(stderr, "[DEBUG_CONN] teardown_transport start op_in_progress=%d\n", op_in_progress_ ? 1 : 0); fflush(stderr);
     if (cancel_signal_) {
         cancel_signal_->emit(boost::asio::cancellation_type::all);
     }
 
-    // Drain any in-flight async operations WHILE conn_ is still alive so that
-    // completion handlers (and Boost.MySQL internal algos) do not touch freed memory.
+    // Drain in-flight async ops WHILE conn_ is still alive so Boost.MySQL
+    // completion handlers do not touch freed memory.
     if (op_in_progress_) {
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
         while (op_in_progress_ && std::chrono::steady_clock::now() < deadline) {
             if (io_ctx_.stopped()) {
                 io_ctx_.restart();
@@ -77,19 +72,20 @@ void MysqlConnection::teardown_transport() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
         }
-        fprintf(stderr, "[DEBUG_CONN] in-flight ops drained, op_in_progress=%d\n", op_in_progress_ ? 1 : 0); fflush(stderr);
     }
 
-    // Transport-level close via destructor (no blocking COM_QUIT). Socket close
-    // posts IOCP completions; drain them so ~io_context does not hang on Windows.
-    fprintf(stderr, "[DEBUG_CONN] before conn_.reset\n"); fflush(stderr);
+    // Transport-level close via destructor (no blocking COM_QUIT / close()).
+    // Socket close posts IOCP completions; drain them so ~io_context does not
+    // wait forever on GetQueuedCompletionStatus(INFINITE).
     conn_.reset();
-    fprintf(stderr, "[DEBUG_CONN] after conn_.reset, calling drain_iocp\n"); fflush(stderr);
     drain_iocp();
+    if (!io_ctx_.stopped()) {
+        io_ctx_.stop();
+    }
+    io_ctx_.restart();
     cancel_signal_.reset();
     op_in_progress_ = false;
     ready_ = false;
-    fprintf(stderr, "[DEBUG_CONN] teardown_transport done\n"); fflush(stderr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,13 +106,13 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     pending_connect_err_.clear();
     pending_connect_ = false;
     close_pending_ = false;
-    state_ = State::Connecting;
 
     if (ready_ || op_in_progress_) {
         teardown_transport();
     }
     ensure_conn();
     ready_ = false;
+    state_ = State::Connecting;
     if (io_ctx_.stopped()) {
         io_ctx_.restart();
     }
@@ -298,16 +294,9 @@ void MysqlConnection::stmt_close(uint32_t stmt_id) {
         return;
     }
 
-    // Close server-side statement. Note: this is synchronous; the legacy
-    // implementation also did not network-roundtrip here.
-    boost::mysql::statement stmt = std::move(it->second);
+    // Drop the local handle only. close_statement() is synchronous and waits
+    // on the same IOCP that tick() poll()s, which deadlocks on Windows.
     prepared_statements_.erase(it);
-    boost::mysql::error_code ec;
-    boost::mysql::diagnostics diag;
-    conn_->close_statement(stmt, ec, diag);
-    if (ec) {
-        LOG_DEBUG("mysql", "close_statement error: {}", ec.message());
-    }
 }
 
 bool MysqlConnection::ping() {
@@ -356,12 +345,18 @@ void MysqlConnection::tick() {
     if (tick_depth_ > 0) return;
     TickDepthGuard guard(tick_depth_);
 
-    // Handle connection timeout
+    // Handle connection timeout. Cancel only — do not teardown on the tick
+    // stack. Destroying any_connection while ConnectEx is in-flight makes
+    // Windows ~io_context wait forever on IOCP.
     if (state_ == State::Connecting && timeout_ms_ > 0) {
         if (now_ms() - connect_start_ms_ >= static_cast<int64_t>(timeout_ms_)) {
-            pending_connect_err_ = "connect timeout";
+            if (pending_connect_err_.empty()) {
+                pending_connect_err_ = "connect timeout";
+            }
             state_ = State::Error;
-            close();
+            if (cancel_signal_) {
+                cancel_signal_->emit(boost::asio::cancellation_type::all);
+            }
             pending_connect_ = true;
         }
     }

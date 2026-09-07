@@ -35,6 +35,10 @@ endif ()
 IF (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
+    # Keep IOCP (AcceptEx/mswsock). Disable ConnectEx only: overlapped connect
+    # cannot be cancelled on MinGW IOCP, and ~io_context then waits forever on
+    # GetQueuedCompletionStatus(INFINITE).
+    add_compile_definitions(BOOST_ASIO_DISABLE_CONNECTEX)
 ELSEIF (APPLE)
     if (USE_COV)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -Wno-non-pod-varargs")
