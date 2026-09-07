@@ -121,9 +121,7 @@ public:
     void request_close();
 
 private:
-    // Boost.Asio I/O context for asynchronous operations.
-    // No work_guard: tick() drives the context with poll()/run_for(). A guard
-    // would make blocking close()/run() hang forever on Windows.
+    // Boost.Asio I/O context for asynchronous operations
     boost::asio::io_context io_ctx_;
 
     // Boost.MySQL connection (modern any_connection API)
@@ -202,9 +200,6 @@ private:
     // Helpers
     void dispatch_connect(const char *err_msg);
     void dispatch_result(const boost::mysql::results &result, const char *err_msg);
-    // Drop the current stream and reap IOCP completions. Never use blocking
-    // any_connection::close() on the tick thread — it deadlocks Windows IOCP.
-    void reset_stream();
     void set_error(MysqlErrorType type, uint16_t code,
                    const std::string &msg, const std::string &sql_state);
 

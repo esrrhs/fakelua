@@ -49,15 +49,19 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     database_ = database;
     timeout_ms_ = timeout_ms;
     connect_start_ms_ = now_ms();
-
-    // Drop any prior session first, then install Connecting state so cancelled
-    // IOCP handlers from reset_stream cannot overwrite the new attempt.
-    reset_stream();
     pending_connect_err_.clear();
     pending_connect_ = false;
     close_pending_ = false;
     state_ = State::Connecting;
+
+    // Reset connection state
+    if (ready_) {
+        boost::mysql::error_code ec;
+        boost::mysql::diagnostics diag;
+        conn_.close(ec, diag);
+    }
     ready_ = false;
+    io_ctx_.restart();
     pending_results_.clear();
     prepared_statements_.clear();
     next_stmt_id_ = 1;
@@ -242,28 +246,29 @@ bool MysqlConnection::ping() {
     return true;
 }
 
-void MysqlConnection::reset_stream() {
-    // Destroying any_connection closes the socket (transport-level), which
-    // cancels overlapped ops on IOCP. poll() then reaps those completions so
-    // io_context::shutdown() does not wait forever.
-    conn_ = boost::mysql::any_connection(io_ctx_);
-    io_ctx_.poll();
-    io_ctx_.stop();
-    io_ctx_.restart();
-}
-
 void MysqlConnection::close() {
     if (state_ == State::Idle && !ready_ && prepared_statements_.empty()) {
         // already closed
         return;
     }
 
-    reset_stream();
+    // Only attempt clean protocol-level close if the connection was actually established.
+    // Calling conn_.close() on an unestablished or failed connection attempts transport
+    // shutdown on an invalid stream state, which can hang on Windows IOCP.
+    if (ready_) {
+        boost::mysql::error_code ec;
+        boost::mysql::diagnostics diag;
+        conn_.close(ec, diag);
+        if (ec) {
+            LOG_DEBUG("mysql", "Error closing connection: {}", ec.message());
+        }
+    }
+
+    io_ctx_.stop();
+    io_ctx_.poll();
 
     state_ = State::Idle;
     ready_ = false;
-    pending_connect_ = false;
-    pending_result_ = false;
     pending_results_.clear();
     prepared_statements_.clear();
     next_stmt_id_ = 1;
