@@ -183,6 +183,7 @@ private:
 
     // Connection state
     bool ready_ = false;
+    bool op_in_progress_ = false;
     int tick_depth_ = 0;
     bool close_pending_ = false;
 

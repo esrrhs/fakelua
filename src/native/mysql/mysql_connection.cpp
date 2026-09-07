@@ -8,6 +8,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 #include <boost/asio/bind_cancellation_slot.hpp>
 
@@ -80,15 +81,19 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
 
     // Start asynchronous connect
     cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    op_in_progress_ = true;
     conn_.async_connect(*pending_connect_params_, async_diag_,
         boost::asio::bind_cancellation_slot(
             cancel_signal_->slot(),
             [this](boost::mysql::error_code ec) {
+                op_in_progress_ = false;
                 pending_connect_params_.reset();
                 if (ec) {
                     // Prefix a stable English token: Boost.Asio's ec.message() is
                     // localized on Windows (e.g. WSAECONNREFUSED -> 中文系统文案).
-                    pending_connect_err_ = "connect failed: " + ec.message();
+                    if (pending_connect_err_.empty()) {
+                        pending_connect_err_ = "connect failed: " + ec.message();
+                    }
                     state_ = State::Error;
                     pending_connect_ = true;
                     return;
@@ -112,10 +117,12 @@ void MysqlConnection::query(const std::string &sql) {
 
     // Execute query asynchronously (with diagnostics for error reporting)
     cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    op_in_progress_ = true;
     conn_.async_execute(sql, pending_result_data_,
                         boost::asio::bind_cancellation_slot(
                             cancel_signal_->slot(),
                             [this](boost::mysql::error_code err) {
+                                op_in_progress_ = false;
                                 if (err) {
                                     pending_result_err_ = err.message();
                                     pending_result_data_ = {};
@@ -141,10 +148,12 @@ void MysqlConnection::stmt_prepare(const std::string &sql) {
 
     // Prepare statement asynchronously
     cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    op_in_progress_ = true;
     conn_.async_prepare_statement(sql,
         boost::asio::bind_cancellation_slot(
             cancel_signal_->slot(),
             [this](boost::mysql::error_code err, boost::mysql::statement stmt) {
+                op_in_progress_ = false;
                 if (err) {
                     pending_result_err_ = err.message();
                     pending_result_data_ = {};
@@ -199,11 +208,13 @@ void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam
     }
 
     cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    op_in_progress_ = true;
     conn_.async_execute(it->second.bind(pending_stmt_fields_.begin(), pending_stmt_fields_.end()),
                         pending_result_data_,
                         boost::asio::bind_cancellation_slot(
                             cancel_signal_->slot(),
                             [this](boost::mysql::error_code err) {
+                                op_in_progress_ = false;
                                 pending_stmt_fields_.clear();
                                 if (err) {
                                     pending_result_err_ = err.message();
@@ -249,9 +260,11 @@ bool MysqlConnection::ping() {
     if (state_ != State::Ready || !ready_) return false;
 
     cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    op_in_progress_ = true;
     conn_.async_ping(boost::asio::bind_cancellation_slot(
         cancel_signal_->slot(),
         [this](boost::mysql::error_code err) {
+            op_in_progress_ = false;
             if (err) {
                 pending_result_err_ = err.message();
                 pending_result_ = true;
@@ -266,13 +279,28 @@ bool MysqlConnection::ping() {
 }
 
 void MysqlConnection::close() {
-    if (state_ == State::Idle && !ready_ && prepared_statements_.empty()) {
+    if (state_ == State::Idle && !ready_ && prepared_statements_.empty() && !op_in_progress_) {
         // already closed
         return;
     }
 
     if (cancel_signal_) {
         cancel_signal_->emit(boost::asio::cancellation_type::all);
+    }
+
+    // Drain any in-flight async operations so Asio/IOCP outstanding_work reaches 0.
+    // On Windows IOCP, destroying an io_context with outstanding work causes
+    // win_iocp_io_context::shutdown() to hang infinitely in GetQueuedCompletionStatus.
+    if (op_in_progress_) {
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+        while (op_in_progress_ && std::chrono::steady_clock::now() < deadline) {
+            if (io_ctx_.stopped()) {
+                io_ctx_.restart();
+            }
+            if (io_ctx_.run_one_for(std::chrono::milliseconds(10)) == 0) {
+                std::this_thread::yield();
+            }
+        }
     }
 
     // Only attempt clean protocol-level close if the connection was actually established.
@@ -287,9 +315,10 @@ void MysqlConnection::close() {
         }
     }
 
+    if (io_ctx_.stopped()) {
+        io_ctx_.restart();
+    }
     io_ctx_.poll();
-    io_ctx_.stop();
-    io_ctx_.restart();
 
     state_ = State::Idle;
     ready_ = false;

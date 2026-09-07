@@ -293,6 +293,7 @@ void TcpServer::stop() {
     conns_.clear();
     events_.clear();
 
+    ioc_.poll();
     ioc_.stop();
     ioc_.restart();
 }
@@ -386,11 +387,13 @@ void TcpClient::connect() {
 
 void TcpClient::disconnect() {
     connecting_ = false;
+    resolver_.cancel();
     if (conn_) {
         conn_->close(/*notify_sink=*/false);
         conn_.reset();
     }
     events_.clear();
+    ioc_.poll();
     ioc_.stop();
     ioc_.restart();
 }
