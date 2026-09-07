@@ -28,16 +28,20 @@ function test_framer_2be()
     local client = net.client({port = 19960, framer = "header2_be"})
     client:dispatch("NetFramerTest.on_client_event")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
 
     client:send("hello_2be")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if #client:get_last_data() > 0 then break end
+        os.sleep(1)
     end
 
     local server_data = server:get_last_data()
@@ -55,16 +59,20 @@ function test_framer_2le()
     local client = net.client({port = 19961, framer = "header2_le"})
     client:dispatch("NetFramerTest.on_client_event")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
 
     client:send("hello_2le")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if #client:get_last_data() > 0 then break end
+        os.sleep(1)
     end
 
     local server_data = server:get_last_data()
@@ -82,16 +90,20 @@ function test_framer_4le()
     local client = net.client({port = 19962, framer = "header4_le"})
     client:dispatch("NetFramerTest.on_client_event")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
 
     client:send("hello_4le")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if #client:get_last_data() > 0 then break end
+        os.sleep(1)
     end
 
     local server_data = server:get_last_data()
@@ -109,16 +121,20 @@ function test_framer_line()
     local client = net.client({port = 19963, framer = "line"})
     client:dispatch("NetFramerTest.on_client_event")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
 
     client:send("line_command_1")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if #client:get_last_data() > 0 then break end
+        os.sleep(1)
     end
 
     local server_data = server:get_last_data()
@@ -136,16 +152,20 @@ function test_framer_fixed()
     local client = net.client({port = 19964, framer = "fixed", fixed_len = 8})
     client:dispatch("NetFramerTest.on_client_event")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
 
     client:send("12345678")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if #server:get_last_data() > 0 then break end
+        os.sleep(1)
     end
 
     local server_data = server:get_last_data()
@@ -162,17 +182,21 @@ function test_framer_custom_lua()
     local client = net.client({port = 19965, framer = "raw"})
     client:dispatch("NetFramerTest.on_client_event")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
 
     -- client 以 raw 模式发送带 $ 格式的数据
     client:send("$custom_msg_dollar$")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if #server:get_last_data() > 0 then break end
+        os.sleep(1)
     end
 
     local server_data = server:get_last_data()

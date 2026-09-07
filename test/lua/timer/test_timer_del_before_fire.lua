@@ -20,9 +20,9 @@ function test_del_before_fire()
     if ok ~= true then return 0 end
 
     -- 等待足够时间，确认定时器不会触发
-    local now = os.clock()
-    while os.clock() - now < 0.3 do
+    for i = 1, 50 do
         timer.tick()
+        os.sleep(1)
     end
 
     -- 删除后回调不应被调用

@@ -22,6 +22,7 @@ function test_heartbeat_nested()
         if obj:get_int("hb_count") >= 1 then
             break
         end
+        os.sleep(1)
     end
 
     local count = obj:get_int("hb_count")

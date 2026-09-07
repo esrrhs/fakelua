@@ -27,6 +27,7 @@ function test_multiple_timers_order()
         if obj:get_int("count") >= 3 then
             break
         end
+        os.sleep(1)
     end
 
     -- 验证 3 个回调都被调用

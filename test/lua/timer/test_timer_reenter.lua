@@ -25,6 +25,7 @@ function test_reenter()
         if obj:get_int("count") >= 2 then
             break
         end
+        os.sleep(1)
     end
 
     if obj:get_int("count") ~= 2 then return 0 end

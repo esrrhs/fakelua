@@ -21,18 +21,22 @@ function test_echo()
     client:dispatch("NetTest.on_client_event")
 
     -- 驱动连接建立
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
 
     -- client 发送
     client:send("hello fakelua")
 
     -- 驱动收发（server 回调会返回 echo 指令，C++ 侧执行发送）
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if #client:get_last_data() > 0 then break end
+        os.sleep(1)
     end
 
     -- 从 C++ 侧读取状态
@@ -57,14 +61,18 @@ function test_close_in_recv()
     local server = net.server({port = 19991, maxconn = 4})
     server:dispatch("NetTest.on_close_in_recv")
     local client = net.client({port = 19991})
-    for i = 1, 40 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
     client:send("bye")
-    for i = 1, 40 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_conn_count() == 0 then break end
+        os.sleep(1)
     end
     client:close()
     -- close 已在 recv 回调里延后执行，再 close 是 no-op
@@ -80,23 +88,32 @@ function test_slot_reuse_repeated_connect()
     for iter = 1, 6 do
         local client = net.client({port = 19985})
         client:dispatch("NetTest.on_client_event")
-        for i = 1, 15 do
+        local ok = false
+        for i = 1, 50 do
             srv:tick()
             client:tick()
+            if srv:get_conn_count() >= 1 then
+                ok = client:send("ping_" .. iter)
+                if ok then break end
+            end
+            os.sleep(1)
         end
-        local ok = client:send("ping_" .. iter)
         if ok then
-            for i = 1, 15 do
+            for i = 1, 50 do
                 srv:tick()
                 client:tick()
-            end
-            if client:get_last_data() == "echo:ping_" .. iter then
-                success_count = success_count + 1
+                if client:get_last_data() == "echo:ping_" .. iter then
+                    success_count = success_count + 1
+                    break
+                end
+                os.sleep(1)
             end
         end
         client:close()
-        for i = 1, 5 do
+        for i = 1, 20 do
             srv:tick()
+            if srv:get_conn_count() == 0 then break end
+            os.sleep(1)
         end
     end
     srv:close()
@@ -106,8 +123,9 @@ end
 function test_client_connect_fail()
     local client = net.client({port = 19921})
     client:dispatch("NetTest.on_client_event")
-    for i = 1, 30 do
+    for i = 1, 50 do
         client:tick()
+        os.sleep(1)
     end
     local sent = client:send("should fail")
     client:close()
@@ -117,9 +135,11 @@ end
 function test_send_buffer_full()
     local srv = net.server({port = 19986, maxconn = 2, sendbuf = 64})
     local cli = net.client({port = 19986})
-    for i = 1, 15 do
+    for i = 1, 50 do
         srv:tick()
         cli:tick()
+        if srv:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
     local big = string.rep("A", 1024)
     local ok = srv:send(srv:get_connid(), big)

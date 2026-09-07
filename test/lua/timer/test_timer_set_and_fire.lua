@@ -25,6 +25,7 @@ function test_set_and_fire()
         if obj:get_int("count") > 0 then
             break
         end
+        os.sleep(1)
     end
 
     -- 验证回调确实被调用了一次

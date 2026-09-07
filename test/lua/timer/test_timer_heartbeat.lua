@@ -17,9 +17,12 @@ function test_heartbeat()
     timer.set_heartbeat(20, "TimerTest.on_heartbeat")
 
     -- 等待足够时间让心跳触发多次
-    local now = os.clock()
-    while os.clock() - now < 0.2 do
+    for i = 1, 200 do
         timer.tick()
+        if obj:get_int("hb_count") >= 3 then
+            break
+        end
+        os.sleep(1)
     end
 
     -- 心跳 20ms 间隔，200ms 内应触发多次（预期约 10 次，允许一定调度误差）

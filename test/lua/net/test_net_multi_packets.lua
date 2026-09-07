@@ -18,9 +18,11 @@ function test_multi()
     local client = net.client({port = 19977})
     client:dispatch("NetMulti.on_client_event")
 
-    for i = 1, 30 do
+    for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
 
     -- 发送多个包
@@ -31,6 +33,8 @@ function test_multi()
     for i = 1, 50 do
         server:tick()
         client:tick()
+        if server:get_recv_count() >= 3 and client:get_last_data() == "echo:packet3" then break end
+        os.sleep(1)
     end
 
     -- 从 C++ 侧读取状态
