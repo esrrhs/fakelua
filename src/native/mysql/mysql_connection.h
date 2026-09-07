@@ -7,6 +7,9 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifndef BOOST_ASIO_DISABLE_IOCP
+#define BOOST_ASIO_DISABLE_IOCP
+#endif
 #endif
 
 #include <boost/mysql.hpp>

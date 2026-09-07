@@ -10,6 +10,15 @@
 // - 连接槽自动回收：连接关闭时自动重置 slot，彻底解决连接池泄漏和 DoS 风险。
 // - 幂等 close 控制：杜绝 duplicate Close 事件风暴。
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef BOOST_ASIO_DISABLE_IOCP
+#define BOOST_ASIO_DISABLE_IOCP
+#endif
+#endif
+
 #include "native/net/net_buffer.h"
 #include "native/net/net_common.h"
 #include "native/net/net_websocket.h"

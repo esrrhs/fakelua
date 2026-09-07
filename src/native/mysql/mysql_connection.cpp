@@ -78,6 +78,7 @@ void MysqlConnection::teardown_transport() {
     // posts IOCP completions; drain them so ~io_context does not hang on Windows.
     conn_.reset();
     drain_iocp();
+    io_ctx_.stop();
     cancel_signal_.reset();
     op_in_progress_ = false;
     ready_ = false;
