@@ -74,7 +74,7 @@ bool parse_http_request_line(std::string_view req, std::string &method, std::str
 
 std::string random_ws_key() {
     std::array<uint8_t, 16> bytes{};
-    static thread_local std::mt19937 rng{std::random_device{}()};
+    static std::mt19937 rng{std::random_device{}()};
     std::uniform_int_distribution<int> dist(0, 255);
     for (auto &b : bytes) b = static_cast<uint8_t>(dist(rng));
     return fakelua::crypto::base64_encode(bytes.data(), bytes.size());
@@ -107,7 +107,7 @@ bool try_ws_server_handshake(CircularBuffer &buf, const NetConfig &cfg, std::str
         return false;
     }
 
-    static thread_local std::vector<char> peek;
+    static std::vector<char> peek;
     size_t total = std::min(buf.size(), static_cast<size_t>(8192));
     if (peek.size() < total) peek.resize(total);
     buf.peek(peek.data(), total);
@@ -203,7 +203,7 @@ bool try_ws_client_handshake(CircularBuffer &buf, bool &out_done, bool &out_need
         return false;
     }
 
-    static thread_local std::vector<char> peek;
+    static std::vector<char> peek;
     size_t total = std::min(buf.size(), static_cast<size_t>(4096));
     if (peek.size() < total) peek.resize(total);
     buf.peek(peek.data(), total);
@@ -247,7 +247,7 @@ bool try_parse_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_cli
     out_error = false;
     if (buf.size() < 2) return false;
 
-    static thread_local std::vector<char> hdr;
+    static std::vector<char> hdr;
     size_t peek_len = std::min(buf.size(), static_cast<size_t>(14));
     if (hdr.size() < peek_len) hdr.resize(peek_len);
     buf.peek(hdr.data(), peek_len);
@@ -305,7 +305,7 @@ bool try_parse_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_cli
         std::memcpy(mask, hdr.data() + header_len - 4, 4);
     }
 
-    static thread_local std::vector<char> payload;
+    static std::vector<char> payload;
     if (payload.size() < payload_len) payload.resize(static_cast<size_t>(payload_len));
     buf.skip(header_len);
     if (payload_len > 0) {
@@ -362,12 +362,12 @@ bool write_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_client,
 
     if (from_client) {
         uint8_t mask[4];
-        static thread_local std::mt19937 rng{std::random_device{}()};
+        static std::mt19937 rng{std::random_device{}()};
         std::uniform_int_distribution<int> dist(0, 255);
         for (auto &m : mask) m = static_cast<uint8_t>(dist(rng));
         buf.write(reinterpret_cast<const char *>(mask), 4);
         if (len > 0) {
-            static thread_local std::vector<char> masked;
+            static std::vector<char> masked;
             if (masked.size() < len) masked.resize(len);
             std::memcpy(masked.data(), data, len);
             apply_mask(masked.data(), len, mask);

@@ -44,6 +44,7 @@ function test_pool()
     for i = 1, 1000 do
         pool:tick()
         if conn.query_done then break end
+        os.sleep(1)
     end
 
     if conn.query_err ~= nil then

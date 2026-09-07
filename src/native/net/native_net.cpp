@@ -556,8 +556,8 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
     cfg.custom_parser_fn = [s, parser_name, max_pkt](net::CircularBuffer &buf, const char *&out_payload, uint32_t &out_len) -> bool {
         if (buf.empty()) return false;
 
-        static thread_local std::vector<char> peek_buf;
-        static thread_local std::vector<char> payload_buf;
+        static std::vector<char> peek_buf;
+        static std::vector<char> payload_buf;
         // 限制窥视上限为 max_packet_len，避免半包时每 tick O(缓冲) 全量分配/拷贝
         size_t total = std::min(buf.size(), static_cast<size_t>(max_pkt));
         if (total == 0) return false;

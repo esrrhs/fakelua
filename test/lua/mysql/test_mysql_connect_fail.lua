@@ -21,6 +21,7 @@ function test_connect_fail()
     for i = 1, 1500 do
         conn:tick()
         if conn.done then break end
+        os.sleep(1)
     end
 
     if not conn.done then
@@ -56,6 +57,7 @@ function test_close_in_connect_cb()
     for i = 1, 1500 do
         conn:tick()
         if conn.closed_ok then break end
+        os.sleep(1)
     end
     if not conn.closed_ok then
         print("close-in-callback never ran")

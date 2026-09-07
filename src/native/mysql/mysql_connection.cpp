@@ -8,7 +8,6 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
-#include <thread>
 
 #include <boost/asio/bind_cancellation_slot.hpp>
 
@@ -324,13 +323,8 @@ void MysqlConnection::tick() {
     }
 
     // Process all ready async operations by running io_context.
-    // poll() handles currently-ready handlers. If an async operation is in progress,
-    // wait 1ms so tight Lua loops don't starve async I/O.
+    // poll() handles currently-ready handlers.
     io_ctx_.poll();
-    if (!pending_connect_ && !pending_result_ && (state_ == State::Connecting || state_ == State::Querying)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        io_ctx_.poll();
-    }
 
     // Handle pending connection result
     if (pending_connect_) {

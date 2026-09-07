@@ -24,6 +24,7 @@ function test_query_error()
     for i = 1, 1000 do
         conn:tick()
         if conn.connected or conn.connect_err then break end
+        os.sleep(1)
     end
 
     if not conn.connected then
@@ -38,6 +39,7 @@ function test_query_error()
         for i = 1, 1000 do
             conn:tick()
             if conn.connected or conn.connect_err then break end
+            os.sleep(1)
         end
     end
 
@@ -56,6 +58,7 @@ function test_query_error()
     for i = 1, 1000 do
         conn:tick()
         if conn.query_done then break end
+        os.sleep(1)
     end
 
     if not conn.query_done then
@@ -87,6 +90,7 @@ function test_query_error()
     for i = 1, 1000 do
         conn:tick()
         if conn.query_done then break end
+        os.sleep(1)
     end
 
     if not conn.query_done then

@@ -24,6 +24,7 @@ function test_lifecycle()
     for i = 1, 1000 do
         conn:tick()
         if conn.connected or conn.connect_err then break end
+        os.sleep(1)
     end
 
     if not conn.connected then
@@ -38,6 +39,7 @@ function test_lifecycle()
         for i = 1, 1000 do
             conn:tick()
             if conn.connected or conn.connect_err then break end
+            os.sleep(1)
         end
     end
 

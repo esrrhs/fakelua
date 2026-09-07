@@ -20,6 +20,7 @@ function test_error_message()
     for i = 1, 1500 do
         conn:tick()
         if conn.done then break end
+        os.sleep(1)
     end
 
     if not conn.done then

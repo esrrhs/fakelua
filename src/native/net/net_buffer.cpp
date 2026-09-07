@@ -235,7 +235,7 @@ bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&ou
         return cfg.custom_parser_fn(buf, out_payload, out_len);
     }
 
-    static thread_local std::vector<char> parse_tmp;
+    static std::vector<char> parse_tmp;
 
     switch (cfg.framer) {
         case FramerType::Header4BigEndian: {

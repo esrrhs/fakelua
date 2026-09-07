@@ -31,6 +31,7 @@ function test_multi_result()
     for i = 1, 1000 do
         conn:tick()
         if conn.connected or conn.connect_err then break end
+        os.sleep(1)
     end
 
     if not conn.connected then
@@ -45,6 +46,7 @@ function test_multi_result()
         for i = 1, 1000 do
             conn:tick()
             if conn.connected or conn.connect_err then break end
+            os.sleep(1)
         end
     end
 
@@ -70,6 +72,7 @@ function test_multi_result()
                 end
             end
         end
+        os.sleep(1)
     end
 
     -- 验证收到 3 个结果
