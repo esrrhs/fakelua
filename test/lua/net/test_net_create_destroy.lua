@@ -11,3 +11,12 @@ function test_client_create_destroy()
     c:close()
     return 1
 end
+
+function test_server_stop_restart()
+    local srv = net.server({port = 19997, maxconn = 4})
+    srv:close()
+    local srv2 = net.server({port = 19997, maxconn = 4})
+    srv2:close()
+    return 1
+end
+

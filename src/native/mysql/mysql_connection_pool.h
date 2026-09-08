@@ -31,7 +31,8 @@ struct PoolConfig {
 
 class MysqlConnectionPool {
 public:
-    explicit MysqlConnectionPool(const PoolConfig &config);
+    // state 只用来取事件循环，池里的连接全都跑在它上面。
+    MysqlConnectionPool(const PoolConfig &config, ::fakelua::State *state);
     ~MysqlConnectionPool();
 
     MysqlConnectionPool(const MysqlConnectionPool &) = delete;
@@ -65,6 +66,7 @@ public:
 
 private:
     PoolConfig config_;
+    ::fakelua::State *state_ = nullptr;
     bool closed_ = false;
     struct PoolEntry {
         std::unique_ptr<MysqlConnection> conn;

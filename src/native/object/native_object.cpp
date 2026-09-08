@@ -106,11 +106,6 @@ NativeField CVarToNativeField(CVar v) {
 // NativeObjectManager 实现
 // ─────────────────────────────────────────────────────────────────────────────
 
-NativeObjectManager &NativeObjectManager::Instance() {
-    static NativeObjectManager instance;
-    return instance;
-}
-
 int64_t NativeObjectManager::CreateGroup() {
     int64_t gid = ++next_auto_group_id_;
     if (!group_objects_.contains(gid)) {
@@ -237,7 +232,7 @@ size_t NativeObjectManager::DestroyGroup(int64_t group_id) {
 void NativeObjectManager::Clear() {
     // Purge io-layer caches first so that subsequent FakeluaDeleteState calls
     // (which invoke io::OnStateDeleted) no longer reference freed NativeObjects.
-    io::OnNativeObjectManagerCleared();
+    io::OnNativeObjectManagerCleared(owner_);
 
     // objects_ 中的对象仍然"存活"（impl_ 非空），必须先调 Destroy 触发 finalizer 再 delete。
     // zombies_ 中的对象已经由 DestroySingle/GlobalDestroy/DestroyGroup 调用过 Destroy()，
@@ -300,7 +295,7 @@ CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar) {
         call_n = total_arg_count;
     }
 
-    return GuardJitEntry([&]() -> CVar {
+    return GuardJitEntry(state, [&]() -> CVar {
         return (*method_ptr)(actual_self, state, call_args, call_n);
     });
 }
@@ -721,10 +716,14 @@ void NativeObject::ForEach(const std::function<void(std::string_view, NativeObje
 //   - del_native_group(group_id) -> count (批处理销毁整个组空间的所有对象)
 // ─────────────────────────────────────────────────────────────────────────────
 
+NativeObjectManager &GetNativeObjectManager(State *s) {
+    return s->GetNativeObjectManager();
+}
+
 void RegisterNativeObjectApi(State *s) {
     // new_native_group() -> group_id (由系统统一自增分配唯一 group_id)
     RegisterNativeFunction(s, "new_native_group", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar {
-        int64_t gid = NativeObjectManager::Instance().CreateGroup();
+        int64_t gid = state->GetNativeObjectManager().CreateGroup();
         return inter::NativeToFakeluaInt(state, gid);
     });
 
@@ -742,7 +741,7 @@ void RegisterNativeObjectApi(State *s) {
         std::string type_name = inter::FakeluaToNative<std::string>(state, arg1);
         int64_t id = inter::FakeluaToNative<int64_t>(state, arg2);
 
-        NativeObject *obj = NativeObjectManager::Instance().Create(group_id, type_name, id);
+        NativeObject *obj = state->GetNativeObjectManager().Create(group_id, type_name, id);
         return obj->Wrap(state);
     });
 
@@ -758,7 +757,7 @@ void RegisterNativeObjectApi(State *s) {
         std::string type_name = inter::FakeluaToNative<std::string>(state, arg0);
         int64_t id = inter::FakeluaToNative<int64_t>(state, arg1);
 
-        NativeObject *obj = NativeObjectManager::Instance().Get(type_name, id);
+        NativeObject *obj = state->GetNativeObjectManager().Get(type_name, id);
         if (!obj) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -770,7 +769,7 @@ void RegisterNativeObjectApi(State *s) {
         CVar arg0 = inter::GetNativeArg(state, args, n, 0);
         int64_t group_id = (arg0.type_ != static_cast<int>(VarType::Nil)) ? inter::FakeluaToNative<int64_t>(state, arg0) : 0;
 
-        size_t count = NativeObjectManager::Instance().DestroyGroup(group_id);
+        size_t count = state->GetNativeObjectManager().DestroyGroup(group_id);
         return inter::NativeToFakeluaInt(state, static_cast<int64_t>(count));
     });
 
@@ -782,7 +781,7 @@ void RegisterNativeObjectApi(State *s) {
         std::string key = inter::FakeluaToNative<std::string>(state, arg0);
         std::string type_name = inter::FakeluaToNative<std::string>(state, arg1);
 
-        NativeObject *obj = NativeObjectManager::Instance().GlobalCreate(key, type_name);
+        NativeObject *obj = state->GetNativeObjectManager().GlobalCreate(key, type_name);
         return obj->Wrap(state);
     });
 
@@ -791,7 +790,7 @@ void RegisterNativeObjectApi(State *s) {
         CVar arg0 = inter::GetNativeArg(state, args, n, 0);
         std::string key = inter::FakeluaToNative<std::string>(state, arg0);
 
-        NativeObject *obj = NativeObjectManager::Instance().GlobalGet(key);
+        NativeObject *obj = state->GetNativeObjectManager().GlobalGet(key);
         if (!obj) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -803,7 +802,7 @@ void RegisterNativeObjectApi(State *s) {
         CVar arg0 = inter::GetNativeArg(state, args, n, 0);
         std::string key = inter::FakeluaToNative<std::string>(state, arg0);
 
-        bool ok = NativeObjectManager::Instance().GlobalDestroy(key);
+        bool ok = state->GetNativeObjectManager().GlobalDestroy(key);
         return inter::NativeToFakeluaBool(state, ok);
     });
 

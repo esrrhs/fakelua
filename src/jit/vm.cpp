@@ -10,22 +10,20 @@
 
 namespace fakelua {
 
-thread_local JitErrorBoundary *g_jit_error_boundary __attribute__((tls_model("initial-exec"))) = nullptr;
-
-[[noreturn]] void JumpToJitErrorBoundary(std::string msg) {
-    JitErrorBoundary *boundary = g_jit_error_boundary;
+[[noreturn]] void JumpToJitErrorBoundary(State *s, std::string msg) {
+    JitErrorBoundary *boundary = s->GetJitErrorBoundary();
     boundary->msg = std::move(msg);
     FAKELUA_LONGJMP(boundary->buf, 1);
 }
 
 extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const) {
-    return GuardJitEntry([&] { return state->GetHeap().GetAllocator(is_const).Alloc(size); });
+    return GuardJitEntry(state, [&] { return state->GetHeap().GetAllocator(is_const).Alloc(size); });
 }
 
 extern "C" void FakeluaThrowError(State *state, const char *msg) {
-    if (InJitFrame()) {
+    if (InJitFrame(state)) {
         // JIT 代码直接调用本函数，中间没有需要析构的 C++ 帧，可以直接跳转
-        JumpToJitErrorBoundary(BuildFakeluaErrorMessage(msg));
+        JumpToJitErrorBoundary(state, BuildFakeluaErrorMessage(msg));
     }
     ThrowFakeluaException(msg);
 }
@@ -65,7 +63,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     }
 
     // 调用方可能是 JIT 代码，异常不能穿过它的帧回到 C++
-    return GuardJitEntry([&] { return CallByNameImpl(state, jit_type, name, arg_num, raw_arg_arr); });
+    return GuardJitEntry(state, [&] { return CallByNameImpl(state, jit_type, name, arg_num, raw_arg_arr); });
 }
 
 static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr) {
@@ -178,7 +176,7 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
 
     // 走 DispatchCall 而不是在这里再展开一遍调用阶梯：它自带 JIT 错误边界，
     // 被调用方出错时本函数的帧（持有 VmFunction 里的 shared_ptr）才能正常析构。
-    return inter::DispatchCall(addr, arg_arr, expected_arg_count, static_cast<JITType>(jit_type));
+    return inter::DispatchCall(state, addr, arg_arr, expected_arg_count, static_cast<JITType>(jit_type));
 }
 
 

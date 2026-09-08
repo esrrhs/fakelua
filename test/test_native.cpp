@@ -6,8 +6,10 @@
 using namespace fakelua;
 
 TEST(test_native, test_basic_kv) {
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *obj = NativeObjectManager::Instance().Create(gid, "player", 1);
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *obj = mgr.Create(gid, "player", 1);
     obj->SetInt("hp", 100);
     obj->SetFloat("speed", 5.5);
     obj->SetBool("alive", true);
@@ -20,14 +22,18 @@ TEST(test_native, test_basic_kv) {
     EXPECT_EQ(obj->GetTypeName(), "player");
     EXPECT_EQ(obj->Size(), 4);
 
-    NativeObjectManager::Instance().DestroyGroup(gid);
+    mgr.DestroyGroup(gid);
+
+    FakeluaDeleteState(s);
 }
 
 TEST(test_native, access_after_destroy_group) {
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *obj = NativeObjectManager::Instance().Create(gid, "ghost", 1);
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *obj = mgr.Create(gid, "ghost", 1);
     obj->SetInt("hp", 9);
-    NativeObjectManager::Instance().DestroyGroup(gid);
+    mgr.DestroyGroup(gid);
     EXPECT_FALSE(obj->Alive());
     EXPECT_EQ(obj->GetInt("hp"), 0);
     EXPECT_FALSE(obj->Has("hp"));
@@ -42,13 +48,17 @@ TEST(test_native, access_after_destroy_group) {
     obj->Clear();
     obj->RegisterMethod("noop", NativeMethod{});
     EXPECT_FALSE(obj->HasMethod("noop"));
-    NativeObjectManager::Instance().Clear();
+    mgr.Clear();
+
+    FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_nested_object) {
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *player = NativeObjectManager::Instance().Create(gid, "player", 1);
-    auto *bag = NativeObjectManager::Instance().Create(gid, "bag", 2);
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *player = mgr.Create(gid, "player", 1);
+    auto *bag = mgr.Create(gid, "bag", 2);
 
     bag->SetInt("gold", 999);
     player->SetObject("bag", bag);
@@ -56,15 +66,18 @@ TEST(test_native, test_nested_object) {
     EXPECT_EQ(player->GetObject("bag"), bag);
     EXPECT_EQ(player->GetObject("bag")->GetInt("gold"), 999);
 
-    NativeObjectManager::Instance().DestroyGroup(gid);
+    mgr.DestroyGroup(gid);
+
+    FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_lua_integration_get_set) {
     auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
 
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
+    int64_t gid = mgr.CreateGroup();
     static NativeObject *global_player = nullptr;
-    global_player = NativeObjectManager::Instance().Create(gid, "player", 100);
+    global_player = mgr.Create(gid, "player", 100);
     global_player->SetInt("hp", 100);
 
     RegisterNativeFunction(s, "get_player", 0, false, [](State *state, CVar *args, int n) -> CVar { return inter::NativeToFakelua(state, global_player); });
@@ -77,13 +90,14 @@ TEST(test_native, test_lua_integration_get_set) {
 
     EXPECT_EQ(global_player->GetInt("hp"), 150);
 
-    NativeObjectManager::Instance().DestroyGroup(gid);
+    mgr.DestroyGroup(gid);
     global_player = nullptr;
     FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_fully_dynamic_property_and_builtin_api) {
     auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
 
     CompileConfig config;
     CompileFile(s, "./native/test_native_on_msg.lua", config);
@@ -95,7 +109,7 @@ TEST(test_native, test_fully_dynamic_property_and_builtin_api) {
     EXPECT_EQ(initial_hp, 100);
 
     // 校验 C++ 全局管理器中的 NativeObject 实例属性
-    NativeObject *alice = NativeObjectManager::Instance().Get("player", 1001);
+    NativeObject *alice = mgr.Get("player", 1001);
     ASSERT_NE(alice, nullptr);
     EXPECT_EQ(alice->GetInt("hp"), 100);
     EXPECT_EQ(alice->GetInt("mp"), 200);
@@ -115,12 +129,13 @@ TEST(test_native, test_fully_dynamic_property_and_builtin_api) {
     EXPECT_EQ(alice->GetString("last_talk"), "Hello fakelua!");
 
     // 清理全局 NativeObjectManager
-    NativeObjectManager::Instance().Clear();
+    mgr.Clear();
     FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_lua_nested_object) {
     auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
 
     CompileConfig config;
     CompileFile(s, "./native/test_native_nested.lua", config);
@@ -132,7 +147,7 @@ TEST(test_native, test_lua_nested_object) {
     EXPECT_EQ(sum, 1049);// 999 + 50 = 1049
 
     // 校验 C++ 全局管理器与嵌套对象属性
-    NativeObject *player = NativeObjectManager::Instance().Get("player", 2001);
+    NativeObject *player = mgr.Get("player", 2001);
     ASSERT_NE(player, nullptr);
     NativeObject *bag = player->GetObject("bag");
     ASSERT_NE(bag, nullptr);
@@ -151,12 +166,13 @@ TEST(test_native, test_lua_nested_object) {
     // 校验 C++ 侧底层嵌套数据改变
     EXPECT_EQ(bag->GetInt("gold"), 899);
 
-    NativeObjectManager::Instance().Clear();
+    mgr.Clear();
     FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_group_arena_batch_destroy) {
     auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
 
     CompileConfig config;
     CompileFile(s, "./native/test_native_group.lua", config);
@@ -168,11 +184,11 @@ TEST(test_native, test_group_arena_batch_destroy) {
     EXPECT_GT(gid, 0);
 
     // 验证对象存在于管理器中
-    auto *item = NativeObjectManager::Instance().Get("item", 100100);
+    auto *item = mgr.Get("item", 100100);
     ASSERT_NE(item, nullptr);
     EXPECT_EQ(item->GetString("name"), "Excalibur");
-    EXPECT_NE(NativeObjectManager::Instance().Get("player", 1001), nullptr);
-    EXPECT_NE(NativeObjectManager::Instance().Get("bag", 10010), nullptr);
+    EXPECT_NE(mgr.Get("player", 1001), nullptr);
+    EXPECT_NE(mgr.Get("bag", 10010), nullptr);
 
     // ── 2. 一口气批处理销毁该组下的所有 NativeObject ────────────────────
     CVar ret2;
@@ -181,9 +197,9 @@ TEST(test_native, test_group_arena_batch_destroy) {
     EXPECT_EQ(destroyed_count, 3);// 3 个对象全部一口气清理
 
     // 验证销毁后这 3 个对象全部被移除
-    EXPECT_EQ(NativeObjectManager::Instance().Get("player", 1001), nullptr);
-    EXPECT_EQ(NativeObjectManager::Instance().Get("bag", 10010), nullptr);
-    EXPECT_EQ(NativeObjectManager::Instance().Get("item", 100100), nullptr);
+    EXPECT_EQ(mgr.Get("player", 1001), nullptr);
+    EXPECT_EQ(mgr.Get("bag", 10010), nullptr);
+    EXPECT_EQ(mgr.Get("item", 100100), nullptr);
 
     FakeluaDeleteState(s);
 }
@@ -281,9 +297,10 @@ TEST(test_native, test_native_typed_template_callback) {
 
 TEST(test_native, test_native_object_methods) {
     auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
 
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *player = NativeObjectManager::Instance().Create(gid, "player", 1);
+    int64_t gid = mgr.CreateGroup();
+    auto *player = mgr.Create(gid, "player", 1);
 
     // 1. 注册 C++ 成员回调 take_damage
     player->RegisterMethod("take_damage", [](NativeObject *self, State *state, CVar *args, int n) -> CVar {
@@ -316,42 +333,48 @@ TEST(test_native, test_native_object_methods) {
     player->UnregisterMethod("is_alive");
     EXPECT_FALSE(player->HasMethod("is_alive"));
 
-    NativeObjectManager::Instance().DestroyGroup(gid);
+    mgr.DestroyGroup(gid);
     FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_native_manager_operations) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
     // 测试 NativeObjectManager 的 DestroySingle 和 Create 返回已有对象
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
+    int64_t gid = mgr.CreateGroup();
 
-    auto *obj1 = NativeObjectManager::Instance().Create(gid, "unit", 1001);
+    auto *obj1 = mgr.Create(gid, "unit", 1001);
     obj1->SetInt("level", 5);
 
     // Create 再次调用相同 (type, id) 应返回相同对象
-    auto *obj1_again = NativeObjectManager::Instance().Create(gid, "unit", 1001);
+    auto *obj1_again = mgr.Create(gid, "unit", 1001);
     EXPECT_EQ(obj1, obj1_again);
     EXPECT_EQ(obj1_again->GetInt("level"), 5);
 
-    auto *obj2 = NativeObjectManager::Instance().Create(gid, "unit", 1002);
+    auto *obj2 = mgr.Create(gid, "unit", 1002);
     obj2->SetString("name", "warrior");
 
     // DestroySingle 只销毁一个
-    bool destroyed = NativeObjectManager::Instance().DestroySingle("unit", 1001);
+    bool destroyed = mgr.DestroySingle("unit", 1001);
     EXPECT_TRUE(destroyed);
-    EXPECT_EQ(NativeObjectManager::Instance().Get("unit", 1001), nullptr);
-    EXPECT_NE(NativeObjectManager::Instance().Get("unit", 1002), nullptr);
+    EXPECT_EQ(mgr.Get("unit", 1001), nullptr);
+    EXPECT_NE(mgr.Get("unit", 1002), nullptr);
 
     // 再次销毁不存在的对象
-    bool again = NativeObjectManager::Instance().DestroySingle("unit", 1001);
+    bool again = mgr.DestroySingle("unit", 1001);
     EXPECT_FALSE(again);
 
-    NativeObjectManager::Instance().DestroyGroup(gid);
+    mgr.DestroyGroup(gid);
+
+    FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_native_obj_advanced_fields) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
     // 测试 Del, Clear, SetNil, GetAsCVar, ForEach, SetId/SetGroupId
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *obj = NativeObjectManager::Instance().Create(gid, "hero", 2001);
+    int64_t gid = mgr.CreateGroup();
+    auto *obj = mgr.Create(gid, "hero", 2001);
 
     // SetId / GetId
     obj->SetId(9999);
@@ -378,8 +401,8 @@ TEST(test_native, test_native_obj_advanced_fields) {
     EXPECT_TRUE(b);
 
     // GetString on missing field returns default
-    std::string s = obj->GetString("nonexist", "default");
-    EXPECT_EQ(s, "default");
+    std::string missing_str = obj->GetString("nonexist", "default");
+    EXPECT_EQ(missing_str, "default");
 
     // GetObject on missing field returns nullptr
     NativeObject *nested = obj->GetObject("nonexist");
@@ -416,11 +439,14 @@ TEST(test_native, test_native_obj_advanced_fields) {
     obj->Clear();
     EXPECT_EQ(obj->Size(), 0);
 
-    NativeObjectManager::Instance().DestroyGroup(7002);
+    mgr.DestroyGroup(7002);
+
+    FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_native_lua_manager_ops) {
     auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
 
     CompileConfig config;
     CompileFile(s, "./native/test_native_manager.lua", config);
@@ -457,12 +483,13 @@ TEST(test_native, test_native_lua_manager_ops) {
     Call(s, JIT_TCC, "test_access_after_destroy", ret5);
     EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret5), 5000);
 
-    NativeObjectManager::Instance().Clear();
+    mgr.Clear();
     FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_native_lua_obj_ops) {
     auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
 
     CompileConfig config;
     CompileFile(s, "./native/test_native_obj_ops.lua", config);
@@ -480,18 +507,19 @@ TEST(test_native, test_native_lua_obj_ops) {
                  {"test_int_bool_not_equal_cross"},
              })) {
         inter::Reset(s);
-        NativeObjectManager::Instance().Clear();
+        mgr.Clear();
         CVar ret;
         Call(s, JIT_TCC, tc.func_name, ret);
         EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 5000) << "FAILED: " << tc.func_name;
     }
 
-    NativeObjectManager::Instance().Clear();
+    mgr.Clear();
     FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_native_obj_wrap) {
     auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
 
     CompileConfig config;
     CompileFile(s, "./native/test_native_obj_wrap.lua", config);
@@ -506,49 +534,61 @@ TEST(test_native, test_native_obj_wrap) {
                  {"test_wrap_get_as_cvar"},
              })) {
         inter::Reset(s);
-        NativeObjectManager::Instance().Clear();
+        mgr.Clear();
         CVar ret;
         Call(s, JIT_TCC, tc.func_name, ret);
         EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 5000) << "FAILED: " << tc.func_name;
     }
 
-    NativeObjectManager::Instance().Clear();
+    mgr.Clear();
     FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_native_manager_clear) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
     // Test NativeObjectManager::Clear() - destroys all objects
-    int64_t gid1 = NativeObjectManager::Instance().CreateGroup();
-    int64_t gid2 = NativeObjectManager::Instance().CreateGroup();
+    int64_t gid1 = mgr.CreateGroup();
+    int64_t gid2 = mgr.CreateGroup();
 
-    auto *obj1 = NativeObjectManager::Instance().Create(gid1, "unit", 1);
-    auto *obj2 = NativeObjectManager::Instance().Create(gid2, "unit", 2);
+    auto *obj1 = mgr.Create(gid1, "unit", 1);
+    auto *obj2 = mgr.Create(gid2, "unit", 2);
     obj1->SetInt("x", 10);
     obj2->SetInt("y", 20);
 
-    EXPECT_NE(NativeObjectManager::Instance().Get("unit", 1), nullptr);
-    EXPECT_NE(NativeObjectManager::Instance().Get("unit", 2), nullptr);
+    EXPECT_NE(mgr.Get("unit", 1), nullptr);
+    EXPECT_NE(mgr.Get("unit", 2), nullptr);
 
     // Clear all
-    NativeObjectManager::Instance().Clear();
+    mgr.Clear();
 
     // After Clear, all objects should be gone
-    EXPECT_EQ(NativeObjectManager::Instance().Get("unit", 1), nullptr);
-    EXPECT_EQ(NativeObjectManager::Instance().Get("unit", 2), nullptr);
+    EXPECT_EQ(mgr.Get("unit", 1), nullptr);
+    EXPECT_EQ(mgr.Get("unit", 2), nullptr);
+
+    FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_native_create_error) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
     // Test NativeObjectManager::Create with group_id == 0 (error path)
-    EXPECT_THROW(NativeObjectManager::Instance().Create(0, "test", 1), FakeluaException);
+    EXPECT_THROW(mgr.Create(0, "test", 1), FakeluaException);
+
+    FakeluaDeleteState(s);
 }
 
 TEST(test_native, test_native_manager_destroy_empty) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
     // DestroyGroup on non-existent group returns 0
-    size_t count = NativeObjectManager::Instance().DestroyGroup(99999);
+    size_t count = mgr.DestroyGroup(99999);
     EXPECT_EQ(count, 0);
 
     // DestroySingle on non-existent object returns false
-    bool result = NativeObjectManager::Instance().DestroySingle("nonexist", 99999);
+    bool result = mgr.DestroySingle("nonexist", 99999);
     EXPECT_FALSE(result);
+
+    FakeluaDeleteState(s);
 }
 

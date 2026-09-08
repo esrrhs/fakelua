@@ -21,14 +21,10 @@ struct EventState {
     std::unordered_map<std::string, std::vector<std::string>> once_listeners;
 };
 
-static std::unordered_map<State *, EventState> g_states;
-
+// 每个 State 一份，随 State 销毁。放在 State 上而不是这里的 static map：后者是全进程
+// 一份，多个线程各跑自己的 State 时会并发改同一个容器。
 static EventState &event_state(State *s) {
-    return g_states[s];
-}
-
-void OnStateDeleted(State *s) {
-    g_states.erase(s);
+    return s->GetModuleState<EventState>();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -66,7 +62,7 @@ static void dispatch_event(State *state, const std::string &func_name,
     }
 
     if (addr) {
-        inter::DispatchCall(addr, args, arg_count, jit_type);
+        inter::DispatchCall(state, addr, args, arg_count, jit_type);
     }
     // 不存在的函数静默跳过（可能已被卸载）
 }
@@ -92,7 +88,7 @@ static CVar event_on(State *s, CVar *args, int n) {
     }
 
     event_state(s).listeners[event_name].push_back(std::move(func_name));
-    LOG_DEBUG("event", "event.on: event={} func={}", event_name, func_name);
+    LOG_DEBUG(s, "event", "event.on: event={} func={}", event_name, func_name);
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -140,7 +136,7 @@ static CVar event_off(State *s, CVar *args, int n) {
             event_state(s).listeners.erase(it);
         }
     }
-    LOG_DEBUG("event", "event.off: event={} func={}", event_name, func_name);
+    LOG_DEBUG(s, "event", "event.off: event={} func={}", event_name, func_name);
 
     // 从 once_listeners 中移除
     auto it2 = event_state(s).once_listeners.find(event_name);
@@ -181,7 +177,7 @@ static CVar event_emit(State *s, CVar *args, int n) {
     auto it = event_state(s).listeners.find(event_name);
     if (it != event_state(s).listeners.end()) {
         std::vector<std::string> snapshot = it->second;
-        LOG_DEBUG("event", "event.emit: event={} listeners={} args={}", event_name, snapshot.size(), event_arg_count);
+        LOG_DEBUG(s, "event", "event.emit: event={} listeners={} args={}", event_name, snapshot.size(), event_arg_count);
         for (const auto &func_name : snapshot) {
             dispatch_event(s, func_name, event_args, event_arg_count);
         }

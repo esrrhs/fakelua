@@ -40,12 +40,16 @@ static StmtObject *unwrap_stmt(NativeObject *self) {
     return reinterpret_cast<StmtObject *>(self->GetInt("__sqlite_stmt__", 0));
 }
 
-static std::unordered_map<State *, std::vector<NativeObject *>> g_sqlite_wrappers;
+// 存在 State 上而不是这里的 static map：后者是全进程一份，多个线程各跑自己的 State 时
+// 会并发改同一个容器。
+struct SqliteWrappers {
+    std::vector<NativeObject *> list;
+};
 
 static void register_sqlite_wrapper(State *s, NativeObject *nat) {
     if (!s || !nat) return;
     nat->SetInt("__sqlite_state__", reinterpret_cast<int64_t>(s));
-    g_sqlite_wrappers[s].push_back(nat);
+    s->GetModuleState<SqliteWrappers>().list.push_back(nat);
 }
 
 static void unregister_sqlite_wrapper(NativeObject *nat) {
@@ -53,23 +57,19 @@ static void unregister_sqlite_wrapper(NativeObject *nat) {
     auto *st = reinterpret_cast<State *>(nat->GetInt("__sqlite_state__", 0));
     nat->SetInt("__sqlite_state__", 0);
     if (!st) return;
-    auto it = g_sqlite_wrappers.find(st);
-    if (it == g_sqlite_wrappers.end()) return;
-    auto &v = it->second;
+    auto &v = st->GetModuleState<SqliteWrappers>().list;
     v.erase(std::remove(v.begin(), v.end(), nat), v.end());
-    if (v.empty()) g_sqlite_wrappers.erase(it);
 }
 
 void OnStateDeleted(State *s) {
     if (!s) return;
-    auto it = g_sqlite_wrappers.find(s);
-    if (it == g_sqlite_wrappers.end()) return;
-    auto wrappers = std::move(it->second);
-    g_sqlite_wrappers.erase(it);
-    for (auto *nat : wrappers) {
+    auto *ws = s->TryGetModuleState<SqliteWrappers>();
+    if (!ws) return;
+    auto wrappers = std::move(ws->list);
+    for (auto *nat: wrappers) {
         if (!nat) continue;
         nat->SetInt("__sqlite_state__", 0);
-        NativeObjectManager::Instance().DestroyGroup(nat->GetGroupId());
+        s->GetNativeObjectManager().DestroyGroup(nat->GetGroupId());
     }
 }
 
@@ -127,11 +127,11 @@ CVar db_exec(NativeObject *self, State *s, CVar *args, int n) {
     if (rc != SQLITE_OK) {
         const char *err = sqlite3_errmsg(obj->db);
         if (stmt) sqlite3_finalize(stmt);
-        LOG_ERROR("sqlite", "db:exec prepare failed: err={}", err ? err : "unknown error");
+        LOG_ERROR(s, "sqlite", "db:exec prepare failed: err={}", err ? err : "unknown error");
         error("db:exec: " + std::string(err ? err : "unknown error"));
     }
 
-    LOG_DEBUG("sqlite", "db:exec: sql={}", sql);
+    LOG_DEBUG(s, "sqlite", "db:exec: sql={}", sql);
     int col_count = sqlite3_column_count(stmt);
     CVar tbl = table::TableHelper::CreateTable(s);
 
@@ -196,8 +196,8 @@ CVar db_prepare(NativeObject *self, State *s, CVar *args, int n) {
     }
 
     // Create stmt NativeObject
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(gid, "sqlite_stmt");
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(gid, "sqlite_stmt");
     auto *stmt_obj = new StmtObject();
     stmt_obj->db = obj->db;
     stmt_obj->stmt = stmt;
@@ -269,7 +269,7 @@ CVar stmt_step(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
 
     int rc = sqlite3_step(obj->stmt);
     if (rc == SQLITE_ROW) {
-        LOG_DEBUG("sqlite", "stmt:step: row ready");
+        LOG_DEBUG(s, "sqlite", "stmt:step: row ready");
         int col_count = sqlite3_column_count(obj->stmt);
         CVar row = table::TableHelper::CreateTable(s);
         for (int i = 0; i < col_count; i++) {
@@ -279,10 +279,10 @@ CVar stmt_step(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
         }
         return row;
     } else if (rc == SQLITE_DONE) {
-        LOG_DEBUG("sqlite", "stmt:step: done");
+        LOG_DEBUG(s, "sqlite", "stmt:step: done");
         return inter::NativeToFakeluaNil(s);
     } else {
-        LOG_ERROR("sqlite", "stmt:step failed: err={}", sqlite3_errmsg(obj->db));
+        LOG_ERROR(s, "sqlite", "stmt:step failed: err={}", sqlite3_errmsg(obj->db));
         error("stmt:step: " + std::string(sqlite3_errmsg(obj->db)));
     }
 }
@@ -371,8 +371,9 @@ static CVar sqlite_open(State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     std::string filename = inter::FakeluaToNativeString(s, a0);
 
-    // Ensure SQLite is initialized (needed on some platforms)
-    static int init_rc = sqlite3_initialize();
+    // 确保 SQLite 已初始化（某些平台需要）。sqlite3_initialize 自身幂等且线程安全，直接
+    // 调即可，不用留一个进程级的 static 来记"已经初始化过了"。
+    const int init_rc = sqlite3_initialize();
     if (init_rc != SQLITE_OK) {
         error(std::format("sqlite.open: sqlite3_initialize failed: {}", init_rc));
     }
@@ -387,8 +388,8 @@ static CVar sqlite_open(State *s, CVar *args, int n) {
     }
 
     // Create NativeObject wrapper
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(gid, "sqlite_db");
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(gid, "sqlite_db");
     auto *db_obj = new DbObject();
     db_obj->db = db;
     nat->SetFinalizer([](NativeObject *self) {

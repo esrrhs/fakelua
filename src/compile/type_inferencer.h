@@ -5,8 +5,12 @@
 
 namespace fakelua {
 
+class State;
+
 class TypeInferencer {
 public:
+    explicit TypeInferencer(State *s);
+
     // 运行全局类型推断，并在返回的 InferResult 中填充数学参数特化信息。
     InferResult InferTypes(const ParseResult &pr, const CompileConfig &cfg);
 
@@ -278,6 +282,7 @@ private:
     static void ComputeSpecFuncContext(InferResult &ir, const MathFuncInfoMap &math_func_info);
 
 private:
+    State *s_ = nullptr;
     std::unordered_map<std::string, InferredType> file_level_types_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。

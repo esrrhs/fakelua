@@ -16,7 +16,8 @@
 | utf8 | `utf8/` | UTF-8 编解码：`char`、`codepoint`、`codes`、`len`、`offset` |
 | io | `io/` | 文件 IO：open、close、read、write、seek、popen、标准流 |
 | net | `net/` | TCP 网络：服务端/客户端、帧协议、自定义解析器、异步事件分发 |
-| timer | `timer/` | 定时器：一次性、周期心跳，由 `tick()` 驱动 |
+| timer | `timer/` | 定时器：一次性、周期心跳，由 `runtime.tick()` 驱动 |
+| runtime | `runtime/` | 统一事件泵：`runtime.tick()` 驱动所有需要周期推进的模块 |
 | event | `event/` | 发布/订阅事件系统：`on`、`once`、`off`、`emit`、`clear`、`clear_all` |
 | random | `random/` | 可种子随机数（PCG-32）：`int`、`float`、`dice`、`chance`、`weighted`、`get_state`、`set_state` |
 | compress | `compress/` | 压缩：LZ4、zlib、gzip、Zstd |
@@ -32,6 +33,37 @@
 | serialize | `serialize/` | 二进制序列化：zigzag + varint 编码 + 字符串去重 |
 | protobuf | `protobuf/` | 运行时 .proto 解析、标准 protobuf3 wire 编码/解码 |
 | object | `object/` | NativeObject Lua 侧 API：组管理、对象创建/查找 |
+
+---
+
+## 线程模型
+
+`State` 是单线程实体：同一时刻只能有一个线程访问它，要并发就每个线程一份 `State`。
+
+native 层按这个前提组织：**所有可变状态都挂在 `State` 上**，模块内部通过
+`State::GetModuleState<T>()` 取自己的私有状态（首次访问时创建，随 `State` 销毁）。因此各
+`State` 之间不共享任何容器，也就不需要加锁。具体说：
+
+- 原生对象、分组、全局对象、id 发号都是每 `State` 一份，见 `State::GetNativeObjectManager()`
+  （C++ 侧另有自由函数 `GetNativeObjectManager(State *)`，因为 `State` 对外是不透明类型）；
+- 定时器、事件监听、net/mysql/sqlite/io 的对象表、protobuf 的 .proto schema 注册表，都是每
+  `State` 一份，一个 `State` 里注册的东西不会泄漏到另一个；
+- 复用的临时缓冲区归它服务的那个对象：解包用的线性暂存区在 `CircularBuffer` 上
+  （`header_scratch` / `payload_scratch`），WebSocket 掩码的随机源在连接 `AsioConn` 上；
+  低频用到的随机数发生器（生成临时文件名、WebSocket 握手 key）直接用局部变量。
+
+JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶存在
+`State::GetJitErrorBoundary()`，边界对象本身在 C++ 栈上。`RunWithJitErrorBoundary` /
+`GuardJitEntry` / `InJitFrame` 都要传 `State`，所以 `inter::DispatchCall` 也带上了 `State`
+参数。一个 `State` 只被一个线程持有，脚本也只在它自己的栈上跑，链顶天然是每 `State` 一份。
+
+日志也必须带 `State`：`LOG_*` 宏和 JIT 里的 `FakeluaLogLua` 第一个参数都是 `State *`。
+级别和日志文件都是每 `State` 一份（`StateConfig::log_level` / `log_file`，运行期也可用
+`log.set_level` / `log.set_file`）。`log_file` 留空就只打控制台；`s` 为 `nullptr`
+（例如 `ThrowFakeluaException`）按 Info、只打控制台。控制台仍由一把全进程锁串行化，
+因为 stdout/stderr 是进程共享的。
+
+库里不再有 `thread_local`。
 
 ---
 
@@ -241,7 +273,6 @@
 | `net.ws_server(config)` | 创建 WebSocket 服务端（等价于 `framer="websocket"`） |
 | `net.ws_client(config)` | 创建 WebSocket 客户端 |
 | `obj:dispatch(func_name)` | 注册 Lua 回调函数名 |
-| `obj:tick()` | 驱动 IO 和事件分发 |
 | `obj:send(connid, data)` | 发送数据（服务端需指定 connid；客户端省略） |
 | `obj:close()` | 关闭连接/服务端 |
 | `obj:close_connection(connid)` | 关闭单个连接（仅服务端） |
@@ -261,11 +292,28 @@
 |------|------|------|
 | `timer.set(delay_ms, func_name)` | 2 | 一次性定时器；返回 `timer_id` |
 | `timer.del(timer_id)` | 1 | 删除待触发定时器 |
-| `timer.tick()` | 0 | 触发到期定时器和心跳 |
 | `timer.set_heartbeat(interval_ms, func_name)` | 2 | 周期心跳；自动重调度，覆盖前一个 |
 | `timer.register_obj_methods(obj)` | 1 | 在 NativeObject 上注册 `get_int`/`set_int`/`add_int` 共享状态 |
 
 **回调签名：** `function cb(type, timer_id)`，其中 `type == "timer"`
+
+---
+
+## Runtime（统一事件泵）
+
+**文件：** `runtime/native_runtime.h` · **注册：** `RegisterRuntimeLibraryApi`
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `runtime.tick()` | 0 | 驱动当前 State 上所有需要周期推进的 native 模块 |
+
+脚本只需要这一个泵：它按固定顺序调 `timer::TickAll`、`net::TickAll`、`mysql::TickAll`，
+和 `FakeluaDeleteState` 里给各模块分发 `OnStateDeleted` 是同一个路子。每个模块遍历自己那份
+per-State 对象列表，所以 server/client、连接和连接池都不再有各自的 `tick()` 方法，在主循环里
+调用本函数即可。
+
+定时器放最前，让本轮到期的回调能赶上后面的 IO 派发。mysql 内部先池后连接，这样脚本这一轮
+取连接之前，心跳和重连已经推进过了。
 
 ---
 
@@ -454,11 +502,9 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 | `conn:stmt_prepare(sql, cb)` | 预处理语句 |
 | `conn:stmt_execute(id, params, cb)` | 执行预处理语句 |
 | `conn:stmt_close(id)` | 关闭预处理语句 |
-| `conn:tick()` | 泵网络事件 |
 | `conn:close()` | 关闭连接 |
 | `pool:acquire()` | 从池获取连接 |
 | `pool:release(conn)` | 归还连接到池 |
-| `pool:tick()` | 驱动心跳和重连 |
 | `pool:close()` | 关闭连接池 |
 | `pool:stats()` | 返回 `{total, healthy}` |
 

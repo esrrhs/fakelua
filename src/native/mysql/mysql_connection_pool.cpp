@@ -13,8 +13,8 @@ static int64_t now_ms() {
         tp.time_since_epoch()).count();
 }
 
-MysqlConnectionPool::MysqlConnectionPool(const PoolConfig &config)
-    : config_(config) {}
+MysqlConnectionPool::MysqlConnectionPool(const PoolConfig &config, ::fakelua::State *state)
+    : config_(config), state_(state) {}
 
 MysqlConnectionPool::~MysqlConnectionPool() {
     close();
@@ -37,7 +37,7 @@ void MysqlConnectionPool::initialize() {
     pool_.clear();
     for (int i = 0; i < config_.pool_size; ++i) {
         PoolEntry entry;
-        entry.conn = std::make_unique<MysqlConnection>();
+        entry.conn = std::make_unique<MysqlConnection>(state_);
         entry.healthy = false;      // not yet connected
         entry.in_use = false;
         entry.last_heartbeat = 0;

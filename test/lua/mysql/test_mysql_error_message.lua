@@ -13,12 +13,14 @@ function test_error_message()
     config["user"] = "root"
     config["password"] = "irrelevant"
     config["db"] = "test"
+    config["timeout_ms"] = 1000
 
     local conn = mysql.connect(config, "on_connect_msg")
 
-    for i = 1, 200 do
-        conn:tick()
+    for i = 1, 1500 do
+        runtime.tick()
         if conn.done then break end
+        os.sleep(1)
     end
 
     if not conn.done then

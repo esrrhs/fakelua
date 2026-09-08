@@ -22,8 +22,9 @@ function test_query_error()
     }, "on_connect")
 
     for i = 1, 1000 do
-        conn:tick()
+        runtime.tick()
         if conn.connected or conn.connect_err then break end
+        os.sleep(1)
     end
 
     if not conn.connected then
@@ -36,8 +37,9 @@ function test_query_error()
         }, "on_connect")
 
         for i = 1, 1000 do
-            conn:tick()
+            runtime.tick()
             if conn.connected or conn.connect_err then break end
+            os.sleep(1)
         end
     end
 
@@ -54,8 +56,9 @@ function test_query_error()
     conn:query("SELECT * FROM non_existent_table_12345_fakelua", "on_result")
 
     for i = 1, 1000 do
-        conn:tick()
+        runtime.tick()
         if conn.query_done then break end
+        os.sleep(1)
     end
 
     if not conn.query_done then
@@ -85,8 +88,9 @@ function test_query_error()
     conn:query("SELECT 42 AS recovered", "on_result")
 
     for i = 1, 1000 do
-        conn:tick()
+        runtime.tick()
         if conn.query_done then break end
+        os.sleep(1)
     end
 
     if not conn.query_done then

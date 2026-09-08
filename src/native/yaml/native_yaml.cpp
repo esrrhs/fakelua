@@ -106,7 +106,7 @@ static CVar node_to_lua(State *s, const YAML::Node &node) {
 
 // ── CVar → YAML::Emitter ──
 
-static int kMaxYamlDepth = 64;
+static constexpr int kMaxYamlDepth = 64;
 
 static void lua_to_emitter(YAML::Emitter &out, CVar v, int depth, std::unordered_set<VarTable *> &visited) {
     if (depth > kMaxYamlDepth) {

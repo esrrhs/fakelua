@@ -235,7 +235,11 @@ bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&ou
         return cfg.custom_parser_fn(buf, out_payload, out_len);
     }
 
-    static thread_local std::vector<char> parse_tmp;
+    // 用 buf 自己的暂存区：一个连接只被它所属的 State 单线程访问，所以按缓冲区各存一份
+    // 既没有竞争，也不会像共享一份那样"解析另一条连接就让先前的 payload 失效"。
+    //
+    // 大小有上限：payload_len 在上面已经被 validate_payload_len 按 max_packet_len 卡过。
+    auto &parse_tmp = buf.payload_scratch();
 
     switch (cfg.framer) {
         case FramerType::Header4BigEndian: {

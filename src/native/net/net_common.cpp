@@ -23,10 +23,10 @@
 
 namespace fakelua::net {
 
-static int g_net_initialized = 0;
-
+// 不自己记引用计数：WSAStartup/WSACleanup 本身由 Winsock 内部计数，一次 net_init 配一次
+// net_shutdown（每个 net 对象各一次，见 native_net.cpp 的创建与 finalizer）就是正确的。
+// 自己再记一份，那就是个跨 State 共享的进程级计数器。
 void net_init() {
-    if (g_net_initialized++ > 0) return;
 #if defined(_WIN32)
     WSADATA wsa_data{};
     WSAStartup(MAKEWORD(2, 2), &wsa_data);
@@ -34,8 +34,6 @@ void net_init() {
 }
 
 void net_shutdown() {
-    if (--g_net_initialized > 0) return;
-    if (g_net_initialized < 0) g_net_initialized = 0;
 #if defined(_WIN32)
     WSACleanup();
 #endif

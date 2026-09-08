@@ -196,7 +196,7 @@ static void EncodeField(std::string &out, const FieldDef &field, const CVar &v, 
             EncodeScalar(entry_buf, field.map_key_type, key);
             // value = field 2
             if (field.map_value_type == TYPE_MESSAGE) {
-                const MessageDef *msg = ProtobufState::Instance().FindMessage(field.map_value_type_name);
+                const MessageDef *msg = pb_state(s).FindMessage(field.map_value_type_name);
                 if (!msg) {
                     ThrowFakeluaException(std::format("protobuf.encode: unknown map value type '{}'",
                                                       field.map_value_type_name));
@@ -236,7 +236,7 @@ static void EncodeField(std::string &out, const FieldDef &field, const CVar &v, 
                     CVar elem = TableHelper::GetTableInt(s, v, static_cast<int64_t>(i + 1));
                     write_tag(out, field.number, wire);
                     if (field.type == TYPE_MESSAGE) {
-                        const MessageDef *msg = ProtobufState::Instance().FindMessage(field.type_name);
+                        const MessageDef *msg = pb_state(s).FindMessage(field.type_name);
                         if (!msg) {
                             ThrowFakeluaException(std::format("protobuf.encode: unknown message type '{}'",
                                                               field.type_name));
@@ -254,7 +254,7 @@ static void EncodeField(std::string &out, const FieldDef &field, const CVar &v, 
                 }
                 write_tag(out, field.number, wire);
                 if (field.type == TYPE_MESSAGE) {
-                    const MessageDef *msg = ProtobufState::Instance().FindMessage(field.type_name);
+                    const MessageDef *msg = pb_state(s).FindMessage(field.type_name);
                     if (!msg) {
                         ThrowFakeluaException(std::format("protobuf.encode: unknown message type '{}'",
                                                           field.type_name));
@@ -272,7 +272,7 @@ static void EncodeField(std::string &out, const FieldDef &field, const CVar &v, 
     // 普通标量字段
     write_tag(out, field.number, wire);
     if (field.type == TYPE_MESSAGE) {
-        const MessageDef *msg = ProtobufState::Instance().FindMessage(field.type_name);
+        const MessageDef *msg = pb_state(s).FindMessage(field.type_name);
         if (!msg) {
             ThrowFakeluaException(std::format("protobuf.encode: unknown message type '{}'", field.type_name));
         }
@@ -290,7 +290,7 @@ static std::string EncodeMessageImpl(State *s, const std::string &msg_name, cons
     if (depth > kMaxProtoDepth) {
         ThrowFakeluaException("protobuf.encode: nesting too deep");
     }
-    const MessageDef *msg = ProtobufState::Instance().FindMessage(msg_name);
+    const MessageDef *msg = pb_state(s).FindMessage(msg_name);
     if (!msg) {
         ThrowFakeluaException(std::format("protobuf.encode: unknown message type '{}'", msg_name));
     }
@@ -400,7 +400,7 @@ static CVar DecodeMessageImpl(State *s, const std::string &msg_name, const std::
     if (depth > kMaxProtoDepth) {
         ThrowFakeluaException("protobuf.decode: nesting too deep");
     }
-    const MessageDef *msg = ProtobufState::Instance().FindMessage(msg_name);
+    const MessageDef *msg = pb_state(s).FindMessage(msg_name);
     if (!msg) {
         ThrowFakeluaException(std::format("protobuf.decode: unknown message type '{}'", msg_name));
     }

@@ -22,8 +22,9 @@ function test_dml()
     }, "on_connect")
 
     for i = 1, 1000 do
-        conn:tick()
+        runtime.tick()
         if conn.connected or conn.connect_err then break end
+        os.sleep(1)
     end
 
     if not conn.connected then
@@ -36,8 +37,9 @@ function test_dml()
         }, "on_connect")
 
         for i = 1, 1000 do
-            conn:tick()
+            runtime.tick()
             if conn.connected or conn.connect_err then break end
+            os.sleep(1)
         end
     end
 
@@ -50,18 +52,18 @@ function test_dml()
     -- 1. 创建测试表
     conn.query_done = false
     conn:query("DROP TABLE IF EXISTS dml_test", "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     conn.query_done = false
     conn:query("CREATE TABLE dml_test (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(32), num INT)", "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     -- 2. 插入多条记录，验证 status packet
     conn.query_done = false
     conn.query_err = nil
     conn.query_result = nil
     conn:query("INSERT INTO dml_test (name, num) VALUES ('row1', 10), ('row2', 20)", "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     if conn.query_err ~= nil then
         if #conn.query_err > 0 then
@@ -104,7 +106,7 @@ function test_dml()
     conn.query_err = nil
     conn.query_result = nil
     conn:query("UPDATE dml_test SET num = 100 WHERE name = 'row1'", "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     if conn.query_err ~= nil then
         if #conn.query_err > 0 then
@@ -126,7 +128,7 @@ function test_dml()
     conn.query_err = nil
     conn.query_result = nil
     conn:query("DELETE FROM dml_test WHERE name = 'row2'", "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     if conn.query_err ~= nil then
         if #conn.query_err > 0 then
@@ -146,7 +148,7 @@ function test_dml()
     -- 清理
     conn.query_done = false
     conn:query("DROP TABLE IF EXISTS dml_test", "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     conn:close()
     return 1

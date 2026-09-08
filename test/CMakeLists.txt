@@ -81,11 +81,8 @@ add_executable(unit_tests ${TEST_SRC_LIST})
 if (NOT WIN32 AND NOT APPLE)
     target_link_libraries(unit_tests PRIVATE dl)
 endif ()
-# test_net.cpp uses Winsock APIs directly, requires ws2_32 on Windows.
-if (WIN32)
-    target_link_libraries(unit_tests PRIVATE ws2_32)
-endif ()
-target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${LUA_LIBRARIES})
+find_package(Threads REQUIRED)
+target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${LUA_LIBRARIES} Threads::Threads)
 
 add_test(NAME unit COMMAND ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/unit_tests
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})

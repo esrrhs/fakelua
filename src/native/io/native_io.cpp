@@ -30,14 +30,15 @@ static constexpr const char *kPopenKey = "__popen__";
 static constexpr const char *kIoStateKey = "__io_state__";
 static constexpr const char *kLinesCloseKey = "__io_lines_close__";
 
-static std::unordered_map<State *, std::vector<NativeObject *>> g_io_wrappers;
-
-struct IoStdFiles {
-    NativeObject *in = nullptr;
-    NativeObject *out = nullptr;
-    NativeObject *err = nullptr;
+// 存在 State 上而不是这里的 static map：后者是全进程一份，多个线程各跑自己的 State 时
+// 会并发改同一个容器。
+struct IoState {
+    std::vector<NativeObject *> wrappers;
+    // 标准流的包装对象，每个 State 各自缓存一份
+    NativeObject *stdin_obj = nullptr;
+    NativeObject *stdout_obj = nullptr;
+    NativeObject *stderr_obj = nullptr;
 };
-static std::unordered_map<State *, IoStdFiles> g_io_std;
 
 static bool is_std_handle(FILE *fp) {
     return fp == stdin || fp == stdout || fp == stderr;
@@ -46,7 +47,7 @@ static bool is_std_handle(FILE *fp) {
 static void register_io_wrapper(State *s, NativeObject *nat) {
     if (!s || !nat) return;
     nat->SetInt(kIoStateKey, reinterpret_cast<int64_t>(s));
-    g_io_wrappers[s].push_back(nat);
+    s->GetModuleState<IoState>().wrappers.push_back(nat);
 }
 
 static void unregister_io_wrapper(NativeObject *nat) {
@@ -54,11 +55,8 @@ static void unregister_io_wrapper(NativeObject *nat) {
     auto *st = reinterpret_cast<State *>(nat->GetInt(kIoStateKey, 0));
     nat->SetInt(kIoStateKey, 0);
     if (!st) return;
-    auto it = g_io_wrappers.find(st);
-    if (it == g_io_wrappers.end()) return;
-    auto &v = it->second;
+    auto &v = st->GetModuleState<IoState>().wrappers;
     v.erase(std::remove(v.begin(), v.end(), nat), v.end());
-    if (v.empty()) g_io_wrappers.erase(it);
 }
 
 static void CloseIoFileHandle(NativeObject *self) {
@@ -76,38 +74,33 @@ static void CloseIoFileHandle(NativeObject *self) {
 
 void OnStateDeleted(State *s) {
     if (!s) return;
-    auto it = g_io_wrappers.find(s);
-    if (it != g_io_wrappers.end()) {
-        auto wrappers = std::move(it->second);
-        g_io_wrappers.erase(it);
-        for (auto *nat : wrappers) {
-            if (!nat) continue;
-            nat->SetInt(kIoStateKey, 0);
-            NativeObjectManager::Instance().DestroyGroup(nat->GetGroupId());
-        }
+    auto *io_state_ptr = s->TryGetModuleState<IoState>();
+    if (!io_state_ptr) return;
+    auto &io_state = *io_state_ptr;
+    auto wrappers = std::move(io_state.wrappers);
+    for (auto *nat: wrappers) {
+        if (!nat) continue;
+        nat->SetInt(kIoStateKey, 0);
+        s->GetNativeObjectManager().DestroyGroup(nat->GetGroupId());
     }
-    auto it_std = g_io_std.find(s);
-    if (it_std != g_io_std.end()) {
-        auto &stdf = it_std->second;
-        if (stdf.in) {
-            NativeObjectManager::Instance().DestroyGroup(stdf.in->GetGroupId());
+    for (auto *slot: {&io_state.stdin_obj, &io_state.stdout_obj, &io_state.stderr_obj}) {
+        if (*slot) {
+            s->GetNativeObjectManager().DestroyGroup((*slot)->GetGroupId());
+            *slot = nullptr;
         }
-        if (stdf.out) {
-            NativeObjectManager::Instance().DestroyGroup(stdf.out->GetGroupId());
-        }
-        if (stdf.err) {
-            NativeObjectManager::Instance().DestroyGroup(stdf.err->GetGroupId());
-        }
-        g_io_std.erase(it_std);
     }
 }
 
-// Called by NativeObjectManager::Clear() BEFORE it destroys all NativeObjects.
-// Wiping these maps prevents OnStateDeleted from holding dangling pointers into
-// already-freed objects when the state is deleted after Clear().
-void OnNativeObjectManagerCleared() {
-    g_io_wrappers.clear();
-    g_io_std.clear();
+// NativeObjectManager::Clear() 在销毁全部 NativeObject 之前调这里。清掉缓存，免得随后的
+// OnStateDeleted 拿着指向已释放对象的指针。
+void OnNativeObjectManagerCleared(State *s) {
+    if (!s) return;
+    auto *io_state = s->TryGetModuleState<IoState>();
+    if (!io_state) return;
+    io_state->wrappers.clear();
+    io_state->stdin_obj = nullptr;
+    io_state->stdout_obj = nullptr;
+    io_state->stderr_obj = nullptr;
 }
 
 // ─── 行读取辅助函数 ───
@@ -281,8 +274,8 @@ static std::string_view ArgToStringView(CVar a, State * /*state*/, std::string &
 // 创建一个 IoFile NativeObject 壳，内部 FILE* 存为 Int 字段
 // is_popen=true 时用 pclose 而非 fclose 关闭
 static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *obj = NativeObjectManager::Instance().Create(gid, "iofile");
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *obj = s->GetNativeObjectManager().Create(gid, "iofile");
     obj->SetInt(kFpKey, reinterpret_cast<int64_t>(fp));
     obj->SetBool(kPopenKey, is_popen);
     register_io_wrapper(s, obj);
@@ -335,7 +328,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
                 total_written += sv.size();
             }
         }
-        LOG_DEBUG("io", "file:write: bytes={}", total_written);
+        LOG_DEBUG(state, "io", "file:write: bytes={}", total_written);
         // 返回 self 以支持链式调用
         return inter::NativeToFakeluaNativeObject(state, self);
     });
@@ -359,7 +352,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         int ret = is_popen ? ::pclose(fp) : std::fclose(fp);
         self->SetInt(kFpKey, 0);
         if (ret == 0) {
-            LOG_DEBUG("io", "file:close: success");
+            LOG_DEBUG(state, "io", "file:close: success");
             return inter::NativeToFakeluaBool(state, true);
         }
         return inter::NativeToFakeluaNil(state);
@@ -465,13 +458,13 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
 }
 
 static NativeObject *StdHandle(State *s, FILE *fp) {
-    auto &stdf = g_io_std[s];
+    auto &stdf = s->GetModuleState<IoState>();
     NativeObject **slot = nullptr;
-    if (fp == stdin) slot = &stdf.in;
+    if (fp == stdin) slot = &stdf.stdin_obj;
     else if (fp == stdout)
-        slot = &stdf.out;
+        slot = &stdf.stdout_obj;
     else
-        slot = &stdf.err;
+        slot = &stdf.stderr_obj;
     if (!*slot) *slot = MakeIoFile(s, fp);
     return *slot;
 }
@@ -506,14 +499,14 @@ void RegisterIoLibraryApi(State *s) {
         }
         FILE *fp = std::fopen(std::string(filename).c_str(), mode.c_str());
         if (!fp) {
-            LOG_ERROR("io", "io.open failed: filename={} mode={} err={}", filename, mode, std::strerror(errno));
+            LOG_ERROR(state, "io", "io.open failed: filename={} mode={} err={}", filename, mode, std::strerror(errno));
             auto multi = inter::AllocMultiCVar(state, 3);
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaNil(state));
             inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaString(state, std::strerror(errno)));
             inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, errno));
             return multi;
         }
-        LOG_DEBUG("io", "io.open: filename={} mode={}", filename, mode);
+        LOG_DEBUG(state, "io", "io.open: filename={} mode={}", filename, mode);
         auto *obj = MakeIoFile(state, fp);
         return inter::NativeToFakeluaNativeObject(state, obj);
     });

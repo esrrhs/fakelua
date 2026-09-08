@@ -22,8 +22,9 @@ function test_lifecycle()
     }, "on_connect")
 
     for i = 1, 1000 do
-        conn:tick()
+        runtime.tick()
         if conn.connected or conn.connect_err then break end
+        os.sleep(1)
     end
 
     if not conn.connected then
@@ -36,8 +37,9 @@ function test_lifecycle()
         }, "on_connect")
 
         for i = 1, 1000 do
-            conn:tick()
+            runtime.tick()
             if conn.connected or conn.connect_err then break end
+            os.sleep(1)
         end
     end
 
@@ -57,7 +59,8 @@ function test_lifecycle()
 
     -- 驱动 tick 确保 ping 操作完成
     for i = 1, 100 do
-        conn:tick()
+        runtime.tick()
+        os.sleep(1)
     end
 
     -- 2. 验证关闭及重复关闭 (double close) 幂等不崩溃

@@ -74,7 +74,7 @@ bool CGen::ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo 
 
 // 核心编译入口函数：为输入的 AST、推断结果及配置生成 C 代码
 GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const AnalysisResult &ar, const CompileConfig &cfg) {
-    LOG_DEBUG("engine", "start CGen::Generate {}", pr.file_name);
+    LOG_DEBUG(s_, "engine", "start CGen::Generate {}", pr.file_name);
 
     file_name_ = pr.file_name;
     ir_ = ir;
@@ -83,7 +83,7 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Ana
     // 运行构建主流程
     GenResult gr = Build(pr, cfg);
 
-    LOG_DEBUG("engine", "CGen::Build complete: {} functions, {} bytes of C code",
+    LOG_DEBUG(s_, "engine", "CGen::Build complete: {} functions, {} bytes of C code",
               gr.function_names.size(), gr.c_code.size());
 
     // 如果开启了调试模式，将生成的 C 代码转储到临时文件中以供调试
@@ -92,13 +92,13 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Ana
         if (std::ofstream ofs(dumpfile); ofs.is_open()) {
             ofs << gr.c_code;
             ofs.close();
-            LOG_DEBUG("engine", "C code dumped to {}", dumpfile);
+            LOG_DEBUG(s_, "engine", "C code dumped to {}", dumpfile);
         } else {
-            LOG_ERROR("engine", "Failed to open output file: {}", dumpfile);
+            LOG_ERROR(s_, "engine", "Failed to open output file: {}", dumpfile);
         }
     }
 
-    LOG_DEBUG("engine", "end CGen::Generate {}, functions: {}", pr.file_name, gr.function_names.size());
+    LOG_DEBUG(s_, "engine", "end CGen::Generate {}, functions: {}", pr.file_name, gr.function_names.size());
     return gr;
 }
 

@@ -196,7 +196,7 @@ private:
 
 class Parser {
 public:
-    explicit Parser(const std::string &filename) : filename_(filename) {}
+    Parser(State *s, const std::string &filename) : s_(s), filename_(filename) {}
 
     void Parse(Lexer &lexer) {
         current_ = lexer.Next();
@@ -207,6 +207,7 @@ public:
 
 private:
     Token current_;
+    State *s_ = nullptr;         // schema 注册表所属的 State
     std::string filename_;
     std::string package_;        // 当前 package
     std::string syntax_;         // "proto2" / "proto3"
@@ -342,16 +343,16 @@ private:
         if (!prefix.empty()) {
             // 先在 prefix 下查找
             std::string candidate = prefix + "." + name;
-            if (ProtobufState::Instance().FindMessage(candidate) ||
-                ProtobufState::Instance().FindEnum(candidate)) {
+            if (pb_state(s_).FindMessage(candidate) ||
+                pb_state(s_).FindEnum(candidate)) {
                 return candidate;
             }
         }
         // 在 package 下查找
         if (!package_.empty()) {
             std::string candidate = package_ + "." + name;
-            if (ProtobufState::Instance().FindMessage(candidate) ||
-                ProtobufState::Instance().FindEnum(candidate)) {
+            if (pb_state(s_).FindMessage(candidate) ||
+                pb_state(s_).FindEnum(candidate)) {
                 return candidate;
             }
         }
@@ -388,7 +389,7 @@ private:
         // 可选的尾随分号
         if (current_.type == Token::T_SYMBOL && current_.value == ";") Advance(lexer);
 
-        ProtobufState::Instance().RegisterMessage(std::move(def));
+        pb_state(s_).RegisterMessage(std::move(def));
     }
 
     void ParseMessageBody(Lexer &lexer, MessageDef &def, const std::string &prefix) {
@@ -447,7 +448,7 @@ private:
             if (IsScalarType(type_name)) {
                 type = ParseScalarType(type_name);
                 type_name.clear();
-            } else if (ProtobufState::Instance().FindEnum(type_name)) {
+            } else if (pb_state(s_).FindEnum(type_name)) {
                 // 已注册的 enum 类型
                 type = TYPE_ENUM;
                 type_name = ResolveTypeName(type_name, prefix);
@@ -666,7 +667,7 @@ private:
 
         if (current_.type == Token::T_SYMBOL && current_.value == ";") Advance(lexer);
 
-        ProtobufState::Instance().RegisterEnum(std::move(def));
+        pb_state(s_).RegisterEnum(std::move(def));
     }
 
     void ParseEnumField(Lexer &lexer, EnumDef &def) {
@@ -720,12 +721,12 @@ private:
 
 // ─── 公开接口 ───
 
-std::string ParseProto(const std::string &text, const std::string &filename) {
+std::string ParseProto(State *s, const std::string &text, const std::string &filename) {
     try {
         Lexer lexer(text);
-        Parser parser(filename);
+        Parser parser(s, filename);
         parser.Parse(lexer);
-        ProtobufState::Instance().ResolveAll();  // 解析完成后修正 enum 引用
+        pb_state(s).ResolveAll();  // 解析完成后修正 enum 引用
         return "";  // 成功
     } catch (const std::exception &e) {
         return e.what();
