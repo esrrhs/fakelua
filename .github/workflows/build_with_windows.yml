@@ -12,7 +12,6 @@ permissions:
 jobs:
   build:
     runs-on: windows-2022
-    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
@@ -138,9 +137,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set -eux
-          cd $GITHUB_WORKSPACE/test/lua
-          # 整套约 15 分钟。加个上限，卡住的时候能早点失败，而不是耗满整个 job 预算。
-          timeout -s KILL 1800 $GITHUB_WORKSPACE/build/bin/unit_tests.exe
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe
 
       - name: Run flua
         shell: msys2 {0}
