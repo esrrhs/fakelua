@@ -62,6 +62,12 @@ MysqlConnection::MysqlConnection() {
     ensure_conn();
 }
 
+MysqlConnection::DiagMarker::~DiagMarker() {
+    if (!asio_diag_enabled()) return;
+    fprintf(stderr, "[ASIO_DIAG] entering ~io_context\n");
+    fflush(stderr);
+}
+
 MysqlConnection::~MysqlConnection() {
     probe_outstanding_work(io_ctx_, this, "dtor-enter");
     close();

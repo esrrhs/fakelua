@@ -127,6 +127,14 @@ private:
     // Boost.Asio I/O context for asynchronous operations
     boost::asio::io_context io_ctx_;
 
+    // Declared right after io_ctx_ so it is destroyed right before it: with
+    // FAKELUA_ASIO_DIAG=1 its message is the last output before ~io_context,
+    // which pins whether that destructor is where Windows stalls.
+    struct DiagMarker {
+        ~DiagMarker();
+    };
+    DiagMarker diag_marker_;
+
     // Unique so close() can destroy the socket, then poll io_ctx_ to drop
     // outstanding IOCP work. Windows ~io_context cannot discard leftover ops.
     std::unique_ptr<boost::mysql::any_connection> conn_;
