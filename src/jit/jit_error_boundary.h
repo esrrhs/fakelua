@@ -1,5 +1,6 @@
 #pragma once
 
+#include "state/state.h"
 #include "util/exception.h"
 #include <setjmp.h>
 #include <string>
@@ -37,42 +38,41 @@ struct JitErrorBoundary {
     std::string msg;
 };
 
-// 当前线程最内层的边界；为空表示当前不在 JIT 代码执行过程中。
-// 与 Vm 一致地按"一个 State 只被一个线程持有"设计，故用 thread_local 而非全局。
-extern thread_local JitErrorBoundary *g_jit_error_boundary __attribute__((tls_model("initial-exec")));
-
-inline bool InJitFrame() {
-    return g_jit_error_boundary != nullptr;
+// 边界链的栈顶存在 State 上（State::GetJitErrorBoundary），不用线程局部变量：一个 State
+// 只被一个线程持有，脚本执行也只发生在它自己的栈上，所以链顶天然是每 State 一份。
+inline bool InJitFrame(State *s) {
+    return s->GetJitErrorBoundary() != nullptr;
 }
 
-// 把错误交回最近的边界。仅在 InJitFrame() 为真时可调用。
-[[noreturn]] void JumpToJitErrorBoundary(std::string msg);
+// 把错误交回最近的边界。仅在 InJitFrame(s) 为真时可调用。
+[[noreturn]] void JumpToJitErrorBoundary(State *s, std::string msg);
 
 // 边界的入栈与出栈。出栈必须走析构：fn 也可能直接抛出普通 C++ 异常（例如参数个数
 // 不合法），那种情况下不会回到 setjmp 点，仅靠顺序代码复位会留下悬空指针。
 class JitErrorBoundaryScope {
 public:
-    explicit JitErrorBoundaryScope(JitErrorBoundary *boundary) : prev_(g_jit_error_boundary) {
+    JitErrorBoundaryScope(State *s, JitErrorBoundary *boundary) : s_(s), prev_(s->GetJitErrorBoundary()) {
         boundary->prev = prev_;
-        g_jit_error_boundary = boundary;
+        s_->SetJitErrorBoundary(boundary);
     }
 
     ~JitErrorBoundaryScope() {
-        g_jit_error_boundary = prev_;
+        s_->SetJitErrorBoundary(prev_);
     }
 
     JitErrorBoundaryScope(const JitErrorBoundaryScope &) = delete;
     JitErrorBoundaryScope &operator=(const JitErrorBoundaryScope &) = delete;
 
 private:
+    State *s_;
     JitErrorBoundary *prev_;
 };
 
 // 在边界内执行 fn（fn 会调用 JIT 代码）：JIT 代码里的错误会以 FakeluaException 抛出。
 template<typename Fn>
-auto RunWithJitErrorBoundary(Fn &&fn) -> decltype(fn()) {
+auto RunWithJitErrorBoundary(State *s, Fn &&fn) -> decltype(fn()) {
     JitErrorBoundary boundary;
-    JitErrorBoundaryScope scope(&boundary);
+    JitErrorBoundaryScope scope(s, &boundary);
 
     if (FAKELUA_SETJMP(boundary.buf) == 0) {
         return fn();
@@ -84,18 +84,18 @@ auto RunWithJitErrorBoundary(Fn &&fn) -> decltype(fn()) {
 // C++ 析构函数按常规展开执行，再把错误 longjmp 给最近的边界。不在 JIT 代码里时
 // 保持原有的异常传播语义不变。
 template<typename Fn>
-auto GuardJitEntry(Fn &&fn) -> decltype(fn()) {
+auto GuardJitEntry(State *s, Fn &&fn) -> decltype(fn()) {
     try {
         return fn();
     } catch (const FakeluaException &e) {
-        if (!InJitFrame()) throw;
-        JumpToJitErrorBoundary(e.what());
+        if (!InJitFrame(s)) throw;
+        JumpToJitErrorBoundary(s, e.what());
     } catch (const std::exception &e) {
-        if (!InJitFrame()) throw;
-        JumpToJitErrorBoundary(std::string("fakelua error: ") + e.what());
+        if (!InJitFrame(s)) throw;
+        JumpToJitErrorBoundary(s, std::string("fakelua error: ") + e.what());
     } catch (...) {
-        if (!InJitFrame()) throw;
-        JumpToJitErrorBoundary("fakelua error: unknown exception thrown from native code");
+        if (!InJitFrame(s)) throw;
+        JumpToJitErrorBoundary(s, "fakelua error: unknown exception thrown from native code");
     }
 }
 

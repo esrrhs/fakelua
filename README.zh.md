@@ -289,7 +289,7 @@ State* s = guard.GetState();
 | `Call()` | 调用编译后的函数 |
 | `GetLastRecordedCCode()` | 获取最近编译的 C 代码 |
 | `SetVarInterfaceNewFunc()` | 设置自定义 VarInterface 工厂 |
-| `SetDebugLogLevel()` | 设置全局调试日志级别（已弃用，Lua 侧推荐 `log.set_level`） |
+| `SetDebugLogLevel(s, level)` | 设置本 State 的调试日志级别（0=Trace … 6=Off；Lua 侧用 `log.set_level`） |
 
 ### 类型转换
 

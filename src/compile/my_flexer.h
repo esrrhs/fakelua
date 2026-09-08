@@ -9,6 +9,8 @@
 
 namespace fakelua {
 
+class State;
+
 // 自定义词法分析器，集成 Flex 与语法树构建功能
 class MyFlexer : public yyFlexLexer {
 public:
@@ -38,6 +40,14 @@ public:
         return filename_;
     }
 
+    void SetState(State *s) {
+        state_ = s;
+    }
+
+    [[nodiscard]] State *GetState() const {
+        return state_;
+    }
+
 private:
     // 生成临时文件以供词法分析使用
     std::string GenerateTmpFile(const std::string &str);
@@ -46,6 +56,7 @@ private:
     yy::location location_;       // 记录当前 token 的行列位置
     int long_comment_level_ = 0;  // 当前长注释的长括号层级，即 --[==[ 里 = 的个数
     std::string filename_;        // 当前解析的文件名或源标识
+    State *state_ = nullptr;       // 所属 State，供 bison 打日志时带上
     std::ifstream file_;          // 文件输入流
     std::istringstream string_;   // 字符串输入流
     SyntaxTreeInterfacePtr chunk_;// 语法树根节点

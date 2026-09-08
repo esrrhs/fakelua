@@ -69,7 +69,7 @@ void MysqlConnection::teardown_transport() {
         // Never observed. Destroying the connection here would hand Boost.MySQL
         // freed memory once the completion arrives, so keep it alive forever
         // instead; our own handler is already inert via life_.
-        LOG_ERROR("mysql", "cancellation did not complete, leaking the connection to stay safe");
+        LOG_ERROR(lua_state_, "mysql", "cancellation did not complete, leaking the connection to stay safe");
         // 故意泄漏。这里不能存进容器：静态容器是跨线程共享的（多个 State 可能同时走到
         // 这条路），而 thread_local 容器会在线程退出时把连接销毁掉，正是要避免的事。
         // release() 交出所有权就够了，不需要任何容器。
@@ -442,17 +442,17 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
     // a nested poll would overwrite the state this dispatch is reading.
     native::IoContext::DispatchScope dispatch_scope(io_);
     if (close_pending_) return;
-    LOG_DEBUG("mysql", "dispatch_connect: err_msg={} cb={}",
+    LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: err_msg={} cb={}",
               err_msg ? err_msg : "(null)", connect_cb_.c_str());
 
     if (!lua_state_ || connect_cb_.empty()) {
-        LOG_DEBUG("mysql", "dispatch_connect: no state or no callback");
+        LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: no state or no callback");
         return;
     }
 
     auto func = lua_state_->GetVM().GetFunction(connect_cb_);
     if (func.Empty()) {
-        LOG_DEBUG("mysql", "dispatch_connect: function not found");
+        LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: function not found");
         return;
     }
 
@@ -463,7 +463,7 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
         jit_type = JIT_GCC;
     }
     if (!addr) {
-        LOG_DEBUG("mysql", "dispatch_connect: no JIT address");
+        LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: no JIT address");
         return;
     }
 
@@ -474,14 +474,14 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
     if (err_msg && err_msg[0]) {
         args[1] = inter::NativeToFakeluaString(lua_state_, err_msg);
         args[2] = inter::NativeToFakeluaInt(lua_state_, 0);
-        LOG_DEBUG("mysql", "dispatch_connect: calling callback with msg={} success=0", err_msg);
+        LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: calling callback with msg={} success=0", err_msg);
     } else {
         args[1] = inter::NativeToFakeluaNil(lua_state_);
         args[2] = inter::NativeToFakeluaInt(lua_state_, 1);
-        LOG_DEBUG("mysql", "dispatch_connect: calling callback success=1");
+        LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: calling callback success=1");
     }
 
-    inter::DispatchCall(addr, args, 3, jit_type);
+    inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
 }
 
 void MysqlConnection::dispatch_result(const boost::mysql::results &result, const char *err_msg) {
@@ -504,7 +504,7 @@ void MysqlConnection::dispatch_result(const boost::mysql::results &result, const
     // Ensure we always have a valid error message (never empty string with failure)
     const char *msg = err_msg && err_msg[0] ? err_msg : "query failed";
 
-    LOG_DEBUG("mysql", "dispatch_result: err_msg={} cb={} stmt_id_dispatch={}",
+    LOG_DEBUG(lua_state_, "mysql", "dispatch_result: err_msg={} cb={} stmt_id_dispatch={}",
               err_msg ? err_msg : "(null)", result_cb_.c_str(), dispatch_stmt_id_);
 
     CVar args[3];
@@ -516,7 +516,7 @@ void MysqlConnection::dispatch_result(const boost::mysql::results &result, const
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
         args[2] = nil;
-        inter::DispatchCall(addr, args, 3, jit_type);
+        inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
     } else if (dispatch_stmt_id_ != 0) {
         // COM_STMT_PREPARE response: surface the statement id as a number.
         CVar nil{};
@@ -524,21 +524,21 @@ void MysqlConnection::dispatch_result(const boost::mysql::results &result, const
         args[1] = nil;
         args[2] = inter::NativeToFakeluaInt(lua_state_,
                                             static_cast<int64_t>(dispatch_stmt_id_));
-        inter::DispatchCall(addr, args, 3, jit_type);
+        inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
     } else {
         if (result.empty()) {
             CVar nil{};
             nil.type_ = static_cast<int>(VarType::Nil);
             args[1] = nil;
             args[2] = table::TableHelper::CreateTable(lua_state_);
-            inter::DispatchCall(addr, args, 3, jit_type);
+            inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
         } else {
             for (size_t i = 0; i < result.size(); ++i) {
                 CVar nil{};
                 nil.type_ = static_cast<int>(VarType::Nil);
                 args[1] = nil;
                 args[2] = resultset_to_lua(lua_state_, result[i]);
-                inter::DispatchCall(addr, args, 3, jit_type);
+                inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
                 if (close_pending_) break;
             }
         }

@@ -49,7 +49,7 @@ static std::string FormatArgs(State *s, CVar *args, int n) {
 static CVar LogVarArgs(State *s, CVar *args, int n, LogLevel level) {
     if (n < 1) ThrowBadArgument(1, "log.xxx", "message expected");
     std::string msg = FormatArgs(s, args, n);
-    Log(level, kScriptTag, msg);
+    Log(s, level, kScriptTag, msg);
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -91,7 +91,7 @@ static CVar log_set_level(State *s, CVar *args, int n) {
         ThrowBadArgument(1, "log.set_level", "integer expected");
     }
     auto level = static_cast<LogLevel>(a0.data_.i);
-    SetLogLevel(level);
+    SetLogLevel(s, level);
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -100,7 +100,7 @@ static CVar log_set_file(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "log.set_file", "path expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     std::string path = inter::FakeluaToNativeString(s, a0);
-    SetLogFile(path);
+    SetLogFile(s, path);
     return inter::NativeToFakeluaNil(s);
 }
 

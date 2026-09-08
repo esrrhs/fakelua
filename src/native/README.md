@@ -34,6 +34,43 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 
 ---
 
+## Threading Model
+
+A `State` is a single-threaded entity: only one thread may touch it at a time, and concurrency
+is achieved by giving each thread its own `State`.
+
+The native layer is built on that premise: **all mutable state hangs off the `State`**. A module
+reaches its own private state through `State::GetModuleState<T>()`, which creates it on first
+access and destroys it with the `State`. No container is shared between States, so no locking is
+needed. Concretely:
+
+- Native objects, groups, global objects and id allocation are per-`State`, reached via
+  `State::GetNativeObjectManager()` (C++ callers can also use the free function
+  `GetNativeObjectManager(State *)`, since `State` is an opaque type outside the library);
+- Timers, event listeners, the net/mysql/sqlite/io object tables and the protobuf .proto schema
+  registry are all per-`State`, so nothing registered in one `State` leaks into another;
+- Reusable scratch buffers belong to whatever they serve: the linear staging areas used when
+  unpacking live on the `CircularBuffer` (`header_scratch` / `payload_scratch`), and the
+  WebSocket masking randomness lives on the `AsioConn` connection. Random number generators that
+  are only hit occasionally (temp file names, the WebSocket handshake key) are plain locals.
+
+The JIT error boundary chain (`jit_error_boundary.h`) lives on `State` too: the top of the chain
+is `State::GetJitErrorBoundary()`, while the boundary objects themselves sit on the C++ stack.
+`RunWithJitErrorBoundary`, `GuardJitEntry` and `InJitFrame` all take a `State`, which is why
+`inter::DispatchCall` carries a `State` parameter as well. A `State` is owned by exactly one
+thread and its scripts only ever run on that thread's stack, so the chain top is naturally
+per-State.
+
+Logging also takes a `State`: every `LOG_*` macro and the JIT helper `FakeluaLogLua` have
+`State *` as the first argument. Level and log file are per-`State` (`StateConfig::log_level` /
+`log_file`, or `log.set_level` / `log.set_file` at runtime). An empty `log_file` means console
+only; `s == nullptr` (for example `ThrowFakeluaException`) is treated as Info and console only.
+Console output is still serialized by a process-wide lock because stdout/stderr are shared.
+
+There are no `thread_local` variables left.
+
+---
+
 ## Basic (Global Functions)
 
 **File:** `basic/native_basic.h` · **Registration:** `RegisterBasicLibraryApi`

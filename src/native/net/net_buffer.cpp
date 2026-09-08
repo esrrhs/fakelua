@@ -235,13 +235,11 @@ bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&ou
         return cfg.custom_parser_fn(buf, out_payload, out_len);
     }
 
-    // 必须是 thread_local 而不是 static：State 是单线程实体，跨线程的用法是每线程一份
-    // State（见 state.h 的线程模型注释），于是多个线程会各自驱动自己的连接同时走到这里。
-    // 共享一份的话，一个线程 resize 导致重新分配的同时，另一个线程正拿着旧的 data() 往里
-    // 写，是写已释放内存。每线程一份即可，out_payload 在同一次调用内就被调用方拷走。
+    // 用 buf 自己的暂存区：一个连接只被它所属的 State 单线程访问，所以按缓冲区各存一份
+    // 既没有竞争，也不会像共享一份那样"解析另一条连接就让先前的 payload 失效"。
     //
     // 大小有上限：payload_len 在上面已经被 validate_payload_len 按 max_packet_len 卡过。
-    thread_local std::vector<char> parse_tmp;
+    auto &parse_tmp = buf.payload_scratch();
 
     switch (cfg.framer) {
         case FramerType::Header4BigEndian: {

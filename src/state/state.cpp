@@ -1,4 +1,5 @@
 #include "state/state.h"
+#include "util/logging.h"
 #include "fakelua.h"
 #include "jit/tcc_jit.h"
 #include "native/os/native_os.h"
@@ -36,7 +37,20 @@ native::IoContext &State::GetIoContext() {
     return *io_context_;
 }
 
+void State::SetLogFile(const std::string &path, size_t max_size, size_t max_files) {
+    log_sink_.reset();
+    if (!path.empty()) {
+        log_sink_ = decltype(log_sink_)(CreateLogSink(path, max_size, max_files), &DestroyLogSink);
+    }
+}
+
 State::State(const StateConfig &config) : config_(config), compiler_(this), const_string_(this) {
+    log_level_ = static_cast<LogLevel>(config_.log_level);
+    if (!config_.log_file.empty()) {
+        log_sink_ = decltype(log_sink_)(CreateLogSink(config_.log_file, config_.log_max_size, config_.log_max_files),
+                                        &DestroyLogSink);
+    }
+
     RegisterNativeObjectApi(this);
     net::RegisterNetLibraryApi(this);
     timer::RegisterTimerLibraryApi(this);

@@ -10,8 +10,8 @@ namespace fakelua {
 struct CVar;
 
 // 声明日志函数（定义在 util/logging.cpp）
-extern "C" void FakeluaLogLua(int level, CVar msg, const char *file, int line, const char *fname);
-extern "C" int GetLogLevel();
+extern "C" void FakeluaLogLua(State *s, int level, CVar msg, const char *file, int line, const char *fname);
+extern "C" int GetLogLevel(State *s);
 
 TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
     const auto &config = s->GetStateConfig();

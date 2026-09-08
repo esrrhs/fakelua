@@ -33,14 +33,10 @@ struct TimerState {
     std::unordered_set<HeapTimer::TimerId> cancelled_this_tick;
 };
 
-static std::unordered_map<State *, TimerState> g_states;
-
+// 每个 State 一份，随 State 销毁。放在 State 上而不是这里的 static map：后者是全进程
+// 一份，多个线程各跑自己的 State 时会并发改同一个容器。
 static TimerState &timer_state(State *s) {
-    return g_states[s];
-}
-
-void OnStateDeleted(State *s) {
-    g_states.erase(s);
+    return s->GetModuleState<TimerState>();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,7 +126,7 @@ static CVar call_lua_timer_event(State *state, const std::string &func_name, Hea
         CVar args[2];
         args[0] = inter::NativeToFakeluaString(state, "timer");
         args[1] = inter::NativeToFakeluaInt(state, static_cast<int64_t>(id));
-        return inter::DispatchCall(addr, args, 2, jit_type);
+        return inter::DispatchCall(state, addr, args, 2, jit_type);
     } else {
         // 回退：尝试原生函数
         auto *entry = state->GetVM().FindNativeFunction(func_name);
@@ -181,11 +177,11 @@ static CVar timer_set(State *s, CVar *args, int n) {
     auto id = ts.heap.Add(static_cast<uint32_t>(delay_val));
     if (id == 0) {
         // 堆已满（达到 int32_max），返回 nil
-        LOG_ERROR("timer", "timer.set failed: heap full (delay_ms={})", delay_val);
+        LOG_ERROR(s, "timer", "timer.set failed: heap full (delay_ms={})", delay_val);
         return inter::NativeToFakeluaNil(s);
     }
     ts.callbacks[id] = std::move(fname);
-    LOG_DEBUG("timer", "timer.set: id={} delay_ms={}", id, delay_val);
+    LOG_DEBUG(s, "timer", "timer.set: id={} delay_ms={}", id, delay_val);
     return inter::NativeToFakeluaInt(s, static_cast<int64_t>(id));
 }
 
@@ -204,15 +200,17 @@ static CVar timer_del(State *s, CVar *args, int n) {
     bool ok = ts.heap.Del(id);
     if (ts.callbacks.erase(id) > 0) ok = true;
     if (ts.in_tick) ts.cancelled_this_tick.insert(id);
-    LOG_DEBUG("timer", "timer.del: id={} ok={}", id, ok);
+    LOG_DEBUG(s, "timer", "timer.del: id={} ok={}", id, ok);
     return inter::NativeToFakeluaBool(s, ok);
 }
 
 // 驱动定时器：触发到期的一次性定时器和心跳。由 runtime.tick() 调用。
 void TickAll(State *s) {
     if (!s) return;
+    auto *ts_ptr = s->TryGetModuleState<TimerState>();
+    if (!ts_ptr) return;// 这个 State 从没设过定时器
     auto now = HeapTimer::Clock::now();
-    auto &ts = timer_state(s);
+    auto &ts = *ts_ptr;
     if (ts.in_tick) return;
 
     ts.in_tick = true;
@@ -233,7 +231,7 @@ void TickAll(State *s) {
         }
         for (auto &[id, cb] : to_fire) {
             if (ts.cancelled_this_tick.count(id)) continue;
-            LOG_DEBUG("timer", "timer.fire: id={}", id);
+            LOG_DEBUG(s, "timer", "timer.fire: id={}", id);
             call_lua_timer_event(s, cb, id);
         }
 

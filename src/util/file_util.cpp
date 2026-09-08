@@ -12,9 +12,9 @@ std::string GenerateTmpFilename(const std::string &head, const std::string &tail
     }
     tmpdir += head;
 
-    // 每线程一份：mt19937 的状态不是线程安全的，而多个线程可能同时在编译各自 State 的脚本。
-    // 种子用 random_device 而不是时钟，免得同时启动的线程拿到同一个序列。
-    thread_local std::mt19937 rng{std::random_device{}()};
+    // 局部的：编译一个脚本只走几次，没必要为它留一份长期状态。种子用 random_device 而不是
+    // 时钟，免得同时启动的两个线程拿到同一个序列、生成同名文件。
+    std::mt19937 rng{std::random_device{}()};
     std::uniform_int_distribution<int> dist(100000, 999999);
 
     // 在系统临时目录中创建临时文件

@@ -1,5 +1,7 @@
 #include "protobuf_schema.h"
 
+#include "state/state.h"
+
 #include <algorithm>
 
 namespace fakelua::protobuf {
@@ -15,9 +17,8 @@ void MessageDef::BuildIndex() {
 
 // ─── ProtobufState ───
 
-ProtobufState &ProtobufState::Instance() {
-    static ProtobufState instance;
-    return instance;
+ProtobufState &pb_state(State *s) {
+    return s->GetModuleState<ProtobufState>();
 }
 
 void ProtobufState::RegisterMessage(MessageDef def) {

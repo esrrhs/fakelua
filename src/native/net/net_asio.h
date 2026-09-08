@@ -23,6 +23,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <random>
 
 namespace fakelua {
 class State;
@@ -94,6 +95,8 @@ private:
     // WebSocket 状态机
     WsState ws_state_ = WsState::None;
     bool ws_handshake_sent_ = false;
+    // 客户端发出的帧要带随机掩码。放在连接上：一个连接只被它所属的 State 单线程访问。
+    std::mt19937 mask_rng_{std::random_device{}()};
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

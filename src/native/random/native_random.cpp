@@ -269,8 +269,8 @@ void RegisterRandomLibraryApi(State *s) {
         uint64_t init_state = splitmix64(seed_state);
 
         // 创建 RNG 对象
-        NativeObject *obj = NativeObjectManager::Instance().Create(
-            NativeObjectManager::Instance().CreateGroup(), "rng", 0);
+        NativeObject *obj = state->GetNativeObjectManager().Create(
+            state->GetNativeObjectManager().CreateGroup(), "rng", 0);
         rng_set_state(obj, init_state);
 
         // 注册方法

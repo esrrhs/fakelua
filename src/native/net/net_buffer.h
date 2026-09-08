@@ -40,8 +40,26 @@ public:
 
     void clear();
 
+    // 复用的线性暂存区。环形缓冲的可读区会绕回，想交出一段连续的 const char* 就得先拷到
+    // 一块连续内存里，这两块就是干这个的，免得每次解包都做一次堆分配。
+    //
+    // 按缓冲区各存一份，而不是用 thread_local：一个连接只被它所属的 State 单线程访问，
+    // 所以这里既没有竞争，还顺带把 out_payload 的有效期从"直到本线程下次调用"收紧成
+    // "直到同一个缓冲区上的下次调用" —— 前者意味着解析另一条连接会让先前的 payload 失效。
+    //
+    // 分两块是因为 ws 帧解析要同时用：一块 peek 头部，一块存包体。
+    [[nodiscard]] std::vector<char> &header_scratch() {
+        return header_scratch_;
+    }
+
+    [[nodiscard]] std::vector<char> &payload_scratch() {
+        return payload_scratch_;
+    }
+
 private:
     std::vector<char> buf_;
+    std::vector<char> header_scratch_;
+    std::vector<char> payload_scratch_;
     size_t head_ = 0;
     size_t tail_ = 0;
     size_t size_ = 0;
@@ -54,8 +72,8 @@ bool write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, s
 // 封包解析函数：依据配置从 recv_buf 中尝试解析出一个完整的数据包
 // out_error: 当声明长度非法（超过 max_packet_len / 超过缓冲区容量 / uint32 溢出）时为 true，
 //           调用方应关闭该连接；返回 false 且 out_error=false 仅表示数据未齐，需继续等待
-// out_payload: 指向一块每线程复用的临时缓冲，只在下一次本线程调用本函数之前有效。
-//              调用方必须在那之前把数据拷走。
+// out_payload: 指向 buf 自己的复用暂存区（CircularBuffer::payload_scratch），只在下一次
+//              对同一个 buf 调用本函数之前有效，调用方必须在那之前把数据拷走。
 
 bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len,
                       bool &out_error);

@@ -6,6 +6,10 @@
 #include <unordered_map>
 #include <vector>
 
+namespace fakelua {
+class State;
+}
+
 namespace fakelua::protobuf {
 
 // ─── 枚举定义 ───
@@ -53,9 +57,12 @@ struct MessageDef {
 
 // ─── Schema 注册器（进程全局单例） ───
 
+// .proto schema 注册表。每个 State 一份（见 pb_state），不是进程级单例：protobuf.load()
+// 会往里写，多个线程各跑自己的 State 时共享一份就是并发改同一个 map；而且一个 State 加载
+// 的 schema 也不该泄漏到另一个 State。
 class ProtobufState {
 public:
-    static ProtobufState &Instance();
+    ProtobufState() = default;
 
     // 注册 message/enum（name 为完全限定名）
     void RegisterMessage(MessageDef def);
@@ -75,10 +82,11 @@ public:
     void Clear();
 
 private:
-    ProtobufState() = default;
-
     std::unordered_map<std::string, MessageDef> messages_;
     std::unordered_map<std::string, EnumDef> enums_;
 };
+
+// 取本 State 的 schema 注册表
+ProtobufState &pb_state(State *s);
 
 }  // namespace fakelua::protobuf

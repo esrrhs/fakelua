@@ -77,7 +77,7 @@ bool AsioConn::send(const char *data, size_t len) {
 
     bool ok;
     if (is_websocket(cfg_)) {
-        ok = write_ws_frame(send_buf_, cfg_, from_client_, WsOpcode::Text, data, len);
+        ok = write_ws_frame(send_buf_, cfg_, from_client_, WsOpcode::Text, data, len, mask_rng_);
     } else {
         ok = write_packet(send_buf_, cfg_, data, len);
     }
@@ -166,7 +166,7 @@ void AsioConn::on_read(boost::system::error_code ec, size_t bytes) {
                     return;
                 }
                 if (opcode == WsOpcode::Ping) {
-                    write_ws_pong(send_buf_, cfg_, from_client_, payload, payload_len);
+                    write_ws_pong(send_buf_, cfg_, from_client_, payload, payload_len, mask_rng_);
                     do_write();
                     continue;
                 }

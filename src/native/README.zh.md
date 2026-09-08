@@ -36,6 +36,37 @@
 
 ---
 
+## 线程模型
+
+`State` 是单线程实体：同一时刻只能有一个线程访问它，要并发就每个线程一份 `State`。
+
+native 层按这个前提组织：**所有可变状态都挂在 `State` 上**，模块内部通过
+`State::GetModuleState<T>()` 取自己的私有状态（首次访问时创建，随 `State` 销毁）。因此各
+`State` 之间不共享任何容器，也就不需要加锁。具体说：
+
+- 原生对象、分组、全局对象、id 发号都是每 `State` 一份，见 `State::GetNativeObjectManager()`
+  （C++ 侧另有自由函数 `GetNativeObjectManager(State *)`，因为 `State` 对外是不透明类型）；
+- 定时器、事件监听、net/mysql/sqlite/io 的对象表、protobuf 的 .proto schema 注册表，都是每
+  `State` 一份，一个 `State` 里注册的东西不会泄漏到另一个；
+- 复用的临时缓冲区归它服务的那个对象：解包用的线性暂存区在 `CircularBuffer` 上
+  （`header_scratch` / `payload_scratch`），WebSocket 掩码的随机源在连接 `AsioConn` 上；
+  低频用到的随机数发生器（生成临时文件名、WebSocket 握手 key）直接用局部变量。
+
+JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶存在
+`State::GetJitErrorBoundary()`，边界对象本身在 C++ 栈上。`RunWithJitErrorBoundary` /
+`GuardJitEntry` / `InJitFrame` 都要传 `State`，所以 `inter::DispatchCall` 也带上了 `State`
+参数。一个 `State` 只被一个线程持有，脚本也只在它自己的栈上跑，链顶天然是每 `State` 一份。
+
+日志也必须带 `State`：`LOG_*` 宏和 JIT 里的 `FakeluaLogLua` 第一个参数都是 `State *`。
+级别和日志文件都是每 `State` 一份（`StateConfig::log_level` / `log_file`，运行期也可用
+`log.set_level` / `log.set_file`）。`log_file` 留空就只打控制台；`s` 为 `nullptr`
+（例如 `ThrowFakeluaException`）按 Info、只打控制台。控制台仍由一把全进程锁串行化，
+因为 stdout/stderr 是进程共享的。
+
+库里不再有 `thread_local`。
+
+---
+
 ## Basic（全局函数）
 
 **文件：** `basic/native_basic.h` · **注册：** `RegisterBasicLibraryApi`

@@ -40,7 +40,7 @@ TEST(exception, function_param_duplicate) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_function_param_duplicate.lua", {});
@@ -55,7 +55,7 @@ TEST(exception, const_define_duplicate) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_const_define_duplicate.lua", {});
@@ -70,7 +70,7 @@ TEST(exception, const_define_func_param_duplicate) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_const_define_func_param_duplicate.lua", {});
@@ -85,7 +85,7 @@ TEST(exception, const_define_no_match) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_const_define_no_match.lua", {});
@@ -100,7 +100,7 @@ TEST(exception, function_call_exception) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     CompileFile(s, "./exception/test_function_call_exception.lua", {});
 
@@ -127,7 +127,7 @@ TEST(exception, compile_fail) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_compile_fail.lua", {});
@@ -142,7 +142,7 @@ TEST(exception, compile_no_file) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_no_file.lua", {});
@@ -196,7 +196,7 @@ TEST(exception, return_type_error_bool) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -213,7 +213,7 @@ TEST(exception, return_type_error_char) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -230,7 +230,7 @@ TEST(exception, return_type_error_uchar) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -247,7 +247,7 @@ TEST(exception, return_type_error_short) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -264,7 +264,7 @@ TEST(exception, return_type_error_ushort) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -281,7 +281,7 @@ TEST(exception, return_type_error_int) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -298,7 +298,7 @@ TEST(exception, return_type_error_uint) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -315,7 +315,7 @@ TEST(exception, return_type_error_long) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -332,7 +332,7 @@ TEST(exception, return_type_error_ulong) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -349,7 +349,7 @@ TEST(exception, return_type_error_long_long) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -366,7 +366,7 @@ TEST(exception, return_type_error_ulong_long) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -383,7 +383,7 @@ TEST(exception, return_type_error_float) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -400,7 +400,7 @@ TEST(exception, return_type_error_double) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -417,7 +417,7 @@ TEST(exception, return_type_error_string) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -434,7 +434,7 @@ TEST(exception, return_type_error_stringview) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
@@ -451,7 +451,7 @@ TEST(exception, const_define_variadic) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_const_define_variadic.lua", {});
@@ -466,7 +466,7 @@ TEST(exception, test_const_binop_plus_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_plus_error.lua");
@@ -492,7 +492,7 @@ TEST(exception, test_const_binop_minus_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_minus_error.lua");
@@ -507,7 +507,7 @@ TEST(exception, test_const_binop_star_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_star_error.lua");
@@ -522,7 +522,7 @@ TEST(exception, test_const_binop_slash_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_slash_error.lua");
@@ -537,7 +537,7 @@ TEST(exception, test_const_binop_double_slash_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_double_slash_error.lua");
@@ -552,7 +552,7 @@ TEST(exception, test_const_binop_pow_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_pow_error.lua");
@@ -567,7 +567,7 @@ TEST(exception, test_const_binop_mod_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_mod_error.lua");
@@ -582,7 +582,7 @@ TEST(exception, test_const_binop_bitand_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_bitand_error.lua");
@@ -597,7 +597,7 @@ TEST(exception, test_const_binop_xor_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_xor_error.lua");
@@ -612,7 +612,7 @@ TEST(exception, test_const_binop_bitor_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_bitor_error.lua");
@@ -627,7 +627,7 @@ TEST(exception, test_const_binop_right_shift_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_right_shift_error.lua");
@@ -642,7 +642,7 @@ TEST(exception, test_const_binop_left_shift_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_left_shift_error.lua");
@@ -657,7 +657,7 @@ TEST(exception, test_const_binop_less_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_less_error.lua");
@@ -672,7 +672,7 @@ TEST(exception, test_const_binop_less_equal_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_less_equal_error.lua");
@@ -687,7 +687,7 @@ TEST(exception, test_const_binop_more_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_more_error.lua");
@@ -702,7 +702,7 @@ TEST(exception, test_const_binop_more_equal_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_binop_more_equal_error.lua");
@@ -717,7 +717,7 @@ TEST(exception, test_const_unop_len_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_unop_len_error.lua");
@@ -732,7 +732,7 @@ TEST(exception, test_const_unop_bitnot_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFileBothJit(s, "./exception/test_const_unop_bitnot_error.lua");
@@ -747,7 +747,7 @@ TEST(exception, goto_skip_local) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_goto_skip_single_local.lua", {}), std::exception);
 }
 
@@ -755,7 +755,7 @@ TEST(exception, goto_skip_multiple_locals) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_goto_skip_local.lua", {}), std::exception);
 }
 
@@ -763,7 +763,7 @@ TEST(exception, goto_nonexistent_label) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_goto_nonexistent_label.lua", {}), std::exception);
 }
 
@@ -771,7 +771,7 @@ TEST(exception, goto_cross_function) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_goto_cross_function.lua", {}), std::exception);
 }
 
@@ -779,7 +779,7 @@ TEST(exception, goto_sibling_nested) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_goto_sibling_nested.lua", {}), std::exception);
 }
 
@@ -787,7 +787,7 @@ TEST(exception, goto_elseif_nonexistent) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_goto_elseif_nonexistent.lua", {}), std::exception);
 }
 
@@ -805,7 +805,7 @@ TEST(exception, file_level_stmt_rejected) {
         FakeluaStateGuard sg;
         auto s = sg.GetState();
         ASSERT_NE(s, nullptr);
-        SetDebugLogLevel(0);
+        SetDebugLogLevel(s, 0);
         EXPECT_THROW(CompileFile(s, file, {}), std::exception);
     }
 }
@@ -826,7 +826,7 @@ TEST(exception, raw_newline_in_short_string) {
         FakeluaStateGuard sg;
         auto s = sg.GetState();
         ASSERT_NE(s, nullptr);
-        SetDebugLogLevel(0);
+        SetDebugLogLevel(s, 0);
         EXPECT_THROW(CompileString(s, c.script, {}), std::exception);
     }
 }
@@ -841,7 +841,7 @@ TEST(exception, malformed_number) {
         FakeluaStateGuard sg;
         auto s = sg.GetState();
         ASSERT_NE(s, nullptr);
-        SetDebugLogLevel(0);
+        SetDebugLogLevel(s, 0);
         const std::string script = std::string("function f()\n  ") + body + "\n  return 0\nend";
         EXPECT_THROW(CompileString(s, script, {}), std::exception);
     }
@@ -855,7 +855,7 @@ TEST(exception, unfinished_long_comment) {
         FakeluaStateGuard sg;
         auto s = sg.GetState();
         ASSERT_NE(s, nullptr);
-        SetDebugLogLevel(0);
+        SetDebugLogLevel(s, 0);
         const std::string script = std::string("function f()\n  ") + body + "\n  return 0\nend";
         EXPECT_THROW(CompileString(s, script, {}), std::exception);
     }
@@ -868,7 +868,7 @@ TEST(exception, no_unary_plus) {
         FakeluaStateGuard sg;
         auto s = sg.GetState();
         ASSERT_NE(s, nullptr);
-        SetDebugLogLevel(0);
+        SetDebugLogLevel(s, 0);
         const std::string script = std::string("function f()\n  ") + body + "\n  return 0\nend";
         EXPECT_THROW(CompileString(s, script, {}), std::exception);
     }
@@ -882,7 +882,7 @@ TEST(exception, local_attrib_errors) {
         FakeluaStateGuard sg;
         auto s = sg.GetState();
         ASSERT_NE(s, nullptr);
-        SetDebugLogLevel(0);
+        SetDebugLogLevel(s, 0);
         const std::string script = std::string("function f()\n  ") + body + "\n  return 0\nend";
         EXPECT_THROW(CompileString(s, script, {}), std::exception);
     }
@@ -898,7 +898,7 @@ TEST(exception, string_sub_arg_errors) {
         FakeluaStateGuard sg;
         auto s = sg.GetState();
         ASSERT_NE(s, nullptr);
-        SetDebugLogLevel(0);
+        SetDebugLogLevel(s, 0);
         const std::string script = std::string("function f()\n  ") + body + "\nend";
         ASSERT_NO_THROW(CompileString(s, script, {}));
         for (const auto jit_type: {JIT_TCC, JIT_GCC}) {
@@ -915,7 +915,7 @@ TEST(exception, concat_non_string_value) {
         FakeluaStateGuard sg;
         auto s = sg.GetState();
         ASSERT_NE(s, nullptr);
-        SetDebugLogLevel(0);
+        SetDebugLogLevel(s, 0);
         const std::string script = std::string("function f()\n  ") + body + "\nend";
         ASSERT_NO_THROW(CompileString(s, script, {}));
         for (const auto jit_type: {JIT_TCC, JIT_GCC}) {
@@ -934,7 +934,7 @@ TEST(exception, return_must_be_last_in_block) {
         FakeluaStateGuard sg;
         auto s = sg.GetState();
         ASSERT_NE(s, nullptr);
-        SetDebugLogLevel(0);
+        SetDebugLogLevel(s, 0);
         EXPECT_THROW(CompileFile(s, file, {}), std::exception);
     }
 }
@@ -944,7 +944,7 @@ TEST(exception, file_level_stmt_error_message) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_top_level_if.lua", {});
@@ -960,7 +960,7 @@ TEST(exception, const_func_call_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     ASSERT_NO_THROW(CompileFile(s, "./exception/test_const_func_call_error.lua", {}));
 }
@@ -969,7 +969,7 @@ TEST(exception, no_define_lvalue_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_no_define_lvalue_error.lua", {});
@@ -985,7 +985,7 @@ TEST(exception, global_duplicate_lvalue_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_global_duplicate_lvalue_error.lua", {});
@@ -1000,7 +1000,7 @@ TEST(exception, test_break_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_break_error.lua", {});
@@ -1015,7 +1015,7 @@ TEST(exception, test_continue_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_continue_error.lua", {});
@@ -1030,7 +1030,7 @@ TEST(exception, test_continue_skip_local) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_continue_skip_local.lua", {}), std::exception);
 }
 
@@ -1038,7 +1038,7 @@ TEST(exception, function_too_many_params) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_function_too_many_params.lua", {});
@@ -1053,7 +1053,7 @@ TEST(exception, math_param_non_numeric_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_math_param_non_numeric_error.lua", {});
 
     try {
@@ -1070,7 +1070,7 @@ TEST(exception, const_no_init) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_const_no_init.lua", {}), std::exception);
 }
 
@@ -1078,7 +1078,7 @@ TEST(exception, const_reassign) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_const_reassign.lua", {}), std::exception);
 }
 
@@ -1086,7 +1086,7 @@ TEST(exception, top_level_bare_local) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_top_level_bare_local.lua", {}), std::exception);
 }
 
@@ -1094,7 +1094,7 @@ TEST(exception, test_spec_duplicate_keys) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     EXPECT_THROW(CompileFile(s, "./exception/test_spec_duplicate_keys.lua", {}), std::exception);
 }
 
@@ -1110,7 +1110,7 @@ TEST(exception, multi_name) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_multi_name_func.lua", {});
@@ -1125,7 +1125,7 @@ TEST(exception, multi_col_name) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_multi_col_name_func.lua", {});
@@ -1140,7 +1140,7 @@ TEST(exception, assign_not_match) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_assign_not_match.lua", {});
@@ -1155,7 +1155,7 @@ TEST(exception, table_var_func_call) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     EXPECT_NO_THROW(CompileFile(s, "./exception/test_table_var_func_call.lua", {}));
 }
@@ -1164,7 +1164,7 @@ TEST(exception, vararg_nested_function) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_vararg_with_nested_function.lua", {});
@@ -1179,7 +1179,7 @@ TEST(exception, vararg_nested_localfunction) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     EXPECT_NO_THROW(CompileFile(s, "./exception/test_vararg_with_nested_localfunction.lua", {}));
 }
@@ -1188,7 +1188,7 @@ TEST(exception, vararg_funcdef) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     EXPECT_NO_THROW(CompileFile(s, "./exception/test_vararg_with_funcdef.lua", {}));
 }
@@ -1197,7 +1197,7 @@ TEST(exception, for_loop_zero_step_int) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_for_loop_zero_step_int.lua", {});
@@ -1212,7 +1212,7 @@ TEST(exception, for_loop_zero_step_float) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_for_loop_zero_step_float.lua", {});
@@ -1227,7 +1227,7 @@ TEST(exception, spec_call_arg_count_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_spec_call_arg_count_error.lua", {});
@@ -1242,7 +1242,7 @@ TEST(exception, set_table_arg_count_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_set_table_arg_count_error1.lua", {});
@@ -1268,7 +1268,7 @@ TEST(exception, dup_const_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_dup_const_error.lua", {});
@@ -1283,7 +1283,7 @@ TEST(exception, dup_param_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_dup_param_error.lua", {});
@@ -1298,7 +1298,7 @@ TEST(exception, shadow_const_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_shadow_const_error.lua", {});
@@ -1313,7 +1313,7 @@ TEST(exception, duplicate_const_define_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_duplicate_const_define_error.lua", {});
@@ -1328,7 +1328,7 @@ TEST(exception, duplicate_func_param_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_duplicate_func_param_error.lua", {});
@@ -1343,7 +1343,7 @@ TEST(exception, shadow_global_const_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_shadow_global_const_error.lua", {});
@@ -1358,7 +1358,7 @@ TEST(exception, math_spec_too_few_args) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_math_spec_too_few_args.lua", {});
@@ -1381,7 +1381,7 @@ TEST(exception, spec_assign_nonnumeric_float_throws) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_spec_assign_nonnumeric_float_throws.lua", {});
 
     for (auto jit_type: {JIT_TCC, JIT_GCC}) {
@@ -1414,7 +1414,7 @@ TEST(exception, spec_assign_nonnumeric_int_throws) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_spec_assign_nonnumeric_int_throws.lua", {});
 
     for (auto jit_type: {JIT_TCC, JIT_GCC}) {
@@ -1433,7 +1433,7 @@ TEST(exception, no_arg_call) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     try {
         CompileFile(s, "./exception/test_no_arg_call.lua", {});
@@ -1448,7 +1448,7 @@ TEST(exception, const_table_modify_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     CompileFile(s, "./exception/test_const_table_modify_error.lua", {});
 
@@ -1469,7 +1469,7 @@ TEST(exception, init_runtime_error_is_catchable) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     // b 尚未定义，加法在 __fakelua_init 里就会失败
     EXPECT_THROW(CompileString(s, "local a = 1\nlocal b = a + b\n", {}), FakeluaException);
@@ -1479,7 +1479,7 @@ TEST(exception, call_runtime_error_is_catchable) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
+    SetDebugLogLevel(s, 0);
 
     CompileString(s, "function call_non_function()\nlocal s = \"hello\"\nreturn string.sub(s, 1, 3)(s)\nend", {});
 

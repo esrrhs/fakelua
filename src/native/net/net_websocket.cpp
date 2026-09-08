@@ -74,11 +74,8 @@ bool parse_http_request_line(std::string_view req, std::string &method, std::str
 
 std::string random_ws_key() {
     std::array<uint8_t, 16> bytes{};
-    // 下面这些复用的 scratch buffer 和 RNG 都必须是 thread_local 而不是 static：State 是
-    // 单线程实体，跨线程的用法是每线程一份 State（见 state.h），于是多个线程会各自驱动自己
-    // 的连接同时走到这里。共享一份的话，一个线程 resize 导致重新分配的同时另一个线程正拿着
-    // 旧的 data() 往里写，就是写已释放内存；mt19937 的内部状态同理不是线程安全的。
-    thread_local std::mt19937 rng{std::random_device{}()};
+    // 局部的：每条客户端连接握手时才走一次，没必要为它留一份长期状态。
+    std::mt19937 rng{std::random_device{}()};
     std::uniform_int_distribution<int> dist(0, 255);
     for (auto &b : bytes) b = static_cast<uint8_t>(dist(rng));
     return fakelua::crypto::base64_encode(bytes.data(), bytes.size());
@@ -111,7 +108,7 @@ bool try_ws_server_handshake(CircularBuffer &buf, const NetConfig &cfg, std::str
         return false;
     }
 
-    thread_local std::vector<char> peek;
+    auto &peek = buf.header_scratch();
     size_t total = std::min(buf.size(), static_cast<size_t>(8192));
     if (peek.size() < total) peek.resize(total);
     buf.peek(peek.data(), total);
@@ -207,7 +204,7 @@ bool try_ws_client_handshake(CircularBuffer &buf, bool &out_done, bool &out_need
         return false;
     }
 
-    thread_local std::vector<char> peek;
+    auto &peek = buf.header_scratch();
     size_t total = std::min(buf.size(), static_cast<size_t>(4096));
     if (peek.size() < total) peek.resize(total);
     buf.peek(peek.data(), total);
@@ -251,7 +248,7 @@ bool try_parse_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_cli
     out_error = false;
     if (buf.size() < 2) return false;
 
-    thread_local std::vector<char> hdr;
+    auto &hdr = buf.header_scratch();
     size_t peek_len = std::min(buf.size(), static_cast<size_t>(14));
     if (hdr.size() < peek_len) hdr.resize(peek_len);
     buf.peek(hdr.data(), peek_len);
@@ -309,7 +306,7 @@ bool try_parse_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_cli
         std::memcpy(mask, hdr.data() + header_len - 4, 4);
     }
 
-    thread_local std::vector<char> payload;
+    auto &payload = buf.payload_scratch();
     if (payload.size() < payload_len) payload.resize(static_cast<size_t>(payload_len));
     buf.skip(header_len);
     if (payload_len > 0) {
@@ -332,7 +329,7 @@ bool try_parse_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_cli
 }
 
 bool write_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_client, WsOpcode opcode, const char *data,
-                    size_t len) {
+                    size_t len, std::mt19937 &mask_rng) {
     if (len > static_cast<size_t>(cfg.max_packet_len)) return false;
     size_t needed = ws_encoded_size(len) + (from_client ? 4 : 0);
     if (needed > buf.capacity() - buf.size()) return false;
@@ -366,12 +363,11 @@ bool write_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_client,
 
     if (from_client) {
         uint8_t mask[4];
-        thread_local std::mt19937 rng{std::random_device{}()};
         std::uniform_int_distribution<int> dist(0, 255);
-        for (auto &m : mask) m = static_cast<uint8_t>(dist(rng));
+        for (auto &m : mask) m = static_cast<uint8_t>(dist(mask_rng));
         buf.write(reinterpret_cast<const char *>(mask), 4);
         if (len > 0) {
-            thread_local std::vector<char> masked;
+            auto &masked = buf.payload_scratch();
             if (masked.size() < len) masked.resize(len);
             std::memcpy(masked.data(), data, len);
             apply_mask(masked.data(), len, mask);
@@ -383,8 +379,9 @@ bool write_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_client,
     return true;
 }
 
-bool write_ws_pong(CircularBuffer &buf, const NetConfig &cfg, bool from_client, const char *payload, size_t len) {
-    return write_ws_frame(buf, cfg, from_client, WsOpcode::Pong, payload, len);
+bool write_ws_pong(CircularBuffer &buf, const NetConfig &cfg, bool from_client, const char *payload, size_t len,
+                   std::mt19937 &mask_rng) {
+    return write_ws_frame(buf, cfg, from_client, WsOpcode::Pong, payload, len, mask_rng);
 }
 
 } // namespace fakelua::net

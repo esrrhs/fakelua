@@ -175,8 +175,8 @@ static CVar pool_create(State *s, CVar *args, int n) {
         pool_error(std::format("initialize failed: {}", e.what()));
     }
 
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(gid, "mysql_pool");
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(gid, "mysql_pool");
     nat->SetInt("__mysql_pool__", reinterpret_cast<int64_t>(pool_obj));
     RegisterMysqlNativeWrapper(s, nat, true);
     nat->SetFinalizer([](NativeObject *self) {
@@ -208,8 +208,8 @@ static CVar pool_acquire(NativeObject *self, State *s, CVar * /*args*/, int /*n*
     if (!conn) return inter::NativeToFakeluaNil(s);
 
     // Wrap connection in NativeObject for Lua (use a new group for each connection)
-    int64_t conn_gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(conn_gid, "mysql_connection");
+    int64_t conn_gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(conn_gid, "mysql_connection");
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
     nat->SetInt("__mysql_pool_ptr__", reinterpret_cast<int64_t>(pool_obj->pool.get()));
     nat->SetInt("__mysql_pool_obj__", reinterpret_cast<int64_t>(pool_obj));
