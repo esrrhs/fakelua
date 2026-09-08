@@ -12,7 +12,9 @@ std::string GenerateTmpFilename(const std::string &head, const std::string &tail
     }
     tmpdir += head;
 
-    static std::mt19937 rng(static_cast<unsigned int>(std::chrono::steady_clock::now().time_since_epoch().count()));
+    // 每线程一份：mt19937 的状态不是线程安全的，而多个线程可能同时在编译各自 State 的脚本。
+    // 种子用 random_device 而不是时钟，免得同时启动的线程拿到同一个序列。
+    thread_local std::mt19937 rng{std::random_device{}()};
     std::uniform_int_distribution<int> dist(100000, 999999);
 
     // 在系统临时目录中创建临时文件

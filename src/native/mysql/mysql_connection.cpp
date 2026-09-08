@@ -70,9 +70,10 @@ void MysqlConnection::teardown_transport() {
         // freed memory once the completion arrives, so keep it alive forever
         // instead; our own handler is already inert via life_.
         LOG_ERROR("mysql", "cancellation did not complete, leaking the connection to stay safe");
-        static std::vector<std::unique_ptr<boost::mysql::any_connection>> retained;
-        retained.push_back(std::move(conn_));
-        conn_.reset();
+        // 故意泄漏。这里不能存进容器：静态容器是跨线程共享的（多个 State 可能同时走到
+        // 这条路），而 thread_local 容器会在线程退出时把连接销毁掉，正是要避免的事。
+        // release() 交出所有权就够了，不需要任何容器。
+        (void) conn_.release();
     } else {
         conn_.reset();
     }

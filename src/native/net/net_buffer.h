@@ -54,6 +54,8 @@ bool write_packet(CircularBuffer &buf, const NetConfig &cfg, const char *data, s
 // 封包解析函数：依据配置从 recv_buf 中尝试解析出一个完整的数据包
 // out_error: 当声明长度非法（超过 max_packet_len / 超过缓冲区容量 / uint32 溢出）时为 true，
 //           调用方应关闭该连接；返回 false 且 out_error=false 仅表示数据未齐，需继续等待
+// out_payload: 指向一块每线程复用的临时缓冲，只在下一次本线程调用本函数之前有效。
+//              调用方必须在那之前把数据拷走。
 
 bool try_parse_packet(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len,
                       bool &out_error);

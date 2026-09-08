@@ -567,8 +567,10 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
     cfg.custom_parser_fn = [s, parser_name, max_pkt](net::CircularBuffer &buf, const char *&out_payload, uint32_t &out_len) -> bool {
         if (buf.empty()) return false;
 
-        static std::vector<char> peek_buf;
-        static std::vector<char> payload_buf;
+        // thread_local 而不是 static：写在 lambda 体内的 static 是所有连接、所有 State 共享
+        // 同一份，多个线程各自驱动自己的连接时会同时 resize 和写这块内存。
+        thread_local std::vector<char> peek_buf;
+        thread_local std::vector<char> payload_buf;
         // 限制窥视上限为 max_packet_len，避免半包时每 tick O(缓冲) 全量分配/拷贝
         size_t total = std::min(buf.size(), static_cast<size_t>(max_pkt));
         if (total == 0) return false;
