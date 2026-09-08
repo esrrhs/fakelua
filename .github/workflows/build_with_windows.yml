@@ -134,22 +134,12 @@ jobs:
           cmake --build build --parallel
           ccache -s
 
-      # Runs on a short leash ahead of the full suite: test_mysql is where the
-      # asio teardown hang used to show up, so it must report within minutes
-      # instead of eating the whole job budget.
-      - name: Test mysql
-        shell: msys2 {0}
-        run: |
-          set -eux
-          cd $GITHUB_WORKSPACE/test/lua
-          timeout -s KILL 300 $GITHUB_WORKSPACE/build/bin/unit_tests.exe --gtest_filter='test_mysql.*'
-
       - name: Test
         shell: msys2 {0}
         run: |
           set -eux
           cd $GITHUB_WORKSPACE/test/lua
-          # The full suite takes ~15 minutes; bound it so a hang cannot idle for an hour.
+          # 整套约 15 分钟。加个上限，卡住的时候能早点失败，而不是耗满整个 job 预算。
           timeout -s KILL 1800 $GITHUB_WORKSPACE/build/bin/unit_tests.exe
 
       - name: Run flua
