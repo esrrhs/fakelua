@@ -29,8 +29,7 @@ function test_framer_2be()
     client:dispatch("NetFramerTest.on_client_event")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_conn_count() >= 1 then break end
         os.sleep(1)
     end
@@ -38,8 +37,7 @@ function test_framer_2be()
     client:send("hello_2be")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if #client:get_last_data() > 0 then break end
         os.sleep(1)
     end
@@ -60,8 +58,7 @@ function test_framer_2le()
     client:dispatch("NetFramerTest.on_client_event")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_conn_count() >= 1 then break end
         os.sleep(1)
     end
@@ -69,8 +66,7 @@ function test_framer_2le()
     client:send("hello_2le")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if #client:get_last_data() > 0 then break end
         os.sleep(1)
     end
@@ -91,8 +87,7 @@ function test_framer_4le()
     client:dispatch("NetFramerTest.on_client_event")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_conn_count() >= 1 then break end
         os.sleep(1)
     end
@@ -100,8 +95,7 @@ function test_framer_4le()
     client:send("hello_4le")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if #client:get_last_data() > 0 then break end
         os.sleep(1)
     end
@@ -122,8 +116,7 @@ function test_framer_line()
     client:dispatch("NetFramerTest.on_client_event")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_conn_count() >= 1 then break end
         os.sleep(1)
     end
@@ -131,8 +124,7 @@ function test_framer_line()
     client:send("line_command_1")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if #client:get_last_data() > 0 then break end
         os.sleep(1)
     end
@@ -153,8 +145,7 @@ function test_framer_fixed()
     client:dispatch("NetFramerTest.on_client_event")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_conn_count() >= 1 then break end
         os.sleep(1)
     end
@@ -162,8 +153,7 @@ function test_framer_fixed()
     client:send("12345678")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if #server:get_last_data() > 0 then break end
         os.sleep(1)
     end
@@ -183,8 +173,7 @@ function test_framer_custom_lua()
     client:dispatch("NetFramerTest.on_client_event")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_conn_count() >= 1 then break end
         os.sleep(1)
     end
@@ -193,8 +182,7 @@ function test_framer_custom_lua()
     client:send("$custom_msg_dollar$")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if #server:get_last_data() > 0 then break end
         os.sleep(1)
     end

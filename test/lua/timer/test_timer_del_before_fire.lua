@@ -21,7 +21,7 @@ function test_del_before_fire()
 
     -- 等待足够时间，确认定时器不会触发
     for i = 1, 50 do
-        timer.tick()
+        runtime.tick()
         os.sleep(1)
     end
 

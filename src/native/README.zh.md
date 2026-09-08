@@ -16,7 +16,8 @@
 | utf8 | `utf8/` | UTF-8 编解码：`char`、`codepoint`、`codes`、`len`、`offset` |
 | io | `io/` | 文件 IO：open、close、read、write、seek、popen、标准流 |
 | net | `net/` | TCP 网络：服务端/客户端、帧协议、自定义解析器、异步事件分发 |
-| timer | `timer/` | 定时器：一次性、周期心跳，由 `tick()` 驱动 |
+| timer | `timer/` | 定时器：一次性、周期心跳，由 `runtime.tick()` 驱动 |
+| runtime | `runtime/` | 统一事件泵：`runtime.tick()` 驱动所有注册过的 native 对象 |
 | event | `event/` | 发布/订阅事件系统：`on`、`once`、`off`、`emit`、`clear`、`clear_all` |
 | random | `random/` | 可种子随机数（PCG-32）：`int`、`float`、`dice`、`chance`、`weighted`、`get_state`、`set_state` |
 | compress | `compress/` | 压缩：LZ4、zlib、gzip、Zstd |
@@ -241,7 +242,6 @@
 | `net.ws_server(config)` | 创建 WebSocket 服务端（等价于 `framer="websocket"`） |
 | `net.ws_client(config)` | 创建 WebSocket 客户端 |
 | `obj:dispatch(func_name)` | 注册 Lua 回调函数名 |
-| `obj:tick()` | 驱动 IO 和事件分发 |
 | `obj:send(connid, data)` | 发送数据（服务端需指定 connid；客户端省略） |
 | `obj:close()` | 关闭连接/服务端 |
 | `obj:close_connection(connid)` | 关闭单个连接（仅服务端） |
@@ -261,11 +261,27 @@
 |------|------|------|
 | `timer.set(delay_ms, func_name)` | 2 | 一次性定时器；返回 `timer_id` |
 | `timer.del(timer_id)` | 1 | 删除待触发定时器 |
-| `timer.tick()` | 0 | 触发到期定时器和心跳 |
 | `timer.set_heartbeat(interval_ms, func_name)` | 2 | 周期心跳；自动重调度，覆盖前一个 |
 | `timer.register_obj_methods(obj)` | 1 | 在 NativeObject 上注册 `get_int`/`set_int`/`add_int` 共享状态 |
 
 **回调签名：** `function cb(type, timer_id)`，其中 `type == "timer"`
+
+---
+
+## Runtime（统一事件泵）
+
+**文件：** `runtime/native_runtime.h` · **注册：** `RegisterRuntimeLibraryApi`
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `runtime.tick()` | 0 | 驱动当前 State 上所有注册过的 native 对象 |
+
+需要周期性驱动的对象 —— net 的 server/client、mysql 的连接和连接池、定时器 —— 在创建时
+把自己注册到 State 的 tick 注册表，关闭时注销，所以脚本只需要这一个泵。这些对象不再有各自
+的 `tick()` 方法，在主循环里调用本函数即可。
+
+注册项按注册顺序驱动，定时器最先。在某次 tick 派发出来的回调里再调 `runtime.tick()` 是
+no-op，这样定时器或 socket 事件不会递归进派发它的那层循环。
 
 ---
 
@@ -454,11 +470,9 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 | `conn:stmt_prepare(sql, cb)` | 预处理语句 |
 | `conn:stmt_execute(id, params, cb)` | 执行预处理语句 |
 | `conn:stmt_close(id)` | 关闭预处理语句 |
-| `conn:tick()` | 泵网络事件 |
 | `conn:close()` | 关闭连接 |
 | `pool:acquire()` | 从池获取连接 |
 | `pool:release(conn)` | 归还连接到池 |
-| `pool:tick()` | 驱动心跳和重连 |
 | `pool:close()` | 关闭连接池 |
 | `pool:stats()` | 返回 `{total, healthy}` |
 

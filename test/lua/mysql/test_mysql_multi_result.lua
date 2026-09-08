@@ -29,7 +29,7 @@ function test_multi_result()
     }, "on_connect")
 
     for i = 1, 1000 do
-        conn:tick()
+        runtime.tick()
         if conn.connected or conn.connect_err then break end
         os.sleep(1)
     end
@@ -44,7 +44,7 @@ function test_multi_result()
         }, "on_connect")
 
         for i = 1, 1000 do
-            conn:tick()
+            runtime.tick()
             if conn.connected or conn.connect_err then break end
             os.sleep(1)
         end
@@ -64,7 +64,7 @@ function test_multi_result()
 
     -- 驱动足够长时间让所有结果返回
     for i = 1, 2000 do
-        conn:tick()
+        runtime.tick()
         if conn.query_done then
             if conn.results ~= nil then
                 if #conn.results >= 3 then

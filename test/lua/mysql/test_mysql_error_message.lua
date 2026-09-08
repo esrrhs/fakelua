@@ -18,7 +18,7 @@ function test_error_message()
     local conn = mysql.connect(config, "on_connect_msg")
 
     for i = 1, 1500 do
-        conn:tick()
+        runtime.tick()
         if conn.done then break end
         os.sleep(1)
     end

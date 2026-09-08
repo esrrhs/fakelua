@@ -1,6 +1,7 @@
 #include "native/timer/native_timer.h"
 #include "native/timer/heap_timer.h"
 #include "native/native_common.h"
+#include "native/native_tick.h"
 #include "native/object/native_object.h"
 #include "util/logging.h"
 #include "var/var.h"
@@ -208,11 +209,11 @@ static CVar timer_del(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaBool(s, ok);
 }
 
-// timer.tick() — 驱动定时器：触发到期的一次性定时器和心跳
-static CVar timer_tick(State *s, CVar * /*args*/, int /*n*/) {
+// 驱动定时器：触发到期的一次性定时器和心跳。由 runtime.tick() 经 TickRegistry 调用。
+static void tick_timers(State *s) {
     auto now = HeapTimer::Clock::now();
     auto &ts = timer_state(s);
-    if (ts.in_tick) return inter::NativeToFakeluaNil(s);
+    if (ts.in_tick) return;
 
     ts.in_tick = true;
     ts.cancelled_this_tick.clear();
@@ -236,7 +237,7 @@ static CVar timer_tick(State *s, CVar * /*args*/, int /*n*/) {
             call_lua_timer_event(s, cb, id);
         }
 
-        // 2) 心跳：先推进下一跳再回调，避免回调里嵌套 timer.tick() 栈溢出
+        // 2) 心跳：先推进下一跳再回调，避免回调里嵌套 runtime.tick() 栈溢出
         if (ts.heartbeat_active && now >= ts.heartbeat_next) {
             std::string cb = ts.heartbeat_cb;
             ts.heartbeat_next += std::chrono::milliseconds(ts.heartbeat_interval_ms);
@@ -253,7 +254,6 @@ static CVar timer_tick(State *s, CVar * /*args*/, int /*n*/) {
 
     ts.in_tick = false;
     ts.cancelled_this_tick.clear();
-    return inter::NativeToFakeluaNil(s);
 }
 
 // timer.set_heartbeat(interval_ms, func_name) — 注册周期性心跳，永不自动删除
@@ -300,9 +300,12 @@ static CVar timer_set_heartbeat(State *s, CVar *args, int n) {
 void RegisterTimerLibraryApi(State *s) {
     if (!s) return;
 
+    // 定时器随 State 存在，所以在这里注册一次即可，不需要注销。注册得最早，于是
+    // runtime.tick() 里定时器先于 IO 被驱动。
+    s->GetTickRegistry().Add([s]() { tick_timers(s); });
+
     RegisterNativeFunction(s, "timer.set", 2, false, timer_set);
     RegisterNativeFunction(s, "timer.del", 1, false, timer_del);
-    RegisterNativeFunction(s, "timer.tick", 0, false, timer_tick);
     RegisterNativeFunction(s, "timer.set_heartbeat", 2, false, timer_set_heartbeat);
     RegisterNativeFunction(s, "timer.register_obj_methods", 1, false, timer_register_obj_methods);
 }

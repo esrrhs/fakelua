@@ -15,7 +15,7 @@ function test_pool_advanced()
     -- 驱动连接池直到连接建立
     local conn1 = nil
     for i = 1, 1000 do
-        pool:tick()
+        runtime.tick()
         conn1 = pool:acquire()
         if conn1 then break end
         os.sleep(1)
@@ -29,7 +29,7 @@ function test_pool_advanced()
     -- 借出第 2 个连接
     local conn2 = nil
     for i = 1, 1000 do
-        pool:tick()
+        runtime.tick()
         conn2 = pool:acquire()
         if conn2 then break end
         os.sleep(1)

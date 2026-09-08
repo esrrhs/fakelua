@@ -23,7 +23,7 @@ function test_multiple_timers_order()
     -- 等待全部触发
     local now = os.clock()
     while os.clock() - now < 1.0 do
-        timer.tick()
+        runtime.tick()
         if obj:get_int("count") >= 3 then
             break
         end

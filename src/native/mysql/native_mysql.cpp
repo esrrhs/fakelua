@@ -2,6 +2,7 @@
 #include "native/mysql/mysql_connection.h"
 #include "native/mysql/mysql_connection_pool.h"
 #include "native/native_common.h"
+#include "native/native_tick.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
 #include "var/var.h"
@@ -65,6 +66,14 @@ void RegisterMysqlNativeWrapper(State *s, NativeObject *nat, bool is_pool) {
     } else {
         g_mysql_conns[s].push_back(nat);
     }
+    // 交给 runtime.tick() 驱动，注销发生在 UnregisterMysqlNativeWrapper。
+    native::TickRegistry::Handle handle = 0;
+    if (is_pool) {
+        handle = s->GetTickRegistry().Add([nat]() { TickMysqlPool(nat); });
+    } else {
+        handle = s->GetTickRegistry().Add([nat, s]() { TickMysqlConnection(nat, s); });
+    }
+    nat->SetInt("__mysql_tick_handle__", static_cast<int64_t>(handle));
 }
 
 void UnregisterMysqlNativeWrapper(NativeObject *nat) {
@@ -72,6 +81,10 @@ void UnregisterMysqlNativeWrapper(NativeObject *nat) {
     auto *st = reinterpret_cast<State *>(nat->GetInt("__mysql_state__", 0));
     bool is_pool = nat->GetInt("__mysql_is_pool__", 0) != 0;
     nat->SetInt("__mysql_state__", 0);
+    if (st) {
+        st->GetTickRegistry().Remove(static_cast<native::TickRegistry::Handle>(nat->GetInt("__mysql_tick_handle__", 0)));
+        nat->SetInt("__mysql_tick_handle__", 0);
+    }
     erase_wrapper(is_pool ? g_mysql_pools : g_mysql_conns, st, nat);
 }
 
@@ -116,7 +129,6 @@ CVar conn_query(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_tick(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_close(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_ping(NativeObject *self, State *s, CVar *args, int n);
 
@@ -189,7 +201,6 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     nat->RegisterMethod("stmt_prepare", conn_stmt_prepare);
     nat->RegisterMethod("stmt_execute", conn_stmt_execute);
     nat->RegisterMethod("stmt_close", conn_stmt_close);
-    nat->RegisterMethod("tick", conn_tick);
     nat->RegisterMethod("close", conn_close);
     nat->RegisterMethod("ping", conn_ping);
     nat->SetInt("__mysql_owned__", 1);
@@ -335,20 +346,19 @@ CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// conn:tick() — pump network events (call periodically from game loop)
+// Pump the connection's network events, via runtime.tick()
 // ─────────────────────────────────────────────────────────────────────────────
 
-CVar conn_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+// 连接关闭后 unwrap 返回空，于是自然变成 no-op。
+void TickMysqlConnection(NativeObject *self, State *s) {
     auto *conn = unwrap_conn_native(self);
-    if (!conn) return inter::NativeToFakeluaNil(s);
-    if (conn->tick_depth() > 0) return inter::NativeToFakeluaNil(s);
+    if (!conn) return;
+    if (conn->tick_depth() > 0) return;
 
     conn->set_state(s);
     conn->tick();
     maybe_release_owned_conn(self);
     maybe_reap_pool(self);
-
-    return inter::NativeToFakeluaNil(s);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

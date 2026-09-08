@@ -21,7 +21,7 @@ function test_set_and_fire()
     -- 等待定时器到期
     local now = os.clock()
     while os.clock() - now < 0.5 do
-        timer.tick()
+        runtime.tick()
         if obj:get_int("count") > 0 then
             break
         end

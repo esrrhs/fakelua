@@ -3,6 +3,7 @@
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
+#include "native/native_tick.h"
 #include "util/logging.h"
 #include "var/var.h"
 
@@ -164,9 +165,14 @@ static NetObject *unwrap(NativeObject *self) {
 // 每个 State 上活着的 net NativeObject，DeleteState 时统一关掉 socket。
 static std::unordered_map<State *, std::vector<NativeObject *>> g_net_wrappers;
 
+static void tick_net_object(NativeObject *self);
+
 static void register_net_wrapper(State *s, NativeObject *nat) {
     if (!s || !nat) return;
     g_net_wrappers[s].push_back(nat);
+    // 交给 runtime.tick() 驱动，注销发生在 unregister_net_wrapper。
+    auto handle = s->GetTickRegistry().Add([nat]() { tick_net_object(nat); });
+    nat->SetInt("__net_tick_handle__", static_cast<int64_t>(handle));
 }
 
 static void unregister_net_wrapper(NativeObject *nat) {
@@ -174,6 +180,8 @@ static void unregister_net_wrapper(NativeObject *nat) {
     auto *st = reinterpret_cast<State *>(nat->GetInt("__net_state__", 0));
     nat->SetInt("__net_state__", 0);
     if (!st) return;
+    st->GetTickRegistry().Remove(static_cast<uint64_t>(nat->GetInt("__net_tick_handle__", 0)));
+    nat->SetInt("__net_tick_handle__", 0);
     auto it = g_net_wrappers.find(st);
     if (it == g_net_wrappers.end()) return;
     auto &v = it->second;
@@ -269,13 +277,15 @@ static void dispatch_event_for(NetObject *obj, const ConnEvent &ev) {
     }
 }
 
-// server:tick() — 驱动 IO 处理
+// 驱动 IO 处理，由 runtime.tick() 调用
 // 新版：Boost.Asio 引擎在后台线程跑，事件入队；tick() 排空队列并同步派发 Lua 回调。
 // tick_depth + close_pending 语义保持不变。
-static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+// 由 runtime.tick() 经 TickRegistry 调用，不再是 Lua 可见的方法。对象关闭后
+// unwrap 返回空，于是自然变成 no-op。
+static void tick_net_object(NativeObject *self) {
     auto *obj = unwrap(self);
-    if (!obj) return inter::NativeToFakeluaNil(s);
-    if (obj->tick_depth > 0) return inter::NativeToFakeluaNil(s);
+    if (!obj) return;
+    if (obj->tick_depth > 0) return;
 
     auto finish_tick = [self, obj]() {
         if (obj->tick_depth < 0) obj->tick_depth = 0;
@@ -298,8 +308,6 @@ static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     }
     obj->tick_depth--;
     finish_tick();
-
-    return inter::NativeToFakeluaNil(s);
 }
 
 // server:send(connid, data) / client:send(data)
@@ -666,7 +674,6 @@ static CVar create_net_server(State *s, net::NetConfig cfg, const char *type_nam
         release_net_object(self);
     });
     nat->RegisterMethod("dispatch", net_dispatch);
-    nat->RegisterMethod("tick", net_tick);
     nat->RegisterMethod("send", net_send);
     nat->RegisterMethod("close", net_close);
     nat->RegisterMethod("close_connection", net_close_connection);
@@ -705,7 +712,6 @@ static CVar create_net_client(State *s, net::NetConfig cfg, const char *type_nam
         release_net_object(self);
     });
     nat->RegisterMethod("dispatch", net_dispatch);
-    nat->RegisterMethod("tick", net_tick);
     nat->RegisterMethod("send", net_send);
     nat->RegisterMethod("close", net_close);
     nat->RegisterMethod("get_events", net_get_events);

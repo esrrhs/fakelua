@@ -15,7 +15,7 @@ class MysqlConnection;
 void RegisterMysqlLibraryApi(State *s);
 
 // Register MySQL pool library: mysql_pool.create(config) returns a pool object.
-// Pool methods: :acquire(), :release(conn), :tick(), :close(), :stats().
+// Pool methods: :acquire(), :release(conn), :close(), :stats().
 void RegisterMysqlPoolApi(State *s);
 
 // Shared connection methods (used by both direct connect and pool)
@@ -23,7 +23,9 @@ CVar conn_query(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_tick(NativeObject *self, State *s, CVar *args, int n);
+// 由 runtime.tick() 经 TickRegistry 驱动，不是 Lua 可见的方法。
+void TickMysqlConnection(NativeObject *self, State *s);
+void TickMysqlPool(NativeObject *self);
 MysqlConnection *unwrap_conn_native(NativeObject *self);
 
 // Per-State NativeObject registry so FakeluaDeleteState can close sockets.

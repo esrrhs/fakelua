@@ -21,7 +21,7 @@ function test_reenter()
 
     local now = os.clock()
     while os.clock() - now < 0.5 do
-        timer.tick()
+        runtime.tick()
         if obj:get_int("count") >= 2 then
             break
         end
@@ -33,12 +33,12 @@ function test_reenter()
     return 1
 end
 
--- 回调里 timer.tick() 必须 no-op，delay-0 定时器不能在同一次 tick 里再爆一层
+-- 回调里 runtime.tick() 必须 no-op，delay-0 定时器不能在同一次 tick 里再爆一层
 function on_nested_tick(type, data)
     local o = get_global_obj("timer_result")
     if o then
         o:add_int("count", 1)
-        timer.tick()
+        runtime.tick()
         timer.set(0, "TimerTest.on_nested_tick")
     end
 end
@@ -49,9 +49,9 @@ function test_nested_tick_noop()
     obj:set_int("count", 0)
     local id = timer.set(0, "TimerTest.on_nested_tick")
     if id == nil then return 0 end
-    timer.tick()
+    runtime.tick()
     if obj:get_int("count") ~= 1 then return 0 end
-    timer.tick()
+    runtime.tick()
     if obj:get_int("count") ~= 2 then return 0 end
     del_global_obj("timer_result")
     return 1

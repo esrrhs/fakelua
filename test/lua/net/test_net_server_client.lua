@@ -22,8 +22,7 @@ function test_echo()
 
     -- 驱动连接建立
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_conn_count() >= 1 then break end
         os.sleep(1)
     end
@@ -33,8 +32,7 @@ function test_echo()
 
     -- 驱动收发（server 回调会返回 echo 指令，C++ 侧执行发送）
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if #client:get_last_data() > 0 then break end
         os.sleep(1)
     end
@@ -62,15 +60,13 @@ function test_close_in_recv()
     server:dispatch("NetTest.on_close_in_recv")
     local client = net.client({port = 19991})
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_conn_count() >= 1 then break end
         os.sleep(1)
     end
     client:send("bye")
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_conn_count() == 0 then break end
         os.sleep(1)
     end
@@ -90,8 +86,7 @@ function test_slot_reuse_repeated_connect()
         client:dispatch("NetTest.on_client_event")
         local ok = false
         for i = 1, 50 do
-            srv:tick()
-            client:tick()
+            runtime.tick()
             if srv:get_conn_count() >= 1 then
                 ok = client:send("ping_" .. iter)
                 if ok then break end
@@ -100,8 +95,7 @@ function test_slot_reuse_repeated_connect()
         end
         if ok then
             for i = 1, 50 do
-                srv:tick()
-                client:tick()
+                runtime.tick()
                 if client:get_last_data() == "echo:ping_" .. iter then
                     success_count = success_count + 1
                     break
@@ -111,7 +105,7 @@ function test_slot_reuse_repeated_connect()
         end
         client:close()
         for i = 1, 20 do
-            srv:tick()
+            runtime.tick()
             if srv:get_conn_count() == 0 then break end
             os.sleep(1)
         end
@@ -124,7 +118,7 @@ function test_client_connect_fail()
     local client = net.client({port = 19921})
     client:dispatch("NetTest.on_client_event")
     for i = 1, 50 do
-        client:tick()
+        runtime.tick()
         os.sleep(1)
     end
     local sent = client:send("should fail")
@@ -136,8 +130,7 @@ function test_send_buffer_full()
     local srv = net.server({port = 19986, maxconn = 2, sendbuf = 64})
     local cli = net.client({port = 19986})
     for i = 1, 50 do
-        srv:tick()
-        cli:tick()
+        runtime.tick()
         if srv:get_conn_count() >= 1 then break end
         os.sleep(1)
     end

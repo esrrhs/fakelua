@@ -22,6 +22,8 @@
 #include "native/ini/native_ini.h"
 #include "native/log/native_log.h"
 #include "native/native_io_context.h"
+#include "native/native_tick.h"
+#include "native/runtime/native_runtime.h"
 
 namespace fakelua {
 
@@ -35,10 +37,18 @@ native::IoContext &State::GetIoContext() {
     return *io_context_;
 }
 
+native::TickRegistry &State::GetTickRegistry() {
+    if (!tick_registry_) {
+        tick_registry_ = std::make_unique<native::TickRegistry>();
+    }
+    return *tick_registry_;
+}
+
 State::State(const StateConfig &config) : config_(config), compiler_(this), const_string_(this) {
     RegisterNativeObjectApi(this);
     net::RegisterNetLibraryApi(this);
     timer::RegisterTimerLibraryApi(this);
+    runtime::RegisterRuntimeLibraryApi(this);
     serialize::RegisterSerializeLibraryApi(this);
     protobuf::RegisterProtobufLibraryApi(this);
     crypto::RegisterCryptoLibraryApi(this);

@@ -28,7 +28,7 @@ function test_stmt_params()
     }, "on_connect")
 
     for i = 1, 1000 do
-        conn:tick()
+        runtime.tick()
         if conn.connected or conn.connect_err then break end
         os.sleep(1)
     end
@@ -43,7 +43,7 @@ function test_stmt_params()
         }, "on_connect")
 
         for i = 1, 1000 do
-            conn:tick()
+            runtime.tick()
             if conn.connected or conn.connect_err then break end
             os.sleep(1)
         end
@@ -58,17 +58,17 @@ function test_stmt_params()
     -- 1. 创建测试表
     conn.query_done = false
     conn:query("DROP TABLE IF EXISTS stmt_p_test", "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     conn.query_done = false
     conn:query("CREATE TABLE stmt_p_test (id INT PRIMARY KEY, name VARCHAR(64), score DOUBLE)", "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     -- 2. Prepare INSERT
     conn.prepare_done = false
     conn.stmt_id = nil
     conn:stmt_prepare("INSERT INTO stmt_p_test VALUES (?, ?, ?)", "on_prepare")
-    for i = 1, 1000 do conn:tick() if conn.prepare_done then break end os.sleep(1) end
+    for i = 1, 1000 do runtime.tick() if conn.prepare_done then break end os.sleep(1) end
 
     if not conn.stmt_id then
         print("stmt_prepare INSERT failed:", tostring(conn.prepare_err))
@@ -82,7 +82,7 @@ function test_stmt_params()
     conn.query_done = false
     conn.query_err = nil
     conn:stmt_execute(insert_stmt_id, {1, nil, 99.5}, "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     if conn.query_err ~= nil then
         if #conn.query_err > 0 then
@@ -97,7 +97,7 @@ function test_stmt_params()
     conn.query_done = false
     conn.query_err = nil
     conn:stmt_execute(insert_stmt_id, {2, "bob", 88.0}, "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     if conn.query_err ~= nil then
         if #conn.query_err > 0 then
@@ -114,7 +114,7 @@ function test_stmt_params()
     conn.prepare_done = false
     conn.stmt_id = nil
     conn:stmt_prepare("SELECT id, name, score FROM stmt_p_test WHERE id = ?", "on_prepare")
-    for i = 1, 1000 do conn:tick() if conn.prepare_done then break end os.sleep(1) end
+    for i = 1, 1000 do runtime.tick() if conn.prepare_done then break end os.sleep(1) end
 
     if not conn.stmt_id then
         print("stmt_prepare SELECT failed:", tostring(conn.prepare_err))
@@ -128,7 +128,7 @@ function test_stmt_params()
     conn.query_done = false
     conn.query_err = nil
     conn:stmt_execute(select_stmt_id, {1}, "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     local res1 = conn.query_result
     if not res1 or res1[1] ~= true or #res1[3] ~= 1 then
@@ -162,7 +162,7 @@ function test_stmt_params()
     conn.query_done = false
     conn.query_err = nil
     conn:stmt_execute(select_stmt_id, {2}, "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     local res2 = conn.query_result
     if not res2 or res2[1] ~= true or #res2[3] ~= 1 then
@@ -184,7 +184,7 @@ function test_stmt_params()
     conn:stmt_close(select_stmt_id)
     conn.query_done = false
     conn:query("DROP TABLE IF EXISTS stmt_p_test", "on_result")
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
 
     conn:close()
     return 1

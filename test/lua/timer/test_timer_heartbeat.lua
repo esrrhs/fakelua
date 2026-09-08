@@ -18,7 +18,7 @@ function test_heartbeat()
 
     -- 等待足够时间让心跳触发多次
     for i = 1, 200 do
-        timer.tick()
+        runtime.tick()
         if obj:get_int("hb_count") >= 3 then
             break
         end

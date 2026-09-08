@@ -19,7 +19,7 @@ function test_connect_fail()
 
     -- 驱动 IO 直到回调触发（最多 1500 次 tick）
     for i = 1, 1500 do
-        conn:tick()
+        runtime.tick()
         if conn.done then break end
         os.sleep(1)
     end
@@ -55,7 +55,7 @@ function test_close_in_connect_cb()
 
     local conn = mysql.connect(config, "on_connect_and_close")
     for i = 1, 1500 do
-        conn:tick()
+        runtime.tick()
         if conn.closed_ok then
             break
         end

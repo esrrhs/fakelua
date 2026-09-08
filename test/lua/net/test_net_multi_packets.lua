@@ -19,8 +19,7 @@ function test_multi()
     client:dispatch("NetMulti.on_client_event")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_conn_count() >= 1 then break end
         os.sleep(1)
     end
@@ -31,8 +30,7 @@ function test_multi()
     client:send("packet3")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
         if server:get_recv_count() >= 3 and client:get_last_data() == "echo:packet3" then break end
         os.sleep(1)
     end

@@ -18,7 +18,8 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | utf8 | `utf8/` | UTF-8 encoding/decoding: `char`, `codepoint`, `codes`, `len`, `offset` |
 | io | `io/` | File I/O: open, close, read, write, seek, popen, standard streams |
 | net | `net/` | TCP networking: server/client with framed protocols, custom parsers, async event dispatch |
-| timer | `timer/` | Timers: one-shot, periodic heartbeat, driven by `tick()` |
+| timer | `timer/` | Timers: one-shot, periodic heartbeat, driven by `runtime.tick()` |
+| runtime | `runtime/` | Unified event loop pump: `runtime.tick()` drives every registered native object |
 | event | `event/` | Pub/sub event system: `on`, `once`, `off`, `emit`, `clear`, `clear_all` |
 | random | `random/` | Seeded RNG (PCG-32): `int`, `float`, `dice`, `chance`, `weighted`, `get_state`, `set_state` |
 | compress | `compress/` | Compression: LZ4, zlib, gzip, Zstd |
@@ -239,7 +240,6 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | `net.ws_server(config)` | Create WebSocket server (same as `framer="websocket"`) |
 | `net.ws_client(config)` | Create WebSocket client |
 | `obj:dispatch(func_name)` | Register Lua callback function name |
-| `obj:tick()` | Drive I/O and event dispatch |
 | `obj:send(connid, data)` | Send data (server: specify connid; client: omit) |
 | `obj:close()` | Close connection/server |
 | `obj:close_connection(connid)` | Close single connection (server only) |
@@ -259,11 +259,29 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 |----------|------|-------------|
 | `timer.set(delay_ms, func_name)` | 2 | One-shot timer; returns `timer_id` |
 | `timer.del(timer_id)` | 1 | Delete pending timer |
-| `timer.tick()` | 0 | Fire expired timers and heartbeat |
 | `timer.set_heartbeat(interval_ms, func_name)` | 2 | Periodic heartbeat; auto-reschedules, overwrites previous |
 | `timer.register_obj_methods(obj)` | 1 | Register `get_int`/`set_int`/`add_int` on a NativeObject for shared state |
 
 **Callback signature:** `function cb(type, timer_id)` where `type == "timer"`
+
+---
+
+## Runtime
+
+**File:** `runtime/native_runtime.h` · **Registration:** `RegisterRuntimeLibraryApi`
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `runtime.tick()` | 0 | Drive every native object registered on this State |
+
+Objects that need periodic driving — net servers and clients, MySQL connections and
+pools, timers — register themselves with the State's tick registry when created and
+unregister when closed, so `runtime.tick()` is the only pump a script needs. There are
+no per-object `tick()` methods; call this from your main loop.
+
+Registered entries run in registration order, timers first. Calling `runtime.tick()`
+from inside a callback that a tick dispatched is a no-op, which keeps a timer or a
+socket event from recursing into the loop that delivered it.
 
 ---
 
@@ -391,11 +409,9 @@ PCG-32 algorithm: 64-bit state, 32-bit output, period 2^64. Each `random.new(see
 | `conn:stmt_prepare(sql, cb)` | Prepare statement |
 | `conn:stmt_execute(id, params, cb)` | Execute prepared statement |
 | `conn:stmt_close(id)` | Close prepared statement |
-| `conn:tick()` | Pump network events |
 | `conn:close()` | Close connection |
 | `pool:acquire()` | Get connection from pool |
 | `pool:release(conn)` | Return connection to pool |
-| `pool:tick()` | Drive heartbeat and reconnect |
 | `pool:close()` | Close pool |
 | `pool:stats()` | Returns `{total, healthy}` |
 
