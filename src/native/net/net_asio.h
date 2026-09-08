@@ -4,21 +4,15 @@
 //
 // 设计要点：
 // - 纯单线程非阻塞架构：移除后台工作线程，所有 IO 操作（accept/read/write/resolve/connect）
-//   在 tick() 调用的同一线程上通过 ioc_.poll() 驱动，与 fakelua 单线程极简模型完全契合。
+//   在 tick() 调用的同一线程上驱动，与 fakelua 单线程极简模型完全契合。
+// - 事件循环按 State 共享：ioc_ 取自 State，不是自己持有的 io_context，原因见
+//   native_io_context.h。
 // - 零数据竞争、零锁开销：无多线程竞争，无 std::mutex 开销。
 // - 纯非阻塞 tick()：移除无事件时的强制 sleep_for(1ms)，消除帧延迟与 CPU 浪费。
 // - 连接槽自动回收：连接关闭时自动重置 slot，彻底解决连接池泄漏和 DoS 风险。
 // - 幂等 close 控制：杜绝 duplicate Close 事件风暴。
 
-#if defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef BOOST_ASIO_DISABLE_CONNECTEX
-#define BOOST_ASIO_DISABLE_CONNECTEX
-#endif
-#endif
-
+#include "native/native_io_context.h"
 #include "native/net/net_buffer.h"
 #include "native/net/net_common.h"
 #include "native/net/net_websocket.h"
@@ -29,6 +23,10 @@
 #include <memory>
 #include <string>
 #include <vector>
+
+namespace fakelua {
+class State;
+}
 
 namespace fakelua::net {
 
@@ -104,7 +102,7 @@ private:
 
 class TcpServer {
 public:
-    explicit TcpServer(const NetConfig &config);
+    TcpServer(const NetConfig &config, ::fakelua::State *state);
     ~TcpServer();
 
     void start();
@@ -137,13 +135,19 @@ private:
     void emit_event(ConnEvent ev);
 
     NetConfig config_;
-    boost::asio::io_context ioc_;
+    native::IoContext &io_;
+    boost::asio::io_context &ioc_;
     boost::asio::ip::tcp::acceptor acceptor_{ioc_};
     bool acceptor_open_ = false;
 
     // 连接表：conn_id → shared_ptr<AsioConn>
     std::vector<std::shared_ptr<AsioConn>> conns_;
     std::vector<ConnEvent> events_;
+
+    // 放在最后：io_ 比本对象活得久，未完成的 accept 会真的被投递（以前 io_context
+    // 跟着对象一起销毁，这些操作是被直接丢弃的），所以捕获裸 this 的回调必须先确认
+    // 这个标记还活着。
+    native::LifeToken life_;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,7 +156,7 @@ private:
 
 class TcpClient {
 public:
-    explicit TcpClient(const NetConfig &config);
+    TcpClient(const NetConfig &config, ::fakelua::State *state);
     ~TcpClient();
 
     void connect();
@@ -183,12 +187,16 @@ private:
     void emit_event(ConnEvent ev);
 
     NetConfig config_;
-    boost::asio::io_context ioc_;
+    native::IoContext &io_;
+    boost::asio::io_context &ioc_;
     boost::asio::ip::tcp::resolver resolver_{ioc_};
     std::shared_ptr<AsioConn> conn_;
     bool connecting_ = false;
 
     std::vector<ConnEvent> events_;
+
+    // 同 TcpServer::life_：resolve/connect 回调据此判断本对象是否还在。
+    native::LifeToken life_;
 };
 
 } // namespace fakelua::net

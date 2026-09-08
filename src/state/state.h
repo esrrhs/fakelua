@@ -6,9 +6,15 @@
 #include "state/const_string.h"
 #include "state/heap.h"
 
+#include <memory>
+
 struct TCCState;
 
 namespace fakelua {
+
+namespace native {
+class IoContext;
+}
 
 // 单个运行实例
 //
@@ -20,6 +26,7 @@ namespace fakelua {
 class State {
 public:
     explicit State(const StateConfig &config = {});
+    ~State();
 
     void Reset() {
         DEBUG_ASSERT(reentrant_count_ == 0);
@@ -69,6 +76,10 @@ public:
         return var_interface_new_func_;
     }
 
+    // native 模块（net、mysql）共用的 asio 事件循环。按需创建，因为多数 State 根本
+    // 用不到 native IO，而一个 io_context 要占一个 epoll fd / IOCP 句柄。
+    native::IoContext &GetIoContext();
+
 private:
     std::function<VarInterface *()> var_interface_new_func_;
     int reentrant_count_ = 0;
@@ -77,6 +88,10 @@ private:
     Heap heap_;
     ConstString const_string_;
     Vm vm_;
+
+    // 声明在最后：native 对象由 FakeluaDeleteState 在 delete state 之前销毁，所以
+    // 它一定比所有使用者活得久。用不完整类型是为了不让 state.h 拖进 asio 的头。
+    std::unique_ptr<native::IoContext> io_context_;
 };
 
 }// namespace fakelua

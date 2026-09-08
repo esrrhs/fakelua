@@ -21,8 +21,19 @@
 #include "native/toml/native_toml.h"
 #include "native/ini/native_ini.h"
 #include "native/log/native_log.h"
+#include "native/native_io_context.h"
 
 namespace fakelua {
+
+// 在这里而不是头文件里：io_context_ 用的是不完整类型。
+State::~State() = default;
+
+native::IoContext &State::GetIoContext() {
+    if (!io_context_) {
+        io_context_ = std::make_unique<native::IoContext>();
+    }
+    return *io_context_;
+}
 
 State::State(const StateConfig &config) : config_(config), compiler_(this), const_string_(this) {
     RegisterNativeObjectApi(this);

@@ -644,7 +644,7 @@ static CVar create_net_server(State *s, net::NetConfig cfg, const char *type_nam
     auto *obj = new NetObject();
     obj->state = s;
     obj->is_server = true;
-    obj->server = std::make_unique<net::TcpServer>(cfg);
+    obj->server = std::make_unique<net::TcpServer>(cfg, s);
     obj->server->start();
 
     if (!obj->server->running()) {
@@ -689,7 +689,7 @@ static CVar create_net_client(State *s, net::NetConfig cfg, const char *type_nam
     auto *obj = new NetObject();
     obj->state = s;
     obj->is_server = false;
-    obj->client = std::make_unique<net::TcpClient>(cfg);
+    obj->client = std::make_unique<net::TcpClient>(cfg, s);
     obj->client->connect();
 
     LOG_DEBUG("net", "{}: connecting to {}:{}", type_name, cfg.ip, cfg.port);

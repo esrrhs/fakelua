@@ -3,14 +3,7 @@
 // mysql_connection.h — async MySQL client using Boost.MySQL
 // Built on top of boost::mysql::any_connection for asynchronous MySQL operations.
 
-#if defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef BOOST_ASIO_DISABLE_CONNECTEX
-#define BOOST_ASIO_DISABLE_CONNECTEX
-#endif
-#endif
+#include "native/native_io_context.h"
 
 #include <boost/mysql.hpp>
 #include <boost/asio.hpp>
@@ -72,7 +65,8 @@ namespace fakelua::mysql {
 
 class MysqlConnection {
 public:
-    MysqlConnection();
+    // 事件循环取自 State（每个 State 一份），不是自己新建一个。
+    explicit MysqlConnection(::fakelua::State *state);
     ~MysqlConnection();
 
     MysqlConnection(const MysqlConnection &) = delete;
@@ -124,19 +118,10 @@ public:
     void request_close();
 
 private:
-    // Boost.Asio I/O context for asynchronous operations
-    boost::asio::io_context io_ctx_;
+    // 本 State 的事件循环，与同一 State 下的其它连接和 net 对象共用。
+    native::IoContext &io_;
 
-    // Declared right after io_ctx_ so it is destroyed right before it: with
-    // FAKELUA_ASIO_DIAG=1 its message is the last output before ~io_context,
-    // which pins whether that destructor is where Windows stalls.
-    struct DiagMarker {
-        ~DiagMarker();
-    };
-    DiagMarker diag_marker_;
-
-    // Unique so close() can destroy the socket, then poll io_ctx_ to drop
-    // outstanding IOCP work. Windows ~io_context cannot discard leftover ops.
+    // Unique so close() can destroy the socket while keeping this object alive.
     std::unique_ptr<boost::mysql::any_connection> conn_;
 
     // Cancellation signal to abort in-flight async operations on close
@@ -213,16 +198,18 @@ private:
     // into the fields vector, so the vector MUST outlive the async operation.
     std::vector<boost::mysql::field> pending_stmt_fields_;
 
+    // 最后一个成员，于是最先被销毁：io_ 比本对象活得久，未完成的操作会真的被投递，
+    // 回调据此判断连接是否还在。
+    native::LifeToken life_;
+
     // Helpers
     void dispatch_connect(const char *err_msg);
     void dispatch_result(const boost::mysql::results &result, const char *err_msg);
     void set_error(MysqlErrorType type, uint16_t code,
                    const std::string &msg, const std::string &sql_state);
 
-    // Cancel, destroy any_connection (no blocking COM_QUIT), poll io_ctx_ so
-    // Windows ~io_context is not left waiting on outstanding IOCP work.
+    // Cancel in-flight work and destroy any_connection (no blocking COM_QUIT).
     void teardown_transport();
-    void drain_iocp();
     void ensure_conn();
 
     // Convert Boost.MySQL results to Lua table

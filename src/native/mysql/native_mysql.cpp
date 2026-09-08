@@ -196,8 +196,7 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     RegisterMysqlNativeWrapper(s, nat, false);
 
     // Create connection (async)
-    auto *conn = new MysqlConnection();
-    conn->set_state(s);
+    auto *conn = new MysqlConnection(s);
     conn->set_connect_callback(cb_name);
     conn->set_native_object(nat);
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));

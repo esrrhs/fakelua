@@ -35,9 +35,18 @@ endif ()
 IF (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
-    # Keep IOCP (AcceptEx/mswsock). Disable ConnectEx only: overlapped connect
-    # cannot be cancelled on MinGW IOCP, and ~io_context then waits forever on
-    # GetQueuedCompletionStatus(INFINITE).
+    # 用 select reactor，不用 IOCP。asio 的 IOCP 后端在关停时会丢唤醒包：stop() 只投
+    # 一个完成包，还被一次性闩锁挡着，丢一次 ~io_context 里 join 内部线程就永远不返回
+    # （asio#431、asio#1393，至今 open，复现形状正是循环创建销毁 io_context）。POSIX
+    # 那条路径用的是持锁 signal_all 广播，结构上丢不掉，关掉 IOCP 就走这条。
+    #
+    # 代价是每次 poll() 要重建并扫描全部描述符，O(连接数) 而不是 O(就绪数)。没有连接数
+    # 上限：asio 的 win_fd_set_adapter 是动态扩容的，Winsock 的 select 读 fd_count
+    # 而不是 FD_SETSIZE。
+    #
+    # 必须是全局定义：只给部分 target 定义会让各 TU 看到不同的 asio 布局，构成 ODR 违规。
+    add_compile_definitions(BOOST_ASIO_DISABLE_IOCP)
+    # IOCP 关掉之后 ConnectEx 本来就走不到，留着是为了防止将来有人重新打开 IOCP。
     add_compile_definitions(BOOST_ASIO_DISABLE_CONNECTEX)
 ELSEIF (APPLE)
     if (USE_COV)

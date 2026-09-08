@@ -167,7 +167,7 @@ static CVar pool_create(State *s, CVar *args, int n) {
 
     auto *pool_obj = new PoolObject();
     pool_obj->config = config;
-    pool_obj->pool = std::make_unique<MysqlConnectionPool>(config);
+    pool_obj->pool = std::make_unique<MysqlConnectionPool>(config, s);
 
     try {
         pool_obj->pool->initialize();

@@ -291,9 +291,15 @@ CPMAddPackage(
     NAME boost
     GITHUB_REPOSITORY boostorg/boost
     GIT_TAG boost-1.90.0
+    # 注意分隔符是空格：这个版本的 CPM 用第一个空格切 key/value，写成 KEY=VALUE 会被
+    # 当成一个名叫 "KEY=VALUE" 的变量并赋值 ON，也就是彻底的空操作。
     OPTIONS
-        "BUILD_SHARED_LIBS=OFF"
-        "CMAKE_POSITION_INDEPENDENT_CODE=ON"
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        # 只配置我们真正用到的库（依赖会自动带上）。不限定的话整个 superproject 都会被
+        # 编译，除了白等一堆构建时间，还会拖进 Boost.Cobalt —— 它的 Windows 部分强依赖
+        # IOCP，会让根 CMakeLists 里 WIN32 上的 BOOST_ASIO_DISABLE_IOCP 编不过。
+        "BOOST_INCLUDE_LIBRARIES mysql;asio;system;charconv"
 )
 if (NOT boost_ADDED)
     message(FATAL_ERROR "Failed to fetch boost")

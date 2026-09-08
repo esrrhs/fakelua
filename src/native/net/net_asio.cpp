@@ -1,5 +1,6 @@
 #include "native/net/net_asio.h"
 
+#include "state/state.h"
 #include "util/logging.h"
 
 #include <boost/asio/connect.hpp>
@@ -228,8 +229,8 @@ void AsioConn::on_write(boost::system::error_code ec, size_t bytes) {
 // TcpServer
 // ─────────────────────────────────────────────────────────────────────────────
 
-TcpServer::TcpServer(const NetConfig &config)
-    : config_(config) {}
+TcpServer::TcpServer(const NetConfig &config, ::fakelua::State *state)
+    : config_(config), io_(state->GetIoContext()), ioc_(io_.Get()) {}
 
 TcpServer::~TcpServer() { stop(); }
 
@@ -277,15 +278,14 @@ void TcpServer::stop() {
     conns_.clear();
     events_.clear();
 
-    ioc_.poll();
-    ioc_.stop();
-    ioc_.restart();
+    io_.Poll();
 }
 
 void TcpServer::drain_events_with(const std::function<void(const ConnEvent &)> &dispatcher) {
-    ioc_.poll();
+    io_.Poll();
     std::vector<ConnEvent> evs;
     evs.swap(events_);
+    native::IoContext::DispatchScope dispatch_scope(io_);
     for (const auto &ev : evs) {
         dispatcher(ev);
     }
@@ -309,7 +309,9 @@ bool TcpServer::close_connection(int conn_id) {
 
 void TcpServer::do_accept() {
     if (!acceptor_open_) return;
-    acceptor_.async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+    acceptor_.async_accept([this, alive = life_.GetWatch()](boost::system::error_code ec,
+                                                            boost::asio::ip::tcp::socket sock) {
+        if (!alive.Alive()) return;
         on_accept(ec, std::move(sock));
     });
 }
@@ -333,7 +335,10 @@ void TcpServer::on_accept(boost::system::error_code ec, boost::asio::ip::tcp::so
         sock.close(ignore);
     } else {
         auto conn = std::make_shared<AsioConn>(ioc_, config_, slot, /*from_client=*/false,
-                                               [this](ConnEvent ev) { emit_event(std::move(ev)); });
+                                               [this, alive = life_.GetWatch()](ConnEvent ev) {
+                                                   if (!alive.Alive()) return;
+                                                   emit_event(std::move(ev));
+                                               });
         conns_[slot] = conn;
         conn->reset_socket(std::move(sock));
         conn->start();
@@ -358,8 +363,8 @@ void TcpServer::emit_event(ConnEvent ev) {
 // TcpClient
 // ─────────────────────────────────────────────────────────────────────────────
 
-TcpClient::TcpClient(const NetConfig &config)
-    : config_(config), resolver_(ioc_) {}
+TcpClient::TcpClient(const NetConfig &config, ::fakelua::State *state)
+    : config_(config), io_(state->GetIoContext()), ioc_(io_.Get()), resolver_(ioc_) {}
 
 TcpClient::~TcpClient() { disconnect(); }
 
@@ -377,15 +382,14 @@ void TcpClient::disconnect() {
         conn_.reset();
     }
     events_.clear();
-    ioc_.poll();
-    ioc_.stop();
-    ioc_.restart();
+    io_.Poll();
 }
 
 void TcpClient::drain_events_with(const std::function<void(const ConnEvent &)> &dispatcher) {
-    ioc_.poll();
+    io_.Poll();
     std::vector<ConnEvent> evs;
     evs.swap(events_);
+    native::IoContext::DispatchScope dispatch_scope(io_);
     for (const auto &ev : evs) {
         dispatcher(ev);
     }
@@ -419,14 +423,17 @@ void TcpClient::do_resolve() {
             return;
         }
         set_socket_options(*sock, config_);
-        sock->async_connect(ep, [this, sock](boost::system::error_code ec) {
+        sock->async_connect(ep, [this, sock, alive = life_.GetWatch()](boost::system::error_code ec) {
+            if (!alive.Alive()) return;
             on_connect(ec, std::move(*sock));
         });
         return;
     }
 
     resolver_.async_resolve(config_.ip, std::to_string(config_.port),
-                            [this](boost::system::error_code ec, boost::asio::ip::tcp::resolver::results_type results) {
+                            [this, alive = life_.GetWatch()](boost::system::error_code ec,
+                                                             boost::asio::ip::tcp::resolver::results_type results) {
+                                if (!alive.Alive()) return;
                                 on_resolve(ec, std::move(results));
                             });
 }
@@ -440,7 +447,9 @@ void TcpClient::on_resolve(boost::system::error_code ec, boost::asio::ip::tcp::r
 
     auto sock = std::make_shared<boost::asio::ip::tcp::socket>(ioc_);
     boost::asio::async_connect(*sock, results,
-                               [this, sock](boost::system::error_code ec, boost::asio::ip::tcp::endpoint) {
+                               [this, sock, alive = life_.GetWatch()](boost::system::error_code ec,
+                                                                      boost::asio::ip::tcp::endpoint) {
+                                   if (!alive.Alive()) return;
                                    on_connect(ec, std::move(*sock));
                                });
 }
@@ -455,7 +464,10 @@ void TcpClient::on_connect(boost::system::error_code ec, boost::asio::ip::tcp::s
     set_socket_options(sock, config_);
 
     conn_ = std::make_shared<AsioConn>(ioc_, config_, /*conn_id=*/0, /*from_client=*/true,
-                                       [this](ConnEvent ev) { emit_event(std::move(ev)); });
+                                       [this, alive = life_.GetWatch()](ConnEvent ev) {
+                                           if (!alive.Alive()) return;
+                                           emit_event(std::move(ev));
+                                       });
     conn_->reset_socket(std::move(sock));
 
     if (is_websocket(config_)) {

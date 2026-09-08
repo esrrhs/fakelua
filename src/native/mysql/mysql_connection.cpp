@@ -5,11 +5,12 @@
 #include "var/var.h"
 
 #include <chrono>
-#include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <boost/asio/bind_cancellation_slot.hpp>
 
@@ -22,34 +23,6 @@ int64_t now_ms() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count();
 }
 
-// Opt-in via FAKELUA_ASIO_DIAG=1. Diagnoses the Windows hang where ~io_context
-// blocks forever in GetQueuedCompletionStatus(INFINITE) because an operation
-// left outstanding work that is never reaped.
-bool asio_diag_enabled() {
-    static const bool enabled = std::getenv("FAKELUA_ASIO_DIAG") != nullptr;
-    return enabled;
-}
-
-// Reports whether io_ctx still holds outstanding work, without ever blocking
-// indefinitely: a drained context stops immediately, one with outstanding work
-// burns the whole probe window. Runs ready handlers, so only call it at points
-// where draining is already intended.
-void probe_outstanding_work(boost::asio::io_context &io_ctx, const void *conn, const char *where) {
-    if (!asio_diag_enabled()) return;
-    constexpr auto probe_window = std::chrono::milliseconds(50);
-    auto start = std::chrono::steady_clock::now();
-    if (io_ctx.stopped()) {
-        io_ctx.restart();
-    }
-    io_ctx.run_for(probe_window);
-    auto elapsed = std::chrono::steady_clock::now() - start;
-    bool outstanding = elapsed >= probe_window / 2;
-    fprintf(stderr, "[ASIO_DIAG] conn=%p %s: %s (probe %lldus)\n", conn, where,
-            outstanding ? "WORK OUTSTANDING" : "drained",
-            static_cast<long long>(std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()));
-    fflush(stderr);
-}
-
 struct TickDepthGuard {
     int &depth;
     explicit TickDepthGuard(int &d) : depth(d) { ++depth; }
@@ -58,73 +31,52 @@ struct TickDepthGuard {
 
 }  // namespace
 
-MysqlConnection::MysqlConnection() {
+MysqlConnection::MysqlConnection(::fakelua::State *state) : io_(state->GetIoContext()) {
+    lua_state_ = state;
     ensure_conn();
 }
 
-MysqlConnection::DiagMarker::~DiagMarker() {
-    if (!asio_diag_enabled()) return;
-    fprintf(stderr, "[ASIO_DIAG] entering ~io_context\n");
-    fflush(stderr);
-}
-
 MysqlConnection::~MysqlConnection() {
-    probe_outstanding_work(io_ctx_, this, "dtor-enter");
     close();
-    // Last observation point: everything after this is member destruction, and
-    // ~io_context is where Windows hangs.
-    probe_outstanding_work(io_ctx_, this, "dtor-before-io_context-destruction");
-    io_ctx_.stop();
-}
-
-void MysqlConnection::drain_iocp() {
-    for (int i = 0; i < 8; ++i) {
-        if (io_ctx_.stopped()) {
-            io_ctx_.restart();
-        }
-        if (io_ctx_.poll() == 0) {
-            break;
-        }
-    }
 }
 
 void MysqlConnection::ensure_conn() {
     if (!conn_) {
-        conn_ = std::make_unique<boost::mysql::any_connection>(io_ctx_);
+        conn_ = std::make_unique<boost::mysql::any_connection>(io_.Get());
     }
 }
 
 void MysqlConnection::teardown_transport() {
-    probe_outstanding_work(io_ctx_, this, "teardown-enter");
     if (cancel_signal_) {
         cancel_signal_->emit(boost::asio::cancellation_type::all);
     }
 
-    // Drain in-flight async ops WHILE conn_ is still alive so Boost.MySQL
-    // completion handlers do not touch freed memory.
+    // Let the cancelled operation complete WHILE conn_ is still alive. The State's
+    // io_context outlives this connection, so an operation left in flight really is
+    // resumed later, and Boost.MySQL would resume it on a destroyed connection. In
+    // practice the cancellation completes in well under a millisecond.
     if (op_in_progress_) {
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
         while (op_in_progress_ && std::chrono::steady_clock::now() < deadline) {
-            if (io_ctx_.stopped()) {
-                io_ctx_.restart();
-            }
-            if (io_ctx_.poll() == 0) {
+            if (io_.Poll() == 0) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
         }
     }
-    probe_outstanding_work(io_ctx_, this, op_in_progress_ ? "teardown-cancel-wait-timed-out" : "teardown-op-completed");
 
     // Transport-level close via destructor (no blocking COM_QUIT / close()).
-    // Socket close posts IOCP completions; drain them so ~io_context does not
-    // wait forever on GetQueuedCompletionStatus(INFINITE).
-    conn_.reset();
-    drain_iocp();
-    probe_outstanding_work(io_ctx_, this, "teardown-after-conn-reset");
-    if (!io_ctx_.stopped()) {
-        io_ctx_.stop();
+    if (op_in_progress_) {
+        // Never observed. Destroying the connection here would hand Boost.MySQL
+        // freed memory once the completion arrives, so keep it alive forever
+        // instead; our own handler is already inert via life_.
+        LOG_ERROR("mysql", "cancellation did not complete, leaking the connection to stay safe");
+        static std::vector<std::unique_ptr<boost::mysql::any_connection>> retained;
+        retained.push_back(std::move(conn_));
+        conn_.reset();
+    } else {
+        conn_.reset();
     }
-    io_ctx_.restart();
+    io_.Poll();
     cancel_signal_.reset();
     op_in_progress_ = false;
     ready_ = false;
@@ -155,9 +107,6 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     ensure_conn();
     ready_ = false;
     state_ = State::Connecting;
-    if (io_ctx_.stopped()) {
-        io_ctx_.restart();
-    }
     pending_results_.clear();
     prepared_statements_.clear();
     next_stmt_id_ = 1;
@@ -178,7 +127,8 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     conn_->async_connect(*pending_connect_params_, async_diag_,
         boost::asio::bind_cancellation_slot(
             cancel_signal_->slot(),
-            [this](boost::mysql::error_code ec) {
+            [this, alive = life_.GetWatch()](boost::mysql::error_code ec) {
+                if (!alive.Alive()) return;
                 op_in_progress_ = false;
                 pending_connect_params_.reset();
                 if (ec) {
@@ -214,7 +164,8 @@ void MysqlConnection::query(const std::string &sql) {
     conn_->async_execute(sql, pending_result_data_,
                         boost::asio::bind_cancellation_slot(
                             cancel_signal_->slot(),
-                            [this](boost::mysql::error_code err) {
+                            [this, alive = life_.GetWatch()](boost::mysql::error_code err) {
+                                if (!alive.Alive()) return;
                                 op_in_progress_ = false;
                                 if (err) {
                                     pending_result_err_ = err.message();
@@ -245,7 +196,8 @@ void MysqlConnection::stmt_prepare(const std::string &sql) {
     conn_->async_prepare_statement(sql,
         boost::asio::bind_cancellation_slot(
             cancel_signal_->slot(),
-            [this](boost::mysql::error_code err, boost::mysql::statement stmt) {
+            [this, alive = life_.GetWatch()](boost::mysql::error_code err, boost::mysql::statement stmt) {
+                if (!alive.Alive()) return;
                 op_in_progress_ = false;
                 if (err) {
                     pending_result_err_ = err.message();
@@ -306,7 +258,8 @@ void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam
                         pending_result_data_,
                         boost::asio::bind_cancellation_slot(
                             cancel_signal_->slot(),
-                            [this](boost::mysql::error_code err) {
+                            [this, alive = life_.GetWatch()](boost::mysql::error_code err) {
+                                if (!alive.Alive()) return;
                                 op_in_progress_ = false;
                                 pending_stmt_fields_.clear();
                                 if (err) {
@@ -349,7 +302,8 @@ bool MysqlConnection::ping() {
     op_in_progress_ = true;
     conn_->async_ping(boost::asio::bind_cancellation_slot(
         cancel_signal_->slot(),
-        [this](boost::mysql::error_code err) {
+        [this, alive = life_.GetWatch()](boost::mysql::error_code err) {
+            if (!alive.Alive()) return;
             op_in_progress_ = false;
             if (err) {
                 pending_result_err_ = err.message();
@@ -387,9 +341,9 @@ void MysqlConnection::tick() {
     if (tick_depth_ > 0) return;
     TickDepthGuard guard(tick_depth_);
 
-    // Handle connection timeout. Cancel only — do not teardown on the tick
-    // stack. Destroying any_connection while ConnectEx is in-flight makes
-    // Windows ~io_context wait forever on IOCP.
+    // Handle connection timeout. Cancel only — tearing down here would block the
+    // tick waiting for the cancelled ConnectEx to come back. The completion is
+    // picked up by the poll below, or by a later tick.
     if (state_ == State::Connecting && timeout_ms_ > 0) {
         if (now_ms() - connect_start_ms_ >= static_cast<int64_t>(timeout_ms_)) {
             if (pending_connect_err_.empty()) {
@@ -400,21 +354,16 @@ void MysqlConnection::tick() {
                 cancel_signal_->emit(boost::asio::cancellation_type::all);
             }
             pending_connect_ = true;
-            probe_outstanding_work(io_ctx_, this, "tick-connect-timeout-cancelled");
         }
     }
 
-    if (io_ctx_.stopped()) {
-        io_ctx_.restart();
-    }
-
-    // Process all ready async operations by running io_context.
-    // poll() handles currently-ready handlers.
-    io_ctx_.poll();
+    // Runs the handlers that are already ready, including those of other objects on
+    // this State's context. Each one only records state; callbacks reach Lua from
+    // the owner's own tick.
+    io_.Poll();
 
     // Handle pending connection result
     if (pending_connect_) {
-        probe_outstanding_work(io_ctx_, this, "tick-before-connect-dispatch");
         pending_connect_ = false;
         if (!pending_connect_err_.empty()) {
             dispatch_connect(pending_connect_err_.c_str());
@@ -488,6 +437,9 @@ void MysqlConnection::request_close() { close_pending_ = true; }
 
 void MysqlConnection::dispatch_connect(const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
+    // Nothing on this State's context may run handlers while Lua is on the stack:
+    // a nested poll would overwrite the state this dispatch is reading.
+    native::IoContext::DispatchScope dispatch_scope(io_);
     if (close_pending_) return;
     LOG_DEBUG("mysql", "dispatch_connect: err_msg={} cb={}",
               err_msg ? err_msg : "(null)", connect_cb_.c_str());
@@ -533,6 +485,7 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
 
 void MysqlConnection::dispatch_result(const boost::mysql::results &result, const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
+    native::IoContext::DispatchScope dispatch_scope(io_);
     if (close_pending_) return;
     if (!lua_state_ || result_cb_.empty()) return;
 
