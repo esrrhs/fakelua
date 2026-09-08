@@ -151,10 +151,16 @@ jobs:
           # Run all tests (including MySQL integration tests)
           # Must run from test/lua so relative Lua file paths resolve correctly
           (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
-          if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ matrix.build_type }}" = "release" ]; then
-            ./bin/bench_mark
-          fi
           ./bin/flua
+
+      # 单独一步而不是内联 if：这样 PR 里 GitHub 会把它显式标成 skipped，看得出是按策略
+      # 跳过而不是没配。限定 release 是因为这是 matrix 构建，不限定的话一次 push 要跑四遍。
+      - name: Run benchmarks
+        if: github.event_name != 'pull_request' && matrix.build_type == 'release'
+        run: |
+          set -x
+          cd build/bin
+          ./bench_mark
 
       # If PR #395 adds test groups, Group D's mysql tests need to exclude flaky integration tests:
       # -test_mysql.integration_* (prepared_statements, multi_result, pool are flaky)
