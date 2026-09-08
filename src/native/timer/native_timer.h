@@ -10,4 +10,7 @@ void RegisterTimerLibraryApi(State *s);
 // State 销毁时清掉该 VM 上的定时器，避免跨 State 串数据。
 void OnStateDeleted(State *s);
 
+// 触发本 State 上到期的定时器和心跳。由 runtime.tick() 调用。
+void TickAll(State *s);
+
 } // namespace fakelua::timer

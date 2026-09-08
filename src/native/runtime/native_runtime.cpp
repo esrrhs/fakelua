@@ -1,15 +1,22 @@
 #include "native/runtime/native_runtime.h"
 
+#include "native/mysql/native_mysql.h"
 #include "native/native_common.h"
-#include "native/native_tick.h"
+#include "native/net/native_net.h"
+#include "native/timer/native_timer.h"
 #include "var/var.h"
 
 namespace fakelua::runtime {
 
-// runtime.tick() — 驱动本 State 上所有注册过的 native 对象：定时器、net 的
-// server/client、mysql 的连接和连接池。谁注册了就驱动谁，调用方不必知道有哪些对象。
+// runtime.tick() — 驱动本 State 上所有需要周期性推进的 native 模块。各模块自己知道手里
+// 有哪些对象（都有一份 per-State 列表），这里只负责按固定顺序把它们串起来，和
+// FakeluaDeleteState 里分发 OnStateDeleted 是同一个路子。
+//
+// 顺序：定时器 → net → mysql。定时器放最前，让本轮到期的回调能赶上后面的 IO 派发。
 static CVar runtime_tick(State *s, CVar * /*args*/, int /*n*/) {
-    s->GetTickRegistry().TickAll();
+    timer::TickAll(s);
+    net::TickAll(s);
+    mysql::TickAll(s);
     return inter::NativeToFakeluaNil(s);
 }
 

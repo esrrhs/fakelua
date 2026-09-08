@@ -9,4 +9,7 @@ void RegisterNetLibraryApi(State *s);
 // State 销毁时关掉该 VM 上的 socket，避免 fd 泄漏和 custom parser 里悬挂的 State*。
 void OnStateDeleted(State *s);
 
+// 驱动本 State 上所有 server/client 的 IO 和事件派发。由 runtime.tick() 调用。
+void TickAll(State *s);
+
 }// namespace fakelua::net

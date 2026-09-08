@@ -14,7 +14,6 @@ namespace fakelua {
 
 namespace native {
 class IoContext;
-class TickRegistry;
 }
 
 // 单个运行实例
@@ -81,9 +80,6 @@ public:
     // 用不到 native IO，而一个 io_context 要占一个 epoll fd / IOCP 句柄。
     native::IoContext &GetIoContext();
 
-    // 需要周期性驱动的 native 对象都注册在这里，由 runtime.tick() 统一驱动。
-    native::TickRegistry &GetTickRegistry();
-
 private:
     std::function<VarInterface *()> var_interface_new_func_;
     int reentrant_count_ = 0;
@@ -94,9 +90,8 @@ private:
     Vm vm_;
 
     // 声明在最后：native 对象由 FakeluaDeleteState 在 delete state 之前销毁，所以
-    // 它们一定比所有使用者活得久。用不完整类型是为了不让 state.h 拖进 asio 的头。
+    // 它一定比所有使用者活得久。用不完整类型是为了不让 state.h 拖进 asio 的头。
     std::unique_ptr<native::IoContext> io_context_;
-    std::unique_ptr<native::TickRegistry> tick_registry_;
 };
 
 }// namespace fakelua

@@ -1,7 +1,6 @@
 #include "native/timer/native_timer.h"
 #include "native/timer/heap_timer.h"
 #include "native/native_common.h"
-#include "native/native_tick.h"
 #include "native/object/native_object.h"
 #include "util/logging.h"
 #include "var/var.h"
@@ -209,8 +208,9 @@ static CVar timer_del(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaBool(s, ok);
 }
 
-// 驱动定时器：触发到期的一次性定时器和心跳。由 runtime.tick() 经 TickRegistry 调用。
-static void tick_timers(State *s) {
+// 驱动定时器：触发到期的一次性定时器和心跳。由 runtime.tick() 调用。
+void TickAll(State *s) {
+    if (!s) return;
     auto now = HeapTimer::Clock::now();
     auto &ts = timer_state(s);
     if (ts.in_tick) return;
@@ -299,10 +299,6 @@ static CVar timer_set_heartbeat(State *s, CVar *args, int n) {
 
 void RegisterTimerLibraryApi(State *s) {
     if (!s) return;
-
-    // 定时器随 State 存在，所以在这里注册一次即可，不需要注销。注册得最早，于是
-    // runtime.tick() 里定时器先于 IO 被驱动。
-    s->GetTickRegistry().Add([s]() { tick_timers(s); });
 
     RegisterNativeFunction(s, "timer.set", 2, false, timer_set);
     RegisterNativeFunction(s, "timer.del", 1, false, timer_del);

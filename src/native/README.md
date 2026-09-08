@@ -19,7 +19,7 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | io | `io/` | File I/O: open, close, read, write, seek, popen, standard streams |
 | net | `net/` | TCP networking: server/client with framed protocols, custom parsers, async event dispatch |
 | timer | `timer/` | Timers: one-shot, periodic heartbeat, driven by `runtime.tick()` |
-| runtime | `runtime/` | Unified event loop pump: `runtime.tick()` drives every registered native object |
+| runtime | `runtime/` | Unified event loop pump: `runtime.tick()` drives every module that needs periodic progress |
 | event | `event/` | Pub/sub event system: `on`, `once`, `off`, `emit`, `clear`, `clear_all` |
 | random | `random/` | Seeded RNG (PCG-32): `int`, `float`, `dice`, `chance`, `weighted`, `get_state`, `set_state` |
 | compress | `compress/` | Compression: LZ4, zlib, gzip, Zstd |
@@ -272,16 +272,17 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 
 | Function | Args | Description |
 |----------|------|-------------|
-| `runtime.tick()` | 0 | Drive every native object registered on this State |
+| `runtime.tick()` | 0 | Drive every native module on this State that needs periodic progress |
 
-Objects that need periodic driving — net servers and clients, MySQL connections and
-pools, timers — register themselves with the State's tick registry when created and
-unregister when closed, so `runtime.tick()` is the only pump a script needs. There are
-no per-object `tick()` methods; call this from your main loop.
+This is the only pump a script needs: it calls `timer::TickAll`, `net::TickAll` and
+`mysql::TickAll` in that fixed order, the same way `FakeluaDeleteState` dispatches
+`OnStateDeleted` to each module. Each module walks its own per-State object list, so
+servers, clients, connections and pools have no per-object `tick()` method — call this
+from your main loop instead.
 
-Registered entries run in registration order, timers first. Calling `runtime.tick()`
-from inside a callback that a tick dispatched is a no-op, which keeps a timer or a
-socket event from recursing into the loop that delivered it.
+Timers go first so callbacks that come due can be picked up by the I/O dispatch behind
+them. Within MySQL, pools are driven before connections so heartbeat and reconnect have
+run before a script acquires a connection this round.
 
 ---
 

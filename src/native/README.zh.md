@@ -17,7 +17,7 @@
 | io | `io/` | 文件 IO：open、close、read、write、seek、popen、标准流 |
 | net | `net/` | TCP 网络：服务端/客户端、帧协议、自定义解析器、异步事件分发 |
 | timer | `timer/` | 定时器：一次性、周期心跳，由 `runtime.tick()` 驱动 |
-| runtime | `runtime/` | 统一事件泵：`runtime.tick()` 驱动所有注册过的 native 对象 |
+| runtime | `runtime/` | 统一事件泵：`runtime.tick()` 驱动所有需要周期推进的模块 |
 | event | `event/` | 发布/订阅事件系统：`on`、`once`、`off`、`emit`、`clear`、`clear_all` |
 | random | `random/` | 可种子随机数（PCG-32）：`int`、`float`、`dice`、`chance`、`weighted`、`get_state`、`set_state` |
 | compress | `compress/` | 压缩：LZ4、zlib、gzip、Zstd |
@@ -274,14 +274,15 @@
 
 | 函数 | 参数 | 说明 |
 |------|------|------|
-| `runtime.tick()` | 0 | 驱动当前 State 上所有注册过的 native 对象 |
+| `runtime.tick()` | 0 | 驱动当前 State 上所有需要周期推进的 native 模块 |
 
-需要周期性驱动的对象 —— net 的 server/client、mysql 的连接和连接池、定时器 —— 在创建时
-把自己注册到 State 的 tick 注册表，关闭时注销，所以脚本只需要这一个泵。这些对象不再有各自
-的 `tick()` 方法，在主循环里调用本函数即可。
+脚本只需要这一个泵：它按固定顺序调 `timer::TickAll`、`net::TickAll`、`mysql::TickAll`，
+和 `FakeluaDeleteState` 里给各模块分发 `OnStateDeleted` 是同一个路子。每个模块遍历自己那份
+per-State 对象列表，所以 server/client、连接和连接池都不再有各自的 `tick()` 方法，在主循环里
+调用本函数即可。
 
-注册项按注册顺序驱动，定时器最先。在某次 tick 派发出来的回调里再调 `runtime.tick()` 是
-no-op，这样定时器或 socket 事件不会递归进派发它的那层循环。
+定时器放最前，让本轮到期的回调能赶上后面的 IO 派发。mysql 内部先池后连接，这样脚本这一轮
+取连接之前，心跳和重连已经推进过了。
 
 ---
 
