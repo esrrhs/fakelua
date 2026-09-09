@@ -6,8 +6,13 @@
 #include "util/logging.h"
 
 #include <format>
+#include <mutex>
 #include <string>
 #include <openssl/evp.h>
+#include <openssl/opensslv.h>
+#if OPENSSL_VERSION_MAJOR >= 3
+#  include <openssl/provider.h>
+#endif
 
 namespace fakelua::crypto {
 
@@ -554,6 +559,20 @@ static CVar crypto_decrypt_evp(State *s, CVar *args, int n) {
 
 void RegisterCryptoLibraryApi(State *s) {
     if (!s) return;
+
+    // On OpenSSL 3.x, RC4 / Blowfish / DES are in the "legacy" provider which
+    // is not loaded by default. Load it once here so callers don't have to
+    // configure openssl.cnf manually. Failure is silently ignored: if the
+    // legacy provider is already loaded (via config), or if this OpenSSL build
+    // doesn't have it, the rest of the API still works.
+    static std::once_flag legacy_provider_init;
+    std::call_once(legacy_provider_init, []() {
+#if OPENSSL_VERSION_MAJOR >= 3
+        OSSL_PROVIDER_load(nullptr, "legacy");
+        OSSL_PROVIDER_load(nullptr, "default");
+#endif
+    });
+
     RegisterNativeFunction(s, "crypto.md5", 1, false, crypto_md5);
     RegisterNativeFunction(s, "crypto.sha1", 1, false, crypto_sha1);
     RegisterNativeFunction(s, "crypto.sha256", 1, false, crypto_sha256);
