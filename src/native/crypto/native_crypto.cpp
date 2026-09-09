@@ -223,14 +223,6 @@ static CVar crypto_rc4(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaString(s, std::string(out.begin(), out.end()));
 }
 
-// Read an 8-byte key argument
-static void read_8byte_key_arg(State *s, CVar arg, uint8_t out[8], const char *name) {
-    std::string data = inter::FakeluaToNativeString(s, arg);
-    if (data.size() < 8) {
-        ThrowFakeluaException(std::format("{} must be at least 8 bytes", name));
-    }
-    memcpy(out, data.data(), 8);
-}
 
 // crypto.blowfish_encrypt(key, data) → encrypted data (ECB, zero-padded)
 static CVar crypto_blowfish_encrypt(State *s, CVar *args, int n) {

@@ -60,8 +60,8 @@ std::vector<uint8_t> des_encrypt(const uint8_t *key, size_t key_len,
 std::vector<uint8_t> des_decrypt(const uint8_t *key, size_t key_len,
                                  const uint8_t *data, size_t data_len);
 
-// ── 3DES (Triple DES) block cipher ──
-// Block size = 8 bytes. Key = 24 bytes (or 16 for two-key 3DES). Data zero-padded.
+// ── 3DES (Triple DES / DES-EDE) block cipher ──
+// Block size = 8 bytes. Key = 24 bytes (three 8-byte sub-keys). Data zero-padded.
 std::vector<uint8_t> triple_des_encrypt(const uint8_t *key, size_t key_len,
                                         const uint8_t *data, size_t data_len);
 std::vector<uint8_t> triple_des_decrypt(const uint8_t *key, size_t key_len,
