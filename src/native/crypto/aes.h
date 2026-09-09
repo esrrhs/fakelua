@@ -1,7 +1,6 @@
 #pragma once
 
-// aes.h — AES symmetric encryption (128/192/256-bit) with ECB, CBC, CTR modes.
-// Self-contained: no OpenSSL. Based on NIST FIPS PUB 197.
+// aes.h — AES symmetric encryption (128/192/256-bit) with ECB, CBC, CTR modes implemented via OpenSSL.
 // Useful for encrypting game server packets.
 
 #include <array>

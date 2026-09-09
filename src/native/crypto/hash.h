@@ -1,6 +1,6 @@
 #pragma once
 
-// hash.md5, hash.sha1, hash.sha256 — self-contained hash algorithms (no OpenSSL).
+// hash.md5, hash.sha1, hash.sha256 — hash algorithms implemented via OpenSSL.
 // Modeled after Go's crypto library: each returns raw bytes; Lua bindings return
 // hex strings. Reusable by any native module (e.g. mysql uses sha1 for auth).
 

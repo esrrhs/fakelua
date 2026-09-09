@@ -6,7 +6,7 @@ package "CryptoTest"
 -- Expected ciphertext: 61b80625e3f5b36cfd4cea22045061c6
 function test_ecb()
     local key = "1234567890123456"
-    local plaintext = "Hello, World!!!!"
+    local plaintext = "Hello, World!!!!" -- 16 bytes
     local expected = "61b80625e3f5b36cfd4cea22045061c6"
 
     local ciphertext = crypto.aes_encrypt_ecb(plaintext, key)
