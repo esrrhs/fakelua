@@ -1,6 +1,6 @@
 #include "native/net/net_websocket.h"
 
-#include "native/crypto/hash.h"
+#include "native/crypto/crypto_digest.h"
 
 #include <algorithm>
 #include <array>

@@ -1,44 +1,19 @@
 #pragma once
 
-// hash.md5, hash.sha1, hash.sha256 — hash algorithms implemented via OpenSSL.
-// Modeled after Go's crypto library: each returns raw bytes; Lua bindings return
-// hex strings. Reusable by any native module (e.g. mysql uses sha1 for auth).
+// crypto_cipher.h — Symmetric stream and block cipher functions.
+// All implementations use the OpenSSL EVP high-level API.
+// No deprecated low-level APIs (RC4_set_key, BF_set_key, DES_ecb_encrypt) are used.
 
-#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
 
 namespace fakelua::crypto {
 
-// ── MD5: 128-bit (16-byte) digest ──
-std::array<uint8_t, 16> md5(const uint8_t *data, size_t len);
-inline std::array<uint8_t, 16> md5(const std::string &data) {
-    return md5(reinterpret_cast<const uint8_t *>(data.data()), data.size());
-}
-
-// ── SHA1: 160-bit (20-byte) digest ──
-std::array<uint8_t, 20> sha1(const uint8_t *data, size_t len);
-inline std::array<uint8_t, 20> sha1(const std::string &data) {
-    return sha1(reinterpret_cast<const uint8_t *>(data.data()), data.size());
-}
-
-// ── SHA256: 256-bit (32-byte) digest ──
-std::array<uint8_t, 32> sha256(const uint8_t *data, size_t len);
-inline std::array<uint8_t, 32> sha256(const std::string &data) {
-    return sha256(reinterpret_cast<const uint8_t *>(data.data()), data.size());
-}
-
-// ── Hex encoding helper ──
-std::string to_hex(const uint8_t *data, size_t len);
-
-// ── Base64 encoding/decoding (RFC 4648) ──
-std::string base64_encode(const uint8_t *data, size_t len);
-std::string base64_decode(const uint8_t *data, size_t len);
-
 // ── RC4 stream cipher ──
 // RC4 is symmetric: encrypt and decrypt are the same operation (XOR keystream).
 // Returns output of same length as input.
+// key_len must satisfy 1 <= key_len <= INT_MAX.
 std::vector<uint8_t> rc4(const uint8_t *key, size_t key_len,
                          const uint8_t *data, size_t data_len);
 inline std::vector<uint8_t> rc4(const std::string &key, const std::string &data) {
@@ -48,20 +23,23 @@ inline std::vector<uint8_t> rc4(const std::string &key, const std::string &data)
 
 // ── Blowfish block cipher (ECB mode, zero-padded) ──
 // Block size = 8 bytes. Data is zero-padded to a multiple of 8.
+// Key length: 4–56 bytes (32–448 bits).
 std::vector<uint8_t> blowfish_encrypt(const uint8_t *key, size_t key_len,
                                       const uint8_t *data, size_t data_len);
 std::vector<uint8_t> blowfish_decrypt(const uint8_t *key, size_t key_len,
                                       const uint8_t *data, size_t data_len);
 
 // ── DES block cipher (ECB mode, zero-padded) ──
-// Block size = 8 bytes. Key = 8 bytes. Data is zero-padded to a multiple of 8.
+// Block size = 8 bytes. Only the first 8 bytes of key are used (56-bit effective key).
+// Data is zero-padded to a multiple of 8.
 std::vector<uint8_t> des_encrypt(const uint8_t *key, size_t key_len,
                                  const uint8_t *data, size_t data_len);
 std::vector<uint8_t> des_decrypt(const uint8_t *key, size_t key_len,
                                  const uint8_t *data, size_t data_len);
 
-// ── 3DES (Triple DES / DES-EDE) block cipher ──
+// ── Triple DES (DES-EDE3) block cipher (ECB mode, zero-padded) ──
 // Block size = 8 bytes. Key = 24 bytes (three 8-byte sub-keys). Data zero-padded.
+// EDE order: encrypt with key1, decrypt with key2, encrypt with key3.
 std::vector<uint8_t> triple_des_encrypt(const uint8_t *key, size_t key_len,
                                         const uint8_t *data, size_t data_len);
 std::vector<uint8_t> triple_des_decrypt(const uint8_t *key, size_t key_len,

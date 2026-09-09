@@ -222,3 +222,32 @@ TEST(test_crypto, hex_decode_invalid) {
     EXPECT_THROW(Call(s, JIT_GCC, "CryptoTest.test_hex_decode_invalid", ret), std::exception);
     FakeluaDeleteState(s);
 }
+// ── Generic EVP interface tests ──────────────────────────────────────────────
+
+static void run_evp_test(const char *func_name) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./crypto/test_evp.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, func_name, ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_crypto, evp_digest_md5)    { run_evp_test("CryptoTest.test_evp_digest_md5"); }
+TEST(test_crypto, evp_digest_sha1)   { run_evp_test("CryptoTest.test_evp_digest_sha1"); }
+TEST(test_crypto, evp_digest_sha256) { run_evp_test("CryptoTest.test_evp_digest_sha256"); }
+TEST(test_crypto, evp_digest_sha512) { run_evp_test("CryptoTest.test_evp_digest_sha512"); }
+TEST(test_crypto, evp_digest_raw)    { run_evp_test("CryptoTest.test_evp_digest_raw"); }
+TEST(test_crypto, evp_digest_unknown){ run_evp_test("CryptoTest.test_evp_digest_unknown"); }
+TEST(test_crypto, evp_aes128_cbc)    { run_evp_test("CryptoTest.test_evp_aes128_cbc"); }
+TEST(test_crypto, evp_aes256_cbc)    { run_evp_test("CryptoTest.test_evp_aes256_cbc"); }
+TEST(test_crypto, evp_aes128_ecb)    { run_evp_test("CryptoTest.test_evp_aes128_ecb"); }
+TEST(test_crypto, evp_rc4)           { run_evp_test("CryptoTest.test_evp_rc4"); }
+TEST(test_crypto, evp_blowfish)      { run_evp_test("CryptoTest.test_evp_blowfish"); }
+TEST(test_crypto, evp_des)           { run_evp_test("CryptoTest.test_evp_des"); }
+TEST(test_crypto, evp_3des)          { run_evp_test("CryptoTest.test_evp_3des"); }
+TEST(test_crypto, evp_unknown_cipher){ run_evp_test("CryptoTest.test_evp_unknown_cipher"); }
+TEST(test_crypto, evp_wrong_key)     { run_evp_test("CryptoTest.test_evp_wrong_key_length"); }
+TEST(test_crypto, evp_wrong_iv)      { run_evp_test("CryptoTest.test_evp_wrong_iv_length"); }
