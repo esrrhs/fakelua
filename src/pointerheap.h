@@ -22,8 +22,6 @@ public:
 
     pointerele *allocpointer(void *ptr, const char *type);
 
-    void checkgc(bool force);
-
     const char *dump();
 
     force_inline size_t size() const {
@@ -31,13 +29,7 @@ public:
     }
 
 private:
-    void gc();
-
-private:
     fake *m_fk;
     fkhashmap<void *, pointerele> m_shh;
     String m_dumpstr;
-    array<pointerele *> m_todelete;
-    size_t m_last_gc_size;
 };
-

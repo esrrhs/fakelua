@@ -16,7 +16,7 @@ struct profilememele {
 
 class profile {
 public:
-    force_inline profile(fake *fk) : m_fk(fk), m_isopen(false), m_shh(fk), m_gcshh(fk) {
+    force_inline profile(fake *fk) : m_fk(fk), m_isopen(false), m_shh(fk) {
     }
 
     force_inline ~profile() {
@@ -30,7 +30,6 @@ public:
     force_inline void clear() {
         m_isopen = false;
         m_shh.clear();
-        m_gcshh.clear();
         m_memuse.clear();
         m_dumpstr.clear();
         memset(m_codetype, 0, sizeof(m_codetype));
@@ -56,8 +55,6 @@ public:
 
     void add_code_sample(int code);
 
-    void add_gc_sample(int type, uint32_t calltime);
-
     const char *dump();
 
     const char *dumpstat();
@@ -73,12 +70,10 @@ private:
     bool m_isopen;
     typedef fkhashmap<const char *, profilefuncele> stringhashmap;
     stringhashmap m_shh;
-    typedef fkhashmap<int, profilefuncele> gchashmap;
-    gchashmap m_gcshh;
     String m_dumpstr;
     int m_codetype[OPCODE_MAX];
     typedef std::map<void *, profilememele> memhashmap;
-    memhashmap m_memuse;    // ∑¿÷πµ›πÈ
+    memhashmap m_memuse;    // ùù?ù?ù
     size_t m_memmalloc_num;
     size_t m_memfree_num;
     size_t m_memmalloc_size;
