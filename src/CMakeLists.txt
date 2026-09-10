@@ -306,6 +306,7 @@ if (NOT boost_ADDED)
     message(FATAL_ERROR "Failed to fetch boost")
 endif()
 set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
+link_directories(${CMAKE_BINARY_DIR}/lib64)
 target_include_directories(fakelua PRIVATE ${BOOST_SOURCE_DIR}/libs/json/include)
 
 # Include ALL Boost headers needed for MySQL + Asio + System
@@ -355,7 +356,7 @@ include_directories(${BOOST_SOURCE_DIR}/libs/array/include)
 # Boost.MySQL is header-only, but boost_charconv has compiled components for float parsing
 # Link boost_charconv library (required for boost::charconv::from_chars/to_chars)
 # boost_system required for non-header-only Boost.Asio (TCP/net native code)
-set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv boost_system)
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv boost_system ${CMAKE_BINARY_DIR}/lib64/libboost_json.a)
 if (WIN32)
     # OpenSSL and Boost.Asio on MinGW (mswsock provides AcceptEx/GetAcceptExSockaddrs)
     set(TARGET_LIB ${TARGET_LIB} crypt32 bcrypt ws2_32 mswsock)
