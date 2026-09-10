@@ -300,7 +300,7 @@ CPMAddPackage(
         # 只配置我们真正用到的库（依赖会自动带上）。不限定的话整个 superproject 都会被
         # 编译，除了白等一堆构建时间，还会拖进 Boost.Cobalt —— 它的 Windows 部分强依赖
         # IOCP，会让根 CMakeLists 里 WIN32 上的 BOOST_ASIO_DISABLE_IOCP 编不过。
-        "BOOST_INCLUDE_LIBRARIES mysql;asio;system;charconv"
+        "BOOST_INCLUDE_LIBRARIES mysql;asio;system;charconv;json"
 )
 if (NOT boost_ADDED)
     message(FATAL_ERROR "Failed to fetch boost")
