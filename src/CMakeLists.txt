@@ -306,6 +306,7 @@ if (NOT boost_ADDED)
     message(FATAL_ERROR "Failed to fetch boost")
 endif()
 set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
+target_include_directories(fakelua PRIVATE ${BOOST_SOURCE_DIR}/libs/json/include)
 
 # Include ALL Boost headers needed for MySQL + Asio + System
 # This is the comprehensive include path approach since FindBoost doesn't work with CPM
@@ -315,7 +316,7 @@ include_directories(${BOOST_SOURCE_DIR}/libs/asio/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/system/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/assert/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/charconv/include)
-include_directories(${BOOST_SOURCE_DIR}/libs/json/include)
+
 include_directories(${BOOST_SOURCE_DIR}/libs/compat/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/config/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/container/include)
