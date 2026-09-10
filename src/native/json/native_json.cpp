@@ -4,10 +4,8 @@
 #include "var/var_table.h"
 
 #include <algorithm>
-#include <stdexcept>
 #include <string>
-#include <vector>
-#include <exception>
+#include <unordered_set>
 #include <boost/json.hpp>
 
 namespace fakelua::json {
@@ -159,12 +157,14 @@ static CVar json_decode(State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     std::string str = inter::FakeluaToNativeString(s, a0);
 
-    try {
-        bj::value jv = bj::parse(str);
-        return json_value_to_lua(s, jv);
-    } catch (const std::exception& e) {
-        ThrowFakeluaException(std::format("JSON parse error: {}", e.what()));
+    bj::parse_options opt;
+    opt.max_depth = static_cast<std::size_t>(kMaxJsonDepth);
+    boost::system::error_code ec;
+    bj::value jv = bj::parse(str, ec, {}, opt);
+    if (ec) {
+        ThrowFakeluaException(std::format("JSON parse error: {}", ec.message()));
     }
+    return json_value_to_lua(s, jv);
 }
 
 // json.encode(value) → JSON string
