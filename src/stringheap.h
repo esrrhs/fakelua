@@ -18,8 +18,6 @@ public:
 
     variant allocsysstr(const char *str);
 
-    void checkgc(bool force);
-
     const char *dump();
 
     force_inline size_t size() const {
@@ -33,13 +31,7 @@ public:
     size_t sys_bytesize() const;
 
 private:
-    void gc();
-
-private:
     fake *m_fk;
     fkhashset<stringele *> m_shh;
-    array<stringele *> m_todelete;
     String m_dumpstr;
-    size_t m_last_gc_size;
 };
-

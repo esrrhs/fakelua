@@ -22,7 +22,7 @@ variant *con_array_get(fake *fk, variant_array *va, const variant *k) {
     }
 
     if (!ARRAY_GET(va->va, index)) {
-        // 分配个新的
+        // ????????
         ARRAY_GET(va->va, index) = va->isconst ? fk->con.newconstvariant() : fk->con.newvariant();
     }
 
@@ -43,9 +43,8 @@ variant *con_map_get(fake *fk, variant_map *vm, const variant *k) {
     return n;
 }
 
-container::container(fake *fk) : m_fk(fk), m_gm(0), m_last_gc_size(0), m_va_pl(fk),
+container::container(fake *fk) : m_fk(fk), m_gm(0), m_va_pl(fk),
                                  m_vm_pl(fk), m_v_pl(fk), m_cva_pl(fk), m_cvm_pl(fk), m_cv_pl(fk) {
-    ARRAY_INI(m_todelete, m_fk);
 }
 
 container::~container() {
@@ -91,8 +90,6 @@ void container::clear() {
         safe_fkfree(m_fk, e);
     }
     m_cv_pl.clear();
-
-    ARRAY_DELETE(m_todelete);
 }
 
 variant_array *container::newarray() {
@@ -183,133 +180,4 @@ size_t container::get_carray_size() const {
 
 size_t container::get_cvariant_size() const {
     return m_cv_pl.size();
-}
-
-void container::checkgc(bool force) {
-    size_t newsize = m_last_gc_size + 1 + m_last_gc_size * (m_fk->cfg.gc_grow_speed) / 100;
-    if (UNLIKE(force || (int) (get_map_size() + get_array_size() + get_variant_size()) >= (int) newsize)) {
-        // 记录profile
-        uint32_t s = 0;
-        if (m_fk->pf.isopen()) {
-            s = fkgetmstick();
-        }
-
-        gc();
-
-        if (m_fk->pf.isopen()) {
-            m_fk->pf.add_gc_sample(egt_container, fkgetmstick() - s);
-        }
-
-        m_last_gc_size = get_map_size() + get_array_size() + get_variant_size();
-    }
-}
-
-void container::gc() {
-    array<void *> &used = m_fk->g.get_used_container();
-
-    fkhashset<void *> usedset(m_fk);
-    for (int i = 0; LIKE(i < (int) ARRAY_SIZE(used)); i++) {
-        variant *n = (variant *) ARRAY_GET(used, i);
-        usedset.add(n);
-    }
-    ARRAY_CLEAR(used);
-
-    int before = m_v_pl.size();
-    int beforeva = m_va_pl.size();
-    int beforevm = m_vm_pl.size();
-    USE(before);
-    USE(beforeva);
-    USE(beforevm);
-
-    ////////////////////////////////////////////////////////////
-
-    ARRAY_CLEAR(m_todelete);
-    for (const fkhashset<variant *>::ele *p = m_v_pl.first(); p != 0; p = m_v_pl.next()) {
-        variant *n = p->k;
-
-        fkhashset<void *>::ele *pp = usedset.get(n);
-        if (UNLIKE(pp != 0)) {
-            continue;
-        }
-
-        if (ARRAY_SIZE(m_todelete) >= ARRAY_MAX_SIZE(m_todelete)) {
-            size_t newsize =
-                    ARRAY_SIZE(m_todelete) + 1 + ARRAY_MAX_SIZE(m_todelete) * (m_fk->cfg.array_grow_speed) / 100;
-            ARRAY_GROW(m_todelete, newsize, void *);
-        }
-        ARRAY_PUSH_BACK(m_todelete);
-        ARRAY_BACK(m_todelete) = n;
-    }
-
-    for (int i = 0; i < (int) ARRAY_SIZE(m_todelete); i++) {
-        void *e = ARRAY_GET(m_todelete, i);
-        m_v_pl.del((variant *) e);
-        FKLOG("container del variant %p %s", e, vartostring((variant *) e).c_str());
-        safe_fkfree(m_fk, e);
-    }
-
-    ////////////////////////////////////////////////////////////
-
-    ARRAY_CLEAR(m_todelete);
-    for (const fkhashset<variant_array *>::ele *p = m_va_pl.first(); p != 0; p = m_va_pl.next()) {
-        variant_array *n = p->k;
-
-        fkhashset<void *>::ele *pp = usedset.get(n);
-        if (UNLIKE(pp != 0)) {
-            continue;
-        }
-
-        if (ARRAY_SIZE(m_todelete) >= ARRAY_MAX_SIZE(m_todelete)) {
-            size_t newsize =
-                    ARRAY_SIZE(m_todelete) + 1 + ARRAY_MAX_SIZE(m_todelete) * (m_fk->cfg.array_grow_speed) / 100;
-            ARRAY_GROW(m_todelete, newsize, void *);
-        }
-        ARRAY_PUSH_BACK(m_todelete);
-        ARRAY_BACK(m_todelete) = n;
-    }
-
-    for (int i = 0; i < (int) ARRAY_SIZE(m_todelete); i++) {
-        void *e = ARRAY_GET(m_todelete, i);
-        m_va_pl.del((variant_array *) e);
-        safe_fkfree(m_fk, e);
-    }
-
-    ////////////////////////////////////////////////////////////
-
-    ARRAY_CLEAR(m_todelete);
-    for (const fkhashset<variant_map *>::ele *p = m_vm_pl.first(); p != 0; p = m_vm_pl.next()) {
-        variant_map *n = p->k;
-
-        fkhashset<void *>::ele *pp = usedset.get(n);
-        if (UNLIKE(pp != 0)) {
-            continue;
-        }
-
-        if (ARRAY_SIZE(m_todelete) >= ARRAY_MAX_SIZE(m_todelete)) {
-            size_t newsize =
-                    ARRAY_SIZE(m_todelete) + 1 + ARRAY_MAX_SIZE(m_todelete) * (m_fk->cfg.array_grow_speed) / 100;
-            ARRAY_GROW(m_todelete, newsize, void *);
-        }
-        ARRAY_PUSH_BACK(m_todelete);
-        ARRAY_BACK(m_todelete) = n;
-    }
-
-    for (int i = 0; i < (int) ARRAY_SIZE(m_todelete); i++) {
-        void *e = ARRAY_GET(m_todelete, i);
-        m_vm_pl.del((variant_map *) e);
-        safe_fkfree(m_fk, e);
-    }
-
-    ////////////////////////////////////////////////////////////
-
-    ARRAY_CLEAR(m_todelete);
-
-    int end = m_v_pl.size();
-    int endva = m_va_pl.size();
-    int endvm = m_vm_pl.size();
-    USE(end);
-    USE(endva);
-    USE(endvm);
-
-    FKLOG("container %p gc from %d %d %d to %d %d %d", m_fk, before, beforeva, beforevm, end, endva, endvm);
 }
