@@ -288,6 +288,12 @@ find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
 # Fetch Boost 1.90+ source for MySQL headers (header-only mode for Asio/System/MySQL)
+# BOOST_INCLUDE_LIBRARIES 必须在 CPMAddPackage 之前 set：CPM OPTIONS 用 foreach(${OPTIONS})
+# 展开，分号会被拆成多个参数，写进 OPTIONS 时只会留下 mysql，json 目标就不会生成。
+# 只列出真正用到的库（依赖会自动带上）。不限定的话整个 superproject 都会被编译，
+# 还会拖进 Boost.Cobalt —— 它的 Windows 部分强依赖 IOCP，会让根 CMakeLists 里
+# WIN32 上的 BOOST_ASIO_DISABLE_IOCP 编不过。
+set(BOOST_INCLUDE_LIBRARIES mysql asio system charconv json)
 CPMAddPackage(
     NAME boost
     GITHUB_REPOSITORY boostorg/boost
@@ -297,15 +303,12 @@ CPMAddPackage(
     OPTIONS
         "BUILD_SHARED_LIBS OFF"
         "CMAKE_POSITION_INDEPENDENT_CODE ON"
-        # 只配置我们真正用到的库（依赖会自动带上）。不限定的话整个 superproject 都会被
-        # 编译，除了白等一堆构建时间，还会拖进 Boost.Cobalt —— 它的 Windows 部分强依赖
-        # IOCP，会让根 CMakeLists 里 WIN32 上的 BOOST_ASIO_DISABLE_IOCP 编不过。
-        "BOOST_INCLUDE_LIBRARIES mysql;asio;system;charconv"
 )
 if (NOT boost_ADDED)
     message(FATAL_ERROR "Failed to fetch boost")
 endif()
 set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
+target_include_directories(fakelua PRIVATE ${BOOST_SOURCE_DIR}/libs/json/include)
 
 # Include ALL Boost headers needed for MySQL + Asio + System
 # This is the comprehensive include path approach since FindBoost doesn't work with CPM
@@ -315,6 +318,8 @@ include_directories(${BOOST_SOURCE_DIR}/libs/asio/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/system/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/assert/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/charconv/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/json/include)
+
 include_directories(${BOOST_SOURCE_DIR}/libs/compat/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/config/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/container/include)
@@ -353,7 +358,9 @@ include_directories(${BOOST_SOURCE_DIR}/libs/array/include)
 # Boost.MySQL is header-only, but boost_charconv has compiled components for float parsing
 # Link boost_charconv library (required for boost::charconv::from_chars/to_chars)
 # boost_system required for non-header-only Boost.Asio (TCP/net native code)
-set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv boost_system)
+# boost_json is a compiled library; link the CMake target so the archive is built
+# and its path follows CMAKE_INSTALL_LIBDIR (lib vs lib64) on every platform.
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv boost_system boost_json)
 if (WIN32)
     # OpenSSL and Boost.Asio on MinGW (mswsock provides AcceptEx/GetAcceptExSockaddrs)
     set(TARGET_LIB ${TARGET_LIB} crypt32 bcrypt ws2_32 mswsock)

@@ -4,7 +4,7 @@ package "JsonTest"
 function test_decode_trailing_garbage()
     local ok, err = pcall(function() json.decode('{"a":1}garbage') end)
     if ok then return 0 end
-    if not string.find(err, "trailing garbage") then return 0 end
+    if not string.find(err, "extra data", 1, true) then return 0 end
     return 1
 end
 
@@ -12,7 +12,7 @@ end
 function test_decode_invalid_escape()
     local ok, err = pcall(function() json.decode('"\\q"') end)
     if ok then return 0 end
-    if not string.find(err, "invalid escape") then return 0 end
+    if not string.find(err, "syntax error", 1, true) then return 0 end
     return 1
 end
 
@@ -20,16 +20,16 @@ end
 function test_decode_invalid_null()
     local ok, err = pcall(function() json.decode('nulx') end)
     if ok then return 0 end
-    if not string.find(err, "invalid null") then return 0 end
+    if not string.find(err, "syntax error", 1, true) then return 0 end
     return 1
 end
 
--- 测试 JSON 解析错误：无效的 boolean (truex -> true + trailing garbage)
+-- 测试 JSON 解析错误：无效的 boolean (truex -> true + extra data)
 function test_decode_invalid_bool()
     local ok, err = pcall(function() json.decode('truex') end)
     if ok then return 0 end
-    -- truex: parser reads "true" then finds trailing "x" -> "trailing garbage"
-    if not string.find(err, "trailing garbage") then return 0 end
+    -- truex: parser reads "true" then finds trailing "x" -> "extra data"
+    if not string.find(err, "extra data", 1, true) then return 0 end
     return 1
 end
 
@@ -37,7 +37,8 @@ end
 function test_decode_leading_zero()
     local ok, err = pcall(function() json.decode('01') end)
     if ok then return 0 end
-    if not string.find(err, "invalid number") then return 0 end
+    -- Boost.JSON 把 "0" 当成完整数字，剩下的 "1" 是 extra data
+    if not string.find(err, "extra data", 1, true) then return 0 end
     return 1
 end
 
@@ -45,7 +46,7 @@ end
 function test_decode_dot_no_digit()
     local ok, err = pcall(function() json.decode('1.') end)
     if ok then return 0 end
-    if not string.find(err, "invalid number") then return 0 end
+    if not string.find(err, "syntax error", 1, true) then return 0 end
     return 1
 end
 
@@ -53,7 +54,7 @@ end
 function test_decode_exp_no_digit()
     local ok, err = pcall(function() json.decode('1e+') end)
     if ok then return 0 end
-    if not string.find(err, "invalid number") then return 0 end
+    if not string.find(err, "syntax error", 1, true) then return 0 end
     return 1
 end
 
@@ -75,7 +76,7 @@ end
 function test_decode_unterminated_string()
     local ok, err = pcall(function() json.decode('"hello') end)
     if ok then return 0 end
-    if not string.find(err, "unterminated string") then return 0 end
+    if not string.find(err, "incomplete JSON", 1, true) then return 0 end
     return 1
 end
 
@@ -83,7 +84,7 @@ end
 function test_decode_unterminated_array()
     local ok, err = pcall(function() json.decode('[1,2,3') end)
     if ok then return 0 end
-    if not string.find(err, "unterminated array") then return 0 end
+    if not string.find(err, "incomplete JSON", 1, true) then return 0 end
     return 1
 end
 
@@ -91,7 +92,7 @@ end
 function test_decode_unterminated_object()
     local ok, err = pcall(function() json.decode('{"a":1') end)
     if ok then return 0 end
-    if not string.find(err, "unterminated object") then return 0 end
+    if not string.find(err, "incomplete JSON", 1, true) then return 0 end
     return 1
 end
 
@@ -99,7 +100,7 @@ end
 function test_decode_non_string_key()
     local ok, err = pcall(function() json.decode('{123:"a"}') end)
     if ok then return 0 end
-    if not string.find(err, "expected string key") then return 0 end
+    if not string.find(err, "syntax error", 1, true) then return 0 end
     return 1
 end
 
@@ -114,7 +115,7 @@ end
 function test_decode_unexpected_char()
     local ok, err = pcall(function() json.decode('@') end)
     if ok then return 0 end
-    if not string.find(err, "unexpected character") then return 0 end
+    if not string.find(err, "syntax error", 1, true) then return 0 end
     return 1
 end
 
@@ -178,7 +179,7 @@ end
 function test_decode_invalid_surrogate()
     local ok, err = pcall(function() json.decode('"\\uD800"') end)
     if ok then return 0 end
-    if not string.find(err, "lone UTF-16 surrogate") then return 0 end
+    if not string.find(err, "syntax error", 1, true) then return 0 end
     return 1
 end
 
@@ -186,7 +187,7 @@ end
 function test_decode_invalid_surrogate_low()
     local ok, err = pcall(function() json.decode('"\\uD800\\u0000"') end)
     if ok then return 0 end
-    if not string.find(err, "invalid UTF-16 surrogate pair") then return 0 end
+    if not string.find(err, "illegal trailing surrogate", 1, true) then return 0 end
     return 1
 end
 
@@ -194,7 +195,7 @@ end
 function test_decode_lone_low_surrogate()
     local ok, err = pcall(function() json.decode('"\\uDC00"') end)
     if ok then return 0 end
-    if not string.find(err, "lone UTF-16 surrogate") then return 0 end
+    if not string.find(err, "illegal leading surrogate", 1, true) then return 0 end
     return 1
 end
 
