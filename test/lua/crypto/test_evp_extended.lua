@@ -1,4 +1,4 @@
-package "CryptoTest"
+package("CryptoTest")
 
 -- ── Extended digest tests — algorithms newly accessible via crypto.digest ────
 
@@ -93,10 +93,10 @@ end
 -- ── AES-192 — was dead code before, now fully accessible ────────────────────
 
 function test_evp_aes192_cbc()
-    local key = "123456789012345678901234"   -- 24 bytes = AES-192
-    local iv  = "abcdefgh12345678"            -- 16 bytes
-    local pt  = "AES-192 was unreachable before the EVP interface!"
-    local ct  = crypto.encrypt("aes-192-cbc", key, iv, pt)
+    local key = "123456789012345678901234" -- 24 bytes = AES-192
+    local iv = "abcdefgh12345678" -- 16 bytes
+    local pt = "AES-192 was unreachable before the EVP interface!"
+    local ct = crypto.encrypt("aes-192-cbc", key, iv, pt)
     local pt2 = crypto.decrypt("aes-192-cbc", key, iv, ct)
     if pt2 ~= pt then
         print("aes-192-cbc roundtrip failed: " .. pt2)
@@ -106,9 +106,9 @@ function test_evp_aes192_cbc()
 end
 
 function test_evp_aes192_ecb()
-    local key = "123456789012345678901234"   -- 24 bytes
-    local pt  = "AES192ECBblock!!"            -- 16 bytes exactly
-    local ct  = crypto.encrypt("aes-192-ecb", key, "", pt, true)
+    local key = "123456789012345678901234" -- 24 bytes
+    local pt = "AES192ECBblock!!" -- 16 bytes exactly
+    local ct = crypto.encrypt("aes-192-ecb", key, "", pt, true)
     local pt2 = crypto.decrypt("aes-192-ecb", key, "", ct, true)
     if pt2 ~= pt then
         print("aes-192-ecb roundtrip failed: " .. pt2)
@@ -121,10 +121,10 @@ end
 
 function test_evp_aes128_cfb()
     local key = "1234567890abcdef"
-    local iv  = "abcdefgh12345678"
-    local pt  = "CFB mode test — stream-like, no padding needed"
+    local iv = "abcdefgh12345678"
+    local pt = "CFB mode test — stream-like, no padding needed"
     -- CFB is a stream mode: output length = input length, no padding
-    local ct  = crypto.encrypt("aes-128-cfb", key, iv, pt, true)
+    local ct = crypto.encrypt("aes-128-cfb", key, iv, pt, true)
     if #ct ~= #pt then
         print("aes-128-cfb ciphertext length mismatch: " .. #ct .. " vs " .. #pt)
         return 0
@@ -139,9 +139,9 @@ end
 
 function test_evp_aes128_ofb()
     local key = "1234567890abcdef"
-    local iv  = "abcdefgh12345678"
-    local pt  = "OFB mode test — output feedback, stream-like"
-    local ct  = crypto.encrypt("aes-128-ofb", key, iv, pt, true)
+    local iv = "abcdefgh12345678"
+    local pt = "OFB mode test — output feedback, stream-like"
+    local ct = crypto.encrypt("aes-128-ofb", key, iv, pt, true)
     if #ct ~= #pt then
         print("aes-128-ofb ciphertext length mismatch: " .. #ct .. " vs " .. #pt)
         return 0
@@ -156,9 +156,9 @@ end
 
 function test_evp_aes128_ctr()
     local key = "1234567890abcdef"
-    local iv  = "abcdefgh12345678"
-    local pt  = "CTR mode via native OpenSSL EVP — no padding, any length"
-    local ct  = crypto.encrypt("aes-128-ctr", key, iv, pt, true)
+    local iv = "abcdefgh12345678"
+    local pt = "CTR mode via native OpenSSL EVP — no padding, any length"
+    local ct = crypto.encrypt("aes-128-ctr", key, iv, pt, true)
     if #ct ~= #pt then
         print("aes-128-ctr ciphertext length mismatch: " .. #ct .. " vs " .. #pt)
         return 0
@@ -172,10 +172,10 @@ function test_evp_aes128_ctr()
 end
 
 function test_evp_aes256_ctr()
-    local key = "12345678901234567890123456789012"   -- 32 bytes
-    local iv  = "abcdefgh12345678"
-    local pt  = "AES-256-CTR mode"
-    local ct  = crypto.encrypt("aes-256-ctr", key, iv, pt, true)
+    local key = "12345678901234567890123456789012" -- 32 bytes
+    local iv = "abcdefgh12345678"
+    local pt = "AES-256-CTR mode"
+    local ct = crypto.encrypt("aes-256-ctr", key, iv, pt, true)
     local pt2 = crypto.decrypt("aes-256-ctr", key, iv, ct, true)
     if pt2 ~= pt then
         print("aes-256-ctr roundtrip failed: " .. pt2)
@@ -187,9 +187,9 @@ end
 -- ── AES-256 ECB ──────────────────────────────────────────────────────────────
 
 function test_evp_aes256_ecb()
-    local key = "12345678901234567890123456789012"   -- 32 bytes
-    local pt  = "AES256ECBblock!!"                   -- 16 bytes
-    local ct  = crypto.encrypt("aes-256-ecb", key, "", pt, true)
+    local key = "12345678901234567890123456789012" -- 32 bytes
+    local pt = "AES256ECBblock!!" -- 16 bytes
+    local ct = crypto.encrypt("aes-256-ecb", key, "", pt, true)
     local pt2 = crypto.decrypt("aes-256-ecb", key, "", ct, true)
     if pt2 ~= pt then
         print("aes-256-ecb roundtrip failed: " .. pt2)
@@ -202,10 +202,10 @@ end
 -- OpenSSL ChaCha20: key=32 bytes, iv=16 bytes (bytes 0-3=counter LE, bytes 4-15=nonce)
 
 function test_evp_chacha20()
-    local key = "12345678901234567890123456789012"   -- 32 bytes
-    local iv  = "abcdefgh12345678"                   -- 16 bytes
-    local pt  = "ChaCha20 stream cipher — modern, fast, no padding"
-    local ct  = crypto.encrypt("chacha20", key, iv, pt, true)
+    local key = "12345678901234567890123456789012" -- 32 bytes
+    local iv = "abcdefgh12345678" -- 16 bytes
+    local pt = "ChaCha20 stream cipher — modern, fast, no padding"
+    local ct = crypto.encrypt("chacha20", key, iv, pt, true)
     if #ct ~= #pt then
         print("chacha20 ciphertext length mismatch: " .. #ct .. " vs " .. #pt)
         return 0
@@ -221,10 +221,10 @@ end
 -- ── Camellia (alternative block cipher, same security as AES) ───────────────
 
 function test_evp_camellia128_cbc()
-    local key = "1234567890abcdef"   -- 16 bytes
-    local iv  = "abcdefgh12345678"   -- 16 bytes
-    local pt  = "Camellia-128 is a Japanese block cipher with AES-equivalent security"
-    local ct  = crypto.encrypt("camellia-128-cbc", key, iv, pt)
+    local key = "1234567890abcdef" -- 16 bytes
+    local iv = "abcdefgh12345678" -- 16 bytes
+    local pt = "Camellia-128 is a Japanese block cipher with AES-equivalent security"
+    local ct = crypto.encrypt("camellia-128-cbc", key, iv, pt)
     local pt2 = crypto.decrypt("camellia-128-cbc", key, iv, ct)
     if pt2 ~= pt then
         print("camellia-128-cbc roundtrip failed: " .. pt2)
@@ -234,10 +234,10 @@ function test_evp_camellia128_cbc()
 end
 
 function test_evp_camellia256_cbc()
-    local key = "12345678901234567890123456789012"   -- 32 bytes
-    local iv  = "abcdefgh12345678"
-    local pt  = "Camellia-256-CBC"
-    local ct  = crypto.encrypt("camellia-256-cbc", key, iv, pt)
+    local key = "12345678901234567890123456789012" -- 32 bytes
+    local iv = "abcdefgh12345678"
+    local pt = "Camellia-256-CBC"
+    local ct = crypto.encrypt("camellia-256-cbc", key, iv, pt)
     local pt2 = crypto.decrypt("camellia-256-cbc", key, iv, ct)
     if pt2 ~= pt then
         print("camellia-256-cbc roundtrip failed: " .. pt2)
@@ -249,10 +249,10 @@ end
 -- ── DES-CBC (new mode, previously only ECB was tested) ──────────────────────
 
 function test_evp_des_cbc()
-    local key = "des8key!"   -- 8 bytes
-    local iv  = "iv123456"   -- 8 bytes (DES block size)
-    local pt  = "DES-CBC mode test with padding"
-    local ct  = crypto.encrypt("des-cbc", key, iv, pt)
+    local key = "des8key!" -- 8 bytes
+    local iv = "iv123456" -- 8 bytes (DES block size)
+    local pt = "DES-CBC mode test with padding"
+    local ct = crypto.encrypt("des-cbc", key, iv, pt)
     local pt2 = crypto.decrypt("des-cbc", key, iv, ct)
     if pt2 ~= pt then
         print("des-cbc roundtrip failed: " .. pt2)
@@ -262,10 +262,10 @@ function test_evp_des_cbc()
 end
 
 function test_evp_3des_cbc()
-    local key = "123456789012345678901234"   -- 24 bytes
-    local iv  = "iv123456"                   -- 8 bytes (DES block size)
-    local pt  = "3DES-CBC with PKCS#7 padding"
-    local ct  = crypto.encrypt("des-ede3-cbc", key, iv, pt)
+    local key = "123456789012345678901234" -- 24 bytes
+    local iv = "iv123456" -- 8 bytes (DES block size)
+    local pt = "3DES-CBC with PKCS#7 padding"
+    local ct = crypto.encrypt("des-ede3-cbc", key, iv, pt)
     local pt2 = crypto.decrypt("des-ede3-cbc", key, iv, ct)
     if pt2 ~= pt then
         print("des-ede3-cbc roundtrip failed: " .. pt2)
@@ -278,9 +278,9 @@ end
 
 function test_evp_aria128_cbc()
     local key = "1234567890abcdef"
-    local iv  = "abcdefgh12345678"
-    local pt  = "ARIA-128-CBC — Korean national cipher standard"
-    local ct  = crypto.encrypt("aria-128-cbc", key, iv, pt)
+    local iv = "abcdefgh12345678"
+    local pt = "ARIA-128-CBC — Korean national cipher standard"
+    local ct = crypto.encrypt("aria-128-cbc", key, iv, pt)
     local pt2 = crypto.decrypt("aria-128-cbc", key, iv, ct)
     if pt2 ~= pt then
         print("aria-128-cbc roundtrip failed: " .. pt2)

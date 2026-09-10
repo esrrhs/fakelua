@@ -1,4 +1,4 @@
-package "CryptoTest"
+package("CryptoTest")
 
 -- ── crypto.digest tests ──────────────────────────────────────────────────────
 
@@ -75,9 +75,9 @@ end
 
 function test_evp_aes128_cbc()
     local key = "1234567890abcdef"
-    local iv  = "abcdefgh12345678"
-    local pt  = "Hello, World! EVP interface test."
-    local ct  = crypto.encrypt("aes-128-cbc", key, iv, pt)
+    local iv = "abcdefgh12345678"
+    local pt = "Hello, World! EVP interface test."
+    local ct = crypto.encrypt("aes-128-cbc", key, iv, pt)
     local pt2 = crypto.decrypt("aes-128-cbc", key, iv, ct)
     if pt2 ~= pt then
         print("aes-128-cbc roundtrip failed: " .. pt2)
@@ -88,9 +88,9 @@ end
 
 function test_evp_aes256_cbc()
     local key = "12345678901234567890123456789012"
-    local iv  = "abcdefgh12345678"
-    local pt  = "AES-256-CBC via generic EVP interface."
-    local ct  = crypto.encrypt("aes-256-cbc", key, iv, pt)
+    local iv = "abcdefgh12345678"
+    local pt = "AES-256-CBC via generic EVP interface."
+    local ct = crypto.encrypt("aes-256-cbc", key, iv, pt)
     local pt2 = crypto.decrypt("aes-256-cbc", key, iv, ct)
     if pt2 ~= pt then
         print("aes-256-cbc roundtrip failed: " .. pt2)
@@ -101,8 +101,8 @@ end
 
 function test_evp_aes128_ecb()
     local key = "1234567890abcdef"
-    local pt  = "ECBBlock1234567"   -- 15 bytes, padded to 16 by PKCS#7
-    local ct  = crypto.encrypt("aes-128-ecb", key, "", pt)
+    local pt = "ECBBlock1234567" -- 15 bytes, padded to 16 by PKCS#7
+    local ct = crypto.encrypt("aes-128-ecb", key, "", pt)
     local pt2 = crypto.decrypt("aes-128-ecb", key, "", ct)
     if pt2 ~= pt then
         print("aes-128-ecb roundtrip failed: " .. pt2)
@@ -113,8 +113,8 @@ end
 
 function test_evp_rc4()
     local key = "secretkey"
-    local pt  = "RC4 stream cipher via EVP!"
-    local ct  = crypto.encrypt("rc4", key, "", pt)
+    local pt = "RC4 stream cipher via EVP!"
+    local ct = crypto.encrypt("rc4", key, "", pt)
     local pt2 = crypto.decrypt("rc4", key, "", ct)
     if pt2 ~= pt then
         print("rc4 roundtrip failed: " .. pt2)
@@ -125,8 +125,8 @@ end
 
 function test_evp_blowfish()
     local key = "blowkey"
-    local pt  = "BFBLOCK!"   -- 8 bytes
-    local ct  = crypto.encrypt("bf-ecb", key, "", pt, true)
+    local pt = "BFBLOCK!" -- 8 bytes
+    local ct = crypto.encrypt("bf-ecb", key, "", pt, true)
     local pt2 = crypto.decrypt("bf-ecb", key, "", ct, true)
     if pt2 ~= pt then
         print("bf-ecb roundtrip failed: " .. pt2)
@@ -137,8 +137,8 @@ end
 
 function test_evp_des()
     local key = "des8key!"
-    local pt  = "DES_ECB!"   -- 8 bytes
-    local ct  = crypto.encrypt("des-ecb", key, "", pt, true)
+    local pt = "DES_ECB!" -- 8 bytes
+    local ct = crypto.encrypt("des-ecb", key, "", pt, true)
     local pt2 = crypto.decrypt("des-ecb", key, "", ct, true)
     if pt2 ~= pt then
         print("des-ecb roundtrip failed: " .. pt2)
@@ -149,8 +149,8 @@ end
 
 function test_evp_3des()
     local key = "123456789012345678901234"
-    local pt  = "3DEStest"   -- 8 bytes
-    local ct  = crypto.encrypt("des-ede3-ecb", key, "", pt, true)
+    local pt = "3DEStest" -- 8 bytes
+    local ct = crypto.encrypt("des-ede3-ecb", key, "", pt, true)
     local pt2 = crypto.decrypt("des-ede3-ecb", key, "", ct, true)
     if pt2 ~= pt then
         print("des-ede3-ecb roundtrip failed: " .. pt2)
