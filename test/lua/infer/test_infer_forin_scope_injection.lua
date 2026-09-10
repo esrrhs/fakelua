@@ -3,7 +3,7 @@
 function test()
     local k = 100
     local sum = 0
-    for k, v in pairs({1, 2, 3}) do
+    for k, v in pairs({ 1, 2, 3 }) do
         k = k + v
         sum = sum + k
     end

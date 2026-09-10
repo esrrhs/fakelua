@@ -20,7 +20,7 @@ function test_string_gsub()
     if s5 ~= "world hello" then return 0 end
 
     -- 表替换 (ECMAScript 语法)
-    local t = {a = "A", b = "B"}
+    local t = { a = "A", b = "B" }
     local s6 = string.gsub("a b c", "[a-z]", t)
     if s6 ~= "A B c" then return 0 end
 
@@ -41,10 +41,11 @@ function test_string_gsub()
     if s8 ~= "v1 v9 v15 kx" then return 0 end
 
     -- 捕获组超过旧的 16 槽上限时，第 17 个参数会被丢掉
-    local s9 = string.gsub("abcdefghijklmnopq", "(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)", function(g1, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12, g13, g14, g15, g16, g17)
-        if g17 ~= "q" then return "bad" end
-        return "OK"
-    end)
+    local s9 = string.gsub("abcdefghijklmnopq", "(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)(.)",
+        function(g1, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12, g13, g14, g15, g16, g17)
+            if g17 ~= "q" then return "bad" end
+            return "OK"
+        end)
     if s9 ~= "OK" then return 0 end
 
     -- 捕获组少于替换函数形参时，缺的必须是 nil，不能读垃圾寄存器

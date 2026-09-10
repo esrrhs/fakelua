@@ -5,7 +5,7 @@ function test_io_file_lines()
     f:write("alpha\n")
     f:write("beta\n")
     f:write("gamma\n")
-    f:write("delta")  -- 最后一行无换行
+    f:write("delta") -- 最后一行无换行
     f:close()
 
     -- 重新打开用于读取

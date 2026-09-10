@@ -22,16 +22,16 @@ function test_multi_servers_multi_clients()
     local port_a = 19971
     local port_b = 19972
 
-    local server_a = net.server({port = port_a, maxconn = 10})
+    local server_a = net.server({ port = port_a, maxconn = 10 })
     server_a:dispatch("NetMultiEndpoints.on_server_a_event")
 
-    local server_b = net.server({port = port_b, maxconn = 10})
+    local server_b = net.server({ port = port_b, maxconn = 10 })
     server_b:dispatch("NetMultiEndpoints.on_server_b_event")
 
-    local client_a = net.client({port = port_a})
+    local client_a = net.client({ port = port_a })
     client_a:dispatch("NetMultiEndpoints.on_client_event")
 
-    local client_b = net.client({port = port_b})
+    local client_b = net.client({ port = port_b })
     client_b:dispatch("NetMultiEndpoints.on_client_event")
 
     -- 驱动连接建立
@@ -51,7 +51,7 @@ function test_multi_servers_multi_clients()
     for i = 1, 200 do
         runtime.tick()
         if server_a:get_recv_count() >= 1 and server_b:get_recv_count() >= 1 and
-           client_a:get_last_data() ~= "" and client_b:get_last_data() ~= "" then
+            client_a:get_last_data() ~= "" and client_b:get_last_data() ~= "" then
             break
         end
         os.sleep(1)
@@ -75,20 +75,19 @@ function test_multi_servers_multi_clients()
     return conn_a, recv_a, data_a, echo_a, conn_b, recv_b, data_b, echo_b
 end
 
-
 -- 测试：1个 server + 多个 client 同时连接，server 能分别处理每个连接
 function test_one_server_multi_clients()
     local port = 19973
-    local server = net.server({port = port, maxconn = 10})
+    local server = net.server({ port = port, maxconn = 10 })
     server:dispatch("NetMultiEndpoints.on_server_a_event")
 
-    local client1 = net.client({port = port})
+    local client1 = net.client({ port = port })
     client1:dispatch("NetMultiEndpoints.on_client_event")
 
-    local client2 = net.client({port = port})
+    local client2 = net.client({ port = port })
     client2:dispatch("NetMultiEndpoints.on_client_event")
 
-    local client3 = net.client({port = port})
+    local client3 = net.client({ port = port })
     client3:dispatch("NetMultiEndpoints.on_client_event")
 
     -- 驱动连接建立
@@ -109,9 +108,9 @@ function test_one_server_multi_clients()
     for i = 1, 200 do
         runtime.tick()
         if server:get_recv_count() >= 3 and
-           client1:get_last_data() ~= "" and
-           client2:get_last_data() ~= "" and
-           client3:get_last_data() ~= "" then
+            client1:get_last_data() ~= "" and
+            client2:get_last_data() ~= "" and
+            client3:get_last_data() ~= "" then
             break
         end
         os.sleep(1)
@@ -132,4 +131,3 @@ function test_one_server_multi_clients()
 
     return conn_count, recv_count, echo1, echo2, echo3
 end
-

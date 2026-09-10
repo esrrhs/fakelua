@@ -101,20 +101,20 @@ function test_encode_string()
 end
 
 function test_encode_array()
-    local s = json.encode({1, 2, 3})
+    local s = json.encode({ 1, 2, 3 })
     if s ~= "[1,2,3]" then return 0 end
     return 1
 end
 
 function test_encode_object()
-    local s = json.encode({a=1, b="hello"})
+    local s = json.encode({ a = 1, b = "hello" })
     -- 对象键顺序不固定，检查两种可能
     if s ~= '{"a":1,"b":"hello"}' and s ~= '{"b":"hello","a":1}' then return 0 end
     return 1
 end
 
 function test_roundtrip()
-    local orig = {name="明朝", provinces=3, data={1, 2, 3}, active=true}
+    local orig = { name = "明朝", provinces = 3, data = { 1, 2, 3 }, active = true }
     local encoded = json.encode(orig)
     local decoded = json.decode(encoded)
     if decoded.name ~= "明朝" then return 0 end
@@ -127,7 +127,7 @@ end
 
 -- 超过 quick_data_ 容量的数组：遍历必须走 GET_TABLE_ENTRY 语义，否则会重复/漏键
 function test_encode_array_9()
-    local s = json.encode({1, 2, 3, 4, 5, 6, 7, 8, 9})
+    local s = json.encode({ 1, 2, 3, 4, 5, 6, 7, 8, 9 })
     if s ~= "[1,2,3,4,5,6,7,8,9]" then return 0 end
     return 1
 end

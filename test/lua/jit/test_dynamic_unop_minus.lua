@@ -3,7 +3,7 @@
 -- t[1] is a T_DYNAMIC table lookup; -t[1] uses OpUnaryMinus.
 -- -(10) = -10.
 function test(a)
-    local t = {a}
+    local t = { a }
     local x = t[1]
     return -x
 end

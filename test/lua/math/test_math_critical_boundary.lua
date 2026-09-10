@@ -13,10 +13,10 @@ function test_math_critical_boundary()
     if not string.find(err2, "number has no integer representation") then return 4 end
 
     -- 边界内应正常工作
-    if string.sub("hello", 2^62) ~= "" then return 5 end
+    if string.sub("hello", 2 ^ 62) ~= "" then return 5 end
 
     -- 2^63 刚好越界
-    local ok3 = pcall(function() return string.sub("hello", 2^63) end)
+    local ok3 = pcall(function() return string.sub("hello", 2 ^ 63) end)
     if ok3 then return 6 end
 
     -- ===== #2 math.abs(INT64_MIN) =====
@@ -28,7 +28,7 @@ function test_math_critical_boundary()
     math.randomseed(42)
     local r0 = math.random(0)
     if not (r0 == math.floor(r0)) then return 9 end
-    if math.abs(r0) <= 2^53 then return 10 end
+    if math.abs(r0) <= 2 ^ 53 then return 10 end
 
     -- random(负数) 应报错
     local ok4, err4 = pcall(function() return math.random(-5) end)
@@ -45,7 +45,7 @@ function test_math_critical_boundary()
     if not ok6 then return 15 end
 
     -- 2^63 不能当整数上界：native 以前会退化成 random(0)
-    local ok7, err7 = pcall(function() return math.random(2^63) end)
+    local ok7, err7 = pcall(function() return math.random(2 ^ 63) end)
     if ok7 then return 16 end
     if not string.find(err7, "integer representation") then return 17 end
 
@@ -74,14 +74,14 @@ function test_math_random_reverse()
 end
 
 function test_math_random_2pow63()
-    math.random(2^63)
+    math.random(2 ^ 63)
 end
 
 -- Bug #1 修复验证：string 库方法 colon 调用不 crash
 function test_string_method_colon()
     local s = "hello world 123"
     -- 这些调用之前会触发 "attempt to index a non-table value"
-    local m = s:match("123", 1, true)  -- plain search
+    local m = s:match("123", 1, true) -- plain search
     if m ~= "123" then return 1 end
     local f = s:find("world")
     if f ~= 7 then return 2 end

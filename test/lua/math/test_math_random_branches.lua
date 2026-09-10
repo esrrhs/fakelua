@@ -43,25 +43,25 @@ end
 -- 测试 math.random 负数区间 - 应该报错 (exception test, use GCC backend)
 function test_random_negative_interval()
     math.random(-5)
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 math.random(l, n) 空区间 - l > n 应该报错 (exception test, use GCC backend)
 function test_random_empty_interval()
     math.random(10, 3)
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 math.random 错误参数类型 (exception test, use GCC backend)
 function test_random_bad_type()
     math.random("bad")
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 math.random 双参数错误类型 (exception test, use GCC backend)
 function test_random_two_args_bad_type()
     math.random(1, "bad")
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 math.random 大范围
@@ -79,7 +79,7 @@ end
 -- 测试 math.random 全 uint64 范围
 function test_random_full_uint64()
     math.randomseed(99999)
-    local r = math.random(0, 0)  -- 可能触发全范围
+    local r = math.random(0, 0) -- 可能触发全范围
     if r == nil then return 0 end
     return 1
 end

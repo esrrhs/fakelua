@@ -17,18 +17,18 @@ end
 -- A = [[1,2,3],[4,5,6],[7,8,9]], B = [[9,8,7],[6,5,4],[3,2,1]]
 -- C = A*B, return trace(C) = C[1][1] + C[2][2] + C[3][3]
 function test_trace()
-    local a = {1, 2, 3, 4, 5, 6, 7, 8, 9}
-    local b = {9, 8, 7, 6, 5, 4, 3, 2, 1}
-    local c = {0, 0, 0, 0, 0, 0, 0, 0, 0}
+    local a = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
+    local b = { 9, 8, 7, 6, 5, 4, 3, 2, 1 }
+    local c = { 0, 0, 0, 0, 0, 0, 0, 0, 0 }
     mat_mul(a, b, c)
     return c[1] + c[5] + c[9]
 end
 
 -- Return a specific cell of the product (1-indexed row r, col col_).
 function test_cell(r, col_)
-    local a = {1, 2, 3, 4, 5, 6, 7, 8, 9}
-    local b = {9, 8, 7, 6, 5, 4, 3, 2, 1}
-    local c = {0, 0, 0, 0, 0, 0, 0, 0, 0}
+    local a = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
+    local b = { 9, 8, 7, 6, 5, 4, 3, 2, 1 }
+    local c = { 0, 0, 0, 0, 0, 0, 0, 0, 0 }
     mat_mul(a, b, c)
     return c[(r - 1) * 3 + col_]
 end

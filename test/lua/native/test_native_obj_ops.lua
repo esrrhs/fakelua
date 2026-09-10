@@ -23,7 +23,7 @@ end
 function test_float_field()
     local gid = new_native_group()
     local obj = new_native_obj(gid, "item", 402)
-    obj.speed = 3.14  -- SetFloat
+    obj.speed = 3.14 -- SetFloat
 
     -- GetFloat should return float
     local s = obj.speed
@@ -36,7 +36,7 @@ end
 function test_bool_field()
     local gid = new_native_group()
     local obj = new_native_obj(gid, "item", 403)
-    obj.alive = true   -- SetBool
+    obj.alive = true -- SetBool
 
     -- GetBool
     local a = obj.alive
@@ -53,7 +53,7 @@ end
 function test_string_field()
     local gid = new_native_group()
     local obj = new_native_obj(gid, "item", 404)
-    obj.name = "sword"  -- SetString
+    obj.name = "sword" -- SetString
 
     -- GetString
     if obj.name ~= "sword" then return 1 end

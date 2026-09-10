@@ -6,7 +6,7 @@ function test_math_int64_min_arith()
     local mini = math.mininteger
 
     -- 表取值是 T_DYNAMIC，走 OpFloorDiv / OpMod / OpUnaryMinus
-    local t = {mini, -1}
+    local t = { mini, -1 }
     if t[1] // t[2] ~= mini then return 1 end
     if t[1] % t[2] ~= 0 then return 2 end
     local unm = -t[1]

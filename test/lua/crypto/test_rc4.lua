@@ -7,7 +7,7 @@ function test_rc4_keystream()
     local key = "Key"
     local zeros = string.rep("\0", 10)
     local ks = crypto.rc4(key, zeros)
-    local expected1 = {235,159,119,129,183,52,202,114,167,25}
+    local expected1 = { 235, 159, 119, 129, 183, 52, 202, 114, 167, 25 }
     if #ks ~= 10 then
         print("rc4 keystream test 1: wrong length " .. #ks)
         return 0
@@ -23,7 +23,7 @@ function test_rc4_keystream()
     key = "Wiki"
     zeros = string.rep("\0", 6)
     ks = crypto.rc4(key, zeros)
-    local expected2 = {96,68,219,109,65,183}
+    local expected2 = { 96, 68, 219, 109, 65, 183 }
     if #ks ~= 6 then
         print("rc4 keystream test 2: wrong length " .. #ks)
         return 0
@@ -39,7 +39,7 @@ function test_rc4_keystream()
     key = "Secret"
     zeros = string.rep("\0", 8)
     ks = crypto.rc4(key, zeros)
-    local expected3 = {4,212,107,5,60,168,123,89}
+    local expected3 = { 4, 212, 107, 5, 60, 168, 123, 89 }
     if #ks ~= 8 then
         print("rc4 keystream test 3: wrong length " .. #ks)
         return 0

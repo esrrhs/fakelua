@@ -14,10 +14,10 @@ function on_client_event(type, connid, data, len, reason)
 end
 
 function test_echo()
-    local server = net.server({port = 19988, maxconn = 10})
+    local server = net.server({ port = 19988, maxconn = 10 })
     server:dispatch("NetTest.on_server_event")
 
-    local client = net.client({port = 19988})
+    local client = net.client({ port = 19988 })
     client:dispatch("NetTest.on_client_event")
 
     -- 驱动连接建立
@@ -56,9 +56,9 @@ function on_close_in_recv(type, connid, data, len, reason)
 end
 
 function test_close_in_recv()
-    local server = net.server({port = 19991, maxconn = 4})
+    local server = net.server({ port = 19991, maxconn = 4 })
     server:dispatch("NetTest.on_close_in_recv")
-    local client = net.client({port = 19991})
+    local client = net.client({ port = 19991 })
     for i = 1, 50 do
         runtime.tick()
         if server:get_conn_count() >= 1 then break end
@@ -77,12 +77,12 @@ function test_close_in_recv()
 end
 
 function test_slot_reuse_repeated_connect()
-    local srv = net.server({port = 19985, maxconn = 2})
+    local srv = net.server({ port = 19985, maxconn = 2 })
     srv:dispatch("NetTest.on_server_event")
 
     local success_count = 0
     for iter = 1, 6 do
-        local client = net.client({port = 19985})
+        local client = net.client({ port = 19985 })
         client:dispatch("NetTest.on_client_event")
         local ok = false
         for i = 1, 50 do
@@ -115,7 +115,7 @@ function test_slot_reuse_repeated_connect()
 end
 
 function test_client_connect_fail()
-    local client = net.client({port = 19921})
+    local client = net.client({ port = 19921 })
     client:dispatch("NetTest.on_client_event")
     for i = 1, 50 do
         runtime.tick()
@@ -127,8 +127,8 @@ function test_client_connect_fail()
 end
 
 function test_send_buffer_full()
-    local srv = net.server({port = 19986, maxconn = 2, sendbuf = 64})
-    local cli = net.client({port = 19986})
+    local srv = net.server({ port = 19986, maxconn = 2, sendbuf = 64 })
+    local cli = net.client({ port = 19986 })
     for i = 1, 50 do
         runtime.tick()
         if srv:get_conn_count() >= 1 then break end
@@ -140,4 +140,3 @@ function test_send_buffer_full()
     cli:close()
     return ok and 0 or 1
 end
-

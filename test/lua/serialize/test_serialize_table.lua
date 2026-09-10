@@ -41,7 +41,7 @@ end
 
 -- 超过 quick_data_ 容量的数组，往返后键 1..9 必须齐全且不重复
 function test_array_9()
-    local t = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+    local t = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
     local bin = serialize.encode(t)
     if not bin then return 0 end
     local d = serialize.decode(bin)

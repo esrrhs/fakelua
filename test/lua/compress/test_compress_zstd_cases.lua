@@ -47,7 +47,7 @@ end
 
 -- 测试 zstd 大数据压缩解压
 function test_zstd_large_data()
-    local data = string.rep("abcdefghij", 100000)  -- 1MB
+    local data = string.rep("abcdefghij", 100000) -- 1MB
     local c = compress.zstd_compress(data)
     if not c then return 0 end
     local d = compress.zstd_decompress(c)

@@ -8,7 +8,7 @@ function test_random_destroy()
         rng:float(0.0, 1.0)
         rng:dice(2, 6)
         rng:chance(0.5)
-        rng:weighted({1, 2, 3})
+        rng:weighted({ 1, 2, 3 })
         rng:get_state()
     end
 

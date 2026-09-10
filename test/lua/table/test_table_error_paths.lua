@@ -40,14 +40,14 @@ function test_table_create_too_many()
 end
 
 function test_table_insert_2pow63()
-    table.insert({1, 2, 3}, 2^63, 99)
+    table.insert({ 1, 2, 3 }, 2 ^ 63, 99)
 end
 
 function test_table_remove_2pow63()
-    table.remove({1, 2, 3}, 2^63)
+    table.remove({ 1, 2, 3 }, 2 ^ 63)
 end
 
 function test_table_sort_nan()
     -- NaN 破坏 C++ strict weak ordering，std::stable_sort 是 UB
-    table.sort({1, 0.0 / 0.0, 2})
+    table.sort({ 1, 0.0 / 0.0, 2 })
 end

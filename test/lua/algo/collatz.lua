@@ -14,7 +14,9 @@ function collatz_max_len(limit)
     local max_num = 0
     for i = 1, limit do
         local len = collatz_len(i)
-        if len > max_len then max_len = len; max_num = i end
+        if len > max_len then
+            max_len = len; max_num = i
+        end
     end
     return max_num
 end

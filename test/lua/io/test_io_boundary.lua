@@ -13,9 +13,13 @@ function test_io_boundary()
     f4:write("x")
     f4:seek("set", 0)
     local d = f4:read("*a")
-    if d ~= "x" then f4:close(); return 4 end
+    if d ~= "x" then
+        f4:close(); return 4
+    end
     local e = f4:read("*a")
-    if e ~= nil and e ~= "" then f4:close(); return 5 end
+    if e ~= nil and e ~= "" then
+        f4:close(); return 5
+    end
     f4:close()
 
     -- 4. file:write 写入成功返回非 nil（写入后文件位置前进）
@@ -23,7 +27,9 @@ function test_io_boundary()
     local before = f5:seek("cur", 0)
     f5:write("abc")
     local after = f5:seek("cur", 0)
-    if after ~= before + 3 then f5:close(); return 6 end
+    if after ~= before + 3 then
+        f5:close(); return 6
+    end
     f5:close()
 
     return 5000

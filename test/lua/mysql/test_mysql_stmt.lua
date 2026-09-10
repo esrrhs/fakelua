@@ -60,11 +60,19 @@ function test_stmt()
     conn.query_done = false
     conn.query_err = nil
     conn:query("DROP TABLE IF EXISTS stmt_test", "on_result")
-    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
 
     conn.query_done = false
     conn:query("CREATE TABLE stmt_test (id INT PRIMARY KEY, name VARCHAR(64))", "on_result")
-    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
 
     -- 准备 INSERT 语句
     conn.prepare_done = false
@@ -88,9 +96,13 @@ function test_stmt()
     -- 执行插入
     conn.query_done = false
     conn.query_err = nil
-    conn:stmt_execute(conn.stmt_id, {"1", "alice"}, "on_result")
+    conn:stmt_execute(conn.stmt_id, { "1", "alice" }, "on_result")
 
-    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
 
     if conn.query_err ~= nil then
         if #conn.query_err > 0 then
@@ -132,9 +144,13 @@ function test_stmt()
     -- 执行查询
     conn.query_done = false
     conn.query_err = nil
-    conn:stmt_execute(conn.stmt_id, {"1"}, "on_result")
+    conn:stmt_execute(conn.stmt_id, { "1" }, "on_result")
 
-    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
 
     if conn.query_err ~= nil then
         if #conn.query_err > 0 then
@@ -181,7 +197,11 @@ function test_stmt()
     conn:stmt_close(conn.stmt_id)
     conn.query_done = false
     conn:query("DROP TABLE IF EXISTS stmt_test", "on_result")
-    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
     conn:close()
     return 1
 end

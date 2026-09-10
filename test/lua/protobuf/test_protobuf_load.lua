@@ -3,7 +3,7 @@ package "ProtobufTest"
 -- 测试 .proto 解析：加载、错误处理、types/fields 查询
 function test_load()
     -- 清空之前注册的 schema（保证测试独立）
-    protobuf.load("")  -- 空文本不会注册任何内容
+    protobuf.load("") -- 空文本不会注册任何内容
 
     -- 合法的 proto
     local err = protobuf.load([[

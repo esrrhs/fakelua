@@ -74,42 +74,42 @@ function test_decode_custom_sep()
 end
 
 function test_encode_simple()
-    local rows = {{"a", "b", "c"}, {"1", "2", "3"}}
+    local rows = { { "a", "b", "c" }, { "1", "2", "3" } }
     local s = csv.encode(rows)
     if s ~= "a,b,c\n1,2,3" then return 0 end
     return 1
 end
 
 function test_encode_quotes()
-    local rows = {{'hello, world', "foo"}}
+    local rows = { { 'hello, world', "foo" } }
     local s = csv.encode(rows)
     if s ~= '"hello, world",foo' then return 0 end
     return 1
 end
 
 function test_encode_escaped_quotes()
-    local rows = {{'a"b', "c"}}
+    local rows = { { 'a"b', "c" } }
     local s = csv.encode(rows)
     if s ~= '"a""b",c' then return 0 end
     return 1
 end
 
 function test_encode_numbers()
-    local rows = {{42, 3.14}}
+    local rows = { { 42, 3.14 } }
     local s = csv.encode(rows)
     if s ~= "42,3.14" then return 0 end
     return 1
 end
 
 function test_encode_custom_sep()
-    local rows = {{"a", "b"}, {"c", "d"}}
+    local rows = { { "a", "b" }, { "c", "d" } }
     local s = csv.encode(rows, ";")
     if s ~= "a;b\nc;d" then return 0 end
     return 1
 end
 
 function test_roundtrip()
-    local original = {{"name", "age", "city"}, {"Alice", "30", "Beijing"}, {"Bob", "25", "Shanghai"}}
+    local original = { { "name", "age", "city" }, { "Alice", "30", "Beijing" }, { "Bob", "25", "Shanghai" } }
     local encoded = csv.encode(original)
     local decoded = csv.decode(encoded)
     if #decoded ~= 3 then return 0 end
@@ -120,7 +120,7 @@ function test_roundtrip()
 end
 
 function test_roundtrip_with_commas()
-    local original = {{"hello, world", "foo"}, {"bar", "baz, qux"}}
+    local original = { { "hello, world", "foo" }, { "bar", "baz, qux" } }
     local encoded = csv.encode(original)
     local decoded = csv.decode(encoded)
     if #decoded ~= 2 then return 0 end

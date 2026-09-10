@@ -52,16 +52,30 @@ function test_datatypes()
     -- 1. 创建测试表
     conn.query_done = false
     conn:query("DROP TABLE IF EXISTS dt_test", "on_result")
-    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
 
     conn.query_done = false
-    conn:query("CREATE TABLE dt_test (id INT PRIMARY KEY, val_null VARCHAR(32), val_float DOUBLE, val_date DATE, val_time TIME, val_str VARCHAR(64))", "on_result")
-    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
+    conn:query(
+    "CREATE TABLE dt_test (id INT PRIMARY KEY, val_null VARCHAR(32), val_float DOUBLE, val_date DATE, val_time TIME, val_str VARCHAR(64))",
+        "on_result")
+    for i = 1, 1000 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
 
     -- 2. 插入测试数据（包含 NULL、浮点数、日期、时间、字符串）
     conn.query_done = false
     conn:query("INSERT INTO dt_test VALUES (1, NULL, 3.1415, '2026-09-05', '14:30:00', 'hello_fakelua')", "on_result")
-    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
 
     if conn.query_err ~= nil then
         if #conn.query_err > 0 then
@@ -76,7 +90,11 @@ function test_datatypes()
     conn.query_err = nil
     conn.query_result = nil
     conn:query("SELECT id, val_null, val_float, val_date, val_time, val_str FROM dt_test WHERE id = 1", "on_result")
-    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
 
     if conn.query_err ~= nil then
         if #conn.query_err > 0 then
@@ -140,7 +158,11 @@ function test_datatypes()
     -- 清理
     conn.query_done = false
     conn:query("DROP TABLE IF EXISTS dt_test", "on_result")
-    for i = 1, 1000 do runtime.tick() if conn.query_done then break end os.sleep(1) end
+    for i = 1, 1000 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
 
     conn:close()
     return 1

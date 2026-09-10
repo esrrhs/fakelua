@@ -73,19 +73,19 @@ end
 
 -- 测试所有日志级别切换
 function test_log_all_level_transitions()
-    log.set_level(0)  -- trace
+    log.set_level(0) -- trace
     log.trace("trace after set_level(0)")
-    log.set_level(1)  -- debug
+    log.set_level(1) -- debug
     log.debug("debug after set_level(1)")
-    log.set_level(2)  -- info
+    log.set_level(2) -- info
     log.info("info after set_level(2)")
-    log.set_level(3)  -- warn
+    log.set_level(3) -- warn
     log.warn("warn after set_level(3)")
-    log.set_level(4)  -- error
+    log.set_level(4) -- error
     log.error("error after set_level(4)")
-    log.set_level(5)  -- critical
+    log.set_level(5) -- critical
     log.critical("critical after set_level(5)")
-    log.set_level(2)  -- 恢复 info
+    log.set_level(2) -- 恢复 info
     return 1
 end
 
@@ -93,8 +93,8 @@ end
 function test_log_set_level_boundary()
     log.set_level(0)
     log.set_level(5)
-    log.set_level(100)  -- 高值应该被接受
-    log.set_level(2)  -- 恢复
+    log.set_level(100) -- 高值应该被接受
+    log.set_level(2)   -- 恢复
     return 1
 end
 
@@ -102,29 +102,29 @@ end
 -- 测试 log.set_level 错误参数 (exception test, use GCC backend)
 function test_log_set_level_invalid()
     log.set_level("invalid")
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 log.set_level 无参数 (exception test, use GCC backend)
 function test_log_set_level_no_arg()
     log.set_level()
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 log.set_file 错误参数 (exception test, use GCC backend)
 function test_log_set_file_invalid()
     log.set_file(123)
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 log.set_file 无参数 (exception test, use GCC backend)
 function test_log_set_file_no_arg()
     log.set_file()
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 log.info 无参数 (exception test, use GCC backend)
 function test_log_info_no_args()
     log.info()
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end

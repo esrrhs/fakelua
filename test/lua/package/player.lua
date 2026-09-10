@@ -1,6 +1,6 @@
 package "Player"
 
-local BASE_BONUS = 1 -- Constant: compile-time bonus value
+local BASE_BONUS = 1      -- Constant: compile-time bonus value
 
 function AddItem(id, num) -- Exported to Player.AddItem
     return id + num + BASE_BONUS

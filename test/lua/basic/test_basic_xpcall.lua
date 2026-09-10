@@ -19,8 +19,10 @@ end
 
 -- 测试 xpcall 非函数主调
 function test_xpcall_non_function()
-    local ok, err = xpcall(function() pcall(function()
-        xpcall(123, function() end)
-    end) end, function(e) return e end)
+    local ok, err = xpcall(function()
+        pcall(function()
+            xpcall(123, function() end)
+        end)
+    end, function(e) return e end)
     return 1
 end

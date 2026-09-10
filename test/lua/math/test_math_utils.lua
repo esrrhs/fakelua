@@ -9,7 +9,7 @@ function test_math_utils()
     local ult_res = math.ult("10", 20) and 1.0 or 0.0
     local max_i = (math.maxinteger > 0) and 1.0 or 0.0
     local min_i = (math.mininteger < 0) and 1.0 or 0.0
-    
+
     -- 验证变长 math.max 和 math.min
     local mx = math.max("10", 25, 5, 100, 30)
     if mx ~= 100 then return 0 end

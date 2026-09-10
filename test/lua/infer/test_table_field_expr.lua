@@ -2,6 +2,6 @@
 -- n is not a math param; test is not specialized.
 -- test(5) == t[1] + 5 == 10 + 5 == 15.
 function test(n)
-    local t = {10, 20, 30}
+    local t = { 10, 20, 30 }
     return t[1] + n
 end

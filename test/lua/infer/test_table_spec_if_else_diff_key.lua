@@ -7,9 +7,9 @@
 function test(b)
     local a;
     if b > 0 then
-        a = {a=1}
+        a = { a = 1 }
     else
-        a = {b=2}
+        a = { b = 2 }
     end
     a.a = a.a or 0;
     a.b = a.b or 0;

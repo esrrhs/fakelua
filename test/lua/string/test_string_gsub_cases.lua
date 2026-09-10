@@ -13,7 +13,7 @@ end
 -- 测试 string.gsub 表替换
 function test_gsub_table()
     local s = "a b"
-    local t = {a="x", b="y"}
+    local t = { a = "x", b = "y" }
     local r = string.gsub(s, "(\\w+)", t)
     if r ~= "x y" then return 0 end
     return 1

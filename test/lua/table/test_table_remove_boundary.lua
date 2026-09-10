@@ -12,20 +12,20 @@ function test_table_remove_boundary()
     -- if #t2 ~= 3 then return 4 end
 
     -- 3. 移除位置 len+1（无效，应返回 nil）
-    local t3 = {1, 2, 3}
+    local t3 = { 1, 2, 3 }
     local r3 = table.remove(t3, 4)
     if r3 ~= nil then return 5 end
     if #t3 ~= 3 then return 6 end
 
     -- 4. 移除最后一个元素后表长度为 0
-    local t4 = {42}
+    local t4 = { 42 }
     local r4 = table.remove(t4)
     if r4 ~= 42 then return 7 end
     -- fakelua 的 # 运算符对空表可能返回非 0，跳过
     -- if #t4 ~= 0 then return 8 end
 
     -- 5. 移除中间元素，后续元素前移
-    local t5 = {10, 20, 30, 40}
+    local t5 = { 10, 20, 30, 40 }
     local r5 = table.remove(t5, 2)
     if r5 ~= 20 then return 9 end
     if t5[1] ~= 10 or t5[2] ~= 30 or t5[3] ~= 40 then return 10 end

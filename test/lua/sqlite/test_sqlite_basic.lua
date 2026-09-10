@@ -269,7 +269,7 @@ function test_prepare_error()
     local db = open_db()
     db:exec("CREATE TABLE t (id INTEGER)")
     local stmt = db:prepare("INSERT INTO t VALUES (?)")
-    stmt:bind(42)  -- 1 placeholder, 1 value
+    stmt:bind(42) -- 1 placeholder, 1 value
     stmt:step()
     stmt:close()
     local rows = db:exec("SELECT * FROM t")

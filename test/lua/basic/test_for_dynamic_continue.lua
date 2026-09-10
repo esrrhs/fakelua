@@ -47,7 +47,7 @@ function test_for_dynamic_continue()
     if total ~= 4 then return 7 end
 
     -- 表取值边界同样走动态 for
-    local t = {1, 5}
+    local t = { 1, 5 }
     n = 0
     s = 0
     for i = t[1], t[2] do

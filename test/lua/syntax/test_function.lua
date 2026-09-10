@@ -6,7 +6,7 @@ function _G.a.b:func_b(a, b, c, ...)
 end
 
 local function func_c(...)
-    local param_list = {...}
+    local param_list = { ... }
     for i = 1, #param_list do
         print(param_list[i])
     end

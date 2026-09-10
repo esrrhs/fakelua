@@ -1,6 +1,6 @@
 function test_basic_next()
     -- 非空表返回至少一个键
-    local t2 = {a = 1, b = 2, c = 3}
+    local t2 = { a = 1, b = 2, c = 3 }
     local k, v = next(t2)
     if k == nil then return 1 end
 
@@ -20,7 +20,7 @@ function test_basic_next()
     if ek ~= nil then return 3 end
 
     -- 整数 key 的表
-    local t3 = {10, 20, 30}
+    local t3 = { 10, 20, 30 }
     local k2, v2 = next(t3)
     if k2 ~= 1 or v2 ~= 10 then return 4 end
 

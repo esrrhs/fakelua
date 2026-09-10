@@ -2,7 +2,7 @@ package "BasicPairsCases"
 
 -- 测试 pairs 基本迭代
 function test_pairs_basic()
-    local t = {a=1, b=2, c=3}
+    local t = { a = 1, b = 2, c = 3 }
     local count = 0
     for k, v in pairs(t) do
         count = count + 1
@@ -13,7 +13,7 @@ end
 
 -- 测试 ipairs 基本迭代
 function test_ipairs_basic()
-    local t = {10, 20, 30}
+    local t = { 10, 20, 30 }
     local count = 0
     local sum = 0
     for i, v in ipairs(t) do
@@ -27,7 +27,7 @@ end
 
 -- 测试 ipairs 非连续
 function test_ipairs_non_continuous()
-    local t = {10, 20, 30}
+    local t = { 10, 20, 30 }
     local count = 0
     local sum = 0
     for i, v in ipairs(t) do

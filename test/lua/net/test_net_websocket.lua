@@ -10,10 +10,10 @@ function on_client_event(type, connid, data, len, reason)
 end
 
 function test_ws_echo()
-    local server = net.ws_server({port = 19992, maxconn = 10, ws_path = "/"})
+    local server = net.ws_server({ port = 19992, maxconn = 10, ws_path = "/" })
     server:dispatch("NetWsTest.on_server_event")
 
-    local client = net.ws_client({port = 19992, ws_path = "/"})
+    local client = net.ws_client({ port = 19992, ws_path = "/" })
     client:dispatch("NetWsTest.on_client_event")
 
     for i = 1, 50 do

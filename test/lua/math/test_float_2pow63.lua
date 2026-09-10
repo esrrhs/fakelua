@@ -2,7 +2,7 @@
 -- 对齐 Lua 5.4：2^63 不能当整数；表键保持 float，且不得和 mininteger 撞槽。
 
 function test_float_2pow63()
-    local k = 2^63
+    local k = 2 ^ 63
     if math.type(k) ~= "float" then return 1 end
     if k ~= 9223372036854775808.0 then return 2 end
 

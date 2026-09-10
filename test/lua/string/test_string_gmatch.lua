@@ -28,7 +28,7 @@ function test_string_gmatch()
     local count = 0
     for _ in string.gmatch(s3, "z*") do
         count = count + 1
-        if count > 10 then return 10 end-- 安全阀
+        if count > 10 then return 10 end -- 安全阀
     end
 
     return 3000

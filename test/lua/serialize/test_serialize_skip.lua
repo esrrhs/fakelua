@@ -9,7 +9,7 @@ function test_skip()
     local t = {
         num = 42,
         str = "keep",
-        fn = skip_helper,   -- 函数，应被跳过
+        fn = skip_helper, -- 函数，应被跳过
         ok = true
     }
     local bin = serialize.encode(t)

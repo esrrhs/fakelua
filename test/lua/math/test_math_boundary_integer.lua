@@ -10,7 +10,7 @@ function test_math_boundary_integer()
     -- -------------------------------------------------------------------------
     if maxi <= 0 then return 1 end
     if mini >= 0 then return 2 end
-    if maxi + mini ~= -1 then return 3 end  -- -1 + 1 = 0, so mini + maxi = -1
+    if maxi + mini ~= -1 then return 3 end -- -1 + 1 = 0, so mini + maxi = -1
 
     -- -------------------------------------------------------------------------
     -- math.type on integer boundaries

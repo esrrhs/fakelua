@@ -4,7 +4,7 @@
 -- test(10) = 6 + 10 = 16.
 function test(n)
     local sum = 0
-    local t = {1, 2, 3}
+    local t = { 1, 2, 3 }
     for k, v in pairs(t) do
         sum = sum + v
     end

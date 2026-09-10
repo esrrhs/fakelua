@@ -22,7 +22,7 @@ function test_basic_tostring_edge()
 
     -- Zero
     if tostring(0) ~= "0" then return 6 end
-    if tostring(-0) ~= "0" then return 6.1 end  -- Lua normalizes -0 to 0 in decimal
+    if tostring(-0) ~= "0" then return 6.1 end -- Lua normalizes -0 to 0 in decimal
 
     -- -------------------------------------------------------------------------
     -- Standard integer formatting

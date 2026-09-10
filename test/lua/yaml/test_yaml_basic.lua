@@ -71,7 +71,7 @@ function test_encode_scalar()
 end
 
 function test_encode_map()
-    local s = yaml.encode({name = "Alice", age = 30})
+    local s = yaml.encode({ name = "Alice", age = 30 })
     if type(s) ~= "string" then return 0 end
     if s:find("Alice", 1, true) == nil then return 0 end
     if s:find("30", 1, true) == nil then return 0 end
@@ -79,7 +79,7 @@ function test_encode_map()
 end
 
 function test_roundtrip()
-    local orig = {host = "localhost", port = 3306, tags = {1, 2, 3}}
+    local orig = { host = "localhost", port = 3306, tags = { 1, 2, 3 } }
     local s = yaml.encode(orig)
     local t = yaml.decode(s)
     if t.host ~= "localhost" then return 0 end

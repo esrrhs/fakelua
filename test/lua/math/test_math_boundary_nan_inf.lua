@@ -14,7 +14,7 @@ function test_math_boundary_nan_inf()
     if nan == math.huge then return 4 end
     -- NaN arithmetic propagates
     local nan2 = nan + 1.0
-    if nan2 == nan2 then return 5 end  -- result should also be NaN
+    if nan2 == nan2 then return 5 end -- result should also be NaN
 
     -- -------------------------------------------------------------------------
     -- Infinity constants and basic properties
@@ -22,8 +22,8 @@ function test_math_boundary_nan_inf()
     local inf = math.huge
     if not (inf > 1e300) then return 10 end
     if not (-inf < -1e300) then return 11 end
-    if inf ~= inf then return 12 end        -- Inf equals itself (unlike NaN)
-    if inf ~= (1.0 / 0.0) then return 13 end  -- 1/0 produces inf
+    if inf ~= inf then return 12 end         -- Inf equals itself (unlike NaN)
+    if inf ~= (1.0 / 0.0) then return 13 end -- 1/0 produces inf
     if not (inf > math.maxinteger) then return 14 end
 
     -- -------------------------------------------------------------------------
@@ -41,7 +41,7 @@ function test_math_boundary_nan_inf()
     if not (neg_inf < -1e300) then return 23 end
     -- Inf - Inf = NaN
     local inf_minus_inf = inf - inf
-    if inf_minus_inf == inf_minus_inf then return 24 end  -- NaN not equal to self
+    if inf_minus_inf == inf_minus_inf then return 24 end -- NaN not equal to self
     -- Inf / Inf = NaN
     local inf_div_inf = inf / inf
     if inf_div_inf == inf_div_inf then return 25 end
@@ -72,7 +72,7 @@ function test_math_boundary_nan_inf()
     -- -------------------------------------------------------------------------
     -- sqrt(-1) = NaN
     local sqrt_neg = math.sqrt(-1.0)
-    if sqrt_neg == sqrt_neg then return 50 end  -- must be NaN
+    if sqrt_neg == sqrt_neg then return 50 end -- must be NaN
     -- sqrt(0) = 0
     if math.sqrt(0.0) ~= 0.0 then return 51 end
     -- sqrt(inf) = inf
@@ -153,7 +153,7 @@ function test_math_boundary_nan_inf()
     -- math.log10 boundary
     -- -------------------------------------------------------------------------
     local log10_neg = math.log10(-1.0)
-    if log10_neg == log10_neg then return 130 end  -- must be NaN
+    if log10_neg == log10_neg then return 130 end -- must be NaN
     -- log10(0) should be -inf
     local log10_zero = math.log10(0.0)
     if not (log10_zero < -1e300) then return 131 end

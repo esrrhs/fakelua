@@ -2,8 +2,8 @@ package "CryptoTest"
 
 -- DES test: encrypt then decrypt should roundtrip
 function test_des()
-    local key = "DESkey12"  -- 8 bytes
-    local plaintext = "HelloWorld"  -- 10 bytes, zero-padded to 16
+    local key = "DESkey12"         -- 8 bytes
+    local plaintext = "HelloWorld" -- 10 bytes, zero-padded to 16
 
     local encrypted = crypto.des_encrypt(key, plaintext)
     local decrypted = crypto.des_decrypt(key, encrypted)
@@ -33,8 +33,8 @@ end
 
 -- 3DES test: encrypt then decrypt should roundtrip
 function test_triple_des()
-    local key = "123456789012345678901234"  -- 24 bytes
-    local plaintext = "HelloWorld"  -- 10 bytes, zero-padded to 16
+    local key = "123456789012345678901234" -- 24 bytes
+    local plaintext = "HelloWorld"         -- 10 bytes, zero-padded to 16
 
     local encrypted = crypto.triple_des_encrypt(key, plaintext)
     local decrypted = crypto.triple_des_decrypt(key, encrypted)

@@ -2,7 +2,7 @@
 -- Both the if and elseif conditions compare a T_INT local variable against T_INT
 -- literals, so TryCompileNativeBoolExpr must emit direct C comparisons for both.
 function test(n)
-    local x = n + 0   -- x is T_INT in int specialization
+    local x = n + 0 -- x is T_INT in int specialization
     local r = 0
     if x < 0 then
         r = -1

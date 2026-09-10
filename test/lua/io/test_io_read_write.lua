@@ -33,7 +33,7 @@ function test_io_read_write()
     local l1 = f4:read("*l")
     local l2 = f4:read("*l")
     local l3 = f4:read("*l")
-    local l4 = f4:read("*l")  -- 应该返回 nil
+    local l4 = f4:read("*l") -- 应该返回 nil
     f4:close()
 
     if l1 ~= "line1" then return 0 end
