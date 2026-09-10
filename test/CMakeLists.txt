@@ -18,6 +18,8 @@ include_directories(./)
 include_directories(../include)
 include_directories(../src)
 include_directories(../src/platform)
+# Boost.JSON include for unit tests
+include_directories(${BOOST_SOURCE_DIR}/libs/json/include)
 
 find_package(PkgConfig QUIET)
 set(LUA_FOUND FALSE)
