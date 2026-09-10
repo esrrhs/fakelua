@@ -33,7 +33,6 @@ function test_decode_invalid_bool()
     return 1
 end
 
-
 -- 测试 JSON 解析错误：数字前导零
 function test_decode_leading_zero()
     local ok, err = pcall(function() json.decode('01') end)
@@ -125,6 +124,7 @@ function test_decode_escape_backslash()
     if v ~= "a\\b" then return 0 end
     return 1
 end
+
 -- 测试 JSON 字符串转义：正斜杠
 function test_decode_escape_slash()
     local v = json.decode('"a\\/b"')
@@ -200,7 +200,7 @@ end
 
 -- 测试 JSON 编码：整数键（连续从1开始，应编码为数组）
 function test_encode_int_key()
-    local t = {[1] = "a", [2] = "b"}
+    local t = { [1] = "a", [2] = "b" }
     local s = json.encode(t)
     -- 连续整数键从1开始，应编码为JSON数组
     -- 验证是数组格式且包含 a 和 b
@@ -210,6 +210,7 @@ function test_encode_int_key()
     if not string.find(s, "b") then return 0 end
     return 1
 end
+
 -- 测试 JSON 编码：浮点数键
 function test_encode_float_key()
     local t = {}
@@ -290,7 +291,7 @@ end
 
 -- 测试 JSON 编码：非连续整数键（应编码为对象）
 function test_encode_sparse_array()
-    local t = {[1] = "a", [3] = "c"}
+    local t = { [1] = "a", [3] = "c" }
     local s = json.encode(t)
     -- 非连续整数键应编码为对象
     if not string.find(s, "1") then return 0 end

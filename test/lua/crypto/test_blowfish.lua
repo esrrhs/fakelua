@@ -3,7 +3,7 @@ package "CryptoTest"
 -- Blowfish test: encrypt then decrypt should roundtrip
 function test_blowfish()
     local key = "MyBlowfishKey"
-    local plaintext = "HelloWorld"  -- 10 bytes, will be zero-padded to 16
+    local plaintext = "HelloWorld" -- 10 bytes, will be zero-padded to 16
 
     local encrypted = crypto.blowfish_encrypt(key, plaintext)
     local decrypted = crypto.blowfish_decrypt(key, encrypted)

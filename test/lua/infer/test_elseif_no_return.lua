@@ -6,7 +6,7 @@ function test(n)
     if n > 10 then
         return n * 2
     elseif n > 5 then
-        local x = n + 1  -- no return in this branch
+        local x = n + 1 -- no return in this branch
     else
         return n
     end

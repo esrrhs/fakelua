@@ -46,7 +46,7 @@ function test_string_pack_unpack()
     if string.packsize("i4") ~= 4 then return 20 end
     if string.packsize("bd") ~= 9 then return 21 end
     if string.packsize("c10") ~= 10 then return 22 end
-    if string.packsize("z", "hello") ~= 6 then return 23 end  -- 5 chars + null
+    if string.packsize("z", "hello") ~= 6 then return 23 end -- 5 chars + null
     if string.packsize("BH") ~= 3 then return 24 end
     if string.packsize("j") ~= 8 then return 25 end
     if string.packsize(123) ~= nil then return 26 end
@@ -90,13 +90,13 @@ function test_string_pack_unpack()
     local packed_z = string.pack(">z", "hello")
     local sz, after_z = string.unpack(">z", packed_z)
     if sz ~= "hello" then return 38 end
-    if after_z ~= 7 then return 39 end  -- 5 chars + null + 1
+    if after_z ~= 7 then return 39 end -- 5 chars + null + 1
 
     -- 返回值包含位置信息
     local packed4 = string.pack(">i4i4", 111, 222)
     local v1, v2, pos = string.unpack(">i4i4", packed4)
     if v1 ~= 111 or v2 ~= 222 then return 40 end
-    if pos ~= 9 then return 41 end  -- 4+4+1
+    if pos ~= 9 then return 41 end -- 4+4+1
 
     -- 有符号 char 解包
     local packed_b = string.pack(">b", -5)

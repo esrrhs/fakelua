@@ -1,6 +1,7 @@
 function helper(x)
     return x + 100
 end
+
 function test(...)
     -- FunctionCall + Args
     local a = helper(5)
@@ -22,7 +23,7 @@ function test(...)
     end
     -- ForIn
     local s = 0
-    for k, v in pairs({10, 20}) do
+    for k, v in pairs({ 10, 20 }) do
         s = s + k
     end
     return a + i + j + s

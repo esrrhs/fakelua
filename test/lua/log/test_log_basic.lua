@@ -44,7 +44,7 @@ end
 
 -- 测试 set_level
 function test_set_level()
-    log.set_level(2)  -- Info
+    log.set_level(2) -- Info
     return 1
 end
 

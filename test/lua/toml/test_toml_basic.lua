@@ -47,12 +47,12 @@ end
 
 function test_decode_error()
     local ok, msg = pcall(function() toml.decode("key = ") end)
-    if ok then return 0 end  -- incomplete value should error
+    if ok then return 0 end -- incomplete value should error
     return 1
 end
 
 function test_encode_basic()
-    local s = toml.encode({title = "test", count = 5})
+    local s = toml.encode({ title = "test", count = 5 })
     if type(s) ~= "string" then return 0 end
     if s:find("title", 1, true) == nil then return 0 end
     if s:find("count", 1, true) == nil then return 0 end
@@ -60,7 +60,7 @@ function test_encode_basic()
 end
 
 function test_roundtrip()
-    local orig = {name = "Alice", age = 30, tags = {"a", "b"}}
+    local orig = { name = "Alice", age = 30, tags = { "a", "b" } }
     local s = toml.encode(orig)
     local t = toml.decode(s)
     if t.name ~= "Alice" then return 0 end
@@ -100,7 +100,7 @@ end
 
 -- 测试 encode 嵌套表
 function test_encode_nested_table()
-    local orig = {db = {server = "192.168.1.1", ports = {8001, 8002}, conn_max = 5000}}
+    local orig = { db = { server = "192.168.1.1", ports = { 8001, 8002 }, conn_max = 5000 } }
     local s = toml.encode(orig)
     if type(s) ~= "string" then return 0 end
     if s:find("192.168.1.1") == nil then return 0 end
@@ -110,7 +110,7 @@ end
 
 -- 测试 encode 布尔值和浮点数
 function test_encode_bool_float()
-    local orig = {flag = false, value = 2.718}
+    local orig = { flag = false, value = 2.718 }
     local s = toml.encode(orig)
     if type(s) ~= "string" then return 0 end
     if s:find("false") == nil then return 0 end
@@ -120,7 +120,7 @@ end
 
 -- 测试 encode 数组（含子表）
 function test_encode_array_with_tables()
-    local orig = {products = {{name = "A"}, {name = "B"}}}
+    local orig = { products = { { name = "A" }, { name = "B" } } }
     local s = toml.encode(orig)
     if type(s) ~= "string" then return 0 end
     if s:find("name") == nil then return 0 end
@@ -154,7 +154,7 @@ end
 
 -- 回归测试：array-of-array 不应崩溃（之前会抛 FakeluaToNativeString 异常 abort）
 function test_encode_array_of_array()
-    local ok, s = pcall(function() return toml.encode({ matrix = { {1,2,3}, {4,5,6} } }) end)
+    local ok, s = pcall(function() return toml.encode({ matrix = { { 1, 2, 3 }, { 4, 5, 6 } } }) end)
     if not ok then return 0 end
     if type(s) ~= "string" then return 0 end
     -- 输出应包含所有六个数字
@@ -165,7 +165,7 @@ end
 
 -- 回归测试：array 里嵌套数组，多层
 function test_encode_array_deep_nested()
-    local ok, s = pcall(function() return toml.encode({ nested = { { {1,2}, {3,4} }, { {5,6} } } }) end)
+    local ok, s = pcall(function() return toml.encode({ nested = { { { 1, 2 }, { 3, 4 } }, { { 5, 6 } } } }) end)
     if not ok then return 0 end
     if type(s) ~= "string" then return 0 end
     if s:find("5", 1, true) == nil then return 0 end

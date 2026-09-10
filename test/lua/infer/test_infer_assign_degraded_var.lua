@@ -10,9 +10,9 @@ function test()
     local sum = 0
     for i = 1, 5 do
         if i <= 3 then
-            sum = sum + i   -- sum is CVar after post-pass; must use CVar arithmetic
+            sum = sum + i -- sum is CVar after post-pass; must use CVar arithmetic
         else
-            sum = "done"    -- degrades sum to T_DYNAMIC
+            sum = "done"  -- degrades sum to T_DYNAMIC
         end
     end
     return sum

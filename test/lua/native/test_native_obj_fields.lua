@@ -5,7 +5,7 @@ function test_obj_del()
     -- test_native C++ side must set up the object before calling this
     local obj = get_test_obj()
     local hp_before = obj.hp
-    obj.hp = nil   -- triggers NativeSpecSet with nil -> Del
+    obj.hp = nil -- triggers NativeSpecSet with nil -> Del
     local hp_after = obj.hp
     if hp_before ~= 100 then return 1 end
     if hp_after ~= nil then return 2 end
@@ -14,8 +14,8 @@ end
 
 function test_obj_set_nil_key()
     local obj = get_test_obj()
-    obj.speed = 3.14  -- float field
-    local as_int = obj.speed  -- GetFloat returns float; also triggers cross-type path
+    obj.speed = 3.14         -- float field
+    local as_int = obj.speed -- GetFloat returns float; also triggers cross-type path
     if as_int == nil then return 1 end
     return 5000
 end

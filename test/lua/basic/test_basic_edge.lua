@@ -135,7 +135,7 @@ end
 
 -- 测试 pairs 迭代
 function test_pairs_iter()
-    local t = {a=1, b=2, c=3}
+    local t = { a = 1, b = 2, c = 3 }
     local count = 0
     for k, v in pairs(t) do
         count = count + 1
@@ -146,7 +146,7 @@ end
 
 -- 测试 ipairs 迭代
 function test_ipairs_iter()
-    local t = {10, 20, 30}
+    local t = { 10, 20, 30 }
     local count = 0
     local sum = 0
     for i, v in ipairs(t) do
@@ -160,7 +160,7 @@ end
 
 -- 测试 next 函数
 function test_next_func()
-    local t = {a=1, b=2}
+    local t = { a = 1, b = 2 }
     local k, v = next(t)
     if k == nil then return 0 end
     local k2, v2 = next(t, k)

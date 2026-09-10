@@ -1,5 +1,5 @@
 function vararg_or_default(...)
-    local t = {...}
+    local t = { ... }
     if #t == 0 then
         return -1
     end

@@ -4,13 +4,13 @@
 -- incorrect is_local detection during CompileFunctioncall.
 
 local function outer()
-    local t = {value = 10}
+    local t = { value = 10 }
     return t.value
 end
 
 local function inner()
     -- Same name 't' but in a different scope — a different AST node
-    local t = {value = 20}
+    local t = { value = 20 }
     return t.value
 end
 

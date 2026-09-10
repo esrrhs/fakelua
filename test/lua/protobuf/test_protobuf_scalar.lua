@@ -25,11 +25,21 @@ function test_scalar()
     if err ~= "ok" then return 0 end
 
     local msg = {
-        d = 3.14, f = 2.71, i64 = 9876543210, u64 = 1234567890,
-        i32 = 2147483647, fx64 = 9999999999, fx32 = 4294967295,
-        b = true, s = "hello", by = "binary" .. string.char(0) .. "data",
-        u32 = 3000000000, sfx32 = -100, sfx64 = -200,
-        si32 = -500, si64 = -1000
+        d = 3.14,
+        f = 2.71,
+        i64 = 9876543210,
+        u64 = 1234567890,
+        i32 = 2147483647,
+        fx64 = 9999999999,
+        fx32 = 4294967295,
+        b = true,
+        s = "hello",
+        by = "binary" .. string.char(0) .. "data",
+        u32 = 3000000000,
+        sfx32 = -100,
+        sfx64 = -200,
+        si32 = -500,
+        si64 = -1000
     }
 
     local bin = protobuf.encode("Scalar", msg)

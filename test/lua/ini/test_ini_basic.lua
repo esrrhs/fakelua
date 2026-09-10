@@ -34,7 +34,7 @@ function test_decode_empty()
 end
 
 function test_encode_basic()
-    local t = {section1 = {key1 = "value1", key2 = 42}}
+    local t = { section1 = { key1 = "value1", key2 = 42 } }
     local s = ini.encode(t)
     if type(s) ~= "string" then return 0 end
     -- plain text search (4th arg true disables pattern matching)

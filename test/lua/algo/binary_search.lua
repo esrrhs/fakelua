@@ -2,7 +2,7 @@
 -- Returns the 1-based index of target, or 0 if not found.
 -- Exercises: while loop, floor division, table access, comparisons.
 function test(target)
-    local t = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19}
+    local t = { 1, 3, 5, 7, 9, 11, 13, 15, 17, 19 }
     local lo = 1
     local hi = 10
     while lo <= hi do
@@ -21,7 +21,7 @@ end
 -- Count comparisons made during binary search (instrumented version).
 -- Exercises: local mutable variable incremented inside loop.
 function test_steps(target)
-    local t = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19}
+    local t = { 1, 3, 5, 7, 9, 11, 13, 15, 17, 19 }
     local lo = 1
     local hi = 10
     local steps = 0

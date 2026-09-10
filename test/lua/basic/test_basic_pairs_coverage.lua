@@ -2,7 +2,7 @@ package "BasicPairsCoverage"
 
 -- 测试 pairs 迭代器 - 基本用法
 function test_pairs_iterator_basic()
-    local t = {a = 1, b = 2, c = 3}
+    local t = { a = 1, b = 2, c = 3 }
     local count = 0
     for k, v in pairs(t) do
         count = count + 1
@@ -24,7 +24,7 @@ end
 
 -- 测试 pairs 迭代器 - 数组
 function test_pairs_iterator_array()
-    local t = {10, 20, 30}
+    local t = { 10, 20, 30 }
     local count = 0
     for k, v in pairs(t) do
         count = count + 1
@@ -35,7 +35,7 @@ end
 
 -- 测试 ipairs 迭代器 - 基本用法
 function test_ipairs_iterator_basic()
-    local t = {10, 20, 30}
+    local t = { 10, 20, 30 }
     local count = 0
     for i, v in ipairs(t) do
         count = count + 1
@@ -57,8 +57,8 @@ end
 
 -- 测试 ipairs 迭代器 - 索引正确性
 function test_ipairs_iterator_index()
-    local t = {"a", "b", "c"}
-    local expected = {"a", "b", "c"}
+    local t = { "a", "b", "c" }
+    local expected = { "a", "b", "c" }
     for i, v in ipairs(t) do
         if v ~= expected[i] then return 0 end
     end
@@ -67,7 +67,7 @@ end
 
 -- 测试 next 函数
 function test_next_basic()
-    local t = {x = 10, y = 20}
+    local t = { x = 10, y = 20 }
     local k, v = next(t)
     if k == nil then return 0 end
     return 1
@@ -128,7 +128,7 @@ end
 
 -- 测试 tonumber - 进制中无效数字
 function test_tonumber_invalid_digit_for_base()
-    if tonumber("123", 2) ~= nil then return 0 end  -- 数字 2,3 在二进制中无效
+    if tonumber("123", 2) ~= nil then return 0 end -- 数字 2,3 在二进制中无效
     if tonumber("G", 16) ~= nil then return 0 end  -- G 在十六进制中无效
     return 1
 end
@@ -177,7 +177,7 @@ end
 -- 测试 xpcall - 错误处理器
 function test_xpcall_with_handler()
     local ok, err = xpcall(function() error("boom") end, function(e) return "caught: " .. e end)
-    if ok then return 0 end  -- xpcall 返回 false 表示错误
+    if ok then return 0 end -- xpcall 返回 false 表示错误
     if not err:match("caught:") then return 0 end
     return 1
 end

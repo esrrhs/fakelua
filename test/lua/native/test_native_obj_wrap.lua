@@ -6,7 +6,7 @@ function test_wrap_object_field()
     local parent = new_native_obj(gid, "player", 501)
     local bag = new_native_obj(gid, "bag", 502)
     bag.gold = 999
-    parent.bag = bag  -- triggers SetObject -> NativeField::Kind::Object
+    parent.bag = bag -- triggers SetObject -> NativeField::Kind::Object
 
     -- Verify bag.gold is accessible through parent
     if parent.bag == nil then return 1 end
@@ -22,7 +22,7 @@ end
 
 function test_wrap_empty_spec_keys()
     local gid = new_native_group()
-    local obj = new_native_obj(gid, "empty", 503)  -- no fields set
+    local obj = new_native_obj(gid, "empty", 503) -- no fields set
 
     -- pairs() on an empty native object should iterate 0 times
     local count = 0
@@ -40,11 +40,11 @@ function test_wrap_set_from_cvar()
     local obj = new_native_obj(gid, "cvartest", 504)
 
     -- Setting various Lua types that go through CVarToNativeField
-    obj.int_val = 42          -- SetInt path
-    obj.float_val = 3.14      -- SetFloat path
-    obj.bool_val = true       -- SetBool path
-    obj.str_val = "hello"     -- SetString path
-    obj.nil_val = nil         -- Remove field path
+    obj.int_val = 42      -- SetInt path
+    obj.float_val = 3.14  -- SetFloat path
+    obj.bool_val = true   -- SetBool path
+    obj.str_val = "hello" -- SetString path
+    obj.nil_val = nil     -- Remove field path
 
     -- Verify round-trip
     if obj.int_val ~= 42 then return 1 end

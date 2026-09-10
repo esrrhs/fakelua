@@ -10,10 +10,10 @@ function test()
     local x = 1
     for i = 1, 5 do
         if i >= 4 then
-            return x          -- return before mutation in source; stale EvalType = T_INT
+            return x -- return before mutation in source; stale EvalType = T_INT
         end
         if i >= 2 then
-            x = "modified"    -- degrades x to T_DYNAMIC; appears AFTER the return check
+            x = "modified" -- degrades x to T_DYNAMIC; appears AFTER the return check
         end
     end
     return x

@@ -17,8 +17,8 @@ function test_enum()
     if err ~= "ok" then return 0 end
 
     local msg = {
-        color = 2,  -- BLUE
-        palette = { 0, 1, 2 }  -- RED, GREEN, BLUE
+        color = 2,            -- BLUE
+        palette = { 0, 1, 2 } -- RED, GREEN, BLUE
     }
 
     local bin = protobuf.encode("Paint", msg)

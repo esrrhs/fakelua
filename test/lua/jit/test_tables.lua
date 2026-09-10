@@ -1,7 +1,7 @@
 -- Lua 5.4 table comprehensive tests
 
 function test_table_basic()
-    local t = {10, 20, 30, 40, 50}
+    local t = { 10, 20, 30, 40, 50 }
     if #t ~= 5 then return 0 end
     if t[1] ~= 10 then return 0 end
     if t[5] ~= 50 then return 0 end
@@ -9,7 +9,7 @@ function test_table_basic()
 end
 
 function test_table_string_keys()
-    local t = {name = "Alice", age = 30, city = "NYC"}
+    local t = { name = "Alice", age = 30, city = "NYC" }
     if t.name ~= "Alice" then return 0 end
     if t.age ~= 30 then return 0 end
     if t.city ~= "NYC" then return 0 end
@@ -42,13 +42,13 @@ end
 
 function test_table_length()
     if #{} ~= 0 then return 0 end
-    if #{1} ~= 1 then return 0 end
-    if #{1, 2, 3} ~= 3 then return 0 end
+    if #{ 1 } ~= 1 then return 0 end
+    if #{ 1, 2, 3 } ~= 3 then return 0 end
     return 1
 end
 
 function test_table_sort()
-    local t = {5, 3, 8, 1, 9, 2, 7, 4, 6}
+    local t = { 5, 3, 8, 1, 9, 2, 7, 4, 6 }
     local n = #t
     for i = 1, n do
         for j = 1, n - i do
@@ -116,7 +116,7 @@ function test_table_fib()
 end
 
 function test_table_concat()
-    local t = {"hello", " ", "world"}
+    local t = { "hello", " ", "world" }
     local result = ""
     for i = 1, #t do
         result = result .. t[i]
@@ -127,9 +127,9 @@ end
 
 function test_table_nested()
     local t = {
-        a = {1, 2, 3},
-        b = {4, 5, 6},
-        c = {7, 8, 9}
+        a = { 1, 2, 3 },
+        b = { 4, 5, 6 },
+        c = { 7, 8, 9 }
     }
     local sum = 0
     for _, v in pairs(t.a) do sum = sum + v end

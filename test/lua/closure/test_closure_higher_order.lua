@@ -8,7 +8,7 @@ end
 
 function test()
     local multiplier = 3
-    local arr = {1, 2, 3, 4}
+    local arr = { 1, 2, 3, 4 }
     local doubled = map(arr, function(val)
         return val * multiplier
     end)

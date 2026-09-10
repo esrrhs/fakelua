@@ -13,14 +13,14 @@ local function bubble_sort(t, n)
 end
 
 function test(k)
-    local t = {5, 3, 8, 1, 9, 2, 7, 4, 6}
+    local t = { 5, 3, 8, 1, 9, 2, 7, 4, 6 }
     bubble_sort(t, 9)
     return t[k]
 end
 
 -- Return sum of all elements after sorting (sum is invariant, good sanity check).
 function test_sum()
-    local t = {5, 3, 8, 1, 9, 2, 7, 4, 6}
+    local t = { 5, 3, 8, 1, 9, 2, 7, 4, 6 }
     bubble_sort(t, 9)
     local s = 0
     for i = 1, 9 do

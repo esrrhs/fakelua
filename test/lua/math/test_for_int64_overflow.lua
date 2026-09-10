@@ -32,7 +32,7 @@ function test_for_int64_overflow()
     if n ~= 2 then return 8 end
 
     -- 动态边界（表取值 → T_DYNAMIC → OpAdd）
-    local t = {math.maxinteger}
+    local t = { math.maxinteger }
     n = 0
     for i = t[1], t[1] do
         n = n + 1

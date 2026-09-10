@@ -13,21 +13,21 @@ local function insertion_sort(t, n)
 end
 
 function test(k)
-    local t = {42, 17, 56, 3, 99, 28, 11, 74}
+    local t = { 42, 17, 56, 3, 99, 28, 11, 74 }
     insertion_sort(t, 8)
     return t[k]
 end
 
 -- Return median of 5 elements (index 3 after sorting).
 function test_median()
-    local t = {9, 3, 7, 1, 5}
+    local t = { 9, 3, 7, 1, 5 }
     insertion_sort(t, 5)
     return t[3]
 end
 
 -- Insertion sort on a float array; return sum as a float.
 function test_float_sum()
-    local t = {3.5, 1.2, 4.8, 2.1}
+    local t = { 3.5, 1.2, 4.8, 2.1 }
     insertion_sort(t, 4)
     local s = 0.0
     for i = 1, 4 do

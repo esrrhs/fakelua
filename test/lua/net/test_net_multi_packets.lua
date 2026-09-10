@@ -3,7 +3,7 @@ package "NetMulti"
 -- 纯函数回调：server 收到数据返回 echo 指令
 function on_server_event(type, connid, data, len, reason)
     if type == "recv" then
-        return "echo", data  -- 原样发回
+        return "echo", data -- 原样发回
     end
 end
 
@@ -12,10 +12,10 @@ function on_client_event(type, connid, data, len, reason)
 end
 
 function test_multi()
-    local server = net.server({port = 19977, maxconn = 10})
+    local server = net.server({ port = 19977, maxconn = 10 })
     server:dispatch("NetMulti.on_server_event")
 
-    local client = net.client({port = 19977})
+    local client = net.client({ port = 19977 })
     client:dispatch("NetMulti.on_client_event")
 
     for i = 1, 30 do

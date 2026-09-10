@@ -18,7 +18,7 @@ function test_basic_tonumber_edge()
     if tonumber("00000123") ~= 123 then return 30 end
     if tonumber("-00000123") ~= -123 then return 31 end
     if tonumber("00000") ~= 0 then return 32 end
-    if tonumber("-00000") ~= 0 then return 33 end  -- -0 = 0
+    if tonumber("-00000") ~= 0 then return 33 end -- -0 = 0
 
     -- -------------------------------------------------------------------------
     -- Decimal notation edge cases
@@ -48,7 +48,7 @@ function test_basic_tonumber_edge()
     -- Base 36: all alphanumeric are valid digits
     if tonumber("z", 36) ~= 35 then return 54 end
     if tonumber("10", 36) ~= 36 then return 55 end
-    if tonumber("1z", 36) ~= 71 then return 56 end  -- 1*36 + 35 = 71
+    if tonumber("1z", 36) ~= 71 then return 56 end -- 1*36 + 35 = 71
 
     -- Base out of range returns nil
     if tonumber("123", 0) ~= nil then return 57 end
@@ -73,7 +73,7 @@ function test_basic_tonumber_edge()
     -- Invalid/empty strings
     -- -------------------------------------------------------------------------
     if tonumber("") ~= nil then return 80 end
-    if tonumber("   ") ~= nil then return 81 end  -- whitespace only
+    if tonumber("   ") ~= nil then return 81 end -- whitespace only
     if tonumber("abc") ~= nil then return 82 end
     if tonumber("--42") ~= nil then return 83 end
 

@@ -43,7 +43,7 @@ function test_create_existing()
     local gid = new_native_group()
     local obj1 = new_native_obj(gid, "hero", 301)
     obj1.level = 5
-    local obj2 = new_native_obj(gid, "hero", 301)  -- same type+id -> same object
+    local obj2 = new_native_obj(gid, "hero", 301) -- same type+id -> same object
     if obj2.level ~= 5 then return 1 end
     del_native_group(gid)
     return 5000

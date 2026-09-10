@@ -7,7 +7,7 @@ function test_basic_continue()
         if i % 2 == 0 then continue end
         sum = sum + i
     end
-    if sum ~= 25 then return 1 end  -- 1+3+5+7+9 = 25
+    if sum ~= 25 then return 1 end -- 1+3+5+7+9 = 25
 
     -- 测试 for 循环中的 continue
     local count = 0
@@ -40,13 +40,13 @@ function test_basic_continue()
     if outer_sum ~= 12 then return 4 end
 
     -- 测试 for-in 循环中的 continue
-    local t = {1, 2, 3, 4, 5}
+    local t = { 1, 2, 3, 4, 5 }
     local t_sum = 0
     for _, v in pairs(t) do
         if v % 2 == 0 then continue end
         t_sum = t_sum + v
     end
-    if t_sum ~= 9 then return 5 end  -- 1+3+5 = 9
+    if t_sum ~= 9 then return 5 end -- 1+3+5 = 9
 
     -- 测试 continue 在 repeat 内嵌套的 while 循环中（应继续 while，而非跳到 repeat until）
     local total2 = 0

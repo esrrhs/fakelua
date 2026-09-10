@@ -53,7 +53,10 @@ function test_mysql_integration()
     conn.query_err = nil
     conn:query("SELECT 1 AS test", "on_result")
 
-    for i = 1, 1000 do conn:tick() if conn.query_done then break end end
+    for i = 1, 1000 do
+        conn:tick()
+        if conn.query_done then break end
+    end
 
     if conn.query_err ~= nil then
         if #conn.query_err > 0 then

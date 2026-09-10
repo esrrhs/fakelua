@@ -1,6 +1,6 @@
 function test_basic_pairs()
     -- 遍历所有键值对
-    local t = {a = 1, b = 2, c = 3}
+    local t = { a = 1, b = 2, c = 3 }
     local count = 0
     for k, v in pairs(t) do
         count = count + 1
@@ -15,7 +15,7 @@ function test_basic_pairs()
     if empty_count ~= 0 then return 2 end
 
     -- 混合 key 类型
-    local t2 = {x = 10, y = 20}
+    local t2 = { x = 10, y = 20 }
     local keys = {}
     for k, v in pairs(t2) do
         keys[k] = v

@@ -22,7 +22,7 @@ function test_math_ult_ldexp_int()
 end
 
 function test_math_ult_2pow63()
-    math.ult(2^63, 1)
+    math.ult(2 ^ 63, 1)
 end
 
 function test_math_ult_frac()
@@ -30,5 +30,5 @@ function test_math_ult_frac()
 end
 
 function test_math_ldexp_2pow63()
-    math.ldexp(1, 2^63)
+    math.ldexp(1, 2 ^ 63)
 end

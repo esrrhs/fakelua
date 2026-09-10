@@ -13,5 +13,5 @@ function test()
     -- Contains a function-call result → T_DYNAMIC
     local dynamic_res = 100 + unknown_func() * 2
 
-    return dynamic_res   -- 100 + 5*2 = 110
+    return dynamic_res -- 100 + 5*2 = 110
 end

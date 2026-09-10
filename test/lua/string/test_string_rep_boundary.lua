@@ -27,11 +27,11 @@ function test_string_rep_boundary()
 end
 
 function test_string_rep_2pow63()
-    string.rep("x", 2^63)
+    string.rep("x", 2 ^ 63)
 end
 
 function test_string_rep_nan()
-    string.rep("x", 0/0)
+    string.rep("x", 0 / 0)
 end
 
 function test_string_rep_frac()

@@ -15,7 +15,7 @@ function test_zstd_decompress_truncated()
     -- 截断压缩数据
     local truncated = compressed:sub(1, #compressed / 2)
     compress.zstd_decompress(truncated)
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 zstd 解压随机数据 (exception test, use GCC backend)
@@ -25,7 +25,7 @@ function test_zstd_decompress_random_data()
         random_data = random_data .. string.char(math.random(0, 255))
     end
     compress.zstd_decompress(random_data)
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 zstd 解压添加尾随垃圾数据 (exception test, use GCC backend)
@@ -35,7 +35,7 @@ function test_zstd_decompress_trailing_garbage()
     -- 添加尾随垃圾数据
     local with_garbage = compressed .. "GARBAGE_DATA"
     compress.zstd_decompress(with_garbage)
-    return 0  -- should not reach here
+    return 0 -- should not reach here
 end
 
 -- 测试 zstd 压缩级别边界
@@ -50,7 +50,7 @@ end
 -- 测试 zstd 压缩级别边界 - 最高级别
 function test_zstd_compress_level_max()
     local data = string.rep("test", 100)
-    local c = compress.zstd_compress(data, 22)  -- zstd 最大级别
+    local c = compress.zstd_compress(data, 22) -- zstd 最大级别
     if not c then return 0 end
     if compress.zstd_decompress(c) ~= data then return 0 end
     return 1
@@ -68,7 +68,7 @@ end
 
 -- 测试 zstd 大文件压缩
 function test_zstd_large_file()
-    local data = string.rep("abcdefghij", 100000)  -- 1MB
+    local data = string.rep("abcdefghij", 100000) -- 1MB
     local c = compress.zstd_compress(data)
     if not c then return 0 end
     if compress.zstd_decompress(c) ~= data then return 0 end
@@ -81,7 +81,7 @@ function test_zstd_binary_with_nulls()
     for i = 0, 255 do
         data = data .. string.char(i)
     end
-    data = data .. "\0\0\0"  -- 额外的空字节
+    data = data .. "\0\0\0" -- 额外的空字节
     local c = compress.zstd_compress(data)
     if not c then return 0 end
     if compress.zstd_decompress(c) ~= data then return 0 end

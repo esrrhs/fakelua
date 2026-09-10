@@ -3,7 +3,7 @@
 
 function test_os_date_utc()
     -- UTC format with "!" prefix
-    local d = os.date("!%Y-%m-%d", 0)  -- epoch
+    local d = os.date("!%Y-%m-%d", 0) -- epoch
     if d == nil then return 1 end
     if type(d) ~= "string" then return 2 end
     -- 1970-01-01
@@ -13,7 +13,7 @@ end
 
 function test_os_date_numeric_ts()
     -- os.date with a numeric timestamp as first arg (fakelua extension)
-    local d = os.date(0)  -- epoch -> use default format
+    local d = os.date(0) -- epoch -> use default format
     if d == nil then return 1 end
     if type(d) ~= "string" then return 2 end
     return 5000
@@ -21,7 +21,7 @@ end
 
 function test_os_date_string_ts()
     -- os.date with string-encoded numeric timestamp (fakelua extension)
-    local d = os.date("1000000000")  -- 2001-09-09 in UTC
+    local d = os.date("1000000000") -- 2001-09-09 in UTC
     if d == nil then return 1 end
     if type(d) ~= "string" then return 2 end
     return 5000
@@ -29,7 +29,7 @@ end
 
 function test_os_date_table_utc()
     -- os.date("!*t", ts) returns a table in UTC
-    local t = os.date("!*t", 0)  -- epoch
+    local t = os.date("!*t", 0) -- epoch
     if type(t) ~= "table" then return 1 end
     if t.year ~= 1970 then return 2 end
     if t.month ~= 1 then return 3 end

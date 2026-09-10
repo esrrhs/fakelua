@@ -55,7 +55,7 @@ function test_math_asin_acos()
     local eps = 1e-10
     if math.abs(math.asin(0) - 0) > eps then return 0 end
     if math.abs(math.acos(1) - 0) > eps then return 0 end
-    if math.abs(math.asin(1) - math.pi/2) > eps then return 0 end
+    if math.abs(math.asin(1) - math.pi / 2) > eps then return 0 end
     return 1
 end
 
@@ -63,8 +63,8 @@ end
 function test_math_atan_various()
     local eps = 1e-10
     if math.abs(math.atan(0) - 0) > eps then return 0 end
-    if math.abs(math.atan(1) - math.pi/4) > eps then return 0 end
-    if math.abs(math.atan(1, 1) - math.pi/4) > eps then return 0 end
+    if math.abs(math.atan(1) - math.pi / 4) > eps then return 0 end
+    if math.abs(math.atan(1, 1) - math.pi / 4) > eps then return 0 end
     return 1
 end
 

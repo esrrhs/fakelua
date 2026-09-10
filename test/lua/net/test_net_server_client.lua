@@ -14,10 +14,10 @@ function on_client_event(type, connid, data, len, reason)
 end
 
 function test_echo()
-    local server = net.server({port = 19988, maxconn = 10})
+    local server = net.server({ port = 19988, maxconn = 10 })
     server:dispatch("NetTest.on_server_event")
 
-    local client = net.client({port = 19988})
+    local client = net.client({ port = 19988 })
     client:dispatch("NetTest.on_client_event")
 
     -- 驱动连接建立
@@ -54,9 +54,9 @@ function on_close_in_recv(type, connid, data, len, reason)
 end
 
 function test_close_in_recv()
-    local server = net.server({port = 19991, maxconn = 4})
+    local server = net.server({ port = 19991, maxconn = 4 })
     server:dispatch("NetTest.on_close_in_recv")
-    local client = net.client({port = 19991})
+    local client = net.client({ port = 19991 })
     for i = 1, 40 do
         server:tick()
         client:tick()

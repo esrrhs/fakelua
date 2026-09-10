@@ -3,4 +3,5 @@ function test_func_call_element()
     local t = { get_val() }
     return t[1]
 end
+
 function get_val() return 42 end

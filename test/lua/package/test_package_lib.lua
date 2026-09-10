@@ -1,6 +1,6 @@
 package "Pkg"
 
-local SECRET = 7 -- Chunk-local constant: verifies constant folding inside a package function
+local SECRET = 7   -- Chunk-local constant: verifies constant folding inside a package function
 
 function add(a, b) -- Exported to Pkg.add
     return a + b
@@ -11,7 +11,7 @@ function triple() -- Exported to Pkg.triple (multiple return values)
 end
 
 function sum(...) -- Exported to Pkg.sum (varargs)
-    local t = {...}
+    local t = { ... }
     local total = 0
     for i = 1, #t do
         total = total + t[i]

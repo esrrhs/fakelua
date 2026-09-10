@@ -45,7 +45,7 @@ function test_os_date_table()
         count3 = count3 + 1
     end
     if count3 ~= 9 then return 0 end
-    local fields = {"year", "month", "day", "hour", "min", "sec", "wday", "yday", "isdst"}
+    local fields = { "year", "month", "day", "hour", "min", "sec", "wday", "yday", "isdst" }
     for _, f in ipairs(fields) do
         if not seen3[f] then return 0 end
     end

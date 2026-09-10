@@ -20,7 +20,7 @@ function test_pool()
         password = "root",
         db = "test",
         pool_size = 2,
-        heartbeat_ms = 0  -- disable heartbeat for test
+        heartbeat_ms = 0 -- disable heartbeat for test
     })
 
     -- 驱动连接池直到连接建立（最多 200 次 tick）
@@ -33,7 +33,7 @@ function test_pool()
 
     if not conn then
         print("pool: no connection available (no MySQL server?)")
-        return 1  -- skip without MySQL
+        return 1 -- skip without MySQL
     end
 
     -- 验证连接可用

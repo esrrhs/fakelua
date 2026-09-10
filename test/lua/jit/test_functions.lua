@@ -38,7 +38,7 @@ function add8(a, b, c, d, e, f, g, h)
 end
 
 function divmod(a, b)
-    return {a // b, a % b}
+    return { a // b, a % b }
 end
 
 -- Test functions

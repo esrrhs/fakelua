@@ -26,11 +26,11 @@ function test_string_format_p()
 
     -- 非整数浮点（1.5）应该抛出异常
     local ok, err = pcall(function() return string.format("%p", 1.5) end)
-    if ok then return 2 end  -- 应该失败
+    if ok then return 2 end -- 应该失败
     if not string.find(err, "integer representation") then return 3 end
 
     -- NaN 也应该抛出异常
-    local ok2, err2 = pcall(function() return string.format("%p", 0/0) end)
+    local ok2, err2 = pcall(function() return string.format("%p", 0 / 0) end)
     if ok2 then return 4 end
 
     return 5000

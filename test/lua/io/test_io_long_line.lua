@@ -16,7 +16,7 @@ function test_io_long_line()
 
     local line1 = f2:read("*l")
     local line2 = f2:read("*l")
-    local line3 = f2:read("*l")  -- 应该返回 nil
+    local line3 = f2:read("*l") -- 应该返回 nil
     f2:close()
 
     if #line1 ~= 5000 then return 0 end

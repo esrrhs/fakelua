@@ -12,8 +12,8 @@ function test_repeated()
     if err ~= "ok" then return 0 end
 
     local msg = {
-        vals = {1, 2, 3, 100, -50, 9999},
-        names = {"alice", "bob", "charlie"}
+        vals = { 1, 2, 3, 100, -50, 9999 },
+        names = { "alice", "bob", "charlie" }
     }
 
     local bin = protobuf.encode("Numbers", msg)

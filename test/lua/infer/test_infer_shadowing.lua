@@ -3,11 +3,11 @@
 -- variable that only lives inside the do...end scope; it does NOT mutate the
 -- outer val.  After the block the outer val (100) must still be accessible.
 function test()
-    local val = 100          -- outer val, T_INT
+    local val = 100         -- outer val, T_INT
     do
-        local val = "inner"  -- inner val shadows outer; different variable
-        local temp = val     -- temp = inner val ("inner"), T_DYNAMIC
+        local val = "inner" -- inner val shadows outer; different variable
+        local temp = val    -- temp = inner val ("inner"), T_DYNAMIC
     end
-    local res = val + 1      -- outer val is still 100 → res = 101
+    local res = val + 1     -- outer val is still 100 → res = 101
     return res
 end

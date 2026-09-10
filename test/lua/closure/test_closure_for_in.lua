@@ -1,5 +1,5 @@
 function test()
-    local tbl = {a = 10, b = 20, c = 30}
+    local tbl = { a = 10, b = 20, c = 30 }
     local getters = {}
     local idx = 1
     for k, v in pairs(tbl) do
