@@ -28,7 +28,7 @@ FAKE_API void delfake(fake *fk) {
     fk->cfg.fkf(fk);
 }
 
-// 解析文件
+// ???????
 FAKE_API bool fkparse(fake *fk, const char *filename) {
     fk->pa.reset();
     return fk->pa.parse(filename);
@@ -108,16 +108,16 @@ FAKE_API int fkgetfuncvariantline(fake *fk, const char *func, int index) {
     return 0;
 }
 
-// 调用函数
+// ???ú???
 FAKE_API void fkrunps(fake *fk, const char *func) {
     FKLOG("fkrunps %p %s", fk, func);
 
     fk->rn.rundeps++;
 
-    // 清空运行环境
+    // ??????л???
     fk->clearerr();
 
-    // 分配个
+    // ?????
     processor *n = 0;
     if (UNLIKE(POOL_EMPTY(fk->pp))) {
         POOL_GROW(fk->pp, n, processor);
@@ -133,7 +133,7 @@ FAKE_API void fkrunps(fake *fk, const char *func) {
     routine *r = pro.start_routine(funcv, 0, 0);
 
     PUSH_CUR_PROCESSOR(n, fk->rn);
-    // 单独执行，下次再跑run
+    // ??????У????????run
     if (UNLIKE(fk->rn.stepmod)) {
         variant *ret = 0;
         bool err = false;
@@ -158,10 +158,6 @@ FAKE_API void fkrunps(fake *fk, const char *func) {
     fk->rn.rundeps--;
 
     FKLOG("fkrunps %p %s OK", fk, func);
-}
-
-FAKE_API void fkcheckgc(fake *fk, bool forcegc) {
-    fk->g.check(forcegc);
 }
 
 FAKE_API void fkpspushpointer(fake *fk, void *p, const char *type) {
@@ -436,7 +432,7 @@ FAKE_API void fkrunpsjit(fake *fk, const char *func) {
     FKLOG("fkrunpsjit %p %s", fk, func);
 
 #ifndef FK64
-    // 32位目前不支持
+    // 32λ???????
     seterror(fk, efk_jit_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "current platform not support jit");
     return;
 #endif
@@ -959,7 +955,7 @@ FAKE_API void fkresumeps(fake *fk, bool &isend) {
 
     isend = false;
 
-    // 上次的processor
+    // ??ε?processor
     processor *n = 0;
     GET_CUR_PROCESSOR(n, fk->rn);
     if (UNLIKE(!n)) {
@@ -972,13 +968,13 @@ FAKE_API void fkresumeps(fake *fk, bool &isend) {
         return;
     }
 
-    // 先pop防止重入
+    // ??pop???????
     POP_CUR_PROCESSOR(fk->rn);
 
     processor &pro = *n;
     pro.run();
     if (LIKE(!PROCESS_END(pro))) {
-        // 重新塞入
+        // ????????
         PUSH_CUR_PROCESSOR(n, fk->rn);
 
         variant *ret = 0;
@@ -990,7 +986,7 @@ FAKE_API void fkresumeps(fake *fk, bool &isend) {
         return;
     }
 
-    // 结束了
+    // ??????
     variant *ret = 0;
     bool err = false;
     PS_PUSH_AND_GET(fk->ps, ret);

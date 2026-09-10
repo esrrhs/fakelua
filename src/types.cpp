@@ -480,17 +480,4 @@ void fk_mmap_set_exec(void *buff, size_t size) {
 #endif
 }
 
-const char *get_gc_type_name(int type) {
-#define GC_SWITCH(x) case egt_##x: return #x;
-    switch (type) {
-        GC_SWITCH(string)
-        GC_SWITCH(pointer)
-        GC_SWITCH(container)
-        GC_SWITCH(max)
-    }
-#undef GC_SWITCH
-    assert(0);
-    return "error";
-}
-
 

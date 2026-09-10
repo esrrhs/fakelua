@@ -36,12 +36,11 @@
 #include "debuging.h"
 #include "pointerheap.h"
 #include "optimizer.h"
-#include "gc.h"
 
 struct fake {
     fake(fakeconfig c) : errorno(0), errorcb(0), cfg(c), pa(this), bin(this), nt(this), as(this, &nt), sh(this),
                          mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this), ph(this),
-                         opt(this), g(this) {
+                         opt(this) {
         POOL_INI(pp, this);
     }
 
@@ -51,7 +50,7 @@ struct fake {
         pf.clear(); // must at end
     }
 
-    // 清空
+    // ???
     void clear() {
         clearerr();
         pa.clear();
@@ -70,7 +69,6 @@ struct fake {
         dbg.clear();
         ph.clear();
         opt.clear();
-        g.clear();
     }
 
     void clearerr() {
@@ -82,62 +80,59 @@ struct fake {
     char errorstr[512];
     fkerrorcb errorcb;
 
-    // 配置
+    // ????
     fakeconfig cfg;
 
-    // 解析
+    // ????
     parser pa;
 
-    // 二进制
+    // ??????
     binary bin;
 
-    // 本地jit代码
+    // ????jit????
     native nt;
 
-    // 汇编器
+    // ?????
     assembler as;
 
-    // c的参数栈
+    // c??????
     paramstack ps;
 
-    // 执行器池子
+    // ?????????
     pool<processor> pp;
 
-    // 字符串集合
+    // ?????????
     stringheap sh;
 
-    // 当前线程本地环境
+    // ????????????
     machine mac;
 
-    // 绑定C函数集合
+    // ??C????????
     bindfunc bf;
 
-    // 内建的函数集合
+    // ????????????
     buildinfunc bif;
 
-    // 性能检测
+    // ??????
     profile pf;
 
-    // 容器
+    // ????
     container con;
 
-    // 函数索引
+    // ????????
     funcmap fm;
 
-    // 当前运行状态
+    // ?????????
     running rn;
 
-    // debug容器
+    // debug????
     debuging dbg;
 
-    // pointer容器
+    // pointer????
     pointerheap ph;
 
-    // 优化
+    // ???
     optimizer opt;
-
-    // gc
-    gc g;
 };
 
 template<typename T>

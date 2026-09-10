@@ -1,46 +1,46 @@
 /************************************************************************/
 /*
 # fake
-轻量级嵌入式脚本语言
+?????????????????
 
-## 简介
-**fake**是一款轻量级的嵌入式脚本语言, 使用c++语言编写, 语法吸取自lua、golang、erlang, 基于flex、bison生成语法树, 编译成字节码解释执行。
+## ???
+**fake**????????????????????????, ???c++???????, ???????lua??golang??erlang, ????flex??bison????????, ??????????????????
 
-## 脚本特性
-* 运行环境linux amd64、MacOS amd64
-* 支持VM, JIT
-* 支持fake testfunc(param1)产生routine, 在单线程上实现多线程效果(此特性不支持JIT)
-* 支持调试, 自带gdb风格的命令行调试器, 以及VS风格的可视化编辑调试ide, 也可在C里直接通过接口调用, 开始命令行调试
-* 支持热更新
-* 支持C风格函数和C++类成员函数的绑定
-* 支持profile, 可获取脚本各个函数运行时间
-* 支持array, map, 可以无限嵌套
-* 支持多返回值
-* 支持Int64
-* 支持const定义
-* 支持包
-* 支持struct
-* 支持打包bin文件或可执行文件
+## ???????
+* ????????linux amd64??MacOS amd64
+* ???VM, JIT
+* ???fake testfunc(param1)????routine, ???????????????????(??????????JIT)
+* ??????, ???gdb????????????????, ???VS??????????????ide, ?????C??????????????, ?????????????
+* ????????
+* ???C???????C++???????????
+* ???profile, ??????????????????????
+* ???array, map, ???????????
+* ???????
+* ???Int64
+* ???const????
+* ????
+* ???struct
+* ?????bin????????????
 
-## 示例
+## ???
 
 ```
 
 
--- 当前包名
+-- ???????
 package mypackage.test
 
--- 引入的文件
+-- ????????
 include "common.fk"
 
--- 结构体定义
+-- ????G??
 struct teststruct
 	sample_a
 	sample_b
 	sample_c
 end
 
--- 常量值
+-- ?????
 const hellostring = "hello"
 const helloint = 1234
 const hellomap = {1 : "a" 2 : "b" 3 : [1 2 3]}
@@ -48,12 +48,12 @@ const hellomap = {1 : "a" 2 : "b" 3 : [1 2 3]}
 -- func1 comment
 func myfunc1(arg1, arg2)
 
-	-- C函数和类成员函数的调用
+	-- C???????????????????
 	arg3 := cfunc1(helloint) + arg2:memfunc1(arg1)
 
-	-- 分支
+	-- ???
 	if arg1 < arg2 then
-		-- 创建一个协程
+		-- ???????????
 		fake myfunc2(arg1, arg2)
 	elseif arg1 == arg2 then
 		print("elseif")
@@ -61,16 +61,16 @@ func myfunc1(arg1, arg2)
 		print("else")
 	end
 
-	-- for循环
+	-- for???
 	for var i = 0, i < arg2, i++ then
 		print("i = ", i)
 	end
 
-	-- 数组
+	-- ????
 	var a = array()
 	a[1] = 3
 
-	-- 集合
+	-- ????
 	var b = map()
 	b[a] = 1
 	b[1] = a
@@ -79,19 +79,19 @@ func myfunc1(arg1, arg2)
 	var uid = 1241515236123614u
 	log("uid = ", uid)
 
-	-- 子函数调用
+	-- ?????????
 	var ret1, var ret2 = myfunc2()
 
-	-- 其他包的函数调用
+	-- ???????????????
 	ret1 = otherpackage.test.myfunc1(arg1, arg2)
 
-	-- 结构体
+	-- ????
 	var tt = teststruct()
 	tt->sample_a = 1
 	tt->sample_b = teststruct()
 	tt->sample_b->sample_a = 10
 
-	-- 分支
+	-- ???
 	switch arg1
 		case 1 then
 			print("1")
@@ -101,26 +101,26 @@ func myfunc1(arg1, arg2)
 			print("default")
 	end
 
-	-- 多返回值
+	-- ?????
 	return arg1, arg3
 
 end
 ```
 
-## C++示例
+## C++???
 
 ```
-// 创建一个实例
+// ??????????
 fake * fk = newfake();
-// 注册全局函数
+// ?????????
 fkreg(fk, "cfunc1", cfunc1);
-// 注册类成员函数, 不同的类注册一样的函数名字不冲突
+// ???????????, ??????????????????????????
 fkreg(fk, "memfunc1", &class1::memfunc1);
-// 解析fake脚本文件
+// ????fake??????
 fkparse(fk, argv[1]);
-// 执行myfunc1函数, 传入两个参数分别为1和2
+// ???myfunc1????, ????????????????1??2
 ret = fkrun<int>(fk, "myfunc1", 1, 2);
-// 删除实例
+// ??????
 delfake(fk);
 ```
 
@@ -139,7 +139,7 @@ delfake(fk);
 #define FAKE_VERSION "1.5"
 #define FAKE_AUTHOR "esrrhs@163.com"
 
-// 错误号
+// ?????
 enum efkerror {
     efk_ok = 0,
     efk_strsize = 100,
@@ -171,7 +171,7 @@ enum efkerror {
     efk_jit_error = 600,
 };
 
-// 脚本环境
+// ???????
 struct fake;
 
 typedef void(*fkerrorcb)(fake *fk, int eno, const char *file, int lineno, const char *func, const char *str);
@@ -183,65 +183,63 @@ typedef void (*fkfree)(void *ptr);
 typedef void(*fkprint)(fake *fk, const char *str);
 
 #define FAKE_API extern "C"
-#define MAX_FAKE_PARAM_NUM 40    // 最大40个参数
-#define MAX_FAKE_RETURN_NUM 10    // 最大10个返回值
-#define MAX_FAKE_REG_FUNC_NAME_LEN 256    // 最大注册函数名字长度
+#define MAX_FAKE_PARAM_NUM 40    // ???40??????
+#define MAX_FAKE_RETURN_NUM 10    // ???10???????
+#define MAX_FAKE_REG_FUNC_NAME_LEN 256    // ???????????????
 
 struct fakeconfig {
     fakeconfig() : fkm(&malloc), fkf(&free),
                    check_mem_alloc(false),
                    per_frame_cmd_num(100),
                    array_grow_speed(50),
-                   gc_grow_speed(100),
                    include_deps(100),
                    stack_max(10000) {}
 
     fkmalloc fkm;
-    fkfree fkf;                        // 内存管理
-    bool check_mem_alloc;           // 内存检查
-    int per_frame_cmd_num;            // 每帧执行命令数目
-    int array_grow_speed;            // 增长速度，百分比，10%代表增长10%
-    int gc_grow_speed;                // gc速度，百分比，10%代表每增加10%gc
-    int include_deps;                // 解析include最大深度
-    int stack_max;                    // stack最大尺寸
+    fkfree fkf;                        // ??????
+    bool check_mem_alloc;           // ?????
+    int per_frame_cmd_num;            // ????????????
+    int array_grow_speed;            // ?????????????10%????????10%
+    int include_deps;                // ????include??????
+    int stack_max;                    // stack?????
 };
 
-// 申请回收
+// ???????
 FAKE_API fake *newfake(fakeconfig *cfg = 0);
 FAKE_API void delfake(fake *fk);
 
-// 错误代码
+// ???????
 FAKE_API efkerror fkerror(fake *fk);
 FAKE_API const char *fkerrorstr(fake *fk);
 
-// 解析文件
-// 非运行中的脚本会直接替换，否则会在下次fkrun的时候替换
+// ???????
+// ???????????????????I????????????fkrun???????I
 FAKE_API bool fkparse(fake *fk, const char *filename);
 FAKE_API bool fkparsestr(fake *fk, const char *str);
 
-// 清空脚本函数，不会清空c函数和内置函数
+// ??????????????????c??????????????
 FAKE_API void fkclear(fake *fk);
 
-// 是否有函数
+// ?????????
 FAKE_API bool fkisfunc(fake *fk, const char *func);
-// 获取函数所在的文件名
+// ?????????????????
 FAKE_API const char *fkgetfuncfile(fake *fk, const char *func);
-// 获取函数所在的起始行号
+// ???????????????????
 FAKE_API int fkgetfuncstartline(fake *fk, const char *func);
-// 获取函数内变量数目
+// ???????????????
 FAKE_API int fkgetfuncvariantnum(fake *fk, const char *func);
-// 获取函数内变量名
+// ??????????????
 FAKE_API const char *fkgetfuncvariantname(fake *fk, const char *func, int index);
-// 获取函数内变量行号
+// ????????????????
 FAKE_API int fkgetfuncvariantline(fake *fk, const char *func, int index);
 
-// 字节流封装，方便与C交互，使用方法如fakebytes b = fkrun<fakebytes>(fk, "test")或者fakebytes b; fkrun<int>(fk, "test", b);
+// ????????????????C???????????????fakebytes b = fkrun<fakebytes>(fk, "test")????fakebytes b; fkrun<int>(fk, "test", b);
 struct fakebytes {
     char *data;
     size_t size;
 };
 
-// 参数传递
+// ????????
 FAKE_API void fkpspushpointer(fake *fk, void *p, const char *type);
 FAKE_API void fkpspushchar(fake *fk, char ret);
 FAKE_API void fkpspushuchar(fake *fk, unsigned char ret);
@@ -469,13 +467,11 @@ inline fakebytes fkpspop(fake *fk) {
 
 FAKE_API void fkpsclear(fake *fk);
 
-// 此函数内部使用，推荐使用模板
+// ?????????????????????
 FAKE_API void fkrunps(fake *fk, const char *func);
 
-// 检查回收
-FAKE_API void fkcheckgc(fake *fk, bool forcegc);
 
-// 调用函数，解释执行
+// ?????????????????
 template<typename RVal>
 RVal fkrun(fake *fk, const char *func) {
     fkpsclear(fk);
@@ -560,14 +556,14 @@ RVal fkrun(fake *fk, const char *func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 ar
     return fkpspop<RVal>(fk);
 }
 
-// 单步执行
+// ???????
 FAKE_API void fkopenstepmod(fake *fk);
 FAKE_API void fkclosestepmod(fake *fk);
 
-// 此函数内部使用，推荐使用模板
+// ?????????????????????
 FAKE_API void fkrundebugps(fake *fk);
 
-// 调用函数，调试解释执行
+// ????????????????????
 template<typename RVal>
 RVal fkdebugrun(fake *fk, const char *func) {
     fkopenstepmod(fk);
@@ -632,10 +628,10 @@ RVal fkdebugrun(fake *fk, const char *func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, 
     return fkpspop<RVal>(fk);
 }
 
-// 此函数内部使用，推荐使用模板
+// ?????????????????????
 FAKE_API void fkrunpsjit(fake *fk, const char *func);
 
-// 调用函数,native code
+// ????????,native code
 template<typename RVal>
 RVal fkrunjit(fake *fk, const char *func) {
     fkpsclear(fk);
@@ -720,7 +716,7 @@ RVal fkrunjit(fake *fk, const char *func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5
     return fkpspop<RVal>(fk);
 }
 
-// 一个成员函数指针存放的空间，一般16个字节
+// ?????????????????????16?????
 #define FAKE_MEMFUNC_SIZE 32
 
 // functor
@@ -916,7 +912,7 @@ struct fkinvoker<void> {
 
 FAKE_API void fkpushfunctor(fake *fk, const char *prefix, const char *name, fkfunctor ff);
 
-// 注册C函数
+// ???C????
 template<typename RVal>
 void fkreg(fake *fk, const char *name, RVal (*func)()) {
     fkpushfunctor(fk, "", name, fkfunctor(fkinvoker<RVal>::invoke, (void *) func, 0));
@@ -960,7 +956,7 @@ void fkreg(fake *fk, const char *name, RVal (*func)(T1, T2, T3, T4, T5, T6, T7))
 template<typename RVal, typename T, typename T1=void, typename T2=void, typename T3=void, typename T4=void, typename T5=void, typename T6=void, typename T7=void>
 struct fkmeminvoker {
     static void invoke(fake *fk, const fkfunctor *ff) {
-        T *p = fkpspop<T *>(fk);    // 不同编译器顺序不一样，提出来安全
+        T *p = fkpspop<T *>(fk);    // ?????????????????????????
         if (!p)
             return;
         RVal ret = ((p)->*(*(RVal(T::* *)(T1, T2, T3, T4, T5, T6, T7)) (ff->param2)))(fkpspop<T1>(fk),
@@ -1177,7 +1173,7 @@ struct fkmeminvoker<void, T> {
     }
 };
 
-// 注册类函数，不支持类函数重名
+// ??????????????????????
 template<typename RVal, typename T>
 void fkreg(fake *fk, const char *name, RVal (T::*func)()) {
     fkpushfunctor(fk, typeid(typename fkclasstype<T>::type).name(), name,
@@ -1226,7 +1222,7 @@ void fkreg(fake *fk, const char *name, RVal (T::*func)(T1, T2, T3, T4, T5, T6, T
                   fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4, T5, T6, T7>::invoke, 0, func, 8));
 }
 
-// 开启常用内置函数
+// ????????????????
 FAKE_API void fkopenalllib(fake *fk);
 FAKE_API void fkopenfilelib(fake *fk);
 FAKE_API void fkopenoslib(fake *fk);
@@ -1242,10 +1238,10 @@ FAKE_API const char *fkdumpprofile(fake *fk);
 FAKE_API void fkopenjit(fake *fk);
 FAKE_API void fkclosejit(fake *fk);
 
-// 设置错误回调
+// ?????????
 FAKE_API void fkseterrorfunc(fake *fk, fkerrorcb cb);
 
-// 获取当前运行状态
+// ????????????
 FAKE_API const char *fkgetcurfunc(fake *fk);
 FAKE_API const char *fkgetcurfile(fake *fk);
 FAKE_API int fkgetcurline(fake *fk);
@@ -1256,7 +1252,7 @@ FAKE_API int fkgetcurcallstacklength(fake *fk);
 FAKE_API const char *fkgetcurcallstackbyframe(fake *fk, int frame);
 FAKE_API const char *fkgetfilecode(fake *fk, const char *filename, int line);
 
-// 获取当前运行状态
+// ????????????
 FAKE_API const char *fkgetcurfuncbyframe(fake *fk, int frame);
 FAKE_API const char *fkgetcurfilebyframe(fake *fk, int frame);
 FAKE_API int fkgetcurlinebyframe(fake *fk, int frame);
@@ -1264,7 +1260,7 @@ FAKE_API const char *fkgetcurvaiantbyframe(fake *fk, int frame, const char *name
 FAKE_API int fkgetcurvaiantlinebyframe(fake *fk, int frame, const char *name, int line = -1);
 FAKE_API void fksetcurvaiantbyframe(fake *fk, int frame, const char *name, const char *value, int line = -1);
 
-// 获取当前运行状态
+// ????????????
 FAKE_API const char *fkgetcurroutine(fake *fk);
 FAKE_API int fkgetcurroutinenum(fake *fk);
 FAKE_API const char *fkgetcurroutinebyindex(fake *fk, int index);
@@ -1284,28 +1280,28 @@ FAKE_API const char *fkgetcurcallstackbyroutinebyframe(fake *fk, int rid, int fr
 FAKE_API int fkgetcurbytecodeposbyroutine(fake *fk, int rid);
 
 
-// 设置系统命令行
+// ????????????
 FAKE_API void fksetargv(fake *fk, int argc, const char *argv[]);
 
-// dump函数
+// dump????
 FAKE_API const char *fkdumpallfunc(fake *fk);
 FAKE_API const char *fkdumpfunc(fake *fk, const char *func, int pos = -1);
 FAKE_API const char *fkdumpfuncmap(fake *fk);
 
-// save load函数
+// save load????
 FAKE_API int fksavefunc(fake *fk, char *buff, int size);
 FAKE_API int fkloadfunc(fake *fk, char *buff, int size);
 
-// 获取关键词
+// ????????
 FAKE_API const char **fkgetkeyword();
 
-// 设置print位置
+// ????print????
 FAKE_API void fksetprintfunc(fake *fk, fkprint func);
 
-// 继续上次的执行
+// ????????????
 FAKE_API void fkresumeps(fake *fk, bool &isend);
 
-// 继续上次的执行
+// ????????????
 template<typename RVal>
 RVal fkresume(fake *fk, bool &isend) {
     fkpsclear(fk);

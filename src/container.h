@@ -62,15 +62,9 @@ public:
 
     size_t get_cvariant_size() const;
 
-    void checkgc(bool force);
-
-private:
-    void gc();
-
 private:
     fake *m_fk;
     variant_map *m_gm;
-    size_t m_last_gc_size;
 
     fkhashset<variant_array *> m_va_pl;
 
@@ -83,7 +77,4 @@ private:
     fkhashset<variant_map *> m_cvm_pl;
 
     fkhashset<variant *> m_cv_pl;
-
-    array<void *> m_todelete;
 };
-
