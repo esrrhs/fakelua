@@ -119,7 +119,7 @@ local function helper_specs_all(x)
     test_set_table_fallback(tbl, "mykey", 123)
 
     return val1 + val2 + val3 + val4 + val5 + val6 + val7 + val8 + val9 + val10 + val11 + val12 - val12 + val13 - val13 +
-    dummy - dummy
+        dummy - dummy
 end
 
 function test_specs_helper(y)

@@ -13,13 +13,15 @@ function test_connect_fail()
     config["user"] = "root"
     config["password"] = "irrelevant"
     config["db"] = "test"
+    config["timeout_ms"] = 1000
 
     local conn = mysql.connect(config, "on_connect")
 
-    -- 驱动 IO 直到回调触发（最多 200 次 tick）
-    for i = 1, 200 do
-        conn:tick()
+    -- 驱动 IO 直到回调触发（最多 1500 次 tick）
+    for i = 1, 1500 do
+        runtime.tick()
         if conn.done then break end
+        os.sleep(1)
     end
 
     if not conn.done then
@@ -49,14 +51,17 @@ function test_close_in_connect_cb()
     config["user"] = "root"
     config["password"] = "irrelevant"
     config["db"] = "test"
+    config["timeout_ms"] = 1000
 
     local conn = mysql.connect(config, "on_connect_and_close")
-    for i = 1, 200 do
-        conn:tick()
-        if conn.closed_ok then break end
+    for i = 1, 1500 do
+        runtime.tick()
+        if conn.closed_ok then
+            break
+        end
+        os.sleep(1)
     end
     if not conn.closed_ok then
-        print("close-in-callback never ran")
         return 0
     end
     return 1

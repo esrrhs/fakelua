@@ -43,28 +43,29 @@ MysqlConnection *unwrap_conn_native(NativeObject *self) {
     return reinterpret_cast<MysqlConnection *>(self->GetInt("__mysql_conn__", 0));
 }
 
-static std::unordered_map<State *, std::vector<NativeObject *>> g_mysql_conns;
-static std::unordered_map<State *, std::vector<NativeObject *>> g_mysql_pools;
+// 存在 State 上而不是这里的 static map：后者是全进程一份，多个线程各跑自己的 State 时
+// 会并发改同一个容器。
+struct MysqlWrappers {
+    std::vector<NativeObject *> conns;
+    std::vector<NativeObject *> pools;
+};
 
-static void erase_wrapper(std::unordered_map<State *, std::vector<NativeObject *>> &map,
-                          State *st, NativeObject *nat) {
+static std::vector<NativeObject *> &wrapper_list(State *s, bool is_pool) {
+    auto &ws = s->GetModuleState<MysqlWrappers>();
+    return is_pool ? ws.pools : ws.conns;
+}
+
+static void erase_wrapper(State *st, bool is_pool, NativeObject *nat) {
     if (!st) return;
-    auto it = map.find(st);
-    if (it == map.end()) return;
-    auto &v = it->second;
+    auto &v = wrapper_list(st, is_pool);
     v.erase(std::remove(v.begin(), v.end(), nat), v.end());
-    if (v.empty()) map.erase(it);
 }
 
 void RegisterMysqlNativeWrapper(State *s, NativeObject *nat, bool is_pool) {
     if (!s || !nat) return;
     nat->SetInt("__mysql_state__", reinterpret_cast<int64_t>(s));
     nat->SetInt("__mysql_is_pool__", is_pool ? 1 : 0);
-    if (is_pool) {
-        g_mysql_pools[s].push_back(nat);
-    } else {
-        g_mysql_conns[s].push_back(nat);
-    }
+    wrapper_list(s, is_pool).push_back(nat);
 }
 
 void UnregisterMysqlNativeWrapper(NativeObject *nat) {
@@ -72,26 +73,39 @@ void UnregisterMysqlNativeWrapper(NativeObject *nat) {
     auto *st = reinterpret_cast<State *>(nat->GetInt("__mysql_state__", 0));
     bool is_pool = nat->GetInt("__mysql_is_pool__", 0) != 0;
     nat->SetInt("__mysql_state__", 0);
-    erase_wrapper(is_pool ? g_mysql_pools : g_mysql_conns, st, nat);
+    erase_wrapper(st, is_pool, nat);
 }
 
-static void destroy_mysql_wrappers(std::unordered_map<State *, std::vector<NativeObject *>> &map, State *s) {
-    auto it = map.find(s);
-    if (it == map.end()) return;
-    auto wrappers = std::move(it->second);
-    map.erase(it);
-    for (auto *nat : wrappers) {
+static void destroy_mysql_wrappers(State *s, bool is_pool) {
+    auto *ws = s->TryGetModuleState<MysqlWrappers>();
+    if (!ws) return;
+    auto wrappers = std::move(is_pool ? ws->pools : ws->conns);
+    for (auto *nat: wrappers) {
         if (!nat) continue;
         nat->SetInt("__mysql_state__", 0);
-        NativeObjectManager::Instance().DestroyGroup(nat->GetGroupId());
+        s->GetNativeObjectManager().DestroyGroup(nat->GetGroupId());
     }
+}
+
+void TickAll(State *s) {
+    if (!s) return;
+    // 两处都是先拷一份再遍历：回调里可能 pool:acquire() 或者关连接，都会改动这些 vector。
+    // 快照里已经销毁的对象 unwrap 拿到空，tick 自己就是 no-op。
+    //
+    // 先池后连接：池这一步推进心跳和重连，让本轮拿到的连接尽量是可用的。
+    auto *ws = s->TryGetModuleState<MysqlWrappers>();
+    if (!ws) return;
+    auto pools = ws->pools;
+    for (auto *nat: pools) TickMysqlPool(nat);
+    auto conns = ws->conns;
+    for (auto *nat: conns) TickMysqlConnection(nat, s);
 }
 
 void OnStateDeleted(State *s) {
     if (!s) return;
     // Connection wrappers first so pool acquire finalizers can still release().
-    destroy_mysql_wrappers(g_mysql_conns, s);
-    destroy_mysql_wrappers(g_mysql_pools, s);
+    destroy_mysql_wrappers(s, false);
+    destroy_mysql_wrappers(s, true);
 }
 
 static void maybe_reap_pool(NativeObject *self) {
@@ -106,8 +120,6 @@ static void maybe_release_owned_conn(NativeObject *self) {
     auto *conn = unwrap_conn_native(self);
     if (!conn || conn->tick_depth() > 0 || !conn->close_pending()) return;
     conn->close();
-    delete conn;
-    self->SetInt("__mysql_conn__", 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,7 +130,6 @@ CVar conn_query(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_tick(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_close(NativeObject *self, State *s, CVar *args, int n);
 CVar conn_ping(NativeObject *self, State *s, CVar *args, int n);
 
@@ -173,33 +184,31 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     if (cb_name.empty()) ThrowBadArgument(1, "mysql.connect", "callback function expected");
 
     // Create NativeObject wrapper first (so callbacks can dispatch)
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(gid, "mysql_connection");
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(gid, "mysql_connection");
     nat->SetFinalizer([](NativeObject *self) {
         UnregisterMysqlNativeWrapper(self);
         auto *c = unwrap_conn_native(self);
         if (c) {
+            self->SetInt("__mysql_conn__", 0);
             if (c->tick_depth() > 0) {
                 c->request_close();
             } else {
                 delete c;
             }
-            self->SetInt("__mysql_conn__", 0);
         }
     });
     nat->RegisterMethod("query", conn_query);
     nat->RegisterMethod("stmt_prepare", conn_stmt_prepare);
     nat->RegisterMethod("stmt_execute", conn_stmt_execute);
     nat->RegisterMethod("stmt_close", conn_stmt_close);
-    nat->RegisterMethod("tick", conn_tick);
     nat->RegisterMethod("close", conn_close);
     nat->RegisterMethod("ping", conn_ping);
     nat->SetInt("__mysql_owned__", 1);
     RegisterMysqlNativeWrapper(s, nat, false);
 
     // Create connection (async)
-    auto *conn = new MysqlConnection();
-    conn->set_state(s);
+    auto *conn = new MysqlConnection(s);
     conn->set_connect_callback(cb_name);
     conn->set_native_object(nat);
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
@@ -209,7 +218,7 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     } catch (const std::exception &e) {
         nat->SetInt("__mysql_conn__", 0);
         delete conn;
-        NativeObjectManager::Instance().DestroyGroup(gid);
+        s->GetNativeObjectManager().DestroyGroup(gid);
         error(std::format("connect failed: {}", e.what()));
     }
 
@@ -230,7 +239,7 @@ CVar conn_query(NativeObject *self, State *s, CVar *args, int n) {
     std::string cb_name = cvar_to_string(a1);
 
     auto *conn = unwrap_conn_native(self);
-    if (!conn) error("conn:query: connection is closed");
+    if (!conn || !conn->connected()) error("conn:query: connection is closed");
 
     conn->set_state(s);
     conn->set_result_callback(cb_name);
@@ -253,7 +262,7 @@ CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n) {
     std::string cb_name = cvar_to_string(a1);
 
     auto *conn = unwrap_conn_native(self);
-    if (!conn) error("conn:stmt_prepare: connection is closed");
+    if (!conn || !conn->connected()) error("conn:stmt_prepare: connection is closed");
 
     conn->set_state(s);
     conn->set_result_callback(cb_name);
@@ -310,7 +319,7 @@ CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
     }
 
     auto *conn = unwrap_conn_native(self);
-    if (!conn) error("conn:stmt_execute: connection is closed");
+    if (!conn || !conn->connected()) error("conn:stmt_execute: connection is closed");
 
     conn->set_state(s);
     conn->set_result_callback(cb_name);
@@ -330,7 +339,7 @@ CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n) {
     uint32_t stmt_id = static_cast<uint32_t>(inter::CVarToInteger(a0, 0));
 
     auto *conn = unwrap_conn_native(self);
-    if (!conn) return inter::NativeToFakeluaNil(s);
+    if (!conn || !conn->connected()) return inter::NativeToFakeluaNil(s);
 
     conn->stmt_close(stmt_id);
     maybe_release_owned_conn(self);
@@ -338,20 +347,19 @@ CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// conn:tick() — pump network events (call periodically from game loop)
+// Pump the connection's network events, via runtime.tick()
 // ─────────────────────────────────────────────────────────────────────────────
 
-CVar conn_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+// 连接关闭后 unwrap 返回空，于是自然变成 no-op。
+void TickMysqlConnection(NativeObject *self, State *s) {
     auto *conn = unwrap_conn_native(self);
-    if (!conn) return inter::NativeToFakeluaNil(s);
-    if (conn->tick_depth() > 0) return inter::NativeToFakeluaNil(s);
+    if (!conn) return;
+    if (conn->tick_depth() > 0) return;
 
     conn->set_state(s);
     conn->tick();
     maybe_release_owned_conn(self);
     maybe_reap_pool(self);
-
-    return inter::NativeToFakeluaNil(s);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -366,8 +374,6 @@ CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
             return inter::NativeToFakeluaNil(s);
         }
         conn->close();
-        delete conn;
-        self->SetInt("__mysql_conn__", 0);
     }
     return inter::NativeToFakeluaNil(s);
 }
@@ -378,7 +384,7 @@ CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
 
 CVar conn_ping(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *conn = unwrap_conn_native(self);
-    if (!conn) return inter::NativeToFakeluaBool(s, false);
+    if (!conn || !conn->connected()) return inter::NativeToFakeluaBool(s, false);
     bool sent = conn->ping();
     return inter::NativeToFakeluaBool(s, sent);
 }

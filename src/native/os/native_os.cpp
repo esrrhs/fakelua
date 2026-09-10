@@ -5,11 +5,13 @@
 #include "var/var.h"
 #include <cerrno>
 #include <cmath>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
 #include <limits>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #if defined(_WIN32)
@@ -447,6 +449,15 @@ void RegisterOsLibraryApi(State *s) {
         close(fd);
         return inter::NativeToFakeluaStringView(state, std::string_view(tmpname));
 #endif
+    });
+
+    // ─── os.sleep(ms) ───
+    RegisterNativeFunction(s, "os.sleep", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        int64_t ms = get_int_arg(state, args, n, 0, 0);
+        if (ms > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        }
+        return inter::NativeToFakeluaNil(state);
     });
 }
 

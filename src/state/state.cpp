@@ -1,4 +1,5 @@
 #include "state/state.h"
+#include "util/logging.h"
 #include "fakelua.h"
 #include "jit/tcc_jit.h"
 #include "native/os/native_os.h"
@@ -21,13 +22,39 @@
 #include "native/toml/native_toml.h"
 #include "native/ini/native_ini.h"
 #include "native/log/native_log.h"
+#include "native/native_io_context.h"
+#include "native/runtime/native_runtime.h"
 
 namespace fakelua {
 
+// 在这里而不是头文件里：io_context_ 用的是不完整类型。
+State::~State() = default;
+
+native::IoContext &State::GetIoContext() {
+    if (!io_context_) {
+        io_context_ = std::make_unique<native::IoContext>();
+    }
+    return *io_context_;
+}
+
+void State::SetLogFile(const std::string &path, size_t max_size, size_t max_files) {
+    log_sink_.reset();
+    if (!path.empty()) {
+        log_sink_ = decltype(log_sink_)(CreateLogSink(path, max_size, max_files), &DestroyLogSink);
+    }
+}
+
 State::State(const StateConfig &config) : config_(config), compiler_(this), const_string_(this) {
+    log_level_ = static_cast<LogLevel>(config_.log_level);
+    if (!config_.log_file.empty()) {
+        log_sink_ = decltype(log_sink_)(CreateLogSink(config_.log_file, config_.log_max_size, config_.log_max_files),
+                                        &DestroyLogSink);
+    }
+
     RegisterNativeObjectApi(this);
     net::RegisterNetLibraryApi(this);
     timer::RegisterTimerLibraryApi(this);
+    runtime::RegisterRuntimeLibraryApi(this);
     serialize::RegisterSerializeLibraryApi(this);
     protobuf::RegisterProtobufLibraryApi(this);
     crypto::RegisterCryptoLibraryApi(this);

@@ -16,6 +16,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-release
+          max-size: 2G
+
+      - name: Cache CPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/CPM
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', 'cmake/*.cmake') }}
+          restore-keys: |
+            cpm-${{ runner.os }}-
+
       - name: Setup dependencies
         run: |
           brew update || true
@@ -57,12 +71,22 @@ jobs:
       - name: Build
         run: |
           set -x
+          export CPM_SOURCE_CACHE=$HOME/.cache/CPM
           rm -rf build
           mkdir build
           cd build
           cmake -DCMAKE_PREFIX_PATH="$(brew --prefix)" ..
           make -j$(sysctl -n hw.ncpu)
+          ccache -s
           # Run all tests (including MySQL integration tests)
           (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
-          ./bin/bench_mark
           ./bin/flua
+
+      # 单独一步而不是内联 if：这样 PR 里 GitHub 会把它显式标成 skipped，看得出是按策略
+      # 跳过而不是没配。
+      - name: Run benchmarks
+        if: github.event_name != 'pull_request'
+        run: |
+          set -x
+          cd build/bin
+          ./bench_mark

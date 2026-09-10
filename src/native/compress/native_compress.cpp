@@ -11,9 +11,9 @@
 
 namespace fakelua::compress {
 
-static void require_compress_ok(const std::string &data, const std::vector<uint8_t> &out, const char *api) {
+static void require_compress_ok(State *s, const std::string &data, const std::vector<uint8_t> &out, const char *api) {
     if (out.empty() && !data.empty()) {
-        LOG_ERROR("compress", "{}: compress failed (input_len={})", api, data.size());
+        LOG_ERROR(s, "compress", "{}: compress failed (input_len={})", api, data.size());
         ThrowFakeluaException(std::string(api) + ": compress failed");
     }
 }
@@ -50,8 +50,8 @@ static CVar compress_lz4_compress(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "compress.lz4_compress", "data expected");
     std::string data = read_data_arg(s, inter::GetNativeArg(s, args, n, 0));
     auto out = lz4_compress(reinterpret_cast<const uint8_t *>(data.data()), data.size());
-    require_compress_ok(data, out, "compress.lz4_compress");
-    LOG_DEBUG("compress", "lz4_compress: in={} out={}", data.size(), out.size());
+    require_compress_ok(s, data, out, "compress.lz4_compress");
+    LOG_DEBUG(s, "compress", "lz4_compress: in={} out={}", data.size(), out.size());
     return inter::NativeToFakeluaString(s, std::string(out.begin(), out.end()));
 }
 
@@ -60,7 +60,7 @@ static CVar compress_lz4_decompress(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "compress.lz4_decompress", "data expected");
     std::string data = read_data_arg(s, inter::GetNativeArg(s, args, n, 0));
     auto out = lz4_decompress(reinterpret_cast<const uint8_t *>(data.data()), data.size());
-    LOG_DEBUG("compress", "lz4_decompress: in={} out={}", data.size(), out.size());
+    LOG_DEBUG(s, "compress", "lz4_decompress: in={} out={}", data.size(), out.size());
     return inter::NativeToFakeluaString(s, std::string(out.begin(), out.end()));
 }
 
@@ -72,7 +72,7 @@ static CVar compress_zlib_compress(State *s, CVar *args, int n) {
     std::string data = read_data_arg(s, inter::GetNativeArg(s, args, n, 0));
     int level = read_level_arg(s, args, n, 1, 6);
     auto out = zlib_compress(reinterpret_cast<const uint8_t *>(data.data()), data.size(), level);
-    require_compress_ok(data, out, "compress.zlib_compress");
+    require_compress_ok(s, data, out, "compress.zlib_compress");
     return inter::NativeToFakeluaString(s, std::string(out.begin(), out.end()));
 }
 
@@ -92,7 +92,7 @@ static CVar compress_gzip_compress(State *s, CVar *args, int n) {
     std::string data = read_data_arg(s, inter::GetNativeArg(s, args, n, 0));
     int level = read_level_arg(s, args, n, 1, 6);
     auto out = gzip_compress(reinterpret_cast<const uint8_t *>(data.data()), data.size(), level);
-    require_compress_ok(data, out, "compress.gzip_compress");
+    require_compress_ok(s, data, out, "compress.gzip_compress");
     return inter::NativeToFakeluaString(s, std::string(out.begin(), out.end()));
 }
 
@@ -112,7 +112,7 @@ static CVar compress_zstd_compress(State *s, CVar *args, int n) {
     std::string data = read_data_arg(s, inter::GetNativeArg(s, args, n, 0));
     int level = read_level_arg(s, args, n, 1, 3);
     auto out = zstd_compress(reinterpret_cast<const uint8_t *>(data.data()), data.size(), level);
-    require_compress_ok(data, out, "compress.zstd_compress");
+    require_compress_ok(s, data, out, "compress.zstd_compress");
     return inter::NativeToFakeluaString(s, std::string(out.begin(), out.end()));
 }
 

@@ -18,7 +18,8 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | utf8 | `utf8/` | UTF-8 encoding/decoding: `char`, `codepoint`, `codes`, `len`, `offset` |
 | io | `io/` | File I/O: open, close, read, write, seek, popen, standard streams |
 | net | `net/` | TCP networking: server/client with framed protocols, custom parsers, async event dispatch |
-| timer | `timer/` | Timers: one-shot, periodic heartbeat, driven by `tick()` |
+| timer | `timer/` | Timers: one-shot, periodic heartbeat, driven by `runtime.tick()` |
+| runtime | `runtime/` | Unified event loop pump: `runtime.tick()` drives every module that needs periodic progress |
 | event | `event/` | Pub/sub event system: `on`, `once`, `off`, `emit`, `clear`, `clear_all` |
 | random | `random/` | Seeded RNG (PCG-32): `int`, `float`, `dice`, `chance`, `weighted`, `get_state`, `set_state` |
 | compress | `compress/` | Compression: LZ4, zlib, gzip, Zstd |
@@ -30,6 +31,43 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | serialize | `serialize/` | Binary serialization with zigzag+varint encoding and string deduplication |
 | protobuf | `protobuf/` | Runtime .proto parsing, standard protobuf3 wire encode/decode |
 | object | `object/` | NativeObject Lua-side API: group management, object creation/lookup |
+
+---
+
+## Threading Model
+
+A `State` is a single-threaded entity: only one thread may touch it at a time, and concurrency
+is achieved by giving each thread its own `State`.
+
+The native layer is built on that premise: **all mutable state hangs off the `State`**. A module
+reaches its own private state through `State::GetModuleState<T>()`, which creates it on first
+access and destroys it with the `State`. No container is shared between States, so no locking is
+needed. Concretely:
+
+- Native objects, groups, global objects and id allocation are per-`State`, reached via
+  `State::GetNativeObjectManager()` (C++ callers can also use the free function
+  `GetNativeObjectManager(State *)`, since `State` is an opaque type outside the library);
+- Timers, event listeners, the net/mysql/sqlite/io object tables and the protobuf .proto schema
+  registry are all per-`State`, so nothing registered in one `State` leaks into another;
+- Reusable scratch buffers belong to whatever they serve: the linear staging areas used when
+  unpacking live on the `CircularBuffer` (`header_scratch` / `payload_scratch`), and the
+  WebSocket masking randomness lives on the `AsioConn` connection. Random number generators that
+  are only hit occasionally (temp file names, the WebSocket handshake key) are plain locals.
+
+The JIT error boundary chain (`jit_error_boundary.h`) lives on `State` too: the top of the chain
+is `State::GetJitErrorBoundary()`, while the boundary objects themselves sit on the C++ stack.
+`RunWithJitErrorBoundary`, `GuardJitEntry` and `InJitFrame` all take a `State`, which is why
+`inter::DispatchCall` carries a `State` parameter as well. A `State` is owned by exactly one
+thread and its scripts only ever run on that thread's stack, so the chain top is naturally
+per-State.
+
+Logging also takes a `State`: every `LOG_*` macro and the JIT helper `FakeluaLogLua` have
+`State *` as the first argument. Level and log file are per-`State` (`StateConfig::log_level` /
+`log_file`, or `log.set_level` / `log.set_file` at runtime). An empty `log_file` means console
+only; `s == nullptr` (for example `ThrowFakeluaException`) is treated as Info and console only.
+Console output is still serialized by a process-wide lock because stdout/stderr are shared.
+
+There are no `thread_local` variables left.
 
 ---
 
@@ -239,7 +277,6 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | `net.ws_server(config)` | Create WebSocket server (same as `framer="websocket"`) |
 | `net.ws_client(config)` | Create WebSocket client |
 | `obj:dispatch(func_name)` | Register Lua callback function name |
-| `obj:tick()` | Drive I/O and event dispatch |
 | `obj:send(connid, data)` | Send data (server: specify connid; client: omit) |
 | `obj:close()` | Close connection/server |
 | `obj:close_connection(connid)` | Close single connection (server only) |
@@ -259,11 +296,30 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 |----------|------|-------------|
 | `timer.set(delay_ms, func_name)` | 2 | One-shot timer; returns `timer_id` |
 | `timer.del(timer_id)` | 1 | Delete pending timer |
-| `timer.tick()` | 0 | Fire expired timers and heartbeat |
 | `timer.set_heartbeat(interval_ms, func_name)` | 2 | Periodic heartbeat; auto-reschedules, overwrites previous |
 | `timer.register_obj_methods(obj)` | 1 | Register `get_int`/`set_int`/`add_int` on a NativeObject for shared state |
 
 **Callback signature:** `function cb(type, timer_id)` where `type == "timer"`
+
+---
+
+## Runtime
+
+**File:** `runtime/native_runtime.h` · **Registration:** `RegisterRuntimeLibraryApi`
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `runtime.tick()` | 0 | Drive every native module on this State that needs periodic progress |
+
+This is the only pump a script needs: it calls `timer::TickAll`, `net::TickAll` and
+`mysql::TickAll` in that fixed order, the same way `FakeluaDeleteState` dispatches
+`OnStateDeleted` to each module. Each module walks its own per-State object list, so
+servers, clients, connections and pools have no per-object `tick()` method — call this
+from your main loop instead.
+
+Timers go first so callbacks that come due can be picked up by the I/O dispatch behind
+them. Within MySQL, pools are driven before connections so heartbeat and reconnect have
+run before a script acquires a connection this round.
 
 ---
 
@@ -391,11 +447,9 @@ PCG-32 algorithm: 64-bit state, 32-bit output, period 2^64. Each `random.new(see
 | `conn:stmt_prepare(sql, cb)` | Prepare statement |
 | `conn:stmt_execute(id, params, cb)` | Execute prepared statement |
 | `conn:stmt_close(id)` | Close prepared statement |
-| `conn:tick()` | Pump network events |
 | `conn:close()` | Close connection |
 | `pool:acquire()` | Get connection from pool |
 | `pool:release(conn)` | Return connection to pool |
-| `pool:tick()` | Drive heartbeat and reconnect |
 | `pool:close()` | Close pool |
 | `pool:stats()` | Returns `{total, healthy}` |
 

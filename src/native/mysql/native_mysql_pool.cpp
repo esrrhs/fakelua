@@ -20,7 +20,6 @@ namespace fakelua::mysql {
 // ── Forward declarations ──
 static CVar pool_acquire(NativeObject *self, State *s, CVar *args, int n);
 static CVar pool_release(NativeObject *self, State *s, CVar *args, int n);
-static CVar pool_tick(NativeObject *self, State *s, CVar *args, int n);
 static CVar pool_close(NativeObject *self, State *s, CVar *args, int n);
 static CVar pool_stats(NativeObject *self, State *s, CVar *args, int n);
 static CVar conn_pool_release(NativeObject *self, State *s, CVar *args, int n);
@@ -167,7 +166,7 @@ static CVar pool_create(State *s, CVar *args, int n) {
 
     auto *pool_obj = new PoolObject();
     pool_obj->config = config;
-    pool_obj->pool = std::make_unique<MysqlConnectionPool>(config);
+    pool_obj->pool = std::make_unique<MysqlConnectionPool>(config, s);
 
     try {
         pool_obj->pool->initialize();
@@ -176,8 +175,8 @@ static CVar pool_create(State *s, CVar *args, int n) {
         pool_error(std::format("initialize failed: {}", e.what()));
     }
 
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(gid, "mysql_pool");
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(gid, "mysql_pool");
     nat->SetInt("__mysql_pool__", reinterpret_cast<int64_t>(pool_obj));
     RegisterMysqlNativeWrapper(s, nat, true);
     nat->SetFinalizer([](NativeObject *self) {
@@ -191,7 +190,6 @@ static CVar pool_create(State *s, CVar *args, int n) {
     });
     nat->RegisterMethod("acquire", pool_acquire);
     nat->RegisterMethod("release", pool_release);
-    nat->RegisterMethod("tick", pool_tick);
     nat->RegisterMethod("close", pool_close);
     nat->RegisterMethod("stats", pool_stats);
 
@@ -210,8 +208,8 @@ static CVar pool_acquire(NativeObject *self, State *s, CVar * /*args*/, int /*n*
     if (!conn) return inter::NativeToFakeluaNil(s);
 
     // Wrap connection in NativeObject for Lua (use a new group for each connection)
-    int64_t conn_gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(conn_gid, "mysql_connection");
+    int64_t conn_gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(conn_gid, "mysql_connection");
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
     nat->SetInt("__mysql_pool_ptr__", reinterpret_cast<int64_t>(pool_obj->pool.get()));
     nat->SetInt("__mysql_pool_obj__", reinterpret_cast<int64_t>(pool_obj));
@@ -226,7 +224,6 @@ static CVar pool_acquire(NativeObject *self, State *s, CVar * /*args*/, int /*n*
     nat->RegisterMethod("stmt_prepare", conn_stmt_prepare);
     nat->RegisterMethod("stmt_execute", conn_stmt_execute);
     nat->RegisterMethod("stmt_close", conn_stmt_close);
-    nat->RegisterMethod("tick", conn_tick);
     nat->RegisterMethod("close", conn_pool_release);
     nat->RegisterMethod("error", conn_error_info);
 
@@ -260,15 +257,15 @@ static CVar pool_release(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// pool:tick() — drive heartbeat and reconnect
+// Drive the pool's heartbeat and reconnect, via runtime.tick()
 // ─────────────────────────────────────────────────────────────────────────────
 
-static CVar pool_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+// 连接池关闭后 unwrap 返回空，于是自然变成 no-op。
+void TickMysqlPool(NativeObject *self) {
     auto *pool_obj = unwrap_pool(self);
-    if (!pool_obj || !pool_obj->pool) return inter::NativeToFakeluaNil(s);
+    if (!pool_obj || !pool_obj->pool) return;
 
     pool_obj->pool->tick();
-    return inter::NativeToFakeluaNil(s);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

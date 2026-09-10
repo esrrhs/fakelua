@@ -59,8 +59,8 @@ local function helper_complete_spec(x, xf)
     local not_val = ~foo(x)
 
     return val_const + res + sum + t[x] + (le_val and 1 or 0) + not_val + dummy - dummy + dummy2 - dummy2 + v_mul - v_mul +
-    v_div - v_div + v_pow - v_pow + v_fdiv_int - v_fdiv_int + v_fdiv_float - v_fdiv_float + v_mod_int - v_mod_int +
-    v_mod_float - v_mod_float
+        v_div - v_div + v_pow - v_pow + v_fdiv_int - v_fdiv_int + v_fdiv_float - v_fdiv_float + v_mod_int - v_mod_int +
+        v_mod_float - v_mod_float
 end
 
 function test_complete(x, xf)

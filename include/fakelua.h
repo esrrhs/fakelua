@@ -326,6 +326,14 @@ struct StateConfig {
     StateTCCConfig tcc_config;
     // gcc编译配置
     StateGCCConfig gcc_config;
+
+    // 本 State 的日志文件。留空则只打控制台，不写文件。运行期也可用 log.set_file 改。
+    std::string log_file;
+    // 日志文件的轮转参数，仅在 log_file 非空时生效
+    size_t log_max_size = 10 * 1024 * 1024;
+    size_t log_max_files = 5;
+    // 本 State 的最低日志级别，取值与 LogLevel 相同：0=Trace … 6=Off，默认 Info(2)
+    int log_level = 2;
 };
 
 class State;
@@ -396,9 +404,8 @@ void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &fun
 // 获取 VarInterface 构造实例函数
 std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *s);
 
-// 设置全局调试日志级别，注意所有状态都将被设置。
-// 0: 关闭, 1: 错误, 2: 信息, 默认为错误。
-void SetDebugLogLevel(int level);
+// 设置本 State 的调试日志级别，取值与 LogLevel 相同：0=Trace … 6=Off。
+void SetDebugLogLevel(State *s, int level);
 
 class NativeObject;
 
@@ -552,7 +559,7 @@ private:
 // 来源不确定的 closure（pcall / table.sort / gsub 的回调）传 JIT_TCC 即可，多一道
 // 边界对 GCC 后端也是安全的。
 // cl 为被调闭包（可空）：带 upvalue 的函数必须传入，否则 _CL 为空指针。
-CVar DispatchCall(void *addr, const CVar *args, int arg_count, JITType type, VarClosure *cl = nullptr);
+CVar DispatchCall(State *s, void *addr, const CVar *args, int arg_count, JITType type, VarClosure *cl = nullptr);
 
 // 按闭包的 C 形参加减参数再 DispatchCall：缺的补 nil，多的丢掉；vararg 的多余实参打进最后的 Multi。
 // pcall/xpcall/gsub 以前按实参个数选函数指针，形参更多时是错误的函数类型（UB）。
@@ -642,7 +649,7 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
     }
 
     // 分发调用
-    CVar ret_var = inter::DispatchCall(addr, call_cvars, arg_count, type);
+    CVar ret_var = inter::DispatchCall(s, addr, call_cvars, arg_count, type);
 
     // 返回值处理：自动解包 tuple / 单值
     if constexpr (is_std_tuple_v<RetType>) {
@@ -797,16 +804,21 @@ void RegisterNativeFunction(State *s, const std::string &name, bool is_vararg, s
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NativeObjectManager — 原生对象全局批处理注册管理器 (type_name, id) -> NativeObject*
+// NativeObjectManager — 原生对象批处理注册管理器 (type_name, id) -> NativeObject*
 // 所有 NativeObject 必须归属于某一个 Group Arena，释放只能通过 DestroyGroup 统一批处理进行
+//
+// 每个 State 一份，用 State::GetNativeObjectManager() 取。对象、分组、全局对象、id 发号
+// 都不跨 State 共享：State 是单线程实体，跨线程的用法是每线程一份 State，共享一个管理器
+// 就等于让多个线程并发改同一批容器。
 // ─────────────────────────────────────────────────────────────────────────────
 class NativeObjectManager {
 public:
-    static NativeObjectManager &Instance();
-
     ~NativeObjectManager() {
         Clear();
     }
+
+    NativeObjectManager(const NativeObjectManager &) = delete;
+    NativeObjectManager &operator=(const NativeObjectManager &) = delete;
 
     // 1. 申请/定义组 (Group Arena) 统一由管理器自增发号分配
     int64_t CreateGroup();
@@ -829,6 +841,13 @@ public:
     bool GlobalDestroy(const std::string &key);
 
 private:
+    // 只能由 State 构造：管理器是 State 的一部分，不存在游离的实例。要用就走
+    // State::GetNativeObjectManager()（C++ 侧用自由函数 GetNativeObjectManager(State *)）。
+    friend class State;
+
+    explicit NativeObjectManager(State *owner) : owner_(owner) {
+    }
+
     struct PairHash {
         size_t operator()(const std::pair<std::string, int64_t> &p) const {
             return std::hash<std::string>()(p.first) ^ (std::hash<int64_t>()(p.second) << 1);
@@ -841,6 +860,7 @@ private:
     std::vector<NativeObject *> zombies_;// Destroy 后仍可能被 Lua wrap 引用，等 Clear 再释放
     int64_t next_auto_group_id_ = 0;
     int64_t next_auto_obj_id_ = 0;
+    State *owner_;// 所属 State，Clear 时要通知模块清掉指向这些对象的缓存
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -854,5 +874,8 @@ private:
 //   - del_global_obj(key) -> bool (按 string key 销毁单个全局对象)
 // ─────────────────────────────────────────────────────────────────────────────
 void RegisterNativeObjectApi(State *s);
+
+// 取某个 State 的原生对象管理器。State 对外是不透明类型，所以用自由函数暴露。
+NativeObjectManager &GetNativeObjectManager(State *s);
 
 }// namespace fakelua

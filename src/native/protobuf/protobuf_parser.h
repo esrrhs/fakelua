@@ -14,6 +14,6 @@ namespace fakelua::protobuf {
 // 不支持：service/RPC、extensions、groups、proto2 required、自定义 options。
 
 // 解析 .proto 文本，返回空字符串表示成功，否则返回错误信息
-std::string ParseProto(const std::string &text, const std::string &filename = "");
+std::string ParseProto(State *s, const std::string &text, const std::string &filename = "");
 
 }  // namespace fakelua::protobuf

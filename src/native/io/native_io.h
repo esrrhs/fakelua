@@ -12,6 +12,6 @@ void OnStateDeleted(State *s);
 
 // Called by NativeObjectManager::Clear() before it destroys all objects.
 // Clears the io wrapper/std caches so OnStateDeleted no longer holds stale pointers.
-void OnNativeObjectManagerCleared();
+void OnNativeObjectManagerCleared(State *s);
 
 }// namespace fakelua::io

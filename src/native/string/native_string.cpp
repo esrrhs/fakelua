@@ -1995,6 +1995,11 @@ void RegisterStringLibraryApi(State *s) {
     });
 }
 
+// load() 生成函数名用的发号器，每 State 一份
+struct EvalCounter {
+    uint64_t next = 0;
+};
+
 extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args) {
     if (!state || !cl || !cl->code_str) {
         return inter::NativeToFakeluaNil(state);
@@ -2005,8 +2010,10 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
         code = (code.size() >= 5) ? code.substr(5) : code.substr(4);
     }
 
-    static uint64_t eval_counter = 0;
-    std::string eval_fn_name = "__flua_eval_ld_" + std::to_string(++eval_counter);
+    // 每 State 一份：生成的函数名只需在本 State 的函数表里唯一（下面的 CompileString 和
+    // FakeluaCallByName 都是按 State 查的），所以不需要一个全进程共享的发号器。
+    auto &eval_counter = state->GetModuleState<EvalCounter>();
+    std::string eval_fn_name = "__flua_eval_ld_" + std::to_string(++eval_counter.next);
 
     std::string upval_decls;
     for (int i = 0; i < cl->upvalue_count; ++i) {
@@ -2034,7 +2041,7 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
         CompileString(state, full_code, config);
         // 边界不能省：本函数要靠下面的 catch 把错误吞成 nil，若让错误直接跳到更外层的
         // 边界，这里的 std::string 就不会析构，语义也从"返回 nil"变成了向上抛。
-        CVar res = RunWithJitErrorBoundary([&] { return FakeluaCallByName(state, JIT_TCC, eval_fn_name.c_str(), 0); });
+        CVar res = RunWithJitErrorBoundary(state, [&] { return FakeluaCallByName(state, JIT_TCC, eval_fn_name.c_str(), 0); });
         return res;
     } catch (...) {
         return inter::NativeToFakeluaNil(state);

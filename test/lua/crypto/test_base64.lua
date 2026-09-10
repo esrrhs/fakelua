@@ -9,7 +9,7 @@ function test_base64()
         local encoded = crypto.base64_encode(inputs[i])
         if encoded ~= expecteds[i] then
             print("base64_encode failed for '" ..
-            inputs[i] .. "': got '" .. encoded .. "' expected '" .. expecteds[i] .. "'")
+                inputs[i] .. "': got '" .. encoded .. "' expected '" .. expecteds[i] .. "'")
             return 0
         end
 

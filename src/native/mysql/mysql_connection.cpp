@@ -6,8 +6,13 @@
 
 #include <chrono>
 #include <cstring>
+#include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <vector>
+
+#include <boost/asio/bind_cancellation_slot.hpp>
 
 namespace fakelua::mysql {
 
@@ -26,13 +31,56 @@ struct TickDepthGuard {
 
 }  // namespace
 
-MysqlConnection::MysqlConnection()
-    : work_(boost::asio::make_work_guard(io_ctx_)),
-      conn_(io_ctx_) {
+MysqlConnection::MysqlConnection(::fakelua::State *state) : io_(state->GetIoContext()) {
+    lua_state_ = state;
+    ensure_conn();
 }
 
 MysqlConnection::~MysqlConnection() {
     close();
+}
+
+void MysqlConnection::ensure_conn() {
+    if (!conn_) {
+        conn_ = std::make_unique<boost::mysql::any_connection>(io_.Get());
+    }
+}
+
+void MysqlConnection::teardown_transport() {
+    if (cancel_signal_) {
+        cancel_signal_->emit(boost::asio::cancellation_type::all);
+    }
+
+    // Let the cancelled operation complete WHILE conn_ is still alive. The State's
+    // io_context outlives this connection, so an operation left in flight really is
+    // resumed later, and Boost.MySQL would resume it on a destroyed connection. In
+    // practice the cancellation completes in well under a millisecond.
+    if (op_in_progress_) {
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
+        while (op_in_progress_ && std::chrono::steady_clock::now() < deadline) {
+            if (io_.Poll() == 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
+    }
+
+    // Transport-level close via destructor (no blocking COM_QUIT / close()).
+    if (op_in_progress_) {
+        // Never observed. Destroying the connection here would hand Boost.MySQL
+        // freed memory once the completion arrives, so keep it alive forever
+        // instead; our own handler is already inert via life_.
+        LOG_ERROR(lua_state_, "mysql", "cancellation did not complete, leaking the connection to stay safe");
+        // 故意泄漏。这里不能存进容器：静态容器是跨线程共享的（多个 State 可能同时走到
+        // 这条路），而 thread_local 容器会在线程退出时把连接销毁掉，正是要避免的事。
+        // release() 交出所有权就够了，不需要任何容器。
+        (void) conn_.release();
+    } else {
+        conn_.reset();
+    }
+    io_.Poll();
+    cancel_signal_.reset();
+    op_in_progress_ = false;
+    ready_ = false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -53,13 +101,13 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     pending_connect_err_.clear();
     pending_connect_ = false;
     close_pending_ = false;
-    state_ = State::Connecting;
-    ready_ = false;
 
-    // Reset connection state
-    boost::mysql::error_code ec;
-    boost::mysql::diagnostics diag;
-    conn_.close(ec, diag);  // idempotent: closes any prior session
+    if (ready_ || op_in_progress_) {
+        teardown_transport();
+    }
+    ensure_conn();
+    ready_ = false;
+    state_ = State::Connecting;
     pending_results_.clear();
     prepared_statements_.clear();
     next_stmt_id_ = 1;
@@ -75,24 +123,33 @@ void MysqlConnection::connect(const std::string &host, uint16_t port,
     pending_connect_params_->multi_queries = true;  // preserve legacy multi-statement behavior
 
     // Start asynchronous connect
-    conn_.async_connect(*pending_connect_params_, async_diag_, [this](boost::mysql::error_code ec) {
-        pending_connect_params_.reset();
-        if (ec) {
-            // Prefix a stable English token: Boost.Asio's ec.message() is
-            // localized on Windows (e.g. WSAECONNREFUSED -> 中文系统文案).
-            pending_connect_err_ = "connect failed: " + ec.message();
-            state_ = State::Error;
-            pending_connect_ = true;
-            return;
-        }
-        state_ = State::Ready;
-        ready_ = true;
-        pending_connect_ = true;
-    });
+    cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    op_in_progress_ = true;
+    conn_->async_connect(*pending_connect_params_, async_diag_,
+        boost::asio::bind_cancellation_slot(
+            cancel_signal_->slot(),
+            [this, alive = life_.GetWatch()](boost::mysql::error_code ec) {
+                if (!alive.Alive()) return;
+                op_in_progress_ = false;
+                pending_connect_params_.reset();
+                if (ec) {
+                    // Prefix a stable English token: Boost.Asio's ec.message() is
+                    // localized on Windows (e.g. WSAECONNREFUSED -> 中文系统文案).
+                    if (pending_connect_err_.empty()) {
+                        pending_connect_err_ = "connect failed: " + ec.message();
+                    }
+                    state_ = State::Error;
+                    pending_connect_ = true;
+                    return;
+                }
+                state_ = State::Ready;
+                ready_ = true;
+                pending_connect_ = true;
+            }));
 }
 
 void MysqlConnection::query(const std::string &sql) {
-    if (close_pending_) return;
+    if (close_pending_ || !conn_) return;
     if (state_ != State::Ready || !ready_) {
         dispatch_result({}, "connection not ready");
         return;
@@ -103,23 +160,29 @@ void MysqlConnection::query(const std::string &sql) {
     query_type_ = QueryType::Query;
 
     // Execute query asynchronously (with diagnostics for error reporting)
-    conn_.async_execute(sql, pending_result_data_,
-                        [this](boost::mysql::error_code err) {
-                            if (err) {
-                                pending_result_err_ = err.message();
-                                pending_result_data_ = {};
+    cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    op_in_progress_ = true;
+    conn_->async_execute(sql, pending_result_data_,
+                        boost::asio::bind_cancellation_slot(
+                            cancel_signal_->slot(),
+                            [this, alive = life_.GetWatch()](boost::mysql::error_code err) {
+                                if (!alive.Alive()) return;
+                                op_in_progress_ = false;
+                                if (err) {
+                                    pending_result_err_ = err.message();
+                                    pending_result_data_ = {};
+                                    pending_result_ = true;
+                                    state_ = State::Ready;
+                                    return;
+                                }
+                                pending_result_err_.clear();
                                 pending_result_ = true;
                                 state_ = State::Ready;
-                                return;
-                            }
-                            pending_result_err_.clear();
-                            pending_result_ = true;
-                            state_ = State::Ready;
-                        });
+                            }));
 }
 
 void MysqlConnection::stmt_prepare(const std::string &sql) {
-    if (close_pending_) return;
+    if (close_pending_ || !conn_) return;
     if (state_ != State::Ready || !ready_) {
         dispatch_result({}, "connection not ready for prepare");
         return;
@@ -129,31 +192,38 @@ void MysqlConnection::stmt_prepare(const std::string &sql) {
     query_type_ = QueryType::StmtPrepare;
 
     // Prepare statement asynchronously
-    conn_.async_prepare_statement(sql, [this](boost::mysql::error_code err, boost::mysql::statement stmt) {
-        if (err) {
-            pending_result_err_ = err.message();
-            pending_result_data_ = {};
-            pending_result_ = true;
-            state_ = State::Ready;
-            return;
-        }
+    cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    op_in_progress_ = true;
+    conn_->async_prepare_statement(sql,
+        boost::asio::bind_cancellation_slot(
+            cancel_signal_->slot(),
+            [this, alive = life_.GetWatch()](boost::mysql::error_code err, boost::mysql::statement stmt) {
+                if (!alive.Alive()) return;
+                op_in_progress_ = false;
+                if (err) {
+                    pending_result_err_ = err.message();
+                    pending_result_data_ = {};
+                    pending_result_ = true;
+                    state_ = State::Ready;
+                    return;
+                }
 
-        // Allocate a Lua-side statement ID and remember the boost statement.
-        uint32_t stmt_id = next_stmt_id_++;
-        prepared_statements_[stmt_id] = std::move(stmt);
+                // Allocate a Lua-side statement ID and remember the boost statement.
+                uint32_t stmt_id = next_stmt_id_++;
+                prepared_statements_[stmt_id] = std::move(stmt);
 
-        // Build a results-shaped reply that carries the statement id.
-        pending_stmt_id_ = stmt_id;
-        has_pending_stmt_id_ = true;
-        pending_result_data_ = {};
-        pending_result_err_.clear();
-        pending_result_ = true;
-        state_ = State::Ready;
-    });
+                // Build a results-shaped reply that carries the statement id.
+                pending_stmt_id_ = stmt_id;
+                has_pending_stmt_id_ = true;
+                pending_result_data_ = {};
+                pending_result_err_.clear();
+                pending_result_ = true;
+                state_ = State::Ready;
+            }));
 }
 
 void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam> &params) {
-    if (close_pending_) return;
+    if (close_pending_ || !conn_) return;
     if (state_ != State::Ready || !ready_) {
         dispatch_result({}, "connection not ready for execute");
         return;
@@ -183,25 +253,31 @@ void MysqlConnection::stmt_execute(uint32_t stmt_id, const std::vector<StmtParam
         }
     }
 
-    conn_.async_execute(it->second.bind(pending_stmt_fields_.begin(), pending_stmt_fields_.end()),
+    cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    op_in_progress_ = true;
+    conn_->async_execute(it->second.bind(pending_stmt_fields_.begin(), pending_stmt_fields_.end()),
                         pending_result_data_,
-                        [this](boost::mysql::error_code err) {
-                            pending_stmt_fields_.clear();
-                            if (err) {
-                                pending_result_err_ = err.message();
-                                pending_result_data_ = {};
+                        boost::asio::bind_cancellation_slot(
+                            cancel_signal_->slot(),
+                            [this, alive = life_.GetWatch()](boost::mysql::error_code err) {
+                                if (!alive.Alive()) return;
+                                op_in_progress_ = false;
+                                pending_stmt_fields_.clear();
+                                if (err) {
+                                    pending_result_err_ = err.message();
+                                    pending_result_data_ = {};
+                                    pending_result_ = true;
+                                    state_ = State::Ready;
+                                    return;
+                                }
+                                pending_result_err_.clear();
                                 pending_result_ = true;
                                 state_ = State::Ready;
-                                return;
-                            }
-                            pending_result_err_.clear();
-                            pending_result_ = true;
-                            state_ = State::Ready;
-                        });
+                            }));
 }
 
 void MysqlConnection::stmt_close(uint32_t stmt_id) {
-    if (close_pending_) return;
+    if (close_pending_ || !conn_) return;
     if (state_ != State::Ready || !ready_) {
         prepared_statements_.erase(stmt_id);
         return;
@@ -214,52 +290,45 @@ void MysqlConnection::stmt_close(uint32_t stmt_id) {
         return;
     }
 
-    // Close server-side statement. Note: this is synchronous; the legacy
-    // implementation also did not network-roundtrip here.
-    boost::mysql::statement stmt = std::move(it->second);
+    // Drop the local handle only. close_statement() is synchronous and waits
+    // on the same IOCP that tick() poll()s, which deadlocks on Windows.
     prepared_statements_.erase(it);
-    boost::mysql::error_code ec;
-    boost::mysql::diagnostics diag;
-    conn_.close_statement(stmt, ec, diag);
-    if (ec) {
-        LOG_DEBUG("mysql", "close_statement error: {}", ec.message());
-    }
 }
 
 bool MysqlConnection::ping() {
-    if (close_pending_) return false;
+    if (close_pending_ || !conn_) return false;
     if (state_ != State::Ready || !ready_) return false;
 
-    conn_.async_ping([this](boost::mysql::error_code err) {
-        if (err) {
-            pending_result_err_ = err.message();
-            pending_result_ = true;
-            state_ = State::Error;
-        } else {
-            pending_result_ = true;
-            state_ = State::Ready;
-        }
-    });
+    cancel_signal_ = std::make_unique<boost::asio::cancellation_signal>();
+    op_in_progress_ = true;
+    conn_->async_ping(boost::asio::bind_cancellation_slot(
+        cancel_signal_->slot(),
+        [this, alive = life_.GetWatch()](boost::mysql::error_code err) {
+            if (!alive.Alive()) return;
+            op_in_progress_ = false;
+            if (err) {
+                pending_result_err_ = err.message();
+                pending_result_ = true;
+                state_ = State::Error;
+            } else {
+                pending_result_ = true;
+                state_ = State::Ready;
+            }
+        }));
 
     return true;
 }
 
 void MysqlConnection::close() {
-    if (state_ == State::Idle && !ready_ && prepared_statements_.empty()) {
-        // already closed
+    if (!conn_ && state_ == State::Idle && !ready_ && prepared_statements_.empty() && !op_in_progress_) {
         return;
     }
 
-    // Close the connection (best effort).
-    boost::mysql::error_code ec;
-    boost::mysql::diagnostics diag;
-    conn_.close(ec, diag);
-    if (ec) {
-        LOG_DEBUG("mysql", "Error closing connection: {}", ec.message());
-    }
+    teardown_transport();
 
     state_ = State::Idle;
-    ready_ = false;
+    pending_connect_ = false;
+    pending_result_ = false;
     pending_results_.clear();
     prepared_statements_.clear();
     next_stmt_id_ = 1;
@@ -273,24 +342,26 @@ void MysqlConnection::tick() {
     if (tick_depth_ > 0) return;
     TickDepthGuard guard(tick_depth_);
 
-    // Handle connection timeout
+    // Handle connection timeout. Cancel only — tearing down here would block the
+    // tick waiting for the cancelled ConnectEx to come back. The completion is
+    // picked up by the poll below, or by a later tick.
     if (state_ == State::Connecting && timeout_ms_ > 0) {
         if (now_ms() - connect_start_ms_ >= static_cast<int64_t>(timeout_ms_)) {
-            pending_connect_err_ = "connect timeout";
+            if (pending_connect_err_.empty()) {
+                pending_connect_err_ = "connect timeout";
+            }
             state_ = State::Error;
-            close();
+            if (cancel_signal_) {
+                cancel_signal_->emit(boost::asio::cancellation_type::all);
+            }
             pending_connect_ = true;
         }
     }
 
-    // Process all ready async operations by running io_context.
-    // poll() handles currently-ready handlers. If an async operation is in progress,
-    // wait up to 1ms (matching net::TcpClient's 1ms wait_timeout_ms) so tight Lua loops
-    // don't starve async I/O.
-    io_ctx_.poll();
-    if (!pending_connect_ && !pending_result_ && (state_ == State::Connecting || state_ == State::Querying)) {
-        io_ctx_.run_for(std::chrono::milliseconds(1));
-    }
+    // Runs the handlers that are already ready, including those of other objects on
+    // this State's context. Each one only records state; callbacks reach Lua from
+    // the owner's own tick.
+    io_.Poll();
 
     // Handle pending connection result
     if (pending_connect_) {
@@ -367,18 +438,21 @@ void MysqlConnection::request_close() { close_pending_ = true; }
 
 void MysqlConnection::dispatch_connect(const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
+    // Nothing on this State's context may run handlers while Lua is on the stack:
+    // a nested poll would overwrite the state this dispatch is reading.
+    native::IoContext::DispatchScope dispatch_scope(io_);
     if (close_pending_) return;
-    LOG_DEBUG("mysql", "dispatch_connect: err_msg={} cb={}",
+    LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: err_msg={} cb={}",
               err_msg ? err_msg : "(null)", connect_cb_.c_str());
 
     if (!lua_state_ || connect_cb_.empty()) {
-        LOG_DEBUG("mysql", "dispatch_connect: no state or no callback");
+        LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: no state or no callback");
         return;
     }
 
     auto func = lua_state_->GetVM().GetFunction(connect_cb_);
     if (func.Empty()) {
-        LOG_DEBUG("mysql", "dispatch_connect: function not found");
+        LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: function not found");
         return;
     }
 
@@ -389,7 +463,7 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
         jit_type = JIT_GCC;
     }
     if (!addr) {
-        LOG_DEBUG("mysql", "dispatch_connect: no JIT address");
+        LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: no JIT address");
         return;
     }
 
@@ -400,18 +474,19 @@ void MysqlConnection::dispatch_connect(const char *err_msg) {
     if (err_msg && err_msg[0]) {
         args[1] = inter::NativeToFakeluaString(lua_state_, err_msg);
         args[2] = inter::NativeToFakeluaInt(lua_state_, 0);
-        LOG_DEBUG("mysql", "dispatch_connect: calling callback with msg={} success=0", err_msg);
+        LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: calling callback with msg={} success=0", err_msg);
     } else {
         args[1] = inter::NativeToFakeluaNil(lua_state_);
         args[2] = inter::NativeToFakeluaInt(lua_state_, 1);
-        LOG_DEBUG("mysql", "dispatch_connect: calling callback success=1");
+        LOG_DEBUG(lua_state_, "mysql", "dispatch_connect: calling callback success=1");
     }
 
-    inter::DispatchCall(addr, args, 3, jit_type);
+    inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
 }
 
 void MysqlConnection::dispatch_result(const boost::mysql::results &result, const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
+    native::IoContext::DispatchScope dispatch_scope(io_);
     if (close_pending_) return;
     if (!lua_state_ || result_cb_.empty()) return;
 
@@ -429,7 +504,7 @@ void MysqlConnection::dispatch_result(const boost::mysql::results &result, const
     // Ensure we always have a valid error message (never empty string with failure)
     const char *msg = err_msg && err_msg[0] ? err_msg : "query failed";
 
-    LOG_DEBUG("mysql", "dispatch_result: err_msg={} cb={} stmt_id_dispatch={}",
+    LOG_DEBUG(lua_state_, "mysql", "dispatch_result: err_msg={} cb={} stmt_id_dispatch={}",
               err_msg ? err_msg : "(null)", result_cb_.c_str(), dispatch_stmt_id_);
 
     CVar args[3];
@@ -441,7 +516,7 @@ void MysqlConnection::dispatch_result(const boost::mysql::results &result, const
         CVar nil{};
         nil.type_ = static_cast<int>(VarType::Nil);
         args[2] = nil;
-        inter::DispatchCall(addr, args, 3, jit_type);
+        inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
     } else if (dispatch_stmt_id_ != 0) {
         // COM_STMT_PREPARE response: surface the statement id as a number.
         CVar nil{};
@@ -449,21 +524,21 @@ void MysqlConnection::dispatch_result(const boost::mysql::results &result, const
         args[1] = nil;
         args[2] = inter::NativeToFakeluaInt(lua_state_,
                                             static_cast<int64_t>(dispatch_stmt_id_));
-        inter::DispatchCall(addr, args, 3, jit_type);
+        inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
     } else {
         if (result.empty()) {
             CVar nil{};
             nil.type_ = static_cast<int>(VarType::Nil);
             args[1] = nil;
             args[2] = table::TableHelper::CreateTable(lua_state_);
-            inter::DispatchCall(addr, args, 3, jit_type);
+            inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
         } else {
             for (size_t i = 0; i < result.size(); ++i) {
                 CVar nil{};
                 nil.type_ = static_cast<int>(VarType::Nil);
                 args[1] = nil;
                 args[2] = resultset_to_lua(lua_state_, result[i]);
-                inter::DispatchCall(addr, args, 3, jit_type);
+                inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
                 if (close_pending_) break;
             }
         }

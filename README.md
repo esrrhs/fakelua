@@ -290,7 +290,7 @@ State* s = guard.GetState();
 | `Call()` | Invoke a compiled function |
 | `GetLastRecordedCCode()` | Get the most recently compiled C code |
 | `SetVarInterfaceNewFunc()` | Set custom VarInterface factory |
-| `SetDebugLogLevel()` | Set global debug log level (deprecated, use `log.set_level` in Lua) |
+| `SetDebugLogLevel(s, level)` | Set this State's debug log level (0=Trace … 6=Off; Lua: `log.set_level`) |
 
 ### Type Conversion
 

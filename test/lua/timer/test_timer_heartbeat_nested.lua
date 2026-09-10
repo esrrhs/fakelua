@@ -1,11 +1,11 @@
 package "TimerTest"
 
--- 心跳回调里再 timer.tick()：必须先推进下一跳，否则会无限递归
+-- 心跳回调里再 runtime.tick()：必须先推进下一跳，否则会无限递归
 function on_heartbeat_nested(type, data)
     local o = get_global_obj("timer_result")
     if o then
         o:add_int("hb_count", 1)
-        timer.tick()
+        runtime.tick()
     end
 end
 
@@ -18,10 +18,11 @@ function test_heartbeat_nested()
 
     local now = os.clock()
     while os.clock() - now < 0.15 do
-        timer.tick()
+        runtime.tick()
         if obj:get_int("hb_count") >= 1 then
             break
         end
+        os.sleep(1)
     end
 
     local count = obj:get_int("hb_count")

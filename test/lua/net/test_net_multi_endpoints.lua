@@ -36,13 +36,11 @@ function test_multi_servers_multi_clients()
 
     -- 驱动连接建立
     for i = 1, 200 do
-        server_a:tick()
-        server_b:tick()
-        client_a:tick()
-        client_b:tick()
+        runtime.tick()
         if server_a:get_conn_count() >= 1 and server_b:get_conn_count() >= 1 then
             break
         end
+        os.sleep(1)
     end
 
     -- 各 client 向各自 server 发送数据
@@ -51,14 +49,12 @@ function test_multi_servers_multi_clients()
 
     -- 驱动收发
     for i = 1, 200 do
-        server_a:tick()
-        server_b:tick()
-        client_a:tick()
-        client_b:tick()
+        runtime.tick()
         if server_a:get_recv_count() >= 1 and server_b:get_recv_count() >= 1 and
             client_a:get_last_data() ~= "" and client_b:get_last_data() ~= "" then
             break
         end
+        os.sleep(1)
     end
 
     local conn_a = server_a:get_conn_count()
@@ -96,13 +92,11 @@ function test_one_server_multi_clients()
 
     -- 驱动连接建立
     for i = 1, 200 do
-        server:tick()
-        client1:tick()
-        client2:tick()
-        client3:tick()
+        runtime.tick()
         if server:get_conn_count() >= 3 then
             break
         end
+        os.sleep(1)
     end
 
     -- 3个 client 各自发送
@@ -112,16 +106,14 @@ function test_one_server_multi_clients()
 
     -- 驱动收发
     for i = 1, 200 do
-        server:tick()
-        client1:tick()
-        client2:tick()
-        client3:tick()
+        runtime.tick()
         if server:get_recv_count() >= 3 and
             client1:get_last_data() ~= "" and
             client2:get_last_data() ~= "" and
             client3:get_last_data() ~= "" then
             break
         end
+        os.sleep(1)
     end
 
     local conn_count = server:get_conn_count()

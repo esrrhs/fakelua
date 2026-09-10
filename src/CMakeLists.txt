@@ -24,6 +24,7 @@ aux_source_directory(./native/os FAKELUA_SRC_LIST)
 aux_source_directory(./native/string FAKELUA_SRC_LIST)
 aux_source_directory(./native/table FAKELUA_SRC_LIST)
 aux_source_directory(./native/timer FAKELUA_SRC_LIST)
+aux_source_directory(./native/runtime FAKELUA_SRC_LIST)
 aux_source_directory(./native/serialize FAKELUA_SRC_LIST)
 aux_source_directory(./native/protobuf FAKELUA_SRC_LIST)
 aux_source_directory(./native/crypto FAKELUA_SRC_LIST)
@@ -268,7 +269,7 @@ endif ()
 set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
 
 if (WIN32)
-    add_compile_definitions(WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS BOOST_ASIO_DISABLE_CONNECTEX)
 endif()
 
 # OpenSSL must be resolved before Boost: Boost.MySQL's CMake disables itself
@@ -291,9 +292,15 @@ CPMAddPackage(
     NAME boost
     GITHUB_REPOSITORY boostorg/boost
     GIT_TAG boost-1.90.0
+    # 注意分隔符是空格：这个版本的 CPM 用第一个空格切 key/value，写成 KEY=VALUE 会被
+    # 当成一个名叫 "KEY=VALUE" 的变量并赋值 ON，也就是彻底的空操作。
     OPTIONS
-        "BUILD_SHARED_LIBS=OFF"
-        "CMAKE_POSITION_INDEPENDENT_CODE=ON"
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        # 只配置我们真正用到的库（依赖会自动带上）。不限定的话整个 superproject 都会被
+        # 编译，除了白等一堆构建时间，还会拖进 Boost.Cobalt —— 它的 Windows 部分强依赖
+        # IOCP，会让根 CMakeLists 里 WIN32 上的 BOOST_ASIO_DISABLE_IOCP 编不过。
+        "BOOST_INCLUDE_LIBRARIES mysql;asio;system;charconv"
 )
 if (NOT boost_ADDED)
     message(FATAL_ERROR "Failed to fetch boost")
@@ -345,10 +352,11 @@ include_directories(${BOOST_SOURCE_DIR}/libs/array/include)
 
 # Boost.MySQL is header-only, but boost_charconv has compiled components for float parsing
 # Link boost_charconv library (required for boost::charconv::from_chars/to_chars)
-set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv)
+# boost_system required for non-header-only Boost.Asio (TCP/net native code)
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv boost_system)
 if (WIN32)
-    # OpenSSL and Boost.Asio on MinGW
-    set(TARGET_LIB ${TARGET_LIB} crypt32 bcrypt ws2_32)
+    # OpenSSL and Boost.Asio on MinGW (mswsock provides AcceptEx/GetAcceptExSockaddrs)
+    set(TARGET_LIB ${TARGET_LIB} crypt32 bcrypt ws2_32 mswsock)
 endif()
 
 target_link_libraries(fakelua PRIVATE ${TARGET_LIB})

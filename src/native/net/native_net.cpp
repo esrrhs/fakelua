@@ -1,5 +1,5 @@
 #include "native/net/native_net.h"
-#include "native/net/net_internal.h"
+#include "native/net/net_asio.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
@@ -98,7 +98,7 @@ static CVar call_lua_event(State *state, const std::string &func_name,
         }
         args[4] = inter::NativeToFakeluaInt(state, reason);
 
-        return inter::DispatchCall(addr, args, 5, jit_type);
+        return inter::DispatchCall(state, addr, args, 5, jit_type);
     } else {
         // 回退：尝试原生函数
         auto *entry = state->GetVM().FindNativeFunction(func_name);
@@ -161,12 +161,15 @@ static NetObject *unwrap(NativeObject *self) {
     return reinterpret_cast<NetObject *>(self->GetInt("__net_obj__", 0));
 }
 
-// 每个 State 上活着的 net NativeObject，DeleteState 时统一关掉 socket。
-static std::unordered_map<State *, std::vector<NativeObject *>> g_net_wrappers;
+// 本 State 上活着的 net NativeObject，DeleteState 时统一关掉 socket。存在 State 上而不是
+// 这里的 static map：后者是全进程一份，多个线程各跑自己的 State 时会并发改同一个容器。
+struct NetWrappers {
+    std::vector<NativeObject *> list;
+};
 
 static void register_net_wrapper(State *s, NativeObject *nat) {
     if (!s || !nat) return;
-    g_net_wrappers[s].push_back(nat);
+    s->GetModuleState<NetWrappers>().list.push_back(nat);
 }
 
 static void unregister_net_wrapper(NativeObject *nat) {
@@ -174,23 +177,19 @@ static void unregister_net_wrapper(NativeObject *nat) {
     auto *st = reinterpret_cast<State *>(nat->GetInt("__net_state__", 0));
     nat->SetInt("__net_state__", 0);
     if (!st) return;
-    auto it = g_net_wrappers.find(st);
-    if (it == g_net_wrappers.end()) return;
-    auto &v = it->second;
+    auto &v = st->GetModuleState<NetWrappers>().list;
     v.erase(std::remove(v.begin(), v.end(), nat), v.end());
-    if (v.empty()) g_net_wrappers.erase(it);
 }
 
 void OnStateDeleted(State *s) {
     if (!s) return;
-    auto it = g_net_wrappers.find(s);
-    if (it == g_net_wrappers.end()) return;
-    auto wrappers = std::move(it->second);
-    g_net_wrappers.erase(it);
-    for (auto *nat : wrappers) {
+    auto *ws = s->TryGetModuleState<NetWrappers>();
+    if (!ws) return;
+    auto wrappers = std::move(ws->list);
+    for (auto *nat: wrappers) {
         if (!nat) continue;
         nat->SetInt("__net_state__", 0);
-        NativeObjectManager::Instance().DestroyGroup(nat->GetGroupId());
+        s->GetNativeObjectManager().DestroyGroup(nat->GetGroupId());
     }
 }
 
@@ -233,12 +232,50 @@ static CVar net_dispatch(NativeObject *self, State *s, CVar *args, int n) {
     return inter::NativeToFakeluaNil(s);
 }
 
-// server:tick() — 驱动 IO 处理
-static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+// 派发单条事件给 Lua（在 tick() 同步上下文里执行，保留 tick_depth/close_pending 语义）
+static void dispatch_event_for(NetObject *obj, const ConnEvent &ev) {
+    if (!obj) return;
+    switch (ev.kind) {
+        case EventKind::Connect:
+            obj->conn_count++;
+            obj->server_connid = ev.conn_id;
+            push_event(obj, "conn");
+            {
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "conn", ev.conn_id, nullptr, 0, 0);
+                handle_callback_return(obj, ret, ev.conn_id);
+            }
+            break;
+        case EventKind::Recv:
+            obj->recv_count++;
+            if (obj->is_server) obj->last_server_data = ev.data;
+            else obj->last_client_data = ev.data;
+            push_event(obj, "recv");
+            LOG_DEBUG(obj->state, "net", "{} recv: connid={} len={}", obj->is_server ? "server" : "client", ev.conn_id,
+                      ev.data.size());
+            {
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", ev.conn_id,
+                                          ev.data.data(), ev.data.size(), 0);
+                handle_callback_return(obj, ret, ev.conn_id);
+            }
+            break;
+        case EventKind::Close:
+            push_event(obj, "close");
+            {
+                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", ev.conn_id, nullptr, 0, 0);
+                handle_callback_return(obj, ret, ev.conn_id);
+            }
+            break;
+    }
+}
+
+// 驱动 IO 处理，由 runtime.tick() 调用
+// 新版：Boost.Asio 引擎在后台线程跑，事件入队；tick() 排空队列并同步派发 Lua 回调。
+// tick_depth + close_pending 语义保持不变。
+// 关闭后的对象 unwrap 返回空，于是自然变成 no-op。
+static void tick_net_object(NativeObject *self) {
     auto *obj = unwrap(self);
-    if (!obj) return inter::NativeToFakeluaNil(s);
-    // 回调里再 :tick() 会重入同一 Selector，直接忽略。
-    if (obj->tick_depth > 0) return inter::NativeToFakeluaNil(s);
+    if (!obj) return;
+    if (obj->tick_depth > 0) return;
 
     auto finish_tick = [self, obj]() {
         if (obj->tick_depth < 0) obj->tick_depth = 0;
@@ -250,47 +287,9 @@ static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     obj->tick_depth++;
     try {
         if (obj->is_server && obj->server && obj->server->running()) {
-            obj->server->tick(
-                // on_conn
-                [obj](int connid) {
-                    obj->conn_count++;
-                    obj->server_connid = connid;
-                    push_event(obj, "conn");
-                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "conn", connid, nullptr, 0, 0);
-                    handle_callback_return(obj, ret, connid);
-                },
-                // on_recv
-                [obj](int connid, const char *data, size_t len) {
-                    obj->recv_count++;
-                    obj->last_server_data.assign(data, len);
-                    push_event(obj, "recv");
-                    LOG_DEBUG("net", "server recv: connid={} len={}", connid, len);
-                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", connid, data, len, 0);
-                    handle_callback_return(obj, ret, connid);
-                },
-                // on_close
-                [obj](int connid) {
-                    push_event(obj, "close");
-                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
-                    handle_callback_return(obj, ret, connid);
-                });
+            obj->server->drain_events_with([obj](const ConnEvent &ev) { dispatch_event_for(obj, ev); });
         } else if (!obj->is_server && obj->client) {
-            obj->client->tick(
-                // on_recv
-                [obj](const char *data, size_t len) {
-                    obj->recv_count++;
-                    obj->last_client_data.assign(data, len);
-                    push_event(obj, "recv");
-                    LOG_DEBUG("net", "client recv: len={}", len);
-                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", 0, data, len, 0);
-                    handle_callback_return(obj, ret, 0);
-                },
-                // on_close
-                [obj]() {
-                    push_event(obj, "close");
-                    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", 0, nullptr, 0, 0);
-                    handle_callback_return(obj, ret, 0);
-                });
+            obj->client->drain_events_with([obj](const ConnEvent &ev) { dispatch_event_for(obj, ev); });
         }
     } catch (...) {
         obj->tick_depth--;
@@ -299,8 +298,18 @@ static CVar net_tick(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     }
     obj->tick_depth--;
     finish_tick();
+}
 
-    return inter::NativeToFakeluaNil(s);
+void TickAll(State *s) {
+    if (!s) return;
+    // 拷一份再遍历：派发进 Lua 的回调里可能 net.client() 或 del_native_group，两者都会
+    // 改动这个 vector。快照里已经销毁的对象 unwrap 拿到空，tick 自己就是 no-op。
+    auto *ws = s->TryGetModuleState<NetWrappers>();
+    if (!ws) return;
+    auto wrappers = ws->list;
+    for (auto *nat: wrappers) {
+        tick_net_object(nat);
+    }
 }
 
 // server:send(connid, data) / client:send(data)
@@ -504,6 +513,18 @@ static net::NetConfig parse_config(State *s, CVar *args, int n) {
         cfg.max_conn = static_cast<int>(maxc);
     }
     cfg.backlog = static_cast<int>(get_table_field(s, a0, "backlog", 128));
+    {
+        int64_t sbs = get_table_field(s, a0, "send_buf_size", 0);
+        if (sbs == 0) sbs = get_table_field(s, a0, "sendbuf", 0);
+        if (sbs > 0) cfg.send_buf_size = static_cast<int>(sbs);
+
+        int64_t rbs = get_table_field(s, a0, "recv_buf_size", 0);
+        if (rbs == 0) rbs = get_table_field(s, a0, "recvbuf", 0);
+        if (rbs > 0) cfg.recv_buf_size = static_cast<int>(rbs);
+
+        int64_t mpl = get_table_field(s, a0, "max_packet_len", 0);
+        if (mpl > 0) cfg.max_packet_len = static_cast<int>(mpl);
+    }
     cfg.fixed_packet_len = static_cast<int>(get_table_field(s, a0, "fixed_len", 0));
     if (cfg.fixed_packet_len == 0) {
         cfg.fixed_packet_len = static_cast<int>(get_table_field(s, a0, "fixed_packet_len", 0));
@@ -511,6 +532,7 @@ static net::NetConfig parse_config(State *s, CVar *args, int n) {
     cfg.non_blocking = get_table_field(s, a0, "nonblocking", 1) != 0;
     cfg.no_delay = get_table_field(s, a0, "nodelay", 1) != 0;
     cfg.keep_alive = get_table_field(s, a0, "keepalive", 1) != 0;
+
 
     std::string framer_str = get_table_field_string(s, a0, "framer", "");
     cfg.framer = parse_framer_type(framer_str);
@@ -544,8 +566,10 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
     cfg.custom_parser_fn = [s, parser_name, max_pkt](net::CircularBuffer &buf, const char *&out_payload, uint32_t &out_len) -> bool {
         if (buf.empty()) return false;
 
-        static thread_local std::vector<char> peek_buf;
-        static thread_local std::vector<char> payload_buf;
+        // 用 buf 自己的暂存区：写在 lambda 体内的 static 是所有连接、所有 State 共享同一
+        // 份，按缓冲区各存一份既没有竞争，也不会解析另一条连接就把这里的数据冲掉。
+        auto &peek_buf = buf.header_scratch();
+        auto &payload_buf = buf.payload_scratch();
         // 限制窥视上限为 max_packet_len，避免半包时每 tick O(缓冲) 全量分配/拷贝
         size_t total = std::min(buf.size(), static_cast<size_t>(max_pkt));
         if (total == 0) return false;
@@ -573,7 +597,7 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
 
         if (addr) {
             CVar args[1] = {in_arg};
-            res = inter::DispatchCall(addr, args, 1, jit_type);
+            res = inter::DispatchCall(s, addr, args, 1, jit_type);
         } else {
             auto *entry = s->GetVM().FindNativeFunction(parser_name);
             if (entry && entry->callback) {
@@ -632,19 +656,19 @@ static CVar create_net_server(State *s, net::NetConfig cfg, const char *type_nam
     auto *obj = new NetObject();
     obj->state = s;
     obj->is_server = true;
-    obj->server = std::make_unique<net::TcpServer>(cfg);
+    obj->server = std::make_unique<net::TcpServer>(cfg, s);
     obj->server->start();
 
     if (!obj->server->running()) {
         delete obj;
         net::net_shutdown();
-        LOG_ERROR("net", "{}: failed to listen on port {}", type_name, cfg.port);
+        LOG_ERROR(s, "net", "{}: failed to listen on port {}", type_name, cfg.port);
         ThrowFakeluaException(std::format("{}: failed to listen on port {}", type_name, cfg.port));
     }
-    LOG_DEBUG("net", "{}: listening on port {}", type_name, cfg.port);
+    LOG_DEBUG(s, "net", "{}: listening on port {}", type_name, cfg.port);
 
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(gid, type_name);
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(gid, type_name);
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
     nat->SetInt("__net_state__", reinterpret_cast<int64_t>(s));
     register_net_wrapper(s, nat);
@@ -654,7 +678,6 @@ static CVar create_net_server(State *s, net::NetConfig cfg, const char *type_nam
         release_net_object(self);
     });
     nat->RegisterMethod("dispatch", net_dispatch);
-    nat->RegisterMethod("tick", net_tick);
     nat->RegisterMethod("send", net_send);
     nat->RegisterMethod("close", net_close);
     nat->RegisterMethod("close_connection", net_close_connection);
@@ -677,13 +700,13 @@ static CVar create_net_client(State *s, net::NetConfig cfg, const char *type_nam
     auto *obj = new NetObject();
     obj->state = s;
     obj->is_server = false;
-    obj->client = std::make_unique<net::TcpClient>(cfg);
+    obj->client = std::make_unique<net::TcpClient>(cfg, s);
     obj->client->connect();
 
-    LOG_DEBUG("net", "{}: connecting to {}:{}", type_name, cfg.ip, cfg.port);
+    LOG_DEBUG(s, "net", "{}: connecting to {}:{}", type_name, cfg.ip, cfg.port);
 
-    int64_t gid = NativeObjectManager::Instance().CreateGroup();
-    auto *nat = NativeObjectManager::Instance().Create(gid, type_name);
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(gid, type_name);
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
     nat->SetInt("__net_state__", reinterpret_cast<int64_t>(s));
     register_net_wrapper(s, nat);
@@ -693,7 +716,6 @@ static CVar create_net_client(State *s, net::NetConfig cfg, const char *type_nam
         release_net_object(self);
     });
     nat->RegisterMethod("dispatch", net_dispatch);
-    nat->RegisterMethod("tick", net_tick);
     nat->RegisterMethod("send", net_send);
     nat->RegisterMethod("close", net_close);
     nat->RegisterMethod("get_events", net_get_events);

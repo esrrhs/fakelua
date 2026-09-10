@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <string>
+#include <random>
 
 namespace fakelua::net {
 
@@ -39,10 +40,14 @@ bool try_parse_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_cli
                         uint32_t &out_len, WsOpcode &out_opcode, bool &out_error);
 
 // 写入 WebSocket 帧。from_client=true 时按 RFC 6455 加 mask。
+// mask_rng: 客户端发出的帧必须带随机掩码（RFC 6455 §5.3），这个随机源由连接持有 —— 一个
+//           连接只被它所属的 State 单线程访问，所以不需要线程局部或者加锁的发生器。
+//           服务端方向（from_client 为 false）不掩码，用不到它。
 bool write_ws_frame(CircularBuffer &buf, const NetConfig &cfg, bool from_client, WsOpcode opcode, const char *data,
-                    size_t len);
+                    size_t len, std::mt19937 &mask_rng);
 
 // 便捷：写入 Pong 响应 Ping。
-bool write_ws_pong(CircularBuffer &buf, const NetConfig &cfg, bool from_client, const char *payload, size_t len);
+bool write_ws_pong(CircularBuffer &buf, const NetConfig &cfg, bool from_client, const char *payload, size_t len,
+                   std::mt19937 &mask_rng);
 
 } // namespace fakelua::net

@@ -17,15 +17,17 @@ function test_ws_echo()
     client:dispatch("NetWsTest.on_client_event")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
     end
 
     client:send("hello websocket")
 
     for i = 1, 50 do
-        server:tick()
-        client:tick()
+        runtime.tick()
+        if #client:get_last_data() > 0 then break end
+        os.sleep(1)
     end
 
     local conn_count = server:get_conn_count()

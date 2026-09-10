@@ -11,5 +11,5 @@ function test_table_concat()
     table.insert(t, 100, "invalid")
 
     return (s1 == "hello, world, fakelua" and s2 == "world-fakelua" and s3 == "world-fakelua" and s4 == "world-fakelua") and
-    100.0 or 0.0
+        100.0 or 0.0
 end

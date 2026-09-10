@@ -23,8 +23,9 @@ function test_mysql_integration()
     }, "on_connect")
 
     for i = 1, 1000 do
-        conn:tick()
+        runtime.tick()
         if conn.connected or conn.connect_err then break end
+        os.sleep(1)
     end
 
     if not conn.connected then
@@ -38,8 +39,9 @@ function test_mysql_integration()
         }, "on_connect")
 
         for i = 1, 1000 do
-            conn:tick()
+            runtime.tick()
             if conn.connected or conn.connect_err then break end
+            os.sleep(1)
         end
     end
 
@@ -54,8 +56,9 @@ function test_mysql_integration()
     conn:query("SELECT 1 AS test", "on_result")
 
     for i = 1, 1000 do
-        conn:tick()
+        runtime.tick()
         if conn.query_done then break end
+        os.sleep(1)
     end
 
     if conn.query_err ~= nil then

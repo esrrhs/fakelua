@@ -70,9 +70,11 @@ TEST(common, escapse_string) {
 }
 
 TEST(common, logging) {
-    SetLogLevel(LogLevel::Info);
-    LOG_INFO("test", "Hello, World!");
-    LOG_ERROR("test", "Hello, World!");
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    SetLogLevel(s, LogLevel::Info);
+    LOG_INFO(s, "test", "Hello, World!");
+    LOG_ERROR(s, "test", "Hello, World!");
 }
 
 TEST(common, vi_sort) {

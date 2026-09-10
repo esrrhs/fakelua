@@ -91,7 +91,7 @@ static CVar node_to_lua(State *s, pugi::xml_node node) {
 
 // ── CVar → pugixml document ──
 
-static int kMaxXmlDepth = 64;
+static constexpr int kMaxXmlDepth = 64;
 
 // Serialize a scalar CVar to its text representation.
 static std::string scalar_to_text(CVar v) {

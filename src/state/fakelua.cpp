@@ -393,8 +393,6 @@ State *FakeluaNewState(const StateConfig &cfg) {
 
 void FakeluaDeleteState(State *state) {
     if (!state) return;
-    timer::OnStateDeleted(state);
-    event::OnStateDeleted(state);
     net::OnStateDeleted(state);
     mysql::OnStateDeleted(state);
     sqlite::OnStateDeleted(state);
@@ -422,8 +420,8 @@ std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *state) {
     return state->GetVarInterfaceNewFunc();
 }
 
-void SetDebugLogLevel(int level) {
-    SetLogLevel(static_cast<LogLevel>(level));
+void SetDebugLogLevel(State *s, int level) {
+    SetLogLevel(s, static_cast<LogLevel>(level));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -502,13 +500,13 @@ void ThrowIfMultiCVar(const CVar &v) {
 
 static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count, VarClosure *cl);
 
-CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count, JITType type, VarClosure *cl) {
+CVar DispatchCall(State *s, void *addr, const CVar *arg_arr, int arg_count, JITType type, VarClosure *cl) {
     // GCC 后端产出的动态库带 .eh_frame，C++ 异常能正常穿过它的帧，不必付边界的代价。
     // TCC 把代码生成在自己的内存代码页里，没有展开表，错误只能靠边界跳回来。
     if (type == JIT_GCC) {
         return DispatchCallRaw(addr, arg_arr, arg_count, cl);
     }
-    return RunWithJitErrorBoundary([&] { return DispatchCallRaw(addr, arg_arr, arg_count, cl); });
+    return RunWithJitErrorBoundary(s, [&] { return DispatchCallRaw(addr, arg_arr, arg_count, cl); });
 }
 
 CVar DispatchCallClosure(State *state, VarClosure *cl, const CVar *args, int arg_count, JITType type) {
@@ -540,12 +538,12 @@ CVar DispatchCallClosure(State *state, VarClosure *cl, const CVar *args, int arg
         // vararg 包放在最后一个槽：fixed 号位置（0-based），即第 expected 个参数槽
         padded[fixed] = multi;
         const int n_dispatch = (expected > 0) ? expected : 1;
-        return DispatchCall(cl->func_ptr, padded, n_dispatch, type, cl);
+        return DispatchCall(state, cl->func_ptr, padded, n_dispatch, type, cl);
     }
     for (int i = 0; i < expected; ++i) {
         padded[i] = (i < arg_count && args) ? args[i] : NativeToFakeluaNil(state);
     }
-    return DispatchCall(cl->func_ptr, padded, expected, type, cl);
+    return DispatchCall(state, cl->func_ptr, padded, expected, type, cl);
 }
 
 static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count, VarClosure *cl) {
