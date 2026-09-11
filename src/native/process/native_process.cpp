@@ -342,22 +342,22 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     stdio.hout = FileStdio::Open(out_path.wstring().c_str(), false);
     stdio.herr = FileStdio::Open(err_path.wstring().c_str(), false);
     bp::process proc = LaunchProcess(ctx, exe, child_args, stdio, cwd, env_overrides, argv[0]);
-    asio::steady_timer timer(ctx);
-    if (timeout_ms > 0) {
-        timer.expires_after(std::chrono::milliseconds(timeout_ms));
-        timer.async_wait([&](const boost::system::error_code &ec) {
-            if (ec) return;
-            timed_out = true;
-            boost::system::error_code tec;
-            proc.terminate(tec);
-        });
-    }
-    proc.async_wait([&](const boost::system::error_code &, int code) {
-        exit_code = code;
-        timer.cancel();
-    });
-    ctx.run();
+    // Parent must drop the inheritable stdio handles so the child can see EOF.
     stdio.Close();
+    // BOOST_ASIO_DISABLE_IOCP uses the select reactor, which cannot wait on a
+    // process HANDLE. async_wait + ctx.run() never completes. WaitForSingleObject
+    // (via process::wait) does not go through that reactor.
+    HANDLE ph = proc.native_handle();
+    DWORD wait_ms = INFINITE;
+    if (timeout_ms > 0) {
+        wait_ms = timeout_ms >= static_cast<int64_t>(INFINITE) ? INFINITE - 1 : static_cast<DWORD>(timeout_ms);
+    }
+    if (ph != nullptr && ph != INVALID_HANDLE_VALUE && ::WaitForSingleObject(ph, wait_ms) == WAIT_TIMEOUT) {
+        timed_out = true;
+        boost::system::error_code tec;
+        proc.terminate(tec);
+    }
+    exit_code = proc.wait();
     stdout_s = ReadCappedFile(out_path);
     stderr_s = ReadCappedFile(err_path);
     boost::system::error_code rec;
