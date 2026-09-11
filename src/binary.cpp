@@ -50,9 +50,6 @@ const char *OpCodeStr(int opcode) {
 
         OPCODE_DEF(CALL)
 
-        OPCODE_DEF(SLEEP)
-        OPCODE_DEF(YIELD)
-
         OPCODE_DEF(FOR)
 #undef OPCODE_DEF
     }

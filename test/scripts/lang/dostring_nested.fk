@@ -8,8 +8,6 @@ func main()
 	var f2 = "
 	func myfunc2(arg1, arg2)
 		
-		yield 1
-		
 		print(\"enter myfunc2, this is myfunc2\")
 		
 		var f1 = \"
@@ -35,7 +33,7 @@ func main()
 	print("getcurfunc ", getcurfunc())
 	print("getcurline ", getcurline())
 	
-	fake myfunc2(arg1, arg2)
+	myfunc2(arg1, arg2)
 	
 	return 1
 	

@@ -329,22 +329,6 @@ bool compiler::compile_node(codegen &cg, syntree_node *node) {
             }
         }
             break;
-        case est_sleep: {
-            sleep_stmt *ss = dynamic_cast<sleep_stmt *>(node);
-            if (!compile_sleep_stmt(cg, ss)) {
-                FKERR("[compiler] compile_node compile_sleep_stmt error %d %s", type, node->gettypename());
-                return false;
-            }
-        }
-            break;
-        case est_yield: {
-            yield_stmt *ys = dynamic_cast<yield_stmt *>(node);
-            if (!compile_yield_stmt(cg, ys)) {
-                FKERR("[compiler] compile_node compile_yield_stmt error %d %s", type, node->gettypename());
-                return false;
-            }
-        }
-            break;
         case est_switch_stmt: {
             switch_stmt *ss = dynamic_cast<switch_stmt *>(node);
             if (!compile_switch_stmt(cg, ss)) {
@@ -985,9 +969,7 @@ bool compiler::compile_function_call_node(codegen &cg, function_call_node *fn) {
 
     // 调用类型
     command calltype;
-    if (fn->fakecall) {
-        calltype = MAKE_POS(CALL_FAKE);
-    } else if (fn->classmem_call) {
+    if (fn->classmem_call) {
         calltype = MAKE_POS(CALL_CLASSMEM);
     } else {
         calltype = MAKE_POS(CALL_NORMAL);
@@ -1582,44 +1564,6 @@ bool compiler::compile_struct_pointer(codegen &cg, struct_pointer_node *sn) {
     }
 
     FKLOG("[compiler] compile_struct_pointer %p OK", sn);
-
-    return true;
-}
-
-bool compiler::compile_sleep_stmt(codegen &cg, sleep_stmt *ss) {
-    FKLOG("[compiler] compile_sleep_stmt %p", ss);
-
-    // 编译time
-    command time = 0;
-    if (!compile_node(cg, ss->time)) {
-        FKERR("[compiler] compile_sleep_stmt time fail");
-        return false;
-    }
-    time = m_cur_addr;
-
-    cg.push(MAKE_OPCODE(OPCODE_SLEEP), ss->lineno());
-    cg.push(time, ss->lineno());
-
-    FKLOG("[compiler] compile_sleep_stmt %p OK", ss);
-
-    return true;
-}
-
-bool compiler::compile_yield_stmt(codegen &cg, yield_stmt *ys) {
-    FKLOG("[compiler] compile_yield_stmt %p", ys);
-
-    // 编译time
-    command time = 0;
-    if (!compile_node(cg, ys->time)) {
-        FKERR("[compiler] compile_sleep_stmt time fail");
-        return false;
-    }
-    time = m_cur_addr;
-
-    cg.push(MAKE_OPCODE(OPCODE_YIELD), ys->lineno());
-    cg.push(time, ys->lineno());
-
-    FKLOG("[compiler] compile_yield_stmt %p OK", ys);
 
     return true;
 }

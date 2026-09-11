@@ -396,17 +396,6 @@ void interpreter::interpret_t() {
     fake *fk = m_fk;
     bool &err = m_isend;
 
-    if (UNLIKE(m_sleeping)) {
-        if (LIKE(m_yieldtime)) {
-            m_yieldtime--;
-            return;
-        } else if (LIKE(fkgetmstick() < m_wakeuptime)) {
-            return;
-        } else {
-            m_wakeuptime = 0;
-        }
-    }
-
     if (UNLIKE(m_isend)) {
         return;
     }
@@ -428,7 +417,6 @@ void interpreter::interpret_t() {
             &&L_AND, &&L_OR, &&L_LESS, &&L_MORE, &&L_EQUAL, &&L_MOREEQUAL, &&L_LESSEQUAL, &&L_NOTEQUAL, &&L_NOT,
             &&L_AND_JNE, &&L_OR_JNE, &&L_LESS_JNE, &&L_MORE_JNE, &&L_EQUAL_JNE, &&L_MOREEQUAL_JNE, &&L_LESSEQUAL_JNE, &&L_NOTEQUAL_JNE, &&L_NOT_JNE,
             &&L_CALL,
-            &&L_SLEEP, &&L_YIELD,
             &&L_FOR,
     };
 
@@ -990,14 +978,11 @@ void interpreter::interpret_t() {
             V_SET_STRING(&tmp, wholename);
             call(tmp, retnum, retpos);
         } else {
-            paramstack &ps = fk->ps;
-            PS_CLEAR(ps);
-            for (int i = 0; i < argnum; i++) {
-                variant *argdest = 0;
-                PS_PUSH_AND_GET(ps, argdest);
-                *argdest = callargs[i];
-            }
-            m_processor->start_routine(*callpos, retnum, retpos);
+            err = true;
+            seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
+                     "interpreter call error, unknown call type %d", calltype);
+            m_isend = true;
+            return;
         }
         if (UNLIKE(m_isend)) {
             return;
@@ -1050,26 +1035,6 @@ void interpreter::interpret_t() {
         }
         ip = codesize;
         goto vm_dispatch;
-    }
-    L_SLEEP: {
-        const variant *timev = 0;
-        IGET(timev, ip); ip++;
-        uint32_t sleeptime = 0;
-        V_GET_REAL(timev, sleeptime);
-        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
-        m_wakeuptime = fkgetmstick() + sleeptime;
-        m_sleeping = true;
-        VM_SAVE();
-        return;
-    }
-    L_YIELD: {
-        const variant *timev = 0;
-        IGET(timev, ip); ip++;
-        V_GET_REAL(timev, m_yieldtime);
-        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
-        m_sleeping = true;
-        VM_SAVE();
-        return;
     }
 
 #undef VM_SAVE
