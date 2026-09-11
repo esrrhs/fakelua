@@ -34,28 +34,27 @@ class State;
 
 namespace fakelua::net {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 事件队列：单线程驱动产生，tick() 时派发给 Lua
-// ─────────────────────────────────────────────────────────────────────────────
-
 enum class EventKind {
-    Connect, // server 端：新连接已建立；client 端：连接已建立
-    Recv,    // 完整包解出
-    Close,   // 连接关闭
+    // server 端：新连接已建立；client 端：连接已建立
+    Connect,
+    // 完整包解出
+    Recv,
+    // 连接关闭
+    Close,
 };
 
 struct ConnEvent {
     EventKind kind;
-    int conn_id;        // server 端连接 ID；client 端恒为 0
-    std::string data;   // Recv 时携带载荷
+    // server 端连接 ID；client 端恒为 0
+    int conn_id;
+    // Recv 时携带载荷
+    std::string data;
 };
 
 using EventSink = std::function<void(ConnEvent)>;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 单条连接（asio::ip::tcp::socket + 收发缓冲）
-// ─────────────────────────────────────────────────────────────────────────────
-
 class AsioConn : public std::enable_shared_from_this<AsioConn> {
 public:
     AsioConn(boost::asio::io_context &ioc, const NetConfig &cfg, int conn_id, bool from_client, EventSink sink);
@@ -74,8 +73,13 @@ public:
     // 写入原始字节（非 WebSocket 连接）
     bool send_raw(const char *data, size_t len);
 
-    [[nodiscard]] bool is_open() const { return !closed_ && socket_.is_open(); }
-    [[nodiscard]] int conn_id() const { return conn_id_; }
+    [[nodiscard]] bool is_open() const {
+        return !closed_ && socket_.is_open();
+    }
+
+    [[nodiscard]] int conn_id() const {
+        return conn_id_;
+    }
 
 private:
     void do_read();
@@ -112,10 +116,7 @@ private:
     bool ws_open_ = false;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 服务端：单线程非阻塞 acceptor
-// ─────────────────────────────────────────────────────────────────────────────
-
 class TcpServer {
 public:
     TcpServer(const NetConfig &config, ::fakelua::State *state);
@@ -133,9 +134,15 @@ public:
               const std::function<void(int)> &on_close) {
         drain_events_with([&](const ConnEvent &ev) {
             switch (ev.kind) {
-                case EventKind::Connect: on_conn(ev.conn_id); break;
-                case EventKind::Recv:    on_recv(ev.conn_id, ev.data.data(), ev.data.size()); break;
-                case EventKind::Close:   on_close(ev.conn_id); break;
+                case EventKind::Connect:
+                    on_conn(ev.conn_id);
+                    break;
+                case EventKind::Recv:
+                    on_recv(ev.conn_id, ev.data.data(), ev.data.size());
+                    break;
+                case EventKind::Close:
+                    on_close(ev.conn_id);
+                    break;
             }
         });
     }
@@ -143,7 +150,9 @@ public:
     bool send(int conn_id, const char *data, size_t len);
     bool close_connection(int conn_id);
 
-    [[nodiscard]] bool running() const { return acceptor_open_; }
+    [[nodiscard]] bool running() const {
+        return acceptor_open_;
+    }
 
 private:
     void do_accept();
@@ -166,10 +175,7 @@ private:
     native::LifeToken life_;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 客户端：单线程非阻塞连接
-// ─────────────────────────────────────────────────────────────────────────────
-
 class TcpClient {
 public:
     TcpClient(const NetConfig &config, ::fakelua::State *state);
@@ -187,14 +193,21 @@ public:
               const std::function<void()> &on_close) {
         drain_events_with([&](const ConnEvent &ev) {
             switch (ev.kind) {
-                case EventKind::Connect: break;
-                case EventKind::Recv:    on_recv(ev.data.data(), ev.data.size()); break;
-                case EventKind::Close:   on_close(); break;
+                case EventKind::Connect:
+                    break;
+                case EventKind::Recv:
+                    on_recv(ev.data.data(), ev.data.size());
+                    break;
+                case EventKind::Close:
+                    on_close();
+                    break;
             }
         });
     }
 
-    [[nodiscard]] bool connected() const { return conn_ && conn_->is_open(); }
+    [[nodiscard]] bool connected() const {
+        return conn_ && conn_->is_open();
+    }
 
 private:
     void do_resolve();
@@ -215,4 +228,4 @@ private:
     native::LifeToken life_;
 };
 
-} // namespace fakelua::net
+}// namespace fakelua::net

@@ -15,7 +15,9 @@ namespace fakelua::net {
 
 namespace {
 
-bool is_websocket(const NetConfig &cfg) { return cfg.framer == FramerType::WebSocket; }
+bool is_websocket(const NetConfig &cfg) {
+    return cfg.framer == FramerType::WebSocket;
+}
 
 void set_socket_options(boost::asio::ip::tcp::socket &sock, const NetConfig &cfg) {
     boost::system::error_code ec;
@@ -31,15 +33,13 @@ void set_socket_options(boost::asio::ip::tcp::socket &sock, const NetConfig &cfg
     sock.set_option(boost::asio::socket_base::send_buffer_size(cfg.send_buf_size), ec);
 }
 
-} // namespace
+}// namespace
 
-// ─────────────────────────────────────────────────────────────────────────────
 // AsioConn
-// ─────────────────────────────────────────────────────────────────────────────
-
 AsioConn::AsioConn(boost::asio::io_context &ioc, const NetConfig &cfg, int conn_id, bool from_client, EventSink sink)
     : socket_(ioc), cfg_(cfg), conn_id_(conn_id), from_client_(from_client), sink_(std::move(sink)),
-      recv_buf_(cfg.recv_buf_size), send_buf_(cfg.send_buf_size) {}
+      recv_buf_(cfg.recv_buf_size), send_buf_(cfg.send_buf_size) {
+}
 
 AsioConn::~AsioConn() {
     close(/*notify_sink=*/false);
@@ -284,14 +284,14 @@ void AsioConn::on_ws_write(boost::system::error_code ec, size_t) {
     if (!closed_) do_ws_write();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TcpServer
-// ─────────────────────────────────────────────────────────────────────────────
-
 TcpServer::TcpServer(const NetConfig &config, ::fakelua::State *state)
-    : config_(config), io_(state->GetIoContext()), ioc_(io_.Get()) {}
+    : config_(config), io_(state->GetIoContext()), ioc_(io_.Get()) {
+}
 
-TcpServer::~TcpServer() { stop(); }
+TcpServer::~TcpServer() {
+    stop();
+}
 
 void TcpServer::start() {
     if (acceptor_open_) return;
@@ -418,14 +418,14 @@ void TcpServer::emit_event(ConnEvent ev) {
     events_.push_back(std::move(ev));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // TcpClient
-// ─────────────────────────────────────────────────────────────────────────────
-
 TcpClient::TcpClient(const NetConfig &config, ::fakelua::State *state)
-    : config_(config), io_(state->GetIoContext()), ioc_(io_.Get()), resolver_(ioc_) {}
+    : config_(config), io_(state->GetIoContext()), ioc_(io_.Get()), resolver_(ioc_) {
+}
 
-TcpClient::~TcpClient() { disconnect(); }
+TcpClient::~TcpClient() {
+    disconnect();
+}
 
 void TcpClient::connect() {
     disconnect();
@@ -534,4 +534,4 @@ void TcpClient::on_connect(boost::system::error_code ec, boost::asio::ip::tcp::s
     }
 }
 
-} // namespace fakelua::net
+}// namespace fakelua::net
