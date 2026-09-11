@@ -188,10 +188,14 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     bool timed_out = false;
 
     struct PipeReader {
-        asio::readable_pipe *p = nullptr;
-        std::string *dst = nullptr;
+        asio::readable_pipe *p;
+        std::string *dst;
         char tmp[4096]{};
+        PipeReader(asio::readable_pipe *pipe, std::string *out) : p(pipe), dst(out) {}
         void start() {
+            if (!p || !dst) {
+                return;
+            }
             p->async_read_some(asio::buffer(tmp), [this](const boost::system::error_code &ec, std::size_t n) {
                 if (n > 0 && dst->size() < kMaxOutput) {
                     dst->append(tmp, n);

@@ -13,7 +13,6 @@
 #include <boost/archive/xml_oarchive.hpp>
 #include <boost/serialization/nvp.hpp>
 #include <boost/serialization/string.hpp>
-#include <boost/serialization/utility.hpp>
 #include <boost/serialization/vector.hpp>
 #include <cstdint>
 #include <cstring>
@@ -340,7 +339,10 @@ struct SerNode {
     int64_t i = 0;
     double f = 0;
     std::string s;
-    std::vector<std::pair<SerNode, SerNode>> kv;
+    // 拆成两个 vector：std::pair<SerNode, SerNode> 要求 SerNode 已完整，Clang+libstdc++ 会在
+    // Boost.Serialization resize 时 static_assert 失败。vector<SerNode> 允许递归定义。
+    std::vector<SerNode> keys;
+    std::vector<SerNode> vals;
 
     template<class Archive>
     void serialize(Archive &ar, const unsigned int) {
@@ -349,7 +351,8 @@ struct SerNode {
         ar & BOOST_SERIALIZATION_NVP(i);
         ar & BOOST_SERIALIZATION_NVP(f);
         ar & BOOST_SERIALIZATION_NVP(s);
-        ar & BOOST_SERIALIZATION_NVP(kv);
+        ar & BOOST_SERIALIZATION_NVP(keys);
+        ar & BOOST_SERIALIZATION_NVP(vals);
     }
 };
 
@@ -390,7 +393,8 @@ static SerNode CVarToSerNode(CVar v, std::unordered_set<VarTable *> &visited, in
             if (t) {
                 table::TableHelper::ForEachKV(v, [&](CVar k, CVar val) {
                     if (IsSupported(k) && IsSupported(val)) {
-                        n.kv.emplace_back(CVarToSerNode(k, visited, depth + 1, op), CVarToSerNode(val, visited, depth + 1, op));
+                        n.keys.push_back(CVarToSerNode(k, visited, depth + 1, op));
+                        n.vals.push_back(CVarToSerNode(val, visited, depth + 1, op));
                     }
                 });
                 visited.erase(t);
@@ -419,8 +423,9 @@ static CVar SerNodeToCVar(const SerNode &n, State *s, int depth) {
             return inter::NativeToFakeluaString(s, n.s);
         case 5: {
             CVar tbl = table::TableHelper::CreateTable(s);
-            for (const auto &pair: n.kv) {
-                table::TableHelper::SetTable(s, tbl, SerNodeToCVar(pair.first, s, depth + 1), SerNodeToCVar(pair.second, s, depth + 1));
+            const size_t nkv = n.keys.size() < n.vals.size() ? n.keys.size() : n.vals.size();
+            for (size_t i = 0; i < nkv; ++i) {
+                table::TableHelper::SetTable(s, tbl, SerNodeToCVar(n.keys[i], s, depth + 1), SerNodeToCVar(n.vals[i], s, depth + 1));
             }
             return tbl;
         }
