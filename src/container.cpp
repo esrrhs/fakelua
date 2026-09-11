@@ -4,10 +4,14 @@
 variant *con_array_get(fake *fk, variant_array *va, const variant *k) {
     bool err = false;
     int index = 0;
-    V_GET_REAL(k, index);
-    CHECK_ERR(err);
-    if (UNLIKE(err)) {
-        return 0;
+    if (LIKE(k->type == variant::REAL)) {
+        index = (int) k->data.real;
+    } else {
+        V_GET_REAL(k, index);
+        CHECK_ERR(err);
+        if (UNLIKE(err)) {
+            return 0;
+        }
     }
 
     if (UNLIKE(index < 0)) {
@@ -17,18 +21,16 @@ variant *con_array_get(fake *fk, variant_array *va, const variant *k) {
     }
 
     if (UNLIKE(index >= (int) ARRAY_MAX_SIZE(va->va))) {
-        size_t newsize = index + 1 + ARRAY_MAX_SIZE(va->va) * fk->cfg.array_grow_speed / 100;
-        ARRAY_GROW(va->va, newsize, variant *);
-    }
-
-    if (!ARRAY_GET(va->va, index)) {
-        // ????????
-        ARRAY_GET(va->va, index) = va->isconst ? fk->con.newconstvariant() : fk->con.newvariant();
+        size_t need = (size_t) index + 1;
+        size_t newsize = ARRAY_MAX_SIZE(va->va) ? (size_t) ARRAY_MAX_SIZE(va->va) * 2 : 16;
+        while (newsize < need) {
+            newsize *= 2;
+        }
+        ARRAY_GROW(va->va, newsize, variant);
     }
 
     ARRAY_SIZE(va->va) = FKMAX((int) ARRAY_SIZE(va->va), index + 1);
-
-    return ARRAY_GET(va->va, index);
+    return &ARRAY_GET(va->va, index);
 }
 
 variant *con_map_get(fake *fk, variant_map *vm, const variant *k) {
@@ -50,10 +52,10 @@ container::container(fake *fk) : m_fk(fk), m_gm(0), m_va_pl(fk),
 container::~container() {
 }
 
-void container::clear() {
+void container::reset() {
     for (const fkhashset<variant_array *>::ele *p = m_va_pl.first(); p != 0; p = m_va_pl.next()) {
         variant_array *e = p->k;
-        ARRAY_DEEP_CLEAR(e->va, variant_array *);
+        ARRAY_DELETE(e->va);
         safe_fkfree(m_fk, e);
     }
     m_va_pl.clear();
@@ -71,9 +73,15 @@ void container::clear() {
     }
     m_v_pl.clear();
 
+    m_gm = 0;
+}
+
+void container::clear() {
+    reset();
+
     for (const fkhashset<variant_array *>::ele *p = m_cva_pl.first(); p != 0; p = m_cva_pl.next()) {
         variant_array *e = p->k;
-        ARRAY_DEEP_CLEAR(e->va, variant_array *);
+        ARRAY_DELETE(e->va);
         safe_fkfree(m_fk, e);
     }
     m_cva_pl.clear();

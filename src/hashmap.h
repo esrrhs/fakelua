@@ -69,7 +69,7 @@ force_inline String fkkeytostr(const T &k) {
     return "";
 }
 
-// ÌØ»¯
+// ç‰¹åŒ–
 template<>
 force_inline uint64_t fkkeyhash(const char *const &k) {
     return fkstrhash(k);
@@ -96,9 +96,12 @@ force_inline String fkkeytostr(const char *const &k) {
     return k;
 }
 
-// ÌØ»¯
+// ç‰¹åŒ–
 template<>
 force_inline uint64_t fkkeyhash(const variant &k) {
+    if (k.type == variant::STRING && k.data.str) {
+        return fkstrhash(k.data.str->s);
+    }
     return k.data.buf;
 }
 
@@ -123,7 +126,7 @@ force_inline String fkkeytostr(const variant &k) {
     return vartostring(&k);
 }
 
-// ÌØ»¯
+// ç‰¹åŒ–
 template<>
 force_inline uint64_t fkkeyhash(void *const &k) {
     MarshallPoiner tmp;
@@ -150,7 +153,7 @@ force_inline String fkkeytostr(void *const &k) {
     return fkptoa(k);
 }
 
-// ÌØ»¯
+// ç‰¹åŒ–
 template<>
 force_inline uint64_t fkkeyhash(stringele *const &k) {
     return fkstrhash(k->s);
@@ -175,7 +178,7 @@ force_inline String fkkeytostr(stringele *const &k) {
     return k->s;
 }
 
-// ÌØ»¯
+// ç‰¹åŒ–
 template<>
 force_inline uint64_t fkkeyhash(variant *const &k) {
     MarshallPoiner tmp;
@@ -202,7 +205,7 @@ force_inline String fkkeytostr(variant *const &k) {
     return fkptoa(k);
 }
 
-// ÌØ»¯
+// ç‰¹åŒ–
 template<>
 force_inline uint64_t fkkeyhash(variant_array *const &k) {
     MarshallPoiner tmp;
@@ -229,7 +232,7 @@ force_inline String fkkeytostr(variant_array *const &k) {
     return fkptoa(k);
 }
 
-// ÌØ»¯
+// ç‰¹åŒ–
 template<>
 force_inline uint64_t fkkeyhash(variant_map *const &k) {
     MarshallPoiner tmp;
@@ -262,7 +265,7 @@ struct fkhashmapele {
     T *t;
 };
 
-// ÌØ»¯
+// ç‰¹åŒ–
 template<typename K, typename T>
 force_inline uint64_t fkkeyhash(const fkhashmapele<K, T> &k) {
     return fkkeyhash(k.k);
@@ -318,7 +321,7 @@ public:
     }
 
     force_inline void clear() {
-        // Çåµô¾ÉµÄ
+        // æ¸…æŽ‰æ—§çš„
         for (int i = 0; i < m_hashele_size; i++) {
             hashele &he = m_hashele[i];
             for (int j = 0; j < he.size; j++) {
@@ -346,7 +349,7 @@ public:
     force_inline bool empty() const {
         return m_ele_size == 0;
     }
-    // Ð¡ÐÄÑ­»·ÄÚÖØÈë±éÀúµÄbug
+    // å°å¿ƒå¾?çŽ?å†…é‡å…¥éåŽ†çš„bug
     force_inline ele *first() {
         for (m_hashele_iter = 0; m_hashele_iter < m_hashele_size; m_hashele_iter++) {
             hashele &he = m_hashele[m_hashele_iter];
@@ -357,7 +360,7 @@ public:
         }
         return 0;
     }
-    // Ð¡ÐÄÑ­»·ÄÚÖØÈë±éÀúµÄbug
+    // å°å¿ƒå¾?çŽ?å†…é‡å…¥éåŽ†çš„bug
     force_inline const ele *first() const {
         for (m_hashele_iter = 0; m_hashele_iter < m_hashele_size; m_hashele_iter++) {
             hashele &he = m_hashele[m_hashele_iter];
@@ -496,12 +499,12 @@ public:
 
 private:
     ele *_add(const K &k) {
-        // ¼ì²é¿Õ¼ä
+        // æ£€æŸ¥ç©ºé—?
         int newsize = m_ele_size;
         if (UNLIKE(newsize >= m_hashele_size)) {
             m_grow_times++;
 
-            // »ñÈ¡ÐÂ´óÐ¡
+            // èŽ·å–æ–°å¤§å°?
             for (int i = 0; i < (int) (sizeof(c_hashsize) / sizeof(uint32_t)); i++) {
                 if (newsize < (int) c_hashsize[i]) {
                     newsize = c_hashsize[i];
@@ -509,7 +512,7 @@ private:
                 }
             }
 
-            // ·ÖÅä
+            // åˆ†é…
             hashele *oldhashele = m_hashele;
             int old_hashele_size = m_hashele_size;
             int old_ele_size = m_ele_size;
@@ -518,7 +521,7 @@ private:
             m_ele_size = 0;
             memset(m_hashele, 0, sizeof(hashele) * newsize);
 
-            // ¼Óµ½ÐÂµÄ Çåµô¾ÉµÄ
+            // åŠ åˆ°æ–°çš„ æ¸…æŽ‰æ—§çš„
             for (int i = 0; i < old_hashele_size; i++) {
                 hashele &he = oldhashele[i];
                 for (int j = 0; j < he.size; j++) {
@@ -532,7 +535,7 @@ private:
             }
             safe_fkfree(m_fk, oldhashele);
 
-            // »Ø¸´
+            // å›žå??
             m_ele_size = old_ele_size;
         }
 
@@ -548,11 +551,11 @@ private:
             }
         }
 
-        // ¼ì²é¿Õ¼ä
+        // æ£€æŸ¥ç©ºé—?
         if (UNLIKE(he.size >= he.maxsize)) {
             if (UNLIKE(he.size >= ELE_FAST_BUFFER)) {
                 size_t newelesize = he.size;
-                // »ñÈ¡ÐÂ´óÐ¡
+                // èŽ·å–æ–°å¤§å°?
                 for (int i = 0; i < (int) (sizeof(c_hashsize) / sizeof(uint32_t)); i++) {
                     if (newelesize < c_hashsize[i]) {
                         newelesize = c_hashsize[i];
@@ -560,7 +563,7 @@ private:
                     }
                 }
 
-                // ·ÖÅä
+                // åˆ†é…
                 ele *oldoverflow = he.overflow;
                 he.overflow = (ele *) safe_fkmalloc(m_fk, sizeof(ele) * (newelesize - ELE_FAST_BUFFER), emt_hashlist);
                 memset(he.overflow, 0, sizeof(ele) * (newelesize - ELE_FAST_BUFFER));
@@ -592,7 +595,7 @@ public:
     char m_recurflag;
 };
 
-// TÐèÒªÔ­Ê¼C½á¹¹ Ö§³Ömemcpy memset
+// Téœ€è¦åŽŸå§‹Cç»“æž„ æ”?æŒmemcpy memset
 template<typename K, typename T>
 class fkhashmap {
 public:
@@ -623,12 +626,12 @@ public:
     force_inline bool empty() const {
         return m_set.empty();
     }
-    // Ð¡ÐÄÑ­»·ÄÚÖØÈë±éÀúµÄbug
+    // å°å¿ƒå¾?çŽ?å†…é‡å…¥éåŽ†çš„bug
     force_inline ele *first() {
         typename fkhashset<ele>::ele *e = m_set.first();
         return e ? &e->k : 0;
     }
-    // Ð¡ÐÄÑ­»·ÄÚÖØÈë±éÀúµÄbug
+    // å°å¿ƒå¾?çŽ?å†…é‡å…¥éåŽ†çš„bug
     force_inline const ele *first() const {
         const typename fkhashset<ele>::ele *e = m_set.first();
         return e ? &e->k : 0;

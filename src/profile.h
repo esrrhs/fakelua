@@ -73,7 +73,7 @@ private:
     String m_dumpstr;
     int m_codetype[OPCODE_MAX];
     typedef std::map<void *, profilememele> memhashmap;
-    memhashmap m_memuse;    // ùù?ù?ù
+    memhashmap m_memuse;    // live allocations when check_mem_alloc is on
     size_t m_memmalloc_num;
     size_t m_memfree_num;
     size_t m_memmalloc_size;

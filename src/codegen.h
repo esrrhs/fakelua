@@ -71,7 +71,7 @@ public:
 
     int getvariable(const String &name) {
         assert(m_block_identifiers_stack.size() > 0);
-        // ´ÓÏÂÍùÉÏÕÒ
+        // ä»ä¸‹å¾€ä¸Šæ‰¾
         for (int i = (int) m_block_identifiers_stack.size() - 1; i >= 0; i--) {
             block_identifiers_list &list = m_block_identifiers_stack[i];
             for (int j = 0; j < (int) list.size(); j++) {

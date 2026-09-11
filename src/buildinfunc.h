@@ -73,7 +73,7 @@ private:
     buildinfuncmath m_bifmath;
 };
 
-// ²ÎÊýºÍ·µ»ØÖµ¶¼ÔÚm_fk->psÀï
+// å‚æ•°å’Œè¿”å›žå€¼éƒ½åœ¨m_fk->psé‡Œ
 #define BUILDIN_FUNC_CALL(f, inter) \
     assert((f)->havebif);\
     assert((f)->bif); \

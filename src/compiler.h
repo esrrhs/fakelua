@@ -64,6 +64,11 @@ private:
 
     bool compile_function_call_node(codegen &cg, function_call_node *fn);
 
+    bool try_inline_leaf_call(codegen &cg, function_call_node *fn, const std::vector<command> &arglist);
+
+    bool map_leaf_operand(codegen &cg, syntree_node *n, func_desc_node *callee,
+                          const std::vector<command> &arglist, command &out);
+
     bool compile_math_expr_node(codegen &cg, math_expr_node *mn);
 
     bool compile_return_value_list(codegen &cg, return_value_list_node *rn);

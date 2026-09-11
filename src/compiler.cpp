@@ -47,7 +47,7 @@ bool compiler::compile_const_head() {
 
     myflexer *mf = m_mf;
 
-    // ×¢²áÈ«¾Ö³£Á¿±í
+    // æ³¨å†Œå…¨å±€å¸¸é‡è¡¨
     explicit_value_map &evm = mf->get_const_map();
     for (explicit_value_map::iterator it = evm.begin(); it != evm.end(); it++) {
         String name = it->first;
@@ -93,16 +93,16 @@ bool compiler::compile_func(func_desc_node *funcnode) {
 
     m_cur_compile_func = funcnode->funcname;
 
-    // ²»¼ì²âÖØÃû£¬Ö±½ÓÌæ»»µôÀÏµÄ
+    // ä¸æ£€æµ‹é‡åï¼Œç›´æ¥æ›¿æ¢æ‰è€çš„
     codegen cg(m_fk);
     func_binary bin;
     FUNC_BINARY_INI(bin);
     bin.m_end_lineno = funcnode->endline;
 
-    // Ñ¹Õ»
+    // å‹æ ˆ
     cg.push_stack_identifiers();
 
-    // ²ÎÊıÈëÕ»
+    // å‚æ•°å…¥æ ˆ
     if (funcnode->arglist) {
         func_desc_arglist &arglist = funcnode->arglist->arglist;
         for (int i = 0; i < (int) arglist.size(); i++) {
@@ -117,7 +117,7 @@ bool compiler::compile_func(func_desc_node *funcnode) {
         bin.m_paramnum = arglist.size();
     }
 
-    // ±àÒëº¯ÊıÌå
+    // ç¼–è¯‘å‡½æ•°ä½“
     if (funcnode->block) {
         if (!compile_block(cg, funcnode->block)) {
             FKERR("[compile] compile_func compile_block %s fail", funcnode->funcname.c_str());
@@ -125,21 +125,21 @@ bool compiler::compile_func(func_desc_node *funcnode) {
         }
     }
 
-    // break±ØĞëÎª¿Õ
+    // breakå¿…é¡»ä¸ºç©º
     if (!m_loop_break_pos_stack.empty()) {
         FKERR("[compile] compile_func compile_block extra break");
         compile_seterror(funcnode, m_fk, efk_compile_loop_error, "compile extra break error");
         return false;
     }
 
-    // ±àÒë³É¹¦
+    // ç¼–è¯‘æˆåŠŸ
     String funcname = fkgen_package_name(m_mf->get_package(), funcnode->funcname);
     cg.output(m_mf->getfilename(), m_mf->get_package(), funcname.c_str(), &bin);
 
-    // ÓÅ»¯
+    // ä¼˜åŒ–
     m_fk->opt.optimize(bin);
 
-    // ¿´Á¢¼´¸üĞÂ»¹ÊÇÑÓ³Ù¸üĞÂ
+    // çœ‹ç«‹å³æ›´æ–°è¿˜æ˜¯å»¶è¿Ÿæ›´æ–°
     variant fv = m_fk->sh.allocsysstr(funcname.c_str());
     m_fk->bin.add_func(fv, bin);
 
@@ -378,7 +378,7 @@ bool compiler::compile_while_stmt(codegen &cg, while_stmt *ws) {
 
     m_loop_continue_pos_stack.push_back(startpos);
 
-    // Ìõ¼ş
+    // æ¡ä»¶
     cg.push_stack_identifiers();
     if (!compile_node(cg, ws->cmp)) {
         FKERR("[compiler] compile_while_stmt cmp fail");
@@ -386,20 +386,20 @@ bool compiler::compile_while_stmt(codegen &cg, while_stmt *ws) {
     }
     cg.pop_stack_identifiers();
 
-    // cmpÓëjne½áºÏ
+    // cmpä¸jneç»“åˆ
     if (m_cmp_jne) {
-        cg.push(EMPTY_CMD, ws->cmp->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+        cg.push(EMPTY_CMD, ws->cmp->lineno()); // å…ˆå¡ä¸ªä½ç½®
         jnepos = cg.byte_code_size() - 1;
     } else {
         cg.push(MAKE_OPCODE(OPCODE_JNE), ws->lineno());
         cg.push(m_cur_addr, ws->lineno());
-        cg.push(EMPTY_CMD, ws->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+        cg.push(EMPTY_CMD, ws->lineno()); // å…ˆå¡ä¸ªä½ç½®
         jnepos = cg.byte_code_size() - 1;
     }
     m_cmp_deps = 0;
     m_cmp_jne = false;
 
-    // block¿é
+    // blockå—
     if (ws->block) {
         cg.push_stack_identifiers();
         if (!compile_node(cg, ws->block)) {
@@ -409,14 +409,14 @@ bool compiler::compile_while_stmt(codegen &cg, while_stmt *ws) {
         cg.pop_stack_identifiers();
     }
 
-    // Ìø»ØÅĞ¶ÏµØ·½
+    // è·³å›åˆ¤æ–­åœ°æ–¹
     cg.push(MAKE_OPCODE(OPCODE_JMP), ws->lineno());
     cg.push(MAKE_POS(startpos), ws->lineno());
 
-    // Ìø×ª³öblock¿é
+    // è·³è½¬å‡ºblockå—
     cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
 
-    // Ìæ»»µôbreak
+    // æ›¿æ¢æ‰break
     beak_pos_list &bplist = m_loop_break_pos_stack[m_loop_break_pos_stack.size() - 1];
     for (int i = 0; i < (int) bplist.size(); i++) {
         cg.set(bplist[i], MAKE_POS(cg.byte_code_size()));
@@ -436,7 +436,7 @@ bool compiler::compile_if_stmt(codegen &cg, if_stmt *is) {
     int jnepos = 0;
     std::vector<int> jmpifpos;
 
-    // Ìõ¼ş
+    // æ¡ä»¶
     cg.push_stack_identifiers();
     if (!compile_node(cg, is->cmp)) {
         FKERR("[compiler] compile_if_stmt cmp fail");
@@ -444,20 +444,20 @@ bool compiler::compile_if_stmt(codegen &cg, if_stmt *is) {
     }
     cg.pop_stack_identifiers();
 
-    // cmpÓëjne½áºÏ
+    // cmpä¸jneç»“åˆ
     if (m_cmp_jne) {
-        cg.push(EMPTY_CMD, is->cmp->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+        cg.push(EMPTY_CMD, is->cmp->lineno()); // å…ˆå¡ä¸ªä½ç½®
         jnepos = cg.byte_code_size() - 1;
     } else {
         cg.push(MAKE_OPCODE(OPCODE_JNE), is->lineno());
         cg.push(m_cur_addr, is->lineno());
-        cg.push(EMPTY_CMD, is->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+        cg.push(EMPTY_CMD, is->lineno()); // å…ˆå¡ä¸ªä½ç½®
         jnepos = cg.byte_code_size() - 1;
     }
     m_cmp_deps = 0;
     m_cmp_jne = false;
 
-    // if¿é
+    // ifå—
     if (is->block) {
         cg.push_stack_identifiers();
         if (!compile_node(cg, is->block)) {
@@ -467,23 +467,23 @@ bool compiler::compile_if_stmt(codegen &cg, if_stmt *is) {
         cg.pop_stack_identifiers();
     }
 
-    // Ìø³öif¿é
+    // è·³å‡ºifå—
     if (is->elseifs || (is->elses && is->elses->block)) {
         cg.push(MAKE_OPCODE(OPCODE_JMP), is->lineno());
-        cg.push(EMPTY_CMD, is->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+        cg.push(EMPTY_CMD, is->lineno()); // å…ˆå¡ä¸ªä½ç½®
         jmpifpos.push_back(cg.byte_code_size() - 1);
     }
 
-    // ¿ªÊ¼´¦ÀíelseifµÄ
+    // å¼€å§‹å¤„ç†elseifçš„
     if (is->elseifs) {
         stmt_node_list &list = is->elseifs->stmtlist;
         for (int i = 0; i < (int) list.size(); i++) {
             elseif_stmt *eis = dynamic_cast<elseif_stmt *>(list[i]);
 
-            // Ìø×ªµ½else if
+            // è·³è½¬åˆ°else if
             cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
 
-            // Ìõ¼ş
+            // æ¡ä»¶
             cg.push_stack_identifiers();
             if (!compile_node(cg, eis->cmp)) {
                 FKERR("[compiler] compile_if_stmt cmp fail");
@@ -491,20 +491,20 @@ bool compiler::compile_if_stmt(codegen &cg, if_stmt *is) {
             }
             cg.pop_stack_identifiers();
 
-            // cmpÓëjne½áºÏ
+            // cmpä¸jneç»“åˆ
             if (m_cmp_jne) {
-                cg.push(EMPTY_CMD, eis->cmp->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+                cg.push(EMPTY_CMD, eis->cmp->lineno()); // å…ˆå¡ä¸ªä½ç½®
                 jnepos = cg.byte_code_size() - 1;
             } else {
                 cg.push(MAKE_OPCODE(OPCODE_JNE), eis->lineno());
                 cg.push(m_cur_addr, eis->lineno());
-                cg.push(EMPTY_CMD, eis->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+                cg.push(EMPTY_CMD, eis->lineno()); // å…ˆå¡ä¸ªä½ç½®
                 jnepos = cg.byte_code_size() - 1;
             }
             m_cmp_deps = 0;
             m_cmp_jne = false;
 
-            // else if¿é
+            // else ifå—
             if (eis->block) {
                 cg.push_stack_identifiers();
                 if (!compile_node(cg, eis->block)) {
@@ -514,17 +514,17 @@ bool compiler::compile_if_stmt(codegen &cg, if_stmt *is) {
                 cg.pop_stack_identifiers();
             }
 
-            // Ìø³öif¿é
+            // è·³å‡ºifå—
             cg.push(MAKE_OPCODE(OPCODE_JMP), eis->lineno());
-            cg.push(EMPTY_CMD, eis->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+            cg.push(EMPTY_CMD, eis->lineno()); // å…ˆå¡ä¸ªä½ç½®
             jmpifpos.push_back(cg.byte_code_size() - 1);
         }
     }
 
-    // Ìø×ªµ½else
+    // è·³è½¬åˆ°else
     cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
 
-    // else¿é
+    // elseå—
     if (is->elses && is->elses->block) {
         cg.push_stack_identifiers();
         if (!compile_node(cg, is->elses->block)) {
@@ -534,7 +534,7 @@ bool compiler::compile_if_stmt(codegen &cg, if_stmt *is) {
         cg.pop_stack_identifiers();
     }
 
-    // Ìø×ªµ½½áÊø
+    // è·³è½¬åˆ°ç»“æŸ
     for (int i = 0; i < (int) jmpifpos.size(); i++) {
         cg.set(jmpifpos[i], MAKE_POS(cg.byte_code_size()));
     }
@@ -651,7 +651,7 @@ bool compiler::compile_break_stmt(codegen &cg, break_stmt *bs) {
     FKLOG("[compiler] compile_break_stmt %p", bs);
 
     cg.push(MAKE_OPCODE(OPCODE_JMP), bs->lineno());
-    cg.push(EMPTY_CMD, bs->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+    cg.push(EMPTY_CMD, bs->lineno()); // å…ˆå¡ä¸ªä½ç½®
     int jmppos = cg.byte_code_size() - 1;
 
     beak_pos_list &bplist = m_loop_break_pos_stack[m_loop_break_pos_stack.size() - 1];
@@ -677,7 +677,7 @@ bool compiler::compile_continue_stmt(codegen &cg, continue_stmt *cs) {
     cg.push(MAKE_POS(continuepos), cs->lineno());
 
     if (continuepos == -1) {
-        // Ò»»áÍ³Ò»ÉèÖÃ
+        // ä¸€ä¼šç»Ÿä¸€è®¾ç½®
         int pos = cg.byte_code_size() - 1;
         continue_end_pos_list &cplist = m_continue_end_pos_stack[m_continue_end_pos_stack.size() - 1];
         cplist.push_back(pos);
@@ -828,7 +828,7 @@ bool compiler::compile_explicit_value(codegen &cg, explicit_value_node *ev) {
 bool compiler::compile_variable_node(codegen &cg, variable_node *vn) {
     FKLOG("[compiler] compile_variable_node %p", vn);
 
-    // ¿´¿´ÊÇ·ñÊÇÈ«¾Ö³£Á¿¶¨Òå
+    // çœ‹çœ‹æ˜¯å¦æ˜¯å…¨å±€å¸¸é‡å®šä¹‰
     String constname = fkgen_package_name(m_mf->get_package(), vn->str.c_str());
     variant *gcv = m_fk->pa.get_const_define(constname.c_str());
     if (gcv) {
@@ -846,10 +846,10 @@ bool compiler::compile_variable_node(codegen &cg, variable_node *vn) {
         return true;
     }
 
-    // ´Óµ±Ç°¶ÑÕ»ÍùÉÏÕÒ
+    // ä»å½“å‰å †æ ˆå¾€ä¸Šæ‰¾
     int pos = cg.getvariable(vn->str);
     if (pos == -1) {
-        // ÊÇ²»ÊÇĞèÒªnew³öÀ´
+        // æ˜¯ä¸æ˜¯éœ€è¦newå‡ºæ¥
         if (m_new_var) {
             var_node tmp;
             tmp.str = vn->str;
@@ -870,14 +870,14 @@ bool compiler::compile_variable_node(codegen &cg, variable_node *vn) {
 bool compiler::compile_var_node(codegen &cg, var_node *vn) {
     FKLOG("[compiler] compile_var_node %p", vn);
 
-    // È·±£µ±Ç°blockÃ»ÓĞ
+    // ç¡®ä¿å½“å‰blockæ²¡æœ‰
     if (cg.get_cur_variable_pos(vn->str) != -1) {
         FKERR("[compiler] compile_var_node variable has define %s", vn->str.c_str());
         compile_seterror(vn, m_fk, efk_compile_variable_has_define, "variable %s has define", vn->str.c_str());
         return false;
     }
 
-    // ¿´¿´ÊÇ·ñÊÇ³£Á¿¶¨Òå
+    // çœ‹çœ‹æ˜¯å¦æ˜¯å¸¸é‡å®šä¹‰
     myflexer *mf = m_mf;
     explicit_value_map &evm = mf->get_const_map();
     if (evm.find(vn->str) != evm.end()) {
@@ -886,7 +886,7 @@ bool compiler::compile_var_node(codegen &cg, var_node *vn) {
         return false;
     }
 
-    // ¿´¿´ÊÇ·ñÊÇÈ«¾Ö³£Á¿¶¨Òå
+    // çœ‹çœ‹æ˜¯å¦æ˜¯å…¨å±€å¸¸é‡å®šä¹‰
     variant *gcv = m_fk->pa.get_const_define(vn->str.c_str());
     if (gcv) {
         FKERR("[compiler] compile_var_node variable has defined global const %s", vn->str.c_str());
@@ -895,7 +895,7 @@ bool compiler::compile_var_node(codegen &cg, var_node *vn) {
         return false;
     }
 
-    // ÉêÇëÕ»ÉÏ¿Õ¼ä
+    // ç”³è¯·æ ˆä¸Šç©ºé—´
     int pos = cg.add_stack_identifier(vn->str, vn->lineno());
     if (pos == -1) {
         FKERR("[compiler] compile_var_node variable has define %s", vn->str.c_str());
@@ -918,7 +918,7 @@ bool compiler::compile_function_call_node(codegen &cg, function_call_node *fn) {
     int ret_num = m_func_ret_num;
     m_func_ret_num = 1;
 
-    // ²ÎÊı
+    // å‚æ•°
     std::vector<command> arglist;
     if (fn->arglist) {
         for (int i = 0; i < (int) fn->arglist->arglist.size(); i++) {
@@ -931,37 +931,40 @@ bool compiler::compile_function_call_node(codegen &cg, function_call_node *fn) {
         }
     }
 
-    // µ÷ÓÃÎ»ÖÃ
+    // è°ƒç”¨ä½ç½®
     command callpos;
     if (!fn->prefunc) {
         String func = fn->fuc;
-        // 1 ¼ì²é±äÁ¿
+        // 1 æ£€æŸ¥å˜é‡
         int pos = cg.getvariable(func);
         if (pos != -1) {
-            // ÊÇÓÃ±äÁ¿À´µ÷ÓÃº¯Êı
+            // æ˜¯ç”¨å˜é‡æ¥è°ƒç”¨å‡½æ•°
             callpos = MAKE_ADDR(ADDR_STACK, pos);
         }
-            // 2 ¼ì²éstruct
+            // 2 æ£€æŸ¥struct
         else if (mf->is_have_struct(func)) {
-            // Ö±½ÓÌæ»»³Émap
+            // ç›´æ¥æ›¿æ¢æˆmap
             variant v;
             v = fk->sh.allocsysstr(MAP_FUNC_NAME);
             pos = cg.getconst(v);
             callpos = MAKE_ADDR(ADDR_CONST, pos);
         }
-            // 3 ¼ì²é±¾µØº¯Êı
+            // 3 æ£€æŸ¥æœ¬åœ°å‡½æ•°
         else if (mf->is_have_func(func)) {
-            // ÉêÇë×Ö·û´®±äÁ¿
+            if (ret_num == 1 && try_inline_leaf_call(cg, fn, arglist)) {
+                return true;
+            }
+            // ç”³è¯·å­—ç¬¦ä¸²å˜é‡
             variant v;
-            // Æ´ÉÏ°üÃû
+            // æ‹¼ä¸ŠåŒ…å
             String pname = fkgen_package_name(mf->get_package(), func);
             v = fk->sh.allocsysstr(pname.c_str());
             pos = cg.getconst(v);
             callpos = MAKE_ADDR(ADDR_CONST, pos);
         }
-            // 4 Ö±½Ó×Ö·û´®Ê¹ÓÃ
+            // 4 ç›´æ¥å­—ç¬¦ä¸²ä½¿ç”¨
         else {
-            // ÉêÇë×Ö·û´®±äÁ¿
+            // ç”³è¯·å­—ç¬¦ä¸²å˜é‡
             variant v;
             v = fk->sh.allocsysstr(func.c_str());
             pos = cg.getconst(v);
@@ -980,7 +983,7 @@ bool compiler::compile_function_call_node(codegen &cg, function_call_node *fn) {
     command oper;
     oper = MAKE_OPCODE(OPCODE_CALL);
 
-    // µ÷ÓÃÀàĞÍ
+    // è°ƒç”¨ç±»å‹
     command calltype;
     if (fn->fakecall) {
         calltype = MAKE_POS(CALL_FAKE);
@@ -990,7 +993,7 @@ bool compiler::compile_function_call_node(codegen &cg, function_call_node *fn) {
         calltype = MAKE_POS(CALL_NORMAL);
     }
 
-    // ²ÎÊı¸öÊı
+    // å‚æ•°ä¸ªæ•°
     command argnum;
     argnum = MAKE_POS(arglist.size());
     if (arglist.size() > MAX_FAKE_PARAM_NUM) {
@@ -999,11 +1002,11 @@ bool compiler::compile_function_call_node(codegen &cg, function_call_node *fn) {
         return false;
     }
 
-    // ·µ»ØÖµ¸öÊı
+    // è¿”å›å€¼ä¸ªæ•°
     command retnum;
     retnum = MAKE_POS(ret_num);
 
-    // ·µ»ØÖµ
+    // è¿”å›å€¼
     std::vector<command> ret;
     for (int i = 0; i < ret_num; i++) {
         int retpos = cg.alloc_stack_identifier();
@@ -1026,6 +1029,101 @@ bool compiler::compile_function_call_node(codegen &cg, function_call_node *fn) {
 
     FKLOG("[compiler] compile_function_call_node %p OK", fn);
 
+    return true;
+}
+
+bool compiler::map_leaf_operand(codegen &cg, syntree_node *n, func_desc_node *callee,
+                                const std::vector<command> &arglist, command &out) {
+    if (!n) {
+        return false;
+    }
+    if (n->gettype() == est_explicit_value) {
+        if (!compile_explicit_value(cg, dynamic_cast<explicit_value_node *>(n))) {
+            return false;
+        }
+        out = m_cur_addr;
+        return true;
+    }
+    if (n->gettype() != est_variable) {
+        return false;
+    }
+    const String &name = dynamic_cast<variable_node *>(n)->str;
+    if (!callee->arglist) {
+        return false;
+    }
+    func_desc_arglist &params = callee->arglist->arglist;
+    for (int i = 0; i < (int) params.size(); i++) {
+        if (params[i] == name) {
+            if (i >= (int) arglist.size()) {
+                return false;
+            }
+            out = arglist[i];
+            return true;
+        }
+    }
+    return false;
+}
+
+bool compiler::try_inline_leaf_call(codegen &cg, function_call_node *fn, const std::vector<command> &arglist) {
+    func_desc_node *callee = 0;
+    func_desc_list &funclist = m_mf->get_func_list();
+    for (int i = 0; i < (int) funclist.size(); i++) {
+        if (funclist[i]->funcname == fn->fuc) {
+            callee = funclist[i];
+            break;
+        }
+    }
+    if (!callee || !callee->block || callee->block->stmtlist.size() != 1) {
+        return false;
+    }
+    int nparam = callee->arglist ? (int) callee->arglist->arglist.size() : 0;
+    if (nparam != (int) arglist.size()) {
+        return false;
+    }
+    if (callee->block->stmtlist[0]->gettype() != est_return_stmt) {
+        return false;
+    }
+    return_stmt *rs = dynamic_cast<return_stmt *>(callee->block->stmtlist[0]);
+    if (!rs || !rs->returnlist || rs->returnlist->returnlist.size() != 1) {
+        return false;
+    }
+    syntree_node *rv = rs->returnlist->returnlist[0];
+    if (!rv || rv->gettype() != est_math_expr) {
+        return false;
+    }
+    math_expr_node *mn = dynamic_cast<math_expr_node *>(rv);
+    command oper = 0;
+    if (mn->oper == "+") {
+        oper = MAKE_OPCODE(OPCODE_PLUS);
+    } else if (mn->oper == "-") {
+        oper = MAKE_OPCODE(OPCODE_MINUS);
+    } else if (mn->oper == "*") {
+        oper = MAKE_OPCODE(OPCODE_MULTIPLY);
+    } else if (mn->oper == "/") {
+        oper = MAKE_OPCODE(OPCODE_DIVIDE);
+    } else if (mn->oper == "%") {
+        oper = MAKE_OPCODE(OPCODE_DIVIDE_MOD);
+    } else if (mn->oper == "..") {
+        oper = MAKE_OPCODE(OPCODE_STRING_CAT);
+    } else {
+        return false;
+    }
+    command left = 0;
+    command right = 0;
+    if (!map_leaf_operand(cg, mn->left, callee, arglist, left)) {
+        return false;
+    }
+    if (!map_leaf_operand(cg, mn->right, callee, arglist, right)) {
+        return false;
+    }
+    int despos = cg.alloc_stack_identifier();
+    command dest = MAKE_ADDR(ADDR_STACK, despos);
+    m_cur_addr = dest;
+    m_cur_addrs[0] = dest;
+    cg.push(oper, fn->lineno());
+    cg.push(left, fn->lineno());
+    cg.push(right, fn->lineno());
+    cg.push(dest, fn->lineno());
     return true;
 }
 
@@ -1094,7 +1192,7 @@ bool compiler::compile_for_loop_stmt(codegen &cg, for_loop_stmt *fs) {
     m_loop_break_pos_stack.push_back(beak_pos_list());
     m_continue_end_pos_stack.push_back(continue_end_pos_list());
 
-    // ¿ªÊ¼Óï¾ä£¬Õâ¸ö×÷ÓÃÓòÊÇÈ«for¶¼ÓĞĞ§µÄ
+    // å¼€å§‹è¯­å¥ï¼Œè¿™ä¸ªä½œç”¨åŸŸæ˜¯å…¨foréƒ½æœ‰æ•ˆçš„
     cg.push_stack_identifiers();
 
     command iter;
@@ -1139,15 +1237,15 @@ bool compiler::compile_for_loop_stmt(codegen &cg, for_loop_stmt *fs) {
     int tmpdespos = cg.alloc_stack_identifier();
     command tmpdest = MAKE_ADDR(ADDR_STACK, tmpdespos);
     cg.push(tmpdest, fs->lineno());
-    cg.push(EMPTY_CMD, fs->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+    cg.push(EMPTY_CMD, fs->lineno()); // å…ˆå¡ä¸ªä½ç½®
     jnepos = cg.byte_code_size() - 1;
 
     startpos = cg.byte_code_size();
 
-    // ĞèÒªcontinue end
+    // éœ€è¦continue end
     m_loop_continue_pos_stack.push_back(-1);
 
-    // block¿é
+    // blockå—
     if (fs->block) {
         cg.push_stack_identifiers();
         if (!compile_node(cg, fs->block)) {
@@ -1168,17 +1266,17 @@ bool compiler::compile_for_loop_stmt(codegen &cg, for_loop_stmt *fs) {
     cg.push(tmpdest, fs->lineno());
     cg.push(MAKE_POS(startpos), fs->lineno());
 
-    // Ìø×ª³öblock¿é
+    // è·³è½¬å‡ºblockå—
     cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
 
-    // Ìæ»»µôbreak
+    // æ›¿æ¢æ‰break
     beak_pos_list &bplist = m_loop_break_pos_stack[m_loop_break_pos_stack.size() - 1];
     for (int i = 0; i < (int) bplist.size(); i++) {
         cg.set(bplist[i], MAKE_POS(cg.byte_code_size()));
     }
     m_loop_break_pos_stack.pop_back();
 
-    // Ìæ»»µôcontinue
+    // æ›¿æ¢æ‰continue
     continue_end_pos_list &cplist = m_continue_end_pos_stack[m_continue_end_pos_stack.size() - 1];
     for (int i = 0; i < (int) cplist.size(); i++) {
         cg.set(cplist[i], MAKE_POS(continuepos));
@@ -1187,7 +1285,7 @@ bool compiler::compile_for_loop_stmt(codegen &cg, for_loop_stmt *fs) {
 
     m_loop_continue_pos_stack.pop_back();
 
-    // Àë¿ª×÷ÓÃÓò
+    // ç¦»å¼€ä½œç”¨åŸŸ
     cg.pop_stack_identifiers();
 
     FKLOG("[compiler] compile_for_loop_stmt %p OK", fs);
@@ -1205,7 +1303,7 @@ bool compiler::compile_for_stmt(codegen &cg, for_stmt *fs) {
     m_loop_break_pos_stack.push_back(beak_pos_list());
     m_continue_end_pos_stack.push_back(continue_end_pos_list());
 
-    // ¿ªÊ¼Óï¾ä£¬Õâ¸ö×÷ÓÃÓòÊÇÈ«for¶¼ÓĞĞ§µÄ
+    // å¼€å§‹è¯­å¥ï¼Œè¿™ä¸ªä½œç”¨åŸŸæ˜¯å…¨foréƒ½æœ‰æ•ˆçš„
     cg.push_stack_identifiers();
     if (fs->beginblock) {
         if (!compile_node(cg, fs->beginblock)) {
@@ -1216,10 +1314,10 @@ bool compiler::compile_for_stmt(codegen &cg, for_stmt *fs) {
 
     startpos = cg.byte_code_size();
 
-    // ĞèÒªcontinue end
+    // éœ€è¦continue end
     m_loop_continue_pos_stack.push_back(-1);
 
-    // Ìõ¼ş
+    // æ¡ä»¶
     cg.push_stack_identifiers();
     if (!compile_node(cg, fs->cmp)) {
         FKERR("[compiler] compile_for_stmt cmp fail");
@@ -1227,20 +1325,20 @@ bool compiler::compile_for_stmt(codegen &cg, for_stmt *fs) {
     }
     cg.pop_stack_identifiers();
 
-    // cmpÓëjne½áºÏ
+    // cmpä¸jneç»“åˆ
     if (m_cmp_jne) {
-        cg.push(EMPTY_CMD, fs->cmp->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+        cg.push(EMPTY_CMD, fs->cmp->lineno()); // å…ˆå¡ä¸ªä½ç½®
         jnepos = cg.byte_code_size() - 1;
     } else {
         cg.push(MAKE_OPCODE(OPCODE_JNE), fs->lineno());
         cg.push(m_cur_addr, fs->lineno());
-        cg.push(EMPTY_CMD, fs->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+        cg.push(EMPTY_CMD, fs->lineno()); // å…ˆå¡ä¸ªä½ç½®
         jnepos = cg.byte_code_size() - 1;
     }
     m_cmp_deps = 0;
     m_cmp_jne = false;
 
-    // block¿é
+    // blockå—
     if (fs->block) {
         cg.push_stack_identifiers();
         if (!compile_node(cg, fs->block)) {
@@ -1252,31 +1350,59 @@ bool compiler::compile_for_stmt(codegen &cg, for_stmt *fs) {
 
     continuepos = cg.byte_code_size();
 
-    // ½áÊø
-    if (fs->endblock) {
-        cg.push_stack_identifiers();
-        if (!compile_node(cg, fs->endblock)) {
-            FKERR("[compiler] compile_for_stmt endblock fail");
-            return false;
+    bool fused_for = false;
+    if (fs->endblock && fs->endblock->stmtlist.size() == 1 && fs->cmp && fs->cmp->cmp == "<") {
+        math_assign_stmt *ms = dynamic_cast<math_assign_stmt *>(fs->endblock->stmtlist[0]);
+        if (ms && ms->oper == "+=" && ms->var && ms->value && fs->cmp->right) {
+            if (!compile_node(cg, ms->var)) {
+                return false;
+            }
+            command iter = m_cur_addr;
+            if (!compile_node(cg, fs->cmp->right)) {
+                return false;
+            }
+            command endv = m_cur_addr;
+            if (!compile_node(cg, ms->value)) {
+                return false;
+            }
+            command step = m_cur_addr;
+            int body_start = jnepos + 1;
+            cg.push(MAKE_OPCODE(OPCODE_FOR), fs->lineno());
+            cg.push(iter, fs->lineno());
+            cg.push(endv, fs->lineno());
+            cg.push(step, fs->lineno());
+            int tmpdespos = cg.alloc_stack_identifier();
+            cg.push(MAKE_ADDR(ADDR_STACK, tmpdespos), fs->lineno());
+            cg.push(MAKE_POS(body_start), fs->lineno());
+            fused_for = true;
         }
-        cg.pop_stack_identifiers();
     }
 
-    // Ìø»ØÅĞ¶ÏµØ·½
-    cg.push(MAKE_OPCODE(OPCODE_JMP), fs->lineno());
-    cg.push(MAKE_POS(startpos), fs->lineno());
+    if (!fused_for) {
+        if (fs->endblock) {
+            cg.push_stack_identifiers();
+            if (!compile_node(cg, fs->endblock)) {
+                FKERR("[compiler] compile_for_stmt endblock fail");
+                return false;
+            }
+            cg.pop_stack_identifiers();
+        }
 
-    // Ìø×ª³öblock¿é
+        cg.push(MAKE_OPCODE(OPCODE_JMP), fs->lineno());
+        cg.push(MAKE_POS(startpos), fs->lineno());
+    }
+
+    // è·³è½¬å‡ºblockå—
     cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
 
-    // Ìæ»»µôbreak
+    // æ›¿æ¢æ‰break
     beak_pos_list &bplist = m_loop_break_pos_stack[m_loop_break_pos_stack.size() - 1];
     for (int i = 0; i < (int) bplist.size(); i++) {
         cg.set(bplist[i], MAKE_POS(cg.byte_code_size()));
     }
     m_loop_break_pos_stack.pop_back();
 
-    // Ìæ»»µôcontinue
+    // æ›¿æ¢æ‰continue
     continue_end_pos_list &cplist = m_continue_end_pos_stack[m_continue_end_pos_stack.size() - 1];
     for (int i = 0; i < (int) cplist.size(); i++) {
         cg.set(cplist[i], MAKE_POS(continuepos));
@@ -1285,7 +1411,7 @@ bool compiler::compile_for_stmt(codegen &cg, for_stmt *fs) {
 
     m_loop_continue_pos_stack.pop_back();
 
-    // Àë¿ª×÷ÓÃÓò
+    // ç¦»å¼€ä½œç”¨åŸŸ
     cg.pop_stack_identifiers();
 
     FKLOG("[compiler] compile_for_stmt %p OK", fs);
@@ -1296,16 +1422,16 @@ bool compiler::compile_for_stmt(codegen &cg, for_stmt *fs) {
 bool compiler::compile_multi_assign_stmt(codegen &cg, multi_assign_stmt *as) {
     FKLOG("[compiler] compile_multi_assign_stmt %p", as);
 
-    // Ä¿Ç°¶àÖØ¸³ÖµÖ»Ö§³Öa,b,c = myfunc1()£¬ĞèÒª¸æËßfunc1¶à·µ»Ø¼¸¸öÖµ
+    // ç›®å‰å¤šé‡èµ‹å€¼åªæ”¯æŒa,b,c = myfunc1()ï¼Œéœ€è¦å‘Šè¯‰func1å¤šè¿”å›å‡ ä¸ªå€¼
     m_func_ret_num = as->varlist->varlist.size();
 
-    // ±àÒëvalue
+    // ç¼–è¯‘value
     if (!compile_node(cg, as->value)) {
         FKERR("[compiler] compile_multi_assign_stmt value fail");
         return false;
     }
 
-    // °¤¸ö±àÒëvar
+    // æŒ¨ä¸ªç¼–è¯‘var
     std::vector<command> varlist;
     for (int i = 0; i < (int) as->varlist->varlist.size(); i++) {
         m_new_var = as->isnew;
@@ -1317,7 +1443,7 @@ bool compiler::compile_multi_assign_stmt(codegen &cg, multi_assign_stmt *as) {
         varlist.push_back(m_cur_addr);
     }
 
-    // °¤¸ö¸³Öµ
+    // æŒ¨ä¸ªèµ‹å€¼
     for (int i = 0; i < (int) as->varlist->varlist.size(); i++) {
         command var = 0;
         command value = 0;
@@ -1363,10 +1489,10 @@ bool compiler::compile_return_value_list(codegen &cg, return_value_list_node *rn
 bool compiler::compile_container_get(codegen &cg, container_get_node *cn) {
     FKLOG("[compiler] compile_container_get %p", cn);
 
-    // ±àÒëcon
+    // ç¼–è¯‘con
     command con = 0;
 
-    // ¿´¿´ÊÇ·ñÊÇÈ«¾Ö³£Á¿¶¨Òå
+    // çœ‹çœ‹æ˜¯å¦æ˜¯å…¨å±€å¸¸é‡å®šä¹‰
     variant *gcv = m_fk->pa.get_const_define(cn->container.c_str());
     if (gcv) {
         int pos = cg.getconst(*gcv);
@@ -1381,7 +1507,7 @@ bool compiler::compile_container_get(codegen &cg, container_get_node *cn) {
         con = MAKE_ADDR(ADDR_STACK, pos);
     }
 
-    // ±àÒëkey
+    // ç¼–è¯‘key
     command key = 0;
     if (!compile_node(cg, cn->key)) {
         FKERR("[compiler] compile_container_get key fail");
@@ -1389,7 +1515,7 @@ bool compiler::compile_container_get(codegen &cg, container_get_node *cn) {
     }
     key = m_cur_addr;
 
-    // ·µ»Ø
+    // è¿”å›
     int addrpos = cg.getcontaineraddr(con, key);
     m_cur_addr = MAKE_ADDR(ADDR_CONTAINER, addrpos);
 
@@ -1422,10 +1548,10 @@ bool compiler::compile_struct_pointer(codegen &cg, struct_pointer_node *sn) {
 
     String connname = tmp[0];
 
-    // ±àÒëcon
+    // ç¼–è¯‘con
     command con = 0;
 
-    // ¿´¿´ÊÇ·ñÊÇÈ«¾Ö³£Á¿¶¨Òå
+    // çœ‹çœ‹æ˜¯å¦æ˜¯å…¨å±€å¸¸é‡å®šä¹‰
     variant *gcv = m_fk->pa.get_const_define(connname.c_str());
     if (gcv) {
         int pos = cg.getconst(*gcv);
@@ -1443,13 +1569,13 @@ bool compiler::compile_struct_pointer(codegen &cg, struct_pointer_node *sn) {
     for (int i = 1; i < (int) tmp.size(); i++) {
         String keystr = tmp[i];
 
-        // ±àÒëkey
+        // ç¼–è¯‘key
         variant v;
         v = fk->sh.allocsysstr(keystr.c_str());
         int pos = cg.getconst(v);
         command key = MAKE_ADDR(ADDR_CONST, pos);
 
-        // »ñÈ¡ÈİÆ÷µÄÎ»ÖÃ
+        // è·å–å®¹å™¨çš„ä½ç½®
         int addrpos = cg.getcontaineraddr(con, key);
         m_cur_addr = MAKE_ADDR(ADDR_CONTAINER, addrpos);
         con = m_cur_addr;
@@ -1463,7 +1589,7 @@ bool compiler::compile_struct_pointer(codegen &cg, struct_pointer_node *sn) {
 bool compiler::compile_sleep_stmt(codegen &cg, sleep_stmt *ss) {
     FKLOG("[compiler] compile_sleep_stmt %p", ss);
 
-    // ±àÒëtime
+    // ç¼–è¯‘time
     command time = 0;
     if (!compile_node(cg, ss->time)) {
         FKERR("[compiler] compile_sleep_stmt time fail");
@@ -1482,7 +1608,7 @@ bool compiler::compile_sleep_stmt(codegen &cg, sleep_stmt *ss) {
 bool compiler::compile_yield_stmt(codegen &cg, yield_stmt *ys) {
     FKLOG("[compiler] compile_yield_stmt %p", ys);
 
-    // ±àÒëtime
+    // ç¼–è¯‘time
     command time = 0;
     if (!compile_node(cg, ys->time)) {
         FKERR("[compiler] compile_sleep_stmt time fail");
@@ -1521,7 +1647,7 @@ bool compiler::compile_switch_stmt(codegen &cg, switch_stmt *ss) {
 
     std::vector<int> jmpswitchposlist;
 
-    // °¤¸öºÍcaseµÄ±È½Ï
+    // æŒ¨ä¸ªå’Œcaseçš„æ¯”è¾ƒ
     for (int i = 0; i < (int) scln->list.size(); i++) {
         command oper = MAKE_OPCODE(OPCODE_EQUAL);
         command left = caseleft;
@@ -1546,7 +1672,7 @@ bool compiler::compile_switch_stmt(codegen &cg, switch_stmt *ss) {
         // push jmp
         cg.push(MAKE_OPCODE(OPCODE_JNE), scn->lineno());
         cg.push(dest, scn->lineno());
-        cg.push(EMPTY_CMD, scn->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+        cg.push(EMPTY_CMD, scn->lineno()); // å…ˆå¡ä¸ªä½ç½®
         int jnepos = cg.byte_code_size() - 1;
 
         // build block
@@ -1559,13 +1685,13 @@ bool compiler::compile_switch_stmt(codegen &cg, switch_stmt *ss) {
             cg.pop_stack_identifiers();
         }
 
-        // Ìø³öswitch¿é
+        // è·³å‡ºswitchå—
         cg.push(MAKE_OPCODE(OPCODE_JMP), scn->lineno());
-        cg.push(EMPTY_CMD, scn->lineno()); // ÏÈÈû¸öÎ»ÖÃ
+        cg.push(EMPTY_CMD, scn->lineno()); // å…ˆå¡ä¸ªä½ç½®
         int jmpswitchpos = cg.byte_code_size() - 1;
         jmpswitchposlist.push_back(jmpswitchpos);
 
-        // Ìø×ª³öcase¿é
+        // è·³è½¬å‡ºcaseå—
         cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
 
     }
@@ -1582,7 +1708,7 @@ bool compiler::compile_switch_stmt(codegen &cg, switch_stmt *ss) {
 
     cg.pop_stack_identifiers();
 
-    // ÈûÌø³öµÄ
+    // å¡è·³å‡ºçš„
     for (int i = 0; i < (int) jmpswitchposlist.size(); i++) {
         cg.set(jmpswitchposlist[i], MAKE_POS(cg.byte_code_size()));
     }

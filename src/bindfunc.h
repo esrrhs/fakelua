@@ -27,7 +27,7 @@ private:
     fake *m_fk;
 };
 
-// ²ÎÊýºÍ·µ»ØÖµ¶¼ÔÚm_fk->psÀï
+// å‚æ•°å’Œè¿”å›žå€¼éƒ½åœ¨m_fk->psé‡Œ
 #define BIND_FUNC_CALL(f, inter) \
     assert((f)->haveff); \
     (f)->ff.ff(m_fk, &(f)->ff)

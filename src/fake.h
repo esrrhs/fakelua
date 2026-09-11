@@ -20,9 +20,6 @@
 #include "binary.h"
 #include "paramstack.h"
 #include "interpreter.h"
-#include "native.h"
-#include "assembler.h"
-#include "machine.h"
 #include "stringheap.h"
 #include "bindfunc.h"
 #include "buildinfunc.h"
@@ -38,8 +35,8 @@
 #include "optimizer.h"
 
 struct fake {
-    fake(fakeconfig c) : errorno(0), errorcb(0), cfg(c), pa(this), bin(this), nt(this), as(this, &nt), sh(this),
-                         mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this), ph(this),
+    fake(fakeconfig c) : errorno(0), errorcb(0), cfg(c), pa(this), bin(this), sh(this),
+                         bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this), ph(this),
                          opt(this) {
         POOL_INI(pp, this);
     }
@@ -50,17 +47,14 @@ struct fake {
         pf.clear(); // must at end
     }
 
-    // ???
+    // Tear down everything. Called from the destructor.
     void clear() {
         clearerr();
         pa.clear();
         bin.clear();
-        nt.clear();
-        as.clear();
         PS_CLEAR(ps);
         POOL_CLEAR(pp);
         sh.clear();
-        mac.clear();
         bf.clear();
         bif.clear();
         con.clear();
@@ -69,6 +63,16 @@ struct fake {
         dbg.clear();
         ph.clear();
         opt.clear();
+    }
+
+    // Drop runtime arrays/maps/pointers/stacks. Keep bytecode, constants, and bindings.
+    void reset() {
+        clearerr();
+        PS_CLEAR(ps);
+        con.reset();
+        ph.clear();
+        rn.reset();
+        sh.reset();
     }
 
     void clearerr() {
@@ -80,58 +84,20 @@ struct fake {
     char errorstr[512];
     fkerrorcb errorcb;
 
-    // ????
     fakeconfig cfg;
-
-    // ????
     parser pa;
-
-    // ??????
     binary bin;
-
-    // ????jit????
-    native nt;
-
-    // ?????
-    assembler as;
-
-    // c??????
     paramstack ps;
-
-    // ?????????
     pool<processor> pp;
-
-    // ?????????
     stringheap sh;
-
-    // ????????????
-    machine mac;
-
-    // ??C????????
     bindfunc bf;
-
-    // ????????????
     buildinfunc bif;
-
-    // ??????
     profile pf;
-
-    // ????
     container con;
-
-    // ????????
     funcmap fm;
-
-    // ?????????
     running rn;
-
-    // debug????
     debuging dbg;
-
-    // pointer????
     pointerheap ph;
-
-    // ???
     optimizer opt;
 };
 
