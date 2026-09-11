@@ -49,7 +49,7 @@ native 层按这个前提组织：**所有可变状态都挂在 `State` 上**，
 - 定时器、事件监听、net/mysql/sqlite/io 的对象表、protobuf 的 .proto schema 注册表，都是每
   `State` 一份，一个 `State` 里注册的东西不会泄漏到另一个；
 - 复用的临时缓冲区归它服务的那个对象：解包用的线性暂存区在 `CircularBuffer` 上
-  （`header_scratch` / `payload_scratch`）。WebSocket 走 Boost.Beast，握手与掩码由
+  （`HeaderScratch` / `PayloadScratch`）。WebSocket 走 Boost.Beast，握手与掩码由
   Beast 在连接上处理；低频随机数（生成临时文件名）直接用局部变量。
 
 JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶存在

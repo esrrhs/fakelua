@@ -84,14 +84,14 @@ struct NetConfig {
     std::string ws_origin;
 };
 
-void net_init();
-void net_shutdown();
+void NetInit();
+void NetShutdown();
 
-int get_last_socket_error();
-bool would_block(int err);
-void close_socket(socket_t fd);
-bool set_non_blocking(socket_t fd);
-void set_socket_options(socket_t fd, const NetConfig &cfg);
-bool fill_sockaddr(struct ::sockaddr_in &addr, const std::string &ip, uint16_t port);
+int GetLastSocketError();
+bool WouldBlock(int err);
+void CloseSocket(socket_t fd);
+bool SetNonBlocking(socket_t fd);
+void SetSocketOptions(socket_t fd, const NetConfig &cfg);
+bool FillSockaddr(struct ::sockaddr_in &addr, const std::string &ip, uint16_t port);
 
 }// namespace fakelua::net

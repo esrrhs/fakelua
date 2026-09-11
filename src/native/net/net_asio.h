@@ -61,40 +61,40 @@ public:
     ~AsioConn();
 
     // server 端 accept 后 / client 端 connect 后调用，开始读循环
-    void start();
+    void Start();
     // 主动关闭（notify_sink 控制是否通知外部 sink，避免主动 close 时重复发 Close 事件）
-    void close(bool notify_sink = true);
+    void Close(bool notify_sink = true);
 
     // 用外部已连接/已接收的 socket 替换内部 socket
-    void reset_socket(boost::asio::ip::tcp::socket sock);
+    void ResetSocket(boost::asio::ip::tcp::socket sock);
 
     // 写入数据（按 cfg.framer 自动封包）
-    bool send(const char *data, size_t len);
+    bool Send(const char *data, size_t len);
     // 写入原始字节（非 WebSocket 连接）
-    bool send_raw(const char *data, size_t len);
+    bool SendRaw(const char *data, size_t len);
 
-    [[nodiscard]] bool is_open() const {
+    [[nodiscard]] bool IsOpen() const {
         return !closed_ && socket_.is_open();
     }
 
-    [[nodiscard]] int conn_id() const {
+    [[nodiscard]] int ConnId() const {
         return conn_id_;
     }
 
 private:
-    void do_read();
-    void on_read(boost::system::error_code ec, size_t bytes);
-    void do_write();
-    void on_write(boost::system::error_code ec, size_t bytes);
+    void DoRead();
+    void OnRead(boost::system::error_code ec, size_t bytes);
+    void DoWrite();
+    void OnWrite(boost::system::error_code ec, size_t bytes);
 
-    void do_ws_server_handshake();
-    void on_ws_http_request(boost::system::error_code ec);
-    void do_ws_client_handshake();
-    void on_ws_handshake(boost::system::error_code ec);
-    void do_ws_read();
-    void on_ws_read(boost::system::error_code ec, size_t bytes);
-    void do_ws_write();
-    void on_ws_write(boost::system::error_code ec, size_t bytes);
+    void DoWsServerHandshake();
+    void OnWsHttpRequest(boost::system::error_code ec);
+    void DoWsClientHandshake();
+    void OnWsHandshake(boost::system::error_code ec);
+    void DoWsRead();
+    void OnWsRead(boost::system::error_code ec, size_t bytes);
+    void DoWsWrite();
+    void OnWsWrite(boost::system::error_code ec, size_t bytes);
 
     boost::asio::ip::tcp::socket socket_;
     NetConfig cfg_;
@@ -122,17 +122,17 @@ public:
     TcpServer(const NetConfig &config, ::fakelua::State *state);
     ~TcpServer();
 
-    void start();
-    void stop();
+    void Start();
+    void Stop();
 
     // 排空并派发事件（单线程 ioc_.poll() 驱动就绪 IO）
-    void drain_events_with(const std::function<void(const ConnEvent &)> &dispatcher);
+    void DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher);
 
     // 兼容旧 tick() 接口
-    void tick(const std::function<void(int)> &on_conn,
+    void Tick(const std::function<void(int)> &on_conn,
               const std::function<void(int, const char *, size_t)> &on_recv,
               const std::function<void(int)> &on_close) {
-        drain_events_with([&](const ConnEvent &ev) {
+        DrainEventsWith([&](const ConnEvent &ev) {
             switch (ev.kind) {
                 case EventKind::Connect:
                     on_conn(ev.conn_id);
@@ -147,17 +147,17 @@ public:
         });
     }
 
-    bool send(int conn_id, const char *data, size_t len);
-    bool close_connection(int conn_id);
+    bool Send(int conn_id, const char *data, size_t len);
+    bool CloseConnection(int conn_id);
 
-    [[nodiscard]] bool running() const {
+    [[nodiscard]] bool Running() const {
         return acceptor_open_;
     }
 
 private:
-    void do_accept();
-    void on_accept(boost::system::error_code ec, boost::asio::ip::tcp::socket sock);
-    void emit_event(ConnEvent ev);
+    void DoAccept();
+    void OnAccept(boost::system::error_code ec, boost::asio::ip::tcp::socket sock);
+    void EmitEvent(ConnEvent ev);
 
     NetConfig config_;
     native::IoContext &io_;
@@ -181,17 +181,17 @@ public:
     TcpClient(const NetConfig &config, ::fakelua::State *state);
     ~TcpClient();
 
-    void connect();
-    void disconnect();
+    void Connect();
+    void Disconnect();
 
-    void drain_events_with(const std::function<void(const ConnEvent &)> &dispatcher);
+    void DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher);
 
-    bool send(const char *data, size_t len);
+    bool Send(const char *data, size_t len);
 
     // 兼容旧 tick() 接口
-    void tick(const std::function<void(const char *, size_t)> &on_recv,
+    void Tick(const std::function<void(const char *, size_t)> &on_recv,
               const std::function<void()> &on_close) {
-        drain_events_with([&](const ConnEvent &ev) {
+        DrainEventsWith([&](const ConnEvent &ev) {
             switch (ev.kind) {
                 case EventKind::Connect:
                     break;
@@ -205,15 +205,15 @@ public:
         });
     }
 
-    [[nodiscard]] bool connected() const {
-        return conn_ && conn_->is_open();
+    [[nodiscard]] bool Connected() const {
+        return conn_ && conn_->IsOpen();
     }
 
 private:
-    void do_resolve();
-    void on_resolve(boost::system::error_code ec, boost::asio::ip::tcp::resolver::results_type results);
-    void on_connect(boost::system::error_code ec, boost::asio::ip::tcp::socket sock);
-    void emit_event(ConnEvent ev);
+    void DoResolve();
+    void OnResolve(boost::system::error_code ec, boost::asio::ip::tcp::resolver::results_type results);
+    void OnConnect(boost::system::error_code ec, boost::asio::ip::tcp::socket sock);
+    void EmitEvent(ConnEvent ev);
 
     NetConfig config_;
     native::IoContext &io_;

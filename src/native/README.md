@@ -50,7 +50,7 @@ needed. Concretely:
 - Timers, event listeners, the net/mysql/sqlite/io object tables and the protobuf .proto schema
   registry are all per-`State`, so nothing registered in one `State` leaks into another;
 - Reusable scratch buffers belong to whatever they serve: the linear staging areas used when
-  unpacking live on the `CircularBuffer` (`header_scratch` / `payload_scratch`). WebSocket
+  unpacking live on the `CircularBuffer` (`HeaderScratch` / `PayloadScratch`). WebSocket
   uses Boost.Beast, which owns handshake and masking on the connection. Random number
   generators that are only hit occasionally (temp file names) are plain locals.
 

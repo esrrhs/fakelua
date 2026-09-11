@@ -48,7 +48,7 @@ struct NetObject {
 // 辅助：从 CVar 提取字符串
 // ─────────────────────────────────────────────────────────────────────────────
 
-static std::string cvar_to_string(CVar v) {
+static std::string CVarToString(CVar v) {
     if (v.type_ == static_cast<int>(VarType::String) && v.data_.s) {
         return std::string(v.data_.s->Str());
     }
@@ -65,7 +65,7 @@ static std::string cvar_to_string(CVar v) {
 // 回调是纯函数：接收事件参数，返回可选指令（echo 等）
 // ─────────────────────────────────────────────────────────────────────────────
 
-static CVar call_lua_event(State *state, const std::string &func_name,
+static CVar CallLuaEvent(State *state, const std::string &func_name,
                            const char *type, int connid,
                            const char *data, size_t len, int reason) {
     if (func_name.empty()) return CVar{static_cast<int>(VarType::Nil)};
@@ -130,25 +130,25 @@ static CVar call_lua_event(State *state, const std::string &func_name,
 //   "close"      → 延后关闭本对象（tick 回调内安全）
 // ─────────────────────────────────────────────────────────────────────────────
 
-static void handle_callback_return(NetObject *obj, const CVar &ret, int connid) {
+static void HandleCallbackReturn(NetObject *obj, const CVar &ret, int connid) {
     if (!obj || obj->close_pending) return;
     // 检查是否为 Multi（多返回值）
     if (ret.type_ != static_cast<int>(VarType::Multi)) return;
 
     // 通过 GetMultiCVarElement 访问（避免依赖 VarMulti 完整定义）
     CVar first = inter::GetMultiCVarElement(ret, 0);
-    std::string cmd = cvar_to_string(first);
+    std::string cmd = CVarToString(first);
     if (cmd == "close") {
         obj->close_pending = true;
         return;
     }
     if (cmd == "echo") {
         CVar data_var = inter::GetMultiCVarElement(ret, 1);
-        std::string echo_data = cvar_to_string(data_var);
+        std::string echo_data = CVarToString(data_var);
         if (obj->is_server) {
-            obj->server->send(connid, echo_data.data(), echo_data.size());
+            obj->server->Send(connid, echo_data.data(), echo_data.size());
         } else {
-            obj->client->send(echo_data.data(), echo_data.size());
+            obj->client->Send(echo_data.data(), echo_data.size());
         }
     }
 }
@@ -157,7 +157,7 @@ static void handle_callback_return(NetObject *obj, const CVar &ret, int connid) 
 // 从 NativeObject 取出 NetObject*
 // ─────────────────────────────────────────────────────────────────────────────
 
-static NetObject *unwrap(NativeObject *self) {
+static NetObject *Unwrap(NativeObject *self) {
     return reinterpret_cast<NetObject *>(self->GetInt("__net_obj__", 0));
 }
 
@@ -167,12 +167,12 @@ struct NetWrappers {
     std::vector<NativeObject *> list;
 };
 
-static void register_net_wrapper(State *s, NativeObject *nat) {
+static void RegisterNetWrapper(State *s, NativeObject *nat) {
     if (!s || !nat) return;
     s->GetModuleState<NetWrappers>().list.push_back(nat);
 }
 
-static void unregister_net_wrapper(NativeObject *nat) {
+static void UnregisterNetWrapper(NativeObject *nat) {
     if (!nat) return;
     auto *st = reinterpret_cast<State *>(nat->GetInt("__net_state__", 0));
     nat->SetInt("__net_state__", 0);
@@ -194,7 +194,7 @@ void OnStateDeleted(State *s) {
 }
 
 // 事件记录加上限：超过 kMaxEvents 时丢弃最旧的事件，防止长跑无界增长。
-static void push_event(NetObject *obj, std::string_view ev) {
+static void PushEvent(NetObject *obj, std::string_view ev) {
     if (obj->events.size() >= NetObject::kMaxEvents) {
         // 批量丢弃前半部分，避免每个事件都 O(n) 搬移
         obj->events.erase(obj->events.begin(), obj->events.begin() + NetObject::kMaxEvents / 2);
@@ -202,15 +202,15 @@ static void push_event(NetObject *obj, std::string_view ev) {
     obj->events.emplace_back(ev);
 }
 
-static void release_net_object(NativeObject *self);
+static void ReleaseNetObject(NativeObject *self);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NativeObject 方法实现
 // ─────────────────────────────────────────────────────────────────────────────
 
 // server:dispatch(func_name) — 注册统一回调函数名
-static CVar net_dispatch(NativeObject *self, State *s, CVar *args, int n) {
-    auto *obj = unwrap(self);
+static CVar NetDispatch(NativeObject *self, State *s, CVar *args, int n) {
+    auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
 
     std::string fname;
@@ -233,36 +233,36 @@ static CVar net_dispatch(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 // 派发单条事件给 Lua（在 tick() 同步上下文里执行，保留 tick_depth/close_pending 语义）
-static void dispatch_event_for(NetObject *obj, const ConnEvent &ev) {
+static void DispatchEventFor(NetObject *obj, const ConnEvent &ev) {
     if (!obj) return;
     switch (ev.kind) {
         case EventKind::Connect:
             obj->conn_count++;
             obj->server_connid = ev.conn_id;
-            push_event(obj, "conn");
+            PushEvent(obj, "conn");
             {
-                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "conn", ev.conn_id, nullptr, 0, 0);
-                handle_callback_return(obj, ret, ev.conn_id);
+                CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "conn", ev.conn_id, nullptr, 0, 0);
+                HandleCallbackReturn(obj, ret, ev.conn_id);
             }
             break;
         case EventKind::Recv:
             obj->recv_count++;
             if (obj->is_server) obj->last_server_data = ev.data;
             else obj->last_client_data = ev.data;
-            push_event(obj, "recv");
+            PushEvent(obj, "recv");
             LOG_DEBUG(obj->state, "net", "{} recv: connid={} len={}", obj->is_server ? "server" : "client", ev.conn_id,
                       ev.data.size());
             {
-                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "recv", ev.conn_id,
+                CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "recv", ev.conn_id,
                                           ev.data.data(), ev.data.size(), 0);
-                handle_callback_return(obj, ret, ev.conn_id);
+                HandleCallbackReturn(obj, ret, ev.conn_id);
             }
             break;
         case EventKind::Close:
-            push_event(obj, "close");
+            PushEvent(obj, "close");
             {
-                CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", ev.conn_id, nullptr, 0, 0);
-                handle_callback_return(obj, ret, ev.conn_id);
+                CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "close", ev.conn_id, nullptr, 0, 0);
+                HandleCallbackReturn(obj, ret, ev.conn_id);
             }
             break;
     }
@@ -272,24 +272,24 @@ static void dispatch_event_for(NetObject *obj, const ConnEvent &ev) {
 // 新版：Boost.Asio 引擎在后台线程跑，事件入队；tick() 排空队列并同步派发 Lua 回调。
 // tick_depth + close_pending 语义保持不变。
 // 关闭后的对象 unwrap 返回空，于是自然变成 no-op。
-static void tick_net_object(NativeObject *self) {
-    auto *obj = unwrap(self);
+static void TickNetObject(NativeObject *self) {
+    auto *obj = Unwrap(self);
     if (!obj) return;
     if (obj->tick_depth > 0) return;
 
     auto finish_tick = [self, obj]() {
         if (obj->tick_depth < 0) obj->tick_depth = 0;
         if (obj->tick_depth == 0 && obj->close_pending) {
-            release_net_object(self);
+            ReleaseNetObject(self);
         }
     };
 
     obj->tick_depth++;
     try {
-        if (obj->is_server && obj->server && obj->server->running()) {
-            obj->server->drain_events_with([obj](const ConnEvent &ev) { dispatch_event_for(obj, ev); });
+        if (obj->is_server && obj->server && obj->server->Running()) {
+            obj->server->DrainEventsWith([obj](const ConnEvent &ev) { DispatchEventFor(obj, ev); });
         } else if (!obj->is_server && obj->client) {
-            obj->client->drain_events_with([obj](const ConnEvent &ev) { dispatch_event_for(obj, ev); });
+            obj->client->DrainEventsWith([obj](const ConnEvent &ev) { DispatchEventFor(obj, ev); });
         }
     } catch (...) {
         obj->tick_depth--;
@@ -308,13 +308,13 @@ void TickAll(State *s) {
     if (!ws) return;
     auto wrappers = ws->list;
     for (auto *nat: wrappers) {
-        tick_net_object(nat);
+        TickNetObject(nat);
     }
 }
 
 // server:send(connid, data) / client:send(data)
-static CVar net_send(NativeObject *self, State *s, CVar *args, int n) {
-    auto *obj = unwrap(self);
+static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
+    auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaBool(s, false);
 
     if (obj->is_server && obj->server) {
@@ -332,7 +332,7 @@ static CVar net_send(NativeObject *self, State *s, CVar *args, int n) {
             }
             return std::string();
         }();
-        bool ok = obj->server->send(connid, data.data(), data.size());
+        bool ok = obj->server->Send(connid, data.data(), data.size());
         return inter::NativeToFakeluaBool(s, ok);
     } else if (!obj->is_server && obj->client) {
         // client: send(data)
@@ -348,7 +348,7 @@ static CVar net_send(NativeObject *self, State *s, CVar *args, int n) {
             }
             return std::string();
         }();
-        bool ok = obj->client->send(data.data(), data.size());
+        bool ok = obj->client->Send(data.data(), data.size());
         return inter::NativeToFakeluaBool(s, ok);
     }
 
@@ -356,29 +356,29 @@ static CVar net_send(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 // server:close_connection(connid) — 关闭单条连接（C++ 已有能力，现导出到 Lua）
-static CVar net_close_connection(NativeObject *self, State *s, CVar *args, int n) {
-    auto *obj = unwrap(self);
+static CVar NetCloseConnection(NativeObject *self, State *s, CVar *args, int n) {
+    auto *obj = Unwrap(self);
     if (!obj || !obj->is_server || !obj->server) return inter::NativeToFakeluaBool(s, false);
     if (n < 1) ThrowBadArgument(1, "close_connection", "connid expected");
     int connid = static_cast<int>(CheckIntegerArg(inter::GetNativeArg(s, args, n, 0), 1, "close_connection"));
-    if (!obj->server->close_connection(connid)) return inter::NativeToFakeluaBool(s, false);
-    push_event(obj, "close");
-    CVar ret = call_lua_event(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
-    handle_callback_return(obj, ret, connid);
+    if (!obj->server->CloseConnection(connid)) return inter::NativeToFakeluaBool(s, false);
+    PushEvent(obj, "close");
+    CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
+    HandleCallbackReturn(obj, ret, connid);
     return inter::NativeToFakeluaBool(s, true);
 }
 
 // 释放 NetObject 及其持有的 socket 引擎。可重入：__net_obj__ 已为 0 时是 no-op。
-static void release_net_object(NativeObject *self) {
+static void ReleaseNetObject(NativeObject *self) {
     auto *obj = reinterpret_cast<NetObject *>(self->GetInt("__net_obj__", 0));
     if (!obj) return;
 
     if (obj->server) {
-        obj->server->stop();
+        obj->server->Stop();
         obj->server.reset();
     }
     if (obj->client) {
-        obj->client->disconnect();
+        obj->client->Disconnect();
         obj->client.reset();
     }
     delete obj;
@@ -386,8 +386,8 @@ static void release_net_object(NativeObject *self) {
 }
 
 // server:close() / client:close()
-static CVar net_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *obj = unwrap(self);
+static CVar NetClose(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s); // 已关闭，no-op
 
     if (obj->tick_depth > 0) {
@@ -396,13 +396,13 @@ static CVar net_close(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) 
     }
 
     // 停止 socket、释放 NetObject、清空指针。保留 NativeObject 壳，后续方法 no-op。
-    release_net_object(self);
+    ReleaseNetObject(self);
     return inter::NativeToFakeluaNil(s);
 }
 
 // 状态读取方法：get_events / get_last_data / get_conn_count / get_recv_count / get_connid
-static CVar net_get_events(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *obj = unwrap(self);
+static CVar NetGetEvents(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
     CVar multi = inter::AllocMultiCVar(s, static_cast<int>(obj->events.size()));
     for (size_t i = 0; i < obj->events.size(); ++i) {
@@ -411,8 +411,8 @@ static CVar net_get_events(NativeObject *self, State *s, CVar * /*args*/, int /*
     return multi;
 }
 
-static CVar net_get_last_data(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *obj = unwrap(self);
+static CVar NetGetLastData(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
     if (obj->is_server) {
         return inter::NativeToFakeluaString(s, obj->last_server_data);
@@ -421,20 +421,20 @@ static CVar net_get_last_data(NativeObject *self, State *s, CVar * /*args*/, int
     }
 }
 
-static CVar net_get_conn_count(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *obj = unwrap(self);
+static CVar NetGetConnCount(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
     return inter::NativeToFakeluaInt(s, obj->conn_count);
 }
 
-static CVar net_get_recv_count(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *obj = unwrap(self);
+static CVar NetGetRecvCount(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
     return inter::NativeToFakeluaInt(s, obj->recv_count);
 }
 
-static CVar net_get_connid(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *obj = unwrap(self);
+static CVar NetGetConnId(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
     return inter::NativeToFakeluaInt(s, obj->server_connid);
 }
@@ -444,21 +444,21 @@ static CVar net_get_connid(NativeObject *self, State *s, CVar * /*args*/, int /*
 // ─────────────────────────────────────────────────────────────────────────────
 
 // 从 Lua table 读取字符串键字段（仿 os.time 的模式）
-static int64_t get_table_field(State *s, CVar tbl_cvar, const char *key_name, int64_t default_val) {
+static int64_t GetTableField(State *s, CVar tbl_cvar, const char *key_name, int64_t default_val) {
     if (tbl_cvar.type_ != static_cast<int>(VarType::Table) || !tbl_cvar.data_.t) return default_val;
     CVar v = table::TableHelper::GetTableStrId(s, tbl_cvar, key_name);
     return inter::CVarToInteger(v, default_val);
 }
 
-static std::string get_table_field_string(State *s, CVar tbl_cvar, const char *key_name, const std::string &default_val = "") {
+static std::string GetTableFieldString(State *s, CVar tbl_cvar, const char *key_name, const std::string &default_val = "") {
     if (tbl_cvar.type_ != static_cast<int>(VarType::Table) || !tbl_cvar.data_.t) return default_val;
     CVar v = table::TableHelper::GetTableStrId(s, tbl_cvar, key_name);
     if (v.type_ == static_cast<int>(VarType::Nil)) return default_val;
-    std::string res = cvar_to_string(v);
+    std::string res = CVarToString(v);
     return res.empty() && v.type_ == static_cast<int>(VarType::Nil) ? default_val : res;
 }
 
-static net::FramerType parse_framer_type(const std::string &framer_str) {
+static net::FramerType ParseFramerType(const std::string &framer_str) {
     if (framer_str.empty() || framer_str == "header4" || framer_str == "header4_be" || framer_str == "be4") {
         return net::FramerType::Header4BigEndian;
     }
@@ -489,72 +489,72 @@ static net::FramerType parse_framer_type(const std::string &framer_str) {
     return net::FramerType::Header4BigEndian;
 }
 
-static net::NetConfig parse_config(State *s, CVar *args, int n) {
+static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
     net::NetConfig cfg;
     if (n < 1) return cfg;
 
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     if (a0.type_ != static_cast<int>(VarType::Table)) return cfg;
 
-    cfg.ip = get_table_field_string(s, a0, "ip", "127.0.0.1");
+    cfg.ip = GetTableFieldString(s, a0, "ip", "127.0.0.1");
     {
         // 端口超出 uint16 范围时拒绝，避免静默截断（如 70000 → 4464）
-        int64_t port_val = get_table_field(s, a0, "port", 8888);
+        int64_t port_val = GetTableField(s, a0, "port", 8888);
         if (port_val <= 0 || port_val > 65535) {
             ThrowFakeluaException(std::format("net: port {} out of range (1-65535)", port_val));
         }
         cfg.port = static_cast<uint16_t>(port_val);
     }
     {
-        int64_t maxc = get_table_field(s, a0, "maxconn", 1000);
+        int64_t maxc = GetTableField(s, a0, "maxconn", 1000);
         if (maxc < 1 || maxc > 100000) {
             ThrowFakeluaException(std::format("net: maxconn {} out of range (1-100000)", maxc));
         }
         cfg.max_conn = static_cast<int>(maxc);
     }
-    cfg.backlog = static_cast<int>(get_table_field(s, a0, "backlog", 128));
+    cfg.backlog = static_cast<int>(GetTableField(s, a0, "backlog", 128));
     {
-        int64_t sbs = get_table_field(s, a0, "send_buf_size", 0);
-        if (sbs == 0) sbs = get_table_field(s, a0, "sendbuf", 0);
+        int64_t sbs = GetTableField(s, a0, "send_buf_size", 0);
+        if (sbs == 0) sbs = GetTableField(s, a0, "sendbuf", 0);
         if (sbs > 0) cfg.send_buf_size = static_cast<int>(sbs);
 
-        int64_t rbs = get_table_field(s, a0, "recv_buf_size", 0);
-        if (rbs == 0) rbs = get_table_field(s, a0, "recvbuf", 0);
+        int64_t rbs = GetTableField(s, a0, "recv_buf_size", 0);
+        if (rbs == 0) rbs = GetTableField(s, a0, "recvbuf", 0);
         if (rbs > 0) cfg.recv_buf_size = static_cast<int>(rbs);
 
-        int64_t mpl = get_table_field(s, a0, "max_packet_len", 0);
+        int64_t mpl = GetTableField(s, a0, "max_packet_len", 0);
         if (mpl > 0) cfg.max_packet_len = static_cast<int>(mpl);
     }
-    cfg.fixed_packet_len = static_cast<int>(get_table_field(s, a0, "fixed_len", 0));
+    cfg.fixed_packet_len = static_cast<int>(GetTableField(s, a0, "fixed_len", 0));
     if (cfg.fixed_packet_len == 0) {
-        cfg.fixed_packet_len = static_cast<int>(get_table_field(s, a0, "fixed_packet_len", 0));
+        cfg.fixed_packet_len = static_cast<int>(GetTableField(s, a0, "fixed_packet_len", 0));
     }
-    cfg.non_blocking = get_table_field(s, a0, "nonblocking", 1) != 0;
-    cfg.no_delay = get_table_field(s, a0, "nodelay", 1) != 0;
-    cfg.keep_alive = get_table_field(s, a0, "keepalive", 1) != 0;
+    cfg.non_blocking = GetTableField(s, a0, "nonblocking", 1) != 0;
+    cfg.no_delay = GetTableField(s, a0, "nodelay", 1) != 0;
+    cfg.keep_alive = GetTableField(s, a0, "keepalive", 1) != 0;
 
 
-    std::string framer_str = get_table_field_string(s, a0, "framer", "");
-    cfg.framer = parse_framer_type(framer_str);
+    std::string framer_str = GetTableFieldString(s, a0, "framer", "");
+    cfg.framer = ParseFramerType(framer_str);
 
-    cfg.custom_parser_name = get_table_field_string(s, a0, "parser", "");
+    cfg.custom_parser_name = GetTableFieldString(s, a0, "parser", "");
     if (cfg.custom_parser_name.empty()) {
-        cfg.custom_parser_name = get_table_field_string(s, a0, "custom_parser", "");
+        cfg.custom_parser_name = GetTableFieldString(s, a0, "custom_parser", "");
     }
     if (!cfg.custom_parser_name.empty()) {
         cfg.framer = net::FramerType::Custom;
     }
 
-    cfg.ws_path = get_table_field_string(s, a0, "ws_path", "/");
+    cfg.ws_path = GetTableFieldString(s, a0, "ws_path", "/");
     if (cfg.ws_path.empty()) cfg.ws_path = "/";
-    cfg.ws_host = get_table_field_string(s, a0, "ws_host", "");
-    cfg.ws_origin = get_table_field_string(s, a0, "ws_origin", "");
+    cfg.ws_host = GetTableFieldString(s, a0, "ws_host", "");
+    cfg.ws_origin = GetTableFieldString(s, a0, "ws_origin", "");
 
     return cfg;
 }
 
 // 辅助：建立 Lua 自定义解包函数的 C++ parser 桥接
-static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::string &parser_name) {
+static void SetupLuaCustomParser(State *s, net::NetConfig &cfg, const std::string &parser_name) {
     if (parser_name.empty()) return;
 
     cfg.framer = net::FramerType::Custom;
@@ -564,17 +564,17 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
     // 按值捕获 max_packet_len，避免 lambda 存入 cfg 后引用工厂局部 cfg 导致悬空
     const int max_pkt = cfg.max_packet_len;
     cfg.custom_parser_fn = [s, parser_name, max_pkt](net::CircularBuffer &buf, const char *&out_payload, uint32_t &out_len) -> bool {
-        if (buf.empty()) return false;
+        if (buf.Empty()) return false;
 
         // 用 buf 自己的暂存区：写在 lambda 体内的 static 是所有连接、所有 State 共享同一
         // 份，按缓冲区各存一份既没有竞争，也不会解析另一条连接就把这里的数据冲掉。
-        auto &peek_buf = buf.header_scratch();
-        auto &payload_buf = buf.payload_scratch();
+        auto &peek_buf = buf.HeaderScratch();
+        auto &payload_buf = buf.PayloadScratch();
         // 限制窥视上限为 max_packet_len，避免半包时每 tick O(缓冲) 全量分配/拷贝
-        size_t total = std::min(buf.size(), static_cast<size_t>(max_pkt));
+        size_t total = std::min(buf.Size(), static_cast<size_t>(max_pkt));
         if (total == 0) return false;
         if (peek_buf.size() < total) peek_buf.resize(total);
-        buf.peek(peek_buf.data(), total);
+        buf.Peek(peek_buf.data(), total);
 
         // 调用 Lua 解包函数: parser(buffer_str)
         // 期望返回值:
@@ -615,7 +615,7 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
 
         if (res.type_ == static_cast<int>(VarType::Multi)) {
             CVar p_var = inter::GetMultiCVarElement(res, 0);
-            parsed_str = cvar_to_string(p_var);
+            parsed_str = CVarToString(p_var);
             CVar c_var = inter::GetMultiCVarElement(res, 1);
             if (c_var.type_ != static_cast<int>(VarType::Nil)) {
                 consumed = static_cast<size_t>(inter::CVarToInteger(c_var, static_cast<int64_t>(parsed_str.size())));
@@ -623,7 +623,7 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
                 consumed = parsed_str.size();
             }
         } else {
-            parsed_str = cvar_to_string(res);
+            parsed_str = CVarToString(res);
             consumed = parsed_str.size();
         }
 
@@ -634,7 +634,7 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
         if (consumed > total) {
             consumed = total;
         }
-        buf.skip(consumed);
+        buf.Skip(consumed);
 
         if (payload_buf.size() < parsed_str.size()) payload_buf.resize(parsed_str.size());
         if (!parsed_str.empty()) {
@@ -646,22 +646,22 @@ static void setup_lua_custom_parser(State *s, net::NetConfig &cfg, const std::st
     };
 }
 
-static CVar create_net_server(State *s, net::NetConfig cfg, const char *type_name) {
+static CVar CreateNetServer(State *s, net::NetConfig cfg, const char *type_name) {
     if (!cfg.custom_parser_name.empty()) {
-        setup_lua_custom_parser(s, cfg, cfg.custom_parser_name);
+        SetupLuaCustomParser(s, cfg, cfg.custom_parser_name);
     }
 
-    net::net_init();
+    net::NetInit();
 
     auto *obj = new NetObject();
     obj->state = s;
     obj->is_server = true;
     obj->server = std::make_unique<net::TcpServer>(cfg, s);
-    obj->server->start();
+    obj->server->Start();
 
-    if (!obj->server->running()) {
+    if (!obj->server->Running()) {
         delete obj;
-        net::net_shutdown();
+        net::NetShutdown();
         LOG_ERROR(s, "net", "{}: failed to listen on port {}", type_name, cfg.port);
         ThrowFakeluaException(std::format("{}: failed to listen on port {}", type_name, cfg.port));
     }
@@ -671,37 +671,37 @@ static CVar create_net_server(State *s, net::NetConfig cfg, const char *type_nam
     auto *nat = s->GetNativeObjectManager().Create(gid, type_name);
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
     nat->SetInt("__net_state__", reinterpret_cast<int64_t>(s));
-    register_net_wrapper(s, nat);
+    RegisterNetWrapper(s, nat);
     nat->SetFinalizer([](NativeObject *self) {
-        unregister_net_wrapper(self);
-        net::net_shutdown();
-        release_net_object(self);
+        UnregisterNetWrapper(self);
+        net::NetShutdown();
+        ReleaseNetObject(self);
     });
-    nat->RegisterMethod("dispatch", net_dispatch);
-    nat->RegisterMethod("send", net_send);
-    nat->RegisterMethod("close", net_close);
-    nat->RegisterMethod("close_connection", net_close_connection);
-    nat->RegisterMethod("get_events", net_get_events);
-    nat->RegisterMethod("get_last_data", net_get_last_data);
-    nat->RegisterMethod("get_conn_count", net_get_conn_count);
-    nat->RegisterMethod("get_recv_count", net_get_recv_count);
-    nat->RegisterMethod("get_connid", net_get_connid);
+    nat->RegisterMethod("dispatch", NetDispatch);
+    nat->RegisterMethod("send", NetSend);
+    nat->RegisterMethod("close", NetClose);
+    nat->RegisterMethod("close_connection", NetCloseConnection);
+    nat->RegisterMethod("get_events", NetGetEvents);
+    nat->RegisterMethod("get_last_data", NetGetLastData);
+    nat->RegisterMethod("get_conn_count", NetGetConnCount);
+    nat->RegisterMethod("get_recv_count", NetGetRecvCount);
+    nat->RegisterMethod("get_connid", NetGetConnId);
 
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
 
-static CVar create_net_client(State *s, net::NetConfig cfg, const char *type_name) {
+static CVar CreateNetClient(State *s, net::NetConfig cfg, const char *type_name) {
     if (!cfg.custom_parser_name.empty()) {
-        setup_lua_custom_parser(s, cfg, cfg.custom_parser_name);
+        SetupLuaCustomParser(s, cfg, cfg.custom_parser_name);
     }
 
-    net::net_init();
+    net::NetInit();
 
     auto *obj = new NetObject();
     obj->state = s;
     obj->is_server = false;
     obj->client = std::make_unique<net::TcpClient>(cfg, s);
-    obj->client->connect();
+    obj->client->Connect();
 
     LOG_DEBUG(s, "net", "{}: connecting to {}:{}", type_name, cfg.ip, cfg.port);
 
@@ -709,49 +709,49 @@ static CVar create_net_client(State *s, net::NetConfig cfg, const char *type_nam
     auto *nat = s->GetNativeObjectManager().Create(gid, type_name);
     nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
     nat->SetInt("__net_state__", reinterpret_cast<int64_t>(s));
-    register_net_wrapper(s, nat);
+    RegisterNetWrapper(s, nat);
     nat->SetFinalizer([](NativeObject *self) {
-        unregister_net_wrapper(self);
-        net::net_shutdown();
-        release_net_object(self);
+        UnregisterNetWrapper(self);
+        net::NetShutdown();
+        ReleaseNetObject(self);
     });
-    nat->RegisterMethod("dispatch", net_dispatch);
-    nat->RegisterMethod("send", net_send);
-    nat->RegisterMethod("close", net_close);
-    nat->RegisterMethod("get_events", net_get_events);
-    nat->RegisterMethod("get_last_data", net_get_last_data);
-    nat->RegisterMethod("get_conn_count", net_get_conn_count);
-    nat->RegisterMethod("get_recv_count", net_get_recv_count);
+    nat->RegisterMethod("dispatch", NetDispatch);
+    nat->RegisterMethod("send", NetSend);
+    nat->RegisterMethod("close", NetClose);
+    nat->RegisterMethod("get_events", NetGetEvents);
+    nat->RegisterMethod("get_last_data", NetGetLastData);
+    nat->RegisterMethod("get_conn_count", NetGetConnCount);
+    nat->RegisterMethod("get_recv_count", NetGetRecvCount);
 
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
 
 // net.server(config) → server object
-static CVar net_server(State *s, CVar *args, int n) {
-    return create_net_server(s, parse_config(s, args, n), "net_server");
+static CVar NetServer(State *s, CVar *args, int n) {
+    return CreateNetServer(s, ParseConfig(s, args, n), "net_server");
 }
 
 // net.client(config) → client object
-static CVar net_client(State *s, CVar *args, int n) {
-    return create_net_client(s, parse_config(s, args, n), "net_client");
+static CVar NetClient(State *s, CVar *args, int n) {
+    return CreateNetClient(s, ParseConfig(s, args, n), "net_client");
 }
 
 // net.ws_server(config) → WebSocket 服务端（等价于 framer="websocket"）
-static CVar net_ws_server(State *s, CVar *args, int n) {
-    net::NetConfig cfg = parse_config(s, args, n);
+static CVar NetWsServer(State *s, CVar *args, int n) {
+    net::NetConfig cfg = ParseConfig(s, args, n);
     cfg.framer = net::FramerType::WebSocket;
     cfg.custom_parser_name.clear();
     cfg.custom_parser_fn = nullptr;
-    return create_net_server(s, cfg, "net_ws_server");
+    return CreateNetServer(s, cfg, "net_ws_server");
 }
 
 // net.ws_client(config) → WebSocket 客户端
-static CVar net_ws_client(State *s, CVar *args, int n) {
-    net::NetConfig cfg = parse_config(s, args, n);
+static CVar NetWsClient(State *s, CVar *args, int n) {
+    net::NetConfig cfg = ParseConfig(s, args, n);
     cfg.framer = net::FramerType::WebSocket;
     cfg.custom_parser_name.clear();
     cfg.custom_parser_fn = nullptr;
-    return create_net_client(s, cfg, "net_ws_client");
+    return CreateNetClient(s, cfg, "net_ws_client");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -761,10 +761,10 @@ static CVar net_ws_client(State *s, CVar *args, int n) {
 void RegisterNetLibraryApi(State *s) {
     if (!s) return;
 
-    RegisterNativeFunction(s, "net.server", 1, false, net_server);
-    RegisterNativeFunction(s, "net.client", 1, false, net_client);
-    RegisterNativeFunction(s, "net.ws_server", 1, false, net_ws_server);
-    RegisterNativeFunction(s, "net.ws_client", 1, false, net_ws_client);
+    RegisterNativeFunction(s, "net.server", 1, false, NetServer);
+    RegisterNativeFunction(s, "net.client", 1, false, NetClient);
+    RegisterNativeFunction(s, "net.ws_server", 1, false, NetWsServer);
+    RegisterNativeFunction(s, "net.ws_client", 1, false, NetWsClient);
 }
 
-} // namespace fakelua::net
+}// namespace fakelua::net
