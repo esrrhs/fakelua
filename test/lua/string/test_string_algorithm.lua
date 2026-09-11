@@ -26,10 +26,27 @@ function test_string_algorithm()
     if not string.contains("hello", "") then return 0 end
     if not string.starts_with(12345, "12") then return 0 end
     if not string.ends_with(12345, "45") then return 0 end
+
+    if string.replace("hello", "l", "x") ~= "hexxo" then return 0 end
+    if string.replace("aaa", "a", "b") ~= "bbb" then return 0 end
+    if string.replace("hello", "z", "x") ~= "hello" then return 0 end
+    if string.replace("keep inner  spaces", "  ", " ") ~= "keep inner spaces" then return 0 end
+
+    if not string.iequals("Hello", "hello") then return 0 end
+    if string.iequals("Hello", "hallo") then return 0 end
+    if not string.iequals("ABC", "abc") then return 0 end
+    if not string.icontains("Hello", "ELL") then return 0 end
+    if string.icontains("Hello", "xyz") then return 0 end
+    if not string.icontains("Hello", "") then return 0 end
     return 1
 end
 
 function test_split_empty_sep()
     string.split("abc", "")
+    return 0
+end
+
+function test_replace_empty_from()
+    string.replace("abc", "", "x")
     return 0
 end

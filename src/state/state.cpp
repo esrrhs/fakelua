@@ -14,6 +14,7 @@
 #include "native/native_io_context.h"
 #include "native/net/native_net.h"
 #include "native/os/native_os.h"
+#include "native/process/native_process.h"
 #include "native/protobuf/native_protobuf.h"
 #include "native/random/native_random.h"
 #include "native/container/native_container.h"
@@ -28,6 +29,7 @@
 #include "native/xml/native_xml.h"
 #include "native/yaml/native_yaml.h"
 #include "util/logging.h"
+#include "util/utf8_io.h"
 
 namespace fakelua {
 
@@ -49,6 +51,7 @@ void State::SetLogFile(const std::string &path, size_t max_size, size_t max_file
 }
 
 State::State(const StateConfig &config) : config_(config), compiler_(this), const_string_(this) {
+    utf8_io::Init();
     log_level_ = static_cast<LogLevel>(config_.log_level);
     if (!config_.log_file.empty()) {
         log_sink_ = decltype(log_sink_)(CreateLogSink(config_.log_file, config_.log_max_size, config_.log_max_files), &DestroyLogSink);
@@ -70,6 +73,7 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     mysql::RegisterMysqlLibraryApi(this);
     mysql::RegisterMysqlPoolApi(this);
     redis::RegisterRedisLibraryApi(this);
+    process::RegisterProcessLibraryApi(this);
     event::RegisterEventLibraryApi(this);
     random::RegisterRandomLibraryApi(this);
     container::RegisterContainerLibraryApi(this);

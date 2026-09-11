@@ -7,7 +7,9 @@
 
 #include <boost/algorithm/hex.hpp>
 #include <boost/crc.hpp>
+#include <boost/hash2/xxhash.hpp>
 #include <boost/uuid.hpp>
+#include <cstdint>
 #include <format>
 #include <iterator>
 #include <mutex>
@@ -192,6 +194,24 @@ static CVar CryptoCrc32(State *s, CVar *args, int n) {
     boost::crc_32_type crc;
     crc.process_bytes(data.data(), data.size());
     return inter::NativeToFakeluaLonglong(s, static_cast<long long>(crc.checksum()));
+}
+
+// crypto.xxhash(data) → xxHash-64 as 16-char lowercase hex (Boost.Hash2, not a password hash)
+static CVar CryptoXxhash(State *s, CVar *args, int n) {
+    if (n < 1) ThrowBadArgument(1, "crypto.xxhash", "data expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    std::string data = inter::FakeluaToNativeString(s, a0);
+    boost::hash2::xxhash_64 h;
+    if (!data.empty()) {
+        h.update(data.data(), data.size());
+    }
+    std::uint64_t v = h.result();
+    uint8_t bytes[8];
+    for (int i = 7; i >= 0; --i) {
+        bytes[i] = static_cast<uint8_t>(v & 0xffu);
+        v >>= 8;
+    }
+    return inter::NativeToFakeluaString(s, ToHex(bytes, 8));
 }
 
 // crypto.hex_encode(data) → hex string
@@ -532,6 +552,7 @@ void RegisterCryptoLibraryApi(State *s) {
     RegisterNativeFunction(s, "crypto.base64_decode", 1, false, CryptoBase64Decode);
     RegisterNativeFunction(s, "crypto.uuid", 0, false, CryptoUuid);
     RegisterNativeFunction(s, "crypto.crc32", 1, false, CryptoCrc32);
+    RegisterNativeFunction(s, "crypto.xxhash", 1, false, CryptoXxhash);
     RegisterNativeFunction(s, "crypto.aes_encrypt_ecb", 2, false, CryptoAesEncryptEcb);
     RegisterNativeFunction(s, "crypto.aes_decrypt_ecb", 2, false, CryptoAesDecryptEcb);
     RegisterNativeFunction(s, "crypto.aes_encrypt_cbc", 3, false, CryptoAesEncryptCbc);

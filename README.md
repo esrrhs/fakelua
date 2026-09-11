@@ -127,7 +127,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **Complex global initialization**: Arbitrary expressions as file-level variable initializers, executed in generated `__fakelua_init()`.
 - **NativeObject & C++ interop**: Host-side object mapping with group arena batch release, C++ member method binding via `RegisterMethod`, colon-syntax calls from Lua.
 - **ECMAScript regex**: `string.find`/`match`/`gmatch`/`gsub` via Boost.Regex (supports lookahead, alternation, non-greedy quantifiers — more powerful than Lua patterns).
-- **String algorithms**: `string.trim`/`split`/`starts_with`/`ends_with`/`contains` via Boost.Algorithm.
+- **String algorithms**: `string.trim`/`split`/`replace`/`starts_with`/`ends_with`/`contains`/`iequals`/`icontains` via Boost.Algorithm.
 
 ### Not Supported
 
@@ -140,18 +140,19 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 ## Built-in Standard Libraries
 
-FakeLua provides 28 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, random, containers, compression, encryption, serialization, databases, protobuf, config formats, and logging.
+FakeLua provides 29 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, random, containers, compression, encryption, serialization, databases, protobuf, config formats, logging, and subprocesses.
 
 > **Full API reference:** [src/native/README.md](src/native/README.md) / [中文](src/native/README.zh.md)
 
 | Category | Modules |
 |----------|---------|
 | Core Lua | `math`, `table`, `string`, `os`, `utf8`, `io`, `random` |
-| Networking | `net` (TCP server/client), `http` (Beast HTTP/1.1), `url`, `timer`, `event` |
+| Networking | `net` (TCP/UDP server/client), `http` (Beast HTTP/1.1), `url`, `timer`, `event` |
 | Data | `json`, `csv`, `serialize`, `protobuf`, `container` (Boost.Container deque/map/set) |
 | Config | `yaml`, `toml`, `xml`, `ini` |
 | Database | `mysql` (async + pool), `redis` (async), `sqlite` (synchronous) |
-| Crypto | `compress` (LZ4/zlib/gzip/Zstd), `crypto` (MD5/SHA/AES/RC4/Blowfish/DES, UUID, CRC-32) |
+| Crypto | `compress` (LZ4/zlib/gzip/Zstd), `crypto` (MD5/SHA/AES/RC4/Blowfish/DES, UUID, CRC-32, xxHash) |
+| Process | `process` (`process.run`; does not replace `os.execute`) |
 | Logging | `log` (7 levels, tagged output, file rotation) |
 | Object | `object` (NativeObject Lua-side API) |
 

@@ -17,8 +17,11 @@
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ip/udp.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
+#include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket.hpp>
 #include <deque>
 #include <functional>
@@ -45,10 +48,13 @@ enum class EventKind {
 
 struct ConnEvent {
     EventKind kind;
-    // server 端连接 ID；client 端恒为 0
+    // server 端连接 ID；client 端恒为 0；UDP 恒为 0
     int conn_id;
     // Recv 时携带载荷
     std::string data;
+    // UDP Recv 时对端地址
+    std::string peer_ip;
+    uint16_t peer_port = 0;
 };
 
 using EventSink = std::function<void(ConnEvent)>;
@@ -56,7 +62,7 @@ using EventSink = std::function<void(ConnEvent)>;
 // 单条连接（asio::ip::tcp::socket + 收发缓冲）
 class AsioConn : public std::enable_shared_from_this<AsioConn> {
 public:
-    AsioConn(boost::asio::io_context &ioc, const NetConfig &cfg, int conn_id, bool from_client, EventSink sink);
+    AsioConn(boost::asio::io_context &ioc, const NetConfig &cfg, int conn_id, bool from_client, EventSink sink, std::shared_ptr<boost::asio::ssl::context> ssl_ctx = nullptr);
     ~AsioConn();
 
     // server 端 accept 后 / client 端 connect 后调用，开始读循环
@@ -86,6 +92,8 @@ private:
     void DoWrite();
     void OnWrite(boost::system::error_code ec, size_t bytes);
 
+    void DoSslHandshake();
+    void OnSslHandshake(boost::system::error_code ec);
     void DoWsServerHandshake();
     void OnWsHttpRequest(boost::system::error_code ec);
     void DoWsClientHandshake();
@@ -94,6 +102,9 @@ private:
     void OnWsRead(boost::system::error_code ec, size_t bytes);
     void DoWsWrite();
     void OnWsWrite(boost::system::error_code ec, size_t bytes);
+    [[nodiscard]] bool UsingWs() const {
+        return static_cast<bool>(ws_) || static_cast<bool>(wss_);
+    }
 
     boost::asio::ip::tcp::socket socket_;
     NetConfig cfg_;
@@ -107,8 +118,13 @@ private:
 
     bool writing_ = false;
 
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx_;
+    using SslStream = boost::asio::ssl::stream<boost::asio::ip::tcp::socket &>;
     using WsStream = boost::beast::websocket::stream<boost::asio::ip::tcp::socket &>;
+    using WssStream = boost::beast::websocket::stream<SslStream &>;
+    std::optional<SslStream> ssl_;
     std::optional<WsStream> ws_;
+    std::optional<WssStream> wss_;
     boost::beast::flat_buffer ws_buffer_;
     boost::beast::http::request<boost::beast::http::string_body> ws_req_;
     std::deque<std::string> ws_write_queue_;
@@ -161,6 +177,7 @@ private:
     boost::asio::io_context &ioc_;
     boost::asio::ip::tcp::acceptor acceptor_{ioc_};
     bool acceptor_open_ = false;
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx_;
 
     // 连接表：conn_id → shared_ptr<AsioConn>
     std::vector<std::shared_ptr<AsioConn>> conns_;
@@ -216,11 +233,58 @@ private:
     boost::asio::io_context &ioc_;
     boost::asio::ip::tcp::resolver resolver_{ioc_};
     std::shared_ptr<AsioConn> conn_;
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx_;
     bool connecting_ = false;
 
     std::vector<ConnEvent> events_;
 
     // 同 TcpServer::life_：resolve/connect 回调据此判断本对象是否还在。
+    native::LifeToken life_;
+};
+
+// 数据报套接字：单线程非阻塞，由 runtime.tick() 的 poll() 驱动。
+// connected=false：bind 本地 ip:port，send 需带对端；connected=true：connect 到 ip:port。
+class UdpSocket {
+public:
+    UdpSocket(const NetConfig &config, ::fakelua::State *state, bool connected);
+    ~UdpSocket();
+
+    bool Start();
+    void Stop();
+
+    void DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher);
+
+    bool Send(const char *data, size_t len);
+    bool SendTo(const char *data, size_t len, const std::string &ip, uint16_t port);
+
+    [[nodiscard]] bool Running() const {
+        return open_;
+    }
+
+    [[nodiscard]] bool Connected() const {
+        return connected_;
+    }
+
+    [[nodiscard]] uint16_t BoundPort() const {
+        return bound_port_;
+    }
+
+private:
+    void DoReceive();
+    void OnReceive(boost::system::error_code ec, std::size_t n);
+    void EmitEvent(ConnEvent ev);
+
+    NetConfig config_;
+    bool connected_ = false;
+    native::IoContext &io_;
+    boost::asio::io_context &ioc_;
+    boost::asio::ip::udp::socket socket_{ioc_};
+    boost::asio::ip::udp::endpoint sender_;
+    std::vector<char> recv_buf_;
+    bool open_ = false;
+    uint16_t bound_port_ = 0;
+    std::vector<ConnEvent> events_;
+
     native::LifeToken life_;
 };
 

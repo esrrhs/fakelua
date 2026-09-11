@@ -24,6 +24,7 @@ aux_source_directory(./native/url FAKELUA_SRC_LIST)
 aux_source_directory(./native/redis FAKELUA_SRC_LIST)
 aux_source_directory(./native/object FAKELUA_SRC_LIST)
 aux_source_directory(./native/os FAKELUA_SRC_LIST)
+aux_source_directory(./native/process FAKELUA_SRC_LIST)
 aux_source_directory(./native/string FAKELUA_SRC_LIST)
 aux_source_directory(./native/table FAKELUA_SRC_LIST)
 aux_source_directory(./native/timer FAKELUA_SRC_LIST)
@@ -297,7 +298,7 @@ find_package(Threads REQUIRED)
 # 只列出真正用到的库（依赖会自动带上）。不限定的话整个 superproject 都会被编译，
 # 还会拖进 Boost.Cobalt —— 它的 Windows 部分强依赖 IOCP，会让根 CMakeLists 里
 # WIN32 上的 BOOST_ASIO_DISABLE_IOCP 编不过。
-set(BOOST_INCLUDE_LIBRARIES mysql asio system charconv json beast regex stacktrace url redis uuid crc endian algorithm container filesystem serialization)
+set(BOOST_INCLUDE_LIBRARIES mysql asio system charconv json beast regex stacktrace url redis uuid crc endian algorithm container filesystem serialization nowide hash2 process math)
 CPMAddPackage(
     NAME boost
     GITHUB_REPOSITORY boostorg/boost
@@ -364,6 +365,9 @@ include_directories(${BOOST_SOURCE_DIR}/libs/integer/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/cstdint/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/winapi/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/nowide/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/hash2/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/process/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/math/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/static_assert/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/exception/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/iterator/include)
@@ -378,7 +382,7 @@ include_directories(${BOOST_SOURCE_DIR}/libs/array/include)
 # boost_system required for non-header-only Boost.Asio (TCP/net native code)
 # boost_json is a compiled library; link the CMake target so the archive is built
 # and its path follows CMAKE_INSTALL_LIBDIR (lib vs lib64) on every platform.
-set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv boost_system boost_json Boost::beast Boost::regex Boost::stacktrace Boost::url Boost::redis Boost::uuid Boost::crc Boost::endian Boost::algorithm Boost::container Boost::filesystem Boost::serialization)
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv boost_system boost_json Boost::beast Boost::regex Boost::stacktrace Boost::url Boost::redis Boost::uuid Boost::crc Boost::endian Boost::algorithm Boost::container Boost::filesystem Boost::serialization Boost::nowide Boost::hash2 Boost::process Boost::math)
 if (WIN32)
     # OpenSSL and Boost.Asio on MinGW (mswsock provides AcceptEx/GetAcceptExSockaddrs)
     set(TARGET_LIB ${TARGET_LIB} crypt32 bcrypt ws2_32 mswsock)

@@ -43,7 +43,7 @@ void MysqlConnectionPool::Initialize() {
 
         // Start async connect
         if (entry.conn) {
-            entry.conn->Connect(config_.host, config_.port, config_.user, config_.password, config_.database, config_.connect_timeout_ms);
+            entry.conn->Connect(config_.host, config_.port, config_.user, config_.password, config_.database, config_.connect_timeout_ms, config_.ssl, config_.ssl_ca);
         }
         pool_.push_back(std::move(entry));
     }
@@ -210,7 +210,7 @@ void MysqlConnectionPool::TryReconnect(PoolEntry &entry) {
     ++entry.retry_count;
 
     entry.conn->Close();
-    entry.conn->Connect(config_.host, config_.port, config_.user, config_.password, config_.database, config_.connect_timeout_ms);
+    entry.conn->Connect(config_.host, config_.port, config_.user, config_.password, config_.database, config_.connect_timeout_ms, config_.ssl, config_.ssl_ca);
     entry.last_heartbeat = NowMs();
 }
 

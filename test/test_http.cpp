@@ -24,3 +24,14 @@ TEST(test_http, connect_fail) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_http, tls_echo) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./http/test_http.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "HttpTest.test_tls_echo", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

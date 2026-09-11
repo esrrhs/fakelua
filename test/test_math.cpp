@@ -1279,3 +1279,14 @@ TEST(test_math, pow_trig_coverage) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_math, special_functions) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_special.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "test_math_special", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

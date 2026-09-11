@@ -294,3 +294,36 @@ TEST(test_net, test_send_buffer_full) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_net, test_wss_echo_lua) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_wss.lua", config);
+
+    int64_t conn_count = 0, recv_count = 0;
+    std::string server_data, client_data;
+    Call(s, JIT_TCC, "NetWssTest.test_wss_echo", std::tie(conn_count, recv_count, server_data, client_data));
+
+    EXPECT_GE(conn_count, 1) << "wss server should accept connection";
+    EXPECT_GE(recv_count, 1) << "wss server should receive data";
+    EXPECT_EQ(server_data, "hello wss");
+    EXPECT_EQ(client_data, "echo:hello wss");
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_net, test_udp_echo_lua) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_udp.lua", config);
+
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "NetUdpTest.test_udp_echo", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}

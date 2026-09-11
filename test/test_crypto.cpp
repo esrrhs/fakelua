@@ -416,3 +416,14 @@ TEST(test_crypto, crc32) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_crypto, xxhash) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./crypto/test_crypto_xxhash.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CryptoTest.test_xxhash", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

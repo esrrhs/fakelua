@@ -40,6 +40,17 @@ TEST(test_mysql, close_in_connect_callback) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_mysql, connect_ssl_require_failure) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_connect_fail.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "MysqlTest.test_connect_ssl_require", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
 // 集成测试：需要本地 MySQL 服务（root@127.0.0.1:3306, 密码 root, 数据库 test）
 
 TEST(test_mysql, integration_callback_api) {

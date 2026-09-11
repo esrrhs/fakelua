@@ -143,6 +143,8 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
     std::string password;
     std::string database;
     int timeout_ms = 0;
+    boost::mysql::ssl_mode ssl = boost::mysql::ssl_mode::disable;
+    std::string ssl_ca;
 
     if (a0.type_ == static_cast<int>(VarType::Table) && a0.data_.t) {
         CVar host_var = table::TableHelper::GetTableStrId(s, a0, "host");
@@ -166,6 +168,20 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
         if (timeout_var.type_ != static_cast<int>(VarType::Nil)) {
             timeout_ms = static_cast<int>(inter::CVarToInteger(timeout_var, 0));
         }
+
+        CVar ssl_var = table::TableHelper::GetTableStrId(s, a0, "ssl");
+        if (ssl_var.type_ == static_cast<int>(VarType::Bool)) {
+            ssl = AsVar(ssl_var).GetBool() ? boost::mysql::ssl_mode::require : boost::mysql::ssl_mode::disable;
+        } else if (ssl_var.type_ == static_cast<int>(VarType::Int)) {
+            ssl = ssl_var.data_.i ? boost::mysql::ssl_mode::require : boost::mysql::ssl_mode::disable;
+        } else if (ssl_var.type_ != static_cast<int>(VarType::Nil)) {
+            std::string mode = CVarToString(ssl_var);
+            if (mode == "require" || mode == "true") ssl = boost::mysql::ssl_mode::require;
+            else if (mode == "enable") ssl = boost::mysql::ssl_mode::enable;
+            else ssl = boost::mysql::ssl_mode::disable;
+        }
+        CVar ca_var = table::TableHelper::GetTableStrId(s, a0, "ssl_ca");
+        if (ca_var.type_ != static_cast<int>(VarType::Nil)) ssl_ca = CVarToString(ca_var);
     } else {
         ThrowBadArgument(1, "mysql.connect", "config must be a table");
     }
@@ -207,7 +223,7 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
 
     try {
-        conn->Connect(host, port, user, password, database, timeout_ms);
+        conn->Connect(host, port, user, password, database, timeout_ms, ssl, ssl_ca);
     } catch (const std::exception &e) {
         nat->SetInt("__mysql_conn__", 0);
         delete conn;

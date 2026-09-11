@@ -27,6 +27,8 @@ struct PoolConfig {
     int heartbeat_interval_ms = 30000;// heartbeat interval (0 = disabled)
     int max_retries = 3;              // max auto-reconnect retries
     int retry_base_ms = 1000;         // exponential backoff base
+    boost::mysql::ssl_mode ssl = boost::mysql::ssl_mode::disable;
+    std::string ssl_ca;
 };
 
 class MysqlConnectionPool {

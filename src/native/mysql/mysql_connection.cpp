@@ -13,6 +13,9 @@
 #include <vector>
 
 #include <boost/asio/bind_cancellation_slot.hpp>
+#include <boost/asio/ssl.hpp>
+
+#include "native/tls_util.h"
 
 namespace fakelua::mysql {
 
@@ -48,7 +51,11 @@ MysqlConnection::~MysqlConnection() {
 
 void MysqlConnection::EnsureConn() {
     if (!conn_) {
-        conn_ = std::make_unique<boost::mysql::any_connection>(io_.Get());
+        boost::mysql::any_connection_params params;
+        if (ssl_ctx_) {
+            params.ssl_context = ssl_ctx_.get();
+        }
+        conn_ = std::make_unique<boost::mysql::any_connection>(io_.Get(), params);
     }
 }
 
@@ -91,7 +98,7 @@ void MysqlConnection::TeardownTransport() {
 
 // Public API
 
-void MysqlConnection::Connect(const std::string &host, uint16_t port, const std::string &user, const std::string &password, const std::string &database, int timeout_ms) {
+void MysqlConnection::Connect(const std::string &host, uint16_t port, const std::string &user, const std::string &password, const std::string &database, int timeout_ms, boost::mysql::ssl_mode ssl, std::string ssl_ca) {
     // Store connection parameters
     host_ = host;
     port_ = port;
@@ -99,13 +106,17 @@ void MysqlConnection::Connect(const std::string &host, uint16_t port, const std:
     password_ = password;
     database_ = database;
     timeout_ms_ = timeout_ms;
+    ssl_mode_ = ssl;
+    ssl_ca_ = std::move(ssl_ca);
     connect_start_ms_ = NowMs();
     pending_connect_err_.clear();
     pending_connect_ = false;
     close_pending_ = false;
 
-    if (ready_ || op_in_progress_) {
-        TeardownTransport();
+    TeardownTransport();
+    ssl_ctx_.reset();
+    if (ssl_mode_ != boost::mysql::ssl_mode::disable && !ssl_ca_.empty()) {
+        ssl_ctx_ = std::make_unique<boost::asio::ssl::context>(tls::MakeClientContext(true, ssl_ca_));
     }
     EnsureConn();
     ready_ = false;
@@ -121,7 +132,7 @@ void MysqlConnection::Connect(const std::string &host, uint16_t port, const std:
     pending_connect_params_->username = user;
     pending_connect_params_->password = password;
     pending_connect_params_->database = database;
-    pending_connect_params_->ssl = boost::mysql::ssl_mode::disable;
+    pending_connect_params_->ssl = ssl_mode_;
     pending_connect_params_->multi_queries = true;// preserve legacy multi-statement behavior
 
     // Start asynchronous connect

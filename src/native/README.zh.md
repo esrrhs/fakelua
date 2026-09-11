@@ -9,13 +9,13 @@
 | 模块 | 目录 | 说明 |
 |------|------|------|
 | basic | `basic/` | 全局函数：`print`、`type`、`tostring`、`tonumber`、`select`、`error`、`assert`、`pcall`、`xpcall`、`next`、`pairs`、`ipairs`、`collectgarbage` |
-| math | `math/` | 数学函数：算术、三角、指数/对数、随机数、常量 |
+| math | `math/` | 数学函数：算术、三角、指数/对数、随机数、常量、特殊函数 |
 | table | `table/` | 表操作：`insert`、`remove`、`concat`、`sort`、`pack`、`unpack`、`move`、`create` |
-| string | `string/` | 字符串操作：子串、大小写、trim/split、模式匹配（ECMAScript 正则）、格式化、二进制 pack/unpack、序列化 |
-| os | `os/` | 系统接口：时间、日期、环境变量、文件操作、进程执行 |
+| string | `string/` | 字符串操作：子串、大小写、trim/split/replace、模式匹配（ECMAScript 正则）、格式化、二进制 pack/unpack、序列化 |
+| os | `os/` | 系统接口：时间、日期、环境变量、文件操作、进程执行（Windows 上路径走 Boost.Nowide UTF-8） |
 | utf8 | `utf8/` | UTF-8 编解码：`char`、`codepoint`、`codes`、`len`、`offset` |
 | io | `io/` | 文件 IO：open、close、read、write、seek、popen、标准流 |
-| net | `net/` | TCP 网络：服务端/客户端、帧协议、自定义解析器、异步事件分发 |
+| net | `net/` | TCP/UDP 网络：服务端/客户端、帧协议、自定义解析器、异步事件分发 |
 | http | `http/` | HTTP/1.1 客户端和服务端（Boost.Beast），由 `runtime.tick()` 驱动 |
 | url | `url/` | URL 解析/拼接与百分号编解码（Boost.URL） |
 | timer | `timer/` | 定时器：一次性、周期心跳，由 `runtime.tick()` 驱动 |
@@ -24,7 +24,7 @@
 | random | `random/` | 可种子随机数（PCG-32）：`int`、`float`、`dice`、`chance`、`weighted`、`get_state`、`set_state` |
 | container | `container/` | 跨帧持久 deque / 有序 map / set（Boost.Container），NativeObject 承载 |
 | compress | `compress/` | 压缩：LZ4、zlib、gzip、Zstd |
-| crypto | `crypto/` | 加解密：MD5/SHA1/SHA256、hex/base64、UUID、CRC-32、AES/RC4/Blowfish/DES/3DES |
+| crypto | `crypto/` | 加解密：MD5/SHA1/SHA256、hex/base64、UUID、CRC-32、xxHash-64、AES/RC4/Blowfish/DES/3DES |
 | csv | `csv/` | CSV 解码/编码 |
 | json | `json/` | JSON 编码/解码 |
 | yaml | `yaml/` | YAML 解码/编码（yaml-cpp） |
@@ -34,6 +34,7 @@
 | mysql | `mysql/` | 异步 MySQL 客户端：直连 + 连接池 |
 | redis | `redis/` | 异步 Redis 客户端（Boost.Redis） |
 | sqlite | `sqlite/` | SQLite3 封装：exec、预处理语句、同步 |
+| process | `process/` | 子进程（Boost.Process v2）；不替换 `os.execute` |
 | serialize | `serialize/` | 二进制序列化：zigzag + varint 编码 + 字符串去重 |
 | protobuf | `protobuf/` | 运行时 .proto 解析、标准 protobuf3 wire 编码/解码 |
 | object | `object/` | NativeObject Lua 侧 API：组管理、对象创建/查找 |
@@ -125,6 +126,10 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `math.ult(x, y)` | 2 | 无符号小于比较 |
 | `math.random(...)` | vararg | 随机数：0 参 [0,1)，1 参 [1,u]，2 参 [l,u] |
 | `math.randomseed(...)` | vararg | 设置随机种子 |
+| `math.erf(x)` | 1 | 误差函数（Boost.Math） |
+| `math.erfc(x)` | 1 | 余误差函数 |
+| `math.gamma(x)` | 1 | Gamma 函数 Γ(x) |
+| `math.lgamma(x)` | 1 | Log-gamma ln Γ(x) |
 
 **常量：** `math.pi`、`math.huge`、`math.maxinteger`、`math.mininteger`
 
@@ -164,6 +169,9 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `string.starts_with(s, prefix)` | 2 | 是否以 `prefix` 开头 |
 | `string.ends_with(s, suffix)` | 2 | 是否以 `suffix` 结尾 |
 | `string.contains(s, needle)` | 2 | 是否包含子串 `needle` |
+| `string.replace(s, from, to)` | 3 | 字面量全局替换（`from` 不能为空） |
+| `string.iequals(a, b)` | 2 | 大小写不敏感相等（C locale / ASCII） |
+| `string.icontains(s, needle)` | 2 | 大小写不敏感包含（C locale / ASCII） |
 | `string.byte(s, [i, [j]])` | vararg | 范围内的字节值 |
 | `string.char(...)` | vararg | 编码点 0-255 转字符 |
 | `string.format(fmt, ...)` | vararg | 格式化输出（支持 `%s %d %i %u %x %X %o %f %e %E %g %G %c %q %p`） |
@@ -192,7 +200,7 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `os.clock()` | 0 | CPU 时间（秒） |
 | `os.date([fmt, [time]])` | vararg | 格式化日期/时间；`"*t"` 返回表 `{year, month, day, hour, min, sec, wday, yday, isdst}` |
 | `os.difftime(t2, t1)` | 2 | 两个时间戳之差 |
-| `os.execute([cmd])` | vararg | 执行 shell 命令；返回 `(status_bool_or_nil, "exit"|"signal"|"error", code)` 三元组 |
+| `os.execute([cmd])` | vararg | 执行 shell 命令；返回 `(status_bool_or_nil, "exit"|"signal"|"error", code)` 三元组。Windows 上走 Boost.Nowide `system`，命令串按 UTF-8。 |
 | `os.exit([code, [close]])` | vararg | 终止进程 |
 | `os.getenv(name)` | 1 | 获取环境变量 |
 | `os.remove(filename)` | 1 | 删除文件或空目录（Boost.Filesystem）；成功 `true`，否则 `nil` |
@@ -251,6 +259,8 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `io.lines([file, ...])` | vararg | 打开文件返回行迭代器 |
 | `io.stdin/stdout/stderr` | 0 | 标准流文件对象 |
 
+Windows 上 `io.open` / `loadfile` / `dofile` / `os.getenv` / `os.tmpname` 以及 Boost.Filesystem 路径走 Boost.Nowide，Lua 字符串按 UTF-8。POSIX 不变。
+
 **文件对象方法**（类型 `iofile`）：
 
 | 方法 | 说明 |
@@ -265,7 +275,7 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 
 ---
 
-## Net（TCP 网络）
+## Net（TCP / UDP 网络）
 
 **文件：** `net/native_net.h` · **注册：** `RegisterNetLibraryApi`
 
@@ -286,7 +296,7 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 
 **自定义解析器：** `parser = "Package.func"`（Lua）或 `custom_parser_fn`/`custom_encoder_fn`（C++ `NetConfig`）
 
-**WebSocket 额外配置：** `ws_path`（默认 `"/"`）、`ws_host`（客户端 Host，默认 `ip:port`）、`ws_origin`（可选）
+**WebSocket 额外配置：** `ws_path`（默认 `"/"`）、`ws_host`（客户端 Host，默认 `ip:port`）、`ws_origin`（可选）。TLS（`wss`）：`tls=true`，服务端 `cert`/`key`，客户端 `tls_verify`（默认 true）和可选 `tls_ca`。
 
 | 函数/方法 | 说明 |
 |------|------|
@@ -294,6 +304,8 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `net.client(config)` | 创建 TCP 客户端 |
 | `net.ws_server(config)` | 创建 WebSocket 服务端（等价于 `framer="websocket"`） |
 | `net.ws_client(config)` | 创建 WebSocket 客户端 |
+| `net.udp_server(config)` | 绑定 UDP（`ip`、`port`；`port=0` 为临时端口）。`send(data, ip, port)` |
+| `net.udp_client(config)` | 已连接 UDP 客户端（`ip`/`port` 为对端）。`send(data)` |
 | `obj:dispatch(func_name)` | 注册 Lua 回调函数名 |
 | `obj:send(connid, data)` | 发送数据（服务端需指定 connid；客户端省略） |
 | `obj:close()` | 关闭连接/服务端 |
@@ -303,6 +315,8 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `obj:get_conn_count()` | 连接数 |
 | `obj:get_recv_count()` | 收包数 |
 | `obj:get_connid()` | 最近连接 ID（仅服务端） |
+| `udp:get_port()` | 实际绑定的 UDP 端口 |
+| `udp:get_peer()` | 最近数据报对端，返回 `ip, port` |
 
 ---
 
@@ -310,11 +324,11 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 
 **文件：** `http/native_http.h` · **注册：** `RegisterHttpLibraryApi`
 
-基于 Boost.Beast 的 HTTP/1.1 客户端和服务端，复用每个 State 一份的 Asio `io_context`。URL 用 Boost.URL 解析。暂不支持 TLS（`https://`）。完成回调由 `runtime.tick()` 驱动。
+基于 Boost.Beast 的 HTTP/1.1 客户端和服务端，复用每个 State 一份的 Asio `io_context`。URL 用 Boost.URL 解析。`https://` 走 TLS（OpenSSL）；`http.get`/`http.post` 默认校验证书。完成回调由 `runtime.tick()` 驱动。
 
-**`http.request` 配置：** `{method, url, headers, body, timeout_ms, version}`
+**`http.request` 配置：** `{method, url, headers, body, timeout_ms, version, tls_verify, tls_ca}`
 
-**`http.server` 配置：** `{ip, port, backlog, timeout_ms}`（`port = 0` 绑定临时端口，读 `srv.port` 或 `srv:get_port()`）
+**`http.server` 配置：** `{ip, port, backlog, timeout_ms, tls, cert, key}`（`port = 0` 绑定临时端口，读 `srv.port` 或 `srv:get_port()`）。`tls=true` 需要 PEM 的 `cert` 和 `key`。
 
 | 函数/方法 | 说明 |
 |------|------|
@@ -477,6 +491,7 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 | `crypto.base64_decode(data)` | 1 | base64 → 二进制 |
 | `crypto.uuid()` | 0 | RFC 4122 v4 UUID 字符串 |
 | `crypto.crc32(data)` | 1 | CRC-32/ISO-HDLC（PKZIP）→ 无符号 32 位整数 |
+| `crypto.xxhash(data)` | 1 | xxHash-64 → 16 位小写 hex（Boost.Hash2；非密码哈希）。MD5/SHA 仍走 OpenSSL。 |
 | `crypto.aes_encrypt_ecb(data, key)` | 2 | AES-128-ECB 加密（数据 16 字节对齐） |
 | `crypto.aes_decrypt_ecb(data, key)` | 2 | AES-128-ECB 解密 |
 | `crypto.aes_encrypt_cbc(data, key, iv)` | 3 | AES-128-CBC 加密（PKCS#7 填充） |
@@ -580,9 +595,11 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 
 **文件：** `mysql/native_mysql.h`、`mysql/native_mysql_pool.h` · **注册：** `RegisterMysqlLibraryApi`、`RegisterMysqlPoolApi`
 
-**`mysql.connect` 配置：** `{host, port, user, password, db}`
+**`mysql.connect` 配置：** `{host, port, user, password, db, timeout_ms, ssl, ssl_ca}`
 
-**`mysql_pool.create` 配置：** `{host, port, user, password, db, pool_size, timeout_ms, heartbeat_ms, max_retries}`
+**`mysql_pool.create` 配置：** `{host, port, user, password, db, pool_size, timeout_ms, heartbeat_ms, max_retries, ssl, ssl_ca}`
+
+`ssl`：省略/`false`/`"disable"` 保持明文（默认）。`true`/`"require"` 强制 TLS。`"enable"` 在服务器支持时使用 TLS。可选 `ssl_ca` PEM 会校验证书。
 
 | 函数/方法 | 说明 |
 |------|------|
@@ -637,6 +654,20 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 | `stmt:close()` | 销毁语句 |
 
 > 所有操作均为同步，基于 SQLite3 amalgamation 源码。
+
+---
+
+## Process（子进程）
+
+**文件：** `process/native_process.h` · **注册：** `RegisterProcessLibraryApi`
+
+Boost.Process v2。**不**替换 `os.execute`（后者仍返回 Lua 的 `(status, how, code)` 三元组）。
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `process.run(argv [, opts])` | 1-2 | 以 `argv[1]` 为可执行文件、其余为参数。返回 `stdout, stderr, exit_code`。`opts`：`{stdin, cwd, env, timeout_ms}` |
+
+`env` 是 string→string 表，合并进当前环境。`timeout_ms` 超时会杀掉子进程（非 0 退出码）。找不到可执行文件会抛错。
 
 ---
 

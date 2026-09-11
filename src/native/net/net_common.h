@@ -82,6 +82,12 @@ struct NetConfig {
     std::string ws_host;
     // 客户端 Origin 头（可选）
     std::string ws_origin;
+    // WebSocket over TLS (wss). Server needs tls_cert/tls_key; client uses tls_verify/tls_ca.
+    bool tls = false;
+    bool tls_verify = true;
+    std::string tls_cert;
+    std::string tls_key;
+    std::string tls_ca;
 };
 
 void NetInit();

@@ -149,6 +149,20 @@ static CVar PoolCreate(State *s, CVar *args, int n) {
         if (retries_var.type_ != static_cast<int>(VarType::Nil)) {
             config.max_retries = static_cast<int>(inter::CVarToInteger(retries_var, 3));
         }
+
+        CVar ssl_var = table::TableHelper::GetTableStrId(s, a0, "ssl");
+        if (ssl_var.type_ == static_cast<int>(VarType::Bool)) {
+            config.ssl = AsVar(ssl_var).GetBool() ? boost::mysql::ssl_mode::require : boost::mysql::ssl_mode::disable;
+        } else if (ssl_var.type_ == static_cast<int>(VarType::Int)) {
+            config.ssl = ssl_var.data_.i ? boost::mysql::ssl_mode::require : boost::mysql::ssl_mode::disable;
+        } else if (ssl_var.type_ != static_cast<int>(VarType::Nil)) {
+            std::string mode = CVarToString(ssl_var);
+            if (mode == "require" || mode == "true") config.ssl = boost::mysql::ssl_mode::require;
+            else if (mode == "enable") config.ssl = boost::mysql::ssl_mode::enable;
+            else config.ssl = boost::mysql::ssl_mode::disable;
+        }
+        CVar ca_var = table::TableHelper::GetTableStrId(s, a0, "ssl_ca");
+        if (ca_var.type_ != static_cast<int>(VarType::Nil)) config.ssl_ca = CVarToString(ca_var);
     } else {
         ThrowBadArgument(1, "mysql_pool.create", "config must be a table");
     }

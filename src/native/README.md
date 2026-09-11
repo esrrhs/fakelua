@@ -11,13 +11,13 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | Module | Directory | Description |
 |--------|-----------|-------------|
 | basic | `basic/` | Global functions: `print`, `type`, `tostring`, `tonumber`, `select`, `error`, `assert`, `pcall`, `xpcall`, `next`, `pairs`, `ipairs`, `collectgarbage` |
-| math | `math/` | Math functions: arithmetic, trigonometry, exponential/logarithm, random, constants |
+| math | `math/` | Math functions: arithmetic, trigonometry, exponential/logarithm, random, constants, special functions |
 | table | `table/` | Table operations: `insert`, `remove`, `concat`, `sort`, `pack`, `unpack`, `move`, `create` |
-| string | `string/` | String operations: substring, case, trim/split, pattern matching (ECMAScript regex), formatting, binary pack/unpack, serialization |
-| os | `os/` | OS interface: time, date, environment, file operations, process execution |
+| string | `string/` | String operations: substring, case, trim/split/replace, pattern matching (ECMAScript regex), formatting, binary pack/unpack, serialization |
+| os | `os/` | OS interface: time, date, environment, file operations, process execution (UTF-8 paths via Boost.Nowide on Windows) |
 | utf8 | `utf8/` | UTF-8 encoding/decoding: `char`, `codepoint`, `codes`, `len`, `offset` |
 | io | `io/` | File I/O: open, close, read, write, seek, popen, standard streams |
-| net | `net/` | TCP networking: server/client with framed protocols, custom parsers, async event dispatch |
+| net | `net/` | TCP/UDP networking: server/client with framed protocols, custom parsers, async event dispatch |
 | http | `http/` | HTTP/1.1 client and server (Boost.Beast), driven by `runtime.tick()` |
 | url | `url/` | URL parse/format and percent-encoding (Boost.URL) |
 | timer | `timer/` | Timers: one-shot, periodic heartbeat, driven by `runtime.tick()` |
@@ -26,12 +26,13 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | random | `random/` | Seeded RNG (PCG-32): `int`, `float`, `dice`, `chance`, `weighted`, `get_state`, `set_state` |
 | container | `container/` | Persistent deque / ordered map / set (Boost.Container), NativeObject-backed |
 | compress | `compress/` | Compression: LZ4, zlib, gzip, Zstd |
-| crypto | `crypto/` | Cryptography: MD5/SHA1/SHA256, hex/base64, UUID, CRC-32, AES/RC4/Blowfish/DES/3DES |
+| crypto | `crypto/` | Cryptography: MD5/SHA1/SHA256, hex/base64, UUID, CRC-32, xxHash-64, AES/RC4/Blowfish/DES/3DES |
 | csv | `csv/` | CSV decode/encode |
 | json | `json/` | JSON encode/decode |
 | mysql | `mysql/` | Async MySQL client: direct connect + connection pool |
 | redis | `redis/` | Async Redis client (Boost.Redis) |
 | sqlite | `sqlite/` | SQLite3 wrapper: exec, prepared statements, synchronous |
+| process | `process/` | Subprocess spawn (Boost.Process v2); does not replace `os.execute` |
 | serialize | `serialize/` | Binary serialization with zigzag+varint encoding and string deduplication |
 | protobuf | `protobuf/` | Runtime .proto parsing, standard protobuf3 wire encode/decode |
 | object | `object/` | NativeObject Lua-side API: group management, object creation/lookup |
@@ -129,6 +130,10 @@ There are no `thread_local` variables left.
 | `math.ult(x, y)` | 2 | Unsigned less-than comparison |
 | `math.random(...)` | vararg | Random number: 0-arg [0,1), 1-arg [1,u], 2-arg [l,u] |
 | `math.randomseed(...)` | vararg | Seed the RNG |
+| `math.erf(x)` | 1 | Error function (Boost.Math) |
+| `math.erfc(x)` | 1 | Complementary error function |
+| `math.gamma(x)` | 1 | Gamma function Γ(x) |
+| `math.lgamma(x)` | 1 | Log-gamma ln Γ(x) |
 
 **Constants:** `math.pi`, `math.huge`, `math.maxinteger`, `math.mininteger`
 
@@ -168,6 +173,9 @@ There are no `thread_local` variables left.
 | `string.starts_with(s, prefix)` | 2 | Whether `s` begins with `prefix` |
 | `string.ends_with(s, suffix)` | 2 | Whether `s` ends with `suffix` |
 | `string.contains(s, needle)` | 2 | Whether `s` contains `needle` as a substring |
+| `string.replace(s, from, to)` | 3 | Literal replace-all (`from` must be non-empty) |
+| `string.iequals(a, b)` | 2 | Case-insensitive equality (C locale / ASCII) |
+| `string.icontains(s, needle)` | 2 | Case-insensitive substring test (C locale / ASCII) |
 | `string.byte(s, [i, [j]])` | vararg | Byte values in range |
 | `string.char(...)` | vararg | Characters from code points 0-255 |
 | `string.format(fmt, ...)` | vararg | Formatted output (supports `%s %d %i %u %x %X %o %f %e %E %g %G %c %q %p`) |
@@ -196,7 +204,7 @@ There are no `thread_local` variables left.
 | `os.clock()` | 0 | CPU time in seconds |
 | `os.date([fmt, [time]])` | vararg | Formatted date/time string; `"*t"` returns table `{year, month, day, hour, min, sec, wday, yday, isdst}` |
 | `os.difftime(t2, t1)` | 2 | Difference between two timestamps |
-| `os.execute([cmd])` | vararg | Execute shell command; returns `(status_bool_or_nil, "exit"|"signal"|"error", code)` triple |
+| `os.execute([cmd])` | vararg | Execute shell command; returns `(status_bool_or_nil, "exit"|"signal"|"error", code)` triple. Uses Boost.Nowide `system` on Windows so the command string is UTF-8. |
 | `os.exit([code, [close]])` | vararg | Terminate process |
 | `os.getenv(name)` | 1 | Get environment variable |
 | `os.remove(filename)` | 1 | Delete file or empty directory (Boost.Filesystem); `true` or `nil` |
@@ -267,6 +275,8 @@ There are no `thread_local` variables left.
 | `file:setvbuf(mode, [size])` | Set buffering (`"no"`, `"full"`, `"line"`) |
 | `file:lines()` | Line iterator closure |
 
+On Windows, `io.open` / `loadfile` / `dofile` / `os.getenv` / `os.tmpname` / Boost.Filesystem path APIs go through Boost.Nowide so Lua strings are treated as UTF-8. POSIX is unchanged.
+
 ---
 
 ## Net
@@ -290,7 +300,7 @@ There are no `thread_local` variables left.
 
 **Custom parser:** `parser = "Package.func"` (Lua) or `custom_parser_fn`/`custom_encoder_fn` (C++ `NetConfig`)
 
-**WebSocket extras:** `ws_path` (default `"/"`), `ws_host` (client Host, default `ip:port`), `ws_origin` (optional)
+**WebSocket extras:** `ws_path` (default `"/"`), `ws_host` (client Host, default `ip:port`), `ws_origin` (optional). TLS (`wss`): `tls=true`, server `cert`/`key`, client `tls_verify` (default true) and optional `tls_ca`.
 
 | Function/Method | Description |
 |----------|-------------|
@@ -298,6 +308,8 @@ There are no `thread_local` variables left.
 | `net.client(config)` | Create TCP client |
 | `net.ws_server(config)` | Create WebSocket server (same as `framer="websocket"`) |
 | `net.ws_client(config)` | Create WebSocket client |
+| `net.udp_server(config)` | Bind a UDP socket (`ip`, `port`; `port=0` is ephemeral). `send(data, ip, port)` |
+| `net.udp_client(config)` | Connected UDP client (`ip`/`port` are the peer). `send(data)` |
 | `obj:dispatch(func_name)` | Register Lua callback function name |
 | `obj:send(connid, data)` | Send data (server: specify connid; client: omit) |
 | `obj:close()` | Close connection/server |
@@ -307,6 +319,8 @@ There are no `thread_local` variables left.
 | `obj:get_conn_count()` | Connection count |
 | `obj:get_recv_count()` | Packet receive count |
 | `obj:get_connid()` | Last connection ID (server only) |
+| `udp:get_port()` | Bound UDP port |
+| `udp:get_peer()` | Last datagram peer as `ip, port` |
 
 ---
 
@@ -314,11 +328,11 @@ There are no `thread_local` variables left.
 
 **File:** `http/native_http.h` · **Registration:** `RegisterHttpLibraryApi`
 
-HTTP/1.1 client and server on Boost.Beast, sharing the per-State Asio `io_context`. URLs are parsed with Boost.URL. TLS (`https://`) is not supported yet. Drive completions with `runtime.tick()`.
+HTTP/1.1 client and server on Boost.Beast, sharing the per-State Asio `io_context`. URLs are parsed with Boost.URL. `https://` uses TLS (OpenSSL); `http.get`/`http.post` verify the certificate by default. Drive completions with `runtime.tick()`.
 
-**`http.request` config:** `{method, url, headers, body, timeout_ms, version}`
+**`http.request` config:** `{method, url, headers, body, timeout_ms, version, tls_verify, tls_ca}`
 
-**`http.server` config:** `{ip, port, backlog, timeout_ms}` (`port = 0` binds an ephemeral port; read `srv.port` or `srv:get_port()`)
+**`http.server` config:** `{ip, port, backlog, timeout_ms, tls, cert, key}` (`port = 0` binds an ephemeral port; read `srv.port` or `srv:get_port()`). `tls=true` requires `cert` and `key` PEM paths.
 
 | Function/Method | Description |
 |----------|-------------|
@@ -482,6 +496,7 @@ Boost.Container-backed structures stored on a NativeObject (C++ heap). They surv
 | `crypto.base64_decode(data)` | 1 | Base64 → binary |
 | `crypto.uuid()` | 0 | RFC 4122 v4 UUID string |
 | `crypto.crc32(data)` | 1 | CRC-32/ISO-HDLC (PKZIP) → unsigned 32-bit integer |
+| `crypto.xxhash(data)` | 1 | xxHash-64 → 16-char lowercase hex (Boost.Hash2; not a password hash). MD5/SHA stay on OpenSSL. |
 | `crypto.aes_encrypt_ecb(data, key)` | 2 | AES-128-ECB encrypt (data 16-byte aligned) |
 | `crypto.aes_decrypt_ecb(data, key)` | 2 | AES-128-ECB decrypt |
 | `crypto.aes_encrypt_cbc(data, key, iv)` | 3 | AES-128-CBC encrypt (PKCS#7 padding) |
@@ -524,9 +539,11 @@ Boost.Container-backed structures stored on a NativeObject (C++ heap). They surv
 
 **Files:** `mysql/native_mysql.h`, `mysql/native_mysql_pool.h` · **Registration:** `RegisterMysqlLibraryApi`, `RegisterMysqlPoolApi`
 
-**Config for `mysql.connect`:** `{host, port, user, password, db}`
+**Config for `mysql.connect`:** `{host, port, user, password, db, timeout_ms, ssl, ssl_ca}`
 
-**Config for `mysql_pool.create`:** `{host, port, user, password, db, pool_size, timeout_ms, heartbeat_ms, max_retries}`
+**Config for `mysql_pool.create`:** `{host, port, user, password, db, pool_size, timeout_ms, heartbeat_ms, max_retries, ssl, ssl_ca}`
+
+`ssl`: omit/`false`/`"disable"` keeps plaintext (default). `true`/`"require"` demands TLS. `"enable"` uses TLS when the server offers it. Optional `ssl_ca` PEM enables certificate verification.
 
 | Function/Method | Description |
 |----------|-------------|
@@ -581,6 +598,20 @@ Connect does not send `HELLO 3`, so Redis 4+ works; AUTH/SELECT are issued when 
 | `stmt:close()` | Finalize statement |
 
 > All operations are synchronous, based on SQLite3 amalgamation source.
+
+---
+
+## Process
+
+**File:** `process/native_process.h` · **Registration:** `RegisterProcessLibraryApi`
+
+Boost.Process v2. This does **not** replace `os.execute` (that still returns Lua's `(status, how, code)` triple).
+
+| Function | Args | Description |
+|----------|------|-------------|
+| `process.run(argv [, opts])` | 1-2 | Spawn `argv[1]` with the rest as arguments. Returns `stdout, stderr, exit_code`. `opts`: `{stdin, cwd, env, timeout_ms}` |
+
+`env` is a string→string table merged into the current environment. `timeout_ms` kills the child (non-zero exit). Missing executables throw.
 
 ---
 

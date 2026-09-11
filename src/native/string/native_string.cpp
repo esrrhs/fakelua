@@ -5,6 +5,7 @@
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
 #include "state/state.h"
+#include "util/utf8_io.h"
 #include "var/var.h"
 #include "var/var_multi.h"
 #include "var/var_string.h"
@@ -828,6 +829,56 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaBool(state, boost::algorithm::contains(sv, needle));
     });
 
+    // string.replace(s, from, to) — 字面量全局替换（Boost.Algorithm）
+    RegisterNativeFunction(s, "string.replace", 3, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.replace", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.replace", "string expected");
+        if (n < 3) ThrowBadArgument(3, "string.replace", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CVar a2 = inter::GetNativeArg(state, args, n, 2);
+        CheckStringArg(a0, 1, "string.replace");
+        CheckStringArg(a1, 2, "string.replace");
+        CheckStringArg(a2, 3, "string.replace");
+        std::string temp0, temp1, temp2;
+        std::string out(GetStringArgView(a0, temp0));
+        std::string from(GetStringArgView(a1, temp1));
+        std::string to(GetStringArgView(a2, temp2));
+        if (from.empty()) {
+            ThrowFakeluaException("bad argument #2 to 'string.replace' (search string must be non-empty)");
+        }
+        boost::algorithm::replace_all(out, from, to);
+        return inter::NativeToFakeluaStringView(state, out);
+    });
+
+    // string.iequals(a, b) — ASCII 大小写不敏感相等
+    RegisterNativeFunction(s, "string.iequals", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.iequals", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.iequals", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckStringArg(a0, 1, "string.iequals");
+        CheckStringArg(a1, 2, "string.iequals");
+        std::string temp0, temp1;
+        std::string_view a = GetStringArgView(a0, temp0);
+        std::string_view b = GetStringArgView(a1, temp1);
+        return inter::NativeToFakeluaBool(state, boost::algorithm::iequals(a, b, std::locale::classic()));
+    });
+
+    // string.icontains(s, needle) — ASCII 大小写不敏感包含
+    RegisterNativeFunction(s, "string.icontains", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.icontains", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.icontains", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckStringArg(a0, 1, "string.icontains");
+        CheckStringArg(a1, 2, "string.icontains");
+        std::string temp0, temp1;
+        std::string_view sv = GetStringArgView(a0, temp0);
+        std::string_view needle = GetStringArgView(a1, temp1);
+        return inter::NativeToFakeluaBool(state, boost::algorithm::icontains(sv, needle, std::locale::classic()));
+    });
+
 
     RegisterNativeFunction(s, "string.byte", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
@@ -1529,8 +1580,7 @@ void RegisterStringLibraryApi(State *s) {
         std::string_view filename_sv = GetStringArgView(filename_var, temp);
         if (filename_sv.empty()) return inter::NativeToFakeluaNil(state);
 
-        // 读取文件内容
-        std::ifstream ifs(std::string(filename_sv), std::ios::in | std::ios::binary);
+        utf8_io::ifstream ifs(std::string(filename_sv), std::ios::in | std::ios::binary);
         if (!ifs.is_open()) return inter::NativeToFakeluaNil(state);
         std::string source((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
         ifs.close();
@@ -1556,7 +1606,7 @@ void RegisterStringLibraryApi(State *s) {
         std::string_view filename_sv = GetStringArgView(filename_var, temp);
         if (filename_sv.empty()) return inter::NativeToFakeluaNil(state);
 
-        std::ifstream ifs(std::string(filename_sv), std::ios::in | std::ios::binary);
+        utf8_io::ifstream ifs(std::string(filename_sv), std::ios::in | std::ios::binary);
         if (!ifs.is_open()) return inter::NativeToFakeluaNil(state);
         std::string source((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
         ifs.close();

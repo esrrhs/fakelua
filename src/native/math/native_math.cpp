@@ -1,6 +1,9 @@
 #include "native/math/native_math.h"
 #include "native/native_common.h"
 #include "var/var.h"
+#include <boost/math/policies/policy.hpp>
+#include <boost/math/special_functions/erf.hpp>
+#include <boost/math/special_functions/gamma.hpp>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -413,6 +416,39 @@ void RegisterMathLibraryApi(State *s) {
         inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaFloat(state, frac));
         inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, exp_val));
         return multi;
+    });
+
+    using MathPol = boost::math::policies::policy<boost::math::policies::domain_error<boost::math::policies::ignore_error>,
+                                                  boost::math::policies::pole_error<boost::math::policies::ignore_error>,
+                                                  boost::math::policies::overflow_error<boost::math::policies::ignore_error>,
+                                                  boost::math::policies::evaluation_error<boost::math::policies::ignore_error>>;
+
+    RegisterNativeFunction(s, "math.erf", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckNumberArg(a0, 1, "math.erf");
+        double v0 = inter::CVarToNumber(a0, 0.0);
+        return inter::NativeToFakeluaFloat(state, boost::math::erf(v0, MathPol()));
+    });
+
+    RegisterNativeFunction(s, "math.erfc", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckNumberArg(a0, 1, "math.erfc");
+        double v0 = inter::CVarToNumber(a0, 0.0);
+        return inter::NativeToFakeluaFloat(state, boost::math::erfc(v0, MathPol()));
+    });
+
+    RegisterNativeFunction(s, "math.gamma", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckNumberArg(a0, 1, "math.gamma");
+        double v0 = inter::CVarToNumber(a0, 0.0);
+        return inter::NativeToFakeluaFloat(state, boost::math::tgamma(v0, MathPol()));
+    });
+
+    RegisterNativeFunction(s, "math.lgamma", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckNumberArg(a0, 1, "math.lgamma");
+        double v0 = inter::CVarToNumber(a0, 0.0);
+        return inter::NativeToFakeluaFloat(state, boost::math::lgamma(v0, MathPol()));
     });
 }
 

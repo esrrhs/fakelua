@@ -755,3 +755,13 @@ TEST(test_string, split_empty_sep) {
     EXPECT_THROW(Call(s, JIT_GCC, "test_split_empty_sep", ret), std::exception);
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, replace_empty_from) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./string/test_string_algorithm.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_replace_empty_from", ret), std::exception);
+    FakeluaDeleteState(s);
+}

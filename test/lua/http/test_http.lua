@@ -67,6 +67,41 @@ function test_echo()
     return 1
 end
 
+function test_tls_echo()
+    local cfg = {}
+    cfg["ip"] = "127.0.0.1"
+    cfg["port"] = 0
+    cfg["tls"] = true
+    cfg["cert"] = "./tls/cert.pem"
+    cfg["key"] = "./tls/key.pem"
+    local srv = http.server(cfg)
+    srv:dispatch("HttpTest.on_server")
+    local port = srv.port
+    if port == nil or port == 0 then
+        port = srv:get_port()
+    end
+    if port == nil or port == 0 then
+        srv:close()
+        return 0
+    end
+
+    local req = http.request({
+        method = "GET",
+        url = "https://127.0.0.1:" .. tostring(port) .. "/ping",
+        tls_verify = false
+    }, "HttpTest.on_client")
+    for i = 1, 1500 do
+        runtime.tick()
+        if req.done then break end
+        os.sleep(1)
+    end
+    srv:close()
+    if not req.done or req.err ~= nil then return 0 end
+    if req.status ~= 200 then return 0 end
+    if req.body ~= "hello:/ping" then return 0 end
+    return 1
+end
+
 function on_fail(req, err, resp)
     req.done = true
     req.err = err

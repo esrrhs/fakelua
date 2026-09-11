@@ -6,6 +6,7 @@
 #include "native/native_io_context.h"
 
 #include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/mysql.hpp>
 
 #include <cstdint>
@@ -74,7 +75,10 @@ public:
 
     // Start async TCP connect. on_connect(conn, err) called when done.
     // timeout_ms <= 0 means no client-side connect/handshake timeout.
-    void Connect(const std::string &host, uint16_t port, const std::string &user, const std::string &password, const std::string &database, int timeout_ms = 0);
+    // Start async TCP connect. on_connect(conn, err) called when done.
+    // timeout_ms <= 0 means no client-side connect/handshake timeout.
+    // ssl defaults to disable so existing plaintext tests keep working.
+    void Connect(const std::string &host, uint16_t port, const std::string &user, const std::string &password, const std::string &database, int timeout_ms = 0, boost::mysql::ssl_mode ssl = boost::mysql::ssl_mode::disable, std::string ssl_ca = {});
 
     // Send a query. on_result(result, err) called when response arrives.
     void Query(const std::string &sql);
@@ -159,6 +163,9 @@ private:
     std::string database_;
     uint16_t port_ = 3306;
     int timeout_ms_ = 0;
+    boost::mysql::ssl_mode ssl_mode_ = boost::mysql::ssl_mode::disable;
+    std::string ssl_ca_;
+    std::unique_ptr<boost::asio::ssl::context> ssl_ctx_;
 
     // Timing
     int64_t connect_start_ms_ = 0;

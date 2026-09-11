@@ -3,6 +3,7 @@
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
 #include "native/table/native_table.h"
+#include "util/utf8_io.h"
 #include "var/var.h"
 #include <algorithm>
 #include <boost/filesystem.hpp>
@@ -232,7 +233,7 @@ void RegisterOsLibraryApi(State *s) {
         if (cmd_sv.empty()) {
             return MakeShellResult(state, inter::NativeToFakeluaBool(state, true), "exit", 0);
         }
-        int ret = std::system(std::string(cmd_sv).c_str());
+        int ret = utf8_io::System(std::string(cmd_sv).c_str());
 #if defined(_WIN32)
         if (ret == 0) {
             return MakeShellResult(state, inter::NativeToFakeluaBool(state, true), "exit", 0);
@@ -303,7 +304,7 @@ void RegisterOsLibraryApi(State *s) {
         if (varname.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
-        const char *val = std::getenv(std::string(varname).c_str());
+        const char *val = utf8_io::Getenv(std::string(varname).c_str());
         if (val) {
             return inter::NativeToFakeluaStringView(state, std::string_view(val));
         }
@@ -454,7 +455,7 @@ void RegisterOsLibraryApi(State *s) {
             if (ec) return inter::NativeToFakeluaNil(state);
             boost::system::error_code exists_ec;
             if (fs::exists(p, exists_ec)) continue;
-            std::ofstream out(p.string(), std::ios::out | std::ios::trunc);
+            utf8_io::ofstream out(p.string(), std::ios::out | std::ios::trunc);
             if (!out) continue;
             out.close();
             return inter::NativeToFakeluaStringView(state, p.string());
