@@ -8,43 +8,62 @@
 
 中文 | [English](README.md)
 
-**fake** 是一款轻量级嵌入式脚本语言，用 C++ 编写。语法吸取自 Lua、Go、Erlang；基于 flex、bison 生成语法树，编译成字节码在 VM 上解释执行，并提供实验性 JIT。
-
-其他实现：[Java 版](https://github.com/esrrhs/fakejava) · [Go 版](https://github.com/esrrhs/fakego)
-
-## 内存模型
-
-fake **没有垃圾回收**。字符串、array、map、绑定指针会一直活到 `fake` 实例结束。调用 `delfake(fk)` 时一口气释放全部内存。
+轻量级嵌入式脚本语言，用 C++ 编写。语法吸取自 Lua、Go、Erlang。脚本经 flex/bison 解析，编译成字节码在 VM 上执行（可选实验性 JIT）。
 
 ## 特性
 
-- **运行环境**：Linux amd64、macOS amd64；字节码 VM + 实验性 JIT
-- **并发**：`fake fn(args)` 在单线程上创建 routine（JIT 下不可用）
-- **互操作**：绑定 C 函数和 C++ 成员函数；支持热更新
-- **语言**：包、`include`、`struct`、`const`、可嵌套的 `array` / `map`、多返回值、Int64
-- **工具**：gdb 风格命令行调试器、VS 风格可视化 IDE、函数 profile
-- **打包**：可打成 bin 或独立可执行文件
+- 字节码 VM 与实验性 JIT（Linux / macOS amd64）
+- 绑定 C 函数和 C++ 成员函数；支持热更新
+- 包、`include`、`struct`、`const`、可嵌套的 `array` / `map`、多返回值、Int64
+- `fake fn(args)` 在单线程上创建 routine（JIT 下不可用）
+- gdb 风格命令行调试器、可视化 IDE、函数 profile
+- 可打成 bin 或独立可执行文件
+- 没有垃圾回收 — 对象活到 `delfake()`，销毁时一口气释放全部内存
 
-## 嵌入
+## 依赖
 
-把 `include/fake-inc.h` 和 `bin/libfake.so` 拷进工程即可。
+- cmake、gcc、g++
+- 只有需要重新生成解析器时才要 flex、bison（`./gen.sh`）
+
+## 编译
+
+```bash
+./build.sh           # debug
+./build.sh release   # 优化
+```
+
+产物是 `bin/libfake.so` 和 `bin/fakebin`。
+
+## 使用
+
+运行脚本：
+
+```bash
+./bin/fakebin your.fk
+```
+
+示例在 `test/sample`。测试：
+
+```bash
+cd test && ./test.sh      # VM
+cd test && ./test.sh -j   # JIT
+```
+
+嵌入 C++ — 把 `include/fake-inc.h` 和 `bin/libfake.so` 拷进工程：
 
 ```cpp
-fake * fk = newfake();
+fake *fk = newfake();
 fkreg(fk, "cfunc1", cfunc1);
 fkreg(fk, "memfunc1", &class1::memfunc1);  // 不同类注册同名函数不冲突
 fkparse(fk, argv[1]);
 int ret = fkrun<int>(fk, "myfunc1", 1, 2);
-delfake(fk);
+delfake(fk);  // 释放全部内存
 ```
 
 ## 语言
 
 ```
--- 当前包名
 package mypackage.test
-
--- 引入的文件
 include "common.fk"
 
 struct teststruct
@@ -58,12 +77,10 @@ const helloint = 1234
 const hellomap = {1 : "a" 2 : "b" 3 : [1 2 3]}
 
 func myfunc1(arg1, arg2)
-
-	-- C 函数和类成员函数调用
 	arg3 := cfunc1(helloint) + arg2:memfunc1(arg1)
 
 	if arg1 < arg2 then
-		fake myfunc2(arg1, arg2)   -- 创建一个协程
+		fake myfunc2(arg1, arg2)
 	elseif arg1 == arg2 then
 		print("elseif")
 	else
@@ -105,45 +122,38 @@ func myfunc1(arg1, arg2)
 end
 ```
 
-## 性能
-
-```bash
-cd benchmark/ && ./benchmark.sh
-```
-
-在 MacBook Pro 2.3 GHz Intel Core i5 上的数据：
-
-|        | Lua   | Python | Fake | Fake JIT |
-|--------|-------|:------:|-----:|---------:|
-| Loop   | 0.8s  | 2.3s   | 1.3s | 0.2s     |
-| Prime  | 13.5s | 20.9s  | 12.8s | 5.9s    |
-| String | 0.8s  | 0.4s   | 1.2s | 3.2s     |
-
-## 编译
-
-1. 安装 cmake、gcc、g++
-2. （可选）安装 flex、bison，运行 `./gen.sh` 重新生成解析器
-3. `./build.sh` 或 `./build.sh release`
-
-## 测试
-
-示例脚本在 `test/sample`。
-
-```bash
-cd test && ./test.sh          # VM
-cd test && ./test.sh -j       # JIT
-./bin/fakebin your.fk         # 运行脚本
-```
-
 ## 调试
 
-- IDE：`bin/fakeide.app`
+IDE（`bin/fakeide.app`）：
 
 ![ide](img/ide.png)
 
-- 命令行：`bin/fakebin`
+命令行（`bin/fakebin`）：
 
 ![debug](img/debug.png)
+
+## 基准
+
+```bash
+cd benchmark && ./benchmark.sh
+```
+
+MacBook Pro 2.3 GHz Intel Core i5：
+
+|        | Lua   | Python | Fake  | Fake JIT |
+|--------|-------|--------|------:|---------:|
+| Loop   | 0.8s  | 2.3s   | 1.3s  | 0.2s     |
+| Prime  | 13.5s | 20.9s  | 12.8s | 5.9s     |
+| String | 0.8s  | 0.4s   | 1.2s  | 3.2s     |
+
+## 相关项目
+
+- [fakejava](https://github.com/esrrhs/fakejava)
+- [fakego](https://github.com/esrrhs/fakego)
+
+## 许可证
+
+[MIT](LICENSE)
 
 ## Stargazers over time
 
