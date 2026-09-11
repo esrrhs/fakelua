@@ -1,18 +1,30 @@
-name: C/C++ CI
+name: CI
 
-on: [push]
+on:
+  push:
+  pull_request:
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
-    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build: [debug, release]
+    runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v1
-    - name: build
-      run: |
-        ./build.sh
-        ./build.sh release
-        cd test
-        bash ./test.sh
-        bash ./test.sh -j
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          if [ "${{ matrix.build }}" = "release" ]; then
+            ./build.sh release
+          else
+            ./build.sh
+          fi
+
+      - name: Unit tests
+        run: ./bin/fake_tests --gtest_color=yes
+
+      - name: Benchmark
+        run: ./bin/fake_bench --benchmark_min_time=0.1s --benchmark_color=false

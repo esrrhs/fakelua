@@ -11,7 +11,7 @@ void parser::reset() {
     m_parsing_file_list.clear();
     m_parsing_file_list_str.clear();
     m_parse_dep = 0;
-    // m_shh永久存在
+    // m_shh???????
 }
 
 void parser::clear() {
@@ -24,10 +24,10 @@ bool parser::parsestr(const char *str) {
 
     FKLOG("parsestr %p %s", fk, str);
 
-    // 清空错误
+    // ??????
     fk->clearerr();
 
-    // 输入
+    // ????
     myflexer mf(fk);
     mf.clear();
     bool b = mf.inputstr(str);
@@ -36,7 +36,7 @@ bool parser::parsestr(const char *str) {
         return false;
     }
 
-    // 进行语法解析
+    // ??????????
     int ret = yyparse((void *) &mf);
     if (ret != 0) {
         FKERR("parse yyparse %s fail ret %d", fk, str, ret);
@@ -47,7 +47,7 @@ bool parser::parsestr(const char *str) {
 
     FKLOG("parse yyparse %p %s OK", fk, str);
 
-    // 解析前置文件
+    // ??????????
     for (int i = 0; i < (int) mf.get_include_list().size(); i++) {
         String &name = mf.get_include_list()[i];
         if (!parse_include("", name)) {
@@ -56,22 +56,13 @@ bool parser::parsestr(const char *str) {
         }
     }
 
-    // 编译
+    // ????
     FKLOG("parse compile %p %s", fk, str);
     compiler mc(fk, &mf);
     mc.clear();
     b = mc.compile();
     if (!b) {
         FKERR("parse %s compile %s fail", fk, str);
-        return false;
-    }
-
-    // jit
-    fk->as.clear();
-    assembler &as = fk->as;
-    b = as.compile(&fk->bin);
-    if (!b) {
-        FKERR("parse %s jit %s fail", fk, str);
         return false;
     }
 
@@ -93,14 +84,14 @@ bool parser::parse(const char *filename) {
 
     m_parse_dep++;
 
-    // 检查深度
+    // ??????
     if (m_parse_dep >= m_fk->cfg.include_deps) {
         FKERR("parse %s file too deep %d", filename, m_parse_dep);
         seterror(fk, efk_parse_file_fail, filename, 0, "", "parse %s file too deep %d", filename, m_parse_dep);
         return false;
     }
 
-    // 检查当前文件是否在解析中
+    // ??鵱??????????????
     if (is_parsing(filename)) {
         FKERR("parse open %s fail", fk, filename);
         seterror(fk, efk_parse_file_fail, filename, 0, "", "already parsing %s file...include list \n%s", filename,
@@ -108,13 +99,13 @@ bool parser::parse(const char *filename) {
         return false;
     }
 
-    // 加入
+    // ????
     m_parsing_file_list.push_back(filename);
 
-    // 清空错误
+    // ??????
     fk->clearerr();
 
-    // 输入源文件
+    // ????????
     FKLOG("parse inputfile %p %s", fk, filename);
     myflexer mf(fk);
     mf.clear();
@@ -124,7 +115,7 @@ bool parser::parse(const char *filename) {
         return false;
     }
 
-    // 进行语法解析
+    // ??????????
     int ret = yyparse((void *) &mf);
     if (ret != 0) {
         FKERR("parse yyparse %s fail ret %d", fk, filename, ret);
@@ -135,7 +126,7 @@ bool parser::parse(const char *filename) {
 
     FKLOG("parse yyparse %p %s OK", fk, filename);
 
-    // 解析前置文件
+    // ??????????
     for (int i = 0; i < (int) mf.get_include_list().size(); i++) {
         String &name = mf.get_include_list()[i];
         if (!parse_include(filename, name)) {
@@ -144,7 +135,7 @@ bool parser::parse(const char *filename) {
         }
     }
 
-    // 编译
+    // ????
     FKLOG("parse compile %p %s", fk, filename);
     compiler mc(fk, &mf);
     mc.clear();
@@ -154,16 +145,7 @@ bool parser::parse(const char *filename) {
         return false;
     }
 
-    // jit
-    fk->as.clear();
-    assembler &as = fk->as;
-    b = as.compile(&fk->bin);
-    if (!b) {
-        FKERR("fkparse %s jit %s fail", fk, filename);
-        return false;
-    }
-
-    // 弹出
+    // ????
     assert(m_parsing_file_list.back() == (String) filename);
     m_parsing_file_list.pop_back();
 
@@ -192,7 +174,7 @@ bool parser::is_parsing(const char *filename) {
 }
 
 bool parser::parse_include(const String &srcname, const String &includename) {
-    // 拼include的名字
+    // ?include??????
     String dir = srcname;
     std::replace(dir.begin(), dir.end(), '\\', '/');
     int pos = dir.find_last_of('/');
@@ -203,7 +185,7 @@ bool parser::parse_include(const String &srcname, const String &includename) {
     }
     dir += includename;
 
-    // 解析
+    // ????
     if (!parse(dir.c_str())) {
         FKERR("parse_include %s fail", dir.c_str());
         return false;
@@ -216,6 +198,7 @@ void parser::reg_const_define(const char *constname, const variant &v, int linen
     if (UNLIKE(p != 0)) {
         p->v = v;
         p->lineno = lineno;
+        m_fk->sh.pin(&v);
         return;
     }
 
@@ -223,6 +206,7 @@ void parser::reg_const_define(const char *constname, const variant &v, int linen
     tmp.v = v;
     tmp.lineno = lineno;
 
+    m_fk->sh.pin(&v);
     m_shh.add(constname, tmp);
 }
 

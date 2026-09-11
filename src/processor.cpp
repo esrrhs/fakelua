@@ -9,7 +9,7 @@ routine *processor::start_routine(const variant &func, int retnum, int *retpos) 
         m_entryroutine = n;
     }
 
-    // 初始化下
+    // 鍒濆鍖栦笅
     ROUTINE_INI(*n, m_fk, m_genid);
     m_genid++;
     ROUTINE_CLEAR(*n);
@@ -36,31 +36,23 @@ void processor::run() {
 
         routine *n = ARRAY_GET(m_pl.l, m_lastroutine);
         assert(n);
-        ROUTINE_RUN(*n, 1);
-        m_lastroutine_runnum++;
-        bool needupdate = false;
+        ROUTINE_STEP(*n);
         if (UNLIKE(ROUTINE_ISEND(*n))) {
             POOL_PUSH(m_pl.p, n, routine);
             ARRAY_GET(m_pl.l, m_lastroutine) = 0;
             m_routine_num--;
-            needupdate = true;
-        } else if (UNLIKE(m_lastroutine_runnum >= m_fk->cfg.per_frame_cmd_num)) {
-            m_lastroutine_runnum = 0;
-            needupdate = true;
-        }
-        if (UNLIKE(needupdate)) {
             for (int i = 0; LIKE(i < (int) ARRAY_SIZE(m_pl.l)); i++) {
                 int index = m_lastroutine + i + 1;
                 if (UNLIKE(index >= (int) ARRAY_SIZE(m_pl.l))) {
                     index = index % ARRAY_SIZE(m_pl.l);
                 }
 
-                routine *n = ARRAY_GET(m_pl.l, index);
-                if (UNLIKE(!n)) {
+                routine *next = ARRAY_GET(m_pl.l, index);
+                if (UNLIKE(!next)) {
                     continue;
                 }
 
-                m_curroutine = n;
+                m_curroutine = next;
                 m_lastroutine = index;
                 break;
             }
@@ -68,25 +60,26 @@ void processor::run() {
         if (UNLIKE(!m_routine_num)) {
             ARRAY_CLEAR(m_pl.l);
         }
-    } else {
-        while (LIKE(m_routine_num > 0)) {
-            for (int i = 0; LIKE(i < (int) ARRAY_SIZE(m_pl.l)); i++) {
-                routine *n = ARRAY_GET(m_pl.l, i);
-                if (UNLIKE(!n)) {
-                    continue;
-                }
-                m_curroutine = n;
-                // 注意:此函数内部可能会调用到add接口
-                ROUTINE_RUN(*n, m_fk->cfg.per_frame_cmd_num);
-                if (UNLIKE(ROUTINE_ISEND(*n))) {
-                    POOL_PUSH(m_pl.p, n, routine);
-                    ARRAY_GET(m_pl.l, i) = 0;
-                    m_routine_num--;
-                }
+        return;
+    }
+
+    while (LIKE(m_routine_num > 0)) {
+        for (int i = 0; LIKE(i < (int) ARRAY_SIZE(m_pl.l)); i++) {
+            routine *n = ARRAY_GET(m_pl.l, i);
+            if (UNLIKE(!n)) {
+                continue;
+            }
+            m_curroutine = n;
+            // 娉ㄦ剰:姝ゅ嚱鏁板唴閮ㄥ彲鑳戒細璋冪敤鍒癮dd鎺ュ彛
+            ROUTINE_RUN(*n);
+            if (UNLIKE(ROUTINE_ISEND(*n))) {
+                POOL_PUSH(m_pl.p, n, routine);
+                ARRAY_GET(m_pl.l, i) = 0;
+                m_routine_num--;
             }
         }
-        ARRAY_CLEAR(m_pl.l);
     }
+    ARRAY_CLEAR(m_pl.l);
 }
 
 routine *processor::get_routine_by_id(int id) {

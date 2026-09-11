@@ -1,21 +1,53 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+set(FAKE_SOURCES
+    binary.cpp
+    bindfunc.cpp
+    bison.cpp
+    buildinfunc.cpp
+    buildinfuncfile.cpp
+    buildinfuncmath.cpp
+    buildinfuncos.cpp
+    buildinfuncstring.cpp
+    codegen.cpp
+    compiler.cpp
+    container.cpp
+    debuging.cpp
+    fake-inc.cpp
+    flex.cpp
+    funcmap.cpp
+    interpreter.cpp
+    myflexer.cpp
+    optimizer.cpp
+    parser.cpp
+    pointerheap.cpp
+    processor.cpp
+    profile.cpp
+    stringheap.cpp
+    syntree.cpp
+    types.cpp
+)
 
-set(CMAKE_MACOSX_RPATH 1)
+add_library(fake SHARED ${FAKE_SOURCES})
 
-PROJECT(FAKE)
-AUX_SOURCE_DIRECTORY(./ FAKE_SRC_LIST)
-INCLUDE_DIRECTORIES(../include)
-INCLUDE_DIRECTORIES(./)
-INCLUDE_DIRECTORIES(./deps)
-MESSAGE(STATUS "This is cmdcontroller BINARY dir " ${FAKE_BINARY_DIR})
-MESSAGE(STATUS "This is cmdcontroller SOURCE dir " ${FAKE_SOURCE_DIR})
-MESSAGE(STATUS "This is cmdcontroller SOURCE file " ${FAKE_SRC_LIST})
-IF (REMOD)
-    SET(CMAKE_CXX_FLAGS "-O3 -Wall -gdwarf-2 -m64 -DNDEBUG")
-    MESSAGE("build release lib")
-ELSE ()
-    SET(CMAKE_CXX_FLAGS "-g3 -O0 -Wall -gdwarf-2 -m64 -D_DEBUG")
-    MESSAGE("build debug lib")
-ENDIF ()
-SET(LIBRARY_OUTPUT_PATH ${FAKE_BINARY_DIR}/../bin)
-ADD_LIBRARY(fake SHARED ${FAKE_SRC_LIST})
+target_include_directories(fake
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/deps
+)
+
+if(FAKE_RELEASE)
+    target_compile_options(fake PRIVATE -O3 -Wall -flto)
+    target_compile_definitions(fake PRIVATE NDEBUG)
+    target_link_options(fake PRIVATE -flto)
+else()
+    target_compile_options(fake PRIVATE -g3 -O0 -Wall)
+    target_compile_definitions(fake PRIVATE _DEBUG)
+endif()
+
+set_target_properties(fake PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin
+    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin
+    ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin
+    BUILD_RPATH ${PROJECT_SOURCE_DIR}/bin
+)

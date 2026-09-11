@@ -49,30 +49,18 @@ void buildin_format(fake *fk, interpreter *inter) {
     fkpspush<const char *>(fk, str.c_str());
 }
 
-// log, very slow
+// log
 void buildin_log(fake *fk, interpreter *inter) {
     String str;
     for (int i = 0; i < (int) fk->ps.m_variant_list_num; i++) {
         str += vartostring(&fk->ps.m_variant_list[i]);
     }
-
-    // log
-    FILE *pLog = fopen("fk.log", "a+");
-    if (pLog) {
-        time_t clock1 = time(0);
-        struct tm *tptr = localtime(&clock1);
-        const char *func = fkgetcurfunc(fk);
-
-        fprintf(pLog, "[%d.%d.%d, %d.%d.%d][%s] : %s\n",
-                tptr->tm_year + 1990, tptr->tm_mon + 1, tptr->tm_mday, tptr->tm_hour, tptr->tm_min, tptr->tm_sec,
-                func, str.c_str());
-
-        fclose(pLog);
+    if (fk->bif.get_print_func()) {
+        fk->bif.get_print_func()(fk, str.c_str());
+    } else {
+        fprintf(stderr, "%s\n", str.c_str());
     }
-
     PS_CLEAR(fk->ps);
-
-    // ret
     fkpspush<int>(fk, (int) str.size());
 }
 
@@ -168,14 +156,10 @@ void buildin_range(fake *fk, interpreter *inter) {
             fkpspush<const char *>(fk, "");
         }
     } else if (v->type == variant::ARRAY) {
-        if (pos >= 0 && pos < (int) ARRAY_SIZE(v->data.va->va) && ARRAY_GET(v->data.va->va, pos)) {
+        if (pos >= 0 && pos < (int) ARRAY_SIZE(v->data.va->va)) {
             variant *ret = 0;
             PS_PUSH_AND_GET(fk->ps, ret);
-            if (ARRAY_GET(v->data.va->va, pos)) {
-                *ret = *(ARRAY_GET(v->data.va->va, pos));
-            } else {
-                *ret = NILV;
-            }
+            *ret = ARRAY_GET(v->data.va->va, pos);
         } else {
             fkpspush<bool>(fk, false);
         }
@@ -370,10 +354,8 @@ void buildin_getconst(fake *fk, interpreter *inter) {
     }
 }
 
-// pause
+// pause — host should block if it needs a debugger; do not wait on stdin
 void buildin_pause(fake *fk, interpreter *inter) {
-    printf("press any key to continue\n");
-    getchar();
     fkpspush<bool>(fk, true);
 }
 

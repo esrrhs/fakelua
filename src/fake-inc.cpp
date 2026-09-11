@@ -28,7 +28,6 @@ FAKE_API void delfake(fake *fk) {
     fk->cfg.fkf(fk);
 }
 
-// ???????
 FAKE_API bool fkparse(fake *fk, const char *filename) {
     fk->pa.reset();
     return fk->pa.parse(filename);
@@ -40,6 +39,10 @@ FAKE_API bool fkparsestr(fake *fk, const char *str) {
 
 FAKE_API void fkclear(fake *fk) {
     fk->fm.clearfb();
+}
+
+FAKE_API void fkreset(fake *fk) {
+    fk->reset();
 }
 
 FAKE_API efkerror fkerror(fake *fk) {
@@ -108,16 +111,13 @@ FAKE_API int fkgetfuncvariantline(fake *fk, const char *func, int index) {
     return 0;
 }
 
-// ???¨²???
 FAKE_API void fkrunps(fake *fk, const char *func) {
     FKLOG("fkrunps %p %s", fk, func);
 
     fk->rn.rundeps++;
 
-    // ??????§Ý???
     fk->clearerr();
 
-    // ?????
     processor *n = 0;
     if (UNLIKE(POOL_EMPTY(fk->pp))) {
         POOL_GROW(fk->pp, n, processor);
@@ -133,13 +133,12 @@ FAKE_API void fkrunps(fake *fk, const char *func) {
     routine *r = pro.start_routine(funcv, 0, 0);
 
     PUSH_CUR_PROCESSOR(n, fk->rn);
-    // ??????§µ????????run
     if (UNLIKE(fk->rn.stepmod)) {
         variant *ret = 0;
         bool err = false;
         PS_PUSH_AND_GET(fk->ps, ret);
         *ret = NILV;
-        FKLOG("fkrunps %p %s yield", fk, func);
+        FKLOG("fkrunps %p %s debug step", fk, func);
         CHECK_ERR(err);
         return;
     }
@@ -428,28 +427,6 @@ FAKE_API void fkpsclear(fake *fk) {
     PS_CLEAR(fk->ps);
 }
 
-FAKE_API void fkrunpsjit(fake *fk, const char *func) {
-    FKLOG("fkrunpsjit %p %s", fk, func);
-
-#ifndef FK64
-    // 32¦Ë???????
-    seterror(fk, efk_jit_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "current platform not support jit");
-    return;
-#endif
-
-    fk->rn.rundeps++;
-
-    fk->clearerr();
-    fk->mac.clear();
-    variant funcv;
-    V_SET_STRING(&funcv, func);
-    fk->mac.call(funcv);
-
-    fk->rn.rundeps--;
-
-    FKLOG("fkrunpsjit %p %s OK", fk, func);
-}
-
 FAKE_API void fkpushfunctor(fake *fk, const char *prefix, const char *name, fkfunctor ff) {
     FKLOG("fkpushfunctor %p %s %s", fk, prefix, name);
     String tmp = (String) prefix + name;
@@ -483,14 +460,6 @@ FAKE_API void fkopenstringlib(fake *fk) {
 
 FAKE_API void fkopenmathlib(fake *fk) {
     fk->bif.openmathfunc();
-}
-
-FAKE_API void fkopenjit(fake *fk) {
-    fk->as.open();
-}
-
-FAKE_API void fkclosejit(fake *fk) {
-    fk->as.close();
 }
 
 FAKE_API void fkopenprofile(fake *fk) {
@@ -893,12 +862,6 @@ FAKE_API int fkloadfunc(fake *fk, char *buff, int size) {
         return -1;
     }
 
-    // update jit
-    fk->as.clear();
-    if (!fk->as.compile(&fk->bin)) {
-        return -1;
-    }
-
     return b.size();
 }
 
@@ -955,7 +918,6 @@ FAKE_API void fkresumeps(fake *fk, bool &isend) {
 
     isend = false;
 
-    // ??¦Å?processor
     processor *n = 0;
     GET_CUR_PROCESSOR(n, fk->rn);
     if (UNLIKE(!n)) {
@@ -968,13 +930,11 @@ FAKE_API void fkresumeps(fake *fk, bool &isend) {
         return;
     }
 
-    // ??pop???????
     POP_CUR_PROCESSOR(fk->rn);
 
     processor &pro = *n;
     pro.run();
     if (LIKE(!PROCESS_END(pro))) {
-        // ????????
         PUSH_CUR_PROCESSOR(n, fk->rn);
 
         variant *ret = 0;
@@ -986,7 +946,6 @@ FAKE_API void fkresumeps(fake *fk, bool &isend) {
         return;
     }
 
-    // ??????
     variant *ret = 0;
     bool err = false;
     PS_PUSH_AND_GET(fk->ps, ret);
