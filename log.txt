@@ -218,3 +218,5 @@
 2026.9.11:去掉 fake/yield/sleep 模拟协程；optimizer 改为 CFG + 到达定值/常量传播/拷贝传播/活跃变量 DCE
 2026.9.11:optimizer 改为 SSA（Cytron）+ SCCP（Wegman-Zadeck）+ GVN + 活跃变量 DCE
 2026.9.11:test/sample 改成 test/scripts，按 lang/bind/stdlib/optimizer/template/package 分类
+2026.9.11:重跑 release benchmark；补 RangeFor/MapWrite/FoldedAdd/DeadBranch/Gvn/Switch/Recurse/Prime/ParseHeavy；结论写在 benchmark/README
+2026.9.11:benchmark 去掉 Python，只和 Lua 对比
