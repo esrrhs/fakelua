@@ -11,6 +11,7 @@
 #include <boost/asio/readable_pipe.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/asio/writable_pipe.hpp>
+#include <boost/process/stdio.hpp>
 #endif
 #include <boost/filesystem.hpp>
 #include <boost/nowide/convert.hpp>
@@ -18,7 +19,6 @@
 #include <boost/process/environment.hpp>
 #include <boost/process/process.hpp>
 #include <boost/process/start_dir.hpp>
-#include <boost/process/stdio.hpp>
 
 #include <chrono>
 #include <format>
@@ -114,6 +114,82 @@ static std::vector<std::string> TableToArgv(State *s, CVar tbl) {
     return argv;
 }
 
+#if defined(_WIN32) && !defined(BOOST_ASIO_HAS_PIPE)
+// 工程在 WIN32 上全局 BOOST_ASIO_DISABLE_IOCP，Asio 没有 pipe 类型，
+// boost/process/v2/stdio.hpp 仍会实例化 basic_readable_pipe 而编不过。
+struct FileStdio {
+    HANDLE hin = INVALID_HANDLE_VALUE;
+    HANDLE hout = INVALID_HANDLE_VALUE;
+    HANDLE herr = INVALID_HANDLE_VALUE;
+
+    FileStdio() = default;
+    FileStdio(const FileStdio &) = delete;
+    FileStdio &operator=(const FileStdio &) = delete;
+
+    ~FileStdio() {
+        Close();
+    }
+
+    void Close() {
+        auto close_one = [](HANDLE &h) {
+            if (h != INVALID_HANDLE_VALUE) {
+                ::CloseHandle(h);
+                h = INVALID_HANDLE_VALUE;
+            }
+        };
+        close_one(hin);
+        close_one(hout);
+        close_one(herr);
+    }
+
+    static HANDLE Open(const wchar_t *path, bool for_read) {
+        SECURITY_ATTRIBUTES sa{};
+        sa.nLength = sizeof(sa);
+        sa.bInheritHandle = TRUE;
+        HANDLE h = ::CreateFileW(path, for_read ? GENERIC_READ : GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa,
+                                 for_read ? OPEN_EXISTING : OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h == INVALID_HANDLE_VALUE) {
+            ThrowFakeluaException(std::format("process.run: CreateFileW failed ({})", static_cast<unsigned>(::GetLastError())));
+        }
+        return h;
+    }
+
+    boost::system::error_code on_setup(bp::windows::default_launcher &launcher, const bp::filesystem::path &, const std::wstring &) {
+        launcher.startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+        launcher.startup_info.StartupInfo.hStdInput = hin;
+        launcher.startup_info.StartupInfo.hStdOutput = hout;
+        launcher.startup_info.StartupInfo.hStdError = herr;
+        launcher.inherited_handles.push_back(hin);
+        launcher.inherited_handles.push_back(hout);
+        launcher.inherited_handles.push_back(herr);
+        return {};
+    }
+};
+#endif
+
+template<typename Stdio>
+static bp::process LaunchProcess(asio::io_context &ctx, const auto &exe, const std::vector<std::string> &child_args, Stdio &stdio,
+                                 const std::string &cwd, const std::unordered_map<std::string, std::string> &env_overrides, const std::string &argv0) {
+    try {
+        if (!cwd.empty() && !env_overrides.empty()) {
+            auto env_list = CurrentEnviron();
+            ApplyEnvOverrides(env_list, env_overrides);
+            return bp::process(ctx, exe, child_args, stdio, bp::process_start_dir(cwd), bp::process_environment(env_list));
+        }
+        if (!cwd.empty()) {
+            return bp::process(ctx, exe, child_args, stdio, bp::process_start_dir(cwd));
+        }
+        if (!env_overrides.empty()) {
+            auto env_list = CurrentEnviron();
+            ApplyEnvOverrides(env_list, env_overrides);
+            return bp::process(ctx, exe, child_args, stdio, bp::process_environment(env_list));
+        }
+        return bp::process(ctx, exe, child_args, stdio);
+    } catch (const std::exception &e) {
+        ThrowFakeluaException(std::format("process.run: failed to spawn '{}': {}", argv0, e.what()));
+    }
+}
+
 static CVar ProcessRun(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "process.run", "argv table expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
@@ -173,11 +249,16 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     std::vector<std::string> child_args(argv.begin() + 1, argv.end());
 
     asio::io_context ctx;
-    bp::process_stdio stdio;
+    std::string stdout_s;
+    std::string stderr_s;
+    int exit_code = -1;
+    bool timed_out = false;
+
 #if defined(BOOST_ASIO_HAS_PIPE)
     asio::readable_pipe out_pipe{ctx};
     asio::readable_pipe err_pipe{ctx};
     std::unique_ptr<asio::writable_pipe> in_pipe;
+    bp::process_stdio stdio;
     if (!stdin_data.empty()) {
         in_pipe = std::make_unique<asio::writable_pipe>(ctx);
         stdio.in = *in_pipe;
@@ -186,54 +267,8 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     }
     stdio.out = out_pipe;
     stdio.err = err_pipe;
-#else
-    // MinGW 没有 IOCP，Boost.Asio 不提供 readable_pipe。stdio 改绑临时文件。
-    const auto out_path = MakeProcTempPath();
-    const auto err_path = MakeProcTempPath();
-    boost::filesystem::path in_path;
-    {
-        boost::nowide::ofstream{out_path.string(), std::ios::binary};
-        boost::nowide::ofstream{err_path.string(), std::ios::binary};
-    }
-    if (!stdin_data.empty()) {
-        in_path = MakeProcTempPath();
-        boost::nowide::ofstream in(in_path.string(), std::ios::binary);
-        in.write(stdin_data.data(), static_cast<std::streamsize>(stdin_data.size()));
-        stdio.in = in_path;
-    } else {
-        stdio.in = nullptr;
-    }
-    stdio.out = out_path;
-    stdio.err = err_path;
-#endif
+    bp::process proc = LaunchProcess(ctx, exe, child_args, stdio, cwd, env_overrides, argv[0]);
 
-    bp::process proc = [&]() {
-        try {
-            if (!cwd.empty() && !env_overrides.empty()) {
-                auto env_list = CurrentEnviron();
-                ApplyEnvOverrides(env_list, env_overrides);
-                return bp::process(ctx, exe, child_args, stdio, bp::process_start_dir(cwd), bp::process_environment(env_list));
-            }
-            if (!cwd.empty()) {
-                return bp::process(ctx, exe, child_args, stdio, bp::process_start_dir(cwd));
-            }
-            if (!env_overrides.empty()) {
-                auto env_list = CurrentEnviron();
-                ApplyEnvOverrides(env_list, env_overrides);
-                return bp::process(ctx, exe, child_args, stdio, bp::process_environment(env_list));
-            }
-            return bp::process(ctx, exe, child_args, stdio);
-        } catch (const std::exception &e) {
-            ThrowFakeluaException(std::format("process.run: failed to spawn '{}': {}", argv[0], e.what()));
-        }
-    }();
-
-    std::string stdout_s;
-    std::string stderr_s;
-    int exit_code = -1;
-    bool timed_out = false;
-
-#if defined(BOOST_ASIO_HAS_PIPE)
     struct PipeReader {
         asio::readable_pipe *p;
         std::string *dst;
@@ -255,23 +290,18 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     PipeReader err_reader{&err_pipe, &stderr_s};
     out_reader.start();
     err_reader.start();
-
     if (in_pipe) {
         asio::async_write(*in_pipe, asio::buffer(stdin_data), [in = in_pipe.get()](const boost::system::error_code &, std::size_t) {
             boost::system::error_code ec;
             in->close(ec);
         });
     }
-#endif
-
     asio::steady_timer timer(ctx);
     asio::steady_timer drain(ctx);
     auto cancel_reads = [&]() {
-#if defined(BOOST_ASIO_HAS_PIPE)
         boost::system::error_code ec;
         out_pipe.cancel(ec);
         err_pipe.cancel(ec);
-#endif
     };
     if (timeout_ms > 0) {
         timer.expires_after(std::chrono::milliseconds(timeout_ms));
@@ -284,17 +314,50 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
             drain.async_wait([&](const boost::system::error_code &) { cancel_reads(); });
         });
     }
-
     proc.async_wait([&](const boost::system::error_code &, int code) {
         exit_code = code;
         timer.cancel();
         drain.expires_after(std::chrono::milliseconds(10));
         drain.async_wait([&](const boost::system::error_code &) { cancel_reads(); });
     });
-
     ctx.run();
-
-#if !defined(BOOST_ASIO_HAS_PIPE)
+#else
+    const auto out_path = MakeProcTempPath();
+    const auto err_path = MakeProcTempPath();
+    boost::filesystem::path in_path;
+    {
+        boost::nowide::ofstream{out_path.string(), std::ios::binary};
+        boost::nowide::ofstream{err_path.string(), std::ios::binary};
+    }
+    FileStdio stdio;
+    if (!stdin_data.empty()) {
+        in_path = MakeProcTempPath();
+        boost::nowide::ofstream in(in_path.string(), std::ios::binary);
+        in.write(stdin_data.data(), static_cast<std::streamsize>(stdin_data.size()));
+        in.close();
+        stdio.hin = FileStdio::Open(in_path.wstring().c_str(), true);
+    } else {
+        stdio.hin = FileStdio::Open(L"NUL", true);
+    }
+    stdio.hout = FileStdio::Open(out_path.wstring().c_str(), false);
+    stdio.herr = FileStdio::Open(err_path.wstring().c_str(), false);
+    bp::process proc = LaunchProcess(ctx, exe, child_args, stdio, cwd, env_overrides, argv[0]);
+    asio::steady_timer timer(ctx);
+    if (timeout_ms > 0) {
+        timer.expires_after(std::chrono::milliseconds(timeout_ms));
+        timer.async_wait([&](const boost::system::error_code &ec) {
+            if (ec) return;
+            timed_out = true;
+            boost::system::error_code tec;
+            proc.terminate(tec);
+        });
+    }
+    proc.async_wait([&](const boost::system::error_code &, int code) {
+        exit_code = code;
+        timer.cancel();
+    });
+    ctx.run();
+    stdio.Close();
     stdout_s = ReadCappedFile(out_path);
     stderr_s = ReadCappedFile(err_path);
     boost::system::error_code rec;
