@@ -3,21 +3,26 @@
 #include "native/table/native_table.h"
 #include "util/utf8_io.h"
 
+#include <boost/asio/detail/config.hpp>
 #include <boost/asio/io_context.hpp>
-#include <boost/asio/read.hpp>
-#include <boost/asio/readable_pipe.hpp>
 #include <boost/asio/steady_timer.hpp>
+#if defined(BOOST_ASIO_HAS_PIPE)
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/readable_pipe.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/asio/writable_pipe.hpp>
+#endif
+#include <boost/filesystem.hpp>
 #include <boost/nowide/convert.hpp>
-#include <boost/process.hpp>
+#include <boost/nowide/fstream.hpp>
 #include <boost/process/environment.hpp>
-#include <boost/process/execute.hpp>
+#include <boost/process/process.hpp>
 #include <boost/process/start_dir.hpp>
 #include <boost/process/stdio.hpp>
 
 #include <chrono>
 #include <format>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -37,6 +42,29 @@ namespace asio = boost::asio;
 using table::TableHelper;
 
 static constexpr size_t kMaxOutput = 8 * 1024 * 1024;
+
+static boost::filesystem::path MakeProcTempPath() {
+    return boost::filesystem::temp_directory_path() / boost::filesystem::unique_path("fakelua-proc-%%%%-%%%%.tmp");
+}
+
+static std::string ReadCappedFile(const boost::filesystem::path &p) {
+    std::string out;
+    boost::nowide::ifstream in(p.string(), std::ios::binary);
+    if (!in) {
+        return out;
+    }
+    char buf[4096];
+    while (in && out.size() < kMaxOutput) {
+        in.read(buf, sizeof(buf));
+        const auto n = static_cast<size_t>(in.gcount());
+        if (n == 0) {
+            break;
+        }
+        const auto room = kMaxOutput - out.size();
+        out.append(buf, n < room ? n : room);
+    }
+    return out;
+}
 
 static std::string CVarToStringLocal(CVar v) {
     return inter::FakeluaToNativeString(nullptr, v);
@@ -145,21 +173,39 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     std::vector<std::string> child_args(argv.begin() + 1, argv.end());
 
     asio::io_context ctx;
+    bp::process_stdio stdio;
+#if defined(BOOST_ASIO_HAS_PIPE)
     asio::readable_pipe out_pipe{ctx};
     asio::readable_pipe err_pipe{ctx};
     std::unique_ptr<asio::writable_pipe> in_pipe;
     if (!stdin_data.empty()) {
         in_pipe = std::make_unique<asio::writable_pipe>(ctx);
-    }
-
-    bp::process_stdio stdio;
-    if (in_pipe) {
         stdio.in = *in_pipe;
     } else {
         stdio.in = nullptr;
     }
     stdio.out = out_pipe;
     stdio.err = err_pipe;
+#else
+    // MinGW 没有 IOCP，Boost.Asio 不提供 readable_pipe。stdio 改绑临时文件。
+    const auto out_path = MakeProcTempPath();
+    const auto err_path = MakeProcTempPath();
+    boost::filesystem::path in_path;
+    {
+        boost::nowide::ofstream{out_path.string(), std::ios::binary};
+        boost::nowide::ofstream{err_path.string(), std::ios::binary};
+    }
+    if (!stdin_data.empty()) {
+        in_path = MakeProcTempPath();
+        boost::nowide::ofstream in(in_path.string(), std::ios::binary);
+        in.write(stdin_data.data(), static_cast<std::streamsize>(stdin_data.size()));
+        stdio.in = in_path;
+    } else {
+        stdio.in = nullptr;
+    }
+    stdio.out = out_path;
+    stdio.err = err_path;
+#endif
 
     bp::process proc = [&]() {
         try {
@@ -187,6 +233,7 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     int exit_code = -1;
     bool timed_out = false;
 
+#if defined(BOOST_ASIO_HAS_PIPE)
     struct PipeReader {
         asio::readable_pipe *p;
         std::string *dst;
@@ -215,13 +262,16 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
             in->close(ec);
         });
     }
+#endif
 
     asio::steady_timer timer(ctx);
     asio::steady_timer drain(ctx);
     auto cancel_reads = [&]() {
+#if defined(BOOST_ASIO_HAS_PIPE)
         boost::system::error_code ec;
         out_pipe.cancel(ec);
         err_pipe.cancel(ec);
+#endif
     };
     if (timeout_ms > 0) {
         timer.expires_after(std::chrono::milliseconds(timeout_ms));
@@ -243,6 +293,17 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     });
 
     ctx.run();
+
+#if !defined(BOOST_ASIO_HAS_PIPE)
+    stdout_s = ReadCappedFile(out_path);
+    stderr_s = ReadCappedFile(err_path);
+    boost::system::error_code rec;
+    boost::filesystem::remove(out_path, rec);
+    boost::filesystem::remove(err_path, rec);
+    if (!in_path.empty()) {
+        boost::filesystem::remove(in_path, rec);
+    }
+#endif
 
     if (timed_out && exit_code < 0) exit_code = 9;
 
