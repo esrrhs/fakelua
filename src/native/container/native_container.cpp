@@ -141,6 +141,16 @@ NativeField PersistValue(CVar v, const char *what) {
     return CVarToNativeField(v);
 }
 
+// NativeFieldToCVar(string) points at NativeField::vs_cache. That pointer is only
+// valid while the NativeField itself lives (e.g. NativeObject heap kv). Container
+// pop moves the field onto the stack, so intern strings into the State arena.
+CVar FieldToLua(const NativeField &field, State *s) {
+    if (field.kind == NativeField::Kind::String) {
+        return inter::NativeToFakeluaString(s, field.s);
+    }
+    return NativeFieldToCVar(field, s);
+}
+
 void Attach(NativeObject *nat, ContainerImpl *impl) {
     nat->SetInt(kPtrKey, reinterpret_cast<int64_t>(impl));
     nat->SetFinalizer([](NativeObject *self) {
@@ -253,7 +263,7 @@ CVar DequePopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     if (d.empty()) return inter::NativeToFakeluaNil(s);
     NativeField v = std::move(d.back());
     d.pop_back();
-    return NativeFieldToCVar(v, s);
+    return FieldToLua(v, s);
 }
 
 CVar DequePopFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
@@ -261,19 +271,19 @@ CVar DequePopFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     if (d.empty()) return inter::NativeToFakeluaNil(s);
     NativeField v = std::move(d.front());
     d.pop_front();
-    return NativeFieldToCVar(v, s);
+    return FieldToLua(v, s);
 }
 
 CVar DequeFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto &d = Require(self)->deque;
     if (d.empty()) return inter::NativeToFakeluaNil(s);
-    return NativeFieldToCVar(d.front(), s);
+    return FieldToLua(d.front(), s);
 }
 
 CVar DequeBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto &d = Require(self)->deque;
     if (d.empty()) return inter::NativeToFakeluaNil(s);
-    return NativeFieldToCVar(d.back(), s);
+    return FieldToLua(d.back(), s);
 }
 
 CVar DequeAt(NativeObject *self, State *s, CVar *args, int n) {
@@ -281,7 +291,7 @@ CVar DequeAt(NativeObject *self, State *s, CVar *args, int n) {
     auto &d = Require(self)->deque;
     int64_t i = CheckIntegerArg(inter::GetNativeArg(s, args, n, 0), 1, "deque:at");
     if (i < 1 || static_cast<size_t>(i) > d.size()) return inter::NativeToFakeluaNil(s);
-    return NativeFieldToCVar(d[static_cast<size_t>(i - 1)], s);
+    return FieldToLua(d[static_cast<size_t>(i - 1)], s);
 }
 
 CVar DequeSet(NativeObject *self, State *s, CVar *args, int n) {
@@ -299,7 +309,7 @@ CVar DequeToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto &d = Require(self)->deque;
     CVar tbl = table::TableHelper::CreateTable(s);
     for (size_t i = 0; i < d.size(); ++i) {
-        table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(i + 1), NativeFieldToCVar(d[i], s));
+        table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(i + 1), FieldToLua(d[i], s));
     }
     return tbl;
 }
@@ -319,7 +329,7 @@ CVar MapGet(NativeObject *self, State *s, CVar *args, int n) {
     auto &m = Require(self)->map;
     auto it = m.find(ContainerKey::FromCVar(inter::GetNativeArg(s, args, n, 0)));
     if (it == m.end()) return inter::NativeToFakeluaNil(s);
-    return NativeFieldToCVar(it->second, s);
+    return FieldToLua(it->second, s);
 }
 
 CVar MapHas(NativeObject *self, State *s, CVar *args, int n) {
@@ -349,7 +359,7 @@ CVar MapToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto &m = Require(self)->map;
     CVar tbl = table::TableHelper::CreateTable(s);
     for (const auto &kv: m) {
-        table::TableHelper::SetTable(s, tbl, kv.first.ToCVar(s), NativeFieldToCVar(kv.second, s));
+        table::TableHelper::SetTable(s, tbl, kv.first.ToCVar(s), FieldToLua(kv.second, s));
     }
     return tbl;
 }
@@ -419,7 +429,7 @@ CVar SeqPopBack(Seq &d, State *s) {
     if (d.empty()) return inter::NativeToFakeluaNil(s);
     NativeField v = std::move(d.back());
     d.pop_back();
-    return NativeFieldToCVar(v, s);
+    return FieldToLua(v, s);
 }
 
 template<typename Seq>
@@ -427,19 +437,19 @@ CVar SeqPopFront(Seq &d, State *s) {
     if (d.empty()) return inter::NativeToFakeluaNil(s);
     NativeField v = std::move(d.front());
     d.pop_front();
-    return NativeFieldToCVar(v, s);
+    return FieldToLua(v, s);
 }
 
 template<typename Seq>
 CVar SeqFront(Seq &d, State *s) {
     if (d.empty()) return inter::NativeToFakeluaNil(s);
-    return NativeFieldToCVar(d.front(), s);
+    return FieldToLua(d.front(), s);
 }
 
 template<typename Seq>
 CVar SeqBack(Seq &d, State *s) {
     if (d.empty()) return inter::NativeToFakeluaNil(s);
-    return NativeFieldToCVar(d.back(), s);
+    return FieldToLua(d.back(), s);
 }
 
 template<typename Seq>
@@ -447,7 +457,7 @@ CVar SeqAt(Seq &d, State *s, CVar *args, int n, const char *fname) {
     if (n < 1) ThrowBadArgument(1, fname, "index expected");
     int64_t i = CheckIntegerArg(inter::GetNativeArg(s, args, n, 0), 1, fname);
     if (i < 1 || static_cast<size_t>(i) > d.size()) return inter::NativeToFakeluaNil(s);
-    return NativeFieldToCVar(Nth(d, static_cast<size_t>(i - 1)), s);
+    return FieldToLua(Nth(d, static_cast<size_t>(i - 1)), s);
 }
 
 template<typename Seq>
@@ -466,7 +476,7 @@ CVar SeqToTable(Seq &d, State *s) {
     CVar tbl = table::TableHelper::CreateTable(s);
     int64_t i = 1;
     for (auto &v: d) {
-        table::TableHelper::SetTableInt(s, tbl, i++, NativeFieldToCVar(v, s));
+        table::TableHelper::SetTableInt(s, tbl, i++, FieldToLua(v, s));
     }
     return tbl;
 }
