@@ -1,0 +1,14 @@
+-- phi meet of the same constant
+func f(n)
+	var x = 1
+	if n != 0 then
+		x = 1
+	else
+		x = 1
+	end
+	return x + 2
+end
+
+func main()
+	return f(0) + f(1)
+end

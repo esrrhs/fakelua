@@ -12,8 +12,8 @@ _deps
 lib
 .vscode
 .idea
-test/sample/*.h
-test/sample/*.java
+test/scripts/template/*.h
+test/scripts/template/*.java
 *.log
 bin/fakebin
 bin/fake_tests

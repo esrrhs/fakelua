@@ -77,10 +77,6 @@ private:
 
     bool compile_struct_pointer(codegen &cg, struct_pointer_node *sn);
 
-    bool compile_sleep_stmt(codegen &cg, sleep_stmt *ss);
-
-    bool compile_yield_stmt(codegen &cg, yield_stmt *ys);
-
     bool compile_switch_stmt(codegen &cg, switch_stmt *ss);
 
 private:

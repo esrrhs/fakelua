@@ -35,8 +35,6 @@ const char *get_syntree_node_name(esyntreetype type) {
         SYN_NODE_DEF(est_struct_memlist)
         SYN_NODE_DEF(est_struct_pointer)
         SYN_NODE_DEF(est_continue)
-        SYN_NODE_DEF(est_sleep)
-        SYN_NODE_DEF(est_yield)
         SYN_NODE_DEF(est_switch_stmt)
         SYN_NODE_DEF(est_switch_caselist)
         SYN_NODE_DEF(est_switch_case_node)

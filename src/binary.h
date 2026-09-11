@@ -54,12 +54,9 @@ enum OpCodeType {
     OPCODE_NOTEQUAL_JNE,
     OPCODE_NOT_JNE,
 
-    OPCODE_CALL,
+        OPCODE_CALL,
 
-    OPCODE_SLEEP,
-    OPCODE_YIELD,
-
-    OPCODE_FOR,
+        OPCODE_FOR,
 
     OPCODE_MAX,
 };
@@ -77,7 +74,6 @@ struct container_addr {
 
 enum CallType {
     CALL_NORMAL,
-    CALL_FAKE,
     CALL_CLASSMEM,
 };
 

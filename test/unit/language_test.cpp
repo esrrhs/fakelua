@@ -1,5 +1,7 @@
 #include "fk_test.h"
 
+#include <cstring>
+
 TEST_F(FakeEnv, IntegerArithmetic) {
     Parse("func main() return 1 + 2 * 3 - 4 end");
     EXPECT_EQ(Run<int>(), 3);
@@ -303,4 +305,77 @@ TEST_F(FakeEnv, StringPlusIsNotConcat) {
     Parse("func main() return \"a\" + \"b\" end");
     fkrun<int>(fk, "main");
     EXPECT_NE(fkerror(fk), efk_ok);
+}
+
+TEST_F(FakeEnv, UnusedDivByZeroStillErrors) {
+    Parse(
+            "func main()\n"
+            "	var x = 1 / 0\n"
+            "	return 1\n"
+            "end\n");
+    fkrun<int>(fk, "main");
+    EXPECT_NE(fkerror(fk), efk_ok);
+}
+
+TEST_F(FakeEnv, UnusedStringPlusStillErrors) {
+    Parse(
+            "func main()\n"
+            "	var x = \"a\" + \"b\"\n"
+            "	return 1\n"
+            "end\n");
+    fkrun<int>(fk, "main");
+    EXPECT_NE(fkerror(fk), efk_ok);
+}
+
+TEST_F(FakeEnv, UnusedAddIsFoldedAway) {
+    Parse(
+            "func main()\n"
+            "	var x = 1 + 2\n"
+            "	return 7\n"
+            "end\n");
+    EXPECT_EQ(Run<int>(), 7);
+    const char *d = fkdumpfunc(fk, "main");
+    ASSERT_NE(d, nullptr);
+    EXPECT_EQ(strstr(d, "[PLUS]"), nullptr);
+}
+
+TEST_F(FakeEnv, DeadFalseBranchIsRemoved) {
+    Parse(
+            "func main()\n"
+            "	if false then\n"
+            "		return 1 / 0\n"
+            "	end\n"
+            "	return 2\n"
+            "end\n");
+    EXPECT_EQ(Run<int>(), 2);
+}
+
+TEST_F(FakeEnv, SccpZeroCopyGuardsDiv) {
+    Parse(
+            "func main()\n"
+            "	var a = 0\n"
+            "	var b = a\n"
+            "	if is b then\n"
+            "		return 1 / 0\n"
+            "	end\n"
+            "	return 9\n"
+            "end\n");
+    EXPECT_EQ(Run<int>(), 9);
+}
+
+TEST_F(FakeEnv, SccpJoinSameConstant) {
+    Parse(
+            "func f(n)\n"
+            "	var x = 1\n"
+            "	if n != 0 then\n"
+            "		x = 1\n"
+            "	else\n"
+            "		x = 1\n"
+            "	end\n"
+            "	return x + 2\n"
+            "end\n"
+            "func main()\n"
+            "	return f(3)\n"
+            "end\n");
+    EXPECT_EQ(Run<int>(), 3);
 }
