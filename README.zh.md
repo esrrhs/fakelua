@@ -15,7 +15,6 @@
 - 字节码 VM（Linux / macOS amd64）
 - 绑定 C 函数和 C++ 成员函数；同名再注册一次就是热更新
 - 包、`include`、`struct`、`const`、可嵌套的 `array` / `map`、多返回值、Int64
-- `fake fn(args)` 在单线程上创建 routine
 - gdb 风格命令行调试器、函数 profile
 - 可打成 bin 或独立可执行文件
 - 没有垃圾回收 — 运行期对象活到 `fkreset()` 或 `delfake()`
@@ -44,7 +43,7 @@
 ./bin/fakebin your.fk
 ```
 
-示例在 `test/sample`（按功能命名，不再用数字）。编译之后：
+脚本测试在 `test/scripts`（`lang` / `bind` / `stdlib` / `optimizer` / `template`），公共库在 `package/`。编译之后：
 
 ```bash
 ctest --output-on-failure

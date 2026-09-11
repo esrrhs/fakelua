@@ -15,7 +15,6 @@ Lightweight embeddable scripting language in C++. Syntax is borrowed from Lua, G
 - Bytecode VM (Linux / macOS amd64)
 - Bind C functions and C++ member functions; re-register the same name to hot-reload
 - Packages, `include`, `struct`, `const`, nested `array` / `map`, multiple return values, Int64
-- Single-thread routines via `fake fn(args)`
 - gdb-style CLI debugger, function profiler
 - Pack scripts into a bin or a standalone executable
 - No garbage collector — runtime objects live until `fkreset()` or `delfake()`
@@ -44,7 +43,7 @@ Run a script:
 ./bin/fakebin your.fk
 ```
 
-Examples are in `test/sample` (descriptive names, not numbers). After a build:
+Script tests are in `test/scripts` (`lang`, `bind`, `stdlib`, `optimizer`, `template`). Shared script libraries are in `package/`. After a build:
 
 ```bash
 ctest --output-on-failure

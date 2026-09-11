@@ -325,9 +325,6 @@ public:
     int m_ip;
     int m_bp;
     int m_sp;
-    uint32_t m_wakeuptime;
-    uint32_t m_yieldtime;
-    bool m_sleeping;
     processor *m_processor;
 };
 
@@ -339,10 +336,7 @@ public:
     (inter).m_fb = 0;\
     (inter).m_ip = 0;\
     (inter).m_bp = 0;\
-    (inter).m_sp = 0;\
-    (inter).m_wakeuptime = 0;\
-    (inter).m_yieldtime = 0;\
-    (inter).m_sleeping = false
+    (inter).m_sp = 0
 
 
 #define INTER_CLEAR(inter) (inter).m_isend = false;\
@@ -350,10 +344,7 @@ public:
     (inter).m_fb = 0;\
     (inter).m_ip = 0;\
     (inter).m_bp = 0;\
-    (inter).m_sp = 0;\
-    (inter).m_wakeuptime = 0;\
-    (inter).m_yieldtime = 0;\
-    (inter).m_sleeping = false;
+    (inter).m_sp = 0;
 
 #define INTER_SET_PRO(inter, pro) (inter).m_processor = pro
 

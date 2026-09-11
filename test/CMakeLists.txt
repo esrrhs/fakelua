@@ -31,20 +31,20 @@ if(FAKE_BUILD_TESTS)
         script_test.cpp
         unit/api_test.cpp
         unit/bind_test.cpp
-        unit/coro_test.cpp
         unit/hotreload_test.cpp
         unit/language_test.cpp
+        unit/optimizer_test.cpp
         unit/reset_test.cpp
     )
     target_include_directories(fake_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_compile_definitions(fake_tests PRIVATE FAKE_SCRIPT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/sample")
+    target_compile_definitions(fake_tests PRIVATE FAKE_SCRIPT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/scripts")
     target_link_libraries(fake_tests PRIVATE fake GTest::gtest_main)
     fake_set_bin_flags(fake_tests)
 
     add_test(
         NAME fake_tests
         COMMAND fake_tests --gtest_color=yes
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/sample
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts
     )
     set_tests_properties(fake_tests PROPERTIES TIMEOUT 120)
 endif()
