@@ -146,22 +146,15 @@ CLI (`bin/fakebin`):
 
 ## Benchmarks
 
-Google Benchmark microbenches (`loop`, `call`, `array`, `string`, `parse`):
+See [benchmark/README.md](benchmark/README.md) ([中文](benchmark/README.zh.md)).
 
 ```bash
-./bin/fake_bench
-# or: cd benchmark && ./benchmark.sh
+./build.sh release
+./bin/fake_bench --benchmark_min_time=0.5s
 ```
 
-`benchmark/*.lua` and `*.py` remain if you want a manual cross-language comparison.
-
-MacBook Pro 2.3 GHz Intel Core i5 (older `benchmark.sh` numbers):
-
-|        | Lua   | Python | Fake  |
-|--------|-------|--------|------:|
-| Loop   | 0.8s  | 2.3s   | 1.3s  |
-| Prime  | 13.5s | 20.9s  | 12.8s |
-| String | 0.8s  | 0.4s   | 1.2s  |
+Release `-O3 -flto` only. CI’s 0.1s run is a smoke test, not the scoreboard.
+`benchmark/*.lua` are the same loop / prime / string workloads for a manual Lua comparison.
 
 ## Related projects
 
