@@ -15,15 +15,18 @@
 #include "native/native_io_context.h"
 #include "native/net/net_buffer.h"
 #include "native/net/net_common.h"
-#include "native/net/net_websocket.h"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/websocket.hpp>
+#include <deque>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
-#include <random>
 
 namespace fakelua {
 class State;
@@ -68,7 +71,7 @@ public:
 
     // 写入数据（按 cfg.framer 自动封包）
     bool send(const char *data, size_t len);
-    // 写入原始字节（用于 WS 客户端握手请求等）
+    // 写入原始字节（非 WebSocket 连接）
     bool send_raw(const char *data, size_t len);
 
     [[nodiscard]] bool is_open() const { return !closed_ && socket_.is_open(); }
@@ -79,6 +82,15 @@ private:
     void on_read(boost::system::error_code ec, size_t bytes);
     void do_write();
     void on_write(boost::system::error_code ec, size_t bytes);
+
+    void do_ws_server_handshake();
+    void on_ws_http_request(boost::system::error_code ec);
+    void do_ws_client_handshake();
+    void on_ws_handshake(boost::system::error_code ec);
+    void do_ws_read();
+    void on_ws_read(boost::system::error_code ec, size_t bytes);
+    void do_ws_write();
+    void on_ws_write(boost::system::error_code ec, size_t bytes);
 
     boost::asio::ip::tcp::socket socket_;
     NetConfig cfg_;
@@ -92,11 +104,12 @@ private:
 
     bool writing_ = false;
 
-    // WebSocket 状态机
-    WsState ws_state_ = WsState::None;
-    bool ws_handshake_sent_ = false;
-    // 客户端发出的帧要带随机掩码。放在连接上：一个连接只被它所属的 State 单线程访问。
-    std::mt19937 mask_rng_{std::random_device{}()};
+    using WsStream = boost::beast::websocket::stream<boost::asio::ip::tcp::socket &>;
+    std::optional<WsStream> ws_;
+    boost::beast::flat_buffer ws_buffer_;
+    boost::beast::http::request<boost::beast::http::string_body> ws_req_;
+    std::deque<std::string> ws_write_queue_;
+    bool ws_open_ = false;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -293,7 +293,7 @@ find_package(Threads REQUIRED)
 # 只列出真正用到的库（依赖会自动带上）。不限定的话整个 superproject 都会被编译，
 # 还会拖进 Boost.Cobalt —— 它的 Windows 部分强依赖 IOCP，会让根 CMakeLists 里
 # WIN32 上的 BOOST_ASIO_DISABLE_IOCP 编不过。
-set(BOOST_INCLUDE_LIBRARIES mysql asio system charconv json)
+set(BOOST_INCLUDE_LIBRARIES mysql asio system charconv json beast)
 CPMAddPackage(
     NAME boost
     GITHUB_REPOSITORY boostorg/boost
@@ -319,6 +319,11 @@ include_directories(${BOOST_SOURCE_DIR}/libs/system/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/assert/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/charconv/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/json/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/beast/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/static_string/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/logic/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/type_index/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/container_hash/include)
 
 include_directories(${BOOST_SOURCE_DIR}/libs/compat/include)
 include_directories(${BOOST_SOURCE_DIR}/libs/config/include)
@@ -360,7 +365,7 @@ include_directories(${BOOST_SOURCE_DIR}/libs/array/include)
 # boost_system required for non-header-only Boost.Asio (TCP/net native code)
 # boost_json is a compiled library; link the CMake target so the archive is built
 # and its path follows CMAKE_INSTALL_LIBDIR (lib vs lib64) on every platform.
-set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv boost_system boost_json)
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads boost_charconv boost_system boost_json Boost::beast)
 if (WIN32)
     # OpenSSL and Boost.Asio on MinGW (mswsock provides AcceptEx/GetAcceptExSockaddrs)
     set(TARGET_LIB ${TARGET_LIB} crypt32 bcrypt ws2_32 mswsock)

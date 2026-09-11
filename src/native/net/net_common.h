@@ -29,7 +29,7 @@ enum class FramerType {
     FixedLength,          // 固定长度封包（由 fixed_packet_len 指定）
     RawStream,            // 原始流透传（直接转发收到的字节）
     Custom,               // 自定义解包/封包（支持 Lua 或 C++ 函数）
-    WebSocket,            // RFC 6455 WebSocket 文本/二进制帧
+    WebSocket,            // RFC 6455 WebSocket（Boost.Beast 文本帧）
 };
 
 class CircularBuffer;

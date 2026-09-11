@@ -50,9 +50,9 @@ needed. Concretely:
 - Timers, event listeners, the net/mysql/sqlite/io object tables and the protobuf .proto schema
   registry are all per-`State`, so nothing registered in one `State` leaks into another;
 - Reusable scratch buffers belong to whatever they serve: the linear staging areas used when
-  unpacking live on the `CircularBuffer` (`header_scratch` / `payload_scratch`), and the
-  WebSocket masking randomness lives on the `AsioConn` connection. Random number generators that
-  are only hit occasionally (temp file names, the WebSocket handshake key) are plain locals.
+  unpacking live on the `CircularBuffer` (`header_scratch` / `payload_scratch`). WebSocket
+  uses Boost.Beast, which owns handshake and masking on the connection. Random number
+  generators that are only hit occasionally (temp file names) are plain locals.
 
 The JIT error boundary chain (`jit_error_boundary.h`) lives on `State` too: the top of the chain
 is `State::GetJitErrorBoundary()`, while the boundary objects themselves sit on the C++ stack.
@@ -264,7 +264,7 @@ There are no `thread_local` variables left.
 | `line` | Newline delimited, auto-stripped |
 | `fixed` | Fixed-length (requires `fixed_len = N`) |
 | `raw` | Raw passthrough |
-| `websocket` / `ws` | RFC 6455 WebSocket (text frames) |
+| `websocket` / `ws` | RFC 6455 WebSocket (text frames, Boost.Beast) |
 
 **Custom parser:** `parser = "Package.func"` (Lua) or `custom_parser_fn`/`custom_encoder_fn` (C++ `NetConfig`)
 

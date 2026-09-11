@@ -6,6 +6,7 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/read.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/beast/core/buffers_to_string.hpp>
 
 #include <cstring>
 #include <utility>
@@ -38,21 +39,29 @@ void set_socket_options(boost::asio::ip::tcp::socket &sock, const NetConfig &cfg
 
 AsioConn::AsioConn(boost::asio::io_context &ioc, const NetConfig &cfg, int conn_id, bool from_client, EventSink sink)
     : socket_(ioc), cfg_(cfg), conn_id_(conn_id), from_client_(from_client), sink_(std::move(sink)),
-      recv_buf_(cfg.recv_buf_size), send_buf_(cfg.send_buf_size) {
-    if (is_websocket(cfg_)) ws_state_ = WsState::Handshake;
-}
+      recv_buf_(cfg.recv_buf_size), send_buf_(cfg.send_buf_size) {}
 
 AsioConn::~AsioConn() {
     close(/*notify_sink=*/false);
 }
 
 void AsioConn::start() {
+    if (ws_) {
+        if (from_client_) {
+            do_ws_client_handshake();
+        } else {
+            do_ws_server_handshake();
+        }
+        return;
+    }
     do_read();
 }
 
 void AsioConn::close(bool notify_sink) {
     if (closed_) return;
     closed_ = true;
+    ws_open_ = false;
+    ws_write_queue_.clear();
     boost::system::error_code ec;
     if (socket_.is_open()) {
         socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
@@ -64,38 +73,50 @@ void AsioConn::close(bool notify_sink) {
 }
 
 void AsioConn::reset_socket(boost::asio::ip::tcp::socket sock) {
+    ws_.reset();
+    ws_open_ = false;
+    ws_buffer_.consume(ws_buffer_.size());
+    ws_write_queue_.clear();
+    ws_req_ = {};
     boost::system::error_code ec;
     if (socket_.is_open()) socket_.close(ec);
     socket_ = std::move(sock);
     closed_ = false;
+    if (is_websocket(cfg_)) {
+        ws_.emplace(socket_);
+        ws_->text(true);
+        ws_->read_message_max(static_cast<std::size_t>(cfg_.max_packet_len));
+    }
 }
 
 bool AsioConn::send(const char *data, size_t len) {
     if (closed_ || !socket_.is_open()) return false;
-    // WS 握手未完成时不能编码业务数据为 WS 帧
-    if (is_websocket(cfg_) && ws_state_ != WsState::Open) return false;
-
-    bool ok;
-    if (is_websocket(cfg_)) {
-        ok = write_ws_frame(send_buf_, cfg_, from_client_, WsOpcode::Text, data, len, mask_rng_);
-    } else {
-        ok = write_packet(send_buf_, cfg_, data, len);
+    if (ws_) {
+        if (!ws_open_) return false;
+        if (len > static_cast<size_t>(cfg_.max_packet_len)) return false;
+        size_t queued = 0;
+        for (const auto &msg : ws_write_queue_) queued += msg.size();
+        if (queued + len > static_cast<size_t>(cfg_.send_buf_size)) return false;
+        ws_write_queue_.emplace_back(data, len);
+        do_ws_write();
+        return true;
     }
-    if (!ok) return false;
 
+    bool ok = write_packet(send_buf_, cfg_, data, len);
+    if (!ok) return false;
     do_write();
     return true;
 }
 
 bool AsioConn::send_raw(const char *data, size_t len) {
-    if (closed_ || !socket_.is_open()) return false;
+    if (closed_ || !socket_.is_open() || ws_) return false;
     if (send_buf_.write(data, len) != len) return false;
     do_write();
     return true;
 }
 
 void AsioConn::do_read() {
-    if (closed_ || !socket_.is_open()) return;
+    if (closed_ || !socket_.is_open() || ws_) return;
     auto self = shared_from_this();
     auto region = recv_buf_.writable_region();
     if (region.second == 0) {
@@ -118,77 +139,18 @@ void AsioConn::on_read(boost::system::error_code ec, size_t bytes) {
     }
     recv_buf_.commit_write(bytes);
 
-    if (is_websocket(cfg_)) {
-        if (ws_state_ == WsState::Handshake) {
-            if (from_client_) {
-                bool done = false, need_more = false, hs_error = false;
-                if (!try_ws_client_handshake(recv_buf_, done, need_more, hs_error)) {
-                    if (hs_error) {
-                        close();
-                        return;
-                    }
-                    do_read();
-                    return;
-                }
-                ws_state_ = WsState::Open;
-                if (sink_) sink_({EventKind::Connect, conn_id_, {}});
-            } else {
-                std::string response;
-                bool need_more = false, hs_error = false;
-                if (!try_ws_server_handshake(recv_buf_, cfg_, response, need_more, hs_error)) {
-                    if (hs_error) {
-                        close();
-                        return;
-                    }
-                    do_read();
-                    return;
-                }
-                send_raw(response.data(), response.size());
-                ws_state_ = WsState::Open;
-                if (sink_) sink_({EventKind::Connect, conn_id_, {}});
+    while (!closed_) {
+        const char *payload = nullptr;
+        uint32_t payload_len = 0;
+        bool parse_error = false;
+        if (!try_parse_packet(recv_buf_, cfg_, payload, payload_len, parse_error)) {
+            if (parse_error) {
+                close();
+                return;
             }
+            break;
         }
-        if (ws_state_ == WsState::Open) {
-            while (ws_state_ == WsState::Open && !closed_) {
-                const char *payload = nullptr;
-                uint32_t payload_len = 0;
-                WsOpcode opcode = WsOpcode::Text;
-                bool parse_error = false;
-                if (!try_parse_ws_frame(recv_buf_, cfg_, !from_client_, payload, payload_len, opcode, parse_error)) {
-                    if (parse_error) {
-                        close();
-                        return;
-                    }
-                    break;
-                }
-                if (opcode == WsOpcode::Close) {
-                    close();
-                    return;
-                }
-                if (opcode == WsOpcode::Ping) {
-                    write_ws_pong(send_buf_, cfg_, from_client_, payload, payload_len, mask_rng_);
-                    do_write();
-                    continue;
-                }
-                if (opcode == WsOpcode::Text || opcode == WsOpcode::Binary) {
-                    if (sink_) sink_({EventKind::Recv, conn_id_, std::string(payload, payload_len)});
-                }
-            }
-        }
-    } else {
-        while (!closed_) {
-            const char *payload = nullptr;
-            uint32_t payload_len = 0;
-            bool parse_error = false;
-            if (!try_parse_packet(recv_buf_, cfg_, payload, payload_len, parse_error)) {
-                if (parse_error) {
-                    close();
-                    return;
-                }
-                break;
-            }
-            if (sink_) sink_({EventKind::Recv, conn_id_, std::string(payload, payload_len)});
-        }
+        if (sink_) sink_({EventKind::Recv, conn_id_, std::string(payload, payload_len)});
     }
 
     if (!closed_) {
@@ -197,7 +159,7 @@ void AsioConn::on_read(boost::system::error_code ec, size_t bytes) {
 }
 
 void AsioConn::do_write() {
-    if (writing_ || closed_ || !socket_.is_open()) return;
+    if (writing_ || closed_ || !socket_.is_open() || ws_) return;
     if (send_buf_.empty()) return;
 
     auto region = send_buf_.readable_region();
@@ -223,6 +185,103 @@ void AsioConn::on_write(boost::system::error_code ec, size_t bytes) {
     if (!send_buf_.empty() && !closed_) {
         do_write();
     }
+}
+
+void AsioConn::do_ws_server_handshake() {
+    if (closed_ || !ws_) return;
+    auto self = shared_from_this();
+    boost::beast::http::async_read(socket_, ws_buffer_, ws_req_,
+                                   [self](boost::system::error_code ec, size_t) {
+                                       self->on_ws_http_request(ec);
+                                   });
+}
+
+void AsioConn::on_ws_http_request(boost::system::error_code ec) {
+    if (closed_ || !ws_) return;
+    if (ec) {
+        if (ec != boost::asio::error::operation_aborted) close();
+        return;
+    }
+    const std::string expected = cfg_.ws_path.empty() ? "/" : cfg_.ws_path;
+    if (ws_req_.method() != boost::beast::http::verb::get ||
+        ws_req_.target() != expected) {
+        close();
+        return;
+    }
+    auto self = shared_from_this();
+    ws_->async_accept(ws_req_, [self](boost::system::error_code accept_ec) {
+        self->on_ws_handshake(accept_ec);
+    });
+}
+
+void AsioConn::do_ws_client_handshake() {
+    if (closed_ || !ws_) return;
+    std::string host = cfg_.ws_host.empty() ? (cfg_.ip + ":" + std::to_string(cfg_.port)) : cfg_.ws_host;
+    const std::string path = cfg_.ws_path.empty() ? "/" : cfg_.ws_path;
+    const std::string origin = cfg_.ws_origin;
+    ws_->set_option(boost::beast::websocket::stream_base::decorator(
+        [origin](boost::beast::websocket::request_type &req) {
+            if (!origin.empty()) {
+                req.set(boost::beast::http::field::origin, origin);
+            }
+        }));
+    auto self = shared_from_this();
+    ws_->async_handshake(host, path, [self](boost::system::error_code ec) {
+        self->on_ws_handshake(ec);
+    });
+}
+
+void AsioConn::on_ws_handshake(boost::system::error_code ec) {
+    if (closed_) return;
+    if (ec) {
+        if (ec != boost::asio::error::operation_aborted) close();
+        return;
+    }
+    ws_open_ = true;
+    if (sink_) sink_({EventKind::Connect, conn_id_, {}});
+    do_ws_read();
+}
+
+void AsioConn::do_ws_read() {
+    if (closed_ || !ws_ || !ws_open_) return;
+    auto self = shared_from_this();
+    ws_->async_read(ws_buffer_, [self](boost::system::error_code ec, size_t bytes) {
+        self->on_ws_read(ec, bytes);
+    });
+}
+
+void AsioConn::on_ws_read(boost::system::error_code ec, size_t) {
+    if (closed_) return;
+    if (ec) {
+        if (ec != boost::asio::error::operation_aborted) close();
+        return;
+    }
+    std::string payload = boost::beast::buffers_to_string(ws_buffer_.data());
+    ws_buffer_.consume(ws_buffer_.size());
+    if (sink_) sink_({EventKind::Recv, conn_id_, std::move(payload)});
+    do_ws_read();
+}
+
+void AsioConn::do_ws_write() {
+    if (writing_ || closed_ || !ws_ || !ws_open_) return;
+    if (ws_write_queue_.empty()) return;
+    writing_ = true;
+    ws_->text(true);
+    auto self = shared_from_this();
+    ws_->async_write(boost::asio::buffer(ws_write_queue_.front()),
+                     [self](boost::system::error_code ec, size_t bytes) {
+                         self->on_ws_write(ec, bytes);
+                     });
+}
+
+void AsioConn::on_ws_write(boost::system::error_code ec, size_t) {
+    writing_ = false;
+    if (ec) {
+        if (ec != boost::asio::error::operation_aborted) close();
+        return;
+    }
+    if (!ws_write_queue_.empty()) ws_write_queue_.pop_front();
+    if (!closed_) do_ws_write();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -469,13 +528,6 @@ void TcpClient::on_connect(boost::system::error_code ec, boost::asio::ip::tcp::s
                                            emit_event(std::move(ev));
                                        });
     conn_->reset_socket(std::move(sock));
-
-    if (is_websocket(config_)) {
-        std::string request, key;
-        build_ws_client_handshake_request(config_, request, key);
-        conn_->send_raw(request.data(), request.size());
-    }
-
     conn_->start();
     if (!is_websocket(config_)) {
         emit_event({EventKind::Connect, 0, {}});
