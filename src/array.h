@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-// T需要原始C结构 支持memcpy memset
+// T闇�瑕佸師濮婥缁撴瀯 鏀?鎸乵emcpy memset
 template<typename T>
 struct array {
     fake *m_fk;
@@ -17,7 +17,14 @@ struct array {
 #define ARRAY_CLEAR(array) (array).m_size = 0
 #define ARRAY_DEEP_CLEAR(array, T) (array).m_size = 0;\
     memset((array).m_data, 0, (array).m_max_size * sizeof(T))
-#define ARRAY_INI(array, fk) (array).m_fk = (fk)
+#define ARRAY_INI(array, fk) \
+    do { \
+        (array).m_fk = (fk); \
+        (array).m_data = 0; \
+        (array).m_size = 0; \
+        (array).m_max_size = 0; \
+        (array).m_recurflag = 0; \
+    } while (0)
 #define ARRAY_MAX_SIZE(array) ((array).m_max_size)
 #define ARRAY_SIZE(array) ((array).m_size)
 #define ARRAY_GROW(array, newsize, T) \

@@ -258,6 +258,7 @@
 
 struct fake;
 struct processor;
+struct funcunion;
 
 struct interpreter {
 public:
@@ -270,6 +271,8 @@ public:
     }
 
     void call(const variant &func, int retnum, int *retpos);
+    void call_func(const funcunion *f, int retnum, int *retpos, const variant *func,
+                   const variant *args = 0, int argn = -1);
 
     variant *get_container_variant(const func_binary &fb, int conpos);
 
@@ -307,7 +310,11 @@ public:
 
     void set_running_vaiant(int frame, const char *name, int line, const char *value);
 
-    int run(int cmdnum);
+    void run();
+    void step();
+    void interpret(bool onestep);
+    template<bool STEP>
+    void interpret_t();
 
 public:
     fake *m_fk;

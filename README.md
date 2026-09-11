@@ -8,21 +8,22 @@
 
 [中文](README.zh.md) | English
 
-Lightweight embeddable scripting language in C++. Syntax is borrowed from Lua, Go, and Erlang. Scripts are parsed with flex/bison, compiled to bytecode, and run on a VM (optional experimental JIT).
+Lightweight embeddable scripting language in C++. Syntax is borrowed from Lua, Go, and Erlang. Scripts are parsed with flex/bison, compiled to bytecode, and run on a VM.
 
 ## Features
 
-- Bytecode VM and experimental JIT (Linux / macOS amd64)
-- Bind C functions and C++ member functions; hot-reload scripts
+- Bytecode VM (Linux / macOS amd64)
+- Bind C functions and C++ member functions; re-register the same name to hot-reload
 - Packages, `include`, `struct`, `const`, nested `array` / `map`, multiple return values, Int64
-- Single-thread routines via `fake fn(args)` (not available under JIT)
-- gdb-style CLI debugger, visual IDE, function profiler
+- Single-thread routines via `fake fn(args)`
+- gdb-style CLI debugger, function profiler
 - Pack scripts into a bin or a standalone executable
-- No garbage collector — objects live until `delfake()`, which frees everything at once
+- No garbage collector — runtime objects live until `fkreset()` or `delfake()`
+- `fkrun` runs until the function returns; infinite loops hang. No paused VM for the host to tick.
 
 ## Requirements
 
-- cmake, gcc, g++
+- CMake 3.16+, a C++14 compiler (gcc/g++ or clang)
 - flex and bison only if you need to regenerate the parser (`./gen.sh`)
 
 ## Build
@@ -32,7 +33,8 @@ Lightweight embeddable scripting language in C++. Syntax is borrowed from Lua, G
 ./build.sh release   # optimized
 ```
 
-This produces `bin/libfake.so` and `bin/fakebin`.
+This produces `bin/libfake.so`, `bin/fakebin`, `bin/fake_tests`, and `bin/fake_bench`.
+The first configure downloads GoogleTest and Google Benchmark.
 
 ## Usage
 
@@ -42,12 +44,14 @@ Run a script:
 ./bin/fakebin your.fk
 ```
 
-Examples are in `test/sample`. The test runner:
+Examples are in `test/sample` (descriptive names, not numbers). After a build:
 
 ```bash
-cd test && ./test.sh      # VM
-cd test && ./test.sh -j   # JIT
+ctest --output-on-failure
+./bin/fake_tests --gtest_filter=Language.*
 ```
+
+CI (Linux/macOS × debug/release) runs GoogleTest and Google Benchmark on every push.
 
 Embed in C++ — copy `include/fake-inc.h` and `bin/libfake.so` into your project:
 
@@ -56,9 +60,22 @@ fake *fk = newfake();
 fkreg(fk, "cfunc1", cfunc1);
 fkreg(fk, "memfunc1", &class1::memfunc1);  // same name on different classes does not clash
 fkparse(fk, argv[1]);
-int ret = fkrun<int>(fk, "myfunc1", 1, 2);
-delfake(fk);  // release all memory
+int ret = fkrun<int>(fk, "myfunc1", 1, 2);  // runs to completion; does not leave a paused VM
+fkparse(fk, argv[1]);  // parse or fkreg again — same name is replaced
+fkreset(fk);  // drop runtime arrays/maps/pointers/strings; keep bytecode and C bindings
+delfake(fk);  // destroy the instance and free everything
 ```
+
+### Lifetime
+
+| Call | What it frees | What it keeps |
+|------|----------------|---------------|
+| `fkparse` / `fkreg` again | Previous bytecode or C binding of that name | Everything else |
+| `fkreset(fk)` | Runtime arrays, maps, pointer wrappers, interned runtime strings, stacks | Bytecode, constants, registered C functions |
+| `fkclear(fk)` | All compiled bytecode | C bindings |
+| `delfake(fk)` | The whole instance | — |
+
+Call `fkreset()` only when no script is running. `fkrun` always finishes (or hangs) before it returns to the host. Do not replace a function that is currently on the call stack.
 
 ## Language
 
@@ -124,27 +141,28 @@ end
 
 ## Debugging
 
-IDE (`bin/fakeide.app`):
-
-![ide](img/ide.png)
-
 CLI (`bin/fakebin`):
 
 ![debug](img/debug.png)
 
 ## Benchmarks
 
+Google Benchmark microbenches (`loop`, `call`, `array`, `string`, `parse`):
+
 ```bash
-cd benchmark && ./benchmark.sh
+./bin/fake_bench
+# or: cd benchmark && ./benchmark.sh
 ```
 
-MacBook Pro 2.3 GHz Intel Core i5:
+`benchmark/*.lua` and `*.py` remain if you want a manual cross-language comparison.
 
-|        | Lua   | Python | Fake  | Fake JIT |
-|--------|-------|--------|------:|---------:|
-| Loop   | 0.8s  | 2.3s   | 1.3s  | 0.2s     |
-| Prime  | 13.5s | 20.9s  | 12.8s | 5.9s     |
-| String | 0.8s  | 0.4s   | 1.2s  | 3.2s     |
+MacBook Pro 2.3 GHz Intel Core i5 (older `benchmark.sh` numbers):
+
+|        | Lua   | Python | Fake  |
+|--------|-------|--------|------:|
+| Loop   | 0.8s  | 2.3s   | 1.3s  |
+| Prime  | 13.5s | 20.9s  | 12.8s |
+| String | 0.8s  | 0.4s   | 1.2s  |
 
 ## Related projects
 

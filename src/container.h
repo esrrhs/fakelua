@@ -13,7 +13,7 @@ struct variant_container_base {
 };
 
 struct variant_array : public variant_container_base {
-    array<variant *> va;
+    array<variant> va;
 };
 
 #define VARIANT_ARRAY_DELETE(vva) ARRAY_DELETE((vva).va)
@@ -35,6 +35,8 @@ public:
     ~container();
 
     void clear();
+
+    void reset();
 
     variant_array *newarray();
 

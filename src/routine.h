@@ -12,7 +12,7 @@ struct paramstack;
 struct routine {
     fake *m_fk;
     int m_id;
-    // ½âÊÍÆ÷
+    // è§£é‡Šå™¨
     interpreter m_interpreter;
 };
 
@@ -30,7 +30,8 @@ struct routine {
 
 #define ROUTINE_ISEND(rou) (rou).m_interpreter.isend()
 
-#define ROUTINE_RUN(rou, cmdnum) (rou).m_interpreter.run(cmdnum)
+#define ROUTINE_RUN(rou) (rou).m_interpreter.run()
+#define ROUTINE_STEP(rou) (rou).m_interpreter.step()
 
 #define ROUTINE_GETRET(rou) (rou).m_interpreter.getret()
 
