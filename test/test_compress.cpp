@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -11,7 +12,7 @@ TEST(test_compress, lz4_compress_decompress) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_lz4.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_lz4_compress_decompress", ret);
+    CallAll(s, "CompressTest.test_lz4_compress_decompress", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -22,7 +23,7 @@ TEST(test_compress, lz4_empty) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_lz4.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_lz4_empty", ret);
+    CallAll(s, "CompressTest.test_lz4_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -33,7 +34,7 @@ TEST(test_compress, lz4_binary) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_lz4.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_lz4_binary", ret);
+    CallAll(s, "CompressTest.test_lz4_binary", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -44,7 +45,7 @@ TEST(test_compress, lz4_large_data) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_lz4.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_lz4_large_data", ret);
+    CallAll(s, "CompressTest.test_lz4_large_data", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -57,7 +58,7 @@ TEST(test_compress, zlib_compress_decompress) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zlib.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_zlib_compress_decompress", ret);
+    CallAll(s, "CompressTest.test_zlib_compress_decompress", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -68,7 +69,7 @@ TEST(test_compress, zlib_level) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zlib.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_zlib_level", ret);
+    CallAll(s, "CompressTest.test_zlib_level", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -79,7 +80,7 @@ TEST(test_compress, zlib_binary) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zlib.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_zlib_binary", ret);
+    CallAll(s, "CompressTest.test_zlib_binary", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -92,7 +93,7 @@ TEST(test_compress, gzip_compress_decompress) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zlib.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_gzip_compress_decompress", ret);
+    CallAll(s, "CompressTest.test_gzip_compress_decompress", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -103,7 +104,7 @@ TEST(test_compress, gzip_level) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zlib.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_gzip_level", ret);
+    CallAll(s, "CompressTest.test_gzip_level", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -114,7 +115,7 @@ TEST(test_compress, gzip_concat_members) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zlib.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_gzip_concat_members", ret);
+    CallAll(s, "CompressTest.test_gzip_concat_members", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -125,7 +126,7 @@ TEST(test_compress, gzip_trailing_garbage) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zlib.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "CompressTest.test_gzip_trailing_garbage", ret), std::exception);
+    CallThrow(s, "CompressTest.test_gzip_trailing_garbage", ret);
     FakeluaDeleteState(s);
 }
 
@@ -137,7 +138,7 @@ TEST(test_compress, zstd_compress_decompress) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_zstd_compress_decompress", ret);
+    CallAll(s, "CompressTest.test_zstd_compress_decompress", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -148,7 +149,7 @@ TEST(test_compress, zstd_level) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_zstd_level", ret);
+    CallAll(s, "CompressTest.test_zstd_level", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -159,7 +160,7 @@ TEST(test_compress, zstd_binary) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_zstd_binary", ret);
+    CallAll(s, "CompressTest.test_zstd_binary", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -170,7 +171,7 @@ TEST(test_compress, zstd_large_data) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressTest.test_zstd_large_data", ret);
+    CallAll(s, "CompressTest.test_zstd_large_data", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -182,7 +183,7 @@ TEST(test_compress, zstd_decompress_empty) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_decompress_empty", ret);
+    CallAll(s, "CompressZstdCases.test_zstd_decompress_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -193,7 +194,7 @@ TEST(test_compress, zstd_decompress_invalid) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_decompress_invalid", ret);
+    CallAll(s, "CompressZstdCases.test_zstd_decompress_invalid", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -204,7 +205,7 @@ TEST(test_compress, zstd_compress_level_too_low) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_compress_level_too_low", ret);
+    CallAll(s, "CompressZstdCases.test_zstd_compress_level_too_low", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -215,7 +216,7 @@ TEST(test_compress, zstd_compress_level_too_high) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_compress_level_too_high", ret);
+    CallAll(s, "CompressZstdCases.test_zstd_compress_level_too_high", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -226,7 +227,7 @@ TEST(test_compress, zstd_compress_empty) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_compress_empty", ret);
+    CallAll(s, "CompressZstdCases.test_zstd_compress_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -237,7 +238,7 @@ TEST(test_compress, zstd_extra_large_data) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_large_data", ret);
+    CallAll(s, "CompressZstdCases.test_zstd_large_data", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -248,7 +249,7 @@ TEST(test_compress, zstd_various_levels) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_various_levels", ret);
+    CallAll(s, "CompressZstdCases.test_zstd_various_levels", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -259,7 +260,7 @@ TEST(test_compress, zstd_binary_with_nulls) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_zstd_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CompressZstdCases.test_zstd_binary_with_nulls", ret);
+    CallAll(s, "CompressZstdCases.test_zstd_binary_with_nulls", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -270,7 +271,7 @@ TEST(test_compress, lz4_garbage) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_lz4.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "CompressTest.test_lz4_garbage_throw", ret), std::exception);
+    CallThrow(s, "CompressTest.test_lz4_garbage_throw", ret);
     FakeluaDeleteState(s);
 }
 
@@ -280,7 +281,7 @@ TEST(test_compress, lz4_truncated) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_lz4.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "CompressTest.test_lz4_truncated_throw", ret), std::exception);
+    CallThrow(s, "CompressTest.test_lz4_truncated_throw", ret);
     FakeluaDeleteState(s);
 }
 
@@ -290,7 +291,7 @@ TEST(test_compress, lz4_trailing_garbage) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_lz4.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "CompressTest.test_lz4_trailing_garbage", ret), std::exception);
+    CallThrow(s, "CompressTest.test_lz4_trailing_garbage", ret);
     FakeluaDeleteState(s);
 }
 
@@ -301,7 +302,7 @@ TEST(test_compress, zstd_decompress_empty_gcc) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_error_paths.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "CompressErrorPaths.test_zstd_decompress_empty", ret);
+    CallAll(s, "CompressErrorPaths.test_zstd_decompress_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -312,7 +313,7 @@ TEST(test_compress, zstd_decompress_invalid_frame_gcc) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_error_paths.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "CompressErrorPaths.test_zstd_decompress_invalid_frame", ret);
+    CallAll(s, "CompressErrorPaths.test_zstd_decompress_invalid_frame", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -323,7 +324,7 @@ TEST(test_compress, zstd_compress_level_boundary_gcc) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_error_paths.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "CompressErrorPaths.test_zstd_compress_level_boundary", ret);
+    CallAll(s, "CompressErrorPaths.test_zstd_compress_level_boundary", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -334,7 +335,7 @@ TEST(test_compress, zstd_large_data_gcc) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_error_paths.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "CompressErrorPaths.test_zstd_large_data", ret);
+    CallAll(s, "CompressErrorPaths.test_zstd_large_data", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -345,7 +346,7 @@ TEST(test_compress, zstd_binary_with_nulls_gcc) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_error_paths.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "CompressErrorPaths.test_zstd_binary_with_nulls", ret);
+    CallAll(s, "CompressErrorPaths.test_zstd_binary_with_nulls", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -356,7 +357,7 @@ TEST(test_compress, lz4_decompress_invalid_frame_gcc) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_error_paths.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "CompressErrorPaths.test_lz4_decompress_invalid_frame", ret);
+    CallAll(s, "CompressErrorPaths.test_lz4_decompress_invalid_frame", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -367,7 +368,7 @@ TEST(test_compress, lz4_decompress_truncated_gcc) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_error_paths.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "CompressErrorPaths.test_lz4_decompress_truncated", ret);
+    CallAll(s, "CompressErrorPaths.test_lz4_decompress_truncated", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -378,7 +379,7 @@ TEST(test_compress, lz4_decompress_trailing_garbage_gcc) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_error_paths.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "CompressErrorPaths.test_lz4_decompress_trailing_garbage", ret);
+    CallAll(s, "CompressErrorPaths.test_lz4_decompress_trailing_garbage", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -389,7 +390,7 @@ TEST(test_compress, lz4_large_data_gcc) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_error_paths.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "CompressErrorPaths.test_lz4_large_data", ret);
+    CallAll(s, "CompressErrorPaths.test_lz4_large_data", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -400,7 +401,7 @@ TEST(test_compress, lz4_binary_with_nulls_gcc) {
     CompileConfig config;
     CompileFile(s, "./compress/test_compress_error_paths.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "CompressErrorPaths.test_lz4_binary_with_nulls", ret);
+    CallAll(s, "CompressErrorPaths.test_lz4_binary_with_nulls", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -414,30 +415,30 @@ TEST(test_compress, zstd_edge_cases) {
     CompileFile(s, "./compress/test_compress_zstd_edge.lua", config);
     int64_t ret = 0;
     // Empty input returns empty result (no exception)
-    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_decompress_empty_input", ret);
+    CallAll(s, "CompressZstdEdge.test_zstd_decompress_empty_input", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
     // Exception tests use GCC
-    EXPECT_THROW(Call(s, JIT_GCC, "CompressZstdEdge.test_zstd_decompress_truncated", ret), std::exception);
+    CallThrow(s, "CompressZstdEdge.test_zstd_decompress_truncated", ret);
     ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "CompressZstdEdge.test_zstd_decompress_random_data", ret), std::exception);
+    CallThrow(s, "CompressZstdEdge.test_zstd_decompress_random_data", ret);
     ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "CompressZstdEdge.test_zstd_decompress_trailing_garbage", ret), std::exception);
+    CallThrow(s, "CompressZstdEdge.test_zstd_decompress_trailing_garbage", ret);
     ret = 0;
     // Normal tests use TCC
-    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_compress_level_min", ret);
+    CallAll(s, "CompressZstdEdge.test_zstd_compress_level_min", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_compress_level_max", ret);
+    CallAll(s, "CompressZstdEdge.test_zstd_compress_level_max", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_compress_level_out_of_range", ret);
+    CallAll(s, "CompressZstdEdge.test_zstd_compress_level_out_of_range", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_large_file", ret);
+    CallAll(s, "CompressZstdEdge.test_zstd_large_file", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "CompressZstdEdge.test_zstd_binary_with_nulls", ret);
+    CallAll(s, "CompressZstdEdge.test_zstd_binary_with_nulls", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

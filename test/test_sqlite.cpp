@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -9,7 +10,7 @@ TEST(test_sqlite, open_memory) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_open_memory", ret);
+    CallAll(s, "SqliteTest.test_open_memory", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -20,7 +21,7 @@ TEST(test_sqlite, create_table) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_create_table", ret);
+    CallAll(s, "SqliteTest.test_create_table", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -31,7 +32,7 @@ TEST(test_sqlite, insert) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_insert", ret);
+    CallAll(s, "SqliteTest.test_insert", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -42,7 +43,7 @@ TEST(test_sqlite, select) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_select", ret);
+    CallAll(s, "SqliteTest.test_select", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -53,7 +54,7 @@ TEST(test_sqlite, select_empty) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_select_empty", ret);
+    CallAll(s, "SqliteTest.test_select_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -64,7 +65,7 @@ TEST(test_sqlite, insert_return_nil) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_insert_return_nil", ret);
+    CallAll(s, "SqliteTest.test_insert_return_nil", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -75,7 +76,7 @@ TEST(test_sqlite, close) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_close", ret);
+    CallAll(s, "SqliteTest.test_close", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -86,7 +87,7 @@ TEST(test_sqlite, multiple_inserts) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_multiple_inserts", ret);
+    CallAll(s, "SqliteTest.test_multiple_inserts", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -97,7 +98,7 @@ TEST(test_sqlite, select_where) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_select_where", ret);
+    CallAll(s, "SqliteTest.test_select_where", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -108,7 +109,7 @@ TEST(test_sqlite, auto_close) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_auto_close", ret);
+    CallAll(s, "SqliteTest.test_auto_close", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -119,7 +120,7 @@ TEST(test_sqlite, prepare_bind_step) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_prepare_bind_step", ret);
+    CallAll(s, "SqliteTest.test_prepare_bind_step", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -130,7 +131,7 @@ TEST(test_sqlite, prepare_select_where) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_prepare_select_where", ret);
+    CallAll(s, "SqliteTest.test_prepare_select_where", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -141,7 +142,7 @@ TEST(test_sqlite, prepare_nil_bind) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_prepare_nil_bind", ret);
+    CallAll(s, "SqliteTest.test_prepare_nil_bind", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -152,7 +153,7 @@ TEST(test_sqlite, prepare_reset) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_prepare_reset", ret);
+    CallAll(s, "SqliteTest.test_prepare_reset", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -163,7 +164,7 @@ TEST(test_sqlite, columns) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_columns", ret);
+    CallAll(s, "SqliteTest.test_columns", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -174,7 +175,7 @@ TEST(test_sqlite, last_insert_rowid) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_last_insert_rowid", ret);
+    CallAll(s, "SqliteTest.test_last_insert_rowid", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -185,7 +186,7 @@ TEST(test_sqlite, changes) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_changes", ret);
+    CallAll(s, "SqliteTest.test_changes", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -196,7 +197,7 @@ TEST(test_sqlite, transaction) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_transaction", ret);
+    CallAll(s, "SqliteTest.test_transaction", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -207,7 +208,7 @@ TEST(test_sqlite, prepare_error) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_prepare_error", ret);
+    CallAll(s, "SqliteTest.test_prepare_error", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -218,7 +219,7 @@ TEST(test_sqlite, prepare_multi_rows) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_prepare_multi_rows", ret);
+    CallAll(s, "SqliteTest.test_prepare_multi_rows", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -229,7 +230,7 @@ TEST(test_sqlite, blob) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_blob", ret);
+    CallAll(s, "SqliteTest.test_blob", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -240,7 +241,7 @@ TEST(test_sqlite, bind_embedded_nul) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_bind_embedded_nul", ret);
+    CallAll(s, "SqliteTest.test_bind_embedded_nul", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -251,7 +252,7 @@ TEST(test_sqlite, delete_state_without_close) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_delete_state_without_close", ret);
+    CallAll(s, "SqliteTest.test_delete_state_without_close", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -262,7 +263,7 @@ TEST(test_sqlite, stmt_close_after_db_close) {
     CompileConfig config;
     CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SqliteTest.test_stmt_close_after_db_close", ret);
+    CallAll(s, "SqliteTest.test_stmt_close_after_db_close", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

@@ -1,4 +1,5 @@
 #include "jit/tcc_handle.h"
+#include "interp/interpreter.h"
 #include "jit/vm.h"
 #include "state/state.h"
 #include "util/logging.h"
@@ -39,6 +40,7 @@ TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
     tcc_add_symbol(tcc_state_, "FakeluaThrowError", reinterpret_cast<void *>(FakeluaThrowError));
     tcc_add_symbol(tcc_state_, "FakeluaCallByName", reinterpret_cast<void *>(FakeluaCallByName));
     tcc_add_symbol(tcc_state_, "FlEvalLoadClosure", reinterpret_cast<void *>(FlEvalLoadClosure));
+    tcc_add_symbol(tcc_state_, "FakeluaInterpCall", reinterpret_cast<void *>(FakeluaInterpCall));
     tcc_add_symbol(tcc_state_, "FakeluaLogLua", reinterpret_cast<void *>(FakeluaLogLua));
     tcc_add_symbol(tcc_state_, "GetLogLevel", reinterpret_cast<void *>(GetLogLevel));
     tcc_define_symbol(tcc_state_, "FAKELUA_JIT_TYPE", std::to_string(static_cast<int>(JIT_TCC)).c_str());

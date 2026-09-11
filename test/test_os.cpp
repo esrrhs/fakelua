@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "test_jit.h"
 
 using namespace fakelua;
 
@@ -9,7 +10,7 @@ TEST(test_os, test_os_clock) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_clock.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_clock", res);
@@ -24,7 +25,7 @@ TEST(test_os, test_os_date) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_date.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_date", res);
@@ -39,7 +40,7 @@ TEST(test_os, test_os_difftime) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_difftime.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_difftime", res);
@@ -54,7 +55,7 @@ TEST(test_os, test_os_execute) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_execute.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_execute", res);
@@ -69,7 +70,7 @@ TEST(test_os, test_os_date_table) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_date_table.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_date_table", res);
@@ -84,7 +85,7 @@ TEST(test_os, test_os_execute_triple) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_execute_triple.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_execute_triple", res);
@@ -99,7 +100,7 @@ TEST(test_os, test_os_getenv) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_getenv.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_getenv", res);
@@ -114,7 +115,7 @@ TEST(test_os, test_os_time) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_time.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_time", res);
@@ -129,7 +130,7 @@ TEST(test_os, test_os_tmpname) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_tmpname.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_tmpname", res);
@@ -144,7 +145,7 @@ TEST(test_os, test_os_remove_rename) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_remove_rename.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_remove_rename", res);
@@ -159,7 +160,7 @@ TEST(test_os, test_os_setlocale) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_setlocale.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_setlocale", res);
@@ -174,7 +175,7 @@ TEST(test_os, test_os_exit) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_exit.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_exit", res);
@@ -189,7 +190,7 @@ TEST(test_os, test_os_date_format) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_date_format.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_date_format", res);
@@ -204,7 +205,7 @@ TEST(test_os, test_os_time_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_time_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_time_boundary", res);
@@ -219,7 +220,7 @@ TEST(test_os, test_os_date_utc) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_date_utc.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_date_utc", res);
@@ -246,7 +247,7 @@ TEST(test_os, test_os_setlocale_extended) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_date_utc.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_setlocale_query", res);
@@ -265,7 +266,7 @@ TEST(test_os, test_os_execute_empty) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_execute_empty.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_execute_empty", res);
@@ -280,7 +281,7 @@ TEST(test_os, test_os_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./os/test_os_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_os_boundary", res);
@@ -297,18 +298,18 @@ TEST(test_os, test_os_boundary_error) {
 
     CompileFile(s, "./os/test_os_boundary_error.lua", config);
 
-    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    // TCC 代码页没有 DWARF 展开表，C++ 异常无法穿过；CallThrow 跑 ExceptionJitTypes()
     {
         double res = 0;
-        EXPECT_THROW(Call(s, JIT_GCC, "test_os_boundary_error", res), std::exception);
+        CallThrow(s, "test_os_boundary_error", res);
     }
     {
         double res = 0;
-        EXPECT_THROW(Call(s, JIT_GCC, "test_os_boundary_error2", res), std::exception);
+        CallThrow(s, "test_os_boundary_error2", res);
     }
     {
         double res = 0;
-        EXPECT_THROW(Call(s, JIT_GCC, "test_os_boundary_error3", res), std::exception);
+        CallThrow(s, "test_os_boundary_error3", res);
     }
 
     FakeluaDeleteState(s);
@@ -321,16 +322,16 @@ TEST(test_os, test_os_error_paths) {
 
     CompileFile(s, "./os/test_os_error_paths.lua", config);
 
-    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
+    // TCC 代码页没有 DWARF 展开表，C++ 异常无法穿过；CallThrow 跑 ExceptionJitTypes()
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_os_difftime_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_os_execute_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_os_exit_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_os_exit_nan", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_os_getenv_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_os_remove_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_os_rename_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_os_setlocale_bad_arg", res), std::exception);
+    CallThrow(s, "test_os_difftime_bad_arg", res);
+    CallThrow(s, "test_os_execute_bad_arg", res);
+    CallThrow(s, "test_os_exit_bad_arg", res);
+    CallThrow(s, "test_os_exit_nan", res);
+    CallThrow(s, "test_os_getenv_bad_arg", res);
+    CallThrow(s, "test_os_remove_bad_arg", res);
+    CallThrow(s, "test_os_rename_bad_arg", res);
+    CallThrow(s, "test_os_setlocale_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -341,7 +342,7 @@ TEST(test_os, test_os_filesystem) {
     CompileConfig config;
     CompileFile(s, "./os/test_os_filesystem.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "test_os_filesystem", ret);
+    CallAll(s, "test_os_filesystem", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

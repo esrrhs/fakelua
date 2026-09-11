@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -9,7 +10,7 @@ TEST(test_container, deque) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "ContainerTest.test_deque", ret);
+    CallAll(s, "ContainerTest.test_deque", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -20,7 +21,7 @@ TEST(test_container, map) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "ContainerTest.test_map", ret);
+    CallAll(s, "ContainerTest.test_map", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -31,7 +32,7 @@ TEST(test_container, set) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "ContainerTest.test_set", ret);
+    CallAll(s, "ContainerTest.test_set", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -42,7 +43,7 @@ TEST(test_container, closed) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_closed", ret), std::exception);
+    CallThrow(s, "ContainerTest.test_closed", ret);
     FakeluaDeleteState(s);
 }
 
@@ -52,7 +53,7 @@ TEST(test_container, bad_table_value) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_bad_table_value", ret), std::exception);
+    CallThrow(s, "ContainerTest.test_bad_table_value", ret);
     FakeluaDeleteState(s);
 }
 
@@ -62,7 +63,7 @@ TEST(test_container, deque_set_oor) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_deque_set_oor", ret), std::exception);
+    CallThrow(s, "ContainerTest.test_deque_set_oor", ret);
     FakeluaDeleteState(s);
 }
 
@@ -72,7 +73,7 @@ TEST(test_container, vector) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "ContainerTest.test_vector", ret);
+    CallAll(s, "ContainerTest.test_vector", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -83,7 +84,7 @@ TEST(test_container, small_vector) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "ContainerTest.test_small_vector", ret);
+    CallAll(s, "ContainerTest.test_small_vector", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -94,7 +95,7 @@ TEST(test_container, list) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "ContainerTest.test_list", ret);
+    CallAll(s, "ContainerTest.test_list", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -105,7 +106,7 @@ TEST(test_container, nested) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "ContainerTest.test_nested", ret);
+    CallAll(s, "ContainerTest.test_nested", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -116,7 +117,7 @@ TEST(test_container, vector_set_oor) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_vector_set_oor", ret), std::exception);
+    CallThrow(s, "ContainerTest.test_vector_set_oor", ret);
     FakeluaDeleteState(s);
 }
 
@@ -126,7 +127,7 @@ TEST(test_container, list_set_oor) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_list_set_oor", ret), std::exception);
+    CallThrow(s, "ContainerTest.test_list_set_oor", ret);
     FakeluaDeleteState(s);
 }
 
@@ -136,6 +137,6 @@ TEST(test_container, bad_fn_value) {
     CompileConfig config;
     CompileFile(s, "./container/test_container.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_bad_fn_value", ret), std::exception);
+    CallThrow(s, "ContainerTest.test_bad_fn_value", ret);
     FakeluaDeleteState(s);
 }

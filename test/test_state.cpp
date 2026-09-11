@@ -1,5 +1,6 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
+#include "test_jit.h"
 #include "jit/vm.h"
 #include "jit/vm_function.h"
 #include "state/const_string.h"
@@ -367,7 +368,7 @@ TEST(state, reset_reuse_state) {
     ASSERT_NO_THROW(CompileString(s, "function first() return 111 end", {}));
     {
         int64_t ret = 0;
-        Call(s, JIT_TCC, "first", ret);
+        CallAll(s, "first", ret);
         ASSERT_EQ(ret, 111);
     }
 
@@ -378,7 +379,7 @@ TEST(state, reset_reuse_state) {
     ASSERT_NO_THROW(CompileString(s, "function second() return 222 end", {}));
     {
         int64_t ret = 0;
-        Call(s, JIT_TCC, "second", ret);
+        CallAll(s, "second", ret);
         ASSERT_EQ(ret, 222);
     }
 
@@ -387,7 +388,7 @@ TEST(state, reset_reuse_state) {
     ASSERT_NO_THROW(CompileString(s, "function third() return 333 end", {}));
     {
         int64_t ret = 0;
-        Call(s, JIT_TCC, "third", ret);
+        CallAll(s, "third", ret);
         ASSERT_EQ(ret, 333);
     }
 }

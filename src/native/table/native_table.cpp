@@ -503,6 +503,45 @@ CVar TableHelper::GetTableInt(State *s, CVar tbl, int64_t idx) {
     return CVar{static_cast<int>(VarType::Nil)};
 }
 
+CVar TableHelper::GetTable(State *s, CVar tbl, CVar key) {
+    (void) s;
+    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return CVar{static_cast<int>(VarType::Nil)};
+    VarTable *t = tbl.data_.t;
+    key = NormalizeTableKey(key);
+
+    if (t->spec_get) {
+        using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
+        auto get_fn = reinterpret_cast<SpecGetFn>(t->spec_get);
+        bool finish = false;
+        CVar r = get_fn(t, key, &finish);
+        if (finish) return r;
+    }
+
+    if (t->spec_count > 0 && t->spec_vals && t->spec_keys) {
+        for (uint32_t i = 0; i < t->spec_count; ++i) {
+            if (VarKeyEqual(t->spec_keys[i], key)) return t->spec_vals[i];
+        }
+    }
+
+    const uint32_t hash = VarKeyHash(key);
+    if (t->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < t->count_; ++i) {
+            const auto &qd = t->quick_data_[i];
+            if (qd.hash == hash && VarKeyEqual(qd.key, key)) return qd.val;
+        }
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+    if (!t->nodes_) return CVar{static_cast<int>(VarType::Nil)};
+    const uint32_t mask = t->bucket_count_ - 1;
+    const auto *curr = &t->nodes_[hash & mask];
+    while (true) {
+        if (curr->entry.hash == hash && VarKeyEqual(curr->entry.key, key)) return curr->entry.val;
+        if (curr->next == VarTable::INVALID_INDEX) break;
+        curr = &t->nodes_[curr->next];
+    }
+    return CVar{static_cast<int>(VarType::Nil)};
+}
+
 CVar TableHelper::GetTableStrId(State *s, CVar tbl, const char *str_key) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t || !str_key) return CVar{static_cast<int>(VarType::Nil)};
     VarTable *t = tbl.data_.t;

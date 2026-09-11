@@ -4,7 +4,7 @@
 using namespace fakelua;
 
 TEST(test_ini, decode_basic) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -17,7 +17,7 @@ TEST(test_ini, decode_basic) {
 }
 
 TEST(test_ini, decode_multiple_sections) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -30,7 +30,7 @@ TEST(test_ini, decode_multiple_sections) {
 }
 
 TEST(test_ini, decode_types) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -43,7 +43,7 @@ TEST(test_ini, decode_types) {
 }
 
 TEST(test_ini, decode_empty) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -56,7 +56,7 @@ TEST(test_ini, decode_empty) {
 }
 
 TEST(test_ini, encode_basic) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -69,7 +69,7 @@ TEST(test_ini, encode_basic) {
 }
 
 TEST(test_ini, roundtrip) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;

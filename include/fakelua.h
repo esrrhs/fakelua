@@ -292,8 +292,72 @@ enum JITType {
     JIT_TCC = 0,
     // GCC 后端：将生成 C 代码通过系统 gcc 编译为动态库并加载执行
     JIT_GCC,
+    // 字节码解释器：将 AST 编译为寄存器字节码后解释执行，无需 C 编译器
+    JIT_INTERP,
     JIT_MAX,
 };
+
+// 遍历已注册的执行后端。新增后端只要插在 JIT_MAX 之前，for (AllJitTypes()) 会自动覆盖。
+struct JitTypeSpan {
+    JITType data[JIT_MAX]{};
+    int size = 0;
+    const JITType *begin() const { return data; }
+    const JITType *end() const { return data + size; }
+};
+
+inline const char *JitTypeName(JITType t) {
+    switch (t) {
+        case JIT_TCC:
+            return "TCC";
+        case JIT_GCC:
+            return "GCC";
+        case JIT_INTERP:
+            return "INTERP";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+// TCC 代码页没有 DWARF 展开表，C++ 异常无法穿过 JIT 帧。
+inline bool JitSupportsCppExceptions(JITType t) noexcept {
+    return t != JIT_TCC;
+}
+
+// 会生成 C 代码的后端（解释器没有 typed int/float 特化）。
+inline bool JitEmitsCCode(JITType t) noexcept {
+    return t == JIT_TCC || t == JIT_GCC;
+}
+
+inline JitTypeSpan AllJitTypes() {
+    JitTypeSpan span;
+    span.size = JIT_MAX;
+    for (int i = 0; i < JIT_MAX; ++i) {
+        span.data[i] = static_cast<JITType>(i);
+    }
+    return span;
+}
+
+inline JitTypeSpan ExceptionJitTypes() {
+    JitTypeSpan span;
+    for (int i = 0; i < JIT_MAX; ++i) {
+        const auto t = static_cast<JITType>(i);
+        if (JitSupportsCppExceptions(t)) {
+            span.data[span.size++] = t;
+        }
+    }
+    return span;
+}
+
+inline JitTypeSpan CCodeJitTypes() {
+    JitTypeSpan span;
+    for (int i = 0; i < JIT_MAX; ++i) {
+        const auto t = static_cast<JITType>(i);
+        if (JitEmitsCCode(t)) {
+            span.data[span.size++] = t;
+        }
+    }
+    return span;
+}
 
 // 控制编译器的配置项
 struct CompileConfig {
@@ -307,6 +371,12 @@ struct CompileConfig {
     // 开启后可通过 GetLastRecordedCCode(State*) 获取最近一次编译产生的代码片段。
     bool record_c_code = false;
 };
+
+inline void DisableAllJit(CompileConfig &cfg) {
+    for (int i = 0; i < JIT_MAX; ++i) {
+        cfg.disable_jit[i] = true;
+    }
+}
 
 struct StateTCCConfig {
     std::vector<std::string> include_paths = {"./include"};

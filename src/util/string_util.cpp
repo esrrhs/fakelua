@@ -255,12 +255,17 @@ double ToFloat(const std::string_view &input) {
 
     if (hex_format) {
         if (bool is_hex_float = input.contains('.') || input.contains('p') || input.contains('P'); is_hex_float) {
-            // Hex float: Boost.Charconv accepts an optional 0x prefix with chars_format::hex.
-            // Sign is parsed by from_chars, so pass the original string.
-            first = SkipPlus(input.data(), last);
-            auto r = boost::charconv::from_chars(first, last, result, boost::charconv::chars_format::hex);
-            if (!ConsumeAll(r, last)) {
+            // Boost.Charconv 的 chars_format::hex 对小数点按 10 的幂缩放（0X12.3 → 29.1），
+            // 与 C99/Lua 十六进制浮点（按 16 的幂，0X12.3 == 18.1875）不一致。改走 strtod。
+            const std::string buf(input);
+            char *end = nullptr;
+            errno = 0;
+            result = std::strtod(buf.c_str(), &end);
+            if (end != buf.c_str() + buf.size()) {
                 ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", input));
+            }
+            if (errno == ERANGE) {
+                ThrowFakeluaException(std::format("ToFloat failed, result out of range: {}", input));
             }
             negative = false;
         } else {

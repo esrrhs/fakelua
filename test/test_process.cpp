@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -9,7 +10,7 @@ TEST(test_process, echo) {
     CompileConfig config;
     CompileFile(s, "./process/test_process.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "ProcessTest.test_echo", ret);
+    CallAll(s, "ProcessTest.test_echo", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -20,7 +21,7 @@ TEST(test_process, stdin_cat) {
     CompileConfig config;
     CompileFile(s, "./process/test_process.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "ProcessTest.test_stdin", ret);
+    CallAll(s, "ProcessTest.test_stdin", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -31,7 +32,7 @@ TEST(test_process, timeout) {
     CompileConfig config;
     CompileFile(s, "./process/test_process.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "ProcessTest.test_timeout", ret);
+    CallAll(s, "ProcessTest.test_timeout", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -42,6 +43,6 @@ TEST(test_process, missing_exe) {
     CompileConfig config;
     CompileFile(s, "./process/test_process.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "ProcessTest.test_missing", ret), std::exception);
+    CallThrow(s, "ProcessTest.test_missing", ret);
     FakeluaDeleteState(s);
 }

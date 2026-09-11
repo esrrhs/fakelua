@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -11,7 +12,7 @@ TEST(test_crypto, md5_empty) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_crypto_md5.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_md5", ret);
+    CallAll(s, "CryptoTest.test_md5", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -22,7 +23,7 @@ TEST(test_crypto, sha1_empty) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_crypto_sha1.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_sha1", ret);
+    CallAll(s, "CryptoTest.test_sha1", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -33,7 +34,7 @@ TEST(test_crypto, sha256_empty) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_crypto_sha256.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_sha256", ret);
+    CallAll(s, "CryptoTest.test_sha256", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -44,7 +45,7 @@ TEST(test_crypto, md5_hello) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_crypto_md5_hello.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_md5_hello", ret);
+    CallAll(s, "CryptoTest.test_md5_hello", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -55,7 +56,7 @@ TEST(test_crypto, sha1_hello) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_crypto_sha1_hello.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_sha1_hello", ret);
+    CallAll(s, "CryptoTest.test_sha1_hello", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -68,7 +69,7 @@ TEST(test_crypto, base64_encode_decode) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_base64.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_base64", ret);
+    CallAll(s, "CryptoTest.test_base64", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -79,7 +80,7 @@ TEST(test_crypto, base64_whitespace) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_base64.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_base64_whitespace", ret);
+    CallAll(s, "CryptoTest.test_base64_whitespace", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -90,7 +91,7 @@ TEST(test_crypto, base64_invalid) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_base64.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "CryptoTest.test_base64_invalid", ret), std::exception);
+    CallThrow(s, "CryptoTest.test_base64_invalid", ret);
     FakeluaDeleteState(s);
 }
 
@@ -102,7 +103,7 @@ TEST(test_crypto, aes_ecb_encrypt) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_aes_ecb.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_ecb", ret);
+    CallAll(s, "CryptoTest.test_ecb", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -113,7 +114,7 @@ TEST(test_crypto, aes_cbc_encrypt) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_aes_cbc.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_cbc", ret);
+    CallAll(s, "CryptoTest.test_cbc", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -124,7 +125,7 @@ TEST(test_crypto, aes_ctr_encrypt) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_aes_ctr.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_ctr", ret);
+    CallAll(s, "CryptoTest.test_ctr", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -137,7 +138,7 @@ TEST(test_crypto, rc4_keystream) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_rc4.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_rc4_keystream", ret);
+    CallAll(s, "CryptoTest.test_rc4_keystream", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -148,7 +149,7 @@ TEST(test_crypto, rc4_encrypt_decrypt) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_rc4.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_rc4_encrypt_decrypt", ret);
+    CallAll(s, "CryptoTest.test_rc4_encrypt_decrypt", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -161,7 +162,7 @@ TEST(test_crypto, blowfish_encrypt_decrypt) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_blowfish.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_blowfish", ret);
+    CallAll(s, "CryptoTest.test_blowfish", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -174,7 +175,7 @@ TEST(test_crypto, des_encrypt_decrypt) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_des.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_des", ret);
+    CallAll(s, "CryptoTest.test_des", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -185,7 +186,7 @@ TEST(test_crypto, triple_des_encrypt_decrypt) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_des.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_triple_des", ret);
+    CallAll(s, "CryptoTest.test_triple_des", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -196,7 +197,7 @@ TEST(test_crypto, hex_roundtrip) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_crypto_hex.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_hex_roundtrip", ret);
+    CallAll(s, "CryptoTest.test_hex_roundtrip", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -207,7 +208,7 @@ TEST(test_crypto, hex_decode_invalid) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_crypto_hex.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "CryptoTest.test_hex_decode_invalid", ret), std::exception);
+    CallThrow(s, "CryptoTest.test_hex_decode_invalid", ret);
     FakeluaDeleteState(s);
 }
 
@@ -218,7 +219,7 @@ static void RunEvpTest(const char *func_name) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_evp.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, func_name, ret);
+    CallAll(s, func_name, ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -294,7 +295,7 @@ static void RunEvpExtTest(const char *func_name) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_evp_extended.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, func_name, ret);
+    CallAll(s, func_name, ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -401,7 +402,7 @@ TEST(test_crypto, uuid_v4) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_crypto_uuid.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_uuid", ret);
+    CallAll(s, "CryptoTest.test_uuid", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -412,7 +413,7 @@ TEST(test_crypto, crc32) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_crypto_crc32.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_crc32", ret);
+    CallAll(s, "CryptoTest.test_crc32", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -423,7 +424,7 @@ TEST(test_crypto, xxhash) {
     CompileConfig config;
     CompileFile(s, "./crypto/test_crypto_xxhash.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CryptoTest.test_xxhash", ret);
+    CallAll(s, "CryptoTest.test_xxhash", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

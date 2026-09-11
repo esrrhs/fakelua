@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -14,7 +15,7 @@ TEST(test_net, test_server_create_destroy) {
     CompileFile(s, "./net/test_net_create_destroy.lua", config);
 
     int64_t ret = 0;
-    Call(s, JIT_TCC, "NetCreate.test_server_create_destroy", ret);
+    CallAll(s, "NetCreate.test_server_create_destroy", ret);
     EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
@@ -29,7 +30,7 @@ TEST(test_net, test_client_create_destroy) {
     CompileFile(s, "./net/test_net_create_destroy.lua", config);
 
     int64_t ret = 0;
-    Call(s, JIT_TCC, "NetCreate.test_client_create_destroy", ret);
+    CallAll(s, "NetCreate.test_client_create_destroy", ret);
     EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
@@ -45,7 +46,7 @@ TEST(test_net, test_echo_basic) {
 
     int64_t conn_count = 0, recv_count = 0;
     std::string server_data, client_data;
-    Call(s, JIT_TCC, "NetTest.test_echo", std::tie(conn_count, recv_count, server_data, client_data));
+    CallAll(s, "NetTest.test_echo", std::tie(conn_count, recv_count, server_data, client_data));
 
     EXPECT_GE(conn_count, 1) << "server should accept connection";
     EXPECT_GE(recv_count, 1) << "server should receive data";
@@ -65,7 +66,7 @@ TEST(test_net, test_multiple_packets) {
 
     int64_t recv_count = 0;
     std::string last_data;
-    Call(s, JIT_TCC, "NetMulti.test_multi", std::tie(recv_count, last_data));
+    CallAll(s, "NetMulti.test_multi", std::tie(recv_count, last_data));
 
     EXPECT_EQ(recv_count, 3) << "should receive 3 packets";
     EXPECT_EQ(last_data, "packet3") << "last echoed data should be packet3";
@@ -83,7 +84,7 @@ TEST(test_net, test_multi_servers_multi_clients) {
 
     int64_t conn_a = 0, recv_a = 0, conn_b = 0, recv_b = 0;
     std::string data_a, echo_a, data_b, echo_b;
-    Call(s, JIT_TCC, "NetMultiEndpoints.test_multi_servers_multi_clients", std::tie(conn_a, recv_a, data_a, echo_a, conn_b, recv_b, data_b, echo_b));
+    CallAll(s, "NetMultiEndpoints.test_multi_servers_multi_clients", std::tie(conn_a, recv_a, data_a, echo_a, conn_b, recv_b, data_b, echo_b));
 
     // server_a 应接收来自 client_a 的数据
     EXPECT_GE(conn_a, 1) << "server_a should accept connection";
@@ -110,7 +111,7 @@ TEST(test_net, test_one_server_multi_clients) {
 
     int64_t conn_count = 0, recv_count = 0;
     std::string echo1, echo2, echo3;
-    Call(s, JIT_TCC, "NetMultiEndpoints.test_one_server_multi_clients", std::tie(conn_count, recv_count, echo1, echo2, echo3));
+    CallAll(s, "NetMultiEndpoints.test_one_server_multi_clients", std::tie(conn_count, recv_count, echo1, echo2, echo3));
 
     // server 应接受 3 个连接
     EXPECT_EQ(conn_count, 3) << "server should accept 3 connections";
@@ -136,7 +137,7 @@ TEST(test_net, test_server_close_releases_native_object) {
     // 多次创建并关闭 server，每次 close 都应释放 NativeObject
     for (int i = 0; i < 5; ++i) {
         int64_t ret = 0;
-        Call(s, JIT_TCC, "NetCreate.test_server_create_destroy", ret);
+        CallAll(s, "NetCreate.test_server_create_destroy", ret);
         EXPECT_EQ(ret, 1);
     }
 
@@ -152,7 +153,7 @@ TEST(test_net, test_close_in_recv) {
     CompileFile(s, "./net/test_net_server_client.lua", config);
 
     int64_t ret = 0;
-    Call(s, JIT_TCC, "NetTest.test_close_in_recv", ret);
+    CallAll(s, "NetTest.test_close_in_recv", ret);
     EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
@@ -169,7 +170,7 @@ TEST(test_net, test_framer_lua_protocols) {
     // 1. 测试 2 字节大端
     {
         std::string s_data, c_data;
-        Call(s, JIT_TCC, "NetFramerTest.test_framer_2be", std::tie(s_data, c_data));
+        CallAll(s, "NetFramerTest.test_framer_2be", std::tie(s_data, c_data));
         EXPECT_EQ(s_data, "hello_2be");
         EXPECT_EQ(c_data, "echo:hello_2be");
     }
@@ -177,7 +178,7 @@ TEST(test_net, test_framer_lua_protocols) {
     // 2. 测试 2 字节小端
     {
         std::string s_data, c_data;
-        Call(s, JIT_TCC, "NetFramerTest.test_framer_2le", std::tie(s_data, c_data));
+        CallAll(s, "NetFramerTest.test_framer_2le", std::tie(s_data, c_data));
         EXPECT_EQ(s_data, "hello_2le");
         EXPECT_EQ(c_data, "echo:hello_2le");
     }
@@ -185,7 +186,7 @@ TEST(test_net, test_framer_lua_protocols) {
     // 3. 测试 4 字节小端
     {
         std::string s_data, c_data;
-        Call(s, JIT_TCC, "NetFramerTest.test_framer_4le", std::tie(s_data, c_data));
+        CallAll(s, "NetFramerTest.test_framer_4le", std::tie(s_data, c_data));
         EXPECT_EQ(s_data, "hello_4le");
         EXPECT_EQ(c_data, "echo:hello_4le");
     }
@@ -193,7 +194,7 @@ TEST(test_net, test_framer_lua_protocols) {
     // 4. 测试 换行符定界 (line delimiter)
     {
         std::string s_data, c_data;
-        Call(s, JIT_TCC, "NetFramerTest.test_framer_line", std::tie(s_data, c_data));
+        CallAll(s, "NetFramerTest.test_framer_line", std::tie(s_data, c_data));
         EXPECT_EQ(s_data, "line_command_1");
         EXPECT_EQ(c_data, "echo:line_command_1");
     }
@@ -201,14 +202,14 @@ TEST(test_net, test_framer_lua_protocols) {
     // 5. 测试 固定长度 (fixed length)
     {
         std::string s_data;
-        Call(s, JIT_TCC, "NetFramerTest.test_framer_fixed", s_data);
+        CallAll(s, "NetFramerTest.test_framer_fixed", s_data);
         EXPECT_EQ(s_data, "12345678");
     }
 
     // 6. 测试 自定义 Lua 解包函数
     {
         std::string s_data;
-        Call(s, JIT_TCC, "NetFramerTest.test_framer_custom_lua", s_data);
+        CallAll(s, "NetFramerTest.test_framer_custom_lua", s_data);
         EXPECT_EQ(s_data, "custom_msg_dollar");
     }
 
@@ -225,7 +226,7 @@ TEST(test_net, test_websocket_echo_lua) {
 
     int64_t conn_count = 0, recv_count = 0;
     std::string server_data, client_data;
-    Call(s, JIT_TCC, "NetWsTest.test_ws_echo", std::tie(conn_count, recv_count, server_data, client_data));
+    CallAll(s, "NetWsTest.test_ws_echo", std::tie(conn_count, recv_count, server_data, client_data));
 
     EXPECT_GE(conn_count, 1) << "ws server should accept connection";
     EXPECT_GE(recv_count, 1) << "ws server should receive data";
@@ -244,7 +245,7 @@ TEST(test_net, test_server_stop_restart) {
     CompileFile(s, "./net/test_net_create_destroy.lua", config);
 
     int64_t ret = 0;
-    Call(s, JIT_TCC, "NetCreate.test_server_stop_restart", ret);
+    CallAll(s, "NetCreate.test_server_stop_restart", ret);
     EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
@@ -259,7 +260,7 @@ TEST(test_net, test_slot_reuse_repeated_connect) {
     CompileFile(s, "./net/test_net_server_client.lua", config);
 
     int64_t ret = 0;
-    Call(s, JIT_TCC, "NetTest.test_slot_reuse_repeated_connect", ret);
+    CallAll(s, "NetTest.test_slot_reuse_repeated_connect", ret);
     EXPECT_EQ(ret, 6);
 
     FakeluaDeleteState(s);
@@ -274,7 +275,7 @@ TEST(test_net, test_client_connect_fail) {
     CompileFile(s, "./net/test_net_server_client.lua", config);
 
     int64_t ret = 0;
-    Call(s, JIT_TCC, "NetTest.test_client_connect_fail", ret);
+    CallAll(s, "NetTest.test_client_connect_fail", ret);
     EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
@@ -289,7 +290,7 @@ TEST(test_net, test_send_buffer_full) {
     CompileFile(s, "./net/test_net_server_client.lua", config);
 
     int64_t ret = 0;
-    Call(s, JIT_TCC, "NetTest.test_send_buffer_full", ret);
+    CallAll(s, "NetTest.test_send_buffer_full", ret);
     EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
@@ -304,7 +305,7 @@ TEST(test_net, test_wss_echo_lua) {
 
     int64_t conn_count = 0, recv_count = 0;
     std::string server_data, client_data;
-    Call(s, JIT_TCC, "NetWssTest.test_wss_echo", std::tie(conn_count, recv_count, server_data, client_data));
+    CallAll(s, "NetWssTest.test_wss_echo", std::tie(conn_count, recv_count, server_data, client_data));
 
     EXPECT_GE(conn_count, 1) << "wss server should accept connection";
     EXPECT_GE(recv_count, 1) << "wss server should receive data";
@@ -322,7 +323,7 @@ TEST(test_net, test_udp_echo_lua) {
     CompileFile(s, "./net/test_net_udp.lua", config);
 
     int64_t ret = 0;
-    Call(s, JIT_TCC, "NetUdpTest.test_udp_echo", ret);
+    CallAll(s, "NetUdpTest.test_udp_echo", ret);
     EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);

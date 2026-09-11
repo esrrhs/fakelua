@@ -101,6 +101,15 @@ public:
         jit_error_boundary_ = boundary;
     }
 
+    // 解释器执行 __fakelua_init 期间为 true：此时分配走常量堆，帧 Reset 后仍然有效。
+    void SetInterpConstAlloc(bool v) {
+        interp_const_alloc_ = v;
+    }
+
+    [[nodiscard]] bool InterpConstAlloc() const {
+        return interp_const_alloc_;
+    }
+
     // 本 State 的日志输出目标。为 nullptr 表示没指定日志文件，只打控制台。
     LogSink *GetLogSink() const {
         return log_sink_.get();
@@ -155,6 +164,7 @@ private:
 
     std::function<VarInterface *()> var_interface_new_func_;
     JitErrorBoundary *jit_error_boundary_ = nullptr;
+    bool interp_const_alloc_ = false;
     int reentrant_count_ = 0;
     StateConfig config_;
     Compiler compiler_;

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "test_jit.h"
 
 using namespace fakelua;
 
@@ -9,7 +10,7 @@ TEST(test_string, test_string_len) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_len.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_len", res);
@@ -24,7 +25,7 @@ TEST(test_string, test_string_sub) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_sub.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_sub", res);
@@ -39,7 +40,7 @@ TEST(test_string, test_string_rep) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_rep.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_rep", res);
@@ -54,7 +55,7 @@ TEST(test_string, test_string_case) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_case.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_case", res);
@@ -69,7 +70,7 @@ TEST(test_string, test_string_byte_char) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_byte_char.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_byte_char", res);
@@ -84,7 +85,7 @@ TEST(test_string, test_string_format) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_format.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_format", res);
@@ -99,7 +100,7 @@ TEST(test_string, test_string_dump) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_dump.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_dump", res);
@@ -114,7 +115,7 @@ TEST(test_string, test_string_find) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_find.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_find", res);
@@ -129,7 +130,7 @@ TEST(test_string, test_string_match) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_match.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_match", res);
@@ -144,7 +145,7 @@ TEST(test_string, test_string_gmatch) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_gmatch.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_gmatch", res);
@@ -159,7 +160,7 @@ TEST(test_string, test_string_gsub) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_gsub.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_gsub", res);
@@ -174,7 +175,7 @@ TEST(test_string, test_string_pack_unpack) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_pack_unpack.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_pack_unpack", res);
@@ -189,7 +190,7 @@ TEST(test_string, test_string_charpattern) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_charpattern.lua", config);
         double res = 0;
         Call(s, jit_type, "test_string_charpattern", res);
@@ -204,7 +205,7 @@ TEST(test_string, test_string_loadfile) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_loadfile.lua", config);
         double res = 0;
         Call(s, jit_type, "test_string_loadfile", res);
@@ -219,7 +220,7 @@ TEST(test_string, test_string_format_p) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_format_p.lua", config);
         double res = 0;
         Call(s, jit_type, "test_string_format_p", res);
@@ -238,7 +239,7 @@ TEST(test_string, test_string_rep_bad_sep) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_string_rep_bad_sep", res), std::exception);
+    CallThrow(s, "test_string_rep_bad_sep", res);
 
     FakeluaDeleteState(s);
 }
@@ -252,7 +253,7 @@ TEST(test_string, test_load_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_load_bad_arg", res), std::exception);
+    CallThrow(s, "test_load_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -266,7 +267,7 @@ TEST(test_string, test_loadfile_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_loadfile_bad_arg", res), std::exception);
+    CallThrow(s, "test_loadfile_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -280,7 +281,7 @@ TEST(test_string, test_pack_c_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_pack_c_bad_arg", res), std::exception);
+    CallThrow(s, "test_pack_c_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -294,7 +295,7 @@ TEST(test_string, test_pack_i_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_pack_i_bad_arg", res), std::exception);
+    CallThrow(s, "test_pack_i_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -305,7 +306,7 @@ TEST(test_string, test_pack_i16_throw) {
     CompileConfig config;
     CompileFile(s, "./string/test_pack_i_bad_arg.lua", config);
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_pack_i16_throw", res), std::exception);
+    CallThrow(s, "test_pack_i16_throw", res);
     FakeluaDeleteState(s);
 }
 
@@ -315,7 +316,7 @@ TEST(test_string, test_pack_c_huge_throw) {
     CompileConfig config;
     CompileFile(s, "./string/test_pack_i_bad_arg.lua", config);
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_pack_c_huge_throw", res), std::exception);
+    CallThrow(s, "test_pack_c_huge_throw", res);
     FakeluaDeleteState(s);
 }
 
@@ -325,7 +326,7 @@ TEST(test_string, test_format_huge_width) {
     CompileConfig config;
     CompileFile(s, "./string/test_pack_i_bad_arg.lua", config);
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_format_huge_width", res), std::exception);
+    CallThrow(s, "test_format_huge_width", res);
     FakeluaDeleteState(s);
 }
 
@@ -335,7 +336,7 @@ TEST(test_string, test_format_n_throw) {
     CompileConfig config;
     CompileFile(s, "./string/test_pack_i_bad_arg.lua", config);
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_format_n_throw", res), std::exception);
+    CallThrow(s, "test_format_n_throw", res);
     FakeluaDeleteState(s);
 }
 
@@ -348,7 +349,7 @@ TEST(test_string, test_packsize_z_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_packsize_z_bad_arg", res), std::exception);
+    CallThrow(s, "test_packsize_z_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -362,7 +363,7 @@ TEST(test_string, test_format_q_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_format_q_bad_arg", res), std::exception);
+    CallThrow(s, "test_format_q_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -376,7 +377,7 @@ TEST(test_string, test_gsub_bad_repl_bool) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_gsub_bad_repl_bool", res), std::exception);
+    CallThrow(s, "test_gsub_bad_repl_bool", res);
 
     FakeluaDeleteState(s);
 }
@@ -390,7 +391,7 @@ TEST(test_string, test_gsub_bad_table_value_bool) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_gsub_bad_table_value_bool", res), std::exception);
+    CallThrow(s, "test_gsub_bad_table_value_bool", res);
 
     FakeluaDeleteState(s);
 }
@@ -404,7 +405,7 @@ TEST(test_string, test_gsub_bad_func_return_bool) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_gsub_bad_func_return_bool", res), std::exception);
+    CallThrow(s, "test_gsub_bad_func_return_bool", res);
 
     FakeluaDeleteState(s);
 }
@@ -418,7 +419,7 @@ TEST(test_string, test_format_s_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_format_s_bad_arg", res), std::exception);
+    CallThrow(s, "test_format_s_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -432,7 +433,7 @@ TEST(test_string, test_format_s_bad_arg_table) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_format_s_bad_arg_table", res), std::exception);
+    CallThrow(s, "test_format_s_bad_arg_table", res);
 
     FakeluaDeleteState(s);
 }
@@ -446,7 +447,7 @@ TEST(test_string, test_format_p_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_format_p_bad_arg", res), std::exception);
+    CallThrow(s, "test_format_p_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -460,7 +461,7 @@ TEST(test_string, test_format_p_bad_arg_table) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_format_p_bad_tbl", res), std::exception);
+    CallThrow(s, "test_format_p_bad_tbl", res);
 
     FakeluaDeleteState(s);
 }
@@ -474,7 +475,7 @@ TEST(test_string, test_pack_c_bad_arg_table) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_pack_c_bad_tbl", res), std::exception);
+    CallThrow(s, "test_pack_c_bad_tbl", res);
 
     FakeluaDeleteState(s);
 }
@@ -488,7 +489,7 @@ TEST(test_string, test_string_len_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_string_len_bad_arg", res), std::exception);
+    CallThrow(s, "test_string_len_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -502,7 +503,7 @@ TEST(test_string, test_string_len_bad_arg_table) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_string_len_bad_tbl", res), std::exception);
+    CallThrow(s, "test_string_len_bad_tbl", res);
 
     FakeluaDeleteState(s);
 }
@@ -512,7 +513,7 @@ TEST(test_string, test_string_reverse) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_reverse.lua", config);
         double res = 0;
         Call(s, jit_type, "test_string_reverse", res);
@@ -527,7 +528,7 @@ TEST(test_string, test_string_rep_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_rep_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_string_rep_boundary", res);
@@ -544,9 +545,9 @@ TEST(test_string, test_string_rep_2pow63) {
 
     CompileFile(s, "./string/test_string_rep_boundary.lua", config);
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_string_rep_2pow63", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_string_rep_nan", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_string_rep_frac", res), std::exception);
+    CallThrow(s, "test_string_rep_2pow63", res);
+    CallThrow(s, "test_string_rep_nan", res);
+    CallThrow(s, "test_string_rep_frac", res);
 
     FakeluaDeleteState(s);
 }
@@ -556,7 +557,7 @@ TEST(test_string, test_string_byte_multi) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_byte_multi.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_string_byte_multi", res);
@@ -571,7 +572,7 @@ TEST(test_string, test_string_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./string/test_string_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_string_boundary", res);
@@ -595,7 +596,7 @@ TEST(test_string, test_string_sub_undeclared_var) {
         end
     )";
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileString(s, script, config);
         int64_t res = 0;
         EXPECT_THROW(Call(s, jit_type, "test_fmod_sub", res), std::exception);
@@ -611,7 +612,7 @@ TEST(test_string, pack_basic) {
     CompileConfig config;
     CompileFile(s, "./string/test_string_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "test_pack_basic", ret);
+    CallAll(s, "test_pack_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -622,7 +623,7 @@ TEST(test_string, packsize_basic) {
     CompileConfig config;
     CompileFile(s, "./string/test_string_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "test_packsize_basic", ret);
+    CallAll(s, "test_packsize_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -633,7 +634,7 @@ TEST(test_string, unpack_basic) {
     CompileConfig config;
     CompileFile(s, "./string/test_string_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "test_unpack_basic", ret);
+    CallAll(s, "test_unpack_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -644,7 +645,7 @@ TEST(test_string, find_plain) {
     CompileConfig config;
     CompileFile(s, "./string/test_string_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "test_find_plain", ret);
+    CallAll(s, "test_find_plain", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -655,7 +656,7 @@ TEST(test_string, gsub_replace) {
     CompileConfig config;
     CompileFile(s, "./string/test_string_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "test_gsub_replace", ret);
+    CallAll(s, "test_gsub_replace", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -666,7 +667,7 @@ TEST(test_string, gsub_count) {
     CompileConfig config;
     CompileFile(s, "./string/test_string_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "test_gsub_count", ret);
+    CallAll(s, "test_gsub_count", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -680,34 +681,34 @@ TEST(test_string, pack_coverage) {
     CompileFile(s, "./string/test_string_pack.lua", config);
     int64_t ret = 0;
     // All normal tests use TCC
-    Call(s, JIT_TCC, "StringPack.test_pack_various_sizes", ret);
+    CallAll(s, "StringPack.test_pack_various_sizes", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_pack_integers", ret);
+    CallAll(s, "StringPack.test_pack_integers", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_pack_int64", ret);
+    CallAll(s, "StringPack.test_pack_int64", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_pack_float_double", ret);
+    CallAll(s, "StringPack.test_pack_float_double", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_pack_z", ret);
+    CallAll(s, "StringPack.test_pack_z", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_pack_c", ret);
+    CallAll(s, "StringPack.test_pack_c", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_pack_X", ret);
+    CallAll(s, "StringPack.test_pack_X", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_pack_endian", ret);
+    CallAll(s, "StringPack.test_pack_endian", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_pack_align", ret);
+    CallAll(s, "StringPack.test_pack_align", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_packsize_various", ret);
+    CallAll(s, "StringPack.test_packsize_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -721,16 +722,16 @@ TEST(test_string, pack_advanced) {
     CompileFile(s, "./string/test_string_pack.lua", config);
     int64_t ret = 0;
     // All normal tests use TCC
-    Call(s, JIT_TCC, "StringPack.test_pack_X", ret);
+    CallAll(s, "StringPack.test_pack_X", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_pack_endian", ret);
+    CallAll(s, "StringPack.test_pack_endian", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_pack_align", ret);
+    CallAll(s, "StringPack.test_pack_align", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "StringPack.test_packsize_various", ret);
+    CallAll(s, "StringPack.test_packsize_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -741,7 +742,7 @@ TEST(test_string, algorithm) {
     CompileConfig config;
     CompileFile(s, "./string/test_string_algorithm.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "test_string_algorithm", ret);
+    CallAll(s, "test_string_algorithm", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -752,7 +753,7 @@ TEST(test_string, split_empty_sep) {
     CompileConfig config;
     CompileFile(s, "./string/test_string_algorithm.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_split_empty_sep", ret), std::exception);
+    CallThrow(s, "test_split_empty_sep", ret);
     FakeluaDeleteState(s);
 }
 
@@ -762,6 +763,6 @@ TEST(test_string, replace_empty_from) {
     CompileConfig config;
     CompileFile(s, "./string/test_string_algorithm.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_replace_empty_from", ret), std::exception);
+    CallThrow(s, "test_replace_empty_from", ret);
     FakeluaDeleteState(s);
 }

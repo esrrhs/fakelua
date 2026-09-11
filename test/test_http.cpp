@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -9,7 +10,7 @@ TEST(test_http, echo) {
     CompileConfig config;
     CompileFile(s, "./http/test_http.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "HttpTest.test_echo", ret);
+    CallAll(s, "HttpTest.test_echo", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -20,7 +21,7 @@ TEST(test_http, connect_fail) {
     CompileConfig config;
     CompileFile(s, "./http/test_http.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "HttpTest.test_connect_fail", ret);
+    CallAll(s, "HttpTest.test_connect_fail", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -31,7 +32,7 @@ TEST(test_http, tls_echo) {
     CompileConfig config;
     CompileFile(s, "./http/test_http.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "HttpTest.test_tls_echo", ret);
+    CallAll(s, "HttpTest.test_tls_echo", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

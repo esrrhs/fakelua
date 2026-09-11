@@ -6,14 +6,10 @@
 
 using namespace fakelua;
 
-static std::vector<JITType> GetSupportedJitTypes() {
-    return {JIT_TCC, JIT_GCC};
-}
-
 static void InferRunHelper(const std::function<void(State *, JITType, bool)> &f) {
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
-    for (const auto type: GetSupportedJitTypes()) {
+    for (const auto type: AllJitTypes()) {
         f(s, type, true);
         f(s, type, false);
     }
@@ -30,8 +26,7 @@ static std::string InferGetCCode(const std::string &lua_file) {
     CompileConfig cfg;
     cfg.debug_mode = false;
     cfg.record_c_code = true;
-    cfg.disable_jit[JIT_TCC] = true;
-    cfg.disable_jit[JIT_GCC] = true;
+    DisableAllJit(cfg);
     CompileFile(s, lua_file, cfg);
     const auto code = GetLastRecordedCCode(s);
     FakeluaDeleteState(s);

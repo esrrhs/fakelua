@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "util/logging.h"
 #include "gtest/gtest.h"
 
@@ -51,7 +52,7 @@ TEST(test_log, set_level) {
 
 // 测试脚本侧 log.info
 TEST(test_log, script_info) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -65,7 +66,7 @@ TEST(test_log, script_info) {
 
 // 测试脚本侧 log.debug
 TEST(test_log, script_debug) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -79,7 +80,7 @@ TEST(test_log, script_debug) {
 
 // 测试脚本侧 log.warn
 TEST(test_log, script_warn) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -93,7 +94,7 @@ TEST(test_log, script_warn) {
 
 // 测试脚本侧 log.error
 TEST(test_log, script_error) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -107,7 +108,7 @@ TEST(test_log, script_error) {
 
 // 测试多参数拼接
 TEST(test_log, script_multi_args) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -121,7 +122,7 @@ TEST(test_log, script_multi_args) {
 
 // 测试数字格式化
 TEST(test_log, script_number) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -135,7 +136,7 @@ TEST(test_log, script_number) {
 
 // 测试布尔和 nil
 TEST(test_log, script_bool_nil) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -149,7 +150,7 @@ TEST(test_log, script_bool_nil) {
 
 // 测试 set_level
 TEST(test_log, script_set_level) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -163,7 +164,7 @@ TEST(test_log, script_set_level) {
 
 // 测试 pcall 兼容性
 TEST(test_log, script_pcall) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -205,7 +206,7 @@ TEST(test_log, level_filter) {
 
 // 测试脚本侧 log.trace
 TEST(test_log, script_trace) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -219,7 +220,7 @@ TEST(test_log, script_trace) {
 
 // 测试脚本侧 log.critical
 TEST(test_log, script_critical) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -233,7 +234,7 @@ TEST(test_log, script_critical) {
 
 // 测试脚本侧 log.set_file
 TEST(test_log, script_set_file) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -247,7 +248,7 @@ TEST(test_log, script_set_file) {
 
 // 测试脚本侧 log.set_level 错误参数
 TEST(test_log, script_set_level_bad_arg) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -261,7 +262,7 @@ TEST(test_log, script_set_level_bad_arg) {
 
 // 测试脚本侧 log.info 无参数
 TEST(test_log, script_info_no_args) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -344,9 +345,9 @@ TEST(test_log, per_state_log_file) {
     CompileFile(b, "./log/test_log_basic.lua", config);
 
     int64_t ret = 0;
-    Call(a, JIT_TCC, "LogTest.test_log_info", ret);
+    CallAll(a, "LogTest.test_log_info", ret);
     EXPECT_EQ(ret, 1);
-    Call(b, JIT_TCC, "LogTest.test_log_info", ret);
+    CallAll(b, "LogTest.test_log_info", ret);
     EXPECT_EQ(ret, 1);
 
     LOG_INFO(a, "test", "cpp from state A");
@@ -383,7 +384,7 @@ TEST(test_log, state_without_log_file_is_console_only) {
     CompileConfig config;
     CompileFile(s, "./log/test_log_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "LogTest.test_log_info", ret);
+    CallAll(s, "LogTest.test_log_info", ret);
     EXPECT_EQ(ret, 1);
     LOG_INFO(s, "test", "should not create a log file");
     FakeluaDeleteState(s);
@@ -440,7 +441,7 @@ void CompileLogIso(State *s) {
 
 void CallIso(State *s, const char *name, int64_t arg) {
     int64_t ret = 0;
-    Call(s, JIT_TCC, name, ret, arg);
+    CallAll(s, name, ret, arg);
     if (ret != 1) {
         throw std::runtime_error(std::string(name) + " returned " + std::to_string(ret));
     }
@@ -448,7 +449,7 @@ void CallIso(State *s, const char *name, int64_t arg) {
 
 void CallIso(State *s, const char *name, const char *arg) {
     int64_t ret = 0;
-    Call(s, JIT_TCC, name, ret, arg);
+    CallAll(s, name, ret, arg);
     if (ret != 1) {
         throw std::runtime_error(std::string(name) + " returned " + std::to_string(ret));
     }
@@ -628,27 +629,27 @@ TEST(test_log, script_format_types) {
     CompileConfig config;
     CompileFile(s, "./log/test_log_format_types.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_nil", ret);
+    CallAll(s, "LogFormatTypes.test_log_info_nil", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_bool", ret);
+    CallAll(s, "LogFormatTypes.test_log_info_bool", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_integer", ret);
+    CallAll(s, "LogFormatTypes.test_log_info_integer", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_float", ret);
+    CallAll(s, "LogFormatTypes.test_log_info_float", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_string", ret);
+    CallAll(s, "LogFormatTypes.test_log_info_string", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_mixed", ret);
+    CallAll(s, "LogFormatTypes.test_log_info_mixed", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_debug_format", ret);
+    CallAll(s, "LogFormatTypes.test_log_debug_format", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_warn_format", ret);
+    CallAll(s, "LogFormatTypes.test_log_warn_format", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_error_format", ret);
+    CallAll(s, "LogFormatTypes.test_log_error_format", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_trace_format", ret);
+    CallAll(s, "LogFormatTypes.test_log_trace_format", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_critical_format", ret);
+    CallAll(s, "LogFormatTypes.test_log_critical_format", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -660,13 +661,13 @@ TEST(test_log, script_error_args) {
     CompileConfig config;
     CompileFile(s, "./log/test_log_format_types.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_set_level_bad_arg", ret);
+    CallAll(s, "LogFormatTypes.test_log_set_level_bad_arg", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_set_level_no_arg", ret);
+    CallAll(s, "LogFormatTypes.test_log_set_level_no_arg", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_set_file_no_arg", ret);
+    CallAll(s, "LogFormatTypes.test_log_set_file_no_arg", ret);
     EXPECT_EQ(ret, 1);
-    Call(s, JIT_GCC, "LogFormatTypes.test_log_info_no_args", ret);
+    CallAll(s, "LogFormatTypes.test_log_info_no_args", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -680,34 +681,34 @@ TEST(test_log, all_levels_with_types) {
     CompileFile(s, "./log/test_log_all_levels.lua", config);
     int64_t ret = 0;
     // All normal tests use TCC
-    Call(s, JIT_TCC, "LogAllLevels.test_log_trace_various_types", ret);
+    CallAll(s, "LogAllLevels.test_log_trace_various_types", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "LogAllLevels.test_log_debug_various_types", ret);
+    CallAll(s, "LogAllLevels.test_log_debug_various_types", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "LogAllLevels.test_log_warn_various_types", ret);
+    CallAll(s, "LogAllLevels.test_log_warn_various_types", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "LogAllLevels.test_log_error_various_types", ret);
+    CallAll(s, "LogAllLevels.test_log_error_various_types", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "LogAllLevels.test_log_critical_various_types", ret);
+    CallAll(s, "LogAllLevels.test_log_critical_various_types", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "LogAllLevels.test_log_info_mixed_types", ret);
+    CallAll(s, "LogAllLevels.test_log_info_mixed_types", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "LogAllLevels.test_log_info_booleans", ret);
+    CallAll(s, "LogAllLevels.test_log_info_booleans", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "LogAllLevels.test_log_info_nil_only", ret);
+    CallAll(s, "LogAllLevels.test_log_info_nil_only", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "LogAllLevels.test_log_info_float_only", ret);
+    CallAll(s, "LogAllLevels.test_log_info_float_only", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "LogAllLevels.test_log_info_integer_only", ret);
+    CallAll(s, "LogAllLevels.test_log_info_integer_only", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -721,21 +722,21 @@ TEST(test_log, level_transitions_and_errors) {
     CompileFile(s, "./log/test_log_all_levels.lua", config);
     int64_t ret = 0;
     // Normal tests use TCC
-    Call(s, JIT_TCC, "LogAllLevels.test_log_all_level_transitions", ret);
+    CallAll(s, "LogAllLevels.test_log_all_level_transitions", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "LogAllLevels.test_log_set_level_boundary", ret);
+    CallAll(s, "LogAllLevels.test_log_set_level_boundary", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
     // Exception tests use GCC
-    EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_set_level_invalid", ret), std::exception);
+    CallThrow(s, "LogAllLevels.test_log_set_level_invalid", ret);
     ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_set_level_no_arg", ret), std::exception);
+    CallThrow(s, "LogAllLevels.test_log_set_level_no_arg", ret);
     ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_set_file_invalid", ret), std::exception);
+    CallThrow(s, "LogAllLevels.test_log_set_file_invalid", ret);
     ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_set_file_no_arg", ret), std::exception);
+    CallThrow(s, "LogAllLevels.test_log_set_file_no_arg", ret);
     ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_info_no_args", ret), std::exception);
+    CallThrow(s, "LogAllLevels.test_log_info_no_args", ret);
     FakeluaDeleteState(s);
 }

@@ -4,6 +4,7 @@
 #include "compile/preprocessor.h"
 #include "compile/semantic_analysis.h"
 #include "compile/type_inferencer.h"
+#include "interp/codegen.h"
 #include "jit/gcc_jit.h"
 #include "jit/tcc_jit.h"
 #include "state/state.h"
@@ -83,20 +84,31 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     TypeInferencer inferencer(s_);
     InferResult ir = inferencer.InferTypes(pr, cfg);
 
-    // 6. 转译为C
-    LOG_DEBUG(s_, "engine", "step 6: C code generation");
-    CGen cgen(s_);
-    GenResult gr = cgen.Generate(pr, ir, ar, cfg);
+    // 6. 转译为C（TCC/GCC 需要；仅解释器时跳过）
+    const bool need_c = !cfg.disable_jit[JIT_TCC] || !cfg.disable_jit[JIT_GCC] || cfg.record_c_code;
+    GenResult gr;
+    if (need_c) {
+        LOG_DEBUG(s_, "engine", "step 6: C code generation");
+        CGen cgen(s_);
+        gr = cgen.Generate(pr, ir, ar, cfg);
+    } else {
+        LOG_DEBUG(s_, "engine", "step 6: skip C code generation (interpreter only)");
+    }
 
     // 7. JIT编译
-    LOG_DEBUG(s_, "engine", "step 7: JIT compilation (TCC={}, GCC={})", !cfg.disable_jit[JIT_TCC], !cfg.disable_jit[JIT_GCC]);
-    if (!cfg.disable_jit[JIT_TCC]) {
+    LOG_DEBUG(s_, "engine", "step 7: JIT compilation (TCC={}, GCC={}, INTERP={})", !cfg.disable_jit[JIT_TCC], !cfg.disable_jit[JIT_GCC], !cfg.disable_jit[JIT_INTERP]);
+    if (need_c && !cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(pr, gr, cfg);
     }
-    if (!cfg.disable_jit[JIT_GCC]) {
+    if (need_c && !cfg.disable_jit[JIT_GCC]) {
         GccJitter jitter(s_);
         jitter.Compile(pr, gr, cfg);
+    }
+    if (!cfg.disable_jit[JIT_INTERP]) {
+        LOG_DEBUG(s_, "engine", "step 7b: interpreter bytecode generation");
+        InterpCodegen icgen(s_);
+        icgen.Generate(pr, ar, cfg);
     }
 
     if (cfg.record_c_code) {

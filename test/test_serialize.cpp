@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -11,7 +12,7 @@ TEST(test_serialize, test_int) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_int.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SerializeTest.test_int", ret);
+    CallAll(s, "SerializeTest.test_int", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -22,7 +23,7 @@ TEST(test_serialize, test_float) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_float.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SerializeTest.test_float", ret);
+    CallAll(s, "SerializeTest.test_float", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -33,7 +34,7 @@ TEST(test_serialize, test_bool_nil) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_bool_nil.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SerializeTest.test_bool_nil", ret);
+    CallAll(s, "SerializeTest.test_bool_nil", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -44,7 +45,7 @@ TEST(test_serialize, test_string) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_string.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SerializeTest.test_string", ret);
+    CallAll(s, "SerializeTest.test_string", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -55,7 +56,7 @@ TEST(test_serialize, test_table) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_table.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SerializeTest.test_table", ret);
+    CallAll(s, "SerializeTest.test_table", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -66,7 +67,7 @@ TEST(test_serialize, test_array_9) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_table.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SerializeTest.test_array_9", ret);
+    CallAll(s, "SerializeTest.test_array_9", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -77,7 +78,7 @@ TEST(test_serialize, test_cycle_throw) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_table.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "SerializeTest.test_cycle_throw", ret), std::exception);
+    CallThrow(s, "SerializeTest.test_cycle_throw", ret);
     FakeluaDeleteState(s);
 }
 
@@ -87,7 +88,7 @@ TEST(test_serialize, test_decode_too_deep) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_table.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "SerializeTest.test_decode_too_deep", ret), std::exception);
+    CallThrow(s, "SerializeTest.test_decode_too_deep", ret);
     FakeluaDeleteState(s);
 }
 
@@ -97,7 +98,7 @@ TEST(test_serialize, test_decode_huge_table) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_table.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "SerializeTest.test_decode_huge_table", ret), std::exception);
+    CallThrow(s, "SerializeTest.test_decode_huge_table", ret);
     FakeluaDeleteState(s);
 }
 
@@ -107,7 +108,7 @@ TEST(test_serialize, test_skip) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_skip.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SerializeTest.test_skip", ret);
+    CallAll(s, "SerializeTest.test_skip", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -118,7 +119,7 @@ TEST(test_serialize, test_text_roundtrip) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_boost.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SerializeTest.test_text_roundtrip", ret);
+    CallAll(s, "SerializeTest.test_text_roundtrip", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -129,7 +130,7 @@ TEST(test_serialize, test_xml_roundtrip) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_boost.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "SerializeTest.test_xml_roundtrip", ret);
+    CallAll(s, "SerializeTest.test_xml_roundtrip", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -140,7 +141,7 @@ TEST(test_serialize, test_text_cycle) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_boost.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "SerializeTest.test_text_cycle", ret), std::exception);
+    CallThrow(s, "SerializeTest.test_text_cycle", ret);
     FakeluaDeleteState(s);
 }
 
@@ -150,6 +151,6 @@ TEST(test_serialize, test_text_bad) {
     CompileConfig config;
     CompileFile(s, "./serialize/test_serialize_boost.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "SerializeTest.test_text_bad", ret), std::exception);
+    CallThrow(s, "SerializeTest.test_text_bad", ret);
     FakeluaDeleteState(s);
 }

@@ -1,5 +1,7 @@
 #include "fakelua.h"
 #include "compile/c_runtime_header.h"
+#include "interp/func_proto.h"
+#include "interp/interpreter.h"
 #include "jit/jit_error_boundary.h"
 #include "native/event/native_event.h"
 #include "native/http/native_http.h"
@@ -501,6 +503,14 @@ void ThrowIfMultiCVar(const CVar &v) {
 static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count, VarClosure *cl);
 
 CVar DispatchCall(State *s, void *addr, const CVar *arg_arr, int arg_count, JITType type, VarClosure *cl) {
+    // 解释器闭包用 code_str magic 识别，不能看函数指针最低位：GCC 的函数指针可以是奇数。
+    // type==JIT_INTERP 且 cl 为空：Call()/CallByName 直接调注册的解释器原型。
+    // cl 是 TCC/GCC 闭包时即使 type 是 JIT_INTERP 也必须走 C 函数指针（解释器回调 JIT 闭包）。
+    const bool use_interp = cl ? IsInterpClosure(cl) : (type == JIT_INTERP);
+    if (use_interp) {
+        void *proto = (cl && cl->func_ptr) ? cl->func_ptr : addr;
+        return InterpreterExecute(s, AsInterpProto(proto), arg_arr, arg_count, cl);
+    }
     // GCC 后端产出的动态库带 .eh_frame，C++ 异常能正常穿过它的帧，不必付边界的代价。
     // TCC 把代码生成在自己的内存代码页里，没有展开表，错误只能靠边界跳回来。
     if (type == JIT_GCC) {
@@ -510,7 +520,14 @@ CVar DispatchCall(State *s, void *addr, const CVar *arg_arr, int arg_count, JITT
 }
 
 CVar DispatchCallClosure(State *state, VarClosure *cl, const CVar *args, int arg_count, JITType type) {
-    if (!cl || !cl->func_ptr) {
+    if (!cl) {
+        ThrowFakeluaException("closure has no code");
+    }
+    // load() 返回的是源码闭包：func_ptr 为空，code_str 指向待编译文本。
+    if (!cl->func_ptr) {
+        if (cl->code_str && cl->code_str != kInterpClosureMagic) {
+            return FlEvalLoadClosure(state, cl, arg_count, args);
+        }
         ThrowFakeluaException("closure has no code");
     }
     if (!args || arg_count < 0) arg_count = 0;

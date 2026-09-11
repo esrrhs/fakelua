@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "test_jit.h"
 
 using namespace fakelua;
 
@@ -9,7 +10,7 @@ TEST(test_basic, test_basic_type) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_type.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_type", res);
@@ -24,7 +25,7 @@ TEST(test_basic, test_basic_tostring) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_tostring.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_tostring", res);
@@ -39,7 +40,7 @@ TEST(test_basic, test_basic_tonumber) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_tonumber.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_tonumber", res);
@@ -54,7 +55,7 @@ TEST(test_basic, test_basic_select) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_select.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_select", res);
@@ -69,7 +70,7 @@ TEST(test_basic, test_basic_assert) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_assert.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_assert", res);
@@ -84,7 +85,7 @@ TEST(test_basic, test_basic_next) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_next.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_next", res);
@@ -99,7 +100,7 @@ TEST(test_basic, test_basic_pairs) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_pairs.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_pairs", res);
@@ -114,7 +115,7 @@ TEST(test_basic, test_basic_ipairs) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_ipairs.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_ipairs", res);
@@ -129,7 +130,7 @@ TEST(test_basic, test_basic_print) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_print.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_print", res);
@@ -144,7 +145,7 @@ TEST(test_basic, test_basic_dofile) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_dofile.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_dofile", res);
@@ -163,7 +164,7 @@ TEST(test_basic, test_basic_dofile_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_dofile_bad_arg", res), std::exception);
+    CallThrow(s, "test_dofile_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -173,7 +174,7 @@ TEST(test_basic, test_basic_version) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_version.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_version", res);
@@ -188,7 +189,7 @@ TEST(test_basic, test_basic_collectgarbage) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_collectgarbage.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_collectgarbage", res);
@@ -203,7 +204,7 @@ TEST(test_basic, test_basic_continue) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_continue.lua", config);
         double res = 0;
         Call(s, jit_type, "test_basic_continue", res);
@@ -218,7 +219,7 @@ TEST(test_basic, test_for_dynamic_continue) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_for_dynamic_continue.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_for_dynamic_continue", res);
@@ -235,7 +236,7 @@ TEST(test_basic, test_basic_pcall) {
 
     CompileFile(s, "./basic/test_basic_pcall.lua", config);
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         double res = 0;
         Call(s, jit_type, "test_pcall_success", res);
         EXPECT_NEAR(res, 5000, 0.5);
@@ -277,7 +278,7 @@ TEST(test_basic, test_basic_xpcall) {
 
     CompileFile(s, "./basic/test_basic_pcall.lua", config);
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         double res = 0;
         Call(s, jit_type, "test_xpcall_success", res);
         EXPECT_NEAR(res, 5000, 0.5);
@@ -303,7 +304,7 @@ TEST(test_basic, test_basic_type_closure) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_type_closure.lua", config);
         double res = 0;
         Call(s, jit_type, "test_type_closure", res);
@@ -322,7 +323,7 @@ TEST(test_basic, test_basic_tonumber_with_base) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_type_closure.lua", config);
         double res = 0;
         Call(s, jit_type, "test_tonumber_with_base", res);
@@ -345,7 +346,7 @@ TEST(test_basic, test_basic_tonumber_edge) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_tonumber_edge.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_basic_tonumber_edge", res);
@@ -360,7 +361,7 @@ TEST(test_basic, test_basic_tostring_edge) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./basic/test_basic_tostring_cases.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_basic_tostring_edge", res);
@@ -379,15 +380,15 @@ TEST(test_basic, test_basic_boundary_error) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_error_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_assert_bad_msg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_select_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_next_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_pairs_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_ipairs_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_collectgarbage_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_tonumber_bad_base", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_call_too_many_args", res), std::exception);
+    CallThrow(s, "test_error_bad_arg", res);
+    CallThrow(s, "test_assert_bad_msg", res);
+    CallThrow(s, "test_select_bad_arg", res);
+    CallThrow(s, "test_next_bad_arg", res);
+    CallThrow(s, "test_pairs_bad_arg", res);
+    CallThrow(s, "test_ipairs_bad_arg", res);
+    CallThrow(s, "test_collectgarbage_bad_arg", res);
+    CallThrow(s, "test_tonumber_bad_base", res);
+    CallThrow(s, "test_call_too_many_args", res);
 
     FakeluaDeleteState(s);
 }
@@ -399,7 +400,7 @@ TEST(test_basic, select_number) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_select_number", ret);
+    CallAll(s, "BasicTest.test_select_number", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -410,7 +411,7 @@ TEST(test_basic, select_hash) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_select_hash", ret);
+    CallAll(s, "BasicTest.test_select_hash", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -421,7 +422,7 @@ TEST(test_basic, select_out_of_range) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_select_out_of_range", ret);
+    CallAll(s, "BasicTest.test_select_out_of_range", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -432,7 +433,7 @@ TEST(test_basic, error_basic) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_error_basic", ret);
+    CallAll(s, "BasicTest.test_error_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -443,7 +444,7 @@ TEST(test_basic, error_with_level) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_error_with_level", ret);
+    CallAll(s, "BasicTest.test_error_with_level", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -454,7 +455,7 @@ TEST(test_basic, assert_success) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_assert_success", ret);
+    CallAll(s, "BasicTest.test_assert_success", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -465,7 +466,7 @@ TEST(test_basic, assert_fail) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_assert_fail", ret);
+    CallAll(s, "BasicTest.test_assert_fail", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -476,7 +477,7 @@ TEST(test_basic, assert_no_msg) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_assert_no_msg", ret);
+    CallAll(s, "BasicTest.test_assert_no_msg", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -487,7 +488,7 @@ TEST(test_basic, pcall_success) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_pcall_success", ret);
+    CallAll(s, "BasicTest.test_pcall_success", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -498,7 +499,7 @@ TEST(test_basic, pcall_fail) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_pcall_fail", ret);
+    CallAll(s, "BasicTest.test_pcall_fail", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -509,7 +510,7 @@ TEST(test_basic, xpcall_success) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_xpcall_success", ret);
+    CallAll(s, "BasicTest.test_xpcall_success", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -520,7 +521,7 @@ TEST(test_basic, xpcall_fail) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_xpcall_fail", ret);
+    CallAll(s, "BasicTest.test_xpcall_fail", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -531,7 +532,7 @@ TEST(test_basic, type_various) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_type_various", ret);
+    CallAll(s, "BasicTest.test_type_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -542,7 +543,7 @@ TEST(test_basic, tostring_various) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_tostring_various", ret);
+    CallAll(s, "BasicTest.test_tostring_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -553,7 +554,7 @@ TEST(test_basic, tonumber_various) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_tonumber_various", ret);
+    CallAll(s, "BasicTest.test_tonumber_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -564,7 +565,7 @@ TEST(test_basic, print_basic) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_print_basic", ret);
+    CallAll(s, "BasicTest.test_print_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -575,7 +576,7 @@ TEST(test_basic, pairs_iter) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_pairs_iter", ret);
+    CallAll(s, "BasicTest.test_pairs_iter", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -586,7 +587,7 @@ TEST(test_basic, ipairs_iter) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_ipairs_iter", ret);
+    CallAll(s, "BasicTest.test_ipairs_iter", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -597,7 +598,7 @@ TEST(test_basic, next_func) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_next_func", ret);
+    CallAll(s, "BasicTest.test_next_func", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -608,7 +609,7 @@ TEST(test_basic, collectgarbage_edge) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTest.test_collectgarbage", ret);
+    CallAll(s, "BasicTest.test_collectgarbage", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -620,7 +621,7 @@ TEST(test_basic, error_non_string) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_error.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicError.test_error_non_string", ret);
+    CallAll(s, "BasicError.test_error_non_string", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -631,7 +632,7 @@ TEST(test_basic, error_table) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_error.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicError.test_error_table", ret);
+    CallAll(s, "BasicError.test_error_table", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -642,7 +643,7 @@ TEST(test_basic, assert_bad_message) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_assert_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicAssertCases.test_assert_bad_message", ret);
+    CallAll(s, "BasicAssertCases.test_assert_bad_message", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -653,7 +654,7 @@ TEST(test_basic, assert_table_message) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_assert_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicAssertCases.test_assert_table_message", ret);
+    CallAll(s, "BasicAssertCases.test_assert_table_message", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -664,7 +665,7 @@ TEST(test_basic, assert_success_multi) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_assert_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicAssertCases.test_assert_success_multi", ret);
+    CallAll(s, "BasicAssertCases.test_assert_success_multi", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -675,7 +676,7 @@ TEST(test_basic, pcall_non_function) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_pcall_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicPcallCases.test_pcall_non_function", ret);
+    CallAll(s, "BasicPcallCases.test_pcall_non_function", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -686,7 +687,7 @@ TEST(test_basic, pcall_error) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_pcall_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicPcallCases.test_pcall_error", ret);
+    CallAll(s, "BasicPcallCases.test_pcall_error", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -697,7 +698,7 @@ TEST(test_basic, extra_pcall_success) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_pcall_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicPcallCases.test_pcall_success", ret);
+    CallAll(s, "BasicPcallCases.test_pcall_success", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -708,7 +709,7 @@ TEST(test_basic, xpcall_handler) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_xpcall.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicXpcall.test_xpcall_handler", ret);
+    CallAll(s, "BasicXpcall.test_xpcall_handler", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -719,7 +720,7 @@ TEST(test_basic, extra_xpcall_success) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_xpcall.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicXpcall.test_xpcall_success", ret);
+    CallAll(s, "BasicXpcall.test_xpcall_success", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -731,7 +732,7 @@ TEST(test_basic, xpcall_non_function) {
     CompileFile(s, "./basic/test_basic_xpcall.lua", config);
     int64_t ret = 0;
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
-    Call(s, JIT_GCC, "BasicXpcall.test_xpcall_non_function", ret);
+    CallAll(s, "BasicXpcall.test_xpcall_non_function", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -742,7 +743,7 @@ TEST(test_basic, next_with_index) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_next_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicNextCases.test_next_with_index", ret);
+    CallAll(s, "BasicNextCases.test_next_with_index", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -753,7 +754,7 @@ TEST(test_basic, next_no_index) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_next_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicNextCases.test_next_no_index", ret);
+    CallAll(s, "BasicNextCases.test_next_no_index", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -764,7 +765,7 @@ TEST(test_basic, next_empty) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_next_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicNextCases.test_next_empty", ret);
+    CallAll(s, "BasicNextCases.test_next_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -775,7 +776,7 @@ TEST(test_basic, next_end) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_next_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicNextCases.test_next_end", ret);
+    CallAll(s, "BasicNextCases.test_next_end", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -786,7 +787,7 @@ TEST(test_basic, select_positive) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_select_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicSelectCases.test_select_positive", ret);
+    CallAll(s, "BasicSelectCases.test_select_positive", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -797,7 +798,7 @@ TEST(test_basic, select_negative) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_select_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicSelectCases.test_select_negative", ret);
+    CallAll(s, "BasicSelectCases.test_select_negative", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -808,7 +809,7 @@ TEST(test_basic, select_count) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_select_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicSelectCases.test_select_count", ret);
+    CallAll(s, "BasicSelectCases.test_select_count", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -819,7 +820,7 @@ TEST(test_basic, extra_select_out_of_range) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_select_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicSelectCases.test_select_out_of_range", ret);
+    CallAll(s, "BasicSelectCases.test_select_out_of_range", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -830,7 +831,7 @@ TEST(test_basic, tonumber_hex) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_hex", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_hex", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -841,7 +842,7 @@ TEST(test_basic, tonumber_binary) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_binary", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_binary", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -852,7 +853,7 @@ TEST(test_basic, tonumber_octal) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_octal", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_octal", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -863,7 +864,7 @@ TEST(test_basic, tonumber_auto_hex) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_auto_hex", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_auto_hex", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -874,7 +875,7 @@ TEST(test_basic, tonumber_negative) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_negative", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_negative", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -885,7 +886,7 @@ TEST(test_basic, tonumber_float) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_float", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_float", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -896,7 +897,7 @@ TEST(test_basic, tonumber_invalid) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_invalid", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_invalid", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -907,7 +908,7 @@ TEST(test_basic, tonumber_empty) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_empty", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -918,7 +919,7 @@ TEST(test_basic, tonumber_whitespace) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_whitespace", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_whitespace", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -929,7 +930,7 @@ TEST(test_basic, tonumber_bad_base) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_bad_base", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_bad_base", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -940,7 +941,7 @@ TEST(test_basic, tonumber_base_too_small) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_tonumber_extra.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTonumberExtra.test_tonumber_base_too_small", ret);
+    CallAll(s, "BasicTonumberExtra.test_tonumber_base_too_small", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -951,7 +952,7 @@ TEST(test_basic, type_nil) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_type_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicTypeCases.test_type_nil", ret);
+    CallAll(s, "BasicTypeCases.test_type_nil", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -962,7 +963,7 @@ TEST(test_basic, collectgarbage_count) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_collectgarbage_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicCollectgarbageCases.test_collectgarbage_count", ret);
+    CallAll(s, "BasicCollectgarbageCases.test_collectgarbage_count", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -973,7 +974,7 @@ TEST(test_basic, collectgarbage_collect) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_collectgarbage_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicCollectgarbageCases.test_collectgarbage_collect", ret);
+    CallAll(s, "BasicCollectgarbageCases.test_collectgarbage_collect", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -984,7 +985,7 @@ TEST(test_basic, collectgarbage_stop) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_collectgarbage_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicCollectgarbageCases.test_collectgarbage_stop", ret);
+    CallAll(s, "BasicCollectgarbageCases.test_collectgarbage_stop", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -995,7 +996,7 @@ TEST(test_basic, collectgarbage_restart) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_collectgarbage_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicCollectgarbageCases.test_collectgarbage_restart", ret);
+    CallAll(s, "BasicCollectgarbageCases.test_collectgarbage_restart", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1006,7 +1007,7 @@ TEST(test_basic, collectgarbage_step) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_collectgarbage_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicCollectgarbageCases.test_collectgarbage_step", ret);
+    CallAll(s, "BasicCollectgarbageCases.test_collectgarbage_step", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1017,7 +1018,7 @@ TEST(test_basic, collectgarbage_setpause) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_collectgarbage_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicCollectgarbageCases.test_collectgarbage_setpause", ret);
+    CallAll(s, "BasicCollectgarbageCases.test_collectgarbage_setpause", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1028,7 +1029,7 @@ TEST(test_basic, collectgarbage_setstepmul) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_collectgarbage_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicCollectgarbageCases.test_collectgarbage_setstepmul", ret);
+    CallAll(s, "BasicCollectgarbageCases.test_collectgarbage_setstepmul", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1039,7 +1040,7 @@ TEST(test_basic, collectgarbage_default) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_collectgarbage_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicCollectgarbageCases.test_collectgarbage_default", ret);
+    CallAll(s, "BasicCollectgarbageCases.test_collectgarbage_default", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1050,7 +1051,7 @@ TEST(test_basic, pairs_basic) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_pairs_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCases.test_pairs_basic", ret);
+    CallAll(s, "BasicPairsCases.test_pairs_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1061,7 +1062,7 @@ TEST(test_basic, ipairs_basic) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_pairs_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCases.test_ipairs_basic", ret);
+    CallAll(s, "BasicPairsCases.test_ipairs_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1072,7 +1073,7 @@ TEST(test_basic, ipairs_non_continuous) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_pairs_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCases.test_ipairs_non_continuous", ret);
+    CallAll(s, "BasicPairsCases.test_ipairs_non_continuous", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1083,7 +1084,7 @@ TEST(test_basic, pairs_empty) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_pairs_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCases.test_pairs_empty", ret);
+    CallAll(s, "BasicPairsCases.test_pairs_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1095,7 +1096,7 @@ TEST(test_basic, pairs_basic_gcc) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_iterators.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "BasicIterators.test_pairs_basic", ret);
+    CallAll(s, "BasicIterators.test_pairs_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1106,7 +1107,7 @@ TEST(test_basic, pairs_empty_gcc) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_iterators.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "BasicIterators.test_pairs_empty", ret);
+    CallAll(s, "BasicIterators.test_pairs_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1117,7 +1118,7 @@ TEST(test_basic, pairs_array_gcc) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_iterators.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "BasicIterators.test_pairs_array", ret);
+    CallAll(s, "BasicIterators.test_pairs_array", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1128,7 +1129,7 @@ TEST(test_basic, ipairs_basic_gcc) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_iterators.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "BasicIterators.test_ipairs_basic", ret);
+    CallAll(s, "BasicIterators.test_ipairs_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1139,7 +1140,7 @@ TEST(test_basic, ipairs_empty_gcc) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_iterators.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "BasicIterators.test_ipairs_empty", ret);
+    CallAll(s, "BasicIterators.test_ipairs_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1150,7 +1151,7 @@ TEST(test_basic, ipairs_index_gcc) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_iterators.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "BasicIterators.test_ipairs_index", ret);
+    CallAll(s, "BasicIterators.test_ipairs_index", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1161,7 +1162,7 @@ TEST(test_basic, next_basic_gcc) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_iterators.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "BasicIterators.test_next_basic", ret);
+    CallAll(s, "BasicIterators.test_next_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1172,7 +1173,7 @@ TEST(test_basic, next_empty_gcc) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_iterators.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "BasicIterators.test_next_empty", ret);
+    CallAll(s, "BasicIterators.test_next_empty", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1183,7 +1184,7 @@ TEST(test_basic, select_basic_gcc) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_iterators.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "BasicIterators.test_select_basic", ret);
+    CallAll(s, "BasicIterators.test_select_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1194,7 +1195,7 @@ TEST(test_basic, select_negative_gcc) {
     CompileConfig config;
     CompileFile(s, "./basic/test_basic_iterators.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "BasicIterators.test_select_negative", ret);
+    CallAll(s, "BasicIterators.test_select_negative", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1208,34 +1209,34 @@ TEST(test_basic, pairs_ipairs_iterators) {
     CompileFile(s, "./basic/test_basic_pairs_coverage.lua", config);
     int64_t ret = 0;
     // All normal tests use TCC
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_pairs_iterator_basic", ret);
+    CallAll(s, "BasicPairsCoverage.test_pairs_iterator_basic", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_pairs_iterator_empty", ret);
+    CallAll(s, "BasicPairsCoverage.test_pairs_iterator_empty", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_pairs_iterator_array", ret);
+    CallAll(s, "BasicPairsCoverage.test_pairs_iterator_array", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_ipairs_iterator_basic", ret);
+    CallAll(s, "BasicPairsCoverage.test_ipairs_iterator_basic", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_ipairs_iterator_empty", ret);
+    CallAll(s, "BasicPairsCoverage.test_ipairs_iterator_empty", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_ipairs_iterator_index", ret);
+    CallAll(s, "BasicPairsCoverage.test_ipairs_iterator_index", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_next_basic", ret);
+    CallAll(s, "BasicPairsCoverage.test_next_basic", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_next_empty", ret);
+    CallAll(s, "BasicPairsCoverage.test_next_empty", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_select_basic", ret);
+    CallAll(s, "BasicPairsCoverage.test_select_basic", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_select_negative", ret);
+    CallAll(s, "BasicPairsCoverage.test_select_negative", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1249,34 +1250,34 @@ TEST(test_basic, tonumber_tostring_type) {
     CompileFile(s, "./basic/test_basic_pairs_coverage.lua", config);
     int64_t ret = 0;
     // All normal tests use TCC
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_non_string_non_number", ret);
+    CallAll(s, "BasicPairsCoverage.test_tonumber_non_string_non_number", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_string_number", ret);
+    CallAll(s, "BasicPairsCoverage.test_tonumber_string_number", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_invalid_string", ret);
+    CallAll(s, "BasicPairsCoverage.test_tonumber_invalid_string", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_hex", ret);
+    CallAll(s, "BasicPairsCoverage.test_tonumber_hex", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_invalid_digit_for_base", ret);
+    CallAll(s, "BasicPairsCoverage.test_tonumber_invalid_digit_for_base", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_tonumber_float", ret);
+    CallAll(s, "BasicPairsCoverage.test_tonumber_float", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_tostring_already_string", ret);
+    CallAll(s, "BasicPairsCoverage.test_tostring_already_string", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_tostring_number", ret);
+    CallAll(s, "BasicPairsCoverage.test_tostring_number", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_type_userdata", ret);
+    CallAll(s, "BasicPairsCoverage.test_type_userdata", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_type_various", ret);
+    CallAll(s, "BasicPairsCoverage.test_type_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1290,10 +1291,10 @@ TEST(test_basic, xpcall_coverage) {
     CompileFile(s, "./basic/test_basic_pairs_coverage.lua", config);
     int64_t ret = 0;
     // All normal tests use TCC
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_xpcall_with_handler", ret);
+    CallAll(s, "BasicPairsCoverage.test_xpcall_with_handler", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "BasicPairsCoverage.test_xpcall_success", ret);
+    CallAll(s, "BasicPairsCoverage.test_xpcall_success", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

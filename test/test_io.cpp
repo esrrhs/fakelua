@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "test_jit.h"
 
 using namespace fakelua;
 
@@ -9,7 +10,7 @@ TEST(test_io, test_io_open_close) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_open_close.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_open_close", res);
@@ -24,7 +25,7 @@ TEST(test_io, test_io_read_write) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_read_write.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_read_write", res);
@@ -39,7 +40,7 @@ TEST(test_io, test_io_seek) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_seek.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_seek", res);
@@ -54,7 +55,7 @@ TEST(test_io, test_io_type) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_type.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_type", res);
@@ -69,7 +70,7 @@ TEST(test_io, test_io_tmpfile) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_tmpfile.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_tmpfile", res);
@@ -84,7 +85,7 @@ TEST(test_io, test_io_popen) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_popen.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_popen", res);
@@ -99,7 +100,7 @@ TEST(test_io, test_io_file_lines) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_file_lines.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_file_lines", res);
@@ -114,7 +115,7 @@ TEST(test_io, test_lines_after_close) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_file_lines.lua", config);
         double res = 0;
         Call(s, jit_type, "test_lines_after_close", res);
@@ -129,7 +130,7 @@ TEST(test_io, test_io_long_line) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_long_line.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_long_line", res);
@@ -144,7 +145,7 @@ TEST(test_io, test_io_read_multi) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_read_multi.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_read_multi", res);
@@ -159,7 +160,7 @@ TEST(test_io, test_file_setvbuf) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_file_setvbuf.lua", config);
         double res = 0;
         Call(s, jit_type, "test_file_setvbuf", res);
@@ -174,7 +175,7 @@ TEST(test_io, test_io_flush) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_flush.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_flush", res);
@@ -189,7 +190,7 @@ TEST(test_io, test_io_input_output) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_input_output.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_input_output", res);
@@ -208,11 +209,11 @@ TEST(test_io, stdin_survives_other_state) {
     CompileFile(a, "./io/test_io_input_output.lua", config);
     CompileFile(b, "./io/test_io_input_output.lua", config);
     double res = 0;
-    Call(a, JIT_TCC, "test_io_input_output", res);
+    CallAll(a, "test_io_input_output", res);
     EXPECT_NEAR(res, 5000, 0.5);
     FakeluaDeleteState(a);
     res = 0;
-    Call(b, JIT_TCC, "test_io_input_output", res);
+    CallAll(b, "test_io_input_output", res);
     EXPECT_NEAR(res, 5000, 0.5);
     FakeluaDeleteState(b);
 }
@@ -222,7 +223,7 @@ TEST(test_io, test_io_lines_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_lines_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_lines_boundary", res);
@@ -237,7 +238,7 @@ TEST(test_io, test_io_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./io/test_io_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_io_boundary", res);
@@ -256,7 +257,7 @@ TEST(test_io, test_io_boundary_error) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_io_boundary_error", res), std::exception);
+    CallThrow(s, "test_io_boundary_error", res);
 
     FakeluaDeleteState(s);
 }
@@ -270,14 +271,14 @@ TEST(test_io, test_io_error_paths) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_io_close_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_file_read_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_file_write_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_file_setvbuf_bad_mode", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_file_setvbuf_size_too_large", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_io_open_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_io_open_bad_mode", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_io_popen_bad_arg", res), std::exception);
+    CallThrow(s, "test_io_close_bad_arg", res);
+    CallThrow(s, "test_file_read_bad_arg", res);
+    CallThrow(s, "test_file_write_bad_arg", res);
+    CallThrow(s, "test_file_setvbuf_bad_mode", res);
+    CallThrow(s, "test_file_setvbuf_size_too_large", res);
+    CallThrow(s, "test_io_open_bad_arg", res);
+    CallThrow(s, "test_io_open_bad_mode", res);
+    CallThrow(s, "test_io_popen_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -296,7 +297,7 @@ end
 )",
                   config);
     double res = 0;
-    Call(s, JIT_TCC, "test_io_delete_state_without_close", res);
+    CallAll(s, "test_io_delete_state_without_close", res);
     EXPECT_NEAR(res, 6000, 0.5);
     FakeluaDeleteState(s);
 }
@@ -308,7 +309,7 @@ TEST(test_io, io_open_read) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_open_read", ret);
+    CallAll(s, "IoTest.test_io_open_read", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -319,7 +320,7 @@ TEST(test_io, io_open_write) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_open_write", ret);
+    CallAll(s, "IoTest.test_io_open_write", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -330,7 +331,7 @@ TEST(test_io, io_open_append) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_open_append", ret);
+    CallAll(s, "IoTest.test_io_open_append", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -341,7 +342,7 @@ TEST(test_io, io_read_formats) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_read_formats", ret);
+    CallAll(s, "IoTest.test_io_read_formats", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -352,7 +353,7 @@ TEST(test_io, io_write_multi) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_write_multi", ret);
+    CallAll(s, "IoTest.test_io_write_multi", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -363,7 +364,7 @@ TEST(test_io, io_flush) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_flush", ret);
+    CallAll(s, "IoTest.test_io_flush", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -374,7 +375,7 @@ TEST(test_io, io_type) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_type", ret);
+    CallAll(s, "IoTest.test_io_type", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -385,7 +386,7 @@ TEST(test_io, io_type_nil) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_type_nil", ret);
+    CallAll(s, "IoTest.test_io_type_nil", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -396,7 +397,7 @@ TEST(test_io, file_read_line) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_file_read_line", ret);
+    CallAll(s, "IoTest.test_file_read_line", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -407,7 +408,7 @@ TEST(test_io, file_read_all) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_file_read_all", ret);
+    CallAll(s, "IoTest.test_file_read_all", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -418,7 +419,7 @@ TEST(test_io, file_seek) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_file_seek", ret);
+    CallAll(s, "IoTest.test_file_seek", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -429,7 +430,7 @@ TEST(test_io, file_lines) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_file_lines", ret);
+    CallAll(s, "IoTest.test_file_lines", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -440,7 +441,7 @@ TEST(test_io, io_tmpfile) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_tmpfile", ret);
+    CallAll(s, "IoTest.test_io_tmpfile", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -451,7 +452,7 @@ TEST(test_io, io_close) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_close", ret);
+    CallAll(s, "IoTest.test_io_close", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -462,7 +463,7 @@ TEST(test_io, io_open_nonexistent) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTest.test_io_open_nonexistent", ret);
+    CallAll(s, "IoTest.test_io_open_nonexistent", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -474,7 +475,7 @@ TEST(test_io, file_setvbuf_no) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_setvbuf_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileSetvbufCases.test_file_setvbuf_no", ret);
+    CallAll(s, "FileSetvbufCases.test_file_setvbuf_no", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -485,7 +486,7 @@ TEST(test_io, file_setvbuf_full) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_setvbuf_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileSetvbufCases.test_file_setvbuf_full", ret);
+    CallAll(s, "FileSetvbufCases.test_file_setvbuf_full", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -496,7 +497,7 @@ TEST(test_io, file_setvbuf_line) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_setvbuf_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileSetvbufCases.test_file_setvbuf_line", ret);
+    CallAll(s, "FileSetvbufCases.test_file_setvbuf_line", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -507,7 +508,7 @@ TEST(test_io, extra_file_read_all) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_read.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileRead.test_file_read_all", ret);
+    CallAll(s, "FileRead.test_file_read_all", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -518,7 +519,7 @@ TEST(test_io, extra_file_read_line) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_read.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileRead.test_file_read_line", ret);
+    CallAll(s, "FileRead.test_file_read_line", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -529,7 +530,7 @@ TEST(test_io, file_read_line_keep) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_read.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileRead.test_file_read_line_keep", ret);
+    CallAll(s, "FileRead.test_file_read_line_keep", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -540,7 +541,7 @@ TEST(test_io, file_read_number) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_read.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileRead.test_file_read_number", ret);
+    CallAll(s, "FileRead.test_file_read_number", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -551,7 +552,7 @@ TEST(test_io, file_read_bytes) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_read.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileRead.test_file_read_bytes", ret);
+    CallAll(s, "FileRead.test_file_read_bytes", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -562,7 +563,7 @@ TEST(test_io, file_read_zero) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_read.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileRead.test_file_read_zero", ret);
+    CallAll(s, "FileRead.test_file_read_zero", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -573,7 +574,7 @@ TEST(test_io, file_seek_set) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_seek.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileSeek.test_file_seek_set", ret);
+    CallAll(s, "FileSeek.test_file_seek_set", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -584,7 +585,7 @@ TEST(test_io, file_seek_end) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_seek.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileSeek.test_file_seek_end", ret);
+    CallAll(s, "FileSeek.test_file_seek_end", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -595,7 +596,7 @@ TEST(test_io, file_seek_cur) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_seek.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileSeek.test_file_seek_cur", ret);
+    CallAll(s, "FileSeek.test_file_seek_cur", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -606,7 +607,7 @@ TEST(test_io, file_write_multi) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_write.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileWrite.test_file_write_multi", ret);
+    CallAll(s, "FileWrite.test_file_write_multi", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -617,7 +618,7 @@ TEST(test_io, file_flush) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_flush.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileFlush.test_file_flush", ret);
+    CallAll(s, "FileFlush.test_file_flush", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -628,7 +629,7 @@ TEST(test_io, io_type_file) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_type_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTypeCases.test_io_type_file", ret);
+    CallAll(s, "IoTypeCases.test_io_type_file", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -639,7 +640,7 @@ TEST(test_io, io_type_closed_file) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_type_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTypeCases.test_io_type_closed_file", ret);
+    CallAll(s, "IoTypeCases.test_io_type_closed_file", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -650,7 +651,7 @@ TEST(test_io, io_type_not_file) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_type_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTypeCases.test_io_type_not_file", ret);
+    CallAll(s, "IoTypeCases.test_io_type_not_file", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -661,7 +662,7 @@ TEST(test_io, extra_io_type_nil) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_type_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTypeCases.test_io_type_nil", ret);
+    CallAll(s, "IoTypeCases.test_io_type_nil", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -672,7 +673,7 @@ TEST(test_io, io_flush_basic) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_flush_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoFlushCases.test_io_flush", ret);
+    CallAll(s, "IoFlushCases.test_io_flush", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -683,7 +684,7 @@ TEST(test_io, io_tmpfile_basic) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_tmpfile_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoTmpfileCases.test_io_tmpfile", ret);
+    CallAll(s, "IoTmpfileCases.test_io_tmpfile", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -694,7 +695,7 @@ TEST(test_io, io_output_input) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_output_input.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoOutputInput.test_io_output_input", ret);
+    CallAll(s, "IoOutputInput.test_io_output_input", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -705,7 +706,7 @@ TEST(test_io, io_close_default) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_close.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoClose.test_io_close_default", ret);
+    CallAll(s, "IoClose.test_io_close_default", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -716,7 +717,7 @@ TEST(test_io, io_close_file) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_close.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoClose.test_io_close_file", ret);
+    CallAll(s, "IoClose.test_io_close_file", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -727,7 +728,7 @@ TEST(test_io, file_read_multi_format) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_read.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileRead.test_file_read_multi_format", ret);
+    CallAll(s, "FileRead.test_file_read_multi_format", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -738,7 +739,7 @@ TEST(test_io, extra_file_lines) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_lines.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileLines.test_file_lines", ret);
+    CallAll(s, "FileLines.test_file_lines", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -749,7 +750,7 @@ TEST(test_io, io_lines_filename) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_lines.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoLines.test_io_lines_filename", ret);
+    CallAll(s, "IoLines.test_io_lines_filename", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -760,7 +761,7 @@ TEST(test_io, io_lines_no_file) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_lines.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoLines.test_io_lines_no_file", ret);
+    CallAll(s, "IoLines.test_io_lines_no_file", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -771,7 +772,7 @@ TEST(test_io, io_popen_read) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_popen_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoPopenCases.test_io_popen_read", ret);
+    CallAll(s, "IoPopenCases.test_io_popen_read", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -782,7 +783,7 @@ TEST(test_io, io_popen_write) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_popen_cases.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoPopenCases.test_io_popen_write", ret);
+    CallAll(s, "IoPopenCases.test_io_popen_write", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -793,7 +794,7 @@ TEST(test_io, io_open_no_file) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_open.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoOpen.test_io_open_no_file", ret);
+    CallAll(s, "IoOpen.test_io_open_no_file", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -804,7 +805,7 @@ TEST(test_io, io_open_empty_name) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_open.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "IoOpen.test_io_open_empty_name", ret);
+    CallAll(s, "IoOpen.test_io_open_empty_name", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -815,7 +816,7 @@ TEST(test_io, file_write_returns_self) {
     CompileConfig config;
     CompileFile(s, "./io/test_file_write.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "FileWrite.test_file_write_returns_self", ret);
+    CallAll(s, "FileWrite.test_file_write_returns_self", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -827,7 +828,7 @@ TEST(test_io, file_seek_invalid_whence) {
     CompileFile(s, "./io/test_file_seek.lua", config);
     int64_t ret = 0;
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
-    Call(s, JIT_GCC, "FileSeek.test_file_seek_invalid_whence", ret);
+    CallAll(s, "FileSeek.test_file_seek_invalid_whence", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -839,7 +840,7 @@ TEST(test_io, file_read_bytes_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_file_read_bytes", ret);
+    CallAll(s, "IoFileOps.test_file_read_bytes", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -850,7 +851,7 @@ TEST(test_io, file_read_zero_bytes_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_file_read_zero_bytes", ret);
+    CallAll(s, "IoFileOps.test_file_read_zero_bytes", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -861,7 +862,7 @@ TEST(test_io, file_setvbuf_no_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_file_setvbuf_no", ret);
+    CallAll(s, "IoFileOps.test_file_setvbuf_no", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -872,7 +873,7 @@ TEST(test_io, file_setvbuf_full_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_file_setvbuf_full", ret);
+    CallAll(s, "IoFileOps.test_file_setvbuf_full", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -883,7 +884,7 @@ TEST(test_io, file_setvbuf_line_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_file_setvbuf_line", ret);
+    CallAll(s, "IoFileOps.test_file_setvbuf_line", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -894,7 +895,7 @@ TEST(test_io, file_seek_set_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_file_seek_set", ret);
+    CallAll(s, "IoFileOps.test_file_seek_set", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -905,7 +906,7 @@ TEST(test_io, file_seek_end_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_file_seek_end", ret);
+    CallAll(s, "IoFileOps.test_file_seek_end", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -916,7 +917,7 @@ TEST(test_io, file_seek_cur_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_file_seek_cur", ret);
+    CallAll(s, "IoFileOps.test_file_seek_cur", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -927,7 +928,7 @@ TEST(test_io, file_flush_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_file_flush", ret);
+    CallAll(s, "IoFileOps.test_file_flush", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -938,7 +939,7 @@ TEST(test_io, file_lines_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_file_lines", ret);
+    CallAll(s, "IoFileOps.test_file_lines", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -949,7 +950,7 @@ TEST(test_io, io_popen_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_io_popen", ret);
+    CallAll(s, "IoFileOps.test_io_popen", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -960,7 +961,7 @@ TEST(test_io, io_tmpfile_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_io_tmpfile", ret);
+    CallAll(s, "IoFileOps.test_io_tmpfile", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -971,7 +972,7 @@ TEST(test_io, io_type_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_io_type", ret);
+    CallAll(s, "IoFileOps.test_io_type", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -982,7 +983,7 @@ TEST(test_io, io_close_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_io_close", ret);
+    CallAll(s, "IoFileOps.test_io_close", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -993,7 +994,7 @@ TEST(test_io, io_flush_gcc) {
     CompileConfig config;
     CompileFile(s, "./io/test_io_file_ops.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "IoFileOps.test_io_flush", ret);
+    CallAll(s, "IoFileOps.test_io_flush", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

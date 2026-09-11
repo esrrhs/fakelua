@@ -334,6 +334,7 @@ extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_
 extern CVar FakeluaAllocMultiCVar(State *s, int count);
 extern void FakeluaSetMultiCVarElement(CVar *multi, int idx, CVar val);
 extern CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
+extern CVar FakeluaInterpCall(State *state, VarClosure *cl, int arg_num, const CVar *args);
 #ifdef __cplusplus
 }
 #endif
@@ -429,6 +430,15 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
             }
         }
         arg_arr = temp_arg_arr;
+    }
+
+    if (cl->code_str == (const char *)1) {
+        int npass = expected_arg_count;
+        if (is_vararg) {
+            npass = fixed_arg_count + 1;
+            if (npass < 1) npass = 1;
+        }
+        return FakeluaInterpCall(state, cl, npass, arg_arr);
     }
 
 #define FCCVAR_0

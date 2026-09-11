@@ -1525,7 +1525,10 @@ void RegisterStringLibraryApi(State *s) {
             ThrowFakeluaException("bad argument #1 to 'string.dump' (function expected)");
         }
         VarClosure *cl = fn_var.data_.cl;
-        std::string code = cl->code_str ? std::string(cl->code_str) : "";
+        std::string code;
+        if (cl->code_str && cl->code_str != reinterpret_cast<const char *>(static_cast<uintptr_t>(1))) {
+            code = cl->code_str;
+        }
         std::string payload = "\x1bLua";
         payload.push_back(static_cast<char>(cl->upvalue_count));
         payload.push_back(static_cast<char>(cl->expected_arg_count));

@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -9,7 +10,7 @@ TEST(test_url, parse) {
     CompileConfig config;
     CompileFile(s, "./url/test_url.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "UrlTest.test_parse", ret);
+    CallAll(s, "UrlTest.test_parse", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -20,7 +21,7 @@ TEST(test_url, format) {
     CompileConfig config;
     CompileFile(s, "./url/test_url.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "UrlTest.test_format", ret);
+    CallAll(s, "UrlTest.test_format", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -31,7 +32,7 @@ TEST(test_url, encode_decode) {
     CompileConfig config;
     CompileFile(s, "./url/test_url.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "UrlTest.test_encode_decode", ret);
+    CallAll(s, "UrlTest.test_encode_decode", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

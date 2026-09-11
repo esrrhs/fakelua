@@ -18,6 +18,8 @@ public:
     static int64_t GetTableLen(CVar tbl);
     static CVar GetTableInt(State *s, CVar tbl, int64_t idx);
     static CVar GetTableStrId(State *s, CVar tbl, const char *str_key);
+    // 任意类型键的读取，键先做浮点归一化，查找逻辑与 JIT 侧 FlGetTable 一致。
+    static CVar GetTable(State *s, CVar tbl, CVar key);
     static void SetTableInt(State *s, CVar tbl, int64_t idx, CVar val);
     static void SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val);
     // 任意类型键的写入。键会先做浮点归一化，再按与 JIT 侧一致的哈希布局落槽。

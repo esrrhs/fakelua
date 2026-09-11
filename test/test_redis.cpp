@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -12,7 +13,7 @@ TEST(test_redis, connect_failure_catchable) {
     CompileConfig config;
     CompileFile(s, "./redis/test_redis.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RedisTest.test_connect_fail", ret);
+    CallAll(s, "RedisTest.test_connect_fail", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -24,7 +25,7 @@ TEST(test_redis, connect_failure_message) {
     CompileConfig config;
     CompileFile(s, "./redis/test_redis_error_message.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RedisTest.test_error_message", ret);
+    CallAll(s, "RedisTest.test_error_message", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -35,7 +36,7 @@ TEST(test_redis, close_in_connect_callback) {
     CompileConfig config;
     CompileFile(s, "./redis/test_redis.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RedisTest.test_close_in_connect_cb", ret);
+    CallAll(s, "RedisTest.test_close_in_connect_cb", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -48,7 +49,7 @@ TEST(test_redis, integration_ping_set_get) {
     CompileConfig config;
     CompileFile(s, "./redis/test_redis_integration.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RedisTest.test_redis_integration", ret);
+    CallAll(s, "RedisTest.test_redis_integration", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -60,7 +61,7 @@ TEST(test_redis, integration_command_error) {
     CompileConfig config;
     CompileFile(s, "./redis/test_redis_cmd_error.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RedisTest.test_cmd_error", ret);
+    CallAll(s, "RedisTest.test_cmd_error", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -72,7 +73,7 @@ TEST(test_redis, integration_datatypes) {
     CompileConfig config;
     CompileFile(s, "./redis/test_redis_types.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RedisTest.test_types", ret);
+    CallAll(s, "RedisTest.test_types", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -84,7 +85,7 @@ TEST(test_redis, integration_lifecycle) {
     CompileConfig config;
     CompileFile(s, "./redis/test_redis_lifecycle.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RedisTest.test_lifecycle", ret);
+    CallAll(s, "RedisTest.test_lifecycle", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
