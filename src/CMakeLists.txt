@@ -104,6 +104,12 @@ include_directories(${inih_SOURCE_DIR})
 set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${inih_SOURCE_DIR}/ini.c)
 
 add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
+if (WIN32)
+    # MinGW: once any linked archive (Boost.Filesystem, serialization, …) contains a
+    # dllexport symbol, ld exports only those and fakelua APIs never reach the import
+    # lib. WINDOWS_EXPORT_ALL_SYMBOLS writes a .def from this target's objects.
+    set_target_properties(fakelua PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif ()
 
 find_package(Threads REQUIRED)
 
