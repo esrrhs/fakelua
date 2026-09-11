@@ -1,8 +1,9 @@
-/* A Bison parser, made by GNU Bison 3.0.4.  */
+/* A Bison parser, made by GNU Bison 3.8.  */
 
 /* Bison interface for Yacc-like parsers in C
 
-   Copyright (C) 1984, 1989-1990, 2000-2015 Free Software Foundation, Inc.
+   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2021 Free Software Foundation,
+   Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,7 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* As a special exception, you may create a larger work that contains
    part or all of the Bison parser skeleton and distribute that work
@@ -30,6 +31,10 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
+/* DO NOT RELY ON FEATURES THAT ARE NOT DOCUMENTED in the manual,
+   especially those whose name start with YY_ or yy_.  They are
+   private implementation details that can be changed or removed.  */
+
 #ifndef YY_YY_BISON_TAB_H_INCLUDED
 # define YY_YY_BISON_TAB_H_INCLUDED
 /* Debug traces.  */
@@ -40,78 +45,80 @@
 extern int yydebug;
 #endif
 
-/* Token type.  */
+/* Token kinds.  */
 #ifndef YYTOKENTYPE
 # define YYTOKENTYPE
   enum yytokentype
   {
-    VAR_BEGIN = 258,
-    RETURN = 259,
-    BREAK = 260,
-    FUNC = 261,
-    WHILE = 262,
-    FTRUE = 263,
-    FFALSE = 264,
-    IF = 265,
-    THEN = 266,
-    ELSE = 267,
-    END = 268,
-    STRING_DEFINITION = 269,
-    IDENTIFIER = 270,
-    NUMBER = 271,
-    SINGLE_LINE_COMMENT = 272,
-    DIVIDE_MOD = 273,
-    ARG_SPLITTER = 274,
-    PLUS = 275,
-    MINUS = 276,
-    DIVIDE = 277,
-    MULTIPLY = 278,
-    ASSIGN = 279,
-    MORE = 280,
-    LESS = 281,
-    MORE_OR_EQUAL = 282,
-    LESS_OR_EQUAL = 283,
-    EQUAL = 284,
-    NOT_EQUAL = 285,
-    OPEN_BRACKET = 286,
-    CLOSE_BRACKET = 287,
-    AND = 288,
-    OR = 289,
-    FKFLOAT = 290,
-    PLUS_ASSIGN = 291,
-    MINUS_ASSIGN = 292,
-    DIVIDE_ASSIGN = 293,
-    MULTIPLY_ASSIGN = 294,
-    DIVIDE_MOD_ASSIGN = 295,
-    COLON = 296,
-    FOR = 297,
-    INC = 298,
-    FAKE = 299,
-    FKUUID = 300,
-    OPEN_SQUARE_BRACKET = 301,
-    CLOSE_SQUARE_BRACKET = 302,
-    FCONST = 303,
-    PACKAGE = 304,
-    INCLUDE = 305,
-    IDENTIFIER_DOT = 306,
-    IDENTIFIER_POINTER = 307,
-    STRUCT = 308,
-    IS = 309,
-    NOT = 310,
-    CONTINUE = 311,
-    YIELD = 312,
-    SLEEP = 313,
-    SWITCH = 314,
-    CASE = 315,
-    DEFAULT = 316,
-    NEW_ASSIGN = 317,
-    ELSEIF = 318,
-    RIGHT_POINTER = 319,
-    STRING_CAT = 320,
-    OPEN_BIG_BRACKET = 321,
-    CLOSE_BIG_BRACKET = 322,
-    FNULL = 323
+    YYEMPTY = -2,
+    YYEOF = 0,                     /* "end of file"  */
+    YYerror = 256,                 /* error  */
+    YYUNDEF = 257,                 /* "invalid token"  */
+    VAR_BEGIN = 258,               /* VAR_BEGIN  */
+    RETURN = 259,                  /* RETURN  */
+    BREAK = 260,                   /* BREAK  */
+    FUNC = 261,                    /* FUNC  */
+    WHILE = 262,                   /* WHILE  */
+    FTRUE = 263,                   /* FTRUE  */
+    FFALSE = 264,                  /* FFALSE  */
+    IF = 265,                      /* IF  */
+    THEN = 266,                    /* THEN  */
+    ELSE = 267,                    /* ELSE  */
+    END = 268,                     /* END  */
+    STRING_DEFINITION = 269,       /* STRING_DEFINITION  */
+    IDENTIFIER = 270,              /* IDENTIFIER  */
+    NUMBER = 271,                  /* NUMBER  */
+    SINGLE_LINE_COMMENT = 272,     /* SINGLE_LINE_COMMENT  */
+    DIVIDE_MOD = 273,              /* DIVIDE_MOD  */
+    ARG_SPLITTER = 274,            /* ARG_SPLITTER  */
+    PLUS = 275,                    /* PLUS  */
+    MINUS = 276,                   /* MINUS  */
+    DIVIDE = 277,                  /* DIVIDE  */
+    MULTIPLY = 278,                /* MULTIPLY  */
+    ASSIGN = 279,                  /* ASSIGN  */
+    MORE = 280,                    /* MORE  */
+    LESS = 281,                    /* LESS  */
+    MORE_OR_EQUAL = 282,           /* MORE_OR_EQUAL  */
+    LESS_OR_EQUAL = 283,           /* LESS_OR_EQUAL  */
+    EQUAL = 284,                   /* EQUAL  */
+    NOT_EQUAL = 285,               /* NOT_EQUAL  */
+    OPEN_BRACKET = 286,            /* OPEN_BRACKET  */
+    CLOSE_BRACKET = 287,           /* CLOSE_BRACKET  */
+    AND = 288,                     /* AND  */
+    OR = 289,                      /* OR  */
+    FKFLOAT = 290,                 /* FKFLOAT  */
+    PLUS_ASSIGN = 291,             /* PLUS_ASSIGN  */
+    MINUS_ASSIGN = 292,            /* MINUS_ASSIGN  */
+    DIVIDE_ASSIGN = 293,           /* DIVIDE_ASSIGN  */
+    MULTIPLY_ASSIGN = 294,         /* MULTIPLY_ASSIGN  */
+    DIVIDE_MOD_ASSIGN = 295,       /* DIVIDE_MOD_ASSIGN  */
+    COLON = 296,                   /* COLON  */
+    FOR = 297,                     /* FOR  */
+    INC = 298,                     /* INC  */
+    FKUUID = 299,                  /* FKUUID  */
+    OPEN_SQUARE_BRACKET = 300,     /* OPEN_SQUARE_BRACKET  */
+    CLOSE_SQUARE_BRACKET = 301,    /* CLOSE_SQUARE_BRACKET  */
+    FCONST = 302,                  /* FCONST  */
+    PACKAGE = 303,                 /* PACKAGE  */
+    INCLUDE = 304,                 /* INCLUDE  */
+    IDENTIFIER_DOT = 305,          /* IDENTIFIER_DOT  */
+    IDENTIFIER_POINTER = 306,      /* IDENTIFIER_POINTER  */
+    STRUCT = 307,                  /* STRUCT  */
+    IS = 308,                      /* IS  */
+    NOT = 309,                     /* NOT  */
+    CONTINUE = 310,                /* CONTINUE  */
+    SWITCH = 311,                  /* SWITCH  */
+    CASE = 312,                    /* CASE  */
+    DEFAULT = 313,                 /* DEFAULT  */
+    NEW_ASSIGN = 314,              /* NEW_ASSIGN  */
+    ELSEIF = 315,                  /* ELSEIF  */
+    RIGHT_POINTER = 316,           /* RIGHT_POINTER  */
+    STRING_CAT = 317,              /* STRING_CAT  */
+    OPEN_BIG_BRACKET = 318,        /* OPEN_BIG_BRACKET  */
+    CLOSE_BIG_BRACKET = 319,       /* CLOSE_BIG_BRACKET  */
+    FNULL = 320                    /* FNULL  */
   };
+  typedef enum yytokentype yytoken_kind_t;
 #endif
 
 /* Value type.  */
@@ -132,6 +139,8 @@ struct YYLTYPE
 
 
 
+
 int yyparse (void * parm);
+
 
 #endif /* !YY_YY_BISON_TAB_H_INCLUDED  */

@@ -1,20 +1,8 @@
 #! /bin/sh
-
-TEST="loop prime string"
-for i in $TEST; do
-    echo "lua $i"
-    time lua $i.lua
-    echo "------------"
-
-    echo "python $i"
-    time python $i.py
-    echo "------------"
-
-    echo "fake $i"
-    time ../bin/fakebin $i.fk
-    echo "------------"
-
-    echo "fake JIT $i"
-    time ../bin/fakebin -j $i.fk
-    echo "------------"
-done
+set -e
+cd "$(dirname "$0")"
+if [ ! -x ../bin/fake_bench ]; then
+    echo "build fake_bench first: cmake --build .. --target fake_bench" >&2
+    exit 1
+fi
+exec ../bin/fake_bench "$@"

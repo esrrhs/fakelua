@@ -10,12 +10,12 @@ struct variant_container_base;
 struct variant {
     enum Type {
         NIL,
-        REAL,        // 参与计算的数值
-        STRING,        // 字符串
-        POINTER,    // 指针
-        UUID,        // int64的uuid，不参与计算，为了效率
-        ARRAY,        // 数组
-        MAP,        // 集合
+        REAL,        // ????????????
+        STRING,        // ???????
+        POINTER,    // ???
+        UUID,        // int64??uuid??????????????????
+        ARRAY,        // ????
+        MAP,        // ????
     };
 
     union MemData {
@@ -26,8 +26,8 @@ struct variant {
         variant_array *va;
         variant_map *vm;
         variant_container_base *vcb;
-        uint64_t buf;    // 只是用作64位传递
-        void *p;            // 只是用作指针传递
+        uint64_t buf;    // ????????64??????
+        void *p;            // ?????????????
     };
 
     Type type;
@@ -207,10 +207,22 @@ struct variant {
 #define V_OR(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = ((l)->data.real != 0) | ((r)->data.real != 0);(d)->type = variant::REAL
 #define V_LESS(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real < (r)->data.real;(d)->type = variant::REAL
 #define V_MORE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real > (r)->data.real;(d)->type = variant::REAL
-#define V_EQUAL(d, l, r) (d)->data.real = (l)->data.real == (r)->data.real;(d)->type = variant::REAL
+#define V_EQUAL(d, l, r) \
+    do { \
+        bool _eq = false; \
+        V_EQUAL_V(_eq, l, r); \
+        (d)->data.real = _eq; \
+        (d)->type = variant::REAL; \
+    } while (0)
 #define V_MOREEQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real >= (r)->data.real;(d)->type = variant::REAL
 #define V_LESSEQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real <= (r)->data.real;(d)->type = variant::REAL
-#define V_NOTEQUAL(d, l, r) (d)->data.real = (l)->data.real != (r)->data.real;(d)->type = variant::REAL
+#define V_NOTEQUAL(d, l, r) \
+    do { \
+        bool _eq = false; \
+        V_EQUAL_V(_eq, l, r); \
+        (d)->data.real = !_eq; \
+        (d)->type = variant::REAL; \
+    } while (0)
 
 #define V_FOR_LESS(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d) = (l)->data.real < (r)->data.real;
 
@@ -218,22 +230,42 @@ struct variant {
 #define V_OR_JNE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d) = ((l)->data.real != 0) | ((r)->data.real != 0);
 #define V_LESS_JNE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d) = (l)->data.real < (r)->data.real;
 #define V_MORE_JNE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d) = (l)->data.real > (r)->data.real;
-#define V_EQUAL_JNE(d, l, r) (d) = (l)->data.real == (r)->data.real;
+#define V_EQUAL_JNE(d, l, r) \
+    do { \
+        bool _eq = false; \
+        V_EQUAL_V(_eq, l, r); \
+        (d) = _eq; \
+    } while (0)
 #define V_MOREEQUAL_JNE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d) = (l)->data.real >= (r)->data.real;
 #define V_LESSEQUAL_JNE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d) = (l)->data.real <= (r)->data.real;
-#define V_NOTEQUAL_JNE(d, l, r) (d) = (l)->data.real != (r)->data.real;
+#define V_NOTEQUAL_JNE(d, l, r) \
+    do { \
+        bool _eq = false; \
+        V_EQUAL_V(_eq, l, r); \
+        (d) = !_eq; \
+    } while (0);
 
 #define V_NOT(d, l) (d)->data.real = !((l)->data.real);(d)->type = variant::REAL
 
 #define V_NOT_JNE(d, l) (d) = !((l)->data.real);
 
-#define V_STRING_CAT(d, l, r) V_SET_STRING(d, (vartostring(l) + vartostring(r)).c_str());
+#define V_STRING_CAT(d, l, r) fk_variant_cat(fk, d, l, r);
 
 #define V_ISBOOL(v) ((v)->data.real != 0)
 #define V_EQUAL_V(b, l, r) \
     if ((l)->type != (r)->type)\
     {\
         b = false;\
+    }\
+    else if ((l)->type == variant::STRING)\
+    {\
+        const stringele *_ls = (l)->data.str; \
+        const stringele *_rs = (r)->data.str; \
+        b = (_ls == _rs) || (_ls && _rs && _ls->sz == _rs->sz && memcmp(_ls->s, _rs->s, _ls->sz) == 0); \
+    }\
+    else if ((l)->type == variant::REAL)\
+    {\
+        b = ((l)->data.real == (r)->data.real); \
     }\
     else\
     {\

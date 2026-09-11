@@ -1,133 +1,3 @@
-/************************************************************************/
-/*
-# fake
-?????????????????
-
-## ???
-**fake**????????????????????????, ???c++???????, ???????lua??golang??erlang, ????flex??bison????????, ??????????????????
-
-## ???????
-* ????????linux amd64??MacOS amd64
-* ???VM, JIT
-* ???fake testfunc(param1)????routine, ???????????????????(??????????JIT)
-* ??????, ???gdb????????????????, ???VS??????????????ide, ?????C??????????????, ?????????????
-* ????????
-* ???C???????C++???????????
-* ???profile, ??????????????????????
-* ???array, map, ???????????
-* ???????
-* ???Int64
-* ???const????
-* ????
-* ???struct
-* ?????bin????????????
-
-## ???
-
-```
-
-
--- ???????
-package mypackage.test
-
--- ????????
-include "common.fk"
-
--- ????G??
-struct teststruct
-	sample_a
-	sample_b
-	sample_c
-end
-
--- ?????
-const hellostring = "hello"
-const helloint = 1234
-const hellomap = {1 : "a" 2 : "b" 3 : [1 2 3]}
-
--- func1 comment
-func myfunc1(arg1, arg2)
-
-	-- C???????????????????
-	arg3 := cfunc1(helloint) + arg2:memfunc1(arg1)
-
-	-- ???
-	if arg1 < arg2 then
-		-- ???????????
-		fake myfunc2(arg1, arg2)
-	elseif arg1 == arg2 then
-		print("elseif")
-	else
-		print("else")
-	end
-
-	-- for???
-	for var i = 0, i < arg2, i++ then
-		print("i = ", i)
-	end
-
-	-- ????
-	var a = array()
-	a[1] = 3
-
-	-- ????
-	var b = map()
-	b[a] = 1
-	b[1] = a
-
-	-- Int64
-	var uid = 1241515236123614u
-	log("uid = ", uid)
-
-	-- ?????????
-	var ret1, var ret2 = myfunc2()
-
-	-- ???????????????
-	ret1 = otherpackage.test.myfunc1(arg1, arg2)
-
-	-- ????
-	var tt = teststruct()
-	tt->sample_a = 1
-	tt->sample_b = teststruct()
-	tt->sample_b->sample_a = 10
-
-	-- ???
-	switch arg1
-		case 1 then
-			print("1")
-		case "a" then
-			print("a")
-		default
-			print("default")
-	end
-
-	-- ?????
-	return arg1, arg3
-
-end
-```
-
-## C++???
-
-```
-// ??????????
-fake * fk = newfake();
-// ?????????
-fkreg(fk, "cfunc1", cfunc1);
-// ???????????, ??????????????????????????
-fkreg(fk, "memfunc1", &class1::memfunc1);
-// ????fake??????
-fkparse(fk, argv[1]);
-// ???myfunc1????, ????????????????1??2
-ret = fkrun<int>(fk, "myfunc1", 1, 2);
-// ??????
-delfake(fk);
-```
-
-
-*/
-/************************************************************************/
-
 #pragma once
 
 #include <stdint.h>
@@ -139,7 +9,7 @@ delfake(fk);
 #define FAKE_VERSION "1.5"
 #define FAKE_AUTHOR "esrrhs@163.com"
 
-// ?????
+// Error codes
 enum efkerror {
     efk_ok = 0,
     efk_strsize = 100,
@@ -168,10 +38,9 @@ enum efkerror {
     efk_run_cal_error,
     efk_run_inter_error,
 
-    efk_jit_error = 600,
 };
 
-// ???????
+// Interpreter instance
 struct fake;
 
 typedef void(*fkerrorcb)(fake *fk, int eno, const char *file, int lineno, const char *func, const char *str);
@@ -183,63 +52,61 @@ typedef void (*fkfree)(void *ptr);
 typedef void(*fkprint)(fake *fk, const char *str);
 
 #define FAKE_API extern "C"
-#define MAX_FAKE_PARAM_NUM 40    // ???40??????
-#define MAX_FAKE_RETURN_NUM 10    // ???10???????
-#define MAX_FAKE_REG_FUNC_NAME_LEN 256    // ???????????????
+#define MAX_FAKE_PARAM_NUM 40    // max arguments on the param stack
+#define MAX_FAKE_RETURN_NUM 10    // max return values
+#define MAX_FAKE_REG_FUNC_NAME_LEN 256    // max length of a registered function name
 
 struct fakeconfig {
     fakeconfig() : fkm(&malloc), fkf(&free),
                    check_mem_alloc(false),
-                   per_frame_cmd_num(100),
                    array_grow_speed(50),
                    include_deps(100),
                    stack_max(10000) {}
 
     fkmalloc fkm;
-    fkfree fkf;                        // ??????
-    bool check_mem_alloc;           // ?????
-    int per_frame_cmd_num;            // ????????????
-    int array_grow_speed;            // ?????????????10%????????10%
-    int include_deps;                // ????include??????
-    int stack_max;                    // stack?????
+    fkfree fkf;                        // deallocator paired with fkm
+    bool check_mem_alloc;           // track allocations when true
+    int array_grow_speed;            // array growth percent (50 = +50%)
+    int include_deps;                // max include nesting
+    int stack_max;                    // max VM stack depth
 };
 
-// ???????
+// Create / destroy an interpreter. delfake() frees all memory.
 FAKE_API fake *newfake(fakeconfig *cfg = 0);
 FAKE_API void delfake(fake *fk);
 
-// ???????
+// Last error from parse or run
 FAKE_API efkerror fkerror(fake *fk);
 FAKE_API const char *fkerrorstr(fake *fk);
 
-// ???????
-// ???????????????????I????????????fkrun???????I
+// Compile a script file or string to bytecode. Call fkrun() after a successful parse.
 FAKE_API bool fkparse(fake *fk, const char *filename);
 FAKE_API bool fkparsestr(fake *fk, const char *str);
 
-// ??????????????????c??????????????
+// Drop compiled bytecode. Registered C functions remain.
+// Optional: wipe script functions that a later parse will not redefine.
 FAKE_API void fkclear(fake *fk);
 
-// ?????????
+// Drop runtime arrays, maps, pointer wrappers, interned runtime strings, and stacks.
+// Keeps bytecode, constants, and registered C functions.
+// Call only when no script is running.
+FAKE_API void fkreset(fake *fk);
+
+// Compiled / bound function metadata
 FAKE_API bool fkisfunc(fake *fk, const char *func);
-// ?????????????????
 FAKE_API const char *fkgetfuncfile(fake *fk, const char *func);
-// ???????????????????
 FAKE_API int fkgetfuncstartline(fake *fk, const char *func);
-// ???????????????
 FAKE_API int fkgetfuncvariantnum(fake *fk, const char *func);
-// ??????????????
 FAKE_API const char *fkgetfuncvariantname(fake *fk, const char *func, int index);
-// ????????????????
 FAKE_API int fkgetfuncvariantline(fake *fk, const char *func, int index);
 
-// ????????????????C???????????????fakebytes b = fkrun<fakebytes>(fk, "test")????fakebytes b; fkrun<int>(fk, "test", b);
+// Bytes returned to C. Prefer: fakebytes b; fkrun<int>(fk, "test", b);
 struct fakebytes {
     char *data;
     size_t size;
 };
 
-// ????????
+// Push values onto the param stack (used by fkrun / bindings)
 FAKE_API void fkpspushpointer(fake *fk, void *p, const char *type);
 FAKE_API void fkpspushchar(fake *fk, char ret);
 FAKE_API void fkpspushuchar(fake *fk, unsigned char ret);
@@ -467,11 +334,12 @@ inline fakebytes fkpspop(fake *fk) {
 
 FAKE_API void fkpsclear(fake *fk);
 
-// ?????????????????????
+// Run a function using values already on the param stack until it returns.
+// Infinite loops hang. Does not leave a paused VM for the host to tick.
 FAKE_API void fkrunps(fake *fk, const char *func);
 
 
-// ?????????????????
+// Run a named function and pop the first return value
 template<typename RVal>
 RVal fkrun(fake *fk, const char *func) {
     fkpsclear(fk);
@@ -556,14 +424,12 @@ RVal fkrun(fake *fk, const char *func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 ar
     return fkpspop<RVal>(fk);
 }
 
-// ???????
+// Single-step / debugger mode
 FAKE_API void fkopenstepmod(fake *fk);
 FAKE_API void fkclosestepmod(fake *fk);
 
-// ?????????????????????
 FAKE_API void fkrundebugps(fake *fk);
 
-// ????????????????????
 template<typename RVal>
 RVal fkdebugrun(fake *fk, const char *func) {
     fkopenstepmod(fk);
@@ -627,96 +493,6 @@ RVal fkdebugrun(fake *fk, const char *func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, 
     fkrundebugps(fk);
     return fkpspop<RVal>(fk);
 }
-
-// ?????????????????????
-FAKE_API void fkrunpsjit(fake *fk, const char *func);
-
-// ????????,native code
-template<typename RVal>
-RVal fkrunjit(fake *fk, const char *func) {
-    fkpsclear(fk);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
-}
-
-template<typename RVal, typename T1>
-RVal fkrunjit(fake *fk, const char *func, T1 arg1) {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
-}
-
-template<typename RVal, typename T1, typename T2>
-RVal fkrunjit(fake *fk, const char *func, T1 arg1, T2 arg2) {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
-}
-
-template<typename RVal, typename T1, typename T2, typename T3>
-RVal fkrunjit(fake *fk, const char *func, T1 arg1, T2 arg2, T3 arg3) {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
-}
-
-template<typename RVal, typename T1, typename T2, typename T3, typename T4>
-RVal fkrunjit(fake *fk, const char *func, T1 arg1, T2 arg2, T3 arg3, T4 arg4) {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkpspush<T4>(fk, arg4);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
-}
-
-template<typename RVal, typename T1, typename T2, typename T3, typename T4, typename T5>
-RVal fkrunjit(fake *fk, const char *func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkpspush<T4>(fk, arg4);
-    fkpspush<T5>(fk, arg5);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
-}
-
-template<typename RVal, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7>
-RVal fkrunjit(fake *fk, const char *func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkpspush<T4>(fk, arg4);
-    fkpspush<T5>(fk, arg5);
-    fkpspush<T6>(fk, arg6);
-    fkpspush<T7>(fk, arg7);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
-}
-
-template<typename RVal, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6>
-RVal fkrunjit(fake *fk, const char *func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkpspush<T4>(fk, arg4);
-    fkpspush<T5>(fk, arg5);
-    fkpspush<T6>(fk, arg6);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
-}
-
-// ?????????????????????16?????
 #define FAKE_MEMFUNC_SIZE 32
 
 // functor
@@ -912,7 +688,7 @@ struct fkinvoker<void> {
 
 FAKE_API void fkpushfunctor(fake *fk, const char *prefix, const char *name, fkfunctor ff);
 
-// ???C????
+// Bind a C function
 template<typename RVal>
 void fkreg(fake *fk, const char *name, RVal (*func)()) {
     fkpushfunctor(fk, "", name, fkfunctor(fkinvoker<RVal>::invoke, (void *) func, 0));
@@ -956,7 +732,7 @@ void fkreg(fake *fk, const char *name, RVal (*func)(T1, T2, T3, T4, T5, T6, T7))
 template<typename RVal, typename T, typename T1=void, typename T2=void, typename T3=void, typename T4=void, typename T5=void, typename T6=void, typename T7=void>
 struct fkmeminvoker {
     static void invoke(fake *fk, const fkfunctor *ff) {
-        T *p = fkpspop<T *>(fk);    // ?????????????????????????
+        T *p = fkpspop<T *>(fk);    // this pointer from the script call
         if (!p)
             return;
         RVal ret = ((p)->*(*(RVal(T::* *)(T1, T2, T3, T4, T5, T6, T7)) (ff->param2)))(fkpspop<T1>(fk),
@@ -1173,7 +949,7 @@ struct fkmeminvoker<void, T> {
     }
 };
 
-// ??????????????????????
+// Bind a C++ member function (same name on different classes does not clash)
 template<typename RVal, typename T>
 void fkreg(fake *fk, const char *name, RVal (T::*func)()) {
     fkpushfunctor(fk, typeid(typename fkclasstype<T>::type).name(), name,
@@ -1222,7 +998,7 @@ void fkreg(fake *fk, const char *name, RVal (T::*func)(T1, T2, T3, T4, T5, T6, T
                   fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4, T5, T6, T7>::invoke, 0, func, 8));
 }
 
-// ????????????????
+// Open built-in libraries
 FAKE_API void fkopenalllib(fake *fk);
 FAKE_API void fkopenfilelib(fake *fk);
 FAKE_API void fkopenoslib(fake *fk);
@@ -1234,14 +1010,11 @@ FAKE_API void fkopenprofile(fake *fk);
 FAKE_API void fkcloseprofile(fake *fk);
 FAKE_API const char *fkdumpprofile(fake *fk);
 
-// jit
-FAKE_API void fkopenjit(fake *fk);
-FAKE_API void fkclosejit(fake *fk);
 
-// ?????????
+// Error callback
 FAKE_API void fkseterrorfunc(fake *fk, fkerrorcb cb);
 
-// ????????????
+// Current execution location
 FAKE_API const char *fkgetcurfunc(fake *fk);
 FAKE_API const char *fkgetcurfile(fake *fk);
 FAKE_API int fkgetcurline(fake *fk);
@@ -1252,7 +1025,7 @@ FAKE_API int fkgetcurcallstacklength(fake *fk);
 FAKE_API const char *fkgetcurcallstackbyframe(fake *fk, int frame);
 FAKE_API const char *fkgetfilecode(fake *fk, const char *filename, int line);
 
-// ????????????
+// Stack-frame inspection
 FAKE_API const char *fkgetcurfuncbyframe(fake *fk, int frame);
 FAKE_API const char *fkgetcurfilebyframe(fake *fk, int frame);
 FAKE_API int fkgetcurlinebyframe(fake *fk, int frame);
@@ -1260,7 +1033,7 @@ FAKE_API const char *fkgetcurvaiantbyframe(fake *fk, int frame, const char *name
 FAKE_API int fkgetcurvaiantlinebyframe(fake *fk, int frame, const char *name, int line = -1);
 FAKE_API void fksetcurvaiantbyframe(fake *fk, int frame, const char *name, const char *value, int line = -1);
 
-// ????????????
+// Routine inspection
 FAKE_API const char *fkgetcurroutine(fake *fk);
 FAKE_API int fkgetcurroutinenum(fake *fk);
 FAKE_API const char *fkgetcurroutinebyindex(fake *fk, int index);
@@ -1280,28 +1053,26 @@ FAKE_API const char *fkgetcurcallstackbyroutinebyframe(fake *fk, int rid, int fr
 FAKE_API int fkgetcurbytecodeposbyroutine(fake *fk, int rid);
 
 
-// ????????????
+// Script argv (os_argc / os_argv)
 FAKE_API void fksetargv(fake *fk, int argc, const char *argv[]);
 
-// dump????
+// Debug dumps
 FAKE_API const char *fkdumpallfunc(fake *fk);
 FAKE_API const char *fkdumpfunc(fake *fk, const char *func, int pos = -1);
 FAKE_API const char *fkdumpfuncmap(fake *fk);
 
-// save load????
+// Serialize / load compiled functions
 FAKE_API int fksavefunc(fake *fk, char *buff, int size);
 FAKE_API int fkloadfunc(fake *fk, char *buff, int size);
 
-// ????????
 FAKE_API const char **fkgetkeyword();
 
-// ????print????
+// Redirect print
 FAKE_API void fksetprintfunc(fake *fk, fkprint func);
 
-// ????????????
+// Resume one bytecode op in debugger step mode
 FAKE_API void fkresumeps(fake *fk, bool &isend);
 
-// ????????????
 template<typename RVal>
 RVal fkresume(fake *fk, bool &isend) {
     fkpsclear(fk);
