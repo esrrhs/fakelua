@@ -146,22 +146,15 @@ end
 
 ## 基准
 
-Google Benchmark 微基准（`loop`、`call`、`array`、`string`、`parse`）：
+见 [benchmark/README.zh.md](benchmark/README.zh.md)（[English](benchmark/README.md)）。
 
 ```bash
-./bin/fake_bench
-# 或者：cd benchmark && ./benchmark.sh
+./build.sh release
+./bin/fake_bench --benchmark_min_time=0.5s
 ```
 
-`benchmark/*.lua` 和 `*.py` 还在，方便手动和 Lua / Python 对比。
-
-MacBook Pro 2.3 GHz Intel Core i5（旧 `benchmark.sh` 数字）：
-
-|        | Lua   | Python | Fake  |
-|--------|-------|--------|------:|
-| Loop   | 0.8s  | 2.3s   | 1.3s  |
-| Prime  | 13.5s | 20.9s  | 12.8s |
-| String | 0.8s  | 0.4s   | 1.2s  |
+只看 release `-O3 -flto`。CI 的 0.1s 是冒烟，不是成绩。
+`benchmark/*.lua` 是同一套 loop / prime / string，方便手动和 Lua 对比。
 
 ## 相关项目
 
