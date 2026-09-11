@@ -8,43 +8,62 @@
 
 [中文](README.zh.md) | English
 
-**fake** is a lightweight embeddable scripting language written in C++. The syntax draws from Lua, Go, and Erlang. Scripts are parsed with flex/bison, compiled to bytecode, and executed on a VM, with an optional experimental JIT.
-
-Ports: [Java](https://github.com/esrrhs/fakejava) · [Go](https://github.com/esrrhs/fakego)
-
-## Memory model
-
-fake has **no garbage collector**. Strings, arrays, maps, and bound pointers live for the lifetime of a `fake` instance. Calling `delfake(fk)` releases all of that memory in one shot.
+Lightweight embeddable scripting language in C++. Syntax is borrowed from Lua, Go, and Erlang. Scripts are parsed with flex/bison, compiled to bytecode, and run on a VM (optional experimental JIT).
 
 ## Features
 
-- **Runtime**: Linux amd64, macOS amd64; bytecode VM plus experimental JIT
-- **Concurrency**: `fake fn(args)` starts a routine on a single thread (not available under JIT)
-- **Interop**: bind C functions and C++ member functions; hot-reload scripts
-- **Language**: packages, `include`, `struct`, `const`, nested `array` / `map`, multiple return values, Int64
-- **Tooling**: gdb-style CLI debugger, VS-style visual IDE, function profiler
-- **Packaging**: pack scripts into a bin or a standalone executable
+- Bytecode VM and experimental JIT (Linux / macOS amd64)
+- Bind C functions and C++ member functions; hot-reload scripts
+- Packages, `include`, `struct`, `const`, nested `array` / `map`, multiple return values, Int64
+- Single-thread routines via `fake fn(args)` (not available under JIT)
+- gdb-style CLI debugger, visual IDE, function profiler
+- Pack scripts into a bin or a standalone executable
+- No garbage collector — objects live until `delfake()`, which frees everything at once
 
-## Embed
+## Requirements
 
-Copy `include/fake-inc.h` and `bin/libfake.so` into your project.
+- cmake, gcc, g++
+- flex and bison only if you need to regenerate the parser (`./gen.sh`)
+
+## Build
+
+```bash
+./build.sh           # debug
+./build.sh release   # optimized
+```
+
+This produces `bin/libfake.so` and `bin/fakebin`.
+
+## Usage
+
+Run a script:
+
+```bash
+./bin/fakebin your.fk
+```
+
+Examples are in `test/sample`. The test runner:
+
+```bash
+cd test && ./test.sh      # VM
+cd test && ./test.sh -j   # JIT
+```
+
+Embed in C++ — copy `include/fake-inc.h` and `bin/libfake.so` into your project:
 
 ```cpp
-fake * fk = newfake();
+fake *fk = newfake();
 fkreg(fk, "cfunc1", cfunc1);
 fkreg(fk, "memfunc1", &class1::memfunc1);  // same name on different classes does not clash
 fkparse(fk, argv[1]);
 int ret = fkrun<int>(fk, "myfunc1", 1, 2);
-delfake(fk);
+delfake(fk);  // release all memory
 ```
 
 ## Language
 
 ```
--- package name
 package mypackage.test
-
--- include another file
 include "common.fk"
 
 struct teststruct
@@ -58,12 +77,10 @@ const helloint = 1234
 const hellomap = {1 : "a" 2 : "b" 3 : [1 2 3]}
 
 func myfunc1(arg1, arg2)
-
-	-- C function and C++ member call
 	arg3 := cfunc1(helloint) + arg2:memfunc1(arg1)
 
 	if arg1 < arg2 then
-		fake myfunc2(arg1, arg2)   -- start a routine
+		fake myfunc2(arg1, arg2)
 	elseif arg1 == arg2 then
 		print("elseif")
 	else
@@ -105,45 +122,38 @@ func myfunc1(arg1, arg2)
 end
 ```
 
-## Performance
+## Debugging
 
-```bash
-cd benchmark/ && ./benchmark.sh
-```
-
-Numbers on a MacBook Pro 2.3 GHz Intel Core i5:
-
-|        | Lua   | Python | Fake | Fake JIT |
-|--------|-------|:------:|-----:|---------:|
-| Loop   | 0.8s  | 2.3s   | 1.3s | 0.2s     |
-| Prime  | 13.5s | 20.9s  | 12.8s | 5.9s    |
-| String | 0.8s  | 0.4s   | 1.2s | 3.2s     |
-
-## Build
-
-1. Install cmake, gcc, and g++
-2. (Optional) Install flex and bison, then run `./gen.sh` to regenerate the parser
-3. `./build.sh` or `./build.sh release`
-
-## Test
-
-Examples live in `test/sample`.
-
-```bash
-cd test && ./test.sh          # VM
-cd test && ./test.sh -j       # JIT
-./bin/fakebin your.fk         # run a script
-```
-
-## Debugger
-
-- IDE: `bin/fakeide.app`
+IDE (`bin/fakeide.app`):
 
 ![ide](img/ide.png)
 
-- CLI: `bin/fakebin`
+CLI (`bin/fakebin`):
 
 ![debug](img/debug.png)
+
+## Benchmarks
+
+```bash
+cd benchmark && ./benchmark.sh
+```
+
+MacBook Pro 2.3 GHz Intel Core i5:
+
+|        | Lua   | Python | Fake  | Fake JIT |
+|--------|-------|--------|------:|---------:|
+| Loop   | 0.8s  | 2.3s   | 1.3s  | 0.2s     |
+| Prime  | 13.5s | 20.9s  | 12.8s | 5.9s     |
+| String | 0.8s  | 0.4s   | 1.2s  | 3.2s     |
+
+## Related projects
+
+- [fakejava](https://github.com/esrrhs/fakejava)
+- [fakego](https://github.com/esrrhs/fakego)
+
+## License
+
+[MIT](LICENSE)
 
 ## Stargazers over time
 
