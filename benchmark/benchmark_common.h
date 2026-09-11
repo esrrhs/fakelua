@@ -11,14 +11,13 @@
 
 using namespace fakelua;
 
-// ---------------------------------------------------------------------------
 // Lua argument helpers
-// ---------------------------------------------------------------------------
 
 void PushLuaArg(lua_State *L, int64_t value);
 void PushLuaArg(lua_State *L, const std::string &value);
 
-inline void PushLuaArgs(lua_State *) {}
+inline void PushLuaArgs(lua_State *) {
+}
 
 template<typename T, typename... Args>
 void PushLuaArgs(lua_State *L, T first, Args... args) {
@@ -26,9 +25,7 @@ void PushLuaArgs(lua_State *L, T first, Args... args) {
     PushLuaArgs(L, args...);
 }
 
-// ---------------------------------------------------------------------------
 // Lua call helpers
-// ---------------------------------------------------------------------------
 
 template<typename... Args>
 int64_t CallLuaInt(lua_State *L, const char *func_name, Args... args) {
@@ -95,9 +92,7 @@ std::string CallLuaString(lua_State *L, const char *func_name, Args... args) {
     return result;
 }
 
-// ---------------------------------------------------------------------------
 // RuntimeContext — creates and owns one Lua + one FakeLua state
-// ---------------------------------------------------------------------------
 
 struct RuntimeContext {
     /// Create Lua + FakeLua states and compile the given scripts in both.
@@ -110,9 +105,7 @@ struct RuntimeContext {
     State *flua = nullptr;
 };
 
-// ---------------------------------------------------------------------------
 // Verification helpers
-// ---------------------------------------------------------------------------
 
 void VerifyEqual(int64_t got, int64_t expected, const char *name);
 void VerifyEqual(const std::string &got, const std::string &expected, const char *name);

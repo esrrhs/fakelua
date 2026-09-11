@@ -1,14 +1,11 @@
 // fuzz_differential.cpp — Differential fuzzing: fakelua vs Lua 5.4
-//
 // Same Lua script compiled in both fakelua and Lua 5.4.
 // Mismatches (compilation success/failure, return values) are potential bugs.
-//
 // Strategy:
 //   1. Wrap fuzz bytes into a known-named function "fuzz_test()"
 //   2. Compile in both engines
 //   3. If compilation differs (fakelua-accepts + Lua-rejects), report
 //   4. If both compile, call fuzz_test() and compare results
-//
 // Every check is one-directional: fakelua is a documented subset of Lua, so
 // rejecting more than Lua does is expected and not reported. Only fakelua being
 // more permissive than Lua, or the two disagreeing on a value, is a bug.
@@ -23,9 +20,7 @@
 #include <cstdlib>
 #include <string>
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 // Filter obviously binary inputs (too many null bytes or non-printable chars)
 static bool LooksLikeText(const uint8_t *data, size_t size) {
@@ -64,9 +59,7 @@ static std::string WrapAsFuzzFunction(const std::string &body) {
     return "function fuzz_test()\n" + body + "\nreturn 0\nend";
 }
 
-// ---------------------------------------------------------------------------
 // Fuzz entry point
-// ---------------------------------------------------------------------------
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (!LooksLikeText(data, size)) return 0;
@@ -81,8 +74,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (flua) {
         // Executable variant: fuzz_test() has to be callable below. Lua 5.4 also
         // runs the chunk via lua_pcall, so both sides execute file-level code.
-        flua_compiled = fuzz_fakelua_compile_string_executable(flua, script.c_str(),
-                                                              static_cast<int>(script.size()));
+        flua_compiled = fuzz_fakelua_compile_string_executable(flua, script.c_str(), static_cast<int>(script.size()));
     }
 
     // ---- Lua 5.4 ----
@@ -101,8 +93,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     // Lua-accepted + fakelua-rejected → expected (fakelua is a subset)
     // fakelua-accepted + Lua-rejected → INTERESTING (potential bug)
     if (flua_compiled && !lua_compiled) {
-        fprintf(stderr, "\n[DIFF FUZZ] fakelua compiled but Lua 5.4 rejected:\n%s\n",
-                script.c_str());
+        fprintf(stderr, "\n[DIFF FUZZ] fakelua compiled but Lua 5.4 rejected:\n%s\n", script.c_str());
         std::abort();
     }
 
@@ -130,13 +121,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         // coercion, for one). Only the other direction — fakelua succeeding where
         // Lua raises an error — means fakelua is too permissive.
         if (flua_called && !lua_called) {
-            fprintf(stderr, "\n[DIFF FUZZ] fakelua call succeeded but Lua 5.4 failed:\n%s\n",
-                    script.c_str());
+            fprintf(stderr, "\n[DIFF FUZZ] fakelua call succeeded but Lua 5.4 failed:\n%s\n", script.c_str());
             std::abort();
         }
         if (flua_called && lua_called && flua_ret != lua_ret) {
-            fprintf(stderr, "\n[DIFF FUZZ] return mismatch: flua=%ld lua=%ld\n%s\n",
-                    (long)flua_ret, (long)lua_ret, script.c_str());
+            fprintf(stderr, "\n[DIFF FUZZ] return mismatch: flua=%ld lua=%ld\n%s\n", (long) flua_ret, (long) lua_ret, script.c_str());
             std::abort();
         }
     }

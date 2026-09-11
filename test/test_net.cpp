@@ -3,9 +3,7 @@
 
 using namespace fakelua;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Lua 绑定的网络层接口测试（黑盒：只通过 fakelua.h 暴露的 API）
-// ─────────────────────────────────────────────────────────────────────────────
 
 // 测试 1: server 创建/销毁
 TEST(test_net, test_server_create_destroy) {
@@ -85,8 +83,7 @@ TEST(test_net, test_multi_servers_multi_clients) {
 
     int64_t conn_a = 0, recv_a = 0, conn_b = 0, recv_b = 0;
     std::string data_a, echo_a, data_b, echo_b;
-    Call(s, JIT_TCC, "NetMultiEndpoints.test_multi_servers_multi_clients",
-         std::tie(conn_a, recv_a, data_a, echo_a, conn_b, recv_b, data_b, echo_b));
+    Call(s, JIT_TCC, "NetMultiEndpoints.test_multi_servers_multi_clients", std::tie(conn_a, recv_a, data_a, echo_a, conn_b, recv_b, data_b, echo_b));
 
     // server_a 应接收来自 client_a 的数据
     EXPECT_GE(conn_a, 1) << "server_a should accept connection";
@@ -113,8 +110,7 @@ TEST(test_net, test_one_server_multi_clients) {
 
     int64_t conn_count = 0, recv_count = 0;
     std::string echo1, echo2, echo3;
-    Call(s, JIT_TCC, "NetMultiEndpoints.test_one_server_multi_clients",
-         std::tie(conn_count, recv_count, echo1, echo2, echo3));
+    Call(s, JIT_TCC, "NetMultiEndpoints.test_one_server_multi_clients", std::tie(conn_count, recv_count, echo1, echo2, echo3));
 
     // server 应接受 3 个连接
     EXPECT_EQ(conn_count, 3) << "server should accept 3 connections";
@@ -298,4 +294,3 @@ TEST(test_net, test_send_buffer_full) {
 
     FakeluaDeleteState(s);
 }
-

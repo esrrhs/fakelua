@@ -134,9 +134,9 @@ int64_t ToInteger(const std::string_view &input) {
         // uval 范围 [0, 2^63]，对应 int64 范围 [0, INT64_MIN]，全部合法。
         result = static_cast<int64_t>(uval);
         if (uval == static_cast<uint64_t>(INT64_MAX) + 1ULL) {
-            result = INT64_MIN;  // 唯一负值情况
+            result = INT64_MIN;// 唯一负值情况
         } else if (uval != 0) {
-            result = -result;    // 其他情况取负
+            result = -result;// 其他情况取负
         }
     } else {
         result = strtoll(str.c_str(), &end_ptr, base);

@@ -15,4 +15,4 @@ namespace fakelua::log {
 //   log.set_file(path)         -- 设置本 State 的日志文件路径
 void RegisterLogLibraryApi(State *s);
 
-}  // namespace fakelua::log
+}// namespace fakelua::log

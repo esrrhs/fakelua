@@ -4,9 +4,7 @@
 
 namespace {
 
-// ---------------------------------------------------------------------------
 // Scripts
-// ---------------------------------------------------------------------------
 
 constexpr const char *kStringLenScript = R"(
 function bench_string_len(s)
@@ -130,9 +128,7 @@ function bench_string_gmatch(n)
 end
 )";
 
-// ---------------------------------------------------------------------------
 // C++ reference implementations
-// ---------------------------------------------------------------------------
 
 int64_t CppStringLen(const std::string &s) {
     return static_cast<int64_t>(s.size());
@@ -194,7 +190,7 @@ std::string CppStringChar(int64_t n) {
 int64_t CppStringFind(const std::string &s, const std::string &pat) {
     auto pos = s.find(pat);
     if (pos != std::string::npos) {
-        return static_cast<int64_t>(pos) + 1; // 1-based
+        return static_cast<int64_t>(pos) + 1;// 1-based
     }
     return 0;
 }
@@ -251,17 +247,12 @@ int64_t CppStringGmatch(const int64_t n) {
     return total;
 }
 
-// ---------------------------------------------------------------------------
 // Lua helpers (extended for string args/returns)
-// ---------------------------------------------------------------------------
 
 const char *const kStringScripts[] = {
-            kStringLenScript,     kStringSubScript,   kStringRepScript,
-            kStringReverseScript, kStringLowerScript, kStringUpperScript,
-            kStringByteScript,    kStringCharScript,  kStringFormatScript,
-            kStringFindScript,    kStringGsubScript,  kToNumberScript,
-            kToStringScript,      kStringFindPatternScript, kStringGmatchScript,
-        };
+        kStringLenScript,    kStringSubScript,  kStringRepScript,  kStringReverseScript, kStringLowerScript, kStringUpperScript,       kStringByteScript,   kStringCharScript,
+        kStringFormatScript, kStringFindScript, kStringGsubScript, kToNumberScript,      kToStringScript,    kStringFindPatternScript, kStringGmatchScript,
+};
 constexpr size_t kStringScriptCount = sizeof(kStringScripts) / sizeof(kStringScripts[0]);
 
 struct Ctx : RuntimeContext {
@@ -286,12 +277,13 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_TCC, "bench_string_find_pattern", warmup_int, 10);
         Call(flua, JIT_TCC, "bench_string_gmatch", warmup_int, 10);
     }
-    ~Ctx() { Destroy(); }
+
+    ~Ctx() {
+        Destroy();
+    }
 } g_ctx;
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.len
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringLen(benchmark::State &state) {
     const int64_t len = state.range(0);
@@ -333,9 +325,7 @@ static void BM_FakeLua_StringLen_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.sub
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringSub(benchmark::State &state) {
     const int64_t len = state.range(0);
@@ -385,9 +375,7 @@ static void BM_FakeLua_StringSub_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.rep
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringRep(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -426,9 +414,7 @@ static void BM_FakeLua_StringRep_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.reverse
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringReverse(benchmark::State &state) {
     const int64_t len = state.range(0);
@@ -470,9 +456,7 @@ static void BM_FakeLua_StringReverse_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.lower
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringLower(benchmark::State &state) {
     const int64_t len = state.range(0);
@@ -514,9 +498,7 @@ static void BM_FakeLua_StringLower_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.upper
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringUpper(benchmark::State &state) {
     const int64_t len = state.range(0);
@@ -558,9 +540,7 @@ static void BM_FakeLua_StringUpper_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.byte
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringByte(benchmark::State &state) {
     const int64_t len = state.range(0);
@@ -602,9 +582,7 @@ static void BM_FakeLua_StringByte_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.char
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringChar(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -644,9 +622,7 @@ static void BM_FakeLua_StringChar_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.format
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringFormat(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -685,15 +661,13 @@ static void BM_FakeLua_StringFormat_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.find (plain match)
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringFind(benchmark::State &state) {
     const int64_t len = state.range(0);
-    std::string s(static_cast<size_t>(len/2), 'a');
+    std::string s(static_cast<size_t>(len / 2), 'a');
     s += "needle";
-    s += std::string(static_cast<size_t>(len/2), 'a');
+    s += std::string(static_cast<size_t>(len / 2), 'a');
     for (auto _: state) {
         int64_t ret = CppStringFind(s, std::string("needle"));
         benchmark::DoNotOptimize(ret);
@@ -702,9 +676,9 @@ static void BM_CPP_StringFind(benchmark::State &state) {
 
 static void BM_Lua_StringFind(benchmark::State &state) {
     const int64_t len = state.range(0);
-    std::string s(static_cast<size_t>(len/2), 'a');
+    std::string s(static_cast<size_t>(len / 2), 'a');
     s += "needle";
-    s += std::string(static_cast<size_t>(len/2), 'a');
+    s += std::string(static_cast<size_t>(len / 2), 'a');
     for (auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_string_find", s, std::string("needle"));
         benchmark::DoNotOptimize(ret);
@@ -713,9 +687,9 @@ static void BM_Lua_StringFind(benchmark::State &state) {
 
 static void BM_FakeLua_StringFind_TCC(benchmark::State &state) {
     const int64_t len = state.range(0);
-    std::string s(static_cast<size_t>(len/2), 'a');
+    std::string s(static_cast<size_t>(len / 2), 'a');
     s += "needle";
-    s += std::string(static_cast<size_t>(len/2), 'a');
+    s += std::string(static_cast<size_t>(len / 2), 'a');
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_string_find", ret, s, std::string("needle"));
@@ -725,9 +699,9 @@ static void BM_FakeLua_StringFind_TCC(benchmark::State &state) {
 
 static void BM_FakeLua_StringFind_GCC(benchmark::State &state) {
     const int64_t len = state.range(0);
-    std::string s(static_cast<size_t>(len/2), 'a');
+    std::string s(static_cast<size_t>(len / 2), 'a');
     s += "needle";
-    s += std::string(static_cast<size_t>(len/2), 'a');
+    s += std::string(static_cast<size_t>(len / 2), 'a');
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_string_find", ret, s, std::string("needle"));
@@ -735,9 +709,7 @@ static void BM_FakeLua_StringFind_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string.gsub
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringGsub(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -779,9 +751,7 @@ static void BM_FakeLua_StringGsub_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: tonumber
-// ---------------------------------------------------------------------------
 
 // 所有实现都解析同一个字符串，保证对比公平
 static constexpr const char *kToNumberInput = "1234567890";
@@ -818,9 +788,7 @@ static void BM_FakeLua_ToNumber_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: tostring
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_ToString(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -859,9 +827,7 @@ static void BM_FakeLua_ToString_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string find with pattern
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringFindPattern(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -903,9 +869,7 @@ static void BM_FakeLua_StringFindPattern_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string gmatch iterator
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringGmatch(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -947,15 +911,13 @@ static void BM_FakeLua_StringGmatch_GCC(benchmark::State &state) {
     }
 }
 
-} // namespace
+}// namespace
 
-// ---------------------------------------------------------------------------
 // Benchmark registrations
-// ---------------------------------------------------------------------------
 
 #define STRING_LEN_ARGS ->Arg(10)->Arg(100)->Arg(1000)->Arg(10000)
-#define STRING_SUB_ARGS  ->Arg(10)->Arg(100)->Arg(1000)->Arg(10000)
-#define STRING_REP_ARGS  ->Arg(10)->Arg(100)->Arg(1000)
+#define STRING_SUB_ARGS ->Arg(10)->Arg(100)->Arg(1000)->Arg(10000)
+#define STRING_REP_ARGS ->Arg(10)->Arg(100)->Arg(1000)
 #define STRING_REVERSE_ARGS ->Arg(10)->Arg(100)->Arg(1000)->Arg(10000)
 #define STRING_LOWER_ARGS ->Arg(10)->Arg(100)->Arg(1000)->Arg(10000)
 #define STRING_UPPER_ARGS ->Arg(10)->Arg(100)->Arg(1000)->Arg(10000)

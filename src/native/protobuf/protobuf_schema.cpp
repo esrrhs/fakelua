@@ -6,18 +6,16 @@
 
 namespace fakelua::protobuf {
 
-// ─── MessageDef ───
-
+// MessageDef
 void MessageDef::BuildIndex() {
     number_to_field.clear();
-    for (auto &f : fields) {
+    for (auto &f: fields) {
         number_to_field[f.number] = &f;
     }
 }
 
-// ─── ProtobufState ───
-
-ProtobufState &pb_state(State *s) {
+// ProtobufState
+ProtobufState &GetProtobufState(State *s) {
     return s->GetModuleState<ProtobufState>();
 }
 
@@ -28,7 +26,7 @@ void ProtobufState::RegisterMessage(MessageDef def) {
 
 void ProtobufState::RegisterEnum(EnumDef def) {
     def.number_to_name.clear();
-    for (auto &[name, number] : def.values) {
+    for (auto &[name, number]: def.values) {
         def.number_to_name[number] = name;
     }
     enums_[def.name] = std::move(def);
@@ -49,7 +47,7 @@ const EnumDef *ProtobufState::FindEnum(const std::string &name) const {
 std::vector<std::string> ProtobufState::MessageNames() const {
     std::vector<std::string> names;
     names.reserve(messages_.size());
-    for (auto &[name, _] : messages_) {
+    for (auto &[name, _]: messages_) {
         names.push_back(name);
     }
     std::sort(names.begin(), names.end());
@@ -69,12 +67,12 @@ void ProtobufState::ResolveAll() {
             }
         }
     };
-    for (auto &[name, msg] : messages_) {
-        for (auto &field : msg.fields) {
+    for (auto &[name, msg]: messages_) {
+        for (auto &field: msg.fields) {
             resolve_field(field);
         }
-        for (auto &nested : msg.nested_messages) {
-            for (auto &field : nested.fields) {
+        for (auto &nested: msg.nested_messages) {
+            for (auto &field: nested.fields) {
                 resolve_field(field);
             }
         }
@@ -86,4 +84,4 @@ void ProtobufState::Clear() {
     enums_.clear();
 }
 
-}  // namespace fakelua::protobuf
+}// namespace fakelua::protobuf

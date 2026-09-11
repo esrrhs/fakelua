@@ -8,4 +8,4 @@ namespace fakelua::crypto {
 // Each returns the hex-encoded digest string.
 void RegisterCryptoLibraryApi(State *s);
 
-}  // namespace fakelua::crypto
+}// namespace fakelua::crypto

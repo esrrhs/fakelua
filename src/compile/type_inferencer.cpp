@@ -1671,15 +1671,12 @@ bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vect
 
 void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, InferResult &ir) {
     // 流不敏感的 per-variable 字段并集分析（函数级隔离）。
-    //
     // 原理：为让 if-else 两分支构造的不同 shape table（如 {x} 和 {y}）能统一到同一
     // 结构体布局，每个 constructor 必须按其目标变量的「所有赋值字段并集」来 emit。
     // 这样两分支的 constructor 产生相同的 spec-type-name（由字段签名决定），
     // CGen 侧 Phase 1 的字符串比较 join 自然判定为一致并保留，字段访问走 FL_SPEC。
-    //
     // optional 标记：某字段在当前 constructor 字面量中不存在（由兄弟分支贡献），
     // CGen emit 时需显式 nil 初始化该字段，避免 temp allocator 不清零导致的未定义读。
-    //
     // 函数级隔离：不同函数的局部变量即使同名也独立分析，避免跨函数并集导致
     // shape 膨胀（如 test_table_basic 的 {1..5} 和 test_table_string_keys 的
     // {name,age,city} 被错误合并成 15 字段结构体）。嵌套函数体进入时压栈、退出时清栈。
@@ -1692,14 +1689,14 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
     };
 
     std::vector<std::shared_ptr<FuncAnalysisArena>> frames;
-    auto push_frame = [&]() { frames.push_back(std::make_shared<FuncAnalysisArena>()); };
+    auto PushFrame = [&]() { frames.push_back(std::make_shared<FuncAnalysisArena>()); };
     // 注意：不 pop frame。所有 frame 保留到 stamping 阶段供查询，
     // 因为 ctor_target_vars / var_fields 在函数退出后仍需被 stamp 循环访问。
     // 函数级隔离由 push_frame 实现（每个 function body 进入时新开 frame）。
-    push_frame();// 顶层 frame（文件级 / __fakelua_init）
+    PushFrame();// 顶层 frame（文件级 / __fakelua_init）
 
     // 辅助：从 table constructor 节点构建 own_fields 并登记
-    auto record_ctor_node = [&](const SyntaxTreeInterfacePtr &tc) -> const SyntaxTreeInterface * {
+    auto RecordCtorNode = [&](const SyntaxTreeInterfacePtr &tc) -> const SyntaxTreeInterface * {
         if (!tc || tc->Type() != SyntaxTreeType::TableConstructor) return nullptr;
         std::vector<TableFieldInfo> own;
         if (!BuildCtorFields(tc, own) || own.empty()) return nullptr;
@@ -1713,7 +1710,7 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
         auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
         if (!e || e->GetExpKind() != ExpKind::kTableConstructor) return nullptr;
         // SyntaxTreeExp 将 table constructor 存于 Right()
-        return record_ctor_node(e->Right());
+        return RecordCtorNode(e->Right());
     };
 
     // 延迟处理：LocalVar / Assign 需要在子节点遍历完毕后才能调用
@@ -1730,18 +1727,18 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
         if (!node) return;
         switch (node->Type()) {
             case SyntaxTreeType::TableConstructor:
-                record_ctor_node(node);
+                RecordCtorNode(node);
                 break;
             case SyntaxTreeType::Exp: {
                 auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
                 if (exp->GetExpKind() == ExpKind::kTableConstructor) {
-                    record_ctor_node(exp->Right());
+                    RecordCtorNode(exp->Right());
                 }
                 break;
             }
             case SyntaxTreeType::Function:
             case SyntaxTreeType::LocalFunction:
-                push_frame();
+                PushFrame();
                 break;
             case SyntaxTreeType::LocalVar: {
                 auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
@@ -1825,20 +1822,16 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
 // ===========================================================================
 // 流敏感 table 特化前向分析
 // ===========================================================================
-//
 // 为目标：为每个 Var(kSquare)/Var(kDot)「读」引用节点标注"在该程序点上，该变量的 spec
 // 类型名（空串 = dynamic）"。CGen 在 CompileVar 中通过 var_spec_annotations[node] 读取，
 // 不再自行维护 table_spec_types_ / global_table_spec_types_。
-//
 // 状态 (FlowState)：
 //   local : 变量名 → spec 类型名。每函数清空；if-else 汇合时各分支一致才保留。
 //   global: 顶层 chunk（即 __fakelua_init 函数）的局部变量 → spec 类型名，跨函数持久。
 //           跨函数写入条件等价于 CGen "cur_spec_func_name_.empty() || ==__fakelua_init"：
 //           即任意 __fakelua_init 内赋值（顶层 chunk 编译）写入 global；其它函数仅写 local。
 //           每个函数内同样在 if-else 汇合时按 local 规则合并。
-//
 // 读取优先级 local -> global 对应 GetSpecTypeForVar 的两级 map 查找。
-//
 // 语义关键：对同一被赋值变量，CGen 为字面量构造器引用的是合并布局（ir.table_spec_infos），
 // 这与 AnalyzeTableShapes 的跨分支字段并集一致 → if 两分支即使构造字面量字段不同也产出同一
 // spec 类型名，汇合后自然保留。fcn-call / varargs 多返回值一律降为空（不设 spec）。
@@ -2147,7 +2140,7 @@ void TypeInferencer::FlowStmt(const SyntaxTreeInterfacePtr &stmt, FlowState &st,
 
 void TypeInferencer::JoinFlowStates(const std::vector<FlowState> &branch_states, FlowState &out) {
     // 分别汇合 local 与 global；任一分支缺失该 key 或不一致 → 不写入 out（即 dynamic）。
-    auto join_one = [](const std::vector<FlowState> &branches, const auto &selector, auto &out_map) {
+    auto JoinOne = [](const std::vector<FlowState> &branches, const auto &selector, auto &out_map) {
         out_map.clear();
         std::unordered_set<std::string> keys;
         for (const auto &bs: branches) {
@@ -2174,8 +2167,8 @@ void TypeInferencer::JoinFlowStates(const std::vector<FlowState> &branch_states,
             if (!conflict) out_map[k] = consistent;
         }
     };
-    join_one(branch_states, [](const FlowState &s) -> const auto & { return s.local; }, out.local);
-    join_one(branch_states, [](const FlowState &s) -> const auto & { return s.global; }, out.global);
+    JoinOne(branch_states, [](const FlowState &s) -> const auto & { return s.local; }, out.local);
+    JoinOne(branch_states, [](const FlowState &s) -> const auto & { return s.global; }, out.global);
 }
 
 void TypeInferencer::ComputeVarSpecAnnotations(const ParseResult &pr, InferResult &ir) {

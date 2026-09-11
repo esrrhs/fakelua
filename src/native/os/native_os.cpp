@@ -4,8 +4,8 @@
 #include "native/table/native_table.h"
 #include "var/var.h"
 #include <cerrno>
-#include <cmath>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -22,17 +22,17 @@
 
 namespace fakelua::os {
 
-using table::TableHelper;
 using string::GetStringArgView;
+using table::TableHelper;
 
-// ─── Helper: extract int64 from CVar arg, return default if not numeric ───
-static int64_t get_int_arg(State *state, CVar *args, int n, int index, int64_t default_val) {
+// Helper: extract int64 from CVar arg, return default if not numeric
+static int64_t GetIntArg(State *state, CVar *args, int n, int index, int64_t default_val) {
     if (index >= n) return default_val;
     CVar a = inter::GetNativeArg(state, args, n, index);
     return inter::CVarToInteger(a, default_val);
 }
 
-// ─── Helper: build a 3-value shell result (status, how, code) ───
+// Helper: build a 3-value shell result (status, how, code)
 static CVar MakeShellResult(State *state, CVar status, const char *how, int code) {
     CVar multi = inter::AllocMultiCVar(state, 3);
     inter::SetMultiCVarElement(multi, 0, status);
@@ -44,13 +44,13 @@ static CVar MakeShellResult(State *state, CVar status, const char *how, int code
 void RegisterOsLibraryApi(State *s) {
     if (!s) return;
 
-    // ─── os.clock() ───
+    // os.clock()
     RegisterNativeFunction(s, "os.clock", 0, false, [](State *state, CVar *args, int n) -> CVar {
         double elapsed = static_cast<double>(std::clock()) / static_cast<double>(CLOCKS_PER_SEC);
         return inter::NativeToFakeluaFloat(state, elapsed);
     });
 
-    // ─── os.date([format[, time]]]) ───
+    // os.date([format[, time]]])
     // Standard Lua: format = luaL_optstring(L, 1, "%c"); time = luaL_opt(L, checktime, 2, time(NULL));
     // format must be string (or number, coerced) or nil/absent; anything else (bool/table) errors.
     // time must be number (or numeric string, coerced) or nil/absent; anything else errors.
@@ -183,7 +183,7 @@ void RegisterOsLibraryApi(State *s) {
         }
     });
 
-    // ─── os.difftime(t2, t1) ───
+    // os.difftime(t2, t1)
     RegisterNativeFunction(s, "os.difftime", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
@@ -196,7 +196,7 @@ void RegisterOsLibraryApi(State *s) {
         return inter::NativeToFakeluaFloat(state, diff);
     });
 
-    // ─── os.execute([command]) ───
+    // os.execute([command])
     RegisterNativeFunction(s, "os.execute", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) {
             // No command: check if shell is available
@@ -240,7 +240,7 @@ void RegisterOsLibraryApi(State *s) {
 #endif
     });
 
-    // ─── os.exit([code[, close]]) ───
+    // os.exit([code[, close]])
     RegisterNativeFunction(s, "os.exit", 0, true, [](State *state, CVar *args, int n) -> CVar {
         int code = 0;
         if (n >= 1) {
@@ -266,7 +266,7 @@ void RegisterOsLibraryApi(State *s) {
         // unreachable
     });
 
-    // ─── os.getenv(varname) ───
+    // os.getenv(varname)
     RegisterNativeFunction(s, "os.getenv", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         // fakelua 扩展：os.getenv 接受 string 或 number（转换为 string）
@@ -290,7 +290,7 @@ void RegisterOsLibraryApi(State *s) {
         return inter::NativeToFakeluaNil(state);
     });
 
-    // ─── os.remove(filename) ───
+    // os.remove(filename)
     RegisterNativeFunction(s, "os.remove", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "os.remove");
@@ -306,7 +306,7 @@ void RegisterOsLibraryApi(State *s) {
         return inter::NativeToFakeluaNil(state);
     });
 
-    // ─── os.rename(oldname, newname) ───
+    // os.rename(oldname, newname)
     RegisterNativeFunction(s, "os.rename", 2, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
@@ -326,7 +326,7 @@ void RegisterOsLibraryApi(State *s) {
     });
 
 
-    // ─── os.setlocale(locale[, category]) ───
+    // os.setlocale(locale[, category])
     // Standard Lua: category = luaL_checkoption(L, 2, "all", catnames), locale = luaL_optstring(L, 1, NULL).
     RegisterNativeFunction(s, "os.setlocale", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
@@ -342,11 +342,16 @@ void RegisterOsLibraryApi(State *s) {
                 std::string s_cat;
                 std::string_view cat = GetStringArgView(a1, s_cat);
                 if (cat == "all") category = LC_ALL;
-                else if (cat == "collate") category = LC_COLLATE;
-                else if (cat == "ctype") category = LC_CTYPE;
-                else if (cat == "monetary") category = LC_MONETARY;
-                else if (cat == "numeric") category = LC_NUMERIC;
-                else if (cat == "time") category = LC_TIME;
+                else if (cat == "collate")
+                    category = LC_COLLATE;
+                else if (cat == "ctype")
+                    category = LC_CTYPE;
+                else if (cat == "monetary")
+                    category = LC_MONETARY;
+                else if (cat == "numeric")
+                    category = LC_NUMERIC;
+                else if (cat == "time")
+                    category = LC_TIME;
                 else {
                     std::string msg = "bad argument #2 to 'os.setlocale' (invalid option '" + std::string(cat) + "')";
                     ThrowFakeluaException(msg.c_str());
@@ -369,7 +374,7 @@ void RegisterOsLibraryApi(State *s) {
         return inter::NativeToFakeluaNil(state);
     });
 
-    // ─── os.time([table]) ───
+    // os.time([table])
     RegisterNativeFunction(s, "os.time", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) {
             // No args: return current time
@@ -391,9 +396,7 @@ void RegisterOsLibraryApi(State *s) {
             return inter::CVarToInteger(val, default_val);
         };
 
-        auto fits_tm_int = [](int64_t v) -> bool {
-            return v >= std::numeric_limits<int>::min() && v <= std::numeric_limits<int>::max();
-        };
+        auto fits_tm_int = [](int64_t v) -> bool { return v >= std::numeric_limits<int>::min() && v <= std::numeric_limits<int>::max(); };
 
         int64_t year = get_field("year", 1900);
         int64_t month = get_field("month", 1);
@@ -403,11 +406,8 @@ void RegisterOsLibraryApi(State *s) {
         int64_t sec = get_field("sec", 0);
         int64_t isdst = get_field("isdst", -1);
         // year-1900 / month-1 必须能放进 tm 的 int 字段，否则有符号减法本身是 UB
-        if (year < static_cast<int64_t>(std::numeric_limits<int>::min()) + 1900 ||
-            year > static_cast<int64_t>(std::numeric_limits<int>::max()) + 1900 ||
-            month < static_cast<int64_t>(std::numeric_limits<int>::min()) + 1 ||
-            month > std::numeric_limits<int>::max() ||
-            !fits_tm_int(day) || !fits_tm_int(hour) || !fits_tm_int(minute) ||
+        if (year < static_cast<int64_t>(std::numeric_limits<int>::min()) + 1900 || year > static_cast<int64_t>(std::numeric_limits<int>::max()) + 1900 ||
+            month < static_cast<int64_t>(std::numeric_limits<int>::min()) + 1 || month > std::numeric_limits<int>::max() || !fits_tm_int(day) || !fits_tm_int(hour) || !fits_tm_int(minute) ||
             !fits_tm_int(sec) || !fits_tm_int(isdst)) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -428,7 +428,7 @@ void RegisterOsLibraryApi(State *s) {
         return inter::NativeToFakeluaInt(state, static_cast<int64_t>(t));
     });
 
-    // ─── os.tmpname() ───
+    // os.tmpname()
     RegisterNativeFunction(s, "os.tmpname", 0, false, [](State *state, CVar *args, int n) -> CVar {
 #if defined(_WIN32)
         // Windows: use GetTempPath + GetTempFileName for a safe temp file name
@@ -451,9 +451,9 @@ void RegisterOsLibraryApi(State *s) {
 #endif
     });
 
-    // ─── os.sleep(ms) ───
+    // os.sleep(ms)
     RegisterNativeFunction(s, "os.sleep", 1, false, [](State *state, CVar *args, int n) -> CVar {
-        int64_t ms = get_int_arg(state, args, n, 0, 0);
+        int64_t ms = GetIntArg(state, args, n, 0, 0);
         if (ms > 0) {
             std::this_thread::sleep_for(std::chrono::milliseconds(ms));
         }

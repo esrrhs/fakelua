@@ -7,7 +7,6 @@ namespace fakelua::xml {
 // Register XML library:
 //   xml.decode(str) → Lua value
 //   xml.encode(value) → XML string
-//
 // Decode convention:
 //   - Element node → table
 //   - Attributes → table["_attr_attrname"] = value
@@ -16,4 +15,4 @@ namespace fakelua::xml {
 //   - Plain text node → returned as string directly
 void RegisterXmlLibraryApi(State *s);
 
-}  // namespace fakelua::xml
+}// namespace fakelua::xml

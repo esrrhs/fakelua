@@ -9,4 +9,4 @@ namespace fakelua::json {
 //   json.decode(str)   → Lua value
 void RegisterJsonLibraryApi(State *s);
 
-}  // namespace fakelua::json
+}// namespace fakelua::json

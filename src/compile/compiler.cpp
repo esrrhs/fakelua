@@ -51,9 +51,7 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
         ThrowFakeluaException(std::format("Parse failed with code {}", code));
     }
     pr.chunk = f.GetChunk();
-    LOG_DEBUG(s_, "engine", "AST generated, top-level stmts: {}",
-              pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block
-                  ? std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk)->Stmts().size() : 0);
+    LOG_DEBUG(s_, "engine", "AST generated, top-level stmts: {}", pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block ? std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk)->Stmts().size() : 0);
 
     // 调试模式下遍历语法树，可用于语法树检查
     if (cfg.debug_mode) {

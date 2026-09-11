@@ -8,4 +8,4 @@ namespace fakelua::protobuf {
 // 暴露：protobuf.load / encode / decode / types / fields
 void RegisterProtobufLibraryApi(State *s);
 
-}  // namespace fakelua::protobuf
+}// namespace fakelua::protobuf

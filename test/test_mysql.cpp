@@ -3,9 +3,7 @@
 
 using namespace fakelua;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // MySQL 模块测试
-// ─────────────────────────────────────────────────────────────────────────────
 
 // 测试 1: 连接失败时 pcall 能捕获错误（无需真实 MySQL 服务器）
 TEST(test_mysql, connect_failure_catchable) {
@@ -42,9 +40,7 @@ TEST(test_mysql, close_in_connect_callback) {
     FakeluaDeleteState(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 集成测试：需要本地 MySQL 服务（root@127.0.0.1:3306, 密码 root, 数据库 test）
-// ─────────────────────────────────────────────────────────────────────────────
 
 TEST(test_mysql, integration_callback_api) {
     State *s = FakeluaNewState();

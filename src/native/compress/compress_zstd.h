@@ -10,9 +10,9 @@
 namespace fakelua::compress {
 
 // Zstd compress. level: 1-22, default 3.
-std::vector<uint8_t> zstd_compress(const uint8_t *data, size_t len, int level = 3);
+std::vector<uint8_t> ZstdCompress(const uint8_t *data, size_t len, int level = 3);
 
 // Zstd decompress. Auto-detects original size from frame header.
-std::vector<uint8_t> zstd_decompress(const uint8_t *data, size_t len);
+std::vector<uint8_t> ZstdDecompress(const uint8_t *data, size_t len);
 
-}  // namespace fakelua::compress
+}// namespace fakelua::compress

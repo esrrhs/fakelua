@@ -11,35 +11,35 @@
 
 namespace fakelua::csv {
 
-// ── CSV Parser ──
-
+// CSV Parser
 struct CsvParser {
     const uint8_t *data;
     size_t len;
     size_t pos = 0;
     char separator;
 
-    CsvParser(const uint8_t *d, size_t l, char sep = ',') : data(d), len(l), separator(sep) {}
+    CsvParser(const uint8_t *d, size_t l, char sep = ',') : data(d), len(l), separator(sep) {
+    }
 
     // Parse entire CSV into a table of rows.
     // Each row is a table of fields (1-indexed).
     void parse(std::vector<std::vector<std::string>> &rows) {
         while (pos <= len) {
             // Skip BOM at start
-            if (rows.empty() && pos + 2 < len && data[pos] == 0xEF && data[pos+1] == 0xBB && data[pos+2] == 0xBF) {
+            if (rows.empty() && pos + 2 < len && data[pos] == 0xEF && data[pos + 1] == 0xBB && data[pos + 2] == 0xBF) {
                 pos += 3;
             }
             // Skip empty lines (just \n or \r\n)
-            if (skip_empty_lines()) continue;
+            if (SkipEmptyLines()) continue;
             if (pos >= len) break;
-            parse_row(rows);
+            ParseRow(rows);
         }
     }
 
 private:
     // Skip lines that are empty except for optional CR/LF. Leading spaces on
     // a real row are field content (RFC 4180) and must not be stripped.
-    bool skip_empty_lines() {
+    bool SkipEmptyLines() {
         size_t start = pos;
         while (pos < len) {
             uint8_t c = data[pos];
@@ -65,11 +65,11 @@ private:
         return false;
     }
 
-    void parse_row(std::vector<std::vector<std::string>> &rows) {
+    void ParseRow(std::vector<std::vector<std::string>> &rows) {
         std::vector<std::string> row;
         while (true) {
             std::string field;
-            parse_field(field);
+            ParseField(field);
             row.push_back(std::move(field));
             // After field: expect separator, newline, or end
             if (pos >= len) break;
@@ -93,17 +93,17 @@ private:
         rows.push_back(std::move(row));
     }
 
-    void parse_field(std::string &field) {
+    void ParseField(std::string &field) {
         if (pos >= len) return;
         if (data[pos] == '"') {
-            parse_quoted_field(field);
+            ParseQuotedField(field);
         } else {
-            parse_unquoted_field(field);
+            ParseUnquotedField(field);
         }
     }
 
-    void parse_quoted_field(std::string &field) {
-        ++pos; // skip opening quote
+    void ParseQuotedField(std::string &field) {
+        ++pos;// skip opening quote
         while (pos < len) {
             uint8_t c = data[pos++];
             if (c == '"') {
@@ -131,7 +131,7 @@ private:
         ThrowFakeluaException("CSV parse error: unterminated quoted field");
     }
 
-    void parse_unquoted_field(std::string &field) {
+    void ParseUnquotedField(std::string &field) {
         while (pos < len) {
             uint8_t c = data[pos];
             if (c == separator || c == '\n' || c == '\r') break;
@@ -141,9 +141,8 @@ private:
     }
 };
 
-// ── Convert string field to Lua value (number if possible, else string) ──
-
-static CVar field_to_lua(State *s, const std::string &str) {
+// Convert string field to Lua value (number if possible, else string)
+static CVar FieldToLua(State *s, const std::string &str) {
     if (str.empty()) return inter::NativeToFakeluaString(s, str);
 
     // Keep leading zeros as strings ("001"); reject inf/nan.
@@ -163,12 +162,11 @@ static CVar field_to_lua(State *s, const std::string &str) {
     return inter::NativeToFakeluaString(s, str);
 }
 
-// ── CSV Encoder ──
-
-static void encode_field(std::string &out, const std::string &str, char separator) {
+// CSV Encoder
+static void EncodeField(std::string &out, const std::string &str, char separator) {
     // Check if we need quoting
     bool need_quote = false;
-    for (char c : str) {
+    for (char c: str) {
         if (c == '"' || c == separator || c == '\n' || c == '\r') {
             need_quote = true;
             break;
@@ -179,46 +177,45 @@ static void encode_field(std::string &out, const std::string &str, char separato
         return;
     }
     out += '"';
-    for (char c : str) {
+    for (char c: str) {
         if (c == '"') out += "\"\"";
-        else out += c;
+        else
+            out += c;
     }
     out += '"';
 }
 
-static std::string encode_row(const std::vector<std::string> &row, char separator) {
+static std::string EncodeRow(const std::vector<std::string> &row, char separator) {
     std::string out;
     for (size_t i = 0; i < row.size(); i++) {
         if (i > 0) out += separator;
-        encode_field(out, row[i], separator);
+        EncodeField(out, row[i], separator);
     }
     return out;
 }
 
-// ── Helper: convert any CVar to string for encoding ──
-
-static std::string cvar_to_string(CVar v) {
+// Helper: convert any CVar to string for encoding
+static std::string CVarToString(CVar v) {
     switch (v.type_) {
-    case static_cast<int>(VarType::Int):
-        return std::to_string(v.data_.i);
-    case static_cast<int>(VarType::Float): {
-        char buf[64];
-        snprintf(buf, sizeof(buf), "%.15g", v.data_.f);
-        return buf;
-    }
-    case static_cast<int>(VarType::Bool):
-        return AsVar(v).GetBool() ? "true" : "false";
-    case static_cast<int>(VarType::Nil):
-        return "";
-    default:
-        return inter::FakeluaToNativeString(nullptr, v);
+        case static_cast<int>(VarType::Int):
+            return std::to_string(v.data_.i);
+        case static_cast<int>(VarType::Float): {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%.15g", v.data_.f);
+            return buf;
+        }
+        case static_cast<int>(VarType::Bool):
+            return AsVar(v).GetBool() ? "true" : "false";
+        case static_cast<int>(VarType::Nil):
+            return "";
+        default:
+            return inter::FakeluaToNativeString(nullptr, v);
     }
 }
 
-// ── Lua Bindings ──
-
+// Lua Bindings
 // csv.decode(str, sep?) → table of rows
-static CVar csv_decode(State *s, CVar *args, int n) {
+static CVar CsvDecode(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "csv.decode", "csv string expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     std::string str = inter::FakeluaToNativeString(s, a0);
@@ -230,7 +227,7 @@ static CVar csv_decode(State *s, CVar *args, int n) {
         if (!sep_str.empty()) separator = sep_str[0];
     }
 
-    CsvParser parser(reinterpret_cast<const uint8_t*>(str.data()), str.size(), separator);
+    CsvParser parser(reinterpret_cast<const uint8_t *>(str.data()), str.size(), separator);
     std::vector<std::vector<std::string>> rows;
     parser.parse(rows);
 
@@ -239,7 +236,7 @@ static CVar csv_decode(State *s, CVar *args, int n) {
     for (size_t i = 0; i < rows.size(); i++) {
         CVar row_tbl = table::TableHelper::CreateTable(s);
         for (size_t j = 0; j < rows[i].size(); j++) {
-            CVar val = field_to_lua(s, rows[i][j]);
+            CVar val = FieldToLua(s, rows[i][j]);
             table::TableHelper::SetTableInt(s, row_tbl, static_cast<int64_t>(j + 1), val);
         }
         table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(i + 1), row_tbl);
@@ -248,7 +245,7 @@ static CVar csv_decode(State *s, CVar *args, int n) {
 }
 
 // csv.encode(rows, sep?) → CSV string
-static CVar csv_encode(State *s, CVar *args, int n) {
+static CVar CsvEncode(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "csv.encode", "table expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
 
@@ -264,7 +261,11 @@ static CVar csv_encode(State *s, CVar *args, int n) {
     if (a0.type_ == static_cast<int>(VarType::Table)) {
         auto *t = a0.data_.t;
         if (t) {
-            struct RowEntry { int64_t key; CVar val; };
+            struct RowEntry {
+                int64_t key;
+                CVar val;
+            };
+
             std::vector<RowEntry> row_entries;
             table::TableHelper::ForEachKV(a0, [&](CVar k, CVar val) {
                 if (k.type_ == static_cast<int>(VarType::Int)) {
@@ -272,29 +273,32 @@ static CVar csv_encode(State *s, CVar *args, int n) {
                 }
             });
 
-            std::sort(row_entries.begin(), row_entries.end(),
-                      [](const RowEntry &a, const RowEntry &b) { return a.key < b.key; });
+            std::sort(row_entries.begin(), row_entries.end(), [](const RowEntry &a, const RowEntry &b) { return a.key < b.key; });
 
             for (size_t i = 0; i < row_entries.size(); i++) {
                 if (i > 0) out += '\n';
                 const CVar &row_val = row_entries[i].val;
                 if (row_val.type_ == static_cast<int>(VarType::Table)) {
                     std::vector<std::string> fields;
-                    struct FieldEntry { int64_t key; CVar val; };
+
+                    struct FieldEntry {
+                        int64_t key;
+                        CVar val;
+                    };
+
                     std::vector<FieldEntry> field_entries;
                     table::TableHelper::ForEachKV(row_val, [&](CVar k, CVar val) {
                         if (k.type_ == static_cast<int>(VarType::Int)) {
                             field_entries.push_back({k.data_.i, val});
                         }
                     });
-                    std::sort(field_entries.begin(), field_entries.end(),
-                              [](const FieldEntry &a, const FieldEntry &b) { return a.key < b.key; });
-                    for (auto &fe : field_entries) {
-                        fields.push_back(cvar_to_string(fe.val));
+                    std::sort(field_entries.begin(), field_entries.end(), [](const FieldEntry &a, const FieldEntry &b) { return a.key < b.key; });
+                    for (auto &fe: field_entries) {
+                        fields.push_back(CVarToString(fe.val));
                     }
-                    out += encode_row(fields, separator);
+                    out += EncodeRow(fields, separator);
                 } else {
-                    out += cvar_to_string(row_val);
+                    out += CVarToString(row_val);
                 }
             }
         }
@@ -305,8 +309,8 @@ static CVar csv_encode(State *s, CVar *args, int n) {
 
 void RegisterCsvLibraryApi(State *s) {
     if (!s) return;
-    RegisterNativeFunction(s, "csv.decode", 1, true, csv_decode);
-    RegisterNativeFunction(s, "csv.encode", 1, true, csv_encode);
+    RegisterNativeFunction(s, "csv.decode", 1, true, CsvDecode);
+    RegisterNativeFunction(s, "csv.encode", 1, true, CsvEncode);
 }
 
-}  // namespace fakelua::csv
+}// namespace fakelua::csv

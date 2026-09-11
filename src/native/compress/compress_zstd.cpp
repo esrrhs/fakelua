@@ -7,7 +7,7 @@ namespace fakelua::compress {
 
 static constexpr unsigned long long kMaxDecompressBytes = 64ull * 1024 * 1024;
 
-std::vector<uint8_t> zstd_compress(const uint8_t *data, size_t len, int level) {
+std::vector<uint8_t> ZstdCompress(const uint8_t *data, size_t len, int level) {
     if (level < 1) level = 1;
     if (level > 22) level = 22;
 
@@ -21,7 +21,7 @@ std::vector<uint8_t> zstd_compress(const uint8_t *data, size_t len, int level) {
     return out;
 }
 
-std::vector<uint8_t> zstd_decompress(const uint8_t *data, size_t len) {
+std::vector<uint8_t> ZstdDecompress(const uint8_t *data, size_t len) {
     if (len == 0) return {};
 
     unsigned long long content_size = ZSTD_getFrameContentSize(data, len);
@@ -54,4 +54,4 @@ std::vector<uint8_t> zstd_decompress(const uint8_t *data, size_t len) {
     return out;
 }
 
-}  // namespace fakelua::compress
+}// namespace fakelua::compress

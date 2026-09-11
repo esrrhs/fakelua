@@ -3,9 +3,7 @@
 
 using namespace fakelua;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // compress 模块测试 — LZ4
-// ─────────────────────────────────────────────────────────────────────────────
 
 TEST(test_compress, lz4_compress_decompress) {
     State *s = FakeluaNewState();
@@ -51,9 +49,7 @@ TEST(test_compress, lz4_large_data) {
     FakeluaDeleteState(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // compress 模块测试 — zlib
-// ─────────────────────────────────────────────────────────────────────────────
 
 TEST(test_compress, zlib_compress_decompress) {
     State *s = FakeluaNewState();
@@ -88,9 +84,7 @@ TEST(test_compress, zlib_binary) {
     FakeluaDeleteState(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // compress 模块测试 — gzip
-// ─────────────────────────────────────────────────────────────────────────────
 
 TEST(test_compress, gzip_compress_decompress) {
     State *s = FakeluaNewState();
@@ -135,9 +129,7 @@ TEST(test_compress, gzip_trailing_garbage) {
     FakeluaDeleteState(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // compress 模块测试 — Zstd
-// ─────────────────────────────────────────────────────────────────────────────
 
 TEST(test_compress, zstd_compress_decompress) {
     State *s = FakeluaNewState();

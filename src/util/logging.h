@@ -37,49 +37,47 @@ bool CheckLogLevel(State *s, LogLevel level);
 
 // 核心日志函数。有 StateConfig::log_file / log.set_file 就写那个文件，否则只打控制台。
 // s 为 nullptr 表示没有关联的 State（例如抛异常时），只打控制台。
-void Log(State *s, LogLevel level, const std::string_view &tag, const std::string_view &message,
-         const std::source_location &source = std::source_location::current());
+void Log(State *s, LogLevel level, const std::string_view &tag, const std::string_view &message, const std::source_location &source = std::source_location::current());
 
 // Lua 侧日志函数（需手动传入源文件位置信息）
-void LogLua(State *s, LogLevel level, const std::string_view &tag, const std::string_view &message,
-            const std::string_view &source_file, int source_line, const std::string_view &function_name);
+void LogLua(State *s, LogLevel level, const std::string_view &tag, const std::string_view &message, const std::string_view &source_file, int source_line, const std::string_view &function_name);
 
 // 便捷宏 — 第一个参数是 State*
-#define LOG_TRACE(s, tag, fmt, ...)                                                                                                                                                                        \
-    do {                                                                                                                                                                                                   \
-        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Trace)) {                                                                                                                                       \
-            fakelua::Log((s), fakelua::LogLevel::Trace, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                               \
-        }                                                                                                                                                                                                  \
+#define LOG_TRACE(s, tag, fmt, ...)                                                                                                                                                                    \
+    do {                                                                                                                                                                                               \
+        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Trace)) {                                                                                                                                   \
+            fakelua::Log((s), fakelua::LogLevel::Trace, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                        \
+        }                                                                                                                                                                                              \
     } while (0)
-#define LOG_DEBUG(s, tag, fmt, ...)                                                                                                                                                                        \
-    do {                                                                                                                                                                                                   \
-        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Debug)) {                                                                                                                                       \
-            fakelua::Log((s), fakelua::LogLevel::Debug, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                               \
-        }                                                                                                                                                                                                  \
+#define LOG_DEBUG(s, tag, fmt, ...)                                                                                                                                                                    \
+    do {                                                                                                                                                                                               \
+        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Debug)) {                                                                                                                                   \
+            fakelua::Log((s), fakelua::LogLevel::Debug, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                        \
+        }                                                                                                                                                                                              \
     } while (0)
-#define LOG_INFO(s, tag, fmt, ...)                                                                                                                                                                         \
-    do {                                                                                                                                                                                                   \
-        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Info)) {                                                                                                                                        \
-            fakelua::Log((s), fakelua::LogLevel::Info, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                                \
-        }                                                                                                                                                                                                  \
+#define LOG_INFO(s, tag, fmt, ...)                                                                                                                                                                     \
+    do {                                                                                                                                                                                               \
+        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Info)) {                                                                                                                                    \
+            fakelua::Log((s), fakelua::LogLevel::Info, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                         \
+        }                                                                                                                                                                                              \
     } while (0)
-#define LOG_WARN(s, tag, fmt, ...)                                                                                                                                                                         \
-    do {                                                                                                                                                                                                   \
-        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Warn)) {                                                                                                                                        \
-            fakelua::Log((s), fakelua::LogLevel::Warn, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                                \
-        }                                                                                                                                                                                                  \
+#define LOG_WARN(s, tag, fmt, ...)                                                                                                                                                                     \
+    do {                                                                                                                                                                                               \
+        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Warn)) {                                                                                                                                    \
+            fakelua::Log((s), fakelua::LogLevel::Warn, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                         \
+        }                                                                                                                                                                                              \
     } while (0)
-#define LOG_ERROR(s, tag, fmt, ...)                                                                                                                                                                        \
-    do {                                                                                                                                                                                                   \
-        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Error)) {                                                                                                                                       \
-            fakelua::Log((s), fakelua::LogLevel::Error, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                               \
-        }                                                                                                                                                                                                  \
+#define LOG_ERROR(s, tag, fmt, ...)                                                                                                                                                                    \
+    do {                                                                                                                                                                                               \
+        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Error)) {                                                                                                                                   \
+            fakelua::Log((s), fakelua::LogLevel::Error, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                        \
+        }                                                                                                                                                                                              \
     } while (0)
-#define LOG_CRITICAL(s, tag, fmt, ...)                                                                                                                                                                    \
-    do {                                                                                                                                                                                                   \
-        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Critical)) {                                                                                                                                    \
-            fakelua::Log((s), fakelua::LogLevel::Critical, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                            \
-        }                                                                                                                                                                                                  \
+#define LOG_CRITICAL(s, tag, fmt, ...)                                                                                                                                                                 \
+    do {                                                                                                                                                                                               \
+        if (fakelua::CheckLogLevel((s), fakelua::LogLevel::Critical)) {                                                                                                                                \
+            fakelua::Log((s), fakelua::LogLevel::Critical, tag, std::format(fmt, ##__VA_ARGS__), std::source_location::current());                                                                     \
+        }                                                                                                                                                                                              \
     } while (0)
 
 }// namespace fakelua

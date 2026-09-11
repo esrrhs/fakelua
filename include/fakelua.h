@@ -77,7 +77,7 @@ struct SimpleVarImpl final : public VarInterface {
 
     void ClearTable() {
         if (type_ == Type::TABLE) {
-            for (auto &[k, v] : table_) {
+            for (auto &[k, v]: table_) {
                 delete k;
                 delete v;
             }
@@ -118,7 +118,7 @@ struct SimpleVarImpl final : public VarInterface {
         ClearTable();
         type_ = Type::TABLE;
         table_.reserve(kv.size());
-        for (const auto &[k, v] : kv) {
+        for (const auto &[k, v]: kv) {
             table_.emplace_back(CloneFrom(k), CloneFrom(v));
         }
     }
@@ -161,7 +161,6 @@ private:
     }
 
 public:
-
     [[nodiscard]] bool ViGetBool() const override {
         return bool_;
     }
@@ -604,7 +603,7 @@ void UnpackMultiToTuple(State *s, const CVar &ret_var, Tuple &tuple, std::index_
 // 支持：
 //   1. 普通调用：Call(s, type, "fn", ret, arg1, arg2)
 //   2. 自动 vararg：Call(s, type, "sum", ret, 1, 2, 3)  -- 多余参数自动打包成 Multi
-//   3. 多返回值：Call(s, type, "fn", std::tie(a, b, c))  -- 自动解包 Multi 到 tuple
+// 3. 多返回值：Call(s, type, "fn", std::tie(a, b, c))  -- 自动解包 Multi 到 tuple
 // ---------------------------------------------------------------------------
 
 template<typename Ret, typename... Args>
@@ -660,7 +659,6 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NativeObject — 完全由 C++ 管理的持久对象，跨帧存活
 //
 // 设计原则：
@@ -670,16 +668,17 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
 //   - lua 通过 player.hp / player.hp = 123 读写字段，底层走 spec_get/spec_set
 //   - 嵌套对象：SetObject("inventory", inv_obj)，lua 侧 player.inventory.item 透明访问
 //   - 两种归属：组对象（group_id != 0，批量释放）和全局对象（group_id == 0，按 string key 索引，单独释放）
-// ─────────────────────────────────────────────────────────────────────────────
 struct NativeField;
 using NativeMethod = std::function<CVar(NativeObject *self, State *s, CVar *args, int n)>;
 
 namespace math {
 void RegisterMathLibraryApi(State *s);
 }
+
 namespace table {
 void RegisterTableLibraryApi(State *s);
 }
+
 namespace io {
 void RegisterIoLibraryApi(State *s);
 }
@@ -690,7 +689,7 @@ public:
     NativeObject(const NativeObject &) = delete;
     NativeObject &operator=(const NativeObject &) = delete;
 
-    // ── 元信息读取 ───────────────────────────────────────────────────────────
+    // 元信息读取
     [[nodiscard]] const std::string &GetTypeName() const;
     [[nodiscard]] bool Alive() const;
     [[nodiscard]] int64_t GetId() const;
@@ -700,12 +699,12 @@ public:
     [[nodiscard]] size_t Size() const;// 字段数量
     [[nodiscard]] bool Has(std::string_view key) const;
 
-    // ── 成员方法注册 ─────────────────────────────────────────────────────────
+    // 成员方法注册
     void RegisterMethod(std::string_view name, NativeMethod method);
     [[nodiscard]] bool HasMethod(std::string_view name) const;
     void UnregisterMethod(std::string_view name);
 
-    // ── 字段写入 ─────────────────────────────────────────────────────────────
+    // 字段写入
     void SetNil(std::string_view key);
     void SetInt(std::string_view key, int64_t val);
     void SetFloat(std::string_view key, double val);
@@ -713,18 +712,18 @@ public:
     void SetString(std::string_view key, std::string_view val);
     void SetObject(std::string_view key, NativeObject *obj);// 嵌套对象（不拥有）
 
-    // ── 字段读取 ─────────────────────────────────────────────────────────────
+    // 字段读取
     [[nodiscard]] int64_t GetInt(std::string_view key, int64_t default_val = 0) const;
     [[nodiscard]] double GetFloat(std::string_view key, double default_val = 0.0) const;
     [[nodiscard]] bool GetBool(std::string_view key, bool default_val = false) const;
     [[nodiscard]] std::string GetString(std::string_view key, std::string_view default_val = "") const;
     [[nodiscard]] NativeObject *GetObject(std::string_view key) const;
 
-    // ── 批量操作 ─────────────────────────────────────────────────────────────
+    // 批量操作
     void Del(std::string_view key);
     void Clear();
 
-    // ── 销毁回调 ─────────────────────────────────────────────────────────────
+    // 销毁回调
     // 设置 NativeObject 被 Destroy 时（含管理器 Clear / DestroyGroup）的回调，
     // 用于释放该对象拥有的 C++ 资源（如 socket）。回调内不应再操作 Lua 状态。
     void SetFinalizer(const std::function<void(NativeObject *self)> &fn);
@@ -768,9 +767,7 @@ private:
     friend CVar inter::NativeToFakeluaNativeObject(State *s, const NativeObject *obj);
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // RegisterNativeFunction — 注册 C++ 函数供 lua 脚本调用
-// ─────────────────────────────────────────────────────────────────────────────
 using NativeFuncCallback = std::function<CVar(State *, CVar *, int)>;
 using NativeVarFuncCallback = std::function<VarInterface *(State *, const std::vector<VarInterface *> &)>;
 
@@ -779,6 +776,7 @@ void RegisterNativeFunction(State *s, const std::string &name, int arg_count, bo
 namespace math {
 void RegisterMathLibraryApi(State *s);
 }
+
 namespace table {
 void RegisterTableLibraryApi(State *s);
 }
@@ -803,14 +801,12 @@ void RegisterNativeFunction(State *s, const std::string &name, bool is_vararg, s
     });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NativeObjectManager — 原生对象批处理注册管理器 (type_name, id) -> NativeObject*
 // 所有 NativeObject 必须归属于某一个 Group Arena，释放只能通过 DestroyGroup 统一批处理进行
 //
 // 每个 State 一份，用 State::GetNativeObjectManager() 取。对象、分组、全局对象、id 发号
 // 都不跨 State 共享：State 是单线程实体，跨线程的用法是每线程一份 State，共享一个管理器
 // 就等于让多个线程并发改同一批容器。
-// ─────────────────────────────────────────────────────────────────────────────
 class NativeObjectManager {
 public:
     ~NativeObjectManager() {
@@ -857,13 +853,12 @@ private:
     std::unordered_map<std::pair<std::string, int64_t>, NativeObject *, PairHash> objects_;
     std::unordered_map<int64_t, std::vector<NativeObject *>> group_objects_;
     std::unordered_map<std::string, NativeObject *> global_objects_;// key -> obj（全局对象）
-    std::vector<NativeObject *> zombies_;// Destroy 后仍可能被 Lua wrap 引用，等 Clear 再释放
+    std::vector<NativeObject *> zombies_;                           // Destroy 后仍可能被 Lua wrap 引用，等 Clear 再释放
     int64_t next_auto_group_id_ = 0;
     int64_t next_auto_obj_id_ = 0;
     State *owner_;// 所属 State，Clear 时要通知模块清掉指向这些对象的缓存
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // RegisterNativeObjectApi — 自动向 State 注册内置原生对象 API：
 //   - new_native_group() -> group_id (申请/分配一个新的唯一 Group 批处理空间 ID)
 //   - new_native_obj(group_id, type, id) -> NativeObject (在指定 group 中申请对象)
@@ -872,7 +867,6 @@ private:
 //   - new_global_obj(key, type) -> NativeObject (通过 string key 创建全局对象，无需 group_id)
 //   - get_global_obj(key) -> NativeObject (Wrap 壳) 或 nil (按 string key 查找全局对象)
 //   - del_global_obj(key) -> bool (按 string key 销毁单个全局对象)
-// ─────────────────────────────────────────────────────────────────────────────
 void RegisterNativeObjectApi(State *s);
 
 // 取某个 State 的原生对象管理器。State 对外是不透明类型，所以用自由函数暴露。

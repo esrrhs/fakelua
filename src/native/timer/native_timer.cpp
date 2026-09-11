@@ -1,7 +1,7 @@
 #include "native/timer/native_timer.h"
-#include "native/timer/heap_timer.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
+#include "native/timer/heap_timer.h"
 #include "util/logging.h"
 #include "var/var.h"
 #include "var/var_string.h"
@@ -15,9 +15,7 @@
 
 namespace fakelua::timer {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 每个 State 一份定时器状态（避免跨 VM 串数据）
-// ─────────────────────────────────────────────────────────────────────────────
 
 struct TimerState {
     HeapTimer heap;
@@ -25,25 +23,23 @@ struct TimerState {
     std::unordered_map<HeapTimer::TimerId, std::string> callbacks;
 
     // 心跳（周期性，永不自动删除）
-    std::string heartbeat_cb;                  // 心跳回调函数名
-    HeapTimer::TimePoint heartbeat_next{};     // 下次触发时间
-    uint32_t heartbeat_interval_ms = 0;        // 心跳间隔
-    bool heartbeat_active = false;             // 是否已注册心跳
+    std::string heartbeat_cb;             // 心跳回调函数名
+    HeapTimer::TimePoint heartbeat_next{};// 下次触发时间
+    uint32_t heartbeat_interval_ms = 0;   // 心跳间隔
+    bool heartbeat_active = false;        // 是否已注册心跳
     bool in_tick = false;
     std::unordered_set<HeapTimer::TimerId> cancelled_this_tick;
 };
 
 // 每个 State 一份，随 State 销毁。放在 State 上而不是这里的 static map：后者是全进程
 // 一份，多个线程各跑自己的 State 时会并发改同一个容器。
-static TimerState &timer_state(State *s) {
+static TimerState &GetTimerState(State *s) {
     return s->GetModuleState<TimerState>();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 辅助：从 CVar 提取字符串
-// ─────────────────────────────────────────────────────────────────────────────
 
-static std::string cvar_to_string(CVar v) {
+static std::string CVarToString(CVar v) {
     if (v.type_ == static_cast<int>(VarType::String) && v.data_.s) {
         return std::string(v.data_.s->Str());
     }
@@ -55,21 +51,19 @@ static std::string cvar_to_string(CVar v) {
     return {};
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NativeObject 辅助方法注册（供测试在回调中读写状态）
-// ─────────────────────────────────────────────────────────────────────────────
 
-static CVar obj_get_int(NativeObject *self, State *s, CVar *args, int n) {
+static CVar ObjGetInt(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "get_int", "key expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
-    std::string key = cvar_to_string(a0);
+    std::string key = CVarToString(a0);
     return inter::NativeToFakeluaInt(s, self->GetInt(key, 0));
 }
 
-static CVar obj_set_int(NativeObject *self, State *s, CVar *args, int n) {
+static CVar ObjSetInt(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 2) ThrowBadArgument(1, "set_int", "key and value expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
-    std::string key = cvar_to_string(a0);
+    std::string key = CVarToString(a0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     int64_t val = inter::CVarToInteger(a1, 0);
     self->SetInt(key, val);
@@ -77,10 +71,10 @@ static CVar obj_set_int(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 // add_int(key, delta) — 将字段值增加 delta，字段不存在时从 0 开始
-static CVar obj_add_int(NativeObject *self, State *s, CVar *args, int n) {
+static CVar ObjAddInt(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 2) ThrowBadArgument(1, "add_int", "key and delta expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
-    std::string key = cvar_to_string(a0);
+    std::string key = CVarToString(a0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     int64_t delta = inter::CVarToInteger(a1, 0);
     self->SetInt(key, self->GetInt(key, 0) + delta);
@@ -88,25 +82,23 @@ static CVar obj_add_int(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 // timer.register_obj_methods(obj) — 为已有 NativeObject 注册 get_int/set_int/add_int
-static CVar timer_register_obj_methods(State *s, CVar *args, int n) {
+static CVar TimerRegisterObjMethods(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "timer.register_obj_methods", "NativeObject expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     NativeObject *obj = NativeObject::Unwrap(a0);
     if (!obj) {
         ThrowFakeluaException("timer.register_obj_methods: argument is not a NativeObject");
     }
-    obj->RegisterMethod("get_int", obj_get_int);
-    obj->RegisterMethod("set_int", obj_set_int);
-    obj->RegisterMethod("add_int", obj_add_int);
+    obj->RegisterMethod("get_int", ObjGetInt);
+    obj->RegisterMethod("set_int", ObjSetInt);
+    obj->RegisterMethod("add_int", ObjAddInt);
     return inter::NativeToFakeluaNil(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // C++ → Lua 回调派发（核心：按函数名查找，不存闭包）
 // 与 net 模块 call_lua_event 同款机制，type = "timer"
-// ─────────────────────────────────────────────────────────────────────────────
 
-static CVar call_lua_timer_event(State *state, const std::string &func_name, HeapTimer::TimerId id) {
+static CVar CallLuaTimerEvent(State *state, const std::string &func_name, HeapTimer::TimerId id) {
     if (func_name.empty()) return CVar{static_cast<int>(VarType::Nil)};
 
     // 优先查找 JIT 编译的 Lua 函数
@@ -140,12 +132,10 @@ static CVar call_lua_timer_event(State *state, const std::string &func_name, Hea
     return CVar{static_cast<int>(VarType::Nil)};
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 原生函数实现
-// ─────────────────────────────────────────────────────────────────────────────
 
 // timer.set(delay_ms, func_name) — 设置一次性定时器，返回 timer id（失败返回 nil）
-static CVar timer_set(State *s, CVar *args, int n) {
+static CVar TimerSet(State *s, CVar *args, int n) {
     if (n < 2) ThrowBadArgument(1, "timer.set", "delay_ms and func_name expected");
 
     // 第 1 参数：delay_ms（整数）
@@ -173,7 +163,7 @@ static CVar timer_set(State *s, CVar *args, int n) {
         ThrowBadArgument(2, "timer.set", "func_name must be a string");
     }
 
-    auto &ts = timer_state(s);
+    auto &ts = GetTimerState(s);
     auto id = ts.heap.Add(static_cast<uint32_t>(delay_val));
     if (id == 0) {
         // 堆已满（达到 int32_max），返回 nil
@@ -186,7 +176,7 @@ static CVar timer_set(State *s, CVar *args, int n) {
 }
 
 // timer.del(id) — 删除一次性定时器，返回是否成功
-static CVar timer_del(State *s, CVar *args, int n) {
+static CVar TimerDel(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "timer.del", "timer id expected");
 
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
@@ -196,7 +186,7 @@ static CVar timer_del(State *s, CVar *args, int n) {
     }
 
     auto id = static_cast<HeapTimer::TimerId>(id_val);
-    auto &ts = timer_state(s);
+    auto &ts = GetTimerState(s);
     bool ok = ts.heap.Del(id);
     if (ts.callbacks.erase(id) > 0) ok = true;
     if (ts.in_tick) ts.cancelled_this_tick.insert(id);
@@ -222,17 +212,17 @@ void TickAll(State *s) {
         auto expired = ts.heap.Update();
         std::vector<std::pair<HeapTimer::TimerId, std::string>> to_fire;
         to_fire.reserve(expired.size());
-        for (auto id : expired) {
+        for (auto id: expired) {
             auto it = ts.callbacks.find(id);
             if (it != ts.callbacks.end()) {
                 to_fire.emplace_back(id, std::move(it->second));
                 ts.callbacks.erase(it);
             }
         }
-        for (auto &[id, cb] : to_fire) {
+        for (auto &[id, cb]: to_fire) {
             if (ts.cancelled_this_tick.count(id)) continue;
             LOG_DEBUG(s, "timer", "timer.fire: id={}", id);
-            call_lua_timer_event(s, cb, id);
+            CallLuaTimerEvent(s, cb, id);
         }
 
         // 2) 心跳：先推进下一跳再回调，避免回调里嵌套 runtime.tick() 栈溢出
@@ -242,7 +232,7 @@ void TickAll(State *s) {
             if (ts.heartbeat_next < now) {
                 ts.heartbeat_next = now + std::chrono::milliseconds(ts.heartbeat_interval_ms);
             }
-            call_lua_timer_event(s, cb, 0);
+            CallLuaTimerEvent(s, cb, 0);
         }
     } catch (...) {
         ts.in_tick = false;
@@ -256,7 +246,7 @@ void TickAll(State *s) {
 
 // timer.set_heartbeat(interval_ms, func_name) — 注册周期性心跳，永不自动删除
 // 重复调用会覆盖之前的心跳（只保留一个全局心跳）
-static CVar timer_set_heartbeat(State *s, CVar *args, int n) {
+static CVar TimerSetHeartbeat(State *s, CVar *args, int n) {
     if (n < 2) ThrowBadArgument(1, "timer.set_heartbeat", "interval_ms and func_name expected");
 
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
@@ -282,7 +272,7 @@ static CVar timer_set_heartbeat(State *s, CVar *args, int n) {
         ThrowBadArgument(2, "timer.set_heartbeat", "func_name must be a string");
     }
 
-    auto &ts = timer_state(s);
+    auto &ts = GetTimerState(s);
     ts.heartbeat_cb = std::move(fname);
     ts.heartbeat_interval_ms = static_cast<uint32_t>(interval_val);
     ts.heartbeat_next = HeapTimer::Clock::now() + std::chrono::milliseconds(ts.heartbeat_interval_ms);
@@ -291,17 +281,15 @@ static CVar timer_set_heartbeat(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaNil(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 注册
-// ─────────────────────────────────────────────────────────────────────────────
 
 void RegisterTimerLibraryApi(State *s) {
     if (!s) return;
 
-    RegisterNativeFunction(s, "timer.set", 2, false, timer_set);
-    RegisterNativeFunction(s, "timer.del", 1, false, timer_del);
-    RegisterNativeFunction(s, "timer.set_heartbeat", 2, false, timer_set_heartbeat);
-    RegisterNativeFunction(s, "timer.register_obj_methods", 1, false, timer_register_obj_methods);
+    RegisterNativeFunction(s, "timer.set", 2, false, TimerSet);
+    RegisterNativeFunction(s, "timer.del", 1, false, TimerDel);
+    RegisterNativeFunction(s, "timer.set_heartbeat", 2, false, TimerSetHeartbeat);
+    RegisterNativeFunction(s, "timer.register_obj_methods", 1, false, TimerRegisterObjMethods);
 }
 
-} // namespace fakelua::timer
+}// namespace fakelua::timer

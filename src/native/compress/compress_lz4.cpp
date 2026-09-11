@@ -7,14 +7,14 @@ namespace fakelua::compress {
 
 static constexpr uint64_t kMaxDecompressBytes = 64ull * 1024 * 1024;
 
-std::vector<uint8_t> lz4_compress(const uint8_t *data, size_t len) {
+std::vector<uint8_t> Lz4Compress(const uint8_t *data, size_t len) {
     LZ4F_cctx *cctx = nullptr;
     LZ4F_errorCode_t err = LZ4F_createCompressionContext(&cctx, LZ4F_VERSION);
     if (LZ4F_isError(err) || !cctx) return {};
 
     LZ4F_preferences_t prefs{};
     prefs.frameInfo.contentSize = len;
-    prefs.compressionLevel = 0;  // default level
+    prefs.compressionLevel = 0;// default level
 
     size_t dst_capacity = LZ4F_compressBound(len, &prefs);
     std::vector<uint8_t> out(dst_capacity);
@@ -25,8 +25,7 @@ std::vector<uint8_t> lz4_compress(const uint8_t *data, size_t len) {
         return {};
     }
 
-    size_t compressed = LZ4F_compressUpdate(cctx, out.data() + written, out.size() - written,
-                                           data, len, nullptr);
+    size_t compressed = LZ4F_compressUpdate(cctx, out.data() + written, out.size() - written, data, len, nullptr);
     if (LZ4F_isError(compressed)) {
         LZ4F_freeCompressionContext(cctx);
         return {};
@@ -44,7 +43,7 @@ std::vector<uint8_t> lz4_compress(const uint8_t *data, size_t len) {
     return out;
 }
 
-std::vector<uint8_t> lz4_decompress(const uint8_t *data, size_t len) {
+std::vector<uint8_t> Lz4Decompress(const uint8_t *data, size_t len) {
     if (len == 0) return {};
 
     LZ4F_dctx *dctx = nullptr;
@@ -55,7 +54,7 @@ std::vector<uint8_t> lz4_decompress(const uint8_t *data, size_t len) {
 
     // First pass: get frame info to determine content size
     LZ4F_frameInfo_t frameInfo{};
-    size_t src_consumed = len;  // INPUT: size of buffer; OUTPUT: bytes consumed
+    size_t src_consumed = len;// INPUT: size of buffer; OUTPUT: bytes consumed
     size_t fi_ret = LZ4F_getFrameInfo(dctx, &frameInfo, data, &src_consumed);
     if (LZ4F_isError(fi_ret)) {
         LZ4F_freeDecompressionContext(dctx);
@@ -93,8 +92,7 @@ std::vector<uint8_t> lz4_decompress(const uint8_t *data, size_t len) {
             dst_capacity = out.size() - dst_pos;
         }
 
-        last_ret = LZ4F_decompress(dctx, out.data() + dst_pos, &dst_capacity,
-                                     src, &src_size, nullptr);
+        last_ret = LZ4F_decompress(dctx, out.data() + dst_pos, &dst_capacity, src, &src_size, nullptr);
         if (LZ4F_isError(last_ret)) {
             LZ4F_freeDecompressionContext(dctx);
             ThrowFakeluaException("lz4_decompress: failed");
@@ -109,7 +107,7 @@ std::vector<uint8_t> lz4_decompress(const uint8_t *data, size_t len) {
                 LZ4F_freeDecompressionContext(dctx);
                 ThrowFakeluaException("lz4_decompress: trailing garbage");
             }
-            break;  // frame fully decoded
+            break;// frame fully decoded
         }
     }
 
@@ -123,4 +121,4 @@ std::vector<uint8_t> lz4_decompress(const uint8_t *data, size_t len) {
     return out;
 }
 
-}  // namespace fakelua::compress
+}// namespace fakelua::compress

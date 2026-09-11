@@ -15,11 +15,8 @@
 
 namespace fakelua::serialize {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Wire format（类 protobuf 编码）
-//
 //   每个值 = [type_tag(1 byte)] [payload]
-//
 //   0x00            nil
 //   0x01            false
 //   0x02            true
@@ -28,24 +25,21 @@ namespace fakelua::serialize {
 //   0x05 + varint(len) + bytes   新字符串，加入字典
 //   0x06 + varint(id)            字典中的字符串引用
 //   0x07 + varint(count) + N*(key,value)   表
-//
 //   不支持的类型（闭包等）在表中跳过，顶层编码则抛错。
-// ─────────────────────────────────────────────────────────────────────────────
 
 enum Tag : uint8_t {
-    TAG_NIL   = 0x00,
+    TAG_NIL = 0x00,
     TAG_FALSE = 0x01,
-    TAG_TRUE  = 0x02,
-    TAG_INT   = 0x03,
+    TAG_TRUE = 0x02,
+    TAG_INT = 0x03,
     TAG_DOUBLE = 0x04,
     TAG_STR_NEW = 0x05,
     TAG_STR_REF = 0x06,
     TAG_TABLE = 0x07,
 };
 
-// ─── 辅助：从 CVar 提取字符串（二进制安全） ───
-
-static std::string cvar_to_string(CVar v) {
+// 辅助：从 CVar 提取字符串（二进制安全）
+static std::string CVarToString(CVar v) {
     if (v.type_ == static_cast<int>(VarType::String) && v.data_.s) {
         auto sv = v.data_.s->Str();
         return std::string(sv.data(), sv.size());
@@ -58,7 +52,7 @@ static std::string cvar_to_string(CVar v) {
     return {};
 }
 
-static std::string_view cvar_to_string_view(CVar v) {
+static std::string_view CVarToStringView(CVar v) {
     if (v.type_ == static_cast<int>(VarType::String) && v.data_.s) {
         return v.data_.s->Str();
     }
@@ -70,9 +64,8 @@ static std::string_view cvar_to_string_view(CVar v) {
     return {};
 }
 
-// ─── 类型判断 ───
-
-static bool is_supported(CVar v) {
+// 类型判断
+static bool IsSupported(CVar v) {
     switch (v.type_) {
         case static_cast<int>(VarType::Nil):
         case static_cast<int>(VarType::Bool):
@@ -87,9 +80,8 @@ static bool is_supported(CVar v) {
     }
 }
 
-// ─── Varint（LEB128 无符号） ───
-
-static void write_varint(std::string &out, uint64_t v) {
+// Varint（LEB128 无符号）
+static void WriteVarint(std::string &out, uint64_t v) {
     while (v >= 0x80) {
         out.push_back(static_cast<char>((v & 0x7f) | 0x80));
         v >>= 7;
@@ -97,7 +89,7 @@ static void write_varint(std::string &out, uint64_t v) {
     out.push_back(static_cast<char>(v));
 }
 
-static uint64_t read_varint(const std::string &in, size_t &pos) {
+static uint64_t ReadVarint(const std::string &in, size_t &pos) {
     uint64_t result = 0;
     int shift = 0;
     bool terminated = false;
@@ -119,25 +111,23 @@ static uint64_t read_varint(const std::string &in, size_t &pos) {
     return result;
 }
 
-// ─── Zigzag（有符号整数 ↔ 无符号） ───
-
-static uint64_t zigzag_encode(int64_t n) {
+// Zigzag（有符号整数 ↔ 无符号）
+static uint64_t ZigzagEncode(int64_t n) {
     return (static_cast<uint64_t>(n) << 1) ^ static_cast<uint64_t>(n >> 63);
 }
 
-static int64_t zigzag_decode(uint64_t u) {
+static int64_t ZigzagDecode(uint64_t u) {
     return static_cast<int64_t>((u >> 1) ^ (-(u & 1)));
 }
 
-// ─── Double（小端 memcpy） ───
-
-static void write_double(std::string &out, double v) {
+// Double（小端 memcpy）
+static void WriteDouble(std::string &out, double v) {
     uint8_t buf[8];
     std::memcpy(buf, &v, 8);
     out.append(reinterpret_cast<char *>(buf), 8);
 }
 
-static double read_double(const std::string &in, size_t &pos) {
+static double ReadDouble(const std::string &in, size_t &pos) {
     if (pos + 8 > in.size()) {
         ThrowFakeluaException("serialize.decode: truncated double");
     }
@@ -147,15 +137,14 @@ static double read_double(const std::string &in, size_t &pos) {
     return v;
 }
 
-// ─── 编码 ───
-
+// 编码
 struct EncodeState {
-    std::unordered_map<std::string_view, uint32_t> dict;  // 字符串 → 字典 id
+    std::unordered_map<std::string_view, uint32_t> dict;// 字符串 → 字典 id
     std::unordered_set<VarTable *> visited;
     int depth = 0;
 };
 
-static void encode_value(std::string &out, CVar v, EncodeState &state) {
+static void EncodeValue(std::string &out, CVar v, EncodeState &state) {
     switch (v.type_) {
         case static_cast<int>(VarType::Nil):
             out.push_back(TAG_NIL);
@@ -165,24 +154,24 @@ static void encode_value(std::string &out, CVar v, EncodeState &state) {
             return;
         case static_cast<int>(VarType::Int):
             out.push_back(TAG_INT);
-            write_varint(out, zigzag_encode(v.data_.i));
+            WriteVarint(out, ZigzagEncode(v.data_.i));
             return;
         case static_cast<int>(VarType::Float):
             out.push_back(TAG_DOUBLE);
-            write_double(out, v.data_.f);
+            WriteDouble(out, v.data_.f);
             return;
         case static_cast<int>(VarType::String):
         case static_cast<int>(VarType::StringId): {
-            auto sv = cvar_to_string_view(v);
+            auto sv = CVarToStringView(v);
             auto it = state.dict.find(sv);
             if (it != state.dict.end()) {
                 out.push_back(TAG_STR_REF);
-                write_varint(out, it->second);
+                WriteVarint(out, it->second);
             } else {
                 uint32_t id = static_cast<uint32_t>(state.dict.size());
                 state.dict.emplace(sv, id);
                 out.push_back(TAG_STR_NEW);
-                write_varint(out, static_cast<uint64_t>(sv.size()));
+                WriteVarint(out, static_cast<uint64_t>(sv.size()));
                 if (!sv.empty()) {
                     out.append(sv.data(), sv.size());
                 }
@@ -193,7 +182,7 @@ static void encode_value(std::string &out, CVar v, EncodeState &state) {
             VarTable *t = v.data_.t;
             if (!t) {
                 out.push_back(TAG_TABLE);
-                write_varint(out, 0);
+                WriteVarint(out, 0);
                 return;
             }
             if (state.depth >= 64) {
@@ -207,16 +196,16 @@ static void encode_value(std::string &out, CVar v, EncodeState &state) {
             std::vector<CVar> vals;
             try {
                 table::TableHelper::ForEachKV(v, [&](CVar k, CVar val) {
-                    if (is_supported(k) && is_supported(val)) {
+                    if (IsSupported(k) && IsSupported(val)) {
                         keys.push_back(k);
                         vals.push_back(val);
                     }
                 });
                 out.push_back(TAG_TABLE);
-                write_varint(out, static_cast<uint64_t>(keys.size()));
+                WriteVarint(out, static_cast<uint64_t>(keys.size()));
                 for (size_t i = 0; i < keys.size(); ++i) {
-                    encode_value(out, keys[i], state);
-                    encode_value(out, vals[i], state);
+                    EncodeValue(out, keys[i], state);
+                    EncodeValue(out, vals[i], state);
                 }
             } catch (...) {
                 state.depth--;
@@ -232,14 +221,13 @@ static void encode_value(std::string &out, CVar v, EncodeState &state) {
     }
 }
 
-// ─── 解码 ───
-
+// 解码
 struct DecodeState {
-    std::vector<std::string> dict;  // id → 字符串
+    std::vector<std::string> dict;// id → 字符串
     int depth = 0;
 };
 
-static CVar decode_value(const std::string &in, size_t &pos, DecodeState &state, State *s) {
+static CVar DecodeValue(const std::string &in, size_t &pos, DecodeState &state, State *s) {
     if (pos >= in.size()) {
         ThrowFakeluaException("serialize.decode: unexpected end of input");
     }
@@ -252,13 +240,13 @@ static CVar decode_value(const std::string &in, size_t &pos, DecodeState &state,
         case TAG_TRUE:
             return inter::NativeToFakeluaBool(s, true);
         case TAG_INT: {
-            uint64_t u = read_varint(in, pos);
-            return inter::NativeToFakeluaLonglong(s, zigzag_decode(u));
+            uint64_t u = ReadVarint(in, pos);
+            return inter::NativeToFakeluaLonglong(s, ZigzagDecode(u));
         }
         case TAG_DOUBLE:
-            return inter::NativeToFakeluaDouble(s, read_double(in, pos));
+            return inter::NativeToFakeluaDouble(s, ReadDouble(in, pos));
         case TAG_STR_NEW: {
-            uint64_t len = read_varint(in, pos);
+            uint64_t len = ReadVarint(in, pos);
             if (len > in.size() - pos) {
                 ThrowFakeluaException("serialize.decode: truncated string");
             }
@@ -269,7 +257,7 @@ static CVar decode_value(const std::string &in, size_t &pos, DecodeState &state,
             return inter::NativeToFakeluaString(s, state.dict[id]);
         }
         case TAG_STR_REF: {
-            uint64_t id = read_varint(in, pos);
+            uint64_t id = ReadVarint(in, pos);
             if (id >= state.dict.size()) {
                 ThrowFakeluaException("serialize.decode: bad string ref id");
             }
@@ -279,7 +267,7 @@ static CVar decode_value(const std::string &in, size_t &pos, DecodeState &state,
             if (state.depth >= 64) {
                 ThrowFakeluaException("serialize.decode: nesting too deep");
             }
-            uint64_t count = read_varint(in, pos);
+            uint64_t count = ReadVarint(in, pos);
             // Each key/value pair is at least two tags.
             if (count > (in.size() - pos) / 2) {
                 ThrowFakeluaException("serialize.decode: table too large");
@@ -288,8 +276,8 @@ static CVar decode_value(const std::string &in, size_t &pos, DecodeState &state,
             state.depth++;
             try {
                 for (uint64_t i = 0; i < count; ++i) {
-                    CVar key = decode_value(in, pos, state, s);
-                    CVar val = decode_value(in, pos, state, s);
+                    CVar key = DecodeValue(in, pos, state, s);
+                    CVar val = DecodeValue(in, pos, state, s);
                     table::TableHelper::SetTable(s, tbl, key, val);
                 }
             } catch (...) {
@@ -304,27 +292,26 @@ static CVar decode_value(const std::string &in, size_t &pos, DecodeState &state,
     }
 }
 
-// ─── 原生函数 ───
-
-static CVar serialize_encode(State *s, CVar *args, int n) {
+// 原生函数
+static CVar SerializeEncode(State *s, CVar *args, int n) {
     CVar v = inter::GetNativeArg(s, args, n, 0);
-    if (!is_supported(v)) {
+    if (!IsSupported(v)) {
         LOG_ERROR(s, "serialize", "serialize.encode: unsupported type: {}", VarTypeToString(static_cast<VarType>(v.type_)));
         ThrowFakeluaException("serialize.encode: unsupported type: " + VarTypeToString(static_cast<VarType>(v.type_)));
     }
     std::string out;
     out.reserve(64);
     EncodeState state;
-    encode_value(out, v, state);
+    EncodeValue(out, v, state);
     LOG_DEBUG(s, "serialize", "serialize.encode: bytes={}", out.size());
     return inter::NativeToFakeluaString(s, out);
 }
 
-static CVar serialize_decode(State *s, CVar *args, int n) {
-    std::string in = cvar_to_string(inter::GetNativeArg(s, args, n, 0));
+static CVar SerializeDecode(State *s, CVar *args, int n) {
+    std::string in = CVarToString(inter::GetNativeArg(s, args, n, 0));
     size_t pos = 0;
     DecodeState state;
-    CVar result = decode_value(in, pos, state, s);
+    CVar result = DecodeValue(in, pos, state, s);
     if (pos != in.size()) {
         LOG_ERROR(s, "serialize", "serialize.decode: trailing bytes (read={} total={})", pos, in.size());
         ThrowFakeluaException("serialize.decode: trailing bytes");
@@ -333,12 +320,11 @@ static CVar serialize_decode(State *s, CVar *args, int n) {
     return result;
 }
 
-// ─── 注册 ───
-
+// 注册
 void RegisterSerializeLibraryApi(State *s) {
     if (!s) return;
-    RegisterNativeFunction(s, "serialize.encode", 1, false, serialize_encode);
-    RegisterNativeFunction(s, "serialize.decode", 1, false, serialize_decode);
+    RegisterNativeFunction(s, "serialize.encode", 1, false, SerializeEncode);
+    RegisterNativeFunction(s, "serialize.decode", 1, false, SerializeDecode);
 }
 
-} // namespace fakelua::serialize
+}// namespace fakelua::serialize

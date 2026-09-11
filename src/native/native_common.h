@@ -8,10 +8,8 @@
 
 namespace fakelua {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Shared helpers for native library argument validation and error reporting.
 // Used across native_math, native_table, native_utf8, native_string, native_io.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Throw a standardized "bad argument #N to 'fname' (expected)" exception.
 [[noreturn]] inline void ThrowBadArgument(int argno, const char *fname, const char *expected) {
@@ -22,15 +20,13 @@ namespace fakelua {
 // Reject Bool/Table/Nil where a number is expected. Lua's luaL_checknumber also
 // converts numeric strings, so plain String/StringId are left to the caller.
 inline void CheckNumberArg(const CVar &a, int argno, const char *fname) {
-    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table) ||
-        a.type_ == static_cast<int>(VarType::Nil)) {
+    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table) || a.type_ == static_cast<int>(VarType::Nil)) {
         ThrowBadArgument(argno, fname, "number expected");
     }
 }
 
 // luaL_checkinteger：Int 直接过；Float 必须能无损落成整数；数字串按同样规则转换；
 // 其它类型一律 "number expected"。
-//
 // 与 Lua 5.4 对齐：float 超出 int64 范围（|d| >= 2^63）时抛
 // "number has no integer representation"，而不是 UB 的 static_cast。
 inline int64_t CheckIntegerArg(const CVar &a, int argno, const char *fname) {
@@ -39,7 +35,7 @@ inline int64_t CheckIntegerArg(const CVar &a, int argno, const char *fname) {
     }
     // int64 能表示的 double 范围是 [-2^63, 2^63)。2^63 本身无法存入 int64，
     // 直接 static_cast 是 UB，必须先拦一刀。
-    static constexpr double kInt64Limit = static_cast<double>(INT64_MAX) + 1.0;  // == 2^63
+    static constexpr double kInt64Limit = static_cast<double>(INT64_MAX) + 1.0;// == 2^63
     if (a.type_ == static_cast<int>(VarType::Float)) {
         const double d = a.data_.f;
         if (!std::isfinite(d) || std::trunc(d) != d) {
@@ -78,23 +74,18 @@ inline bool DoubleFitsInt64(double d, int64_t *out) {
 // Reject Bool/Table/Nil where a string is expected. Standard Lua 5.3: luaL_checkstring
 // converts numbers to strings, so we allow Int/Float; Bool/Table/Nil are invalid.
 inline void CheckStringArg(const CVar &a, int argno, const char *fname) {
-    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table) ||
-        a.type_ == static_cast<int>(VarType::Nil)) {
+    if (a.type_ == static_cast<int>(VarType::Bool) || a.type_ == static_cast<int>(VarType::Table) || a.type_ == static_cast<int>(VarType::Nil)) {
         ThrowBadArgument(argno, fname, "string expected");
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Iterator closure construction helper.
-//
 // Standard pattern used by pairs/ipairs (basic), gmatch (string), file:lines (io):
 //   - upvalue 0: State* (for allocating return values)
 //   - upvalue 1: opaque iterator state pointer (type-erased)
 //   - func_ptr:  the native C function implementing the iterator
-//
 // The closure is allocated from the state's non-temp arena and is valid for the
 // current frame. Returns a CVar of type Closure ready to be returned to Lua.
-// ─────────────────────────────────────────────────────────────────────────────
 inline CVar MakeIteratorClosure(State *state, void *func_ptr, void *iter_state) {
     auto &alloc = state->GetHeap().GetAllocator(false /* temp */);
 

@@ -1,7 +1,6 @@
 #pragma once
 
 // net_asio.h — Boost.Asio 基于单线程非阻塞模型的 TCP 引擎
-//
 // 设计要点：
 // - 纯单线程非阻塞架构：移除后台工作线程，所有 IO 操作（accept/read/write/resolve/connect）
 //   在 tick() 调用的同一线程上驱动，与 fakelua 单线程极简模型完全契合。
@@ -15,15 +14,18 @@
 #include "native/native_io_context.h"
 #include "native/net/net_buffer.h"
 #include "native/net/net_common.h"
-#include "native/net/net_websocket.h"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/websocket.hpp>
+#include <deque>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
-#include <random>
 
 namespace fakelua {
 class State;
@@ -31,54 +33,67 @@ class State;
 
 namespace fakelua::net {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 事件队列：单线程驱动产生，tick() 时派发给 Lua
-// ─────────────────────────────────────────────────────────────────────────────
-
 enum class EventKind {
-    Connect, // server 端：新连接已建立；client 端：连接已建立
-    Recv,    // 完整包解出
-    Close,   // 连接关闭
+    // server 端：新连接已建立；client 端：连接已建立
+    Connect,
+    // 完整包解出
+    Recv,
+    // 连接关闭
+    Close,
 };
 
 struct ConnEvent {
     EventKind kind;
-    int conn_id;        // server 端连接 ID；client 端恒为 0
-    std::string data;   // Recv 时携带载荷
+    // server 端连接 ID；client 端恒为 0
+    int conn_id;
+    // Recv 时携带载荷
+    std::string data;
 };
 
 using EventSink = std::function<void(ConnEvent)>;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 单条连接（asio::ip::tcp::socket + 收发缓冲）
-// ─────────────────────────────────────────────────────────────────────────────
-
 class AsioConn : public std::enable_shared_from_this<AsioConn> {
 public:
     AsioConn(boost::asio::io_context &ioc, const NetConfig &cfg, int conn_id, bool from_client, EventSink sink);
     ~AsioConn();
 
     // server 端 accept 后 / client 端 connect 后调用，开始读循环
-    void start();
+    void Start();
     // 主动关闭（notify_sink 控制是否通知外部 sink，避免主动 close 时重复发 Close 事件）
-    void close(bool notify_sink = true);
+    void Close(bool notify_sink = true);
 
     // 用外部已连接/已接收的 socket 替换内部 socket
-    void reset_socket(boost::asio::ip::tcp::socket sock);
+    void ResetSocket(boost::asio::ip::tcp::socket sock);
 
     // 写入数据（按 cfg.framer 自动封包）
-    bool send(const char *data, size_t len);
-    // 写入原始字节（用于 WS 客户端握手请求等）
-    bool send_raw(const char *data, size_t len);
+    bool Send(const char *data, size_t len);
+    // 写入原始字节（非 WebSocket 连接）
+    bool SendRaw(const char *data, size_t len);
 
-    [[nodiscard]] bool is_open() const { return !closed_ && socket_.is_open(); }
-    [[nodiscard]] int conn_id() const { return conn_id_; }
+    [[nodiscard]] bool IsOpen() const {
+        return !closed_ && socket_.is_open();
+    }
+
+    [[nodiscard]] int ConnId() const {
+        return conn_id_;
+    }
 
 private:
-    void do_read();
-    void on_read(boost::system::error_code ec, size_t bytes);
-    void do_write();
-    void on_write(boost::system::error_code ec, size_t bytes);
+    void DoRead();
+    void OnRead(boost::system::error_code ec, size_t bytes);
+    void DoWrite();
+    void OnWrite(boost::system::error_code ec, size_t bytes);
+
+    void DoWsServerHandshake();
+    void OnWsHttpRequest(boost::system::error_code ec);
+    void DoWsClientHandshake();
+    void OnWsHandshake(boost::system::error_code ec);
+    void DoWsRead();
+    void OnWsRead(boost::system::error_code ec, size_t bytes);
+    void DoWsWrite();
+    void OnWsWrite(boost::system::error_code ec, size_t bytes);
 
     boost::asio::ip::tcp::socket socket_;
     NetConfig cfg_;
@@ -92,50 +107,54 @@ private:
 
     bool writing_ = false;
 
-    // WebSocket 状态机
-    WsState ws_state_ = WsState::None;
-    bool ws_handshake_sent_ = false;
-    // 客户端发出的帧要带随机掩码。放在连接上：一个连接只被它所属的 State 单线程访问。
-    std::mt19937 mask_rng_{std::random_device{}()};
+    using WsStream = boost::beast::websocket::stream<boost::asio::ip::tcp::socket &>;
+    std::optional<WsStream> ws_;
+    boost::beast::flat_buffer ws_buffer_;
+    boost::beast::http::request<boost::beast::http::string_body> ws_req_;
+    std::deque<std::string> ws_write_queue_;
+    bool ws_open_ = false;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 服务端：单线程非阻塞 acceptor
-// ─────────────────────────────────────────────────────────────────────────────
-
 class TcpServer {
 public:
     TcpServer(const NetConfig &config, ::fakelua::State *state);
     ~TcpServer();
 
-    void start();
-    void stop();
+    void Start();
+    void Stop();
 
     // 排空并派发事件（单线程 ioc_.poll() 驱动就绪 IO）
-    void drain_events_with(const std::function<void(const ConnEvent &)> &dispatcher);
+    void DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher);
 
     // 兼容旧 tick() 接口
-    void tick(const std::function<void(int)> &on_conn,
-              const std::function<void(int, const char *, size_t)> &on_recv,
-              const std::function<void(int)> &on_close) {
-        drain_events_with([&](const ConnEvent &ev) {
+    void Tick(const std::function<void(int)> &on_conn, const std::function<void(int, const char *, size_t)> &on_recv, const std::function<void(int)> &on_close) {
+        DrainEventsWith([&](const ConnEvent &ev) {
             switch (ev.kind) {
-                case EventKind::Connect: on_conn(ev.conn_id); break;
-                case EventKind::Recv:    on_recv(ev.conn_id, ev.data.data(), ev.data.size()); break;
-                case EventKind::Close:   on_close(ev.conn_id); break;
+                case EventKind::Connect:
+                    on_conn(ev.conn_id);
+                    break;
+                case EventKind::Recv:
+                    on_recv(ev.conn_id, ev.data.data(), ev.data.size());
+                    break;
+                case EventKind::Close:
+                    on_close(ev.conn_id);
+                    break;
             }
         });
     }
 
-    bool send(int conn_id, const char *data, size_t len);
-    bool close_connection(int conn_id);
+    bool Send(int conn_id, const char *data, size_t len);
+    bool CloseConnection(int conn_id);
 
-    [[nodiscard]] bool running() const { return acceptor_open_; }
+    [[nodiscard]] bool Running() const {
+        return acceptor_open_;
+    }
 
 private:
-    void do_accept();
-    void on_accept(boost::system::error_code ec, boost::asio::ip::tcp::socket sock);
-    void emit_event(ConnEvent ev);
+    void DoAccept();
+    void OnAccept(boost::system::error_code ec, boost::asio::ip::tcp::socket sock);
+    void EmitEvent(ConnEvent ev);
 
     NetConfig config_;
     native::IoContext &io_;
@@ -153,41 +172,44 @@ private:
     native::LifeToken life_;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 客户端：单线程非阻塞连接
-// ─────────────────────────────────────────────────────────────────────────────
-
 class TcpClient {
 public:
     TcpClient(const NetConfig &config, ::fakelua::State *state);
     ~TcpClient();
 
-    void connect();
-    void disconnect();
+    void Connect();
+    void Disconnect();
 
-    void drain_events_with(const std::function<void(const ConnEvent &)> &dispatcher);
+    void DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher);
 
-    bool send(const char *data, size_t len);
+    bool Send(const char *data, size_t len);
 
     // 兼容旧 tick() 接口
-    void tick(const std::function<void(const char *, size_t)> &on_recv,
-              const std::function<void()> &on_close) {
-        drain_events_with([&](const ConnEvent &ev) {
+    void Tick(const std::function<void(const char *, size_t)> &on_recv, const std::function<void()> &on_close) {
+        DrainEventsWith([&](const ConnEvent &ev) {
             switch (ev.kind) {
-                case EventKind::Connect: break;
-                case EventKind::Recv:    on_recv(ev.data.data(), ev.data.size()); break;
-                case EventKind::Close:   on_close(); break;
+                case EventKind::Connect:
+                    break;
+                case EventKind::Recv:
+                    on_recv(ev.data.data(), ev.data.size());
+                    break;
+                case EventKind::Close:
+                    on_close();
+                    break;
             }
         });
     }
 
-    [[nodiscard]] bool connected() const { return conn_ && conn_->is_open(); }
+    [[nodiscard]] bool Connected() const {
+        return conn_ && conn_->IsOpen();
+    }
 
 private:
-    void do_resolve();
-    void on_resolve(boost::system::error_code ec, boost::asio::ip::tcp::resolver::results_type results);
-    void on_connect(boost::system::error_code ec, boost::asio::ip::tcp::socket sock);
-    void emit_event(ConnEvent ev);
+    void DoResolve();
+    void OnResolve(boost::system::error_code ec, boost::asio::ip::tcp::resolver::results_type results);
+    void OnConnect(boost::system::error_code ec, boost::asio::ip::tcp::socket sock);
+    void EmitEvent(ConnEvent ev);
 
     NetConfig config_;
     native::IoContext &io_;
@@ -202,4 +224,4 @@ private:
     native::LifeToken life_;
 };
 
-} // namespace fakelua::net
+}// namespace fakelua::net

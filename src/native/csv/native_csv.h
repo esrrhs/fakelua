@@ -9,4 +9,4 @@ namespace fakelua::csv {
 //   csv.encode(rows, sep?) → CSV string
 void RegisterCsvLibraryApi(State *s);
 
-}  // namespace fakelua::csv
+}// namespace fakelua::csv

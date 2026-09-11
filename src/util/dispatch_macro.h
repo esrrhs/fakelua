@@ -2,7 +2,6 @@
 
 // Shared X-Macro dispatch ladder definitions for calling functions with 0..32 CVar arguments.
 // Eliminates triplication across vm.cpp, fakelua.cpp, and c_runtime_header.h.
-//
 // Usage:
 //   #include "util/dispatch_macro.h"
 //   #define DISPATCH_CASE(N)  case N: return <your cast>;

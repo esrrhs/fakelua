@@ -1,12 +1,10 @@
 #pragma once
 
 // native_io_context.h — 每个 State 一份的 Boost.Asio 事件循环
-//
 // io_context 不只是一个 epoll/IOCP 句柄，它是事件循环本体加一整套 service，其中 DNS
 // 解析线程池是每个 io_context 一条后台线程。所以按连接粒度创建/销毁 context，等于每条
 // 连接烧一个 epoll fd 加一条线程；改成每个 State 一份之后，一个 State 内的所有连接
 // 共用一套。
-//
 // 粒度定在 State 而不是全进程：State 本身就是单线程实体（见 state.h 的线程模型注释），
 // 所以下面的计数器都是普通成员，不需要原子操作。反过来全进程一份是错的 —— 不同 State
 // 可能跑在不同线程上，一个线程 poll() 时另一个 restart() 是未定义行为。
@@ -22,12 +20,15 @@ namespace fakelua::native {
 class IoContext {
 public:
     // 1 = 只会被一个线程驱动。这样 asio 不会再给 context 配一条自己的 timer 线程。
-    IoContext() : ctx_(1) {}
+    IoContext() : ctx_(1) {
+    }
 
     IoContext(const IoContext &) = delete;
     IoContext &operator=(const IoContext &) = delete;
 
-    boost::asio::io_context &Get() { return ctx_; }
+    boost::asio::io_context &Get() {
+        return ctx_;
+    }
 
     // 执行已就绪的回调后立即返回。派发进 Lua 期间是空操作：那时嵌套 poll 会在派发
     // 方还在读自己的状态时把它改写掉。
@@ -36,8 +37,13 @@ public:
     // 标记"正在把事件派发进 Lua"。它活着的期间 Poll() 不做事。
     class DispatchScope {
     public:
-        explicit DispatchScope(IoContext &owner) : owner_(owner) { ++owner_.dispatch_depth_; }
-        ~DispatchScope() { --owner_.dispatch_depth_; }
+        explicit DispatchScope(IoContext &owner) : owner_(owner) {
+            ++owner_.dispatch_depth_;
+        }
+
+        ~DispatchScope() {
+            --owner_.dispatch_depth_;
+        }
 
         DispatchScope(const DispatchScope &) = delete;
         DispatchScope &operator=(const DispatchScope &) = delete;
@@ -58,25 +64,34 @@ class LifeToken {
 public:
     class Watch {
     public:
-        explicit Watch(std::shared_ptr<const bool> flag) : flag_(std::move(flag)) {}
+        explicit Watch(std::shared_ptr<const bool> flag) : flag_(std::move(flag)) {
+        }
 
-        [[nodiscard]] bool Alive() const { return flag_ && *flag_; }
+        [[nodiscard]] bool Alive() const {
+            return flag_ && *flag_;
+        }
 
     private:
         std::shared_ptr<const bool> flag_;
     };
 
-    LifeToken() : flag_(std::make_shared<bool>(true)) {}
-    ~LifeToken() { *flag_ = false; }
+    LifeToken() : flag_(std::make_shared<bool>(true)) {
+    }
+
+    ~LifeToken() {
+        *flag_ = false;
+    }
 
     LifeToken(const LifeToken &) = delete;
     LifeToken &operator=(const LifeToken &) = delete;
 
     // 把返回值拷进回调，在回调里先判 Alive()。
-    [[nodiscard]] Watch GetWatch() const { return Watch(flag_); }
+    [[nodiscard]] Watch GetWatch() const {
+        return Watch(flag_);
+    }
 
 private:
     std::shared_ptr<bool> flag_;
 };
 
-}  // namespace fakelua::native
+}// namespace fakelua::native

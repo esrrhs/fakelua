@@ -1,7 +1,7 @@
 #include "native/string/native_string.h"
-#include "native/native_common.h"
 #include "compile/c_runtime_header.h"
 #include "jit/jit_error_boundary.h"
+#include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
 #include "state/state.h"
@@ -35,7 +35,7 @@ static inline int64_t NormalizePos(int64_t pos, int64_t len) {
     return len + pos + 1;
 }
 
-// ─── ECMAScript 正则编译缓存 ───
+// ECMAScript 正则编译缓存
 // std::regex 构造极慢；find/match/gmatch/gsub 的热点是重复编译同一 pattern。
 // 进程级缓存：key=pattern 原文，value=编译结果（含 optimize）。
 // 返回的指针由缓存永久持有（不淘汰，避免 gmatch 状态中的裸指针悬空）。
@@ -57,8 +57,7 @@ const std::regex *GetCachedRegex(std::string_view pattern) {
 
     std::unique_ptr<std::regex> compiled;
     try {
-        compiled = std::make_unique<std::regex>(
-                key, std::regex::ECMAScript | std::regex::optimize);
+        compiled = std::make_unique<std::regex>(key, std::regex::ECMAScript | std::regex::optimize);
     } catch (const std::regex_error &) {
         return nullptr;
     }
@@ -115,7 +114,7 @@ static int ParsePackDecSize(const char *&p, const char *end, int minv, int maxv,
 
 static void CheckFormatItemSize(std::string_view spec) {
     int64_t n = 0;
-    for (char ch : spec) {
+    for (char ch: spec) {
         if (ch >= '0' && ch <= '9') {
             int d = ch - '0';
             if (n > (1024 * 1024 - d) / 10) {
@@ -130,7 +129,7 @@ static void CheckFormatItemSize(std::string_view spec) {
 
 }// namespace
 
-// ─── gmatch 迭代器状态（存储在闭包 upvalue 中） ───
+// gmatch 迭代器状态（存储在闭包 upvalue 中）
 // re 指向全局缓存中的编译结果，不在此处持有所有权（arena 不跑析构也安全）。
 struct GMatchState {
     std::string text;
@@ -144,7 +143,7 @@ static inline bool IsHostBigEndian() {
     return static_cast<const unsigned char *>(static_cast<const void *>(&probe))[0] == 0;
 }
 
-// ─── string.pack / packsize / unpack 二进制序列化辅助 ───
+// string.pack / packsize / unpack 二进制序列化辅助
 struct PackMachine {
     bool big_endian = false;
     int align = 0;// 0 = no alignment
@@ -465,7 +464,7 @@ int PackMachine::SizeSpec(const char *fmt, const char *end, State *state, CVar *
     return static_cast<int>(total);
 }
 
-// ─── gmatch 迭代器原生函数 ───
+// gmatch 迭代器原生函数
 // 闭包签名：CVar (*)(VarClosure *cl, CVar s, CVar var)
 // upvalues[0] = State* (as int)
 // upvalues[1] = GMatchState* (as int，由 arena 分配，无需手动释放)
@@ -748,16 +747,15 @@ void RegisterStringLibraryApi(State *s) {
         // 热路径：string.format("%d", int) —— bench 与常见用法，跳过通用解析器
         if (fmt == "%d" && n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            if (a1.type_ == static_cast<int>(VarType::Int) || a1.type_ == static_cast<int>(VarType::Float) ||
-                a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
+            if (a1.type_ == static_cast<int>(VarType::Int) || a1.type_ == static_cast<int>(VarType::Float) || a1.type_ == static_cast<int>(VarType::String) ||
+                a1.type_ == static_cast<int>(VarType::StringId)) {
                 int64_t ival = inter::CVarToInteger(a1, 0);
                 char buf[32];
                 int len = snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(ival));
                 if (len < 0) len = 0;
                 return inter::NativeToFakeluaStringView(state, std::string_view(buf, static_cast<size_t>(len)));
             }
-            if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table) ||
-                a1.type_ == static_cast<int>(VarType::Nil)) {
+            if (a1.type_ == static_cast<int>(VarType::Bool) || a1.type_ == static_cast<int>(VarType::Table) || a1.type_ == static_cast<int>(VarType::Nil)) {
                 ThrowFakeluaException("bad argument to 'format' (number expected)");
             }
         }
@@ -852,8 +850,7 @@ void RegisterStringLibraryApi(State *s) {
                 }
             } else if (spec == 'd' || spec == 'i') {
                 // 标准 Lua 5.3：整数格式接受 number 或 numeric string
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) ||
-                    curr_arg.type_ == static_cast<int>(VarType::Nil)) {
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
                 int64_t ival = inter::CVarToInteger(curr_arg, 0);
@@ -864,8 +861,7 @@ void RegisterStringLibraryApi(State *s) {
                 res.append(buf);
             } else if (spec == 'u' || spec == 'x' || spec == 'X' || spec == 'o') {
                 // 标准 Lua 5.3：无符号整数格式接受 number 或 numeric string
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) ||
-                    curr_arg.type_ == static_cast<int>(VarType::Nil)) {
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
                 uint64_t uval = static_cast<uint64_t>(inter::CVarToInteger(curr_arg, 0));
@@ -876,8 +872,7 @@ void RegisterStringLibraryApi(State *s) {
                 res.append(buf);
             } else if (spec == 'f' || spec == 'e' || spec == 'E' || spec == 'g' || spec == 'G') {
                 // 标准 Lua 5.3：浮点格式接受 number 或 numeric string
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) ||
-                    curr_arg.type_ == static_cast<int>(VarType::Nil)) {
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
                 double fval = inter::CVarToNumber(curr_arg, 0.0);
@@ -886,8 +881,7 @@ void RegisterStringLibraryApi(State *s) {
                 res.append(buf);
             } else if (spec == 'c') {
                 // 标准 Lua 5.3：%c 接受 number 或 numeric string
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) ||
-                    curr_arg.type_ == static_cast<int>(VarType::Nil)) {
+                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
                 int64_t cval = inter::CVarToInteger(curr_arg, 0);
@@ -937,7 +931,7 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaStringView(state, res);
     });
 
-    // ─── string.find(s, pattern [, init [, plain]]) ───
+    // string.find(s, pattern [, init [, plain]])
     // 在 s 中查找 pattern（ECMAScript 正则），返回起始位置与结束位置（1-based）。
     // 若 pattern 含捕获组，则后续返回值依次为各捕获。
     // 若 plain 为 true，则退化为纯子串查找（忽略正则元字符）。
@@ -1008,7 +1002,7 @@ void RegisterStringLibraryApi(State *s) {
         }
     });
 
-    // ─── string.match(s, pattern [, init]) ───
+    // string.match(s, pattern [, init])
     // 与 string.find 相似，但不返回位置；仅返回捕获（或整个匹配，若无捕获组）。
     RegisterNativeFunction(s, "string.match", 2, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaNil(state);
@@ -1058,7 +1052,7 @@ void RegisterStringLibraryApi(State *s) {
         }
     });
 
-    // ─── string.gmatch(s, pattern) ───
+    // string.gmatch(s, pattern)
     // 返回一个迭代器闭包；每次调用返回下一个匹配（或捕获）。
     RegisterNativeFunction(s, "string.gmatch", 2, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaNil(state);
@@ -1082,7 +1076,7 @@ void RegisterStringLibraryApi(State *s) {
         return MakeIteratorClosure(state, reinterpret_cast<void *>(GMatchIterator), gs);
     });
 
-    // ─── string.gsub(s, pattern, repl [, n]) ───
+    // string.gsub(s, pattern, repl [, n])
     RegisterNativeFunction(s, "string.gsub", 3, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 3) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
@@ -1142,8 +1136,8 @@ void RegisterStringLibraryApi(State *s) {
                         for (int i = 0; i < call_arg_count; ++i) {
                             call_args[static_cast<size_t>(i)] = inter::NativeToFakeluaStringView(state, match[i + 1].str());
                         }
-                        CVar fn_res = (addr != nullptr) ? inter::DispatchCallClosure(state, cl, call_args.data(), call_arg_count, JIT_TCC)
-                                                        : FlEvalLoadClosure(state, cl, call_arg_count, call_args.data());
+                        CVar fn_res =
+                                (addr != nullptr) ? inter::DispatchCallClosure(state, cl, call_args.data(), call_arg_count, JIT_TCC) : FlEvalLoadClosure(state, cl, call_arg_count, call_args.data());
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
@@ -1342,7 +1336,7 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "load", 1, true, load_impl);
     RegisterNativeFunction(s, "loadstring", 1, true, load_impl);
 
-    // ─── loadfile([filename [, mode [, env]]]) ───
+    // loadfile([filename [, mode [, env]]])
     // 从文件加载 Lua 源码并编译。mode/env 参数被忽略（fakelua 无环境概念）。
     // 编译后文件中定义的顶层函数直接注册为全局函数，编译器的 __fakelua_init
     // 会自动执行文件级常量/变量初始化。成功返回 nil，失败返回 nil。
@@ -1370,7 +1364,7 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaNil(state);
     });
 
-    // ─── dofile([filename]) ───
+    // dofile([filename])
     // fakelua 中 dofile 等价于 loadfile：加载文件、编译、顶层函数注册为全局，
     // 编译器 __fakelua_init 自动执行文件级初始化。成功返回 nil，失败返回 nil。
     RegisterNativeFunction(s, "dofile", 0, true, [](State *state, CVar *args, int n) -> CVar {
@@ -1395,7 +1389,7 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaNil(state);
     });
 
-    // ─── string.pack (Lua 5.3 binary serialization) ───
+    // string.pack (Lua 5.3 binary serialization)
     // 注册的签名是 (fmt, ...) 即 arg_count=1, is_vararg=true
     // 调用时：args[0]=fmt, args[1]=Multi(剩余参数)
     RegisterNativeFunction(s, "string.pack", 1, true, [](State *state, CVar *args, int n) -> CVar {
@@ -1602,9 +1596,7 @@ void RegisterStringLibraryApi(State *s) {
                     break;
                 }
                 case 'z': {
-                    if (val.type_ == static_cast<int>(VarType::Nil) ||
-                        val.type_ == static_cast<int>(VarType::Bool) ||
-                        val.type_ == static_cast<int>(VarType::Table)) {
+                    if (val.type_ == static_cast<int>(VarType::Nil) || val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
                         ThrowFakeluaException("bad argument to 'pack' (string expected)");
                     }
                     std::string s_val;
@@ -1623,7 +1615,7 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaStringView(state, result);
     });
 
-    // ─── string.packsize ───
+    // string.packsize
     // 签名: (fmt, ...) packsize 主要需要 fmt，但 z 格式需要字符串长度
     RegisterNativeFunction(s, "string.packsize", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaInt(state, 0);
@@ -1683,7 +1675,7 @@ void RegisterStringLibraryApi(State *s) {
                 int count = ParsePackDecSize(fmt_p, fmt_end, 1, kMaxPackBlock, 0);
                 if (count <= 0) return inter::NativeToFakeluaNil(state);
                 total += static_cast<size_t>(count);
-                ++str_arg_idx;  // c[n] 消耗一个参数
+                ++str_arg_idx;// c[n] 消耗一个参数
                 continue;
             }
             if (c == 'i' || c == 'I') {
@@ -1694,7 +1686,7 @@ void RegisterStringLibraryApi(State *s) {
                     if (mod != 0) total += static_cast<size_t>(pm.align) - mod;
                 }
                 total += static_cast<size_t>(sz);
-                ++str_arg_idx;  // i[n]/I[n] 消耗一个参数
+                ++str_arg_idx;// i[n]/I[n] 消耗一个参数
                 continue;
             }
 
@@ -1754,7 +1746,7 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaInt(state, static_cast<int64_t>(total));
     });
 
-    // ─── string.unpack ───
+    // string.unpack
     RegisterNativeFunction(s, "string.unpack", 2, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);

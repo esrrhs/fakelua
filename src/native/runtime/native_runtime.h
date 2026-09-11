@@ -7,4 +7,4 @@ namespace fakelua::runtime {
 // 注册 runtime 库：runtime.tick()
 void RegisterRuntimeLibraryApi(State *s);
 
-}  // namespace fakelua::runtime
+}// namespace fakelua::runtime

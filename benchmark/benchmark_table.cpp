@@ -6,9 +6,7 @@
 
 namespace {
 
-// ---------------------------------------------------------------------------
 // Scripts
-// ---------------------------------------------------------------------------
 
 constexpr const char *kTableInsertScript = R"(
 function bench_table_insert(n)
@@ -146,9 +144,7 @@ function bench_nested_table(n)
 end
 )";
 
-// ---------------------------------------------------------------------------
 // C++ reference implementations
-// ---------------------------------------------------------------------------
 
 int64_t CppTableInsert(int64_t n) {
     std::vector<int64_t> t;
@@ -191,7 +187,7 @@ int64_t CppTableMove(int64_t n) {
 int64_t CppTableSort(int64_t n) {
     std::vector<int64_t> t(static_cast<size_t>(n));
     for (int64_t i = 0; i < n; ++i) {
-        t[static_cast<size_t>(i)] = ((i + 1) * 12345) % (n * 10); // pseudo-random
+        t[static_cast<size_t>(i)] = ((i + 1) * 12345) % (n * 10);// pseudo-random
     }
     std::sort(t.begin(), t.end());
     return t[0];
@@ -231,6 +227,7 @@ int64_t CppNestedTable(int64_t n) {
         Node *a = nullptr;
         int64_t value = 0;
     };
+
     Node deep;
     Node *cur = &deep;
     for (int i = 0; i < 10; ++i) {
@@ -258,16 +255,11 @@ int64_t CppNestedTable(int64_t n) {
     return sum;
 }
 
-// ---------------------------------------------------------------------------
 // Lua helpers
-// ---------------------------------------------------------------------------
 
 const char *const kTableScripts[] = {
-            kTableInsertScript, kTableRemoveScript, kTableConcatScript,
-            kTablePackScript,   kTableMoveScript,   kTableSortScript,
-            kTableCreateScript, kHashInsertScript,  kHashLookupScript,
-            kNestedTableScript,
-        };
+        kTableInsertScript, kTableRemoveScript, kTableConcatScript, kTablePackScript, kTableMoveScript, kTableSortScript, kTableCreateScript, kHashInsertScript, kHashLookupScript, kNestedTableScript,
+};
 constexpr size_t kTableScriptCount = sizeof(kTableScripts) / sizeof(kTableScripts[0]);
 
 struct Ctx : RuntimeContext {
@@ -286,12 +278,13 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_TCC, "bench_hash_lookup", warmup, 10);
         Call(flua, JIT_TCC, "bench_nested_table", warmup, 10);
     }
-    ~Ctx() { Destroy(); }
+
+    ~Ctx() {
+        Destroy();
+    }
 } g_ctx;
 
-// ---------------------------------------------------------------------------
 // Benchmarks: table.insert
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_TableInsert(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -329,9 +322,7 @@ static void BM_FakeLua_TableInsert_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: table.remove
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_TableRemove(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -369,9 +360,7 @@ static void BM_FakeLua_TableRemove_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: table.concat
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_TableConcat(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -407,9 +396,7 @@ static void BM_FakeLua_TableConcat_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: table.pack (fixed-size pack/unpack)
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_TablePack(benchmark::State &state) {
     // C++ doesn't have a direct equivalent; just measure a struct pack
@@ -443,9 +430,7 @@ static void BM_FakeLua_TablePack_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: table.move
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_TableMove(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -483,9 +468,7 @@ static void BM_FakeLua_TableMove_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: table.sort
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_TableSort(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -521,9 +504,7 @@ static void BM_FakeLua_TableSort_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: table.create
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_TableCreate(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -561,9 +542,7 @@ static void BM_FakeLua_TableCreate_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: hash insert
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_HashInsert(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -601,9 +580,7 @@ static void BM_FakeLua_HashInsert_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: hash lookup
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_HashLookup(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -639,9 +616,7 @@ static void BM_FakeLua_HashLookup_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: nested table access
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_NestedTable(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -677,22 +652,20 @@ static void BM_FakeLua_NestedTable_GCC(benchmark::State &state) {
     }
 }
 
-} // namespace
+}// namespace
 
-// ---------------------------------------------------------------------------
 // Benchmark registrations
-// ---------------------------------------------------------------------------
 
-#define TABLE_INSERT_ARGS  ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
-#define TABLE_REMOVE_ARGS  ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
-#define TABLE_CONCAT_ARGS  ->Arg(100)->Arg(500)->Arg(1000)
-#define TABLE_PACK_ARGS    ->Arg(1)
-#define TABLE_MOVE_ARGS    ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
-#define TABLE_SORT_ARGS    ->Arg(100)->Arg(500)->Arg(1000)
-#define TABLE_CREATE_ARGS  ->Arg(1000)->Arg(3000)->Arg(5000)
-#define HASH_INSERT_ARGS   ->Arg(100)->Arg(500)->Arg(1000)
-#define HASH_LOOKUP_ARGS   ->Arg(100)->Arg(500)->Arg(1000)
-#define NESTED_TABLE_ARGS  ->Arg(1000)->Arg(10000)
+#define TABLE_INSERT_ARGS ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
+#define TABLE_REMOVE_ARGS ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
+#define TABLE_CONCAT_ARGS ->Arg(100)->Arg(500)->Arg(1000)
+#define TABLE_PACK_ARGS ->Arg(1)
+#define TABLE_MOVE_ARGS ->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)
+#define TABLE_SORT_ARGS ->Arg(100)->Arg(500)->Arg(1000)
+#define TABLE_CREATE_ARGS ->Arg(1000)->Arg(3000)->Arg(5000)
+#define HASH_INSERT_ARGS ->Arg(100)->Arg(500)->Arg(1000)
+#define HASH_LOOKUP_ARGS ->Arg(100)->Arg(500)->Arg(1000)
+#define NESTED_TABLE_ARGS ->Arg(1000)->Arg(10000)
 
 BENCHMARK(BM_CPP_TableInsert) TABLE_INSERT_ARGS;
 BENCHMARK(BM_Lua_TableInsert) TABLE_INSERT_ARGS;

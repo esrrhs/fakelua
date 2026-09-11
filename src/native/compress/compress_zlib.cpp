@@ -10,9 +10,8 @@ namespace fakelua::compress {
 
 static constexpr uLongf kMaxDecompressBytes = 64ul * 1024 * 1024;
 
-// ── zlib raw deflate ──
-
-std::vector<uint8_t> zlib_compress(const uint8_t *data, size_t len, int level) {
+// zlib raw deflate
+std::vector<uint8_t> ZlibCompress(const uint8_t *data, size_t len, int level) {
     if (level < 1) level = 1;
     if (level > 9) level = 9;
 
@@ -26,7 +25,7 @@ std::vector<uint8_t> zlib_compress(const uint8_t *data, size_t len, int level) {
     return out;
 }
 
-std::vector<uint8_t> zlib_decompress(const uint8_t *data, size_t len) {
+std::vector<uint8_t> ZlibDecompress(const uint8_t *data, size_t len) {
     if (len == 0) return {};
 
     // Start with an estimate; zlib doesn't embed original size.
@@ -56,9 +55,8 @@ std::vector<uint8_t> zlib_decompress(const uint8_t *data, size_t len) {
     return out;
 }
 
-// ── gzip format ──
-
-std::vector<uint8_t> gzip_compress(const uint8_t *data, size_t len, int level) {
+// gzip format
+std::vector<uint8_t> GzipCompress(const uint8_t *data, size_t len, int level) {
     if (level < 1) level = 1;
     if (level > 9) level = 9;
     if (len > std::numeric_limits<uInt>::max()) {
@@ -95,7 +93,7 @@ std::vector<uint8_t> gzip_compress(const uint8_t *data, size_t len, int level) {
     return out;
 }
 
-std::vector<uint8_t> gzip_decompress(const uint8_t *data, size_t len) {
+std::vector<uint8_t> GzipDecompress(const uint8_t *data, size_t len) {
     if (len == 0) return {};
     if (len > std::numeric_limits<uInt>::max()) {
         ThrowFakeluaException("gzip_decompress: payload too large");
@@ -157,4 +155,4 @@ std::vector<uint8_t> gzip_decompress(const uint8_t *data, size_t len) {
     return out;
 }
 
-}  // namespace fakelua::compress
+}// namespace fakelua::compress

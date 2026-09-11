@@ -9,7 +9,8 @@
 #include <vector>
 
 // 4-ary min-heap timer (header-only).
-// Source: https://github.com/esrrhs/heap_timer (MIT)
+// Source: https:
+// github.com/esrrhs/heap_timer (MIT)
 // Integrated into fakelua as a standalone timer library.
 
 namespace fakelua::timer {
@@ -23,19 +24,15 @@ public:
     HeapTimer() = default;
     ~HeapTimer() = default;
 
-    HeapTimer(const HeapTimer&) = delete;
-    HeapTimer& operator=(const HeapTimer&) = delete;
+    HeapTimer(const HeapTimer &) = delete;
+    HeapTimer &operator=(const HeapTimer &) = delete;
 
-    HeapTimer(HeapTimer&& other) noexcept
-        : timer_id_(other.timer_id_),
-          heap_(std::move(other.heap_)),
-          heap_size_(other.heap_size_),
-          timer_map_(std::move(other.timer_map_)) {
+    HeapTimer(HeapTimer &&other) noexcept : timer_id_(other.timer_id_), heap_(std::move(other.heap_)), heap_size_(other.heap_size_), timer_map_(std::move(other.timer_map_)) {
         other.timer_id_ = 0;
         other.heap_size_ = 0;
     }
 
-    HeapTimer& operator=(HeapTimer&& other) noexcept {
+    HeapTimer &operator=(HeapTimer &&other) noexcept {
         if (this != &other) {
             timer_id_ = other.timer_id_;
             heap_ = std::move(other.heap_);
@@ -198,4 +195,4 @@ private:
     std::unordered_map<TimerId, TimerNodePtr> timer_map_;
 };
 
-} // namespace fakelua::timer
+}// namespace fakelua::timer

@@ -1,8 +1,8 @@
 #include "common.h"
 #include "fakelua.h"
 #include "state/state.h"
-#include "var/var_type.h"
 #include "var/var_string.h"
+#include "var/var_type.h"
 
 #include <cinttypes>
 #include <cstdio>
@@ -22,13 +22,20 @@ constexpr const char *kTimeFormat = "%Y-%m-%d %H:%M:%S";
 // 级别名称
 const char *LevelName(LogLevel level) {
     switch (level) {
-    case LogLevel::Trace: return "TRACE";
-    case LogLevel::Debug: return "DEBUG";
-    case LogLevel::Info: return "INFO ";
-    case LogLevel::Warn: return "WARN ";
-    case LogLevel::Error: return "ERROR";
-    case LogLevel::Critical: return "CRIT ";
-    case LogLevel::Off: return "OFF  ";
+        case LogLevel::Trace:
+            return "TRACE";
+        case LogLevel::Debug:
+            return "DEBUG";
+        case LogLevel::Info:
+            return "INFO ";
+        case LogLevel::Warn:
+            return "WARN ";
+        case LogLevel::Error:
+            return "ERROR";
+        case LogLevel::Critical:
+            return "CRIT ";
+        case LogLevel::Off:
+            return "OFF  ";
     }
     return "INFO ";
 }
@@ -76,14 +83,11 @@ void RotateLogs(const std::string &path, size_t max_files) {
     std::filesystem::rename(path, std::format("{}.1", path), ec);
 }
 
-}  // namespace
+}// namespace
 
-// ─────────────────────────────────────────────────────────────────────────────
 // LogSink —— 一个日志输出目标（文件句柄 + 轮转配置 + 保护它们的锁）
-//
 // 每个 State 各有一份。State 是单线程的，这把锁主要防的是析构和写并发这种边角；
 // 两个 State 各写各的文件不会互相阻塞。
-// ─────────────────────────────────────────────────────────────────────────────
 class LogSink {
 public:
     void Configure(const std::string &path, size_t max_size, size_t max_files) {
@@ -164,11 +168,13 @@ void Emit(State *s, LogLevel level, const std::string &line) {
     }
 }
 
-}  // namespace
+}// namespace
 
 // 获取本 State 的日志级别（供生成的 C 代码通过宏检查）
 // 使用 C 链接，以便 TCC 生成的代码可以链接到它
-extern "C" int GetLogLevel(State *s) { return static_cast<int>(LevelOf(s)); }
+extern "C" int GetLogLevel(State *s) {
+    return static_cast<int>(LevelOf(s));
+}
 
 void SetLogLevel(State *s, LogLevel level) {
     if (s != nullptr) {
@@ -196,8 +202,7 @@ void DestroyLogSink(LogSink *sink) {
     delete sink;
 }
 
-void Log(State *s, LogLevel level, const std::string_view &tag, const std::string_view &message,
-         const std::source_location &source) {
+void Log(State *s, LogLevel level, const std::string_view &tag, const std::string_view &message, const std::source_location &source) {
     if (!CheckLogLevel(s, level)) {
         return;
     }
@@ -205,8 +210,7 @@ void Log(State *s, LogLevel level, const std::string_view &tag, const std::strin
     Emit(s, level, FormatLine(level, tag, message, loc_str));
 }
 
-void LogLua(State *s, LogLevel level, const std::string_view &tag, const std::string_view &message,
-            const std::string_view &source_file, int source_line, const std::string_view &function_name) {
+void LogLua(State *s, LogLevel level, const std::string_view &tag, const std::string_view &message, const std::string_view &source_file, int source_line, const std::string_view &function_name) {
     if (!CheckLogLevel(s, level)) {
         return;
     }
@@ -223,30 +227,30 @@ extern "C" void FakeluaLogLua(State *s, int level, CVar msg, const char *file, i
     // 将 CVar 转为字符串
     std::string msg_str;
     switch (static_cast<VarType>(msg.type_)) {
-    case VarType::Nil:
-        msg_str = "nil";
-        break;
-    case VarType::Bool:
-        msg_str = (msg.data_.i != 0) ? "true" : "false";
-        break;
-    case VarType::Int:
-        msg_str = std::to_string(msg.data_.i);
-        break;
-    case VarType::Float: {
-        char buf[64];
-        std::snprintf(buf, sizeof(buf), "%.17g", msg.data_.f);
-        msg_str = buf;
-        break;
-    }
-    case VarType::String:
-    case VarType::StringId:
-        if (msg.data_.s) {
-            msg_str = msg.data_.s->Str();
+        case VarType::Nil:
+            msg_str = "nil";
+            break;
+        case VarType::Bool:
+            msg_str = (msg.data_.i != 0) ? "true" : "false";
+            break;
+        case VarType::Int:
+            msg_str = std::to_string(msg.data_.i);
+            break;
+        case VarType::Float: {
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "%.17g", msg.data_.f);
+            msg_str = buf;
+            break;
         }
-        break;
-    default:
-        msg_str = std::format("[type:{}]", msg.type_);
-        break;
+        case VarType::String:
+        case VarType::StringId:
+            if (msg.data_.s) {
+                msg_str = msg.data_.s->Str();
+            }
+            break;
+        default:
+            msg_str = std::format("[type:{}]", msg.type_);
+            break;
     }
 
     fakelua::LogLua(s, static_cast<fakelua::LogLevel>(level), "script", msg_str, file ? file : "", line, func ? func : "");

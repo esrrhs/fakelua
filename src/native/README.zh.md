@@ -49,8 +49,8 @@ native 层按这个前提组织：**所有可变状态都挂在 `State` 上**，
 - 定时器、事件监听、net/mysql/sqlite/io 的对象表、protobuf 的 .proto schema 注册表，都是每
   `State` 一份，一个 `State` 里注册的东西不会泄漏到另一个；
 - 复用的临时缓冲区归它服务的那个对象：解包用的线性暂存区在 `CircularBuffer` 上
-  （`header_scratch` / `payload_scratch`），WebSocket 掩码的随机源在连接 `AsioConn` 上；
-  低频用到的随机数发生器（生成临时文件名、WebSocket 握手 key）直接用局部变量。
+  （`HeaderScratch` / `PayloadScratch`）。WebSocket 走 Boost.Beast，握手与掩码由
+  Beast 在连接上处理；低频随机数（生成临时文件名）直接用局部变量。
 
 JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶存在
 `State::GetJitErrorBoundary()`，边界对象本身在 C++ 栈上。`RunWithJitErrorBoundary` /
@@ -260,7 +260,7 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `line` | 换行符分隔，自动去除 |
 | `fixed` | 固定长度（需 `fixed_len = N`） |
 | `raw` | 原始透传 |
-| `websocket` / `ws` | RFC 6455 WebSocket（文本帧） |
+| `websocket` / `ws` | RFC 6455 WebSocket（文本帧，Boost.Beast） |
 
 **自定义解析器：** `parser = "Package.func"`（Lua）或 `custom_parser_fn`/`custom_encoder_fn`（C++ `NetConfig`）
 

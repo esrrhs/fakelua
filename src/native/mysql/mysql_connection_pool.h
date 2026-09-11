@@ -22,11 +22,11 @@ struct PoolConfig {
     std::string password;
     std::string database;
     int pool_size = 4;                // number of connections in pool
-    int connect_timeout_ms = 5000;     // TCP connect timeout
-    int read_timeout_ms = 5000;        // read timeout
-    int heartbeat_interval_ms = 30000; // heartbeat interval (0 = disabled)
-    int max_retries = 3;               // max auto-reconnect retries
-    int retry_base_ms = 1000;          // exponential backoff base
+    int connect_timeout_ms = 5000;    // TCP connect timeout
+    int read_timeout_ms = 5000;       // read timeout
+    int heartbeat_interval_ms = 30000;// heartbeat interval (0 = disabled)
+    int max_retries = 3;              // max auto-reconnect retries
+    int retry_base_ms = 1000;         // exponential backoff base
 };
 
 class MysqlConnectionPool {
@@ -39,57 +39,61 @@ public:
     MysqlConnectionPool &operator=(const MysqlConnectionPool &) = delete;
 
     // Initialize the pool: create connections
-    void initialize();
+    void Initialize();
 
     // Get a connection from the pool (round-robin)
     // Returns nullptr if no healthy connection available
-    MysqlConnection* acquire();
+    MysqlConnection *Acquire();
 
     // Release a connection back to the pool
-    void release(MysqlConnection *conn);
+    void Release(MysqlConnection *conn);
 
     // Tick all connections (heartbeat, reconnect)
-    void tick();
+    void Tick();
 
     // Close all connections. If a connection is inside tick()/Lua callback,
     // unique_ptrs are kept until reap() (same deferred-close idea as net).
-    void close();
+    void Close();
 
     // Destroy idle connections after a deferred close(). Safe to call anytime.
-    void reap();
+    void Reap();
 
-    bool closed() const { return closed_; }
+    bool Closed() const {
+        return closed_;
+    }
 
     // Stats
-    size_t total_count() const;
-    size_t healthy_count() const;
+    size_t TotalCount() const;
+    size_t HealthyCount() const;
 
 private:
     PoolConfig config_;
     ::fakelua::State *state_ = nullptr;
     bool closed_ = false;
+
     struct PoolEntry {
         std::unique_ptr<MysqlConnection> conn;
         bool in_use = false;
         bool healthy = false;
-        int64_t last_heartbeat = 0;  // last successful heartbeat time
-        int retry_count = 0;         // current retry count
+        int64_t last_heartbeat = 0;// last successful heartbeat time
+        int retry_count = 0;       // current retry count
     };
+
     std::vector<PoolEntry> pool_;
-    size_t round_robin_ = 0;  // round-robin index
+    size_t round_robin_ = 0;// round-robin index
     mutable std::mutex mutex_;
 
     // Create a new connection
-    std::unique_ptr<MysqlConnection> create_connection();
+    std::unique_ptr<MysqlConnection> CreateConnection();
 
     // Check if a connection is healthy
-    bool check_healthy(PoolEntry &entry);
+    bool CheckHealthy(PoolEntry &entry);
 
     // Send heartbeat (COM_PING)
-    void send_heartbeat(PoolEntry &entry);
+    void SendHeartbeat(PoolEntry &entry);
 
     // Auto-reconnect a connection
-    void try_reconnect(PoolEntry &entry);
+    void TryReconnect(PoolEntry &entry);
 };
 
-}  // namespace fakelua::mysql
+}// namespace fakelua::mysql

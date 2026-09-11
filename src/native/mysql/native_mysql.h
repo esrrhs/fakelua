@@ -19,14 +19,14 @@ void RegisterMysqlLibraryApi(State *s);
 void RegisterMysqlPoolApi(State *s);
 
 // Shared connection methods (used by both direct connect and pool)
-CVar conn_query(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
+CVar ConnQuery(NativeObject *self, State *s, CVar *args, int n);
+CVar ConnStmtPrepare(NativeObject *self, State *s, CVar *args, int n);
+CVar ConnStmtExecute(NativeObject *self, State *s, CVar *args, int n);
+CVar ConnStmtClose(NativeObject *self, State *s, CVar *args, int n);
 // 单个对象的驱动，不是 Lua 可见的方法。
 void TickMysqlConnection(NativeObject *self, State *s);
 void TickMysqlPool(NativeObject *self);
-MysqlConnection *unwrap_conn_native(NativeObject *self);
+MysqlConnection *UnwrapConnNative(NativeObject *self);
 
 // Per-State NativeObject registry so FakeluaDeleteState can close sockets.
 void RegisterMysqlNativeWrapper(State *s, NativeObject *nat, bool is_pool);
@@ -36,4 +36,4 @@ void OnStateDeleted(State *s);
 // 驱动本 State 上所有连接池和连接。由 runtime.tick() 调用。
 void TickAll(State *s);
 
-}  // namespace fakelua::mysql
+}// namespace fakelua::mysql

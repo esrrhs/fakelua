@@ -5,9 +5,7 @@
 
 using namespace fakelua;
 
-// ---------------------------------------------------------------------------
 // TrimInplace tests
-// ---------------------------------------------------------------------------
 
 TEST(util, TrimInplace_empty) {
     std::string s;
@@ -69,9 +67,7 @@ TEST(util, TrimInplace_internal_spaces_preserved) {
     ASSERT_EQ(s, "a  b  c");
 }
 
-// ---------------------------------------------------------------------------
 // JoinString single-element path
-// ---------------------------------------------------------------------------
 
 TEST(util, JoinString_single_element) {
     ASSERT_EQ(JoinString({"only"}, ","), "only");
@@ -80,9 +76,7 @@ TEST(util, JoinString_single_element) {
     ASSERT_EQ(JoinString({"abc"}, ""), "abc");
 }
 
-// ---------------------------------------------------------------------------
 // ReplaceEscapeChars additional paths not covered elsewhere
-// ---------------------------------------------------------------------------
 
 // Bare backslash at end of string (the loop simply breaks after consuming '\').
 TEST(util, ReplaceEscapeChars_trailing_backslash) {
