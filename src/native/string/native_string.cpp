@@ -9,6 +9,9 @@
 #include "var/var_multi.h"
 #include "var/var_string.h"
 #include <algorithm>
+#include <boost/algorithm/string.hpp>
+#include <boost/endian/conversion.hpp>
+#include <boost/regex.hpp>
 #include <cctype>
 #include <cinttypes>
 #include <climits>
@@ -17,9 +20,9 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <locale>
 #include <memory>
 #include <mutex>
-#include <regex>
 #include <shared_mutex>
 #include <string>
 #include <string_view>
@@ -36,16 +39,16 @@ static inline int64_t NormalizePos(int64_t pos, int64_t len) {
 }
 
 // ECMAScript 正则编译缓存
-// std::regex 构造极慢；find/match/gmatch/gsub 的热点是重复编译同一 pattern。
+// Boost.Regex 构造仍有成本；find/match/gmatch/gsub 的热点是重复编译同一 pattern。
 // 进程级缓存：key=pattern 原文，value=编译结果（含 optimize）。
 // 返回的指针由缓存永久持有（不淘汰，避免 gmatch 状态中的裸指针悬空）。
 namespace {
 
 std::shared_mutex g_regex_cache_mu;
-std::unordered_map<std::string, std::unique_ptr<std::regex>> g_regex_cache;
+std::unordered_map<std::string, std::unique_ptr<boost::regex>> g_regex_cache;
 
 // 成功返回非空指针；pattern 非法返回 nullptr（与原先 catch regex_error → nil 一致）。
-const std::regex *GetCachedRegex(std::string_view pattern) {
+const boost::regex *GetCachedRegex(std::string_view pattern) {
     std::string key(pattern);
     {
         std::shared_lock lock(g_regex_cache_mu);
@@ -55,10 +58,10 @@ const std::regex *GetCachedRegex(std::string_view pattern) {
         }
     }
 
-    std::unique_ptr<std::regex> compiled;
+    std::unique_ptr<boost::regex> compiled;
     try {
-        compiled = std::make_unique<std::regex>(key, std::regex::ECMAScript | std::regex::optimize);
-    } catch (const std::regex_error &) {
+        compiled = std::make_unique<boost::regex>(key, boost::regex::ECMAScript | boost::regex::optimize);
+    } catch (const boost::regex_error &) {
         return nullptr;
     }
 
@@ -133,36 +136,138 @@ static void CheckFormatItemSize(std::string_view spec) {
 // re 指向全局缓存中的编译结果，不在此处持有所有权（arena 不跑析构也安全）。
 struct GMatchState {
     std::string text;
-    const std::regex *re = nullptr;
+    const boost::regex *re = nullptr;
     size_t pos = 0;
 };
-
-// 检测主机字节序（x86 = 小端）
-static inline bool IsHostBigEndian() {
-    const uint16_t probe = 0x0001;
-    return static_cast<const unsigned char *>(static_cast<const void *>(&probe))[0] == 0;
-}
 
 // string.pack / packsize / unpack 二进制序列化辅助
 struct PackMachine {
     bool big_endian = false;
     int align = 0;// 0 = no alignment
 
-    static void WriteVal(std::string &out, const void *data, size_t n, bool big) {
-        const auto *bytes = static_cast<const unsigned char *>(data);
+    static bool NativeIsBig() {
+        return boost::endian::order::native == boost::endian::order::big;
+    }
+
+    template<class T, std::size_t N>
+    static void StoreN(unsigned char *p, T v, bool big) {
         if (big) {
-            for (size_t i = 0; i < n; ++i) out.push_back(static_cast<char>(bytes[n - 1 - i]));
+            boost::endian::endian_store<T, N, boost::endian::order::big>(p, v);
         } else {
-            for (size_t i = 0; i < n; ++i) out.push_back(static_cast<char>(bytes[i]));
+            boost::endian::endian_store<T, N, boost::endian::order::little>(p, v);
         }
     }
 
-    static void ReadVal(const unsigned char *src, void *dst, size_t n, bool big) {
-        auto *d = static_cast<unsigned char *>(dst);
+    template<class T, std::size_t N>
+    static T LoadN(const unsigned char *p, bool big) {
         if (big) {
-            for (size_t i = 0; i < n; ++i) d[i] = src[n - 1 - i];
-        } else {
-            std::memcpy(d, src, n);
+            return boost::endian::endian_load<T, N, boost::endian::order::big>(p);
+        }
+        return boost::endian::endian_load<T, N, boost::endian::order::little>(p);
+    }
+
+    // data 指向主机字节序下的整数/IEEE 位型。n=3,5,6,7 时调用方传入的是 uint64_t*。
+    static void WriteVal(std::string &out, const void *data, size_t n, bool big) {
+        unsigned char buf[8];
+        switch (n) {
+            case 1: {
+                uint8_t x = 0;
+                std::memcpy(&x, data, 1);
+                StoreN<uint8_t, 1>(buf, x, big);
+                break;
+            }
+            case 2: {
+                uint16_t x = 0;
+                std::memcpy(&x, data, 2);
+                StoreN<uint16_t, 2>(buf, x, big);
+                break;
+            }
+            case 3: {
+                uint64_t x = 0;
+                std::memcpy(&x, data, 8);
+                StoreN<uint64_t, 3>(buf, x, big);
+                break;
+            }
+            case 4: {
+                uint32_t x = 0;
+                std::memcpy(&x, data, 4);
+                StoreN<uint32_t, 4>(buf, x, big);
+                break;
+            }
+            case 5: {
+                uint64_t x = 0;
+                std::memcpy(&x, data, 8);
+                StoreN<uint64_t, 5>(buf, x, big);
+                break;
+            }
+            case 6: {
+                uint64_t x = 0;
+                std::memcpy(&x, data, 8);
+                StoreN<uint64_t, 6>(buf, x, big);
+                break;
+            }
+            case 7: {
+                uint64_t x = 0;
+                std::memcpy(&x, data, 8);
+                StoreN<uint64_t, 7>(buf, x, big);
+                break;
+            }
+            case 8: {
+                uint64_t x = 0;
+                std::memcpy(&x, data, 8);
+                StoreN<uint64_t, 8>(buf, x, big);
+                break;
+            }
+            default:
+                return;
+        }
+        out.append(reinterpret_cast<char *>(buf), n);
+    }
+
+    static void ReadVal(const unsigned char *src, void *dst, size_t n, bool big) {
+        switch (n) {
+            case 1: {
+                uint8_t x = LoadN<uint8_t, 1>(src, big);
+                std::memcpy(dst, &x, 1);
+                break;
+            }
+            case 2: {
+                uint16_t x = LoadN<uint16_t, 2>(src, big);
+                std::memcpy(dst, &x, 2);
+                break;
+            }
+            case 3: {
+                uint64_t x = LoadN<uint64_t, 3>(src, big);
+                std::memcpy(dst, &x, 8);
+                break;
+            }
+            case 4: {
+                uint32_t x = LoadN<uint32_t, 4>(src, big);
+                std::memcpy(dst, &x, 4);
+                break;
+            }
+            case 5: {
+                uint64_t x = LoadN<uint64_t, 5>(src, big);
+                std::memcpy(dst, &x, 8);
+                break;
+            }
+            case 6: {
+                uint64_t x = LoadN<uint64_t, 6>(src, big);
+                std::memcpy(dst, &x, 8);
+                break;
+            }
+            case 7: {
+                uint64_t x = LoadN<uint64_t, 7>(src, big);
+                std::memcpy(dst, &x, 8);
+                break;
+            }
+            case 8: {
+                uint64_t x = LoadN<uint64_t, 8>(src, big);
+                std::memcpy(dst, &x, 8);
+                break;
+            }
+            default:
+                break;
         }
     }
 
@@ -210,7 +315,7 @@ int PackMachine::PackSpec(std::string &out, const char *fmt, const char *end, St
         }
         // '=' : native endianness, no alignment (x86 = little-endian)
         if (c == '=') {
-            big_endian = IsHostBigEndian();
+            big_endian = PackMachine::NativeIsBig();
             align = 0;
             ++fmt;
             continue;
@@ -486,8 +591,8 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         // 在原串上从 pos 起搜，避免每次 substr 拷贝
         auto first = gs->text.cbegin() + static_cast<std::ptrdiff_t>(gs->pos);
         auto last = gs->text.cend();
-        std::smatch match;
-        if (!std::regex_search(first, last, match, *gs->re)) {
+        boost::smatch match;
+        if (!boost::regex_search(first, last, match, *gs->re)) {
             gs->pos = gs->text.size();
             return inter::NativeToFakeluaNil(iter_state);
         }
@@ -507,7 +612,7 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
             return multi;
         }
         return inter::NativeToFakeluaStringView(iter_state, match[0].str());
-    } catch (const std::regex_error &) {
+    } catch (const boost::regex_error &) {
         return inter::NativeToFakeluaNil(iter_state);
     }
 }
@@ -645,6 +750,82 @@ void RegisterStringLibraryApi(State *s) {
         CVar ret{static_cast<int>(VarType::String)};
         ret.data_.s = vs;
         return ret;
+    });
+
+    // string.trim(s) — 两端空白（C locale isspace），Boost.Algorithm
+    RegisterNativeFunction(s, "string.trim", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.trim", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckStringArg(a0, 1, "string.trim");
+        std::string temp;
+        std::string out(GetStringArgView(a0, temp));
+        boost::algorithm::trim(out, std::locale::classic());
+        return inter::NativeToFakeluaStringView(state, out);
+    });
+
+    // string.split(s, sep) — 按分隔串切开（可多字符），空段保留；sep 不能为空
+    RegisterNativeFunction(s, "string.split", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.split", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.split", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckStringArg(a0, 1, "string.split");
+        CheckStringArg(a1, 2, "string.split");
+        std::string temp0, temp1;
+        std::string input(GetStringArgView(a0, temp0));
+        std::string sep(GetStringArgView(a1, temp1));
+        if (sep.empty()) {
+            ThrowFakeluaException("bad argument #2 to 'string.split' (separator must be non-empty)");
+        }
+        std::vector<std::string> parts;
+        boost::algorithm::iter_split(parts, input, boost::algorithm::first_finder(sep));
+        CVar tbl = table::TableHelper::CreateTable(state);
+        for (size_t i = 0; i < parts.size(); ++i) {
+            table::TableHelper::SetTableInt(state, tbl, static_cast<int64_t>(i + 1), inter::NativeToFakeluaStringView(state, parts[i]));
+        }
+        return tbl;
+    });
+
+    // string.starts_with(s, prefix)
+    RegisterNativeFunction(s, "string.starts_with", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.starts_with", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.starts_with", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckStringArg(a0, 1, "string.starts_with");
+        CheckStringArg(a1, 2, "string.starts_with");
+        std::string temp0, temp1;
+        std::string_view sv = GetStringArgView(a0, temp0);
+        std::string_view prefix = GetStringArgView(a1, temp1);
+        return inter::NativeToFakeluaBool(state, boost::algorithm::starts_with(sv, prefix));
+    });
+
+    // string.ends_with(s, suffix)
+    RegisterNativeFunction(s, "string.ends_with", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.ends_with", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.ends_with", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckStringArg(a0, 1, "string.ends_with");
+        CheckStringArg(a1, 2, "string.ends_with");
+        std::string temp0, temp1;
+        std::string_view sv = GetStringArgView(a0, temp0);
+        std::string_view suffix = GetStringArgView(a1, temp1);
+        return inter::NativeToFakeluaBool(state, boost::algorithm::ends_with(sv, suffix));
+    });
+
+    // string.contains(s, needle)
+    RegisterNativeFunction(s, "string.contains", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.contains", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.contains", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckStringArg(a0, 1, "string.contains");
+        CheckStringArg(a1, 2, "string.contains");
+        std::string temp0, temp1;
+        std::string_view sv = GetStringArgView(a0, temp0);
+        std::string_view needle = GetStringArgView(a1, temp1);
+        return inter::NativeToFakeluaBool(state, boost::algorithm::contains(sv, needle));
     });
 
 
@@ -979,12 +1160,12 @@ void RegisterStringLibraryApi(State *s) {
             return multi;
         }
 
-        const std::regex *re = GetCachedRegex(pat_view);
+        const boost::regex *re = GetCachedRegex(pat_view);
         if (!re) return inter::NativeToFakeluaNil(state);
 
         try {
-            std::smatch match;
-            if (!std::regex_search(sub, match, *re)) return inter::NativeToFakeluaNil(state);
+            boost::smatch match;
+            if (!boost::regex_search(sub, match, *re)) return inter::NativeToFakeluaNil(state);
 
             int64_t start = init_pos + static_cast<int64_t>(match.position());
             int64_t end = start + static_cast<int64_t>(match.length()) - 1;
@@ -997,7 +1178,7 @@ void RegisterStringLibraryApi(State *s) {
                 inter::SetMultiCVarElement(multi, i + 2, inter::NativeToFakeluaStringView(state, match[i + 1].str()));
             }
             return multi;
-        } catch (const std::regex_error &) {
+        } catch (const boost::regex_error &) {
             return inter::NativeToFakeluaNil(state);
         }
     });
@@ -1029,12 +1210,12 @@ void RegisterStringLibraryApi(State *s) {
         }
         std::string sub = std::string(sv.substr(static_cast<size_t>(init_pos - 1)));
 
-        const std::regex *re = GetCachedRegex(pat_view);
+        const boost::regex *re = GetCachedRegex(pat_view);
         if (!re) return inter::NativeToFakeluaNil(state);
 
         try {
-            std::smatch match;
-            if (!std::regex_search(sub, match, *re)) return inter::NativeToFakeluaNil(state);
+            boost::smatch match;
+            if (!boost::regex_search(sub, match, *re)) return inter::NativeToFakeluaNil(state);
 
             if (match.size() > 1) {
                 // 有捕获组：返回所有捕获
@@ -1047,7 +1228,7 @@ void RegisterStringLibraryApi(State *s) {
             }
             // 无捕获组：返回整个匹配
             return inter::NativeToFakeluaStringView(state, match[0].str());
-        } catch (const std::regex_error &) {
+        } catch (const boost::regex_error &) {
             return inter::NativeToFakeluaNil(state);
         }
     });
@@ -1065,7 +1246,7 @@ void RegisterStringLibraryApi(State *s) {
         std::string pattern(GetStringArgView(a1, temp1));
         if (text.empty() || pattern.empty()) return inter::NativeToFakeluaNil(state);
 
-        const std::regex *re = GetCachedRegex(pattern);
+        const boost::regex *re = GetCachedRegex(pattern);
         if (!re) return inter::NativeToFakeluaNil(state);
 
         // 使用 arena 分配器分配迭代器状态（re 由全局缓存持有）
@@ -1105,7 +1286,7 @@ void RegisterStringLibraryApi(State *s) {
         bool repl_is_table = (repl_var.type_ == static_cast<int>(VarType::Table) && repl_var.data_.t);
         bool repl_is_closure = (repl_var.type_ == static_cast<int>(VarType::Closure) && repl_var.data_.cl);
 
-        const std::regex *re = GetCachedRegex(pat_view);
+        const boost::regex *re = GetCachedRegex(pat_view);
         if (!re) return inter::NativeToFakeluaNil(state);
 
         try {
@@ -1114,13 +1295,13 @@ void RegisterStringLibraryApi(State *s) {
             result.reserve(input.size());
             int64_t count = 0;
 
-            auto it = std::sregex_iterator(input.begin(), input.end(), *re);
-            auto end = std::sregex_iterator();
+            auto it = boost::sregex_iterator(input.begin(), input.end(), *re);
+            auto end = boost::sregex_iterator();
             size_t last_pos = 0;
 
             for (; it != end; ++it) {
                 if (max_replace >= 0 && count >= max_replace) break;
-                const std::smatch &match = *it;
+                const boost::smatch &match = *it;
                 result.append(input, last_pos, match.position() - last_pos);
 
                 std::string replacement;
@@ -1207,7 +1388,7 @@ void RegisterStringLibraryApi(State *s) {
             inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaStringView(state, result));
             inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, count));
             return multi;
-        } catch (const std::regex_error &) {
+        } catch (const boost::regex_error &) {
             return inter::NativeToFakeluaNil(state);
         }
     });
@@ -1451,7 +1632,7 @@ void RegisterStringLibraryApi(State *s) {
             }
             // '=' : native endianness, no alignment (x86 = little-endian)
             if (c == '=') {
-                pm.big_endian = IsHostBigEndian();
+                pm.big_endian = PackMachine::NativeIsBig();
                 pm.align = 0;
                 ++fmt_p;
                 continue;
@@ -1805,7 +1986,7 @@ void RegisterStringLibraryApi(State *s) {
                 continue;
             }
             if (c == '=') {
-                pm.big_endian = IsHostBigEndian();
+                pm.big_endian = PackMachine::NativeIsBig();
                 ++fmt_p;
                 continue;
             }

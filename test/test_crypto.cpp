@@ -394,3 +394,25 @@ TEST(test_crypto, evp_digest_raw_sha256) {
 TEST(test_crypto, evp_digest_raw_sha3_256) {
     RunEvpExtTest("CryptoTest.test_evp_digest_raw_sha3_256");
 }
+
+TEST(test_crypto, uuid_v4) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./crypto/test_crypto_uuid.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CryptoTest.test_uuid", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_crypto, crc32) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./crypto/test_crypto_crc32.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "CryptoTest.test_crc32", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

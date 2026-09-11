@@ -5,7 +5,11 @@
 #include "native/native_common.h"
 #include "util/logging.h"
 
+#include <boost/algorithm/hex.hpp>
+#include <boost/crc.hpp>
+#include <boost/uuid.hpp>
 #include <format>
+#include <iterator>
 #include <mutex>
 #include <openssl/evp.h>
 #include <openssl/opensslv.h>
@@ -174,6 +178,22 @@ static CVar CryptoBase64Decode(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaString(s, out);
 }
 
+// crypto.uuid() → RFC 4122 v4 UUID string (xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx)
+static CVar CryptoUuid(State *s, CVar * /*args*/, int /*n*/) {
+    boost::uuids::random_generator gen;
+    return inter::NativeToFakeluaString(s, boost::uuids::to_string(gen()));
+}
+
+// crypto.crc32(data) → CRC-32/ISO-HDLC (PKZIP) as unsigned 32-bit integer
+static CVar CryptoCrc32(State *s, CVar *args, int n) {
+    if (n < 1) ThrowBadArgument(1, "crypto.crc32", "data expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    std::string data = inter::FakeluaToNativeString(s, a0);
+    boost::crc_32_type crc;
+    crc.process_bytes(data.data(), data.size());
+    return inter::NativeToFakeluaLonglong(s, static_cast<long long>(crc.checksum()));
+}
+
 // crypto.hex_encode(data) → hex string
 static CVar CryptoHexEncode(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "crypto.hex_encode", "data expected");
@@ -190,23 +210,14 @@ static CVar CryptoHexDecode(State *s, CVar *args, int n) {
     if (hex.size() % 2 != 0) {
         ThrowFakeluaException("crypto.hex_decode: hex string must have even length");
     }
-    std::string out;
-    out.reserve(hex.size() / 2);
-    auto nibble = [](char c) -> int {
-        if (c >= '0' && c <= '9') return c - '0';
-        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-        return -1;
-    };
-    for (size_t i = 0; i < hex.size(); i += 2) {
-        int hi = nibble(hex[i]);
-        int lo = nibble(hex[i + 1]);
-        if (hi < 0 || lo < 0) {
-            ThrowFakeluaException("crypto.hex_decode: invalid hex character");
-        }
-        out.push_back(static_cast<char>((hi << 4) | lo));
+    try {
+        std::string out;
+        out.reserve(hex.size() / 2);
+        boost::algorithm::unhex(hex.begin(), hex.end(), std::back_inserter(out));
+        return inter::NativeToFakeluaString(s, out);
+    } catch (const boost::algorithm::hex_decode_error &) {
+        ThrowFakeluaException("crypto.hex_decode: invalid hex character");
     }
-    return inter::NativeToFakeluaString(s, out);
 }
 
 // crypto.rc4(key, data) → encrypted/decrypted data (RC4 is symmetric)
@@ -519,6 +530,8 @@ void RegisterCryptoLibraryApi(State *s) {
     RegisterNativeFunction(s, "crypto.hex_decode", 1, false, CryptoHexDecode);
     RegisterNativeFunction(s, "crypto.base64_encode", 1, false, CryptoBase64Encode);
     RegisterNativeFunction(s, "crypto.base64_decode", 1, false, CryptoBase64Decode);
+    RegisterNativeFunction(s, "crypto.uuid", 0, false, CryptoUuid);
+    RegisterNativeFunction(s, "crypto.crc32", 1, false, CryptoCrc32);
     RegisterNativeFunction(s, "crypto.aes_encrypt_ecb", 2, false, CryptoAesEncryptEcb);
     RegisterNativeFunction(s, "crypto.aes_decrypt_ecb", 2, false, CryptoAesDecryptEcb);
     RegisterNativeFunction(s, "crypto.aes_encrypt_cbc", 3, false, CryptoAesEncryptCbc);

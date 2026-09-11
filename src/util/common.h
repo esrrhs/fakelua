@@ -29,7 +29,6 @@
 #include <queue>
 #include <random>
 #include <ranges>
-#include <regex>
 #include <set>
 #include <shared_mutex>
 #include <signal.h>
@@ -53,9 +52,6 @@
 #include <utility>
 #include <variant>
 #include <vector>
-#ifndef _WIN32
-#include <execinfo.h>
-#endif
 
 #include "debug.h"
 #include "exception.h"

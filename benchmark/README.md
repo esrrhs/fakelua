@@ -67,7 +67,7 @@ The table below takes the largest parameter (most representative) for each scena
 | StringFindPattern | n=1000 | 0.12x | 39.6 | ECMAScript regex; compile cache added |
 | StringGmatch | n=1000 | 0.21x | 23.3 | ECMAScript regex; compile cache added |
 
-> **On regex being slower than Lua**: FakeLua's `string.find` / `match` / `gmatch` / `gsub` use **ECMAScript `std::regex`** (with process-level compile caching), which is more powerful than Lua 5.4's built-in pattern (lookahead, full character classes, non-greedy, etc.). Therefore regex scenarios being slower than Lua (currently ~0.06~0.21x) is **acceptable** — it's capability for performance. To match Lua in the future, the direction is a separate Lua pattern engine, not further optimizing `std::regex`. Scripts uniformly use `[0-9]+` (semantically identical in Lua pattern and ECMAScript regex).
+> **On regex being slower than Lua**: FakeLua's `string.find` / `match` / `gmatch` / `gsub` use **ECMAScript Boost.Regex** (with process-level compile caching), which is more powerful than Lua 5.4's built-in pattern (lookahead, full character classes, non-greedy, etc.). Therefore regex scenarios being slower than Lua (currently ~0.06~0.21x) is **acceptable** — it's capability for performance. To match Lua in the future, the direction is a separate Lua pattern engine, not further optimizing Boost.Regex. Scripts uniformly use `[0-9]+` (semantically identical in Lua pattern and ECMAScript regex).
 
 ### Table Operations (table)
 
@@ -124,7 +124,7 @@ The table below takes the largest parameter (most representative) for each scena
 
 5. **Arena allocator shows clear advantage in heavy table-creation scenarios**: TableChurn 9.3x faster than Lua — no GC, bulk free.
 
-6. **Regex scenarios being slower than Lua is acceptable** (Gsub 0.06x, FindPattern 0.12x, Gmatch 0.21x): uses more powerful ECMAScript `std::regex` (not Lua pattern), with compile caching; different capability, not a target to match.
+6. **Regex scenarios being slower than Lua is acceptable** (Gsub 0.06x, FindPattern 0.12x, Gmatch 0.21x): uses more powerful ECMAScript Boost.Regex (not Lua pattern), with compile caching; different capability, not a target to match.
 
 7. **Remaining slow items are dominated by call dispatch overhead**: GCD (0.45x), ToNumber (0.53x), ToString (0.74x), Variadic (0.91x) have extremely small function bodies (< 1 µs); JIT CVar boxing/unboxing and calling convention overhead dominate — not the computation itself being slow. Cross-function inlining or calling convention optimization is needed to catch up.
 

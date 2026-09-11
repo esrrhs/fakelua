@@ -1,0 +1,57 @@
+#include "fakelua.h"
+#include "gtest/gtest.h"
+
+using namespace fakelua;
+
+TEST(test_container, deque) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "ContainerTest.test_deque", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, map) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "ContainerTest.test_map", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, set) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "ContainerTest.test_set", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, closed) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_closed", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, bad_table_value) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_bad_table_value", ret), std::exception);
+    FakeluaDeleteState(s);
+}

@@ -2,9 +2,11 @@
 #include "compile/c_runtime_header.h"
 #include "jit/jit_error_boundary.h"
 #include "native/event/native_event.h"
+#include "native/http/native_http.h"
 #include "native/io/native_io.h"
 #include "native/mysql/native_mysql.h"
 #include "native/net/native_net.h"
+#include "native/redis/native_redis.h"
 #include "native/sqlite/native_sqlite.h"
 #include "native/table/native_table.h"
 #include "native/timer/native_timer.h"
@@ -392,6 +394,8 @@ State *FakeluaNewState(const StateConfig &cfg) {
 void FakeluaDeleteState(State *state) {
     if (!state) return;
     net::OnStateDeleted(state);
+    http::OnStateDeleted(state);
+    redis::OnStateDeleted(state);
     mysql::OnStateDeleted(state);
     sqlite::OnStateDeleted(state);
     io::OnStateDeleted(state);

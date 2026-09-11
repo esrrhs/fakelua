@@ -111,3 +111,45 @@ TEST(test_serialize, test_skip) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_serialize, test_text_roundtrip) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./serialize/test_serialize_boost.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "SerializeTest.test_text_roundtrip", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_serialize, test_xml_roundtrip) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./serialize/test_serialize_boost.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "SerializeTest.test_xml_roundtrip", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_serialize, test_text_cycle) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./serialize/test_serialize_boost.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "SerializeTest.test_text_cycle", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_serialize, test_text_bad) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./serialize/test_serialize_boost.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "SerializeTest.test_text_bad", ret), std::exception);
+    FakeluaDeleteState(s);
+}

@@ -2,22 +2,20 @@
 #include "native/native_common.h"
 #include "util/exception.h"
 
+#include <boost/algorithm/hex.hpp>
 #include <cstring>
+#include <iterator>
 #include <openssl/evp.h>
 #include <string>
 
 namespace fakelua::crypto {
 
-// Hex encoding
+// Hex encoding (lowercase, via Boost.Algorithm)
 
 std::string ToHex(const uint8_t *data, size_t len) {
-    static const char digits[] = "0123456789abcdef";
     std::string out;
     out.reserve(len * 2);
-    for (size_t i = 0; i < len; ++i) {
-        out.push_back(digits[(data[i] >> 4) & 0xF]);
-        out.push_back(digits[data[i] & 0xF]);
-    }
+    boost::algorithm::hex_lower(data, data + len, std::back_inserter(out));
     return out;
 }
 

@@ -11,17 +11,20 @@
 | basic | `basic/` | 全局函数：`print`、`type`、`tostring`、`tonumber`、`select`、`error`、`assert`、`pcall`、`xpcall`、`next`、`pairs`、`ipairs`、`collectgarbage` |
 | math | `math/` | 数学函数：算术、三角、指数/对数、随机数、常量 |
 | table | `table/` | 表操作：`insert`、`remove`、`concat`、`sort`、`pack`、`unpack`、`move`、`create` |
-| string | `string/` | 字符串操作：子串、大小写、模式匹配（ECMAScript 正则）、格式化、二进制 pack/unpack、序列化 |
+| string | `string/` | 字符串操作：子串、大小写、trim/split、模式匹配（ECMAScript 正则）、格式化、二进制 pack/unpack、序列化 |
 | os | `os/` | 系统接口：时间、日期、环境变量、文件操作、进程执行 |
 | utf8 | `utf8/` | UTF-8 编解码：`char`、`codepoint`、`codes`、`len`、`offset` |
 | io | `io/` | 文件 IO：open、close、read、write、seek、popen、标准流 |
 | net | `net/` | TCP 网络：服务端/客户端、帧协议、自定义解析器、异步事件分发 |
+| http | `http/` | HTTP/1.1 客户端和服务端（Boost.Beast），由 `runtime.tick()` 驱动 |
+| url | `url/` | URL 解析/拼接与百分号编解码（Boost.URL） |
 | timer | `timer/` | 定时器：一次性、周期心跳，由 `runtime.tick()` 驱动 |
 | runtime | `runtime/` | 统一事件泵：`runtime.tick()` 驱动所有需要周期推进的模块 |
 | event | `event/` | 发布/订阅事件系统：`on`、`once`、`off`、`emit`、`clear`、`clear_all` |
 | random | `random/` | 可种子随机数（PCG-32）：`int`、`float`、`dice`、`chance`、`weighted`、`get_state`、`set_state` |
+| container | `container/` | 跨帧持久 deque / 有序 map / set（Boost.Container），NativeObject 承载 |
 | compress | `compress/` | 压缩：LZ4、zlib、gzip、Zstd |
-| crypto | `crypto/` | 加解密：MD5/SHA1/SHA256、hex/base64、AES/RC4/Blowfish/DES/3DES |
+| crypto | `crypto/` | 加解密：MD5/SHA1/SHA256、hex/base64、UUID、CRC-32、AES/RC4/Blowfish/DES/3DES |
 | csv | `csv/` | CSV 解码/编码 |
 | json | `json/` | JSON 编码/解码 |
 | yaml | `yaml/` | YAML 解码/编码（yaml-cpp） |
@@ -29,6 +32,7 @@
 | xml | `xml/` | XML 解码/编码（pugixml） |
 | ini | `ini/` | INI 解码/编码（inih） |
 | mysql | `mysql/` | 异步 MySQL 客户端：直连 + 连接池 |
+| redis | `redis/` | 异步 Redis 客户端（Boost.Redis） |
 | sqlite | `sqlite/` | SQLite3 封装：exec、预处理语句、同步 |
 | serialize | `serialize/` | 二进制序列化：zigzag + varint 编码 + 字符串去重 |
 | protobuf | `protobuf/` | 运行时 .proto 解析、标准 protobuf3 wire 编码/解码 |
@@ -155,6 +159,11 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `string.reverse(s)` | 1 | 反转字符串 |
 | `string.lower(s)` | 1 | ASCII 小写 |
 | `string.upper(s)` | 1 | ASCII 大写 |
+| `string.trim(s)` | 1 | 去掉两端空白（Boost.Algorithm，C locale） |
+| `string.split(s, sep)` | 2 | 按分隔串切开（可多字符；空段保留） |
+| `string.starts_with(s, prefix)` | 2 | 是否以 `prefix` 开头 |
+| `string.ends_with(s, suffix)` | 2 | 是否以 `suffix` 结尾 |
+| `string.contains(s, needle)` | 2 | 是否包含子串 `needle` |
 | `string.byte(s, [i, [j]])` | vararg | 范围内的字节值 |
 | `string.char(...)` | vararg | 编码点 0-255 转字符 |
 | `string.format(fmt, ...)` | vararg | 格式化输出（支持 `%s %d %i %u %x %X %o %f %e %E %g %G %c %q %p`） |
@@ -166,11 +175,11 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `load(source, ...)` | vararg | 编译 Lua 源码为闭包 |
 | `loadstring(s, ...)` | vararg | `load` 别名 |
 | `loadfile(file, ...)` | vararg | 加载并编译 Lua 文件 |
-| `string.pack(fmt, ...)` | vararg | 二进制打包（Lua 5.3 格式） |
+| `string.pack(fmt, ...)` | vararg | 二进制打包（Lua 5.3 格式；`<`/`>`/`=` 由 Boost.Endian 处理） |
 | `string.packsize(fmt)` | 1 | 计算格式打包后大小 |
-| `string.unpack(fmt, s, [pos])` | vararg | 二进制解包（Lua 5.3 格式） |
+| `string.unpack(fmt, s, [pos])` | vararg | 二进制解包（Lua 5.3 格式；`<`/`>`/`=` 由 Boost.Endian 处理） |
 
-> ⚠️ `string.find`/`match`/`gmatch`/`gsub` 底层使用 **ECMAScript 正则**（`std::regex::ECMAScript`），而非 Lua pattern。参见主 README 的[正则匹配](../README.md#regex-matching-uses-ecmascript-syntax-not-lua-patterns)章节。
+> ⚠️ `string.find`/`match`/`gmatch`/`gsub` 底层使用 **ECMAScript 正则**（`boost::regex::ECMAScript`），而非 Lua pattern。参见主 README 的[正则匹配](../README.md#regex-matching-uses-ecmascript-syntax-not-lua-patterns)章节。
 
 ---
 
@@ -186,11 +195,24 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `os.execute([cmd])` | vararg | 执行 shell 命令；返回 `(status_bool_or_nil, "exit"|"signal"|"error", code)` 三元组 |
 | `os.exit([code, [close]])` | vararg | 终止进程 |
 | `os.getenv(name)` | 1 | 获取环境变量 |
-| `os.remove(filename)` | 1 | 删除文件 |
-| `os.rename(old, new)` | 2 | 重命名文件 |
+| `os.remove(filename)` | 1 | 删除文件或空目录（Boost.Filesystem）；成功 `true`，否则 `nil` |
+| `os.rename(old, new)` | 2 | 重命名/移动（Boost.Filesystem）；成功 `true`，否则 `nil` |
 | `os.setlocale(locale, [cat])` | vararg | 设置/查询区域 |
 | `os.time([table])` | vararg | 当前时间或从表构建时间戳 |
-| `os.tmpname()` | 0 | 生成安全临时文件名 |
+| `os.tmpname()` | 0 | 创建唯一空临时文件并返回路径（Boost.Filesystem） |
+| `os.sleep(ms)` | 1 | 休眠毫秒（FakeLua 扩展；`os.sleep(1)` 是 1 毫秒） |
+| `os.exists(path)` | 1 | 路径是否存在 |
+| `os.isfile(path)` / `os.isdir(path)` | 1 | 普通文件 / 目录 |
+| `os.filesize(path)` | 1 | 字节大小，失败 `nil` |
+| `os.mtime(path)` | 1 | 最后修改时间（Unix 时间戳），失败 `nil` |
+| `os.mkdir(path)` | 1 | 创建目录（含父目录） |
+| `os.remove_all(path)` | 1 | 递归删除；返回删除条目数，失败 `nil` |
+| `os.copy(from, to)` | 2 | 复制文件或目录树（可覆盖） |
+| `os.listdir(path)` | 1 | 排序后的目录项（1-based 表），失败 `nil` |
+| `os.getcwd()` / `os.chdir(path)` | 0/1 | 获取/设置工作目录 |
+| `os.absolute(path)` / `os.canonical(path)` | 1 | 绝对路径 / 弱规范化路径 |
+| `os.join(...)` | vararg | 拼接路径 |
+| `os.dirname(path)` / `os.basename(path)` / `os.extension(path)` | 1 | 父目录、文件名、扩展名（含 `.`） |
 
 ---
 
@@ -284,6 +306,46 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 
 ---
 
+## HTTP
+
+**文件：** `http/native_http.h` · **注册：** `RegisterHttpLibraryApi`
+
+基于 Boost.Beast 的 HTTP/1.1 客户端和服务端，复用每个 State 一份的 Asio `io_context`。URL 用 Boost.URL 解析。暂不支持 TLS（`https://`）。完成回调由 `runtime.tick()` 驱动。
+
+**`http.request` 配置：** `{method, url, headers, body, timeout_ms, version}`
+
+**`http.server` 配置：** `{ip, port, backlog, timeout_ms}`（`port = 0` 绑定临时端口，读 `srv.port` 或 `srv:get_port()`）
+
+| 函数/方法 | 说明 |
+|------|------|
+| `http.request(config, cb)` | 异步请求；回调 `function cb(req, err, resp)` |
+| `http.get(url, cb)` | GET 快捷方式 |
+| `http.post(url, body, cb)` | POST 快捷方式（`Content-Type: text/plain`） |
+| `http.server(config)` | 监听，返回 server 对象 |
+| `srv:dispatch(func_name)` | 请求回调 `function cb(typ, connid, req)`（`typ == "request"`）。返回响应表/字符串则立即回复。 |
+| `srv:reply(connid, resp)` | 发送 `{status, reason, headers, body}`（或直接传 body 字符串） |
+| `srv:get_port()` | 实际绑定的 TCP 端口 |
+| `srv:close()` / `req:close()` | 关闭服务端或取消进行中的请求 |
+
+`resp` / `req` 表字段：`status`、`reason`、`headers`、`body`；入站请求还有 `method`、`target`、`path`、`query`、`version`。
+
+---
+
+## URL
+
+**文件：** `url/native_url.h` · **注册：** `RegisterUrlLibraryApi`
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `url.parse(str)` | 1 | URI → `{scheme, user, password, host, port, path, query, params, fragment, href}` |
+| `url.format(tbl)` | 1 | 表 → URL 字符串 |
+| `url.encode(str)` | 1 | 百分号编码（unreserved 字符集） |
+| `url.decode(str)` | 1 | 百分号解码（`+` 当空格） |
+| `url.encode_query(tbl)` | 1 | 表 → `application/x-www-form-urlencoded` |
+| `url.decode_query(str)` | 1 | 查询串 → 表 |
+
+---
+
 ## Timer（定时器）
 
 **文件：** `timer/native_timer.h` · **注册：** `RegisterTimerLibraryApi`
@@ -307,7 +369,8 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 |------|------|------|
 | `runtime.tick()` | 0 | 驱动当前 State 上所有需要周期推进的 native 模块 |
 
-脚本只需要这一个泵：它按固定顺序调 `timer::TickAll`、`net::TickAll`、`mysql::TickAll`，
+脚本只需要这一个泵：它按固定顺序调 `timer::TickAll`、`net::TickAll`、`http::TickAll`、
+`mysql::TickAll`、`redis::TickAll`，
 和 `FakeluaDeleteState` 里给各模块分发 `OnStateDeleted` 是同一个路子。每个模块遍历自己那份
 per-State 对象列表，所以 server/client、连接和连接池都不再有各自的 `tick()` 方法，在主循环里
 调用本函数即可。
@@ -357,6 +420,31 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 
 ---
 
+## Container（容器）
+
+**文件：** `container/native_container.h` · **注册：** `RegisterContainerLibraryApi`
+
+基于 Boost.Container、存在 NativeObject（C++ 堆）上的结构。它们在 arena reset 之后仍然有效，同位置的 Lua table 则不会。键/值只接受 `nil` / 布尔 / 数字 / 字符串（deque/map 的值还可以是另一个 NativeObject）。普通 Lua table 和函数会拒绝。map/set 键序：nil < bool < int < float < string，再按值比较。整数值的 float 按 int 存。
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `container.deque()` | 0 | 双端队列（`boost::container::deque`） |
+| `d:push_back(v)` / `d:push_front(v)` | 1 | 尾/头插入 |
+| `d:pop_back()` / `d:pop_front()` | 0 | 弹出并返回；空则 `nil` |
+| `d:front()` / `d:back()` | 0 | 查看两端；空则 `nil` |
+| `d:at(i)` | 1 | 1-based 读取；越界 `nil` |
+| `d:set(i, v)` | 2 | 1-based 覆盖；越界报错 |
+| `d:to_table()` | 0 | 拷成 1-based Lua 数组 |
+| `container.map()` | 0 | 有序映射（`boost::container::flat_map`） |
+| `m:set(k, v)` / `m:get(k)` / `m:has(k)` / `m:erase(k)` | 1-2 | 写入、读取（缺失为 `nil`）、是否存在、删除（bool） |
+| `m:keys()` / `m:to_table()` | 0 | 有序键数组，或键值 Lua 表 |
+| `container.set()` | 0 | 有序去重集合（`boost::container::flat_set`） |
+| `s:insert(v)` / `s:has(v)` / `s:erase(v)` | 1 | 插入（是否新元素）、是否存在、删除（bool） |
+| `s:values()` | 0 | 有序值，1-based Lua 数组 |
+| `*:size()` / `*:empty()` / `*:clear()` / `*:close()` | 0 | 共用：长度、是否空、清空、销毁 |
+
+---
+
 ## Compress（压缩）
 
 **文件：** `compress/native_compress.h` · **注册：** `RegisterCompressLibraryApi`
@@ -383,10 +471,12 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 | `crypto.md5(data)` | 1 | MD5 哈希 → hex 字符串 |
 | `crypto.sha1(data)` | 1 | SHA-1 哈希 → hex 字符串 |
 | `crypto.sha256(data)` | 1 | SHA-256 哈希 → hex 字符串 |
-| `crypto.hex_encode(data)` | 1 | 二进制 → hex 字符串 |
-| `crypto.hex_decode(hex)` | 1 | hex → 二进制 |
+| `crypto.hex_encode(data)` | 1 | 二进制 → hex 字符串（小写，Boost.Algorithm） |
+| `crypto.hex_decode(hex)` | 1 | hex → 二进制（Boost.Algorithm `unhex`） |
 | `crypto.base64_encode(data)` | 1 | 二进制 → base64（RFC 4648） |
 | `crypto.base64_decode(data)` | 1 | base64 → 二进制 |
+| `crypto.uuid()` | 0 | RFC 4122 v4 UUID 字符串 |
+| `crypto.crc32(data)` | 1 | CRC-32/ISO-HDLC（PKZIP）→ 无符号 32 位整数 |
 | `crypto.aes_encrypt_ecb(data, key)` | 2 | AES-128-ECB 加密（数据 16 字节对齐） |
 | `crypto.aes_decrypt_ecb(data, key)` | 2 | AES-128-ECB 解密 |
 | `crypto.aes_encrypt_cbc(data, key, iv)` | 3 | AES-128-CBC 加密（PKCS#7 填充） |
@@ -510,6 +600,24 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 
 ---
 
+## Redis
+
+**文件：** `redis/native_redis.h` · **注册：** `RegisterRedisLibraryApi`
+
+基于 Boost.Redis 的异步客户端。关闭重连和健康检查，连接失败只回调一次。由 `runtime.tick()` 驱动。
+
+**`redis.connect` 配置：** `{host, port, user, password, db, timeout_ms}`
+
+| 函数/方法 | 说明 |
+|------|------|
+| `redis.connect(config, cb)` | 异步连接；回调 `function cb(conn, err, success)` |
+| `conn:command(argv, cb)` | 执行命令；`argv` 为 1 起始字符串数组，回调 `function cb(conn, err, result)` |
+| `conn:close()` | 关闭连接 |
+
+连接时不发送 `HELLO 3`，因此 Redis 4+ 可用；配置了 `password` / `db` 时会发 AUTH/SELECT。数组变成 Lua 数组，RESP3 map 变成表，字符串保持字符串。可选执行 `HELLO 3` 后，`HGETALL` 为 map。
+
+---
+
 ## SQLite
 
 **文件：** `sqlite/native_sqlite.h` · **注册：** `RegisterSqliteLibraryApi`
@@ -538,10 +646,14 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 
 | 函数 | 参数 | 说明 |
 |------|------|------|
-| `serialize.encode(value)` | 1 | Lua 值 → 二进制 wire 格式 |
-| `serialize.decode(data)` | 1 | 二进制 wire 格式 → Lua 值 |
+| `serialize.encode(value)` | 1 | Lua 值 → 紧凑二进制 wire 格式 |
+| `serialize.decode(data)` | 1 | 紧凑二进制 wire 格式 → Lua 值 |
+| `serialize.text_encode(value)` | 1 | Lua 值 → Boost.Serialization 文本归档 |
+| `serialize.text_decode(data)` | 1 | 文本归档 → Lua 值 |
+| `serialize.xml_encode(value)` | 1 | Lua 值 → Boost.Serialization XML 归档 |
+| `serialize.xml_decode(data)` | 1 | XML 归档 → Lua 值 |
 
-**编码方式：** 整数 zigzag + varint，浮点数小端 8 字节 memcpy，字符串去重（相同字符串第二次起存 varint 引用 ID），递归表序列化。
+**编码方式：** `encode`/`decode` 使用整数 zigzag + varint，浮点数小端 8 字节 memcpy，字符串去重（相同字符串第二次起存 varint 引用 ID），递归表序列化。`text_*` / `xml_*` 走 Boost.Serialization 归档（可读，与紧凑 wire 不互通）。
 
 **支持类型：** `nil`、boolean、integer、float（二进制安全）、string（二进制安全）、table（嵌套）。表中不支持的类型会被跳过；顶层不支持的类型报错。
 

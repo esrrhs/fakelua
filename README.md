@@ -126,7 +126,8 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **Package modules**: `package "Name"` for namespace isolation, zero-`require` cross-module calls.
 - **Complex global initialization**: Arbitrary expressions as file-level variable initializers, executed in generated `__fakelua_init()`.
 - **NativeObject & C++ interop**: Host-side object mapping with group arena batch release, C++ member method binding via `RegisterMethod`, colon-syntax calls from Lua.
-- **ECMAScript regex**: `string.find`/`match`/`gmatch`/`gsub` via `std::regex` (supports lookahead, alternation, non-greedy quantifiers — more powerful than Lua patterns).
+- **ECMAScript regex**: `string.find`/`match`/`gmatch`/`gsub` via Boost.Regex (supports lookahead, alternation, non-greedy quantifiers — more powerful than Lua patterns).
+- **String algorithms**: `string.trim`/`split`/`starts_with`/`ends_with`/`contains` via Boost.Algorithm.
 
 ### Not Supported
 
@@ -139,22 +140,22 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 ## Built-in Standard Libraries
 
-FakeLua provides 24 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, random, compression, encryption, serialization, databases, protobuf, config formats, and logging.
+FakeLua provides 28 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, random, containers, compression, encryption, serialization, databases, protobuf, config formats, and logging.
 
 > **Full API reference:** [src/native/README.md](src/native/README.md) / [中文](src/native/README.zh.md)
 
 | Category | Modules |
 |----------|---------|
 | Core Lua | `math`, `table`, `string`, `os`, `utf8`, `io`, `random` |
-| Networking | `net` (TCP server/client), `timer`, `event` |
-| Data | `json`, `csv`, `serialize`, `protobuf` |
+| Networking | `net` (TCP server/client), `http` (Beast HTTP/1.1), `url`, `timer`, `event` |
+| Data | `json`, `csv`, `serialize`, `protobuf`, `container` (Boost.Container deque/map/set) |
 | Config | `yaml`, `toml`, `xml`, `ini` |
-| Database | `mysql` (async + pool), `sqlite` (synchronous) |
-| Crypto | `compress` (LZ4/zlib/gzip/Zstd), `crypto` (MD5/SHA/AES/RC4/Blowfish/DES) |
+| Database | `mysql` (async + pool), `redis` (async), `sqlite` (synchronous) |
+| Crypto | `compress` (LZ4/zlib/gzip/Zstd), `crypto` (MD5/SHA/AES/RC4/Blowfish/DES, UUID, CRC-32) |
 | Logging | `log` (7 levels, tagged output, file rotation) |
 | Object | `object` (NativeObject Lua-side API) |
 
-**Regex note:** `string.find`/`match`/`gmatch`/`gsub` use **ECMAScript regex** (`std::regex::ECMAScript`), not Lua patterns. See [Regex Guide](#regex-matching-ecmascript-syntax-not-lua-patterns) below for migration tips.
+**Regex note:** `string.find`/`match`/`gmatch`/`gsub` use **ECMAScript regex** (`boost::regex::ECMAScript`), not Lua patterns. See [Regex Guide](#regex-matching-ecmascript-syntax-not-lua-patterns) below for migration tips.
 
 ### Regex Matching: ECMAScript Syntax, Not Lua Patterns
 
@@ -175,7 +176,7 @@ FakeLua provides 24 independent C++ native modules under `src/native/`, covering
 Key differences:
 
 - **`gsub` replacement strings** use JS-style notation: `$1`…`$9` (capture groups), `$&` (entire match), `` $` `` (text before match), `$'` (text after match), `$$` (literal `$`). Lua's `%1` / `%0` are treated as literal characters here.
-- **Invalid patterns don't throw**: `std::regex_error` is caught and returns `nil`, so the script doesn't interrupt.
+- **Invalid patterns don't throw**: `boost::regex_error` is caught and returns `nil`, so the script doesn't interrupt.
 - **`string.find`'s `plain` parameter** has the same semantics as Lua: passing `true` degrades to pure substring search, completely bypassing the regex engine — also the fastest path.
 - **Performance**: The regex path is significantly slower than Lua's native pattern engine; prefer `plain` search or `string.sub` / `string.byte` basic operations on hot paths.
 

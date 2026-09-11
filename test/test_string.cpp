@@ -734,3 +734,24 @@ TEST(test_string, pack_advanced) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, algorithm) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./string/test_string_algorithm.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "test_string_algorithm", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, split_empty_sep) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./string/test_string_algorithm.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "test_split_empty_sep", ret), std::exception);
+    FakeluaDeleteState(s);
+}

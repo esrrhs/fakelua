@@ -1,8 +1,10 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
 #include "util/debug.h"
+#include "util/exception.h"
 #include "util/string_util.h"
 #include "gtest/gtest.h"
+#include <cstring>
 
 using namespace fakelua;
 
@@ -1479,4 +1481,27 @@ TEST(exception, call_runtime_error_is_catchable) {
         double res = 0;
         EXPECT_THROW(Call(s, jit_type, "call_non_function", res), FakeluaException);
     }
+}
+
+TEST(exception, stacktrace_in_thrown_message) {
+    try {
+        ThrowFakeluaException("stacktrace probe");
+        FAIL() << "ThrowFakeluaException should throw";
+    } catch (const FakeluaException &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("stacktrace probe"), std::string::npos) << msg;
+        const auto pos = msg.find("stacktrace:\n");
+        ASSERT_NE(pos, std::string::npos) << msg;
+        EXPECT_GT(msg.size(), pos + std::strlen("stacktrace:\n")) << msg;
+        EXPECT_NE(msg.find("0#"), std::string::npos) << msg;
+    }
+}
+
+TEST(exception, stacktrace_in_build_error_message) {
+    const std::string msg = BuildFakeluaErrorMessage("build probe");
+    EXPECT_NE(msg.find("build probe"), std::string::npos) << msg;
+    const auto pos = msg.find("stacktrace:\n");
+    ASSERT_NE(pos, std::string::npos) << msg;
+    EXPECT_GT(msg.size(), pos + std::strlen("stacktrace:\n")) << msg;
+    EXPECT_NE(msg.find("0#"), std::string::npos) << msg;
 }

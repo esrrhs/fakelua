@@ -1,6 +1,7 @@
 #include "native/ini/native_ini.h"
 #include "native/native_common.h"
 #include "native/table/native_table.h"
+#include "util/string_util.h"
 
 #include <ini.h>
 
@@ -30,19 +31,15 @@ static CVar ValueToLua(State *s, const std::string &str) {
     }
 
     // Integer
-    const char *start = str.c_str();
     if (str.size() > 1 && str[0] == '0' && str[1] >= '0' && str[1] <= '9') {
         return inter::NativeToFakeluaString(s, str);// leading-zero → string
     }
-    char *end = nullptr;
-    long long ival = strtoll(start, &end, 10);
-    if (end && *end == '\0' && end != start) {
+    int64_t ival = 0;
+    if (TryParseInt64(str, ival)) {
         return inter::NativeToFakeluaLonglong(s, ival);
     }
-    // Float
-    char *fend = nullptr;
-    double dval = strtod(start, &fend);
-    if (fend && *fend == '\0' && fend != start && std::isfinite(dval)) {
+    double dval = 0;
+    if (TryParseDouble(str, dval)) {
         return inter::NativeToFakeluaDouble(s, dval);
     }
     return inter::NativeToFakeluaString(s, str);

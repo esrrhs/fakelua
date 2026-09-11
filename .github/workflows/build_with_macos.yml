@@ -68,6 +68,21 @@ jobs:
           # Create test database (required for integration tests)
           MYSQL_PWD="" mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE IF NOT EXISTS test" 2>/dev/null || true
 
+      - name: Setup Redis
+        run: |
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install redis
+          brew services start redis || redis-server --daemonize yes --bind 127.0.0.1 --port 6379
+          for i in $(seq 1 30); do
+            if redis-cli -h 127.0.0.1 ping 2>/dev/null | grep -q PONG; then
+              echo "Redis is ready"
+              exit 0
+            fi
+            echo "Waiting for Redis... ($i)"
+            sleep 2
+          done
+          echo "Redis did not become ready"
+          exit 1
+
       - name: Build
         run: |
           set -x
@@ -78,7 +93,7 @@ jobs:
           cmake -DCMAKE_PREFIX_PATH="$(brew --prefix)" ..
           make -j$(sysctl -n hw.ncpu)
           ccache -s
-          # Run all tests (including MySQL integration tests)
+          # Run all tests (including MySQL / Redis integration tests)
           (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
           ./bin/flua
 

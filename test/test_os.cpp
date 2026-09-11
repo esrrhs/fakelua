@@ -334,3 +334,14 @@ TEST(test_os, test_os_error_paths) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_os, test_os_filesystem) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./os/test_os_filesystem.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "test_os_filesystem", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

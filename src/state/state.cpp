@@ -5,6 +5,7 @@
 #include "native/crypto/native_crypto.h"
 #include "native/csv/native_csv.h"
 #include "native/event/native_event.h"
+#include "native/http/native_http.h"
 #include "native/ini/native_ini.h"
 #include "native/io/native_io.h"
 #include "native/json/native_json.h"
@@ -15,12 +16,15 @@
 #include "native/os/native_os.h"
 #include "native/protobuf/native_protobuf.h"
 #include "native/random/native_random.h"
+#include "native/container/native_container.h"
+#include "native/redis/native_redis.h"
 #include "native/runtime/native_runtime.h"
 #include "native/serialize/native_serialize.h"
 #include "native/sqlite/native_sqlite.h"
 #include "native/timer/native_timer.h"
 #include "native/toml/native_toml.h"
 #include "native/utf8/native_utf8.h"
+#include "native/url/native_url.h"
 #include "native/xml/native_xml.h"
 #include "native/yaml/native_yaml.h"
 #include "util/logging.h"
@@ -52,6 +56,8 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
 
     RegisterNativeObjectApi(this);
     net::RegisterNetLibraryApi(this);
+    http::RegisterHttpLibraryApi(this);
+    url::RegisterUrlLibraryApi(this);
     timer::RegisterTimerLibraryApi(this);
     runtime::RegisterRuntimeLibraryApi(this);
     serialize::RegisterSerializeLibraryApi(this);
@@ -63,8 +69,10 @@ State::State(const StateConfig &config) : config_(config), compiler_(this), cons
     sqlite::RegisterSqliteLibraryApi(this);
     mysql::RegisterMysqlLibraryApi(this);
     mysql::RegisterMysqlPoolApi(this);
+    redis::RegisterRedisLibraryApi(this);
     event::RegisterEventLibraryApi(this);
     random::RegisterRandomLibraryApi(this);
+    container::RegisterContainerLibraryApi(this);
     yaml::RegisterYamlLibraryApi(this);
     xml::RegisterXmlLibraryApi(this);
     toml::RegisterTomlLibraryApi(this);

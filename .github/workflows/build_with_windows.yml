@@ -111,6 +111,23 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-ccache
+            redis
+
+      - name: Start Redis
+        shell: msys2 {0}
+        run: |
+          set -eux
+          redis-server --daemonize yes --bind 127.0.0.1 --port 6379 --protected-mode no
+          for i in $(seq 1 30); do
+            if redis-cli -h 127.0.0.1 ping | grep -q PONG; then
+              echo "Redis is ready"
+              exit 0
+            fi
+            echo "Waiting for Redis... ($i)"
+            sleep 1
+          done
+          echo "Redis did not become ready"
+          exit 1
 
       - name: Configure
         shell: msys2 {0}

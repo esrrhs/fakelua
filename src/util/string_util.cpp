@@ -1,13 +1,27 @@
 #include "common.h"
 
+#include <boost/algorithm/string/join.hpp>
+#include <boost/algorithm/string/trim.hpp>
+#include <boost/charconv.hpp>
+#include <boost/regex.hpp>
+#include <locale>
+
 namespace fakelua {
+
+std::string JoinString(const std::vector<std::string> &strs, const std::string &sep) {
+    return boost::algorithm::join(strs, sep);
+}
+
+void TrimInplace(std::string &str) {
+    boost::algorithm::trim(str, std::locale::classic());
+}
 
 /*
     \a: 显示警报铃声符号。
     \b 或 \\: 在字符串中打印反斜杠。
     \f: 换页符，使光标移到下一行开头而不回到行首。
     \n: 常用的换行符，创建新的打印行。
-    \r: 回车符，将光标移到当前行开头而不换行。
+    \r: 回车符，将光标移到当前行开头而不回到行首。
     \t: 水平制表符。
     \v: 垂直制表符。
     \": 在字符串中插入双引号而不被特殊解释。
@@ -89,6 +103,64 @@ std::string ReplaceEscapeChars(const std::string &str) {
     return result;
 }
 
+bool IsNumber(const std::string_view &str) {
+    static const boost::regex re("^[+-]?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$|^[+-]?0[xX][0-9a-fA-F]+(\\.[0-9a-fA-F]+)?([pP][+-]?[0-9]+)?$");
+    return boost::regex_match(str.begin(), str.end(), re);
+}
+
+bool IsInteger(const std::string_view &str) {
+    static const boost::regex re("^[+-]?[0-9]+$|^[+-]?0[xX][0-9a-fA-F]+$");
+    return boost::regex_match(str.begin(), str.end(), re);
+}
+
+namespace {
+
+const char *SkipPlus(const char *first, const char *last) {
+    if (first < last && *first == '+') {
+        return first + 1;
+    }
+    return first;
+}
+
+bool ConsumeAll(boost::charconv::from_chars_result r, const char *last) {
+    return r.ec == std::errc{} && r.ptr == last;
+}
+
+}// namespace
+
+bool TryParseInt64(const std::string_view &input, int64_t &out) {
+    if (input.empty()) {
+        return false;
+    }
+    const char *first = input.data();
+    const char *last = first + input.size();
+    first = SkipPlus(first, last);
+    if (first >= last) {
+        return false;
+    }
+
+    auto r = boost::charconv::from_chars(first, last, out, 10);
+    return ConsumeAll(r, last);
+}
+
+bool TryParseDouble(const std::string_view &input, double &out) {
+    if (input.empty()) {
+        return false;
+    }
+    const char *first = input.data();
+    const char *last = first + input.size();
+    first = SkipPlus(first, last);
+    if (first >= last) {
+        return false;
+    }
+
+    auto r = boost::charconv::from_chars(first, last, out);
+    if (!ConsumeAll(r, last)) {
+        return false;
+    }
+    return std::isfinite(out);
+}
+
 int64_t ToInteger(const std::string_view &input) {
     int64_t result = 0;
 
@@ -114,19 +186,24 @@ int64_t ToInteger(const std::string_view &input) {
         }
     }
 
-    // Use strtoll/strtoull for cross-platform compatibility.
-    // std::from_chars may not be available on all platforms (e.g., older macOS).
-    std::string str(begin, input.end());
-    char *end_ptr = nullptr;
-    errno = 0;
+    const char *first = &*begin;
+    const char *last = input.data() + input.size();
+    if (first >= last) {
+        ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", input));
+    }
 
     if (negative && base == 16) {
-        // For negative hex, use strtoull so that the magnitude 0x8000000000000000
-        // (which is INT64_MIN) does not cause ERANGE on strtoll.
-        const uint64_t uval = strtoull(str.c_str(), &end_ptr, base);
-        if (end_ptr == str.c_str() || *end_ptr != '\0') {
+        // For negative hex, parse as unsigned so the magnitude 0x8000000000000000
+        // (which is INT64_MIN) does not overflow a signed from_chars.
+        uint64_t uval = 0;
+        auto r = boost::charconv::from_chars(first, last, uval, base);
+        if (!ConsumeAll(r, last)) {
+            if (r.ec == std::errc::result_out_of_range) {
+                ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", input));
+            }
             ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", input));
-        } else if (errno == ERANGE || uval > static_cast<uint64_t>(INT64_MAX) + 1ULL) {
+        }
+        if (uval > static_cast<uint64_t>(INT64_MAX) + 1ULL) {
             ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", input));
         }
         // Reinterpret as signed: -0x8000000000000000 == INT64_MIN is valid。
@@ -139,11 +216,12 @@ int64_t ToInteger(const std::string_view &input) {
             result = -result;// 其他情况取负
         }
     } else {
-        result = strtoll(str.c_str(), &end_ptr, base);
-        if (end_ptr == str.c_str() || *end_ptr != '\0') {
+        auto r = boost::charconv::from_chars(first, last, result, base);
+        if (!ConsumeAll(r, last)) {
+            if (r.ec == std::errc::result_out_of_range) {
+                ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", input));
+            }
             ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", input));
-        } else if (errno == ERANGE) {
-            ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", input));
         }
     }
 
@@ -172,43 +250,47 @@ double ToFloat(const std::string_view &input) {
         }
     }
 
-    // libc++ (macOS) doesn't support std::from_chars for floating point types.
-    // Use strtod/strtof as fallback for cross-platform compatibility.
-    char *end_ptr = nullptr;
-    errno = 0;
+    const char *first = input.data();
+    const char *last = first + input.size();
 
     if (hex_format) {
-        // Check if it's a hex float (contains '.' or 'p'/'P')
-
         if (bool is_hex_float = input.contains('.') || input.contains('p') || input.contains('P'); is_hex_float) {
-            // Hex float: pass full string to strtod (it handles sign and 0x prefix)
-            // Don't apply negative separately since strtod already handles it.
-            std::string str(input.begin(), input.end());
-            result = strtod(str.c_str(), &end_ptr);
-            negative = false;// strtod already handled the sign
-            if (end_ptr == str.c_str() || *end_ptr != '\0') {
+            // Hex float: Boost.Charconv accepts an optional 0x prefix with chars_format::hex.
+            // Sign is parsed by from_chars, so pass the original string.
+            first = SkipPlus(input.data(), last);
+            auto r = boost::charconv::from_chars(first, last, result, boost::charconv::chars_format::hex);
+            if (!ConsumeAll(r, last)) {
                 ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", input));
             }
+            negative = false;
         } else {
             // Hex integer without fractional part: strip prefix and parse as unsigned
             // to correctly handle values >= 0x8000000000000000 (e.g. 0xFFFFFFFFFFFFFFFF).
-            std::string str(input.begin() + prefix_len, input.end());
-            const uint64_t uval = strtoull(str.c_str(), &end_ptr, 16);
-            result = static_cast<double>(uval);
-            if (end_ptr == str.c_str() || *end_ptr != '\0') {
+            const char *digits = input.data() + prefix_len;
+            uint64_t uval = 0;
+            auto r = boost::charconv::from_chars(digits, last, uval, 16);
+            if (!ConsumeAll(r, last)) {
+                if (r.ec == std::errc::result_out_of_range) {
+                    ThrowFakeluaException(std::format("ToFloat failed, result out of range: {}", input));
+                }
                 ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", input));
             }
+            result = static_cast<double>(uval);
         }
     } else {
-        std::string str(input.begin(), input.end());
-        result = strtod(str.c_str(), &end_ptr);
-        if (end_ptr == str.c_str() || *end_ptr != '\0') {
+        first = SkipPlus(first, last);
+        auto r = boost::charconv::from_chars(first, last, result);
+        if (!ConsumeAll(r, last)) {
+            if (r.ec == std::errc::result_out_of_range) {
+                ThrowFakeluaException(std::format("ToFloat failed, result out of range: {}", input));
+            }
             ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", input));
         }
-    }
-
-    if (errno == ERANGE) {
-        ThrowFakeluaException(std::format("ToFloat failed, result out of range: {}", input));
+        negative = false;
+        // from_chars already applied a leading minus; SkipPlus only dropped '+'.
+        if (!input.empty() && input[0] == '-') {
+            // already in result
+        }
     }
 
     if (negative) {
