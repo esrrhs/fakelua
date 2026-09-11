@@ -105,10 +105,12 @@ set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${inih_SOURCE_DIR}/ini.c)
 
 add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 if (WIN32)
-    # MinGW: once any linked archive (Boost.Filesystem, serialization, …) contains a
-    # dllexport symbol, ld exports only those and fakelua APIs never reach the import
-    # lib. WINDOWS_EXPORT_ALL_SYMBOLS writes a .def from this target's objects.
-    set_target_properties(fakelua PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    # MinGW ld stops auto-exporting as soon as any linked .a (Boost.Filesystem, …)
+    # contains a dllexport symbol, so fakelua APIs never reach libfakelua.dll.a.
+    # --export-all-symbols forces this target's objects out; --exclude-libs,ALL
+    # keeps Boost archive internals from blowing the 64k PE export cap.
+    # WINDOWS_EXPORT_ALL_SYMBOLS is a no-op for Ninja+MinGW (no .def is generated).
+    target_link_options(fakelua PRIVATE "-Wl,--export-all-symbols" "-Wl,--exclude-libs,ALL")
 endif ()
 
 find_package(Threads REQUIRED)
