@@ -50,9 +50,6 @@ const char *OpCodeStr(int opcode) {
 
         OPCODE_DEF(CALL)
 
-        OPCODE_DEF(SLEEP)
-        OPCODE_DEF(YIELD)
-
         OPCODE_DEF(FOR)
 #undef OPCODE_DEF
     }
@@ -86,17 +83,17 @@ String dump_addr(int code) {
 String func_binary::dump(int pos) const {
     String ret;
 
-    // 名字
+    // ????
     ret += "\n[";
     ret += m_name;
     ret += "]\n";
 
-    // 最大栈
+    // ????
     ret += "\tmaxstack:\t";
     ret += fkitoa(m_maxstack);
     ret += "\n\n";
 
-    // 常量表
+    // ??????
     ret += "\t////// const define ";
     ret += fkitoa(m_const_list_num);
     ret += " //////\n";
@@ -110,7 +107,7 @@ String func_binary::dump(int pos) const {
         ret += "\n";
     }
 
-    // 容器地址表
+    // ?????????
     ret += "\n\t////// container addr ";
     ret += fkitoa(m_container_addr_list_num);
     ret += " //////\n";
@@ -129,7 +126,7 @@ String func_binary::dump(int pos) const {
         ret += "\n";
     }
 
-    // 变量地址
+    // ???????
     ret += "\n\t////// stack variant addr ";
     ret += fkitoa(m_debug_stack_variant_info_num);
     ret += " //////\n";
@@ -147,7 +144,7 @@ String func_binary::dump(int pos) const {
     ret += "\n\t////// byte code ";
     ret += fkitoa(m_size);
     ret += " //////\n";
-    // 字节码
+    // ?????
     for (int i = 0; i < (int) m_size; i++) {
         command cmd = m_buff[i];
         int type = COMMAND_TYPE(cmd);
@@ -218,23 +215,10 @@ String &binary::dump(const char *func, int pos) const {
 }
 
 bool binary::add_func(const variant &name, const func_binary &bin) {
-    const funcunion *f = m_fk->fm.get_func(name);
-    if (f && f->havefb && FUNC_BINARY_USE(f->fb)) {
-        FKLOG("[binary] add_func func %s add back bin", vartostring(&name).c_str());
-        if (FUNC_BINARY_BACKUP(f->fb)) {
-            func_binary &fb = *FUNC_BINARY_BACKUP(f->fb);
-            FUNC_BINARY_DELETE(fb);
-            safe_fkfree(m_fk, FUNC_BINARY_BACKUP(f->fb));
-        }
-        FUNC_BINARY_BACKUP(f->fb) = (func_binary *) safe_fkmalloc(m_fk, sizeof(func_binary), emt_func_binary);
-        *FUNC_BINARY_BACKUP(f->fb) = bin;
-    } else {
-        FKLOG("[binary] add_func func %s add bin", vartostring(&name).c_str());
-        m_fk->fm.add_func(name, bin);
-    }
-
+    m_fk->fm.add_func(name, bin);
+    m_fk->sh.pin(&name);
+    m_fk->sh.pin_func_binary(&bin);
     FKLOG("add func %s", vartostring(&name).c_str());
-
     return true;
 }
 
@@ -314,7 +298,6 @@ bool func_binary::load(fake *fk, buffer *b) {
     LOAD_ARRAY(m_buff, m_size, command);
     LOAD_VARRAY(m_const_list, m_const_list_num);
     LOAD_ARRAY(m_container_addr_list, m_container_addr_list_num, container_addr);
-    m_fresh++;
     return true;
 }
 

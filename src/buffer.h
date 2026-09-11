@@ -87,7 +87,7 @@ struct buffer {
 
         if (m_end >= m_begin)    // [1][3]
         {
-            // ÄÜ×°ÏÂ
+            // èƒ½è£…ä¸‹
             if (m_size - m_end >= size) {
                 memcpy(m_buffer + m_end, p, size * sizeof(char));
             } else {
@@ -135,7 +135,7 @@ struct buffer {
 
         if (m_begin >= m_end)    // [2][4]
         {
-            // ÄÜ¶ÁÍê
+            // èƒ½è¯»å®Œ
             if (m_size - m_begin >= size) {
                 memcpy(out, m_buffer + m_begin, size * sizeof(char));
             } else {

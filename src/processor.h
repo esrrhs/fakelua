@@ -34,7 +34,6 @@ public:
     uint32_t m_routine_num;
     routine *m_curroutine;
     int m_lastroutine;
-    int m_lastroutine_runnum;
     routine *m_entryroutine;
     int m_genid;
 };
@@ -44,7 +43,6 @@ public:
     (pro).m_routine_num = 0;\
     (pro).m_curroutine = 0;\
     (pro).m_lastroutine = 0;\
-    (pro).m_lastroutine_runnum = 0;\
     (pro).m_entryroutine = 0;\
     (pro).m_genid = 0
 
@@ -55,7 +53,6 @@ public:
     (pro).m_routine_num = 0;\
     (pro).m_curroutine = 0;\
     (pro).m_lastroutine = 0;\
-    (pro).m_lastroutine_runnum = 0;\
     (pro).m_entryroutine = 0;\
     (pro).m_genid = 0
 

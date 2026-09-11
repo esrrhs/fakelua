@@ -54,12 +54,9 @@ enum OpCodeType {
     OPCODE_NOTEQUAL_JNE,
     OPCODE_NOT_JNE,
 
-    OPCODE_CALL,
+        OPCODE_CALL,
 
-    OPCODE_SLEEP,
-    OPCODE_YIELD,
-
-    OPCODE_FOR,
+        OPCODE_FOR,
 
     OPCODE_MAX,
 };
@@ -77,7 +74,6 @@ struct container_addr {
 
 enum CallType {
     CALL_NORMAL,
-    CALL_FAKE,
     CALL_CLASSMEM,
 };
 
@@ -111,40 +107,34 @@ struct func_binary {
 
     bool load(fake *fk, buffer *b);
 
-    // 最大栈空间
+    // ???????
     int m_maxstack;
-    // 参数个数
+    // ????????
     int m_paramnum;
-    // 名字
+    // ????
     const char *m_name;
-    // 文件名
+    // ?????
     const char *m_filename;
-    // 包名
+    // ????
     const char *m_packagename;
-    // 二进制缓冲区
+    // ???????????
     command *m_buff;
     int m_size;
-    // 二进制行号缓冲区
+    // ???????????????
     int *m_lineno_buff;
     int m_lineno_size;
     int m_end_lineno;
-    // 常量
+    // ????
     variant *m_const_list;
     int m_const_list_num;
-    // container地址
+    // container???
     container_addr *m_container_addr_list;
     int m_container_addr_list_num;
-    // 调试信息，栈变量
+    // debug names
     stack_variant_info *m_debug_stack_variant_info;
     int m_debug_stack_variant_info_num;
-    // 序列
     int m_pos;
-    // 占用标记
-    mutable int m_use;
-    // 备份
-    mutable func_binary *m_backup;
-    // 新标记
-    mutable int m_fresh;
+    mutable const void **m_call_cache;
 };
 
 #define FUNC_BINARY_INI(fb) \
@@ -183,24 +173,6 @@ struct func_binary {
 #define FUNC_BINARY_PARAMNUM(fb) \
     ((fb).m_paramnum)
 
-#define FUNC_BINARY_USE(fb) \
-    ((fb).m_use)
-
-#define FUNC_BINARY_BACKUP(fb) \
-    ((fb).m_backup)
-
-#define FUNC_BINARY_BACKUP_MOVE(fb) \
-    { \
-        func_binary * tmp = (fb).m_backup; \
-        (fb).m_backup = 0; \
-        FUNC_BINARY_DELETE(fb); \
-        memcpy((void *)&(fb), tmp, sizeof((fb))); \
-        safe_fkfree(m_fk, tmp); \
-    }
-
-#define FUNC_BINARY_FRESH(fb) \
-    ((fb).m_fresh)
-
 #define FUNC_BINARY_DELETE(fb) \
     safe_fkfree(m_fk, (fb).m_name); \
     safe_fkfree(m_fk, (fb).m_filename); \
@@ -210,22 +182,9 @@ struct func_binary {
     safe_fkfree(m_fk, (fb).m_const_list); \
     safe_fkfree(m_fk, (fb).m_container_addr_list); \
     safe_fkfree(m_fk, (fb).m_debug_stack_variant_info); \
-    if ((fb).m_backup) \
-    { \
-        safe_fkfree(m_fk, (fb).m_backup->m_name); \
-        safe_fkfree(m_fk, (fb).m_backup->m_filename); \
-        safe_fkfree(m_fk, (fb).m_backup->m_packagename); \
-        safe_fkfree(m_fk, (fb).m_backup->m_buff); \
-        safe_fkfree(m_fk, (fb).m_backup->m_lineno_buff); \
-        safe_fkfree(m_fk, (fb).m_backup->m_const_list); \
-        safe_fkfree(m_fk, (fb).m_backup->m_container_addr_list); \
-        safe_fkfree(m_fk, (fb).m_backup->m_debug_stack_variant_info); \
-    } \
-    safe_fkfree(m_fk, (fb).m_backup)
+    safe_fkfree(m_fk, (fb).m_call_cache)
 
 class binary {
-    friend class assembler;
-
 public:
     force_inline binary(fake *fk) : m_fk(fk) {
     }

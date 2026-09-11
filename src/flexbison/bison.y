@@ -76,7 +76,6 @@ int my_yyerror(const char *s, void * parm)
 %token COLON
 %token FOR
 %token INC
-%token FAKE
 %token FKUUID
 %token OPEN_SQUARE_BRACKET
 %token CLOSE_SQUARE_BRACKET
@@ -87,7 +86,6 @@ int my_yyerror(const char *s, void * parm)
 %token IDENTIFIER_POINTER
 %token STRUCT
 %token IS NOT CONTINUE
-%token YIELD SLEEP
 %token SWITCH CASE DEFAULT
 %token NEW_ASSIGN
 %token ELSEIF
@@ -101,7 +99,7 @@ int my_yyerror(const char *s, void * parm)
 %left DIVIDE MULTIPLY DIVIDE_MOD
 %left STRING_CAT
 
-%expect 56
+%expect 55
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -157,10 +155,7 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> for_loop_stmt
 %type<syntree> multi_assign_stmt
 %type<syntree> var_list
-%type<syntree> fake_call_stmt
 %type<syntree> struct_mem_declaration
-%type<syntree> sleep
-%type<syntree> yield
 %type<syntree> switch_stmt
 %type<syntree> switch_case_define
 %type<syntree> switch_case_list
@@ -359,7 +354,6 @@ function_call:
 		p->fuc = $1;
 		p->prefunc = 0;
 		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
-		p->fakecall = false;
 		p->classmem_call = false;
 		$$ = p;
 	} 
@@ -371,7 +365,6 @@ function_call:
 		p->fuc = $1;
 		p->prefunc = 0;
 		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
-		p->fakecall = false;
 		p->classmem_call = false;
 		$$ = p;
 	} 
@@ -383,7 +376,6 @@ function_call:
 		p->fuc = "";
 		p->prefunc = $1;
 		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
-		p->fakecall = false;
 		p->classmem_call = false;
 		$$ = p;
 	} 
@@ -401,7 +393,6 @@ function_call:
 			p->arglist = pa;
 		}
 		p->arglist->add_arg($1);
-		p->fakecall = false;
 		p->classmem_call = true;
 		$$ = p;
 	}
@@ -419,7 +410,6 @@ function_call:
 			p->arglist = pa;
 		}
 		p->arglist->add_arg($1);
-		p->fakecall = false;
 		p->classmem_call = true;
 		$$ = p;
 	} 
@@ -545,24 +535,6 @@ stmt:
 		$$ = $1;
 	}
 	|
-	fake_call_stmt
-	{
-		FKLOG("[bison]: stmt <- fake_call_stmt");
-		$$ = $1;
-	}
-	|
-	sleep
-	{
-		FKLOG("[bison]: stmt <- sleep_stmt");
-		$$ = $1;
-	}
-	|
-	yield
-	{
-		FKLOG("[bison]: stmt <- yield_stmt");
-		$$ = $1;
-	}
-	|
 	switch_stmt
 	{
 		FKLOG("[bison]: stmt <- switch_stmt");
@@ -570,16 +542,6 @@ stmt:
 	}
 	;
 
-fake_call_stmt:
-	FAKE function_call
-	{
-		FKLOG("[bison]: fake_call_stmt <- fake function_call");
-		function_call_node * p = dynamic_cast<function_call_node*>($2);
-		p->fakecall = true;
-		$$ = p;
-	}
-	;
-	
 for_stmt:
 	FOR block ARG_SPLITTER cmp ARG_SPLITTER block THEN block END
 	{
@@ -1442,25 +1404,6 @@ continue:
 	}
 	;
 
-sleep:
-	SLEEP expr_value 
-	{
-		FKLOG("[bison]: SLEEP");
-		NEWTYPE(p, sleep_stmt);
-		p->time = $2;
-		$$ = p;
-	}
-	
-yield:
-	YIELD expr_value
-	{
-		FKLOG("[bison]: YIELD");
-		NEWTYPE(p, yield_stmt);
-		p->time = $2;
-		$$ = p;
-	}
-	;
-	
 switch_stmt:
 	SWITCH cmp_value switch_case_list DEFAULT block END
 	{

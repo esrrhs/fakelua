@@ -50,10 +50,6 @@
 	return FUNC;
 }
 
-"fake" {
-	return FAKE;
-}
-
 "while" {
 	return WHILE;
 }
@@ -126,14 +122,6 @@
 
 "continue" {
 	return CONTINUE;
-}
-
-"yield" {
-	return YIELD;
-}
-
-"sleep" {
-	return SLEEP;
 }
 
 "switch" {

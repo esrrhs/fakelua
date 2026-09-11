@@ -8,21 +8,21 @@
 
 中文 | [English](README.md)
 
-轻量级嵌入式脚本语言，用 C++ 编写。语法吸取自 Lua、Go、Erlang。脚本经 flex/bison 解析，编译成字节码在 VM 上执行（可选实验性 JIT）。
+轻量级嵌入式脚本语言，用 C++ 编写。语法吸取自 Lua、Go、Erlang。脚本经 flex/bison 解析，编译成字节码在 VM 上执行。
 
 ## 特性
 
-- 字节码 VM 与实验性 JIT（Linux / macOS amd64）
-- 绑定 C 函数和 C++ 成员函数；支持热更新
+- 字节码 VM（Linux / macOS amd64）
+- 绑定 C 函数和 C++ 成员函数；同名再注册一次就是热更新
 - 包、`include`、`struct`、`const`、可嵌套的 `array` / `map`、多返回值、Int64
-- `fake fn(args)` 在单线程上创建 routine（JIT 下不可用）
-- gdb 风格命令行调试器、可视化 IDE、函数 profile
+- gdb 风格命令行调试器、函数 profile
 - 可打成 bin 或独立可执行文件
-- 没有垃圾回收 — 对象活到 `delfake()`，销毁时一口气释放全部内存
+- 没有垃圾回收 — 运行期对象活到 `fkreset()` 或 `delfake()`
+- `fkrun` 一口气跑完才返回，死循环会挂住；不会给宿主留一个可 tick 的暂停 VM
 
 ## 依赖
 
-- cmake、gcc、g++
+- CMake 3.16+，C++14 编译器（gcc/g++ 或 clang）
 - 只有需要重新生成解析器时才要 flex、bison（`./gen.sh`）
 
 ## 编译
@@ -32,7 +32,8 @@
 ./build.sh release   # 优化
 ```
 
-产物是 `bin/libfake.so` 和 `bin/fakebin`。
+产物是 `bin/libfake.so`、`bin/fakebin`、`bin/fake_tests` 和 `bin/fake_bench`。
+第一次 cmake 会下载 GoogleTest 和 Google Benchmark。
 
 ## 使用
 
@@ -42,12 +43,14 @@
 ./bin/fakebin your.fk
 ```
 
-示例在 `test/sample`。测试：
+脚本测试在 `test/scripts`（`lang` / `bind` / `stdlib` / `optimizer` / `template`），公共库在 `package/`。编译之后：
 
 ```bash
-cd test && ./test.sh      # VM
-cd test && ./test.sh -j   # JIT
+ctest --output-on-failure
+./bin/fake_tests --gtest_filter=Language.*
 ```
+
+CI（Linux/macOS × debug/release）每次推送都会跑 GoogleTest 和 Google Benchmark。
 
 嵌入 C++ — 把 `include/fake-inc.h` 和 `bin/libfake.so` 拷进工程：
 
@@ -56,9 +59,22 @@ fake *fk = newfake();
 fkreg(fk, "cfunc1", cfunc1);
 fkreg(fk, "memfunc1", &class1::memfunc1);  // 不同类注册同名函数不冲突
 fkparse(fk, argv[1]);
-int ret = fkrun<int>(fk, "myfunc1", 1, 2);
-delfake(fk);  // 释放全部内存
+int ret = fkrun<int>(fk, "myfunc1", 1, 2);  // 一口气跑完，不留下暂停的 VM
+fkparse(fk, argv[1]);  // 再 parse 或 fkreg 一次，同名直接覆盖
+fkreset(fk);  // 丢掉运行期 array/map/pointer/字符串，保留字节码和 C 绑定
+delfake(fk);  // 销毁实例，释放全部内存
 ```
+
+### 生命周期
+
+| 调用 | 释放 | 保留 |
+|------|------|------|
+| 再一次 `fkparse` / `fkreg` | 该名字上一次的字节码或 C 绑定 | 其余一切 |
+| `fkreset(fk)` | 运行期 array、map、pointer 包装、驻留的运行期字符串、栈 | 字节码、常量、已注册的 C 函数 |
+| `fkclear(fk)` | 全部已编译字节码 | C 绑定 |
+| `delfake(fk)` | 整个实例 | — |
+
+只在没有脚本在跑时调用 `fkreset()`。`fkrun` 会跑完（或挂住）才回到宿主。不要替换当前还在调用栈上的函数。
 
 ## 语言
 
@@ -124,27 +140,21 @@ end
 
 ## 调试
 
-IDE（`bin/fakeide.app`）：
-
-![ide](img/ide.png)
-
 命令行（`bin/fakebin`）：
 
 ![debug](img/debug.png)
 
 ## 基准
 
+见 [benchmark/README.zh.md](benchmark/README.zh.md)（[English](benchmark/README.md)）。
+
 ```bash
-cd benchmark && ./benchmark.sh
+./build.sh release
+./bin/fake_bench --benchmark_min_time=0.5s
 ```
 
-MacBook Pro 2.3 GHz Intel Core i5：
-
-|        | Lua   | Python | Fake  | Fake JIT |
-|--------|-------|--------|------:|---------:|
-| Loop   | 0.8s  | 2.3s   | 1.3s  | 0.2s     |
-| Prime  | 13.5s | 20.9s  | 12.8s | 5.9s     |
-| String | 0.8s  | 0.4s   | 1.2s  | 3.2s     |
+只看 release `-O3 -flto`。CI 的 0.1s 是冒烟，不是成绩。
+`benchmark/*.lua` 是同一套 loop / prime / string，方便手动和 Lua 对比。
 
 ## 相关项目
 

@@ -46,8 +46,6 @@ enum esyntreetype {
     est_struct_memlist,
     est_struct_pointer,
     est_continue,
-    est_sleep,
-    est_yield,
     est_switch_stmt,
     est_switch_caselist,
     est_switch_case_node,
@@ -602,9 +600,7 @@ struct function_call_node : public syntree_node {
     virtual String dump(int indent) {
         String ret;
         ret += gentab(indent);
-        if (fakecall) {
-            ret += "[func_fake_call]:";
-        } else if (classmem_call) {
+        if (classmem_call) {
             ret += "[class_mem_call]:";
         } else {
             ret += "[func_call]:";
@@ -621,7 +617,6 @@ struct function_call_node : public syntree_node {
         return ret;
     }
 
-    bool fakecall;
     bool classmem_call;
     String fuc;
     syntree_node *prefunc;
@@ -784,50 +779,6 @@ struct continue_stmt : public syntree_node {
         return ret;
     }
 
-};
-
-struct sleep_stmt : public syntree_node {
-    sleep_stmt() {}
-
-    virtual ~sleep_stmt() {}
-
-    virtual esyntreetype gettype() {
-        return est_sleep;
-    }
-
-    virtual String dump(int indent) {
-        String ret;
-        ret += gentab(indent);
-        ret += "[sleep]:\n";
-        ret += gentab(indent + 1);
-        ret += "[time]:\n";
-        ret += time->dump(indent + 2);
-        return ret;
-    }
-
-    syntree_node *time;
-};
-
-struct yield_stmt : public syntree_node {
-    yield_stmt() {}
-
-    virtual ~yield_stmt() {}
-
-    virtual esyntreetype gettype() {
-        return est_yield;
-    }
-
-    virtual String dump(int indent) {
-        String ret;
-        ret += gentab(indent);
-        ret += "[yield]:\n";
-        ret += gentab(indent + 1);
-        ret += "[time]:\n";
-        ret += time->dump(indent + 2);
-        return ret;
-    }
-
-    syntree_node *time;
 };
 
 struct switch_case_node : public syntree_node {

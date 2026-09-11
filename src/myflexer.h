@@ -38,28 +38,28 @@ public:
     }
 
 
-    // flexÍ¨¹ıµ÷ÓÃÕâ¸ö·½·¨È¡µÃÒª½âÎöµÄ×Ö·û´®µÄ
+    // flexé€šè¿‡è°ƒç”¨è¿™ä¸ªæ–¹æ³•å–å¾—è¦è§£æçš„å­—ç¬¦ä¸²çš„
     virtual int LexerInput(char *buf, int max_size);
 
     virtual void LexerOutput(const char *buf, int size);
 
 
-    //´íÎóº¯Êı
+    //é”™è¯¯å‡½æ•°
     virtual void LexerError(const char *msg);
 
-    // ÔÚflex.cppÖĞÊµÏÖ
+    // åœ¨flex.cppä¸­å®ç°
     int yylex(YYSTYPE *yylval, YYLTYPE *loc);
 
     fake *getfake() {
         return m_fk;
     }
 
-    // ÊäÈëÎÄ¼ş
+    // è¾“å…¥æ–‡ä»¶
     bool inputfile(const char *filename);
 
     const char *getfilename();
 
-    // ÊäÈë×Ö·û´®
+    // è¾“å…¥å­—ç¬¦ä¸²
     bool inputstr(const char *str);
 
     void clear();

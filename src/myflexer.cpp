@@ -3,7 +3,7 @@
 #include "fake.h"
 
 
-// flexÍ¨¹ıµ÷ÓÃÕâ¸ö·½·¨È¡µÃÒª½âÎöµÄ×Ö·û´®µÄ
+// flexé€šè¿‡è°ƒç”¨è¿™ä¸ªæ–¹æ³•å–å¾—è¦è§£æçš„å­—ç¬¦ä¸²çš„
 int myflexer::LexerInput(char *buf, int max_size) {
     if (m_pos == m_num) {
         return 0;
@@ -23,7 +23,7 @@ int myflexer::LexerInput(char *buf, int max_size) {
 void myflexer::LexerOutput(const char *buf, int size) {
 }
 
-//´íÎóº¯Êı
+//é”™è¯¯å‡½æ•°
 void myflexer::LexerError(const char *msg) {
     FKLOG("parse error : %s at line:%d near:%s\n", msg, lineno(), yytext);
     char buff[100];
@@ -32,7 +32,7 @@ void myflexer::LexerError(const char *msg) {
     m_errorline = lineno();
 }
 
-// ÊäÈë×Ö·û´®
+// è¾“å…¥å­—ç¬¦ä¸²
 bool myflexer::inputstr(const char *str) {
     m_filename = "string";
     m_content = str;
@@ -41,7 +41,7 @@ bool myflexer::inputstr(const char *str) {
     return true;
 }
 
-// ÊäÈëÎÄ¼ş
+// è¾“å…¥æ–‡ä»¶
 bool myflexer::inputfile(const char *filename) {
     m_filename = filename;
     FILE *file = fopen(filename, "r");
@@ -138,7 +138,7 @@ explicit_value_map &myflexer::get_const_map() {
 }
 
 void myflexer::add_include(const char *include_file) {
-    // ¼ÓÈëinclude list£¬µÈ´ı½âÎöÍêÔÙÍ³Ò»°¤¸öinclude
+    // åŠ å…¥include listï¼Œç­‰å¾…è§£æå®Œå†ç»Ÿä¸€æŒ¨ä¸ªinclude
     m_includelist.push_back(include_file);
 }
 
