@@ -13,7 +13,7 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | basic | `basic/` | Global functions: `print`, `type`, `tostring`, `tonumber`, `select`, `error`, `assert`, `pcall`, `xpcall`, `next`, `pairs`, `ipairs`, `collectgarbage` |
 | math | `math/` | Math functions: arithmetic, trigonometry, exponential/logarithm, random, constants, special functions |
 | table | `table/` | Table operations: `insert`, `remove`, `concat`, `sort`, `pack`, `unpack`, `move`, `create` |
-| string | `string/` | String operations: substring, case, trim/split/replace, pattern matching (ECMAScript regex), formatting, binary pack/unpack, serialization |
+| string | `string/` | String operations: substring, case, trim/split/join/replace, pattern matching (ECMAScript regex), formatting, binary pack/unpack, serialization |
 | os | `os/` | OS interface: time, date, environment, file operations, process execution (UTF-8 paths via Boost.Nowide on Windows) |
 | utf8 | `utf8/` | UTF-8 encoding/decoding: `char`, `codepoint`, `codes`, `len`, `offset` |
 | io | `io/` | File I/O: open, close, read, write, seek, popen, standard streams |
@@ -24,7 +24,7 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | runtime | `runtime/` | Unified event loop pump: `runtime.tick()` drives every module that needs periodic progress |
 | event | `event/` | Pub/sub event system: `on`, `once`, `off`, `emit`, `clear`, `clear_all` |
 | random | `random/` | Seeded RNG (PCG-32): `int`, `float`, `dice`, `chance`, `weighted`, `get_state`, `set_state` |
-| container | `container/` | Persistent deque / ordered map / set (Boost.Container), NativeObject-backed |
+| container | `container/` | Persistent deque / vector / small_vector / list / ordered map / set (Boost.Container), NativeObject-backed |
 | compress | `compress/` | Compression: LZ4, zlib, gzip, Zstd |
 | crypto | `crypto/` | Cryptography: MD5/SHA1/SHA256, hex/base64, UUID, CRC-32, xxHash-64, AES/RC4/Blowfish/DES/3DES |
 | csv | `csv/` | CSV decode/encode |
@@ -134,6 +134,7 @@ There are no `thread_local` variables left.
 | `math.erfc(x)` | 1 | Complementary error function |
 | `math.gamma(x)` | 1 | Gamma function Γ(x) |
 | `math.lgamma(x)` | 1 | Log-gamma ln Γ(x) |
+| `math.clamp(x, lo, hi)` | 3 | Clamp `x` to `[lo, hi]` (Boost.Algorithm; all-integer args stay integer) |
 
 **Constants:** `math.pi`, `math.huge`, `math.maxinteger`, `math.mininteger`
 
@@ -169,13 +170,17 @@ There are no `thread_local` variables left.
 | `string.lower(s)` | 1 | ASCII lowercase |
 | `string.upper(s)` | 1 | ASCII uppercase |
 | `string.trim(s)` | 1 | Strip leading/trailing whitespace (Boost.Algorithm, C locale) |
+| `string.trim_left(s)` / `string.trim_right(s)` | 1 | Strip leading or trailing whitespace only |
 | `string.split(s, sep)` | 2 | Split on separator string (multi-char OK; empty parts kept) |
+| `string.join(tbl, sep)` | 2 | Join array elements with `sep` (inverse of `split`; empty `sep` concatenates) |
 | `string.starts_with(s, prefix)` | 2 | Whether `s` begins with `prefix` |
 | `string.ends_with(s, suffix)` | 2 | Whether `s` ends with `suffix` |
 | `string.contains(s, needle)` | 2 | Whether `s` contains `needle` as a substring |
 | `string.replace(s, from, to)` | 3 | Literal replace-all (`from` must be non-empty) |
 | `string.iequals(a, b)` | 2 | Case-insensitive equality (C locale / ASCII) |
 | `string.icontains(s, needle)` | 2 | Case-insensitive substring test (C locale / ASCII) |
+| `string.istarts_with(s, prefix)` | 2 | Case-insensitive `starts_with` (C locale / ASCII) |
+| `string.iends_with(s, suffix)` | 2 | Case-insensitive `ends_with` (C locale / ASCII) |
 | `string.byte(s, [i, [j]])` | vararg | Byte values in range |
 | `string.char(...)` | vararg | Characters from code points 0-255 |
 | `string.format(fmt, ...)` | vararg | Formatted output (supports `%s %d %i %u %x %X %o %f %e %E %g %G %c %q %p`) |
@@ -443,7 +448,7 @@ PCG-32 algorithm: 64-bit state, 32-bit output, period 2^64. Each `random.new(see
 
 **File:** `container/native_container.h` · **Registration:** `RegisterContainerLibraryApi`
 
-Boost.Container-backed structures stored on a NativeObject (C++ heap). They survive arena reset; Lua tables in the same slot do not. Keys/values are `nil` / boolean / number / string (or another NativeObject as a deque/map value). Plain Lua tables and functions are rejected. Map/set keys are ordered: nil < bool < int < float < string, then by value. Integer-valued floats are stored as ints.
+Boost.Container-backed structures stored on a NativeObject (C++ heap). They survive arena reset; Lua tables in the same slot do not. Keys/values are `nil` / boolean / number / string (or another NativeObject as a sequence/map value). Plain Lua tables and functions are rejected. Map/set keys are ordered: nil < bool < int < float < string, then by value. Integer-valued floats are stored as ints.
 
 | Function | Args | Description |
 |----------|------|-------------|
@@ -454,6 +459,12 @@ Boost.Container-backed structures stored on a NativeObject (C++ heap). They surv
 | `d:at(i)` | 1 | 1-based get; `nil` if out of range |
 | `d:set(i, v)` | 2 | 1-based replace; errors if out of range |
 | `d:to_table()` | 0 | Copy to a 1-based Lua array |
+| `container.vector()` | 0 | Create a vector (`boost::container::vector`); back insert only |
+| `v:push_back(v)` / `v:pop_back()` | 1/0 | Append / remove last (`nil` if empty) |
+| `v:front()` / `v:back()` / `v:at(i)` / `v:set(i, v)` / `v:to_table()` | | Same 1-based indexing as deque |
+| `container.small_vector()` | 0 | Like vector, inline storage for the first 8 elements (`boost::container::small_vector`) |
+| `container.list()` | 0 | Doubly-linked list (`boost::container::list`); `at`/`set` are O(n) |
+| `l:push_front(v)` / `l:pop_front()` | 1/0 | Head insert / remove, in addition to the vector-style back methods |
 | `container.map()` | 0 | Create an ordered map (`boost::container::flat_map`) |
 | `m:set(k, v)` / `m:get(k)` / `m:has(k)` / `m:erase(k)` | 1-2 | Insert/overwrite, lookup (`nil` if missing), membership, erase (bool) |
 | `m:keys()` / `m:to_table()` | 0 | Sorted keys array, or Lua table of pairs |

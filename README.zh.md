@@ -127,7 +127,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **全局变量复杂初始化**：文件级变量支持任意复杂表达式初始化器，在生成的 `__fakelua_init()` 中执行。
 - **NativeObject 与 C++ 互操作**：支持组粒度 Arena 批量释放、C++ 成员方法 `RegisterMethod` 绑定、冒号语法调用。
 - **ECMAScript 正则**：`string.find`/`match`/`gmatch`/`gsub` 底层使用 Boost.Regex（支持前瞻、交替、非贪婪等能力，强于 Lua pattern）。
-- **字符串算法**：`string.trim`/`split`/`replace`/`starts_with`/`ends_with`/`contains`/`iequals`/`icontains` 底层使用 Boost.Algorithm。
+- **字符串算法**：`string.trim`/`trim_left`/`trim_right`/`split`/`join`/`replace`/`starts_with`/`ends_with`/`contains`/`iequals`/`icontains`/`istarts_with`/`iends_with` 底层使用 Boost.Algorithm。
 
 ### 未支持
 
@@ -148,7 +148,7 @@ FakeLua 在 `src/native/` 下提供 29 个独立 C++ 原生模块，覆盖数学
 |------|------|
 | 核心 Lua | `math`、`table`、`string`、`os`、`utf8`、`io`、`random` |
 | 网络 | `net`（TCP/UDP 服务端/客户端）、`http`（Beast HTTP/1.1）、`url`、`timer`、`event` |
-| 数据 | `json`、`csv`、`serialize`、`protobuf`、`container`（Boost.Container deque/map/set） |
+| 数据 | `json`、`csv`、`serialize`、`protobuf`、`container`（Boost.Container deque/vector/list/map/set） |
 | 配置解析 | `yaml`、`toml`、`xml`、`ini` |
 | 数据库 | `mysql`（异步 + 连接池）、`redis`（异步）、`sqlite`（同步） |
 | 加解密 | `compress`（LZ4/zlib/gzip/Zstd）、`crypto`（MD5/SHA/AES/RC4/Blowfish/DES、UUID、CRC-32、xxHash） |

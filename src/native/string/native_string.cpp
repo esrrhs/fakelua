@@ -764,6 +764,27 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaStringView(state, out);
     });
 
+    // string.trim_left(s) / string.trim_right(s) — 只去左/右空白
+    RegisterNativeFunction(s, "string.trim_left", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.trim_left", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckStringArg(a0, 1, "string.trim_left");
+        std::string temp;
+        std::string out(GetStringArgView(a0, temp));
+        boost::algorithm::trim_left(out, std::locale::classic());
+        return inter::NativeToFakeluaStringView(state, out);
+    });
+
+    RegisterNativeFunction(s, "string.trim_right", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.trim_right", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckStringArg(a0, 1, "string.trim_right");
+        std::string temp;
+        std::string out(GetStringArgView(a0, temp));
+        boost::algorithm::trim_right(out, std::locale::classic());
+        return inter::NativeToFakeluaStringView(state, out);
+    });
+
     // string.split(s, sep) — 按分隔串切开（可多字符），空段保留；sep 不能为空
     RegisterNativeFunction(s, "string.split", 2, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) ThrowBadArgument(1, "string.split", "string expected");
@@ -785,6 +806,33 @@ void RegisterStringLibraryApi(State *s) {
             table::TableHelper::SetTableInt(state, tbl, static_cast<int64_t>(i + 1), inter::NativeToFakeluaStringView(state, parts[i]));
         }
         return tbl;
+    });
+
+    // string.join(tbl, sep) — split 的逆操作（Boost.Algorithm join）
+    RegisterNativeFunction(s, "string.join", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.join", "table expected");
+        if (n < 2) ThrowBadArgument(2, "string.join", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        if (a0.type_ != static_cast<int>(VarType::Table) || !a0.data_.t) {
+            ThrowBadArgument(1, "string.join", "table expected");
+        }
+        CheckStringArg(a1, 2, "string.join");
+        std::string temp_sep;
+        std::string sep(GetStringArgView(a1, temp_sep));
+        int64_t len = table::TableHelper::GetTableLen(a0);
+        if (len < 0 || static_cast<uint64_t>(len) > 10000000ULL) {
+            ThrowFakeluaException("string.join: too many items");
+        }
+        std::vector<std::string> parts;
+        parts.reserve(len > 0 ? static_cast<size_t>(len) : 0);
+        for (int64_t i = 1; i <= len; ++i) {
+            CVar item = table::TableHelper::GetTableInt(state, a0, i);
+            CheckStringArg(item, 1, "string.join");
+            std::string temp;
+            parts.emplace_back(GetStringArgView(item, temp));
+        }
+        return inter::NativeToFakeluaStringView(state, boost::algorithm::join(parts, sep));
     });
 
     // string.starts_with(s, prefix)
@@ -879,6 +927,32 @@ void RegisterStringLibraryApi(State *s) {
         return inter::NativeToFakeluaBool(state, boost::algorithm::icontains(sv, needle, std::locale::classic()));
     });
 
+    // string.istarts_with(s, prefix) / string.iends_with(s, suffix) — ASCII 大小写不敏感
+    RegisterNativeFunction(s, "string.istarts_with", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.istarts_with", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.istarts_with", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckStringArg(a0, 1, "string.istarts_with");
+        CheckStringArg(a1, 2, "string.istarts_with");
+        std::string temp0, temp1;
+        std::string_view sv = GetStringArgView(a0, temp0);
+        std::string_view prefix = GetStringArgView(a1, temp1);
+        return inter::NativeToFakeluaBool(state, boost::algorithm::istarts_with(sv, prefix, std::locale::classic()));
+    });
+
+    RegisterNativeFunction(s, "string.iends_with", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "string.iends_with", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.iends_with", "string expected");
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CVar a1 = inter::GetNativeArg(state, args, n, 1);
+        CheckStringArg(a0, 1, "string.iends_with");
+        CheckStringArg(a1, 2, "string.iends_with");
+        std::string temp0, temp1;
+        std::string_view sv = GetStringArgView(a0, temp0);
+        std::string_view suffix = GetStringArgView(a1, temp1);
+        return inter::NativeToFakeluaBool(state, boost::algorithm::iends_with(sv, suffix, std::locale::classic()));
+    });
 
     RegisterNativeFunction(s, "string.byte", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);

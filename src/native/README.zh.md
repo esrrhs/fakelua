@@ -11,7 +11,7 @@
 | basic | `basic/` | 全局函数：`print`、`type`、`tostring`、`tonumber`、`select`、`error`、`assert`、`pcall`、`xpcall`、`next`、`pairs`、`ipairs`、`collectgarbage` |
 | math | `math/` | 数学函数：算术、三角、指数/对数、随机数、常量、特殊函数 |
 | table | `table/` | 表操作：`insert`、`remove`、`concat`、`sort`、`pack`、`unpack`、`move`、`create` |
-| string | `string/` | 字符串操作：子串、大小写、trim/split/replace、模式匹配（ECMAScript 正则）、格式化、二进制 pack/unpack、序列化 |
+| string | `string/` | 字符串操作：子串、大小写、trim/split/join/replace、模式匹配（ECMAScript 正则）、格式化、二进制 pack/unpack、序列化 |
 | os | `os/` | 系统接口：时间、日期、环境变量、文件操作、进程执行（Windows 上路径走 Boost.Nowide UTF-8） |
 | utf8 | `utf8/` | UTF-8 编解码：`char`、`codepoint`、`codes`、`len`、`offset` |
 | io | `io/` | 文件 IO：open、close、read、write、seek、popen、标准流 |
@@ -22,7 +22,7 @@
 | runtime | `runtime/` | 统一事件泵：`runtime.tick()` 驱动所有需要周期推进的模块 |
 | event | `event/` | 发布/订阅事件系统：`on`、`once`、`off`、`emit`、`clear`、`clear_all` |
 | random | `random/` | 可种子随机数（PCG-32）：`int`、`float`、`dice`、`chance`、`weighted`、`get_state`、`set_state` |
-| container | `container/` | 跨帧持久 deque / 有序 map / set（Boost.Container），NativeObject 承载 |
+| container | `container/` | 跨帧持久 deque / vector / small_vector / list / 有序 map / set（Boost.Container），NativeObject 承载 |
 | compress | `compress/` | 压缩：LZ4、zlib、gzip、Zstd |
 | crypto | `crypto/` | 加解密：MD5/SHA1/SHA256、hex/base64、UUID、CRC-32、xxHash-64、AES/RC4/Blowfish/DES/3DES |
 | csv | `csv/` | CSV 解码/编码 |
@@ -130,6 +130,7 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `math.erfc(x)` | 1 | 余误差函数 |
 | `math.gamma(x)` | 1 | Gamma 函数 Γ(x) |
 | `math.lgamma(x)` | 1 | Log-gamma ln Γ(x) |
+| `math.clamp(x, lo, hi)` | 3 | 将 `x` 限制在 `[lo, hi]`（Boost.Algorithm；三个参数都是整数则返回整数） |
 
 **常量：** `math.pi`、`math.huge`、`math.maxinteger`、`math.mininteger`
 
@@ -165,13 +166,17 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `string.lower(s)` | 1 | ASCII 小写 |
 | `string.upper(s)` | 1 | ASCII 大写 |
 | `string.trim(s)` | 1 | 去掉两端空白（Boost.Algorithm，C locale） |
+| `string.trim_left(s)` / `string.trim_right(s)` | 1 | 只去掉左/右空白 |
 | `string.split(s, sep)` | 2 | 按分隔串切开（可多字符；空段保留） |
+| `string.join(tbl, sep)` | 2 | 用 `sep` 拼接数组（`split` 的逆操作；空 `sep` 为直接拼接） |
 | `string.starts_with(s, prefix)` | 2 | 是否以 `prefix` 开头 |
 | `string.ends_with(s, suffix)` | 2 | 是否以 `suffix` 结尾 |
 | `string.contains(s, needle)` | 2 | 是否包含子串 `needle` |
 | `string.replace(s, from, to)` | 3 | 字面量全局替换（`from` 不能为空） |
 | `string.iequals(a, b)` | 2 | 大小写不敏感相等（C locale / ASCII） |
 | `string.icontains(s, needle)` | 2 | 大小写不敏感包含（C locale / ASCII） |
+| `string.istarts_with(s, prefix)` | 2 | 大小写不敏感 `starts_with`（C locale / ASCII） |
+| `string.iends_with(s, suffix)` | 2 | 大小写不敏感 `ends_with`（C locale / ASCII） |
 | `string.byte(s, [i, [j]])` | vararg | 范围内的字节值 |
 | `string.char(...)` | vararg | 编码点 0-255 转字符 |
 | `string.format(fmt, ...)` | vararg | 格式化输出（支持 `%s %d %i %u %x %X %o %f %e %E %g %G %c %q %p`） |
@@ -438,7 +443,7 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 
 **文件：** `container/native_container.h` · **注册：** `RegisterContainerLibraryApi`
 
-基于 Boost.Container、存在 NativeObject（C++ 堆）上的结构。它们在 arena reset 之后仍然有效，同位置的 Lua table 则不会。键/值只接受 `nil` / 布尔 / 数字 / 字符串（deque/map 的值还可以是另一个 NativeObject）。普通 Lua table 和函数会拒绝。map/set 键序：nil < bool < int < float < string，再按值比较。整数值的 float 按 int 存。
+基于 Boost.Container、存在 NativeObject（C++ 堆）上的结构。它们在 arena reset 之后仍然有效，同位置的 Lua table 则不会。键/值只接受 `nil` / 布尔 / 数字 / 字符串（序列/map 的值还可以是另一个 NativeObject）。普通 Lua table 和函数会拒绝。map/set 键序：nil < bool < int < float < string，再按值比较。整数值的 float 按 int 存。
 
 | 函数 | 参数 | 说明 |
 |------|------|------|
@@ -449,6 +454,12 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 | `d:at(i)` | 1 | 1-based 读取；越界 `nil` |
 | `d:set(i, v)` | 2 | 1-based 覆盖；越界报错 |
 | `d:to_table()` | 0 | 拷成 1-based Lua 数组 |
+| `container.vector()` | 0 | 向量（`boost::container::vector`）；只从尾部插入 |
+| `v:push_back(v)` / `v:pop_back()` | 1/0 | 追加 / 弹出末尾（空则 `nil`） |
+| `v:front()` / `v:back()` / `v:at(i)` / `v:set(i, v)` / `v:to_table()` | | 与 deque 相同的 1-based 下标 |
+| `container.small_vector()` | 0 | 同 vector，前 8 个元素走内联存储（`boost::container::small_vector`） |
+| `container.list()` | 0 | 双向链表（`boost::container::list`）；`at`/`set` 为 O(n) |
+| `l:push_front(v)` / `l:pop_front()` | 1/0 | 头插/头删，其余与 vector 的尾部方法相同 |
 | `container.map()` | 0 | 有序映射（`boost::container::flat_map`） |
 | `m:set(k, v)` / `m:get(k)` / `m:has(k)` / `m:erase(k)` | 1-2 | 写入、读取（缺失为 `nil`）、是否存在、删除（bool） |
 | `m:keys()` / `m:to_table()` | 0 | 有序键数组，或键值 Lua 表 |

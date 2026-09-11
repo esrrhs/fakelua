@@ -7,8 +7,12 @@
 #include <boost/container/deque.hpp>
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
+#include <boost/container/list.hpp>
+#include <boost/container/small_vector.hpp>
+#include <boost/container/vector.hpp>
 #include <cstdint>
 #include <format>
+#include <iterator>
 #include <string>
 #include <utility>
 
@@ -100,9 +104,15 @@ struct ContainerKey {
     }
 };
 
+static constexpr std::size_t kSmallVectorN = 8;
+using SmallVec = boost::container::small_vector<NativeField, kSmallVectorN>;
+
 struct ContainerImpl {
-    enum class Kind { Deque, Map, Set } kind = Kind::Deque;
+    enum class Kind { Deque, Vector, SmallVector, List, Map, Set } kind = Kind::Deque;
     boost::container::deque<NativeField> deque;
+    boost::container::vector<NativeField> vec;
+    SmallVec small;
+    boost::container::list<NativeField> list;
     boost::container::flat_map<ContainerKey, NativeField> map;
     boost::container::flat_set<ContainerKey> set;
 };
@@ -154,6 +164,15 @@ CVar SizeOf(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
         case ContainerImpl::Kind::Deque:
             n = static_cast<int64_t>(c->deque.size());
             break;
+        case ContainerImpl::Kind::Vector:
+            n = static_cast<int64_t>(c->vec.size());
+            break;
+        case ContainerImpl::Kind::SmallVector:
+            n = static_cast<int64_t>(c->small.size());
+            break;
+        case ContainerImpl::Kind::List:
+            n = static_cast<int64_t>(c->list.size());
+            break;
         case ContainerImpl::Kind::Map:
             n = static_cast<int64_t>(c->map.size());
             break;
@@ -171,6 +190,15 @@ CVar EmptyOf(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
         case ContainerImpl::Kind::Deque:
             empty = c->deque.empty();
             break;
+        case ContainerImpl::Kind::Vector:
+            empty = c->vec.empty();
+            break;
+        case ContainerImpl::Kind::SmallVector:
+            empty = c->small.empty();
+            break;
+        case ContainerImpl::Kind::List:
+            empty = c->list.empty();
+            break;
         case ContainerImpl::Kind::Map:
             empty = c->map.empty();
             break;
@@ -186,6 +214,15 @@ CVar ClearOf(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     switch (c->kind) {
         case ContainerImpl::Kind::Deque:
             c->deque.clear();
+            break;
+        case ContainerImpl::Kind::Vector:
+            c->vec.clear();
+            break;
+        case ContainerImpl::Kind::SmallVector:
+            c->small.clear();
+            break;
+        case ContainerImpl::Kind::List:
+            c->list.clear();
             break;
         case ContainerImpl::Kind::Map:
             c->map.clear();
@@ -349,6 +386,190 @@ CVar SetValues(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return tbl;
 }
 
+// --- sequence helpers (vector / small_vector / list) ---
+
+NativeField &Nth(boost::container::vector<NativeField> &d, size_t i) {
+    return d[i];
+}
+NativeField &Nth(SmallVec &d, size_t i) {
+    return d[i];
+}
+NativeField &Nth(boost::container::list<NativeField> &d, size_t i) {
+    auto it = d.begin();
+    std::advance(it, static_cast<std::ptrdiff_t>(i));
+    return *it;
+}
+
+template<typename Seq>
+CVar SeqPushBack(Seq &d, State *s, CVar *args, int n, const char *fname) {
+    if (n < 1) ThrowBadArgument(1, fname, "value expected");
+    d.push_back(PersistValue(inter::GetNativeArg(s, args, n, 0), fname));
+    return inter::NativeToFakeluaNil(s);
+}
+
+template<typename Seq>
+CVar SeqPushFront(Seq &d, State *s, CVar *args, int n, const char *fname) {
+    if (n < 1) ThrowBadArgument(1, fname, "value expected");
+    d.push_front(PersistValue(inter::GetNativeArg(s, args, n, 0), fname));
+    return inter::NativeToFakeluaNil(s);
+}
+
+template<typename Seq>
+CVar SeqPopBack(Seq &d, State *s) {
+    if (d.empty()) return inter::NativeToFakeluaNil(s);
+    NativeField v = std::move(d.back());
+    d.pop_back();
+    return NativeFieldToCVar(v, s);
+}
+
+template<typename Seq>
+CVar SeqPopFront(Seq &d, State *s) {
+    if (d.empty()) return inter::NativeToFakeluaNil(s);
+    NativeField v = std::move(d.front());
+    d.pop_front();
+    return NativeFieldToCVar(v, s);
+}
+
+template<typename Seq>
+CVar SeqFront(Seq &d, State *s) {
+    if (d.empty()) return inter::NativeToFakeluaNil(s);
+    return NativeFieldToCVar(d.front(), s);
+}
+
+template<typename Seq>
+CVar SeqBack(Seq &d, State *s) {
+    if (d.empty()) return inter::NativeToFakeluaNil(s);
+    return NativeFieldToCVar(d.back(), s);
+}
+
+template<typename Seq>
+CVar SeqAt(Seq &d, State *s, CVar *args, int n, const char *fname) {
+    if (n < 1) ThrowBadArgument(1, fname, "index expected");
+    int64_t i = CheckIntegerArg(inter::GetNativeArg(s, args, n, 0), 1, fname);
+    if (i < 1 || static_cast<size_t>(i) > d.size()) return inter::NativeToFakeluaNil(s);
+    return NativeFieldToCVar(Nth(d, static_cast<size_t>(i - 1)), s);
+}
+
+template<typename Seq>
+CVar SeqSet(Seq &d, State *s, CVar *args, int n, const char *fname) {
+    if (n < 2) ThrowBadArgument(1, fname, "index and value expected");
+    int64_t i = CheckIntegerArg(inter::GetNativeArg(s, args, n, 0), 1, fname);
+    if (i < 1 || static_cast<size_t>(i) > d.size()) {
+        ThrowBadArgument(1, fname, "index out of range");
+    }
+    Nth(d, static_cast<size_t>(i - 1)) = PersistValue(inter::GetNativeArg(s, args, n, 1), fname);
+    return inter::NativeToFakeluaNil(s);
+}
+
+template<typename Seq>
+CVar SeqToTable(Seq &d, State *s) {
+    CVar tbl = table::TableHelper::CreateTable(s);
+    int64_t i = 1;
+    for (auto &v: d) {
+        table::TableHelper::SetTableInt(s, tbl, i++, NativeFieldToCVar(v, s));
+    }
+    return tbl;
+}
+
+boost::container::vector<NativeField> &VecOf(NativeObject *self) {
+    auto *c = Require(self);
+    if (c->kind != ContainerImpl::Kind::Vector) ThrowFakeluaException("not a vector");
+    return c->vec;
+}
+SmallVec &SmallOf(NativeObject *self) {
+    auto *c = Require(self);
+    if (c->kind != ContainerImpl::Kind::SmallVector) ThrowFakeluaException("not a small_vector");
+    return c->small;
+}
+boost::container::list<NativeField> &ListOf(NativeObject *self) {
+    auto *c = Require(self);
+    if (c->kind != ContainerImpl::Kind::List) ThrowFakeluaException("not a list");
+    return c->list;
+}
+
+CVar VectorPushBack(NativeObject *self, State *s, CVar *args, int n) {
+    return SeqPushBack(VecOf(self), s, args, n, "vector:push_back");
+}
+CVar VectorPopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqPopBack(VecOf(self), s);
+}
+CVar VectorFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqFront(VecOf(self), s);
+}
+CVar VectorBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqBack(VecOf(self), s);
+}
+CVar VectorAt(NativeObject *self, State *s, CVar *args, int n) {
+    return SeqAt(VecOf(self), s, args, n, "vector:at");
+}
+CVar VectorSet(NativeObject *self, State *s, CVar *args, int n) {
+    return SeqSet(VecOf(self), s, args, n, "vector:set");
+}
+CVar VectorToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqToTable(VecOf(self), s);
+}
+
+CVar SmallPushBack(NativeObject *self, State *s, CVar *args, int n) {
+    return SeqPushBack(SmallOf(self), s, args, n, "small_vector:push_back");
+}
+CVar SmallPopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqPopBack(SmallOf(self), s);
+}
+CVar SmallFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqFront(SmallOf(self), s);
+}
+CVar SmallBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqBack(SmallOf(self), s);
+}
+CVar SmallAt(NativeObject *self, State *s, CVar *args, int n) {
+    return SeqAt(SmallOf(self), s, args, n, "small_vector:at");
+}
+CVar SmallSet(NativeObject *self, State *s, CVar *args, int n) {
+    return SeqSet(SmallOf(self), s, args, n, "small_vector:set");
+}
+CVar SmallToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqToTable(SmallOf(self), s);
+}
+
+CVar ListPushBack(NativeObject *self, State *s, CVar *args, int n) {
+    return SeqPushBack(ListOf(self), s, args, n, "list:push_back");
+}
+CVar ListPushFront(NativeObject *self, State *s, CVar *args, int n) {
+    return SeqPushFront(ListOf(self), s, args, n, "list:push_front");
+}
+CVar ListPopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqPopBack(ListOf(self), s);
+}
+CVar ListPopFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqPopFront(ListOf(self), s);
+}
+CVar ListFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqFront(ListOf(self), s);
+}
+CVar ListBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqBack(ListOf(self), s);
+}
+CVar ListAt(NativeObject *self, State *s, CVar *args, int n) {
+    return SeqAt(ListOf(self), s, args, n, "list:at");
+}
+CVar ListSet(NativeObject *self, State *s, CVar *args, int n) {
+    return SeqSet(ListOf(self), s, args, n, "list:set");
+}
+CVar ListToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    return SeqToTable(ListOf(self), s);
+}
+
+void RegisterSeqBack(NativeObject *nat, NativeMethod push, NativeMethod pop, NativeMethod front, NativeMethod back, NativeMethod at,
+                     NativeMethod set, NativeMethod to_table) {
+    nat->RegisterMethod("push_back", push);
+    nat->RegisterMethod("pop_back", pop);
+    nat->RegisterMethod("front", front);
+    nat->RegisterMethod("back", back);
+    nat->RegisterMethod("at", at);
+    nat->RegisterMethod("set", set);
+    nat->RegisterMethod("to_table", to_table);
+}
+
 NativeObject *Make(State *state, ContainerImpl::Kind kind, const char *type_name) {
     int64_t gid = state->GetNativeObjectManager().CreateGroup();
     NativeObject *nat = state->GetNativeObjectManager().Create(gid, type_name, 0);
@@ -398,6 +619,26 @@ void RegisterContainerLibraryApi(State *s) {
         nat->RegisterMethod("has", SetHas);
         nat->RegisterMethod("erase", SetErase);
         nat->RegisterMethod("values", SetValues);
+        return nat->Wrap(state);
+    });
+
+    RegisterNativeFunction(s, "container.vector", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar {
+        NativeObject *nat = Make(state, ContainerImpl::Kind::Vector, "container_vector");
+        RegisterSeqBack(nat, VectorPushBack, VectorPopBack, VectorFront, VectorBack, VectorAt, VectorSet, VectorToTable);
+        return nat->Wrap(state);
+    });
+
+    RegisterNativeFunction(s, "container.small_vector", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar {
+        NativeObject *nat = Make(state, ContainerImpl::Kind::SmallVector, "container_small_vector");
+        RegisterSeqBack(nat, SmallPushBack, SmallPopBack, SmallFront, SmallBack, SmallAt, SmallSet, SmallToTable);
+        return nat->Wrap(state);
+    });
+
+    RegisterNativeFunction(s, "container.list", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar {
+        NativeObject *nat = Make(state, ContainerImpl::Kind::List, "container_list");
+        RegisterSeqBack(nat, ListPushBack, ListPopBack, ListFront, ListBack, ListAt, ListSet, ListToTable);
+        nat->RegisterMethod("push_front", ListPushFront);
+        nat->RegisterMethod("pop_front", ListPopFront);
         return nat->Wrap(state);
     });
 }

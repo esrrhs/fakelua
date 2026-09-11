@@ -55,3 +55,87 @@ TEST(test_container, bad_table_value) {
     EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_bad_table_value", ret), std::exception);
     FakeluaDeleteState(s);
 }
+
+TEST(test_container, deque_set_oor) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_deque_set_oor", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, vector) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "ContainerTest.test_vector", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, small_vector) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "ContainerTest.test_small_vector", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, list) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "ContainerTest.test_list", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, nested) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "ContainerTest.test_nested", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, vector_set_oor) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_vector_set_oor", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, list_set_oor) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_list_set_oor", ret), std::exception);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_container, bad_fn_value) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./container/test_container.lua", config);
+    int64_t ret = 0;
+    EXPECT_THROW(Call(s, JIT_GCC, "ContainerTest.test_bad_fn_value", ret), std::exception);
+    FakeluaDeleteState(s);
+}
