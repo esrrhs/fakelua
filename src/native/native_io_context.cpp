@@ -11,4 +11,4 @@ std::size_t IoContext::Poll() {
     return ctx_.poll();
 }
 
-}  // namespace fakelua::native
+}// namespace fakelua::native

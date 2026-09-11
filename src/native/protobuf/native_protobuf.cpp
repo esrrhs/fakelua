@@ -18,8 +18,7 @@ namespace fakelua::protobuf {
 
 using table::TableHelper;
 
-// ─── 辅助：从 CVar 提取字符串（二进制安全）───
-
+// 辅助：从 CVar 提取字符串（二进制安全）
 static std::string CVarToString(const CVar &v) {
     if (v.type_ == static_cast<int>(VarType::String) && v.data_.s) {
         auto sv = v.data_.s->Str();
@@ -33,10 +32,10 @@ static std::string CVarToString(const CVar &v) {
     return {};
 }
 
-// ─── protobuf.load(proto_text) ───
+// protobuf.load(proto_text)
 // 解析 .proto 文本，注册所有 message/enum。成功返回 "ok"，失败返回错误信息字符串。
 
-static CVar pb_load(State *s, CVar *args, int n) {
+static CVar PbLoad(State *s, CVar *args, int n) {
     if (n < 1) {
         return inter::NativeToFakeluaString(s, "protobuf.load: missing argument");
     }
@@ -50,9 +49,8 @@ static CVar pb_load(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaString(s, "ok");
 }
 
-// ─── protobuf.encode(message_name, table) → binary ───
-
-static CVar pb_encode(State *s, CVar *args, int n) {
+// protobuf.encode(message_name, table) → binary
+static CVar PbEncode(State *s, CVar *args, int n) {
     if (n < 2) {
         ThrowFakeluaException("protobuf.encode: requires message_name and table");
     }
@@ -64,9 +62,8 @@ static CVar pb_encode(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaString(s, bin);
 }
 
-// ─── protobuf.decode(message_name, binary) → table ───
-
-static CVar pb_decode(State *s, CVar *args, int n) {
+// protobuf.decode(message_name, binary) → table
+static CVar PbDecode(State *s, CVar *args, int n) {
     if (n < 2) {
         ThrowFakeluaException("protobuf.decode: requires message_name and binary");
     }
@@ -77,82 +74,96 @@ static CVar pb_decode(State *s, CVar *args, int n) {
     return DecodeMessage(s, msg_name, data);
 }
 
-// ─── protobuf.types() → 已注册消息名列表 ───
-
-static CVar pb_types(State *s, CVar *args, int n) {
-    auto names = pb_state(s).MessageNames();
+// protobuf.types() → 已注册消息名列表
+static CVar PbTypes(State *s, CVar *args, int n) {
+    auto names = GetProtobufState(s).MessageNames();
     CVar tbl = TableHelper::CreateTable(s);
     for (size_t i = 0; i < names.size(); ++i) {
-        TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(i + 1),
-                                 inter::NativeToFakeluaString(s, names[i]));
+        TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(i + 1), inter::NativeToFakeluaString(s, names[i]));
     }
     return tbl;
 }
 
-// ─── protobuf.fields(message_name) → 字段信息表 ───
-
-static CVar pb_fields(State *s, CVar *args, int n) {
+// protobuf.fields(message_name) → 字段信息表
+static CVar PbFields(State *s, CVar *args, int n) {
     if (n < 1) {
         ThrowFakeluaException("protobuf.fields: requires message_name");
     }
     std::string msg_name = CVarToString(args[0]);
-    const MessageDef *msg = pb_state(s).FindMessage(msg_name);
+    const MessageDef *msg = GetProtobufState(s).FindMessage(msg_name);
     if (!msg) {
         ThrowFakeluaException(std::format("protobuf.fields: unknown message '{}'", msg_name));
     }
 
     CVar tbl = TableHelper::CreateTable(s);
     int64_t idx = 0;
-    for (const auto &field : msg->fields) {
+    for (const auto &field: msg->fields) {
         idx++;
         CVar field_tbl = TableHelper::CreateTable(s);
         TableHelper::SetTableStrId(s, field_tbl, "name", inter::NativeToFakeluaString(s, field.name));
         TableHelper::SetTableStrId(s, field_tbl, "number", inter::NativeToFakeluaInt(s, field.number));
         TableHelper::SetTableStrId(s, field_tbl, "type", inter::NativeToFakeluaString(s, [field]() {
-            switch (field.type) {
-                case TYPE_DOUBLE: return "double";
-                case TYPE_FLOAT: return "float";
-                case TYPE_INT64: return "int64";
-                case TYPE_UINT64: return "uint64";
-                case TYPE_INT32: return "int32";
-                case TYPE_FIXED64: return "fixed64";
-                case TYPE_FIXED32: return "fixed32";
-                case TYPE_BOOL: return "bool";
-                case TYPE_STRING: return "string";
-                case TYPE_BYTES: return "bytes";
-                case TYPE_UINT32: return "uint32";
-                case TYPE_ENUM: return "enum";
-                case TYPE_SFIXED32: return "sfixed32";
-                case TYPE_SFIXED64: return "sfixed64";
-                case TYPE_SINT32: return "sint32";
-                case TYPE_SINT64: return "sint64";
-                case TYPE_MESSAGE: return "message";
-                default: return "unknown";
-            }
-        }()));
+                                       switch (field.type) {
+                                           case TYPE_DOUBLE:
+                                               return "double";
+                                           case TYPE_FLOAT:
+                                               return "float";
+                                           case TYPE_INT64:
+                                               return "int64";
+                                           case TYPE_UINT64:
+                                               return "uint64";
+                                           case TYPE_INT32:
+                                               return "int32";
+                                           case TYPE_FIXED64:
+                                               return "fixed64";
+                                           case TYPE_FIXED32:
+                                               return "fixed32";
+                                           case TYPE_BOOL:
+                                               return "bool";
+                                           case TYPE_STRING:
+                                               return "string";
+                                           case TYPE_BYTES:
+                                               return "bytes";
+                                           case TYPE_UINT32:
+                                               return "uint32";
+                                           case TYPE_ENUM:
+                                               return "enum";
+                                           case TYPE_SFIXED32:
+                                               return "sfixed32";
+                                           case TYPE_SFIXED64:
+                                               return "sfixed64";
+                                           case TYPE_SINT32:
+                                               return "sint32";
+                                           case TYPE_SINT64:
+                                               return "sint64";
+                                           case TYPE_MESSAGE:
+                                               return "message";
+                                           default:
+                                               return "unknown";
+                                       }
+                                   }()));
         if (!field.type_name.empty()) {
             TableHelper::SetTableStrId(s, field_tbl, "type_name", inter::NativeToFakeluaString(s, field.type_name));
         }
         TableHelper::SetTableStrId(s, field_tbl, "label", inter::NativeToFakeluaString(s, [field]() {
-            if (field.is_map) return "map";
-            if (field.repeated) return "repeated";
-            if (field.optional) return "optional";
-            return "singular";
-        }()));
+                                       if (field.is_map) return "map";
+                                       if (field.repeated) return "repeated";
+                                       if (field.optional) return "optional";
+                                       return "singular";
+                                   }()));
         TableHelper::SetTableInt(s, tbl, idx, field_tbl);
     }
     return tbl;
 }
 
-// ─── 注册 ───
-
+// 注册
 void RegisterProtobufLibraryApi(State *s) {
     if (!s) return;
-    RegisterNativeFunction(s, "protobuf.load", 1, false, pb_load);
-    RegisterNativeFunction(s, "protobuf.encode", 2, false, pb_encode);
-    RegisterNativeFunction(s, "protobuf.decode", 2, false, pb_decode);
-    RegisterNativeFunction(s, "protobuf.types", 0, false, pb_types);
-    RegisterNativeFunction(s, "protobuf.fields", 1, false, pb_fields);
+    RegisterNativeFunction(s, "protobuf.load", 1, false, PbLoad);
+    RegisterNativeFunction(s, "protobuf.encode", 2, false, PbEncode);
+    RegisterNativeFunction(s, "protobuf.decode", 2, false, PbDecode);
+    RegisterNativeFunction(s, "protobuf.types", 0, false, PbTypes);
+    RegisterNativeFunction(s, "protobuf.fields", 1, false, PbFields);
 }
 
-}  // namespace fakelua::protobuf
+}// namespace fakelua::protobuf

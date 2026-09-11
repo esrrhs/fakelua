@@ -11,4 +11,4 @@ namespace fakelua::compress {
 //   compress.zstd_compress(data, level?) / compress.zstd_decompress(data)
 void RegisterCompressLibraryApi(State *s);
 
-}  // namespace fakelua::compress
+}// namespace fakelua::compress

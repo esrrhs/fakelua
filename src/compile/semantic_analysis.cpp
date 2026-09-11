@@ -34,9 +34,7 @@ void SemanticAnalysis::CheckFileLevelStmts(const ParseResult &pr) {
         if (std::string pkg_name; i == 0 && ExtractPackageName(stmt, pkg_name)) {
             continue;
         }
-        ThrowError(std::format("unsupported file-level statement {}, only local definitions and function definitions are allowed at file level",
-                               SyntaxTreeTypeToString(stmt->Type())),
-                   stmt);
+        ThrowError(std::format("unsupported file-level statement {}, only local definitions and function definitions are allowed at file level", SyntaxTreeTypeToString(stmt->Type())), stmt);
     }
 }
 
@@ -460,9 +458,7 @@ void SemanticAnalysis::CollectBlockLabels(const SyntaxTreeInterfacePtr &block, s
     }
 }
 
-void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk,
-                                            std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels,
-                                            int loop_depth) {
+void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels, int loop_depth) {
     const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
     if (!blk) return;
 

@@ -1,5 +1,4 @@
 // fuzz_bridge.h — Thin C wrapper around fakelua C++ API
-//
 // Compiled with GCC (supports <format> and C++20 features).
 // Fuzz targets compiled with clang + libFuzzer only include this header,
 // avoiding the need for clang to handle fakelua's C++ template headers.

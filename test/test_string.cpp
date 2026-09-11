@@ -184,7 +184,6 @@ TEST(test_string, test_string_pack_unpack) {
     FakeluaDeleteState(s);
 }
 
-
 TEST(test_string, test_string_charpattern) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -604,7 +603,6 @@ TEST(test_string, test_string_sub_undeclared_var) {
 
     FakeluaDeleteState(s);
 }
-
 
 // String edge case tests
 TEST(test_string, pack_basic) {

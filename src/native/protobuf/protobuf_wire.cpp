@@ -6,8 +6,7 @@
 
 namespace fakelua::protobuf {
 
-// ─── Type → WireType ───
-
+// Type → WireType
 uint8_t WireTypeForScalar(FieldType type) {
     switch (type) {
         case TYPE_INT32:
@@ -32,7 +31,7 @@ uint8_t WireTypeForScalar(FieldType type) {
         case TYPE_FLOAT:
             return WIRE_32BIT;
         default:
-            return WIRE_LEN;  // unknown → length-delimited (safe fallback)
+            return WIRE_LEN;// unknown → length-delimited (safe fallback)
     }
 }
 
@@ -58,9 +57,8 @@ bool IsPackable(FieldType type) {
     }
 }
 
-// ─── Varint ───
-
-void write_varint(std::string &out, uint64_t v) {
+// Varint
+void WriteVarint(std::string &out, uint64_t v) {
     while (v >= 0x80) {
         out.push_back(static_cast<char>((v & 0x7f) | 0x80));
         v >>= 7;
@@ -68,7 +66,7 @@ void write_varint(std::string &out, uint64_t v) {
     out.push_back(static_cast<char>(v));
 }
 
-uint64_t read_varint(const std::string &in, size_t &pos) {
+uint64_t ReadVarint(const std::string &in, size_t &pos) {
     uint64_t result = 0;
     int shift = 0;
     bool terminated = false;
@@ -90,15 +88,14 @@ uint64_t read_varint(const std::string &in, size_t &pos) {
     return result;
 }
 
-// ─── Fixed-width ───
-
-void write_fixed32(std::string &out, uint32_t v) {
+// Fixed-width
+void WriteFixed32(std::string &out, uint32_t v) {
     uint8_t buf[4];
     std::memcpy(buf, &v, 4);
     out.append(reinterpret_cast<char *>(buf), 4);
 }
 
-uint32_t read_fixed32(const std::string &in, size_t &pos) {
+uint32_t ReadFixed32(const std::string &in, size_t &pos) {
     if (pos > in.size() || 4 > in.size() - pos) {
         ThrowFakeluaException("protobuf: truncated fixed32");
     }
@@ -108,13 +105,13 @@ uint32_t read_fixed32(const std::string &in, size_t &pos) {
     return v;
 }
 
-void write_fixed64(std::string &out, uint64_t v) {
+void WriteFixed64(std::string &out, uint64_t v) {
     uint8_t buf[8];
     std::memcpy(buf, &v, 8);
     out.append(reinterpret_cast<char *>(buf), 8);
 }
 
-uint64_t read_fixed64(const std::string &in, size_t &pos) {
+uint64_t ReadFixed64(const std::string &in, size_t &pos) {
     if (pos > in.size() || 8 > in.size() - pos) {
         ThrowFakeluaException("protobuf: truncated fixed64");
     }
@@ -124,38 +121,36 @@ uint64_t read_fixed64(const std::string &in, size_t &pos) {
     return v;
 }
 
-// ─── Float / Double ───
-
-void write_float(std::string &out, float v) {
+// Float / Double
+void WriteFloat(std::string &out, float v) {
     uint32_t bits;
     std::memcpy(&bits, &v, 4);
-    write_fixed32(out, bits);
+    WriteFixed32(out, bits);
 }
 
-float read_float(const std::string &in, size_t &pos) {
-    uint32_t bits = read_fixed32(in, pos);
+float ReadFloat(const std::string &in, size_t &pos) {
+    uint32_t bits = ReadFixed32(in, pos);
     float v;
     std::memcpy(&v, &bits, 4);
     return v;
 }
 
-void write_double(std::string &out, double v) {
+void WriteDouble(std::string &out, double v) {
     uint64_t bits;
     std::memcpy(&bits, &v, 8);
-    write_fixed64(out, bits);
+    WriteFixed64(out, bits);
 }
 
-double read_double(const std::string &in, size_t &pos) {
-    uint64_t bits = read_fixed64(in, pos);
+double ReadDouble(const std::string &in, size_t &pos) {
+    uint64_t bits = ReadFixed64(in, pos);
     double v;
     std::memcpy(&v, &bits, 8);
     return v;
 }
 
-// ─── Length-delimited ───
-
-std::string read_length_delimited(const std::string &in, size_t &pos) {
-    uint64_t len = read_varint(in, pos);
+// Length-delimited
+std::string ReadLengthDelimited(const std::string &in, size_t &pos) {
+    uint64_t len = ReadVarint(in, pos);
     if (pos > in.size() || len > in.size() - pos) {
         ThrowFakeluaException("protobuf: truncated length-delimited");
     }
@@ -164,19 +159,18 @@ std::string read_length_delimited(const std::string &in, size_t &pos) {
     return result;
 }
 
-// ─── Skip unknown field ───
-
-void skip_value(const std::string &in, size_t &pos, uint8_t wire_type) {
+// Skip unknown field
+void SkipValue(const std::string &in, size_t &pos, uint8_t wire_type) {
     switch (wire_type) {
         case WIRE_VARINT:
-            read_varint(in, pos);
+            ReadVarint(in, pos);
             break;
         case WIRE_64BIT:
             if (pos > in.size() || 8 > in.size() - pos) ThrowFakeluaException("protobuf: skip truncated 64bit");
             pos += 8;
             break;
         case WIRE_LEN: {
-            uint64_t len = read_varint(in, pos);
+            uint64_t len = ReadVarint(in, pos);
             if (pos > in.size() || len > in.size() - pos) ThrowFakeluaException("protobuf: skip truncated len");
             pos += static_cast<size_t>(len);
             break;
@@ -191,4 +185,4 @@ void skip_value(const std::string &in, size_t &pos, uint8_t wire_type) {
     }
 }
 
-}  // namespace fakelua::protobuf
+}// namespace fakelua::protobuf

@@ -14,4 +14,4 @@ namespace fakelua::event {
 void RegisterEventLibraryApi(State *s);
 
 // State 销毁时清掉该 VM 上的订阅，避免跨 State 串数据。
-}  // namespace fakelua::event
+}// namespace fakelua::event

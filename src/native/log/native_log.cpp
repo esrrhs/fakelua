@@ -18,28 +18,28 @@ static std::string FormatArgs(State *s, CVar *args, int n) {
         CVar arg = inter::GetNativeArg(s, args, n, i);
 
         switch (arg.type_) {
-        case static_cast<int>(VarType::Nil):
-            result += "nil";
-            break;
-        case static_cast<int>(VarType::Bool):
-            result += (arg.data_.i != 0) ? "true" : "false";
-            break;
-        case static_cast<int>(VarType::Int):
-            result += std::to_string(arg.data_.i);
-            break;
-        case static_cast<int>(VarType::Float): {
-            char buf[64];
-            std::snprintf(buf, sizeof(buf), "%.17g", arg.data_.f);
-            result += buf;
-            break;
-        }
-        case static_cast<int>(VarType::String):
-        case static_cast<int>(VarType::StringId):
-            result += inter::FakeluaToNativeString(s, arg);
-            break;
-        default:
-            result += std::format("[{}]", static_cast<int>(arg.type_));
-            break;
+            case static_cast<int>(VarType::Nil):
+                result += "nil";
+                break;
+            case static_cast<int>(VarType::Bool):
+                result += (arg.data_.i != 0) ? "true" : "false";
+                break;
+            case static_cast<int>(VarType::Int):
+                result += std::to_string(arg.data_.i);
+                break;
+            case static_cast<int>(VarType::Float): {
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), "%.17g", arg.data_.f);
+                result += buf;
+                break;
+            }
+            case static_cast<int>(VarType::String):
+            case static_cast<int>(VarType::StringId):
+                result += inter::FakeluaToNativeString(s, arg);
+                break;
+            default:
+                result += std::format("[{}]", static_cast<int>(arg.type_));
+                break;
         }
     }
     return result;
@@ -54,37 +54,37 @@ static CVar LogVarArgs(State *s, CVar *args, int n, LogLevel level) {
 }
 
 // log.trace(msg, ...)
-static CVar log_trace(State *s, CVar *args, int n) {
+static CVar LogTrace(State *s, CVar *args, int n) {
     return LogVarArgs(s, args, n, LogLevel::Trace);
 }
 
 // log.debug(msg, ...)
-static CVar log_debug(State *s, CVar *args, int n) {
+static CVar LogDebug(State *s, CVar *args, int n) {
     return LogVarArgs(s, args, n, LogLevel::Debug);
 }
 
 // log.info(msg, ...)
-static CVar log_info(State *s, CVar *args, int n) {
+static CVar LogInfo(State *s, CVar *args, int n) {
     return LogVarArgs(s, args, n, LogLevel::Info);
 }
 
 // log.warn(msg, ...)
-static CVar log_warn(State *s, CVar *args, int n) {
+static CVar LogWarn(State *s, CVar *args, int n) {
     return LogVarArgs(s, args, n, LogLevel::Warn);
 }
 
 // log.error(msg, ...)
-static CVar log_error(State *s, CVar *args, int n) {
+static CVar LogError(State *s, CVar *args, int n) {
     return LogVarArgs(s, args, n, LogLevel::Error);
 }
 
 // log.critical(msg, ...)
-static CVar log_critical(State *s, CVar *args, int n) {
+static CVar LogCritical(State *s, CVar *args, int n) {
     return LogVarArgs(s, args, n, LogLevel::Critical);
 }
 
 // log.set_level(level)
-static CVar log_set_level(State *s, CVar *args, int n) {
+static CVar LogSetLevel(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "log.set_level", "level expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     if (a0.type_ != static_cast<int>(VarType::Int)) {
@@ -96,7 +96,7 @@ static CVar log_set_level(State *s, CVar *args, int n) {
 }
 
 // log.set_file(path)
-static CVar log_set_file(State *s, CVar *args, int n) {
+static CVar LogSetFile(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "log.set_file", "path expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     std::string path = inter::FakeluaToNativeString(s, a0);
@@ -106,14 +106,14 @@ static CVar log_set_file(State *s, CVar *args, int n) {
 
 void RegisterLogLibraryApi(State *s) {
     if (!s) return;
-    RegisterNativeFunction(s, "log.trace", 1, true, log_trace);
-    RegisterNativeFunction(s, "log.debug", 1, true, log_debug);
-    RegisterNativeFunction(s, "log.info", 1, true, log_info);
-    RegisterNativeFunction(s, "log.warn", 1, true, log_warn);
-    RegisterNativeFunction(s, "log.error", 1, true, log_error);
-    RegisterNativeFunction(s, "log.critical", 1, true, log_critical);
-    RegisterNativeFunction(s, "log.set_level", 1, false, log_set_level);
-    RegisterNativeFunction(s, "log.set_file", 1, false, log_set_file);
+    RegisterNativeFunction(s, "log.trace", 1, true, LogTrace);
+    RegisterNativeFunction(s, "log.debug", 1, true, LogDebug);
+    RegisterNativeFunction(s, "log.info", 1, true, LogInfo);
+    RegisterNativeFunction(s, "log.warn", 1, true, LogWarn);
+    RegisterNativeFunction(s, "log.error", 1, true, LogError);
+    RegisterNativeFunction(s, "log.critical", 1, true, LogCritical);
+    RegisterNativeFunction(s, "log.set_level", 1, false, LogSetLevel);
+    RegisterNativeFunction(s, "log.set_file", 1, false, LogSetFile);
 }
 
-}  // namespace fakelua::log
+}// namespace fakelua::log

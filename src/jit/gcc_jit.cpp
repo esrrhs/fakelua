@@ -93,7 +93,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     const std::string log_file = c_file.substr(0, c_file.size() - kCExtLen) + ".gcc.log";
 
     // RAII cleanup for temp files on early error paths (before GCCHandle takes ownership).
-    const auto cleanup_on_error = [&]() {
+    const auto CleanupOnError = [&]() {
         std::error_code ec;
         std::filesystem::remove(c_file, ec);
         std::filesystem::remove(so_file, ec);
@@ -157,17 +157,17 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     auto argv = build_argv();
     const int compile_status = _spawnvp(_P_WAIT, "gcc", argv.data());
     if (compile_status == -1) {
-        cleanup_on_error();
+        CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}", pr.file_name, errno, std::strerror(errno), JoinCommand(args)));
     }
     if (compile_status != 0) {
-        cleanup_on_error();
+        CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed for {} with exit code {}. cmd: {}", pr.file_name, compile_status, JoinCommand(args)));
     }
 
     HMODULE module_handle = LoadLibraryA(so_file.c_str());
     if (!module_handle) {
-        cleanup_on_error();
+        CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, LoadLibrary failed for {}: {}", so_file, WinErrToString(GetLastError())));
     }
     const auto handle = std::make_shared<GCCHandle>(c_file, so_file, log_file, module_handle);
@@ -181,7 +181,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     auto argv = build_argv();
     const int log_fd = open(log_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (log_fd < 0) {
-        cleanup_on_error();
+        CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, cannot open log file {}", log_file));
     }
 
@@ -196,7 +196,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     if (pid < 0) {
         pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
         close(log_fd);
-        cleanup_on_error();
+        CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, fork failed for {}", pr.file_name));
     }
 
@@ -214,7 +214,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     int status = 0;
     if (waitpid(pid, &status, 0) < 0) {
         pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
-        cleanup_on_error();
+        CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, waitpid failed for {}", pr.file_name));
     }
     pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
@@ -223,13 +223,13 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         if (std::ifstream ifs(log_file); ifs.is_open()) {
             gcc_log.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
         }
-        cleanup_on_error();
+        CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed for {} (log: {})\n{}", pr.file_name, log_file, gcc_log));
     }
 
     void *dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!dl_handle) {
-        cleanup_on_error();
+        CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, dlopen failed for {}: {}", so_file, dlerror()));
     }
     const auto handle = std::make_shared<GCCHandle>(c_file, so_file, log_file, dl_handle);

@@ -19,15 +19,12 @@
 namespace fakelua {
 
 // JIT 代码帧与 C++ 异常
-// ─────────────────────────────────────────────────────────────────────────────
 // TCC 把代码生成到自己的内存代码页里，这些帧没有 DWARF 展开表（.eh_frame）。
 // 一旦 C++ 异常需要穿过它们，展开器找不到处理器就直接 std::terminate()，
 // 进程当场崩溃——`pcall`、`dofile` 乃至调用方的 try/catch 全都失效。
-//
 // 因此错误不再依赖异常穿越 JIT 帧：在每个"C++ 调用 JIT 代码"的位置用 setjmp
 // 埋一个边界，JIT 代码里产生的错误 longjmp 回到边界，再由边界以 FakeluaException
 // 的形式抛给调用方，之后就是普通的 C++ 传播。
-//
 // longjmp 只跨越 JIT 生成的帧（纯 C，没有析构函数）。凡是能被 JIT 代码直接调用
 // 的 C++ 入口（FakeluaThrowError / FakeluaCallByName / FakeluaAlloc 等）都先在
 // 自己这一层把异常接住，让沿途 C++ 帧的析构函数正常执行，之后才跳转。

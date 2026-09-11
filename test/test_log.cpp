@@ -1,6 +1,6 @@
 #include "fakelua.h"
-#include "gtest/gtest.h"
 #include "util/logging.h"
+#include "gtest/gtest.h"
 
 #include <cstdio>
 #include <fstream>
@@ -454,7 +454,7 @@ void CallIso(State *s, const char *name, const char *arg) {
     }
 }
 
-}  // namespace
+}// namespace
 
 // 同一条线程上轮流跑两个 State：级别、文件、脚本 log.set_* 都不该串台
 TEST(test_log, same_thread_states_isolated) {
@@ -739,4 +739,3 @@ TEST(test_log, level_transitions_and_errors) {
     EXPECT_THROW(Call(s, JIT_GCC, "LogAllLevels.test_log_info_no_args", ret), std::exception);
     FakeluaDeleteState(s);
 }
-

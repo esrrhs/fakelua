@@ -324,10 +324,7 @@ void RegisterMathLibraryApi(State *s) {
             if (u == 0) {
                 // Lua 5.4：math.random(0) 特殊情况，返回全范围随机整数。
                 // 拼 4 个 rand 填满 64 位，避免 Windows 上 RAND_MAX=32767 导致位数不足。
-                uint64_t rv = (static_cast<uint64_t>(std::rand()) << 48) |
-                              (static_cast<uint64_t>(std::rand()) << 32) |
-                              (static_cast<uint64_t>(std::rand()) << 16) |
-                              static_cast<uint64_t>(std::rand());
+                uint64_t rv = (static_cast<uint64_t>(std::rand()) << 48) | (static_cast<uint64_t>(std::rand()) << 32) | (static_cast<uint64_t>(std::rand()) << 16) | static_cast<uint64_t>(std::rand());
                 return inter::NativeToFakeluaInt(state, static_cast<int64_t>(rv));
             }
             if (u < 0) {
@@ -367,9 +364,8 @@ void RegisterMathLibraryApi(State *s) {
             // 与 Lua 5.4 project() 思路一致：range 最大到 2^64（此时回绕为 0），
             // 回绕仅发生在 l=INT64_MIN, u=INT64_MAX 的极端情况，此时直接返回 l。
             uint64_t range = static_cast<uint64_t>(u) - static_cast<uint64_t>(l) + 1;
-            if (range == 0) return inter::NativeToFakeluaInt(state, l);  // 区间覆盖整个 int64，任意值都可
-            uint64_t rv = (static_cast<uint64_t>(std::rand()) << 32) |
-                          static_cast<uint64_t>(std::rand());
+            if (range == 0) return inter::NativeToFakeluaInt(state, l);// 区间覆盖整个 int64，任意值都可
+            uint64_t rv = (static_cast<uint64_t>(std::rand()) << 32) | static_cast<uint64_t>(std::rand());
             int64_t r = static_cast<int64_t>(static_cast<uint64_t>(l) + (rv % range));
             return inter::NativeToFakeluaInt(state, r);
         }

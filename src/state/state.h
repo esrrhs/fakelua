@@ -23,7 +23,6 @@ class IoContext;
 struct JitErrorBoundary;
 
 // 单个运行实例
-//
 // 线程模型：State 是单线程实体，由调用方保证同一时刻只有一个线程访问它。
 // 本类所有成员（包括 reentrant_count_ 的 Add/Sub、heap_、vm_ 等）都未加锁：
 //  - reentrant_count_ 只在脚本执行入口/出口处自增自减，用来检测重入而非跨线程计数；
@@ -118,12 +117,10 @@ public:
     void SetLogFile(const std::string &path, size_t max_size = 10 * 1024 * 1024, size_t max_files = 5);
 
     // 某个 native 模块在本 State 上的私有状态，首次访问时创建，随 State 销毁。
-    //
     // 以前各模块把它存在自己文件里的 static unordered_map<State *, X> 中，那是全进程
     // 一份：两个线程各跑自己的 State（见上面的线程模型），同时创建对象就会并发改同一个
     // map，一边 rehash 一边 find 是未定义行为。挪到 State 上之后没有共享容器，也就不需
     // 要加锁。
-    //
     // 类型本身就是键，所以每个模块必须用自己专属的类型，不能直接拿 std::vector 这类
     // 通用类型当状态，否则两个模块会撞进同一个槽。
     template<typename T>
@@ -167,13 +164,11 @@ private:
 
     // 下面三个的声明顺序是有讲究的：销毁是声明的逆序，而它们之间有依赖，写反会在
     // ~State 里踩到已经析构的成员。
-    //
     // 依赖关系（销毁的先后）：
     //  1. native_objects_ 最先销毁。它的 Clear() 会回调进各模块（如 io）去清掉指向这些
     //     对象的缓存，所以那时 module_states_ 必须还在。
     //  2. module_states_ 次之。里面只是一堆 NativeObject 裸指针，析构时不会去碰对象本身。
     //  3. io_context_ 最后。原生对象的 finalizer 要停 socket、关连接，那些都跑在它上面。
-    //
     // 常规路径上其实轮不到这里：FakeluaDeleteState 会在 delete state 之前显式做完各模块
     // 的清理。这个顺序是给直接 new/delete State 的用法兜底的。
     std::unique_ptr<native::IoContext> io_context_;

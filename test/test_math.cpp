@@ -138,7 +138,6 @@ TEST(test_math, test_math_modf_frexp) {
     FakeluaDeleteState(s);
 }
 
-
 TEST(test_math, test_math_atan2) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -581,7 +580,6 @@ TEST(test_math, test_for_int64_overflow) {
 
     FakeluaDeleteState(s);
 }
-
 
 TEST(test_math, test_string_sub_overflow) {
     State *s = FakeluaNewState();

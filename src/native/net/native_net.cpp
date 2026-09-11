@@ -1,6 +1,6 @@
 #include "native/net/native_net.h"
-#include "native/net/net_asio.h"
 #include "native/native_common.h"
+#include "native/net/net_asio.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
 #include "util/logging.h"
@@ -16,23 +16,21 @@
 
 namespace fakelua::net {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NetObject — 包装引擎 + fakelua 回调
 // 所有可变状态存 C++ 侧（fakelua 无状态设计）
-// ─────────────────────────────────────────────────────────────────────────────
 
 struct NetObject {
     State *state = nullptr;
-    std::string dispatch_name;           // Lua 回调函数名（统一入口）
+    std::string dispatch_name;// Lua 回调函数名（统一入口）
     bool is_server = false;
 
     // 可变状态全部存 C++ 侧
-    std::vector<std::string> events;     // 事件记录（有上限，防止长跑泄漏）
-    std::string last_server_data;        // server 最后收到的数据
-    std::string last_client_data;        // client 最后收到的数据
-    int server_connid = -1;              // server 端连接 ID
-    int conn_count = 0;                  // 连接计数
-    int recv_count = 0;                  // 收包计数
+    std::vector<std::string> events;// 事件记录（有上限，防止长跑泄漏）
+    std::string last_server_data;   // server 最后收到的数据
+    std::string last_client_data;   // client 最后收到的数据
+    int server_connid = -1;         // server 端连接 ID
+    int conn_count = 0;             // 连接计数
+    int recv_count = 0;             // 收包计数
 
     std::unique_ptr<net::TcpServer> server;
     std::unique_ptr<net::TcpClient> client;
@@ -44,9 +42,7 @@ struct NetObject {
     static constexpr size_t kMaxEvents = 1024;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 辅助：从 CVar 提取字符串
-// ─────────────────────────────────────────────────────────────────────────────
 
 static std::string CVarToString(CVar v) {
     if (v.type_ == static_cast<int>(VarType::String) && v.data_.s) {
@@ -60,14 +56,10 @@ static std::string CVarToString(CVar v) {
     return {};
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // C++ → Lua 回调派发（核心：按函数名查找，不存闭包）
 // 回调是纯函数：接收事件参数，返回可选指令（echo 等）
-// ─────────────────────────────────────────────────────────────────────────────
 
-static CVar CallLuaEvent(State *state, const std::string &func_name,
-                           const char *type, int connid,
-                           const char *data, size_t len, int reason) {
+static CVar CallLuaEvent(State *state, const std::string &func_name, const char *type, int connid, const char *data, size_t len, int reason) {
     if (func_name.empty()) return CVar{static_cast<int>(VarType::Nil)};
 
     // 优先查找 JIT 编译的 Lua 函数
@@ -122,13 +114,11 @@ static CVar CallLuaEvent(State *state, const std::string &func_name,
     return CVar{static_cast<int>(VarType::Nil)};
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 处理回调返回值：解析 Lua 返回的指令
 // 返回值格式：nil（无操作）或 Multi {command, arg1, arg2, ...}
 // 支持的指令：
 //   "echo", data → 将 data 发回来源连接
 //   "close"      → 延后关闭本对象（tick 回调内安全）
-// ─────────────────────────────────────────────────────────────────────────────
 
 static void HandleCallbackReturn(NetObject *obj, const CVar &ret, int connid) {
     if (!obj || obj->close_pending) return;
@@ -153,9 +143,7 @@ static void HandleCallbackReturn(NetObject *obj, const CVar &ret, int connid) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 从 NativeObject 取出 NetObject*
-// ─────────────────────────────────────────────────────────────────────────────
 
 static NetObject *Unwrap(NativeObject *self) {
     return reinterpret_cast<NetObject *>(self->GetInt("__net_obj__", 0));
@@ -204,9 +192,7 @@ static void PushEvent(NetObject *obj, std::string_view ev) {
 
 static void ReleaseNetObject(NativeObject *self);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NativeObject 方法实现
-// ─────────────────────────────────────────────────────────────────────────────
 
 // server:dispatch(func_name) — 注册统一回调函数名
 static CVar NetDispatch(NativeObject *self, State *s, CVar *args, int n) {
@@ -248,13 +234,12 @@ static void DispatchEventFor(NetObject *obj, const ConnEvent &ev) {
         case EventKind::Recv:
             obj->recv_count++;
             if (obj->is_server) obj->last_server_data = ev.data;
-            else obj->last_client_data = ev.data;
+            else
+                obj->last_client_data = ev.data;
             PushEvent(obj, "recv");
-            LOG_DEBUG(obj->state, "net", "{} recv: connid={} len={}", obj->is_server ? "server" : "client", ev.conn_id,
-                      ev.data.size());
+            LOG_DEBUG(obj->state, "net", "{} recv: connid={} len={}", obj->is_server ? "server" : "client", ev.conn_id, ev.data.size());
             {
-                CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "recv", ev.conn_id,
-                                          ev.data.data(), ev.data.size(), 0);
+                CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "recv", ev.conn_id, ev.data.data(), ev.data.size(), 0);
                 HandleCallbackReturn(obj, ret, ev.conn_id);
             }
             break;
@@ -388,7 +373,7 @@ static void ReleaseNetObject(NativeObject *self) {
 // server:close() / client:close()
 static CVar NetClose(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *obj = Unwrap(self);
-    if (!obj) return inter::NativeToFakeluaNil(s); // 已关闭，no-op
+    if (!obj) return inter::NativeToFakeluaNil(s);// 已关闭，no-op
 
     if (obj->tick_depth > 0) {
         obj->close_pending = true;
@@ -439,9 +424,7 @@ static CVar NetGetConnId(NativeObject *self, State *s, CVar * /*args*/, int /*n*
     return inter::NativeToFakeluaInt(s, obj->server_connid);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 工厂函数
-// ─────────────────────────────────────────────────────────────────────────────
 
 // 从 Lua table 读取字符串键字段（仿 os.time 的模式）
 static int64_t GetTableField(State *s, CVar tbl_cvar, const char *key_name, int64_t default_val) {
@@ -754,9 +737,7 @@ static CVar NetWsClient(State *s, CVar *args, int n) {
     return CreateNetClient(s, cfg, "net_ws_client");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 注册
-// ─────────────────────────────────────────────────────────────────────────────
 
 void RegisterNetLibraryApi(State *s) {
     if (!s) return;

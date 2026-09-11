@@ -4,9 +4,7 @@
 
 namespace {
 
-// ---------------------------------------------------------------------------
 // Scripts
-// ---------------------------------------------------------------------------
 
 constexpr const char *kTableChurnScript = R"(
 function bench_table_churn(n)
@@ -46,9 +44,7 @@ function bench_mixed_alloc(n)
 end
 )";
 
-// ---------------------------------------------------------------------------
 // C++ reference implementations
-// ---------------------------------------------------------------------------
 
 int64_t CppTableChurn(int64_t n) {
     int64_t total = 0;
@@ -75,6 +71,7 @@ int64_t CppMixedAlloc(int64_t n) {
             int64_t x, y;
             std::string name, extra;
         } obj;
+
         obj.x = i;
         obj.y = i * 2;
         obj.name = std::to_string(i);
@@ -84,9 +81,7 @@ int64_t CppMixedAlloc(int64_t n) {
     return total;
 }
 
-// ---------------------------------------------------------------------------
 // Lua helpers
-// ---------------------------------------------------------------------------
 
 const char *const kGcScripts[] = {kTableChurnScript, kStringChurnScript, kMixedAllocScript};
 constexpr size_t kGcScriptCount = sizeof(kGcScripts) / sizeof(kGcScripts[0]);
@@ -100,12 +95,13 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_TCC, "bench_string_churn", w, 10);
         Call(flua, JIT_TCC, "bench_mixed_alloc", w, 10);
     }
-    ~Ctx() { Destroy(); }
+
+    ~Ctx() {
+        Destroy();
+    }
 } g_ctx;
 
-// ---------------------------------------------------------------------------
 // Benchmarks: table churn
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_TableChurn(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -141,9 +137,7 @@ static void BM_FakeLua_TableChurn_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: string churn
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_StringChurn(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -179,9 +173,7 @@ static void BM_FakeLua_StringChurn_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: mixed allocation
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_MixedAlloc(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -217,15 +209,13 @@ static void BM_FakeLua_MixedAlloc_GCC(benchmark::State &state) {
     }
 }
 
-} // namespace
+}// namespace
 
-// ---------------------------------------------------------------------------
 // Benchmark registrations
-// ---------------------------------------------------------------------------
 
-#define TABLE_CHURN_ARGS  ->Arg(100)->Arg(500)->Arg(1000)
+#define TABLE_CHURN_ARGS ->Arg(100)->Arg(500)->Arg(1000)
 #define STRING_CHURN_ARGS ->Arg(100)->Arg(500)->Arg(1000)
-#define MIXED_ALLOC_ARGS  ->Arg(100)->Arg(500)->Arg(1000)
+#define MIXED_ALLOC_ARGS ->Arg(100)->Arg(500)->Arg(1000)
 
 BENCHMARK(BM_CPP_TableChurn) TABLE_CHURN_ARGS;
 BENCHMARK(BM_Lua_TableChurn) TABLE_CHURN_ARGS;

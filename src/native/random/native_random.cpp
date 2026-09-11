@@ -1,7 +1,7 @@
 #include "native/random/native_random.h"
 #include "native/native_common.h"
-#include "native/table/native_table.h"
 #include "native/object/native_object.h"
+#include "native/table/native_table.h"
 #include "var/var.h"
 
 #include <cstdint>
@@ -12,38 +12,36 @@
 
 namespace fakelua::random {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // PCG-32 随机数生成器
 // 64-bit 状态，32-bit 输出，周期 2^64，适合游戏场景
-// ─────────────────────────────────────────────────────────────────────────────
 
 static constexpr uint64_t kPCGMultiplier = 6364136223846793005ULL;
 static constexpr uint64_t kPCGIncrement = 1442695040888963407ULL;
 
 // 从 RNG 对象读取 64-bit 状态
-static uint64_t rng_get_state(const NativeObject *obj) {
+static uint64_t RngGetState(const NativeObject *obj) {
     return static_cast<uint64_t>(obj->GetInt("__state", 0));
 }
 
 // 写入 RNG 对象的 64-bit 状态
-static void rng_set_state(NativeObject *obj, uint64_t state) {
+static void RngSetState(NativeObject *obj, uint64_t state) {
     obj->SetInt("__state", static_cast<int64_t>(state));
 }
 
 // PCG 单步推进
-static uint64_t pcg_advance(uint64_t state) {
+static uint64_t PcgAdvance(uint64_t state) {
     return state * kPCGMultiplier + kPCGIncrement;
 }
 
 // PCG-XSH-RR 输出函数：64-bit 状态 → 32-bit 输出
-static uint32_t pcg_output(uint64_t state) {
+static uint32_t PcgOutput(uint64_t state) {
     uint32_t xorshifted = static_cast<uint32_t>(((state >> 18) ^ state) >> 27);
     uint32_t rot = static_cast<uint32_t>(state >> 59);
     return (xorshifted >> rot) | (xorshifted << ((-static_cast<int32_t>(rot)) & 31));
 }
 
-// splitmix64：将任意 seed 扩展为 64-bit PCG 初始状态
-static uint64_t splitmix64(uint64_t &x) {
+// Splitmix64：将任意 seed 扩展为 64-bit PCG 初始状态
+static uint64_t Splitmix64(uint64_t &x) {
     uint64_t z = (x += 0x9e3779b97f4a7c15ULL);
     z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
     z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
@@ -51,28 +49,26 @@ static uint64_t splitmix64(uint64_t &x) {
 }
 
 // 生成下一个 uint32 并推进状态
-static uint32_t rng_next_uint32(NativeObject *obj) {
-    uint64_t state = rng_get_state(obj);
-    uint32_t result = pcg_output(state);
-    rng_set_state(obj, pcg_advance(state));
+static uint32_t RngNextUint32(NativeObject *obj) {
+    uint64_t state = RngGetState(obj);
+    uint32_t result = PcgOutput(state);
+    RngSetState(obj, PcgAdvance(state));
     return result;
 }
 
 // 生成 [0, 1) 双精度浮点
-static double rng_next_unit(NativeObject *obj) {
+static double RngNextUnit(NativeObject *obj) {
     // 用 53-bit 精度（与 Lua math.random 一致）
-    uint32_t hi = rng_next_uint32(obj);
-    uint32_t lo = rng_next_uint32(obj);
+    uint32_t hi = RngNextUint32(obj);
+    uint32_t lo = RngNextUint32(obj);
     uint64_t val = (static_cast<uint64_t>(hi) << 21) | (static_cast<uint64_t>(lo) >> 11);
     return static_cast<double>(val) / static_cast<double>(1ULL << 53);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 方法实现
-// ─────────────────────────────────────────────────────────────────────────────
 
 // rng:int(min, max) — 整数均匀分布 [min, max]
-static CVar rng_int(NativeObject *self, State *s, CVar *args, int n) {
+static CVar RngInt(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 2) ThrowBadArgument(1, "rng:int", "min and max expected");
 
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
@@ -85,8 +81,8 @@ static CVar rng_int(NativeObject *self, State *s, CVar *args, int n) {
     // 处理全范围情况，避免溢出
     if (lo == std::numeric_limits<int64_t>::min() && hi == std::numeric_limits<int64_t>::max()) {
         // 使用 64-bit 均匀分布
-        uint32_t hi32 = rng_next_uint32(self);
-        uint32_t lo32 = rng_next_uint32(self);
+        uint32_t hi32 = RngNextUint32(self);
+        uint32_t lo32 = RngNextUint32(self);
         uint64_t val = (static_cast<uint64_t>(hi32) << 32) | lo32;
         return inter::NativeToFakeluaLonglong(s, static_cast<long long>(val));
     }
@@ -97,8 +93,8 @@ static CVar rng_int(NativeObject *self, State *s, CVar *args, int n) {
     uint64_t threshold = (std::numeric_limits<uint64_t>::max() / range) * range;
     uint64_t r;
     do {
-        uint32_t hi32 = rng_next_uint32(self);
-        uint32_t lo32 = rng_next_uint32(self);
+        uint32_t hi32 = RngNextUint32(self);
+        uint32_t lo32 = RngNextUint32(self);
         r = (static_cast<uint64_t>(hi32) << 32) | lo32;
     } while (r >= threshold);
 
@@ -107,7 +103,7 @@ static CVar rng_int(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 // rng:float(min, max) — 浮点均匀分布 [min, max)
-static CVar rng_float(NativeObject *self, State *s, CVar *args, int n) {
+static CVar RngFloat(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 2) ThrowBadArgument(1, "rng:float", "min and max expected");
 
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
@@ -117,12 +113,12 @@ static CVar rng_float(NativeObject *self, State *s, CVar *args, int n) {
 
     if (lo >= hi) ThrowBadArgument(2, "rng:float", "max must be > min");
 
-    double val = lo + rng_next_unit(self) * (hi - lo);
+    double val = lo + RngNextUnit(self) * (hi - lo);
     return inter::NativeToFakeluaDouble(s, val);
 }
 
 // rng:dice(count, sides) — 掷 count 个 sides 面骰子，返回总和
-static CVar rng_dice(NativeObject *self, State *s, CVar *args, int n) {
+static CVar RngDice(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 2) ThrowBadArgument(1, "rng:dice", "count and sides expected");
 
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
@@ -144,8 +140,8 @@ static CVar rng_dice(NativeObject *self, State *s, CVar *args, int n) {
         uint64_t threshold = (std::numeric_limits<uint64_t>::max() / range) * range;
         uint64_t r;
         do {
-            uint32_t hi32 = rng_next_uint32(self);
-            uint32_t lo32 = rng_next_uint32(self);
+            uint32_t hi32 = RngNextUint32(self);
+            uint32_t lo32 = RngNextUint32(self);
             r = (static_cast<uint64_t>(hi32) << 32) | lo32;
         } while (r >= threshold);
         sum += static_cast<int64_t>(r % range) + 1;
@@ -155,7 +151,7 @@ static CVar rng_dice(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 // rng:chance(prob) — 以 prob 概率返回 true
-static CVar rng_chance(NativeObject *self, State *s, CVar *args, int n) {
+static CVar RngChance(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "rng:chance", "probability expected");
 
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
@@ -164,12 +160,12 @@ static CVar rng_chance(NativeObject *self, State *s, CVar *args, int n) {
     if (prob <= 0.0) return inter::NativeToFakeluaBool(s, false);
     if (prob >= 1.0) return inter::NativeToFakeluaBool(s, true);
 
-    double roll = rng_next_unit(self);
+    double roll = RngNextUnit(self);
     return inter::NativeToFakeluaBool(s, roll < prob);
 }
 
 // rng:weighted(weights) — 按权重表选取，返回 1-based 下标
-static CVar rng_weighted(NativeObject *self, State *s, CVar *args, int n) {
+static CVar RngWeighted(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "rng:weighted", "weights table expected");
 
     CVar tbl = inter::GetNativeArg(s, args, n, 0);
@@ -195,12 +191,12 @@ static CVar rng_weighted(NativeObject *self, State *s, CVar *args, int n) {
     if (total <= 0.0) return inter::NativeToFakeluaNil(s);
 
     // 随机选取
-    double roll = rng_next_unit(self) * total;
+    double roll = RngNextUnit(self) * total;
     double cumulative = 0.0;
     for (int64_t i = 0; i < len; i++) {
         cumulative += weights[static_cast<size_t>(i)];
         if (roll < cumulative) {
-            return inter::NativeToFakeluaInt(s, i + 1);  // 1-based
+            return inter::NativeToFakeluaInt(s, i + 1);// 1-based
         }
     }
 
@@ -210,15 +206,15 @@ static CVar rng_weighted(NativeObject *self, State *s, CVar *args, int n) {
 
 // rng:get_state() — 获取 64-bit 内部状态字符串（用于存档）
 // 返回 16 位十六进制字符串，如 "0x1234567890ABCDEF"
-static CVar rng_get_state_method(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    uint64_t state = rng_get_state(self);
+static CVar RngGetStateMethod(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    uint64_t state = RngGetState(self);
     char buf[20];
     std::snprintf(buf, sizeof(buf), "0x%016llX", static_cast<unsigned long long>(state));
     return inter::NativeToFakeluaString(s, std::string(buf));
 }
 
 // rng:set_state(state) — 从十六进制字符串恢复 64-bit 内部状态（用于读档）
-static CVar rng_set_state_method(NativeObject *self, State *s, CVar *args, int n) {
+static CVar RngSetStateMethod(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "rng:set_state", "state expected");
 
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
@@ -243,18 +239,19 @@ static CVar rng_set_state_method(NativeObject *self, State *s, CVar *args, int n
         char c = hex_str[pos];
         state <<= 4;
         if (c >= '0' && c <= '9') state |= static_cast<uint64_t>(c - '0');
-        else if (c >= 'a' && c <= 'f') state |= static_cast<uint64_t>(c - 'a' + 10);
-        else if (c >= 'A' && c <= 'F') state |= static_cast<uint64_t>(c - 'A' + 10);
-        else break;
+        else if (c >= 'a' && c <= 'f')
+            state |= static_cast<uint64_t>(c - 'a' + 10);
+        else if (c >= 'A' && c <= 'F')
+            state |= static_cast<uint64_t>(c - 'A' + 10);
+        else
+            break;
     }
 
-    rng_set_state(self, state);
+    RngSetState(self, state);
     return inter::NativeToFakeluaNil(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 注册
-// ─────────────────────────────────────────────────────────────────────────────
 
 void RegisterRandomLibraryApi(State *s) {
     if (!s) return;
@@ -264,26 +261,25 @@ void RegisterRandomLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         int64_t seed = inter::CVarToInteger(a0, 0);
 
-        // 使用 splitmix64 将任意 seed 扩展为 64-bit PCG 状态
+        // 使用 Splitmix64 将任意 seed 扩展为 64-bit PCG 状态
         uint64_t seed_state = static_cast<uint64_t>(seed);
-        uint64_t init_state = splitmix64(seed_state);
+        uint64_t init_state = Splitmix64(seed_state);
 
         // 创建 RNG 对象
-        NativeObject *obj = state->GetNativeObjectManager().Create(
-            state->GetNativeObjectManager().CreateGroup(), "rng", 0);
-        rng_set_state(obj, init_state);
+        NativeObject *obj = state->GetNativeObjectManager().Create(state->GetNativeObjectManager().CreateGroup(), "rng", 0);
+        RngSetState(obj, init_state);
 
         // 注册方法
-        obj->RegisterMethod("int", rng_int);
-        obj->RegisterMethod("float", rng_float);
-        obj->RegisterMethod("dice", rng_dice);
-        obj->RegisterMethod("chance", rng_chance);
-        obj->RegisterMethod("weighted", rng_weighted);
-        obj->RegisterMethod("get_state", rng_get_state_method);
-        obj->RegisterMethod("set_state", rng_set_state_method);
+        obj->RegisterMethod("int", RngInt);
+        obj->RegisterMethod("float", RngFloat);
+        obj->RegisterMethod("dice", RngDice);
+        obj->RegisterMethod("chance", RngChance);
+        obj->RegisterMethod("weighted", RngWeighted);
+        obj->RegisterMethod("get_state", RngGetStateMethod);
+        obj->RegisterMethod("set_state", RngSetStateMethod);
 
         return obj->Wrap(state);
     });
 }
 
-}  // namespace fakelua::random
+}// namespace fakelua::random

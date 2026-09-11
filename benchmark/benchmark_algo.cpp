@@ -418,9 +418,8 @@ int64_t CppMatMul() {
     return c[0] + c[4] + c[8];
 }
 
-const char *const kAlgoScripts[] = {kFibScript,          kGcdScript,     kPowScript,      kSumScript,           kBubbleSortScript, kSieveScript,
-                                     kBinarySearchScript, kFastPowScript, kPopcountScript, kInsertionSortScript, kMatMulScript,     kVector3Script,
-                                     kFloatPolyScript};
+const char *const kAlgoScripts[] = {kFibScript,     kGcdScript,      kPowScript,           kSumScript,    kBubbleSortScript, kSieveScript,    kBinarySearchScript,
+                                    kFastPowScript, kPopcountScript, kInsertionSortScript, kMatMulScript, kVector3Script,    kFloatPolyScript};
 constexpr size_t kAlgoScriptCount = sizeof(kAlgoScripts) / sizeof(kAlgoScripts[0]);
 
 struct Ctx : RuntimeContext {
@@ -457,7 +456,10 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_GCC, "bench_vector3", warmup_ret, 100);
         Call(flua, JIT_GCC, "bench_float_poly", warmup_double, 100);
     }
-    ~Ctx() { Destroy(); }
+
+    ~Ctx() {
+        Destroy();
+    }
 } g_ctx;
 
 static void BM_CPP_Fibonacci(benchmark::State &state) {
@@ -1000,9 +1002,7 @@ static void BM_FakeLua_Vector3_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: float polynomial (double specialization path)
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_FloatPoly(benchmark::State &state) {
     const int64_t n = state.range(0);

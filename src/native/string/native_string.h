@@ -8,7 +8,7 @@
 namespace fakelua {
 class State;
 struct CVar;
-}
+}// namespace fakelua
 
 namespace fakelua::string {
 

@@ -3,16 +3,14 @@
 #include "util/exception.h"
 
 #include <cstring>
-#include <string>
 #include <openssl/evp.h>
+#include <string>
 
 namespace fakelua::crypto {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Hex encoding
-// ─────────────────────────────────────────────────────────────────────────────
 
-std::string to_hex(const uint8_t *data, size_t len) {
+std::string ToHex(const uint8_t *data, size_t len) {
     static const char digits[] = "0123456789abcdef";
     std::string out;
     out.reserve(len * 2);
@@ -23,14 +21,11 @@ std::string to_hex(const uint8_t *data, size_t len) {
     return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Base64 encoding/decoding (RFC 4648)
-// ─────────────────────────────────────────────────────────────────────────────
 
-static const char base64_chars[] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static const char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-std::string base64_encode(const uint8_t *data, size_t len) {
+std::string Base64Encode(const uint8_t *data, size_t len) {
     std::string out;
     out.reserve(((len + 2) / 3) * 4);
 
@@ -48,7 +43,7 @@ std::string base64_encode(const uint8_t *data, size_t len) {
     return out;
 }
 
-static int base64_decode_char(char c) {
+static int Base64DecodeChar(char c) {
     if (c >= 'A' && c <= 'Z') return c - 'A';
     if (c >= 'a' && c <= 'z') return c - 'a' + 26;
     if (c >= '0' && c <= '9') return c - '0' + 52;
@@ -57,7 +52,7 @@ static int base64_decode_char(char c) {
     return -1;
 }
 
-std::string base64_decode(const uint8_t *data, size_t len) {
+std::string Base64Decode(const uint8_t *data, size_t len) {
     std::string filtered;
     filtered.reserve(len);
     for (size_t i = 0; i < len; ++i) {
@@ -83,16 +78,13 @@ std::string base64_decode(const uint8_t *data, size_t len) {
     for (size_t i = 0; i < effective_len; i += 4) {
         int n[4] = {0, 0, 0, 0};
         for (int j = 0; j < 4 && i + j < effective_len; ++j) {
-            n[j] = base64_decode_char(static_cast<char>(bytes[i + j]));
+            n[j] = Base64DecodeChar(static_cast<char>(bytes[i + j]));
             if (n[j] < 0) {
                 ThrowFakeluaException("crypto.base64_decode: invalid character");
             }
         }
 
-        uint32_t val = (static_cast<uint32_t>(n[0]) << 18) |
-                       (static_cast<uint32_t>(n[1]) << 12) |
-                       (static_cast<uint32_t>(n[2]) << 6) |
-                       static_cast<uint32_t>(n[3]);
+        uint32_t val = (static_cast<uint32_t>(n[0]) << 18) | (static_cast<uint32_t>(n[1]) << 12) | (static_cast<uint32_t>(n[2]) << 6) | static_cast<uint32_t>(n[3]);
 
         out.push_back(static_cast<char>((val >> 16) & 0xFF));
         if (i + 2 < effective_len) out.push_back(static_cast<char>((val >> 8) & 0xFF));
@@ -102,11 +94,9 @@ std::string base64_decode(const uint8_t *data, size_t len) {
     return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // MD5
-// ─────────────────────────────────────────────────────────────────────────────
 
-std::array<uint8_t, 16> md5(const uint8_t *data, size_t len) {
+std::array<uint8_t, 16> Md5(const uint8_t *data, size_t len) {
     std::array<uint8_t, 16> out;
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
     if (!ctx) ThrowFakeluaException("md5: failed to create EVP_MD_CTX");
@@ -127,11 +117,9 @@ std::array<uint8_t, 16> md5(const uint8_t *data, size_t len) {
     return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SHA1
-// ─────────────────────────────────────────────────────────────────────────────
 
-std::array<uint8_t, 20> sha1(const uint8_t *data, size_t len) {
+std::array<uint8_t, 20> Sha1(const uint8_t *data, size_t len) {
     std::array<uint8_t, 20> out;
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
     if (!ctx) ThrowFakeluaException("sha1: failed to create EVP_MD_CTX");
@@ -152,11 +140,9 @@ std::array<uint8_t, 20> sha1(const uint8_t *data, size_t len) {
     return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SHA256
-// ─────────────────────────────────────────────────────────────────────────────
 
-std::array<uint8_t, 32> sha256(const uint8_t *data, size_t len) {
+std::array<uint8_t, 32> Sha256(const uint8_t *data, size_t len) {
     std::array<uint8_t, 32> out;
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
     if (!ctx) ThrowFakeluaException("sha256: failed to create EVP_MD_CTX");
@@ -177,4 +163,4 @@ std::array<uint8_t, 32> sha256(const uint8_t *data, size_t len) {
     return out;
 }
 
-}  // namespace fakelua::crypto
+}// namespace fakelua::crypto

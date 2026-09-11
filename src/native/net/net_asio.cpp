@@ -37,8 +37,7 @@ void SetSocketOptions(boost::asio::ip::tcp::socket &sock, const NetConfig &cfg) 
 
 // AsioConn
 AsioConn::AsioConn(boost::asio::io_context &ioc, const NetConfig &cfg, int conn_id, bool from_client, EventSink sink)
-    : socket_(ioc), cfg_(cfg), conn_id_(conn_id), from_client_(from_client), sink_(std::move(sink)),
-      recv_buf_(cfg.recv_buf_size), send_buf_(cfg.send_buf_size) {
+    : socket_(ioc), cfg_(cfg), conn_id_(conn_id), from_client_(from_client), sink_(std::move(sink)), recv_buf_(cfg.recv_buf_size), send_buf_(cfg.send_buf_size) {
 }
 
 AsioConn::~AsioConn() {
@@ -95,7 +94,7 @@ bool AsioConn::Send(const char *data, size_t len) {
         if (!ws_open_) return false;
         if (len > static_cast<size_t>(cfg_.max_packet_len)) return false;
         size_t queued = 0;
-        for (const auto &msg : ws_write_queue_) queued += msg.size();
+        for (const auto &msg: ws_write_queue_) queued += msg.size();
         if (queued + len > static_cast<size_t>(cfg_.send_buf_size)) return false;
         ws_write_queue_.emplace_back(data, len);
         DoWsWrite();
@@ -124,10 +123,7 @@ void AsioConn::DoRead() {
         Close();
         return;
     }
-    socket_.async_read_some(boost::asio::buffer(region.first, region.second),
-                            [self](boost::system::error_code ec, size_t bytes) {
-                                self->OnRead(ec, bytes);
-                            });
+    socket_.async_read_some(boost::asio::buffer(region.first, region.second), [self](boost::system::error_code ec, size_t bytes) { self->OnRead(ec, bytes); });
 }
 
 void AsioConn::OnRead(boost::system::error_code ec, size_t bytes) {
@@ -167,10 +163,7 @@ void AsioConn::DoWrite() {
 
     writing_ = true;
     auto self = shared_from_this();
-    socket_.async_write_some(boost::asio::buffer(region.first, region.second),
-                             [self](boost::system::error_code ec, size_t bytes) {
-                                 self->OnWrite(ec, bytes);
-                             });
+    socket_.async_write_some(boost::asio::buffer(region.first, region.second), [self](boost::system::error_code ec, size_t bytes) { self->OnWrite(ec, bytes); });
 }
 
 void AsioConn::OnWrite(boost::system::error_code ec, size_t bytes) {
@@ -190,10 +183,7 @@ void AsioConn::OnWrite(boost::system::error_code ec, size_t bytes) {
 void AsioConn::DoWsServerHandshake() {
     if (closed_ || !ws_) return;
     auto self = shared_from_this();
-    boost::beast::http::async_read(socket_, ws_buffer_, ws_req_,
-                                   [self](boost::system::error_code ec, size_t) {
-                                       self->OnWsHttpRequest(ec);
-                                   });
+    boost::beast::http::async_read(socket_, ws_buffer_, ws_req_, [self](boost::system::error_code ec, size_t) { self->OnWsHttpRequest(ec); });
 }
 
 void AsioConn::OnWsHttpRequest(boost::system::error_code ec) {
@@ -203,15 +193,12 @@ void AsioConn::OnWsHttpRequest(boost::system::error_code ec) {
         return;
     }
     const std::string expected = cfg_.ws_path.empty() ? "/" : cfg_.ws_path;
-    if (ws_req_.method() != boost::beast::http::verb::get ||
-        ws_req_.target() != expected) {
+    if (ws_req_.method() != boost::beast::http::verb::get || ws_req_.target() != expected) {
         Close();
         return;
     }
     auto self = shared_from_this();
-    ws_->async_accept(ws_req_, [self](boost::system::error_code accept_ec) {
-        self->OnWsHandshake(accept_ec);
-    });
+    ws_->async_accept(ws_req_, [self](boost::system::error_code accept_ec) { self->OnWsHandshake(accept_ec); });
 }
 
 void AsioConn::DoWsClientHandshake() {
@@ -219,16 +206,13 @@ void AsioConn::DoWsClientHandshake() {
     std::string host = cfg_.ws_host.empty() ? (cfg_.ip + ":" + std::to_string(cfg_.port)) : cfg_.ws_host;
     const std::string path = cfg_.ws_path.empty() ? "/" : cfg_.ws_path;
     const std::string origin = cfg_.ws_origin;
-    ws_->set_option(boost::beast::websocket::stream_base::decorator(
-        [origin](boost::beast::websocket::request_type &req) {
-            if (!origin.empty()) {
-                req.set(boost::beast::http::field::origin, origin);
-            }
-        }));
+    ws_->set_option(boost::beast::websocket::stream_base::decorator([origin](boost::beast::websocket::request_type &req) {
+        if (!origin.empty()) {
+            req.set(boost::beast::http::field::origin, origin);
+        }
+    }));
     auto self = shared_from_this();
-    ws_->async_handshake(host, path, [self](boost::system::error_code ec) {
-        self->OnWsHandshake(ec);
-    });
+    ws_->async_handshake(host, path, [self](boost::system::error_code ec) { self->OnWsHandshake(ec); });
 }
 
 void AsioConn::OnWsHandshake(boost::system::error_code ec) {
@@ -245,9 +229,7 @@ void AsioConn::OnWsHandshake(boost::system::error_code ec) {
 void AsioConn::DoWsRead() {
     if (closed_ || !ws_ || !ws_open_) return;
     auto self = shared_from_this();
-    ws_->async_read(ws_buffer_, [self](boost::system::error_code ec, size_t bytes) {
-        self->OnWsRead(ec, bytes);
-    });
+    ws_->async_read(ws_buffer_, [self](boost::system::error_code ec, size_t bytes) { self->OnWsRead(ec, bytes); });
 }
 
 void AsioConn::OnWsRead(boost::system::error_code ec, size_t) {
@@ -268,10 +250,7 @@ void AsioConn::DoWsWrite() {
     writing_ = true;
     ws_->text(true);
     auto self = shared_from_this();
-    ws_->async_write(boost::asio::buffer(ws_write_queue_.front()),
-                     [self](boost::system::error_code ec, size_t bytes) {
-                         self->OnWsWrite(ec, bytes);
-                     });
+    ws_->async_write(boost::asio::buffer(ws_write_queue_.front()), [self](boost::system::error_code ec, size_t bytes) { self->OnWsWrite(ec, bytes); });
 }
 
 void AsioConn::OnWsWrite(boost::system::error_code ec, size_t) {
@@ -285,8 +264,7 @@ void AsioConn::OnWsWrite(boost::system::error_code ec, size_t) {
 }
 
 // TcpServer
-TcpServer::TcpServer(const NetConfig &config, ::fakelua::State *state)
-    : config_(config), io_(state->GetIoContext()), ioc_(io_.Get()) {
+TcpServer::TcpServer(const NetConfig &config, ::fakelua::State *state) : config_(config), io_(state->GetIoContext()), ioc_(io_.Get()) {
 }
 
 TcpServer::~TcpServer() {
@@ -331,7 +309,7 @@ void TcpServer::Stop() {
     boost::system::error_code ec;
     acceptor_.close(ec);
 
-    for (auto &c : conns_) {
+    for (auto &c: conns_) {
         if (c) c->Close(/*notify_sink=*/false);
     }
     conns_.clear();
@@ -345,7 +323,7 @@ void TcpServer::DrainEventsWith(const std::function<void(const ConnEvent &)> &di
     std::vector<ConnEvent> evs;
     evs.swap(events_);
     native::IoContext::DispatchScope dispatch_scope(io_);
-    for (const auto &ev : evs) {
+    for (const auto &ev: evs) {
         dispatcher(ev);
     }
 }
@@ -368,8 +346,7 @@ bool TcpServer::CloseConnection(int conn_id) {
 
 void TcpServer::DoAccept() {
     if (!acceptor_open_) return;
-    acceptor_.async_accept([this, alive = life_.GetWatch()](boost::system::error_code ec,
-                                                            boost::asio::ip::tcp::socket sock) {
+    acceptor_.async_accept([this, alive = life_.GetWatch()](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
         if (!alive.Alive()) return;
         OnAccept(ec, std::move(sock));
     });
@@ -393,11 +370,10 @@ void TcpServer::OnAccept(boost::system::error_code ec, boost::asio::ip::tcp::soc
         boost::system::error_code ignore;
         sock.close(ignore);
     } else {
-        auto conn = std::make_shared<AsioConn>(ioc_, config_, slot, /*from_client=*/false,
-                                               [this, alive = life_.GetWatch()](ConnEvent ev) {
-                                                   if (!alive.Alive()) return;
-                                                   EmitEvent(std::move(ev));
-                                               });
+        auto conn = std::make_shared<AsioConn>(ioc_, config_, slot, /*from_client=*/false, [this, alive = life_.GetWatch()](ConnEvent ev) {
+            if (!alive.Alive()) return;
+            EmitEvent(std::move(ev));
+        });
         conns_[slot] = conn;
         conn->ResetSocket(std::move(sock));
         conn->Start();
@@ -419,8 +395,7 @@ void TcpServer::EmitEvent(ConnEvent ev) {
 }
 
 // TcpClient
-TcpClient::TcpClient(const NetConfig &config, ::fakelua::State *state)
-    : config_(config), io_(state->GetIoContext()), ioc_(io_.Get()), resolver_(ioc_) {
+TcpClient::TcpClient(const NetConfig &config, ::fakelua::State *state) : config_(config), io_(state->GetIoContext()), ioc_(io_.Get()), resolver_(ioc_) {
 }
 
 TcpClient::~TcpClient() {
@@ -449,7 +424,7 @@ void TcpClient::DrainEventsWith(const std::function<void(const ConnEvent &)> &di
     std::vector<ConnEvent> evs;
     evs.swap(events_);
     native::IoContext::DispatchScope dispatch_scope(io_);
-    for (const auto &ev : evs) {
+    for (const auto &ev: evs) {
         dispatcher(ev);
     }
 }
@@ -489,12 +464,10 @@ void TcpClient::DoResolve() {
         return;
     }
 
-    resolver_.async_resolve(config_.ip, std::to_string(config_.port),
-                            [this, alive = life_.GetWatch()](boost::system::error_code ec,
-                                                             boost::asio::ip::tcp::resolver::results_type results) {
-                                if (!alive.Alive()) return;
-                                OnResolve(ec, std::move(results));
-                            });
+    resolver_.async_resolve(config_.ip, std::to_string(config_.port), [this, alive = life_.GetWatch()](boost::system::error_code ec, boost::asio::ip::tcp::resolver::results_type results) {
+        if (!alive.Alive()) return;
+        OnResolve(ec, std::move(results));
+    });
 }
 
 void TcpClient::OnResolve(boost::system::error_code ec, boost::asio::ip::tcp::resolver::results_type results) {
@@ -505,12 +478,10 @@ void TcpClient::OnResolve(boost::system::error_code ec, boost::asio::ip::tcp::re
     }
 
     auto sock = std::make_shared<boost::asio::ip::tcp::socket>(ioc_);
-    boost::asio::async_connect(*sock, results,
-                               [this, sock, alive = life_.GetWatch()](boost::system::error_code ec,
-                                                                      boost::asio::ip::tcp::endpoint) {
-                                   if (!alive.Alive()) return;
-                                   OnConnect(ec, std::move(*sock));
-                               });
+    boost::asio::async_connect(*sock, results, [this, sock, alive = life_.GetWatch()](boost::system::error_code ec, boost::asio::ip::tcp::endpoint) {
+        if (!alive.Alive()) return;
+        OnConnect(ec, std::move(*sock));
+    });
 }
 
 void TcpClient::OnConnect(boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
@@ -522,11 +493,10 @@ void TcpClient::OnConnect(boost::system::error_code ec, boost::asio::ip::tcp::so
 
     SetSocketOptions(sock, config_);
 
-    conn_ = std::make_shared<AsioConn>(ioc_, config_, /*conn_id=*/0, /*from_client=*/true,
-                                       [this, alive = life_.GetWatch()](ConnEvent ev) {
-                                           if (!alive.Alive()) return;
-                                           EmitEvent(std::move(ev));
-                                       });
+    conn_ = std::make_shared<AsioConn>(ioc_, config_, /*conn_id=*/0, /*from_client=*/true, [this, alive = life_.GetWatch()](ConnEvent ev) {
+        if (!alive.Alive()) return;
+        EmitEvent(std::move(ev));
+    });
     conn_->ResetSocket(std::move(sock));
     conn_->Start();
     if (!IsWebSocket(config_)) {

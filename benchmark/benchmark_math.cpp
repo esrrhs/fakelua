@@ -4,9 +4,7 @@
 
 namespace {
 
-// ---------------------------------------------------------------------------
 // Scripts
-// ---------------------------------------------------------------------------
 
 constexpr const char *kMathTrigScript = R"(
 function bench_math_trig(n)
@@ -51,9 +49,7 @@ function bench_math_minmax(n)
 end
 )";
 
-// ---------------------------------------------------------------------------
 // C++ reference implementations
-// ---------------------------------------------------------------------------
 
 double CppMathTrig(const int64_t n) {
     double sum = 0.0;
@@ -90,13 +86,13 @@ double CppMathMinMax(const int64_t n) {
     return min_v + max_v;
 }
 
-// ---------------------------------------------------------------------------
 // Lua helpers
-// ---------------------------------------------------------------------------
 
 const char *const kMathScripts[] = {
-    kMathTrigScript, kMathSqrtScript, kMathExpLogScript,
-    kMathMinMaxScript,
+        kMathTrigScript,
+        kMathSqrtScript,
+        kMathExpLogScript,
+        kMathMinMaxScript,
 };
 constexpr size_t kMathScriptCount = sizeof(kMathScripts) / sizeof(kMathScripts[0]);
 
@@ -110,12 +106,13 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_TCC, "bench_math_exp_log", w, 10);
         Call(flua, JIT_TCC, "bench_math_minmax", w, 10);
     }
-    ~Ctx() { Destroy(); }
+
+    ~Ctx() {
+        Destroy();
+    }
 } g_ctx;
 
-// ---------------------------------------------------------------------------
 // Benchmarks: math trig
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_MathTrig(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -151,9 +148,7 @@ static void BM_FakeLua_MathTrig_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: math sqrt
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_MathSqrt(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -189,9 +184,7 @@ static void BM_FakeLua_MathSqrt_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: math exp/log
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_MathExpLog(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -227,10 +220,7 @@ static void BM_FakeLua_MathExpLog_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 // Benchmarks: math minmax
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_MathMinMax(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -266,11 +256,9 @@ static void BM_FakeLua_MathMinMax_GCC(benchmark::State &state) {
     }
 }
 
-} // namespace
+}// namespace
 
-// ---------------------------------------------------------------------------
 // Benchmark registrations
-// ---------------------------------------------------------------------------
 
 #define MATH_ARGS ->Arg(100000)
 

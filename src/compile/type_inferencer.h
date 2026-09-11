@@ -128,9 +128,7 @@ private:
     InferredType InferRepeat(const std::shared_ptr<SyntaxTreeRepeat> &repeat_stmt, TraversalContext &tctx);
     InferredType InferIf(const std::shared_ptr<SyntaxTreeIf> &if_stmt, TraversalContext &tctx);
 
-    // -----------------------------------------------------------------------
     // 数学参数特化发现（迭代不动点推断）
-    // -----------------------------------------------------------------------
 
     // 多轮迭代识别数学参数，记录到 ir.math_param_positions，
     // 同时返回数学函数信息。
@@ -224,14 +222,10 @@ private:
     // 将 src 的字段并集到 dst（按 key 描述符去重，已存在则保留 dst 中的条目）。
     static void MergeFieldsInto(std::vector<TableFieldInfo> &dst, const std::vector<TableFieldInfo> &src);
 
-    // -----------------------------------------------------------------------
     // 流敏感 table 特化前向分析
-    // -----------------------------------------------------------------------
-    //
     // 为每个 Var 引用节点（kDot/kSquare 的 prefixexp 所指简单变量）标注
     // 「在该程序点，该变量的 spec 类型名是什么（空串 = dynamic）」。
     // CGen 只读这些标注，不再自己维护 table_spec_types_ 等流敏感状态。
-    //
     // 算法：对每个函数体 + 顶层 chunk 顺序遍历语句，维护
     //   state.local  : 变量名 → spec_type_name（每函数清空）
     //   state.global : 顶层 chunk 变量名 → spec_type_name（跨函数持久）

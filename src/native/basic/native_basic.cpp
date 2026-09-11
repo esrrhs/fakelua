@@ -22,10 +22,10 @@
 
 namespace fakelua::basic {
 
-using table::TableHelper;
 using string::GetStringArgView;
+using table::TableHelper;
 
-// ─── Helper: call a closure, capturing any exception into err_msg ───
+// Helper: call a closure, capturing any exception into err_msg
 // Returns true on success (result written to 'result'), false on failure.
 static bool CallClosure(State *state, VarClosure *cl, CVar *args, int n, CVar &result, std::string &err_msg) {
     try {
@@ -48,7 +48,7 @@ static bool CallClosure(State *state, VarClosure *cl, CVar *args, int n, CVar &r
     return false;
 }
 
-// ─── Helper: build a success result, flattening Multi returns ───
+// Helper: build a success result, flattening Multi returns
 static CVar MakeSuccessResult(State *state, CVar result) {
     if (result.type_ == static_cast<int>(VarType::Multi) && result.data_.m) {
         int count = result.data_.m->GetCount();
@@ -66,24 +66,24 @@ static CVar MakeSuccessResult(State *state, CVar result) {
     }
 }
 
-// ─── pairs 迭代器状态 ───
+// pairs 迭代器状态
 struct PairIterState {
     CVar table;
     CVar last_key;// nil 表示刚开始
 };
 
-// ─── ipairs 迭代器状态 ───
+// ipairs 迭代器状态
 struct IpairsState {
     CVar table;
     int64_t next_idx;
 };
 
-// ─── pairs 迭代器原生函数 ───
+// pairs 迭代器原生函数
 // 闭包签名：CVar (*)(VarClosure *cl, CVar s, CVar var)
 // upvalues[0] = State* (as int)
 // upvalues[1] = PairIterState* (as int)
 // 辅助：比较 key 是否相等
-static bool keys_equal(CVar a, CVar b) {
+static bool KeysEqual(CVar a, CVar b) {
     if (a.type_ == b.type_) {
         if (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Bool)) return a.data_.i == b.data_.i;
         if (b.type_ == static_cast<int>(VarType::Float)) return a.data_.f == b.data_.f;
@@ -139,7 +139,7 @@ extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
             has_next = true;
             return;
         }
-        if (keys_equal(k, last)) {
+        if (KeysEqual(k, last)) {
             found_last = true;
         }
     });
@@ -154,7 +154,7 @@ extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     return multi;
 }
 
-// ─── ipairs 迭代器原生函数 ───
+// ipairs 迭代器原生函数
 extern "C" CVar BasicIpairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     if (!cl || cl->upvalue_count < 2) {
         return CVar{static_cast<int>(VarType::Nil)};
@@ -188,7 +188,7 @@ extern "C" CVar BasicIpairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
 void RegisterBasicLibraryApi(State *s) {
     if (!s) return;
 
-    // ─── print(...) ───
+    // print(...)
     RegisterNativeFunction(s, "print", 0, true, [](State *state, CVar *args, int n) -> CVar {
         for (int i = 0; i < n; ++i) {
             if (i > 0) std::printf("\t");
@@ -201,7 +201,7 @@ void RegisterBasicLibraryApi(State *s) {
         return inter::NativeToFakeluaNil(state);
     });
 
-    // ─── type(v) ───
+    // type(v)
     RegisterNativeFunction(s, "type", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         switch (static_cast<VarType>(a0.type_)) {
@@ -224,7 +224,7 @@ void RegisterBasicLibraryApi(State *s) {
         }
     });
 
-    // ─── tostring(v) ───
+    // tostring(v)
     RegisterNativeFunction(s, "tostring", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         const auto &v = AsVar(a0);
@@ -235,7 +235,7 @@ void RegisterBasicLibraryApi(State *s) {
         return inter::NativeToFakeluaString(state, str);
     });
 
-    // ─── tonumber(e [, base]) ───
+    // tonumber(e [, base])
     RegisterNativeFunction(s, "tonumber", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         const auto &v = AsVar(a0);
@@ -286,8 +286,7 @@ void RegisterBasicLibraryApi(State *s) {
 
         // Auto-detect 0x/0X prefix when no custom base is provided
         auto starts_hex = [](std::string_view s) {
-            return s.rfind("0x", 0) == 0 || s.rfind("0X", 0) == 0 || s.rfind("-0x", 0) == 0 || s.rfind("-0X", 0) == 0 || s.rfind("+0x", 0) == 0 ||
-                   s.rfind("+0X", 0) == 0;
+            return s.rfind("0x", 0) == 0 || s.rfind("0X", 0) == 0 || s.rfind("-0x", 0) == 0 || s.rfind("-0X", 0) == 0 || s.rfind("+0x", 0) == 0 || s.rfind("+0X", 0) == 0;
         };
         if (!has_custom_base && starts_hex(trimmed)) {
             base = 16;
@@ -341,8 +340,7 @@ void RegisterBasicLibraryApi(State *s) {
                 else if (c >= 'A' && c <= 'Z')
                     digit = c - 'A' + 10;
                 if (digit < 0 || digit >= base) return inter::NativeToFakeluaNil(state);
-                if (acc > (std::numeric_limits<uint64_t>::max() - static_cast<uint64_t>(digit)) /
-                              static_cast<uint64_t>(base)) {
+                if (acc > (std::numeric_limits<uint64_t>::max() - static_cast<uint64_t>(digit)) / static_cast<uint64_t>(base)) {
                     return inter::NativeToFakeluaNil(state);
                 }
                 acc = acc * static_cast<uint64_t>(base) + static_cast<uint64_t>(digit);
@@ -351,7 +349,8 @@ void RegisterBasicLibraryApi(State *s) {
             if (negative) {
                 if (acc > static_cast<uint64_t>(INT64_MAX) + 1) return inter::NativeToFakeluaNil(state);
                 if (acc == static_cast<uint64_t>(INT64_MAX) + 1) result = INT64_MIN;
-                else result = -static_cast<int64_t>(acc);
+                else
+                    result = -static_cast<int64_t>(acc);
             } else {
                 if (acc > static_cast<uint64_t>(INT64_MAX)) return inter::NativeToFakeluaNil(state);
                 result = static_cast<int64_t>(acc);
@@ -360,7 +359,7 @@ void RegisterBasicLibraryApi(State *s) {
         }
     });
 
-    // ─── select(n, ...) ───
+    // select(n, ...)
     RegisterNativeFunction(s, "select", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         // 支持 select("#", ...) 返回总数
@@ -392,7 +391,7 @@ void RegisterBasicLibraryApi(State *s) {
         return multi;
     });
 
-    // ─── error(message [, level]) ───
+    // error(message [, level])
     RegisterNativeFunction(s, "error", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         const auto &v = AsVar(a0);
@@ -404,7 +403,7 @@ void RegisterBasicLibraryApi(State *s) {
         ThrowFakeluaException(msg);
     });
 
-    // ─── assert(v [, message]) ───
+    // assert(v [, message])
     RegisterNativeFunction(s, "assert", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         const auto &v = AsVar(a0);
@@ -430,7 +429,7 @@ void RegisterBasicLibraryApi(State *s) {
         ThrowFakeluaException(msg);
     });
 
-    // ─── pcall(f [, arg1, ...]) ───
+    // pcall(f [, arg1, ...])
     RegisterNativeFunction(s, "pcall", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar func = inter::GetNativeArg(state, args, n, 0);
         if (func.type_ != static_cast<int>(VarType::Closure) || !func.data_.cl) {
@@ -462,7 +461,7 @@ void RegisterBasicLibraryApi(State *s) {
         }
     });
 
-    // ─── xpcall(f, err [, arg1, ...]) ───
+    // xpcall(f, err [, arg1, ...])
     RegisterNativeFunction(s, "xpcall", 2, true, [](State *state, CVar *args, int n) -> CVar {
         CVar func = inter::GetNativeArg(state, args, n, 0);
         CVar err_func = inter::GetNativeArg(state, args, n, 1);
@@ -527,7 +526,7 @@ void RegisterBasicLibraryApi(State *s) {
 
     // 注意：fakelua 没有元表，所以 rawequal/rawget/rawset/rawlen 不需要实现
 
-    // ─── next(table [, index]) ───
+    // next(table [, index])
     RegisterNativeFunction(s, "next", 1, true, [](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
@@ -549,7 +548,7 @@ void RegisterBasicLibraryApi(State *s) {
                 has_next = true;
                 return;
             }
-            if (keys_equal(k, index)) {
+            if (KeysEqual(k, index)) {
                 found_index = true;
             }
         });
@@ -561,7 +560,7 @@ void RegisterBasicLibraryApi(State *s) {
         return multi;
     });
 
-    // ─── pairs(t) ───
+    // pairs(t)
     RegisterNativeFunction(s, "pairs", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
@@ -585,7 +584,7 @@ void RegisterBasicLibraryApi(State *s) {
         return multi;
     });
 
-    // ─── ipairs(t) ───
+    // ipairs(t)
     RegisterNativeFunction(s, "ipairs", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
@@ -607,7 +606,7 @@ void RegisterBasicLibraryApi(State *s) {
         return multi;
     });
 
-    // ─── collectgarbage([opt [, arg]]) ───
+    // collectgarbage([opt [, arg]])
     // fakelua 使用 Arena 分配器，无标准 GC。目前仅支持 "count"：
     //   返回当前临时 + 常量分配器总使用量（单位 KB，与 Lua 一致）。
     // 其他选项（"collect"/"step"/"stop"/"restart" 等）为 no-op，返回 0。

@@ -67,7 +67,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 }
 
 static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr) {
-    // ── 查找函数：优先 JIT，其次 C++ 原生 ─────────────────────────────────────
+    // 查找函数：优先 JIT，其次 C++ 原生
     // 用 string_view 查表，避免每次调用都堆分配 std::string
     const std::string_view func_name(name);
     const auto jit_func = state->GetVM().GetFunction(func_name);
@@ -97,7 +97,7 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
         ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) passed for function '{}', max is {}", arg_num, name, kMaxFunctionInputParams));
     }
 
-    // ── 展开 Multi / 补齐参数 ─────────────────────────────────────────────────
+    // 展开 Multi / 补齐参数
     const CVar *arg_arr = nullptr;
     const bool last_is_multi = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == static_cast<int>(VarType::Multi));
     CVar temp_arg_arr[kMaxFunctionInputParams];
@@ -116,7 +116,7 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
                 }
             } else if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)};
+                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar){static_cast<int>(VarType::Nil)};
             } else {
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
             }
@@ -124,7 +124,7 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
 
         if (UNLIKELY(is_vararg)) {
             for (int i = 0; i < fixed_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};
             }
             const int vararg_count = std::max(0, flat_count - fixed_arg_count);
             VarMulti *m = VarMulti::AllocTemp(state, vararg_count);
@@ -141,13 +141,13 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
                 ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, flat_count));
             }
             for (int i = 0; i < expected_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};
             }
         }
         arg_arr = temp_arg_arr;
     }
 
-    // ── 分发 ─────────────────────────────────────────────────────────────────
+    // 分发
     // 情形 1：C++ 原生函数
     if (!has_jit) {
         CVar flat_args_buf[kMaxFunctionInputParams];
@@ -160,7 +160,7 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
                 }
             } else if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)};
+                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar){static_cast<int>(VarType::Nil)};
             } else {
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
             }

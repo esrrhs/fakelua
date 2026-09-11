@@ -53,11 +53,9 @@ public:
 
     // 复用的线性暂存区。环形缓冲的可读区会绕回，想交出一段连续的 const char* 就得先拷到
     // 一块连续内存里，这两块就是干这个的，免得每次解包都做一次堆分配。
-    //
     // 按缓冲区各存一份，而不是用 thread_local：一个连接只被它所属的 State 单线程访问，
     // 所以这里既没有竞争，还顺带把 out_payload 的有效期从"直到本线程下次调用"收紧成
     // "直到同一个缓冲区上的下次调用" —— 前者意味着解析另一条连接会让先前的 payload 失效。
-    //
     // 分两块是因为 ws 帧解析要同时用：一块 peek 头部，一块存包体。
     [[nodiscard]] std::vector<char> &HeaderScratch() {
         return header_scratch_;
@@ -86,8 +84,7 @@ bool WritePacket(CircularBuffer &buf, const NetConfig &cfg, const char *data, si
 // out_payload: 指向 buf 自己的复用暂存区（CircularBuffer::PayloadScratch），只在下一次
 //              对同一个 buf 调用本函数之前有效，调用方必须在那之前把数据拷走。
 
-bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len,
-                      bool &out_error);
+bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len, bool &out_error);
 
 // 兼容旧接口的 4 字节大端打包
 void WritePacketHeader(CircularBuffer &buf, uint32_t payload_len);

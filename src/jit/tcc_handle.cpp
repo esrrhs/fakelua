@@ -1,7 +1,7 @@
 #include "jit/tcc_handle.h"
+#include "jit/vm.h"
 #include "state/state.h"
 #include "util/logging.h"
-#include "jit/vm.h"
 #include <libtcc.h>
 
 namespace fakelua {

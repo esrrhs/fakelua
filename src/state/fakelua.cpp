@@ -11,10 +11,10 @@
 #include "state/state.h"
 #include "util/common.h"
 #include "util/dispatch_macro.h"
+#include "var/var_closure.h"
 #include "var/var_multi.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
-#include "var/var_closure.h"
 
 #include <cmath>
 
@@ -213,8 +213,7 @@ int64_t CVarToInteger(const CVar &v, int64_t default_val) {
     if (var.Type() == VarType::Float) {
         const double d = var.GetFloat();
         // NaN/Inf 以及超出 int64 范围的 float 强转是 UB，返回默认值让调用方决定。
-        if (!std::isfinite(d) || d < static_cast<double>(INT64_MIN) ||
-            d >= static_cast<double>(INT64_MAX) + 1.0) {
+        if (!std::isfinite(d) || d < static_cast<double>(INT64_MIN) || d >= static_cast<double>(INT64_MAX) + 1.0) {
             return default_val;
         }
         return static_cast<int64_t>(d);
@@ -234,8 +233,7 @@ int64_t CVarToInteger(const CVar &v, int64_t default_val) {
                 std::string s(sv);
                 double dval = std::stod(s, &pos);
                 if (pos == s.size()) {
-                    if (!std::isfinite(dval) || dval < static_cast<double>(INT64_MIN) ||
-                        dval >= static_cast<double>(INT64_MAX) + 1.0) {
+                    if (!std::isfinite(dval) || dval < static_cast<double>(INT64_MIN) || dval >= static_cast<double>(INT64_MAX) + 1.0) {
                         return default_val;
                     }
                     return static_cast<int64_t>(dval);
@@ -326,7 +324,7 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
                 }
             }
             dst->ViSetTable(kvs);
-            for (auto &[k, v] : kvs) {
+            for (auto &[k, v]: kvs) {
                 delete k;
                 delete v;
             }
@@ -424,9 +422,7 @@ void SetDebugLogLevel(State *s, int level) {
     SetLogLevel(s, static_cast<LogLevel>(level));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // RegisterNativeFunction — 注册 C++ 函数供 lua 侧通过名字调用
-// ─────────────────────────────────────────────────────────────────────────────
 void RegisterNativeFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeFuncCallback callback) {
     s->GetVM().RegisterNativeFunction(name, arg_count, is_vararg, std::move(callback));
 }
@@ -444,7 +440,7 @@ void RegisterNativeVarFunction(State *s, const std::string &name, int arg_count,
             vi_args.push_back(inter::FakeluaToNativeObj(state, arg_i));
         }
         VarInterface *res_vi = safe_cb(state, vi_args);
-        for (auto *vi : vi_args) {
+        for (auto *vi: vi_args) {
             delete vi;
         }
         CVar ret = inter::NativeToFakeluaVarInterface(state, res_vi);
@@ -557,8 +553,9 @@ static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count, VarC
         DCASE(2)
         DCASE(3)
         DCASE(4)
-        DCASE(5) DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11) DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17) DCASE(18) DCASE(19) DCASE(20) DCASE(21) DCASE(22) DCASE(23)
-                DCASE(24) DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29) DCASE(30) DCASE(31) DCASE(32)
+        DCASE(5)
+        DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11) DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17) DCASE(18) DCASE(19) DCASE(20) DCASE(21) DCASE(22) DCASE(23) DCASE(24)
+                DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29) DCASE(30) DCASE(31) DCASE(32)
 
 #undef DCASE
 #include "util/dispatch_macro_undef.h"

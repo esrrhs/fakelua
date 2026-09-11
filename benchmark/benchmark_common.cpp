@@ -2,9 +2,7 @@
 
 #include <cmath>
 
-// ---------------------------------------------------------------------------
 // PushLuaArg implementations
-// ---------------------------------------------------------------------------
 
 void PushLuaArg(lua_State *L, int64_t value) {
     lua_pushinteger(L, static_cast<lua_Integer>(value));
@@ -14,9 +12,7 @@ void PushLuaArg(lua_State *L, const std::string &value) {
     lua_pushlstring(L, value.c_str(), value.size());
 }
 
-// ---------------------------------------------------------------------------
 // RuntimeContext
-// ---------------------------------------------------------------------------
 
 void RuntimeContext::Init(const char *const *scripts, size_t count) {
     lua = luaL_newstate();
@@ -46,9 +42,7 @@ void RuntimeContext::Destroy() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // VerifyEqual implementations
-// ---------------------------------------------------------------------------
 
 void VerifyEqual(int64_t got, int64_t expected, const char *name) {
     if (got != expected) {

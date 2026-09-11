@@ -9,4 +9,4 @@ namespace fakelua::toml {
 //   toml.encode(value) → TOML string
 void RegisterTomlLibraryApi(State *s);
 
-}  // namespace fakelua::toml
+}// namespace fakelua::toml

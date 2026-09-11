@@ -10,21 +10,16 @@
 
 namespace fakelua::protobuf {
 
-// ─── 关键字 ───
-
+// 关键字
 static const std::unordered_map<std::string, int> &Keywords() {
     static const std::unordered_map<std::string, int> kw = {
-        {"syntax", 1},  {"package", 2},   {"import", 3},     {"message", 4},
-        {"enum", 5},    {"oneof", 6},     {"map", 7},        {"repeated", 8},
-        {"optional", 9}, {"reserved", 10}, {"extensions", 11}, {"option", 12},
-        {"to", 13},     {"true", 14},     {"false", 15},     {"public", 16},
-        {"weak", 17},
+            {"syntax", 1},    {"package", 2},     {"import", 3},  {"message", 4}, {"enum", 5},  {"oneof", 6},  {"map", 7},     {"repeated", 8}, {"optional", 9},
+            {"reserved", 10}, {"extensions", 11}, {"option", 12}, {"to", 13},     {"true", 14}, {"false", 15}, {"public", 16}, {"weak", 17},
     };
     return kw;
 }
 
-// ─── 标量类型名 → FieldType ───
-
+// 标量类型名 → FieldType
 static FieldType ParseScalarType(const std::string &name) {
     if (name == "double") return TYPE_DOUBLE;
     if (name == "float") return TYPE_FLOAT;
@@ -43,18 +38,15 @@ static FieldType ParseScalarType(const std::string &name) {
     if (name == "sint32") return TYPE_SINT32;
     if (name == "sint64") return TYPE_SINT64;
     if (name == "message") return TYPE_MESSAGE;
-    return TYPE_INT32;  // 未知类型，后续 resolver 会处理
+    return TYPE_INT32;// 未知类型，后续 resolver 会处理
 }
 
 static bool IsScalarType(const std::string &name) {
-    return name == "double" || name == "float" || name == "int64" || name == "uint64" ||
-           name == "int32" || name == "fixed64" || name == "fixed32" || name == "bool" ||
-           name == "string" || name == "bytes" || name == "uint32" || name == "sfixed32" ||
-           name == "sfixed64" || name == "sint32" || name == "sint64";
+    return name == "double" || name == "float" || name == "int64" || name == "uint64" || name == "int32" || name == "fixed64" || name == "fixed32" || name == "bool" || name == "string" ||
+           name == "bytes" || name == "uint32" || name == "sfixed32" || name == "sfixed64" || name == "sint32" || name == "sint64";
 }
 
-// ─── Lexer ───
-
+// Lexer
 struct Token {
     enum Type {
         T_EOF = 0,
@@ -62,18 +54,20 @@ struct Token {
         T_INT,
         T_FLOAT,
         T_STRING,
-        T_SYMBOL,   // { } = ; < > , ( ) [ ] .
+        T_SYMBOL,// { } = ; < > , ( ) [ ] .
         T_KEYWORD,
     };
+
     Type type = T_EOF;
     std::string value;
-    int keyword_id = 0;  // 仅 T_KEYWORD
+    int keyword_id = 0;// 仅 T_KEYWORD
     int line = 1;
 };
 
 class Lexer {
 public:
-    explicit Lexer(const std::string &text) : text_(text), pos_(0), line_(1) {}
+    explicit Lexer(const std::string &text) : text_(text), pos_(0), line_(1) {
+    }
 
     Token Next() {
         SkipWhitespaceAndComments();
@@ -95,8 +89,7 @@ public:
             return ReadIdent(start_line);
         }
         // 符号
-        if (c == '{' || c == '}' || c == '=' || c == ';' || c == '<' || c == '>' ||
-            c == ',' || c == '(' || c == ')' || c == '[' || c == ']' || c == '.') {
+        if (c == '{' || c == '}' || c == '=' || c == ';' || c == '<' || c == '>' || c == ',' || c == '(' || c == ')' || c == '[' || c == ']' || c == '.') {
             pos_++;
             return {Token::T_SYMBOL, std::string(1, c), 0, start_line};
         }
@@ -104,7 +97,9 @@ public:
         ThrowFakeluaException(std::format("proto parse error at line {}: unexpected character '{}'", start_line, c));
     }
 
-    int Line() const { return line_; }
+    int Line() const {
+        return line_;
+    }
 
 private:
     void SkipWhitespaceAndComments() {
@@ -132,21 +127,37 @@ private:
     }
 
     Token ReadString(char quote, int start_line) {
-        pos_++;  // 跳过开头引号
+        pos_++;// 跳过开头引号
         std::string result;
         while (pos_ < text_.size() && text_[pos_] != quote) {
             if (text_[pos_] == '\\' && pos_ + 1 < text_.size()) {
                 pos_++;
                 char esc = text_[pos_];
                 switch (esc) {
-                    case 'n': result += '\n'; break;
-                    case 't': result += '\t'; break;
-                    case 'r': result += '\r'; break;
-                    case '\\': result += '\\'; break;
-                    case '\'': result += '\''; break;
-                    case '"': result += '"'; break;
-                    case '0': result += '\0'; break;
-                    default: result += esc; break;
+                    case 'n':
+                        result += '\n';
+                        break;
+                    case 't':
+                        result += '\t';
+                        break;
+                    case 'r':
+                        result += '\r';
+                        break;
+                    case '\\':
+                        result += '\\';
+                        break;
+                    case '\'':
+                        result += '\'';
+                        break;
+                    case '"':
+                        result += '"';
+                        break;
+                    case '0':
+                        result += '\0';
+                        break;
+                    default:
+                        result += esc;
+                        break;
                 }
             } else {
                 if (text_[pos_] == '\n') line_++;
@@ -154,7 +165,7 @@ private:
             }
             pos_++;
         }
-        if (pos_ < text_.size()) pos_++;  // 跳过结尾引号
+        if (pos_ < text_.size()) pos_++;// 跳过结尾引号
         return {Token::T_STRING, result, 0, start_line};
     }
 
@@ -192,11 +203,11 @@ private:
     int line_ = 1;
 };
 
-// ─── Parser ───
-
+// Parser
 class Parser {
 public:
-    Parser(State *s, const std::string &filename) : s_(s), filename_(filename) {}
+    Parser(State *s, const std::string &filename) : s_(s), filename_(filename) {
+    }
 
     void Parse(Lexer &lexer) {
         current_ = lexer.Next();
@@ -207,50 +218,49 @@ public:
 
 private:
     Token current_;
-    State *s_ = nullptr;         // schema 注册表所属的 State
+    State *s_ = nullptr;// schema 注册表所属的 State
     std::string filename_;
-    std::string package_;        // 当前 package
-    std::string syntax_;         // "proto2" / "proto3"
+    std::string package_;// 当前 package
+    std::string syntax_; // "proto2" / "proto3"
 
-    void Advance(Lexer &lexer) { current_ = lexer.Next(); }
+    void Advance(Lexer &lexer) {
+        current_ = lexer.Next();
+    }
 
     void Expect(Lexer &lexer, Token::Type type, const std::string &what) {
         if (current_.type != type) {
-            ThrowFakeluaException(std::format("proto parse error at line {}: expected {}, got '{}'",
-                                              current_.line, what, current_.value));
+            ThrowFakeluaException(std::format("proto parse error at line {}: expected {}, got '{}'", current_.line, what, current_.value));
         }
         Advance(lexer);
     }
 
     void ExpectSymbol(Lexer &lexer, const std::string &sym) {
         if (current_.type != Token::T_SYMBOL || current_.value != sym) {
-            ThrowFakeluaException(std::format("proto parse error at line {}: expected '{}', got '{}'",
-                                              current_.line, sym, current_.value));
+            ThrowFakeluaException(std::format("proto parse error at line {}: expected '{}', got '{}'", current_.line, sym, current_.value));
         }
         Advance(lexer);
     }
 
-    // ─── 顶层语句 ───
-
+    // 顶层语句
     void ParseStatement(Lexer &lexer, const std::string &prefix) {
         if (current_.type == Token::T_KEYWORD) {
             switch (current_.keyword_id) {
-                case 1:  // syntax
+                case 1:// syntax
                     ParseSyntax(lexer);
                     return;
-                case 2:  // package
+                case 2:// package
                     ParsePackage(lexer);
                     return;
-                case 3:  // import
+                case 3:// import
                     ParseImport(lexer);
                     return;
-                case 4:  // message
+                case 4:// message
                     ParseMessage(lexer, prefix);
                     return;
-                case 5:  // enum
+                case 5:// enum
                     ParseEnum(lexer, prefix);
                     return;
-                case 12: // option
+                case 12:// option
                     ParseOptionStatement(lexer);
                     return;
                 default:
@@ -261,12 +271,11 @@ private:
             Advance(lexer);
             return;
         }
-        ThrowFakeluaException(std::format("proto parse error at line {}: unexpected token '{}'",
-                                          current_.line, current_.value));
+        ThrowFakeluaException(std::format("proto parse error at line {}: unexpected token '{}'", current_.line, current_.value));
     }
 
     void ParseSyntax(Lexer &lexer) {
-        Advance(lexer);  // 跳过 'syntax'
+        Advance(lexer);// 跳过 'syntax'
         ExpectSymbol(lexer, "=");
         if (current_.type != Token::T_STRING) {
             ThrowFakeluaException(std::format("proto parse error at line {}: expected syntax string", current_.line));
@@ -277,24 +286,24 @@ private:
     }
 
     void ParsePackage(Lexer &lexer) {
-        Advance(lexer);  // 跳过 'package'
+        Advance(lexer);// 跳过 'package'
         package_ = ParseFullyQualifiedIdent(lexer);
         ExpectSymbol(lexer, ";");
     }
 
     void ParseImport(Lexer &lexer) {
-        Advance(lexer);  // 跳过 'import'
+        Advance(lexer);// 跳过 'import'
         // 跳过 public/weak 修饰符
         if (current_.type == Token::T_KEYWORD && (current_.keyword_id == 16 || current_.keyword_id == 17)) {
             Advance(lexer);
         }
-        if (current_.type == Token::T_STRING) Advance(lexer);  // 跳过文件名
+        if (current_.type == Token::T_STRING) Advance(lexer);// 跳过文件名
         ExpectSymbol(lexer, ";");
         // import 不实际加载文件，由调用者按顺序 load 多个 .proto
     }
 
     void ParseOptionStatement(Lexer &lexer) {
-        Advance(lexer);  // 跳过 'option'
+        Advance(lexer);// 跳过 'option'
         // 跳过 option 名称和 = 值
         if (current_.type == Token::T_IDENT) Advance(lexer);
         else if (current_.type == Token::T_SYMBOL && current_.value == "(") {
@@ -302,23 +311,22 @@ private:
             int depth = 1;
             while (depth > 0 && current_.type != Token::T_EOF) {
                 if (current_.value == "(") depth++;
-                else if (current_.value == ")") depth--;
+                else if (current_.value == ")")
+                    depth--;
                 Advance(lexer);
             }
         }
         if (current_.type == Token::T_SYMBOL && current_.value == "=") {
             Advance(lexer);
             // 跳过值
-            if (current_.type == Token::T_IDENT || current_.type == Token::T_INT ||
-                current_.type == Token::T_FLOAT || current_.type == Token::T_STRING) {
+            if (current_.type == Token::T_IDENT || current_.type == Token::T_INT || current_.type == Token::T_FLOAT || current_.type == Token::T_STRING) {
                 Advance(lexer);
             }
         }
         ExpectSymbol(lexer, ";");
     }
 
-    // ─── 完全限定名解析 ───
-
+    // 完全限定名解析
     std::string ParseFullyQualifiedIdent(Lexer &lexer) {
         std::string name = current_.value;
         Advance(lexer);
@@ -343,16 +351,14 @@ private:
         if (!prefix.empty()) {
             // 先在 prefix 下查找
             std::string candidate = prefix + "." + name;
-            if (pb_state(s_).FindMessage(candidate) ||
-                pb_state(s_).FindEnum(candidate)) {
+            if (GetProtobufState(s_).FindMessage(candidate) || GetProtobufState(s_).FindEnum(candidate)) {
                 return candidate;
             }
         }
         // 在 package 下查找
         if (!package_.empty()) {
             std::string candidate = package_ + "." + name;
-            if (pb_state(s_).FindMessage(candidate) ||
-                pb_state(s_).FindEnum(candidate)) {
+            if (GetProtobufState(s_).FindMessage(candidate) || GetProtobufState(s_).FindEnum(candidate)) {
                 return candidate;
             }
         }
@@ -360,10 +366,9 @@ private:
         return name;
     }
 
-    // ─── Message ───
-
+    // Message
     void ParseMessage(Lexer &lexer, const std::string &prefix) {
-        Advance(lexer);  // 跳过 'message'
+        Advance(lexer);// 跳过 'message'
         if (current_.type != Token::T_IDENT) {
             ThrowFakeluaException(std::format("proto parse error at line {}: expected message name", current_.line));
         }
@@ -389,39 +394,39 @@ private:
         // 可选的尾随分号
         if (current_.type == Token::T_SYMBOL && current_.value == ";") Advance(lexer);
 
-        pb_state(s_).RegisterMessage(std::move(def));
+        GetProtobufState(s_).RegisterMessage(std::move(def));
     }
 
     void ParseMessageBody(Lexer &lexer, MessageDef &def, const std::string &prefix) {
         if (current_.type == Token::T_KEYWORD) {
             switch (current_.keyword_id) {
-                case 4:  // 嵌套 message
+                case 4:// 嵌套 message
                     ParseMessage(lexer, prefix);
                     return;
-                case 5:  // 嵌套 enum
+                case 5:// 嵌套 enum
                     ParseEnum(lexer, prefix);
                     return;
-                case 6:  // oneof
+                case 6:// oneof
                     ParseOneof(lexer, def, prefix);
                     return;
-                case 7:  // map
+                case 7:// map
                     ParseMapField(lexer, def, prefix);
                     return;
-                case 8:  // repeated
-                    Advance(lexer);  // 跳过 'repeated'，指向类型名
+                case 8:            // repeated
+                    Advance(lexer);// 跳过 'repeated'，指向类型名
                     ParseField(lexer, def, prefix, true, false);
                     return;
-                case 9:  // optional
-                    Advance(lexer);  // 跳过 'optional'，指向类型名
+                case 9:            // optional
+                    Advance(lexer);// 跳过 'optional'，指向类型名
                     ParseField(lexer, def, prefix, false, true);
                     return;
-                case 10: // reserved
+                case 10:// reserved
                     ParseReserved(lexer);
                     return;
-                case 11: // extensions
+                case 11:// extensions
                     ParseExtensions(lexer);
                     return;
-                case 12: // option
+                case 12:// option
                     ParseOptionStatement(lexer);
                     return;
                 default:
@@ -436,8 +441,7 @@ private:
         ParseField(lexer, def, prefix, false, false);
     }
 
-    // ─── Field ───
-
+    // Field
     void ParseField(Lexer &lexer, MessageDef &def, const std::string &prefix, bool repeated, bool is_optional) {
         std::string type_name;
         FieldType type = TYPE_INT32;
@@ -448,7 +452,7 @@ private:
             if (IsScalarType(type_name)) {
                 type = ParseScalarType(type_name);
                 type_name.clear();
-            } else if (pb_state(s_).FindEnum(type_name)) {
+            } else if (GetProtobufState(s_).FindEnum(type_name)) {
                 // 已注册的 enum 类型
                 type = TYPE_ENUM;
                 type_name = ResolveTypeName(type_name, prefix);
@@ -496,10 +500,9 @@ private:
         def.fields.push_back(std::move(field));
     }
 
-    // ─── Map field ───
-
+    // Map field
     void ParseMapField(Lexer &lexer, MessageDef &def, const std::string &prefix) {
-        Advance(lexer);  // 跳过 'map'
+        Advance(lexer);// 跳过 'map'
         ExpectSymbol(lexer, "<");
         if (current_.type != Token::T_IDENT) {
             ThrowFakeluaException(std::format("proto parse error at line {}: expected map key type", current_.line));
@@ -542,7 +545,7 @@ private:
         FieldDef field;
         field.name = field_name;
         field.number = field_number;
-        field.type = TYPE_MESSAGE;  // map 编码为 message
+        field.type = TYPE_MESSAGE;// map 编码为 message
         field.is_map = true;
         field.map_key_type = ParseScalarType(key_type_name);
         if (IsScalarType(val_type_name)) {
@@ -554,10 +557,9 @@ private:
         def.fields.push_back(std::move(field));
     }
 
-    // ─── Oneof ───
-
+    // Oneof
     void ParseOneof(Lexer &lexer, MessageDef &def, const std::string &prefix) {
-        Advance(lexer);  // 跳过 'oneof'
+        Advance(lexer);// 跳过 'oneof'
         if (current_.type != Token::T_IDENT) {
             ThrowFakeluaException(std::format("proto parse error at line {}: expected oneof name", current_.line));
         }
@@ -565,7 +567,7 @@ private:
         Advance(lexer);
 
         ExpectSymbol(lexer, "{");
-        int oneof_index = static_cast<int>(def.fields.size());  // 简单编号
+        int oneof_index = static_cast<int>(def.fields.size());// 简单编号
 
         while (!(current_.type == Token::T_SYMBOL && current_.value == "}")) {
             if (current_.type == Token::T_KEYWORD && current_.keyword_id == 12) {
@@ -633,10 +635,9 @@ private:
         def.fields.push_back(std::move(field));
     }
 
-    // ─── Enum ───
-
+    // Enum
     void ParseEnum(Lexer &lexer, const std::string &prefix) {
-        Advance(lexer);  // 跳过 'enum'
+        Advance(lexer);// 跳过 'enum'
         if (current_.type != Token::T_IDENT) {
             ThrowFakeluaException(std::format("proto parse error at line {}: expected enum name", current_.line));
         }
@@ -667,7 +668,7 @@ private:
 
         if (current_.type == Token::T_SYMBOL && current_.value == ";") Advance(lexer);
 
-        pb_state(s_).RegisterEnum(std::move(def));
+        GetProtobufState(s_).RegisterEnum(std::move(def));
     }
 
     void ParseEnumField(Lexer &lexer, EnumDef &def) {
@@ -697,10 +698,9 @@ private:
         def.values.emplace_back(name, number);
     }
 
-    // ─── Reserved / Extensions ───
-
+    // Reserved / Extensions
     void ParseReserved(Lexer &lexer) {
-        Advance(lexer);  // 跳过 'reserved'
+        Advance(lexer);// 跳过 'reserved'
         // 跳过 reserved 内容（数字范围或名称列表）
         while (!(current_.type == Token::T_SYMBOL && current_.value == ";")) {
             if (current_.type == Token::T_EOF) break;
@@ -710,7 +710,7 @@ private:
     }
 
     void ParseExtensions(Lexer &lexer) {
-        Advance(lexer);  // 跳过 'extensions'
+        Advance(lexer);// 跳过 'extensions'
         while (!(current_.type == Token::T_SYMBOL && current_.value == ";")) {
             if (current_.type == Token::T_EOF) break;
             Advance(lexer);
@@ -719,18 +719,17 @@ private:
     }
 };
 
-// ─── 公开接口 ───
-
+// 公开接口
 std::string ParseProto(State *s, const std::string &text, const std::string &filename) {
     try {
         Lexer lexer(text);
         Parser parser(s, filename);
         parser.Parse(lexer);
-        pb_state(s).ResolveAll();  // 解析完成后修正 enum 引用
-        return "";  // 成功
+        GetProtobufState(s).ResolveAll();// 解析完成后修正 enum 引用
+        return "";                       // 成功
     } catch (const std::exception &e) {
         return e.what();
     }
 }
 
-}  // namespace fakelua::protobuf
+}// namespace fakelua::protobuf

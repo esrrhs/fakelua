@@ -5,8 +5,8 @@
 
 #include "native/native_io_context.h"
 
-#include <boost/mysql.hpp>
 #include <boost/asio.hpp>
+#include <boost/mysql.hpp>
 
 #include <cstdint>
 #include <functional>
@@ -21,7 +21,7 @@ namespace fakelua {
 struct CVar;
 class State;
 class NativeObject;
-}
+}// namespace fakelua
 
 namespace fakelua::mysql {
 
@@ -31,35 +31,35 @@ struct StmtParam {
     std::string value;
 };
 
-}  // namespace fakelua::mysql
+}// namespace fakelua::mysql
 
 namespace fakelua {
 class State;
 class NativeObject;
-}
+}// namespace fakelua
 
 namespace fakelua::mysql {
 
-// ── Error classification ──
+// Error classification
 enum class MysqlErrorType {
     None = 0,
-    Connection,     // TCP connect failed, connection lost
-    Authentication, // auth failed (wrong password, unsupported plugin)
-    Syntax,         // SQL syntax error
-    Timeout,        // read/connect timeout
-    Protocol,       // protocol parsing error
-    Server,         // server-side error (table not found, duplicate key, etc.)
-    Unknown         // unclassified
+    Connection,    // TCP connect failed, connection lost
+    Authentication,// auth failed (wrong password, unsupported plugin)
+    Syntax,        // SQL syntax error
+    Timeout,       // read/connect timeout
+    Protocol,      // protocol parsing error
+    Server,        // server-side error (table not found, duplicate key, etc.)
+    Unknown        // unclassified
 };
 
 struct MysqlError {
     MysqlErrorType type = MysqlErrorType::None;
-    int code = 0;           // MySQL error code (e.g. 1045, 1064)
-    std::string message;    // error message
-    std::string sql_state;  // 5-char SQL state
+    int code = 0;         // MySQL error code (e.g. 1045, 1064)
+    std::string message;  // error message
+    std::string sql_state;// 5-char SQL state
 };
 
-}  // namespace fakelua::mysql
+}// namespace fakelua::mysql
 
 namespace fakelua::mysql {
 
@@ -74,48 +74,46 @@ public:
 
     // Start async TCP connect. on_connect(conn, err) called when done.
     // timeout_ms <= 0 means no client-side connect/handshake timeout.
-    void connect(const std::string &host, uint16_t port,
-                 const std::string &user, const std::string &password,
-                 const std::string &database, int timeout_ms = 0);
+    void Connect(const std::string &host, uint16_t port, const std::string &user, const std::string &password, const std::string &database, int timeout_ms = 0);
 
     // Send a query. on_result(result, err) called when response arrives.
-    void query(const std::string &sql);
+    void Query(const std::string &sql);
 
     // Prepared statement API
-    void stmt_prepare(const std::string &sql);
-    void stmt_execute(uint32_t stmt_id, const std::vector<StmtParam> &params);
-    void stmt_close(uint32_t stmt_id);
+    void StmtPrepare(const std::string &sql);
+    void StmtExecute(uint32_t stmt_id, const std::vector<StmtParam> &params);
+    void StmtClose(uint32_t stmt_id);
 
     // Heartbeat (COM_PING) — for connection pool keepalive.
     // Returns false if the ping was not sent (busy / not ready).
-    bool ping();
+    bool Ping();
 
     // Close connection
-    void close();
+    void Close();
 
     // Pump network events (call periodically from game loop)
-    void tick();
+    void Tick();
 
     // Error info from last operation
-    MysqlError last_error() const;
+    MysqlError LastError() const;
 
     // Check if error is retryable (network issues, not auth/syntax)
-    static bool is_retryable(MysqlErrorType type);
+    static bool IsRetryable(MysqlErrorType type);
 
     // Set Lua callback function names (called by native_mysql.cpp)
-    void set_connect_callback(const std::string &name);
-    void set_result_callback(const std::string &name);
-    void set_state(::fakelua::State *state);
-    void set_native_object(::fakelua::NativeObject *obj);
+    void SetConnectCallback(const std::string &name);
+    void SetResultCallback(const std::string &name);
+    void SetState(::fakelua::State *state);
+    void SetNativeObject(::fakelua::NativeObject *obj);
 
-    bool connected() const;
-    bool connecting() const;
+    bool Connected() const;
+    bool Connecting() const;
 
     // Lua :close() during a callback/tick must not delete *this until the
     // outer native call returns (same pattern as net deferred close).
-    int tick_depth() const;
-    bool close_pending() const;
-    void request_close();
+    int TickDepth() const;
+    bool ClosePending() const;
+    void RequestClose();
 
 private:
     // 本 State 的事件循环，与同一 State 下的其它连接和 net 对象共用。
@@ -130,8 +128,8 @@ private:
     // State tracking
     enum class State { Idle, Connecting, Handshaking, Ready, Querying, Error };
     State state_ = State::Idle;
-    ::fakelua::State *lua_state_ = nullptr;  // fakelua State for callback dispatch
-    ::fakelua::NativeObject *native_obj_ = nullptr;  // NativeObject wrapper (for passing to Lua)
+    ::fakelua::State *lua_state_ = nullptr;        // fakelua State for callback dispatch
+    ::fakelua::NativeObject *native_obj_ = nullptr;// NativeObject wrapper (for passing to Lua)
 
     // Lua callback function names
     std::string connect_cb_;
@@ -203,20 +201,19 @@ private:
     native::LifeToken life_;
 
     // Helpers
-    void dispatch_connect(const char *err_msg);
-    void dispatch_result(const boost::mysql::results &result, const char *err_msg);
-    void set_error(MysqlErrorType type, uint16_t code,
-                   const std::string &msg, const std::string &sql_state);
+    void DispatchConnect(const char *err_msg);
+    void DispatchResult(const boost::mysql::results &result, const char *err_msg);
+    void SetError(MysqlErrorType type, uint16_t code, const std::string &msg, const std::string &sql_state);
 
     // Cancel in-flight work and destroy any_connection (no blocking COM_QUIT).
-    void teardown_transport();
-    void ensure_conn();
+    void TeardownTransport();
+    void EnsureConn();
 
     // Convert Boost.MySQL results to Lua table
-    static CVar resultset_to_lua(::fakelua::State *s, const boost::mysql::resultset_view &result);
-    static CVar result_to_lua(::fakelua::State *s, const boost::mysql::results &result);
+    static CVar ResultsetToLua(::fakelua::State *s, const boost::mysql::resultset_view &result);
+    static CVar ResultToLua(::fakelua::State *s, const boost::mysql::results &result);
     // Convert one Boost.MySQL field to (is_null, string_value).
-    static std::pair<bool, std::string> field_to_string(const boost::mysql::field_view &fv);
+    static std::pair<bool, std::string> FieldToString(const boost::mysql::field_view &fv);
 
 private:
     // Async connect handler signature expects (error_code, diagnostics)
@@ -226,4 +223,4 @@ private:
     // overload that takes diagnostics& as a parameter.
 };
 
-}  // namespace fakelua::mysql
+}// namespace fakelua::mysql

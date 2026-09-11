@@ -4,9 +4,7 @@
 
 namespace {
 
-// ---------------------------------------------------------------------------
 // Scripts
-// ---------------------------------------------------------------------------
 
 constexpr const char *kEmptyCallScript = R"(
 function bench_empty()
@@ -85,14 +83,12 @@ function bench_tail_sum(n)
 end
 )";
 
-// ---------------------------------------------------------------------------
 // C++ reference implementations
-// ---------------------------------------------------------------------------
 
 inline int64_t CppEmpty(int64_t n) {
     int64_t total = 0;
     for (int64_t i = 0; i < n; ++i) {
-        total += 0; // empty inline equivalent
+        total += 0;// empty inline equivalent
     }
     return total;
 }
@@ -141,14 +137,11 @@ int64_t CppTailSum(int64_t n) {
     return acc;
 }
 
-// ---------------------------------------------------------------------------
 // Lua helpers
-// ---------------------------------------------------------------------------
 
 const char *const kFunctionScripts[] = {
-            kEmptyCallScript, kRecursionScript,  kVariadicScript,
-            kMultiReturnScript, kClosureScript, kTailRecursionScript,
-        };
+        kEmptyCallScript, kRecursionScript, kVariadicScript, kMultiReturnScript, kClosureScript, kTailRecursionScript,
+};
 constexpr size_t kFunctionScriptCount = sizeof(kFunctionScripts) / sizeof(kFunctionScripts[0]);
 
 struct Ctx : RuntimeContext {
@@ -163,12 +156,13 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_TCC, "bench_closure", w, 10);
         Call(flua, JIT_TCC, "bench_tail_sum", w, 10);
     }
-    ~Ctx() { Destroy(); }
+
+    ~Ctx() {
+        Destroy();
+    }
 } g_ctx;
 
-// ---------------------------------------------------------------------------
 // Benchmarks: empty call
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_EmptyCall(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -204,9 +198,7 @@ static void BM_FakeLua_EmptyCall_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: recursion (fib)
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_Recursion(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -244,9 +236,7 @@ static void BM_FakeLua_Recursion_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: variadic
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_Variadic(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -280,9 +270,7 @@ static void BM_FakeLua_Variadic_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: multi-return
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_MultiReturn(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -318,9 +306,7 @@ static void BM_FakeLua_MultiReturn_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: closure
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_Closure(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -356,9 +342,7 @@ static void BM_FakeLua_Closure_GCC(benchmark::State &state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmarks: tail recursion
-// ---------------------------------------------------------------------------
 
 static void BM_CPP_TailRecursion(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -394,17 +378,15 @@ static void BM_FakeLua_TailRecursion_GCC(benchmark::State &state) {
     }
 }
 
-} // namespace
+}// namespace
 
-// ---------------------------------------------------------------------------
 // Benchmark registrations
-// ---------------------------------------------------------------------------
 
-#define EMPTY_CALL_ARGS    ->Arg(10000)->Arg(100000)
-#define RECURSION_ARGS     ->Arg(10)->Arg(20)->Arg(25)
-#define VARIADIC_ARGS      ->Arg(1)
-#define MULTI_RETURN_ARGS  ->Arg(1000)->Arg(10000)
-#define CLOSURE_ARGS       ->Arg(100)->Arg(1000)
+#define EMPTY_CALL_ARGS ->Arg(10000)->Arg(100000)
+#define RECURSION_ARGS ->Arg(10)->Arg(20)->Arg(25)
+#define VARIADIC_ARGS ->Arg(1)
+#define MULTI_RETURN_ARGS ->Arg(1000)->Arg(10000)
+#define CLOSURE_ARGS ->Arg(100)->Arg(1000)
 #define TAIL_RECURSION_ARGS ->Arg(100)->Arg(1000)->Arg(5000)
 
 BENCHMARK(BM_CPP_EmptyCall) EMPTY_CALL_ARGS;

@@ -16,16 +16,14 @@
 
 namespace fakelua::mysql {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 [[noreturn]] static void error(const std::string &msg) {
     ThrowFakeluaException("mysql: " + msg);
 }
 
 // Extract string from CVar (handles both String and StringId)
-static std::string cvar_to_string(CVar v) {
+static std::string CVarToString(CVar v) {
     if (v.type_ == static_cast<int>(VarType::String) && v.data_.s) {
         return std::string(v.data_.s->Str());
     }
@@ -38,7 +36,7 @@ static std::string cvar_to_string(CVar v) {
 }
 
 // Retrieve MysqlConnection* from NativeObject
-MysqlConnection *unwrap_conn_native(NativeObject *self) {
+MysqlConnection *UnwrapConnNative(NativeObject *self) {
     if (!self) return nullptr;
     return reinterpret_cast<MysqlConnection *>(self->GetInt("__mysql_conn__", 0));
 }
@@ -50,14 +48,14 @@ struct MysqlWrappers {
     std::vector<NativeObject *> pools;
 };
 
-static std::vector<NativeObject *> &wrapper_list(State *s, bool is_pool) {
+static std::vector<NativeObject *> &WrapperList(State *s, bool is_pool) {
     auto &ws = s->GetModuleState<MysqlWrappers>();
     return is_pool ? ws.pools : ws.conns;
 }
 
-static void erase_wrapper(State *st, bool is_pool, NativeObject *nat) {
+static void EraseWrapper(State *st, bool is_pool, NativeObject *nat) {
     if (!st) return;
-    auto &v = wrapper_list(st, is_pool);
+    auto &v = WrapperList(st, is_pool);
     v.erase(std::remove(v.begin(), v.end(), nat), v.end());
 }
 
@@ -65,7 +63,7 @@ void RegisterMysqlNativeWrapper(State *s, NativeObject *nat, bool is_pool) {
     if (!s || !nat) return;
     nat->SetInt("__mysql_state__", reinterpret_cast<int64_t>(s));
     nat->SetInt("__mysql_is_pool__", is_pool ? 1 : 0);
-    wrapper_list(s, is_pool).push_back(nat);
+    WrapperList(s, is_pool).push_back(nat);
 }
 
 void UnregisterMysqlNativeWrapper(NativeObject *nat) {
@@ -73,10 +71,10 @@ void UnregisterMysqlNativeWrapper(NativeObject *nat) {
     auto *st = reinterpret_cast<State *>(nat->GetInt("__mysql_state__", 0));
     bool is_pool = nat->GetInt("__mysql_is_pool__", 0) != 0;
     nat->SetInt("__mysql_state__", 0);
-    erase_wrapper(st, is_pool, nat);
+    EraseWrapper(st, is_pool, nat);
 }
 
-static void destroy_mysql_wrappers(State *s, bool is_pool) {
+static void DestroyMysqlWrappers(State *s, bool is_pool) {
     auto *ws = s->TryGetModuleState<MysqlWrappers>();
     if (!ws) return;
     auto wrappers = std::move(is_pool ? ws->pools : ws->conns);
@@ -91,7 +89,6 @@ void TickAll(State *s) {
     if (!s) return;
     // 两处都是先拷一份再遍历：回调里可能 pool:acquire() 或者关连接，都会改动这些 vector。
     // 快照里已经销毁的对象 unwrap 拿到空，tick 自己就是 no-op。
-    //
     // 先池后连接：池这一步推进心跳和重连，让本轮拿到的连接尽量是可用的。
     auto *ws = s->TryGetModuleState<MysqlWrappers>();
     if (!ws) return;
@@ -104,41 +101,37 @@ void TickAll(State *s) {
 void OnStateDeleted(State *s) {
     if (!s) return;
     // Connection wrappers first so pool acquire finalizers can still release().
-    destroy_mysql_wrappers(s, false);
-    destroy_mysql_wrappers(s, true);
+    DestroyMysqlWrappers(s, false);
+    DestroyMysqlWrappers(s, true);
 }
 
-static void maybe_reap_pool(NativeObject *self) {
+static void MaybeReapPool(NativeObject *self) {
     if (!self) return;
     auto *pool = reinterpret_cast<MysqlConnectionPool *>(self->GetInt("__mysql_pool_ptr__", 0));
-    if (pool) pool->reap();
+    if (pool) pool->Reap();
 }
 
-static void maybe_release_owned_conn(NativeObject *self) {
+static void MaybeReleaseOwnedConn(NativeObject *self) {
     if (!self) return;
     if (self->GetInt("__mysql_owned__", 0) == 0) return;
-    auto *conn = unwrap_conn_native(self);
-    if (!conn || conn->tick_depth() > 0 || !conn->close_pending()) return;
-    conn->close();
+    auto *conn = UnwrapConnNative(self);
+    if (!conn || conn->TickDepth() > 0 || !conn->ClosePending()) return;
+    conn->Close();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Forward declarations
-// ─────────────────────────────────────────────────────────────────────────────
 
-CVar conn_query(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_close(NativeObject *self, State *s, CVar *args, int n);
-CVar conn_ping(NativeObject *self, State *s, CVar *args, int n);
+CVar ConnQuery(NativeObject *self, State *s, CVar *args, int n);
+CVar ConnStmtPrepare(NativeObject *self, State *s, CVar *args, int n);
+CVar ConnStmtExecute(NativeObject *self, State *s, CVar *args, int n);
+CVar ConnStmtClose(NativeObject *self, State *s, CVar *args, int n);
+CVar ConnClose(NativeObject *self, State *s, CVar *args, int n);
+CVar ConnPing(NativeObject *self, State *s, CVar *args, int n);
 
-// ─────────────────────────────────────────────────────────────────────────────
 // mysql.connect(config, on_connect) → connection object
 // on_connect(err, success) called when connection completes
-// ─────────────────────────────────────────────────────────────────────────────
 
-static CVar mysql_connect(State *s, CVar *args, int n) {
+static CVar MysqlConnect(State *s, CVar *args, int n) {
     if (n < 2) ThrowBadArgument(1, "mysql.connect", "config table and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
@@ -153,7 +146,7 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
 
     if (a0.type_ == static_cast<int>(VarType::Table) && a0.data_.t) {
         CVar host_var = table::TableHelper::GetTableStrId(s, a0, "host");
-        if (host_var.type_ != static_cast<int>(VarType::Nil)) host = cvar_to_string(host_var);
+        if (host_var.type_ != static_cast<int>(VarType::Nil)) host = CVarToString(host_var);
 
         CVar port_var = table::TableHelper::GetTableStrId(s, a0, "port");
         if (port_var.type_ != static_cast<int>(VarType::Nil)) {
@@ -161,13 +154,13 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
         }
 
         CVar user_var = table::TableHelper::GetTableStrId(s, a0, "user");
-        if (user_var.type_ != static_cast<int>(VarType::Nil)) user = cvar_to_string(user_var);
+        if (user_var.type_ != static_cast<int>(VarType::Nil)) user = CVarToString(user_var);
 
         CVar pass_var = table::TableHelper::GetTableStrId(s, a0, "password");
-        if (pass_var.type_ != static_cast<int>(VarType::Nil)) password = cvar_to_string(pass_var);
+        if (pass_var.type_ != static_cast<int>(VarType::Nil)) password = CVarToString(pass_var);
 
         CVar db_var = table::TableHelper::GetTableStrId(s, a0, "db");
-        if (db_var.type_ != static_cast<int>(VarType::Nil)) database = cvar_to_string(db_var);
+        if (db_var.type_ != static_cast<int>(VarType::Nil)) database = CVarToString(db_var);
 
         CVar timeout_var = table::TableHelper::GetTableStrId(s, a0, "timeout_ms");
         if (timeout_var.type_ != static_cast<int>(VarType::Nil)) {
@@ -180,7 +173,7 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     if (user.empty()) ThrowBadArgument(1, "mysql.connect", "user required");
 
     // Read callback function name
-    std::string cb_name = cvar_to_string(a1);
+    std::string cb_name = CVarToString(a1);
     if (cb_name.empty()) ThrowBadArgument(1, "mysql.connect", "callback function expected");
 
     // Create NativeObject wrapper first (so callbacks can dispatch)
@@ -188,33 +181,33 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
     auto *nat = s->GetNativeObjectManager().Create(gid, "mysql_connection");
     nat->SetFinalizer([](NativeObject *self) {
         UnregisterMysqlNativeWrapper(self);
-        auto *c = unwrap_conn_native(self);
+        auto *c = UnwrapConnNative(self);
         if (c) {
             self->SetInt("__mysql_conn__", 0);
-            if (c->tick_depth() > 0) {
-                c->request_close();
+            if (c->TickDepth() > 0) {
+                c->RequestClose();
             } else {
                 delete c;
             }
         }
     });
-    nat->RegisterMethod("query", conn_query);
-    nat->RegisterMethod("stmt_prepare", conn_stmt_prepare);
-    nat->RegisterMethod("stmt_execute", conn_stmt_execute);
-    nat->RegisterMethod("stmt_close", conn_stmt_close);
-    nat->RegisterMethod("close", conn_close);
-    nat->RegisterMethod("ping", conn_ping);
+    nat->RegisterMethod("query", ConnQuery);
+    nat->RegisterMethod("stmt_prepare", ConnStmtPrepare);
+    nat->RegisterMethod("stmt_execute", ConnStmtExecute);
+    nat->RegisterMethod("stmt_close", ConnStmtClose);
+    nat->RegisterMethod("close", ConnClose);
+    nat->RegisterMethod("ping", ConnPing);
     nat->SetInt("__mysql_owned__", 1);
     RegisterMysqlNativeWrapper(s, nat, false);
 
     // Create connection (async)
     auto *conn = new MysqlConnection(s);
-    conn->set_connect_callback(cb_name);
-    conn->set_native_object(nat);
+    conn->SetConnectCallback(cb_name);
+    conn->SetNativeObject(nat);
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
 
     try {
-        conn->connect(host, port, user, password, database, timeout_ms);
+        conn->Connect(host, port, user, password, database, timeout_ms);
     } catch (const std::exception &e) {
         nat->SetInt("__mysql_conn__", 0);
         delete conn;
@@ -222,69 +215,63 @@ static CVar mysql_connect(State *s, CVar *args, int n) {
         error(std::format("connect failed: {}", e.what()));
     }
 
-    maybe_release_owned_conn(nat);
+    MaybeReleaseOwnedConn(nat);
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // conn:query(sql, on_result)
 // on_result(err, result) called when query completes
-// ─────────────────────────────────────────────────────────────────────────────
 
-CVar conn_query(NativeObject *self, State *s, CVar *args, int n) {
+CVar ConnQuery(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 2) ThrowBadArgument(1, "conn:query", "sql and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
-    std::string sql = cvar_to_string(a0);
-    std::string cb_name = cvar_to_string(a1);
+    std::string sql = CVarToString(a0);
+    std::string cb_name = CVarToString(a1);
 
-    auto *conn = unwrap_conn_native(self);
-    if (!conn || !conn->connected()) error("conn:query: connection is closed");
+    auto *conn = UnwrapConnNative(self);
+    if (!conn || !conn->Connected()) error("conn:query: connection is closed");
 
-    conn->set_state(s);
-    conn->set_result_callback(cb_name);
-    conn->query(sql);
-    maybe_release_owned_conn(self);
+    conn->SetState(s);
+    conn->SetResultCallback(cb_name);
+    conn->Query(sql);
+    MaybeReleaseOwnedConn(self);
 
     return inter::NativeToFakeluaNil(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // conn:stmt_prepare(sql, on_result)
 // on_result(err, stmt_id) called when prepare completes
-// ─────────────────────────────────────────────────────────────────────────────
 
-CVar conn_stmt_prepare(NativeObject *self, State *s, CVar *args, int n) {
+CVar ConnStmtPrepare(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 2) ThrowBadArgument(1, "conn:stmt_prepare", "sql and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
-    std::string sql = cvar_to_string(a0);
-    std::string cb_name = cvar_to_string(a1);
+    std::string sql = CVarToString(a0);
+    std::string cb_name = CVarToString(a1);
 
-    auto *conn = unwrap_conn_native(self);
-    if (!conn || !conn->connected()) error("conn:stmt_prepare: connection is closed");
+    auto *conn = UnwrapConnNative(self);
+    if (!conn || !conn->Connected()) error("conn:stmt_prepare: connection is closed");
 
-    conn->set_state(s);
-    conn->set_result_callback(cb_name);
-    conn->stmt_prepare(sql);
-    maybe_release_owned_conn(self);
+    conn->SetState(s);
+    conn->SetResultCallback(cb_name);
+    conn->StmtPrepare(sql);
+    MaybeReleaseOwnedConn(self);
 
     return inter::NativeToFakeluaNil(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // conn:stmt_execute(stmt_id, params, on_result)
 // on_result(err, result) called when execute completes
-// ─────────────────────────────────────────────────────────────────────────────
 
-CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
+CVar ConnStmtExecute(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 3) ThrowBadArgument(1, "conn:stmt_execute", "stmt_id, params, and callback expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     CVar a2 = inter::GetNativeArg(s, args, n, 2);
 
     uint32_t stmt_id = static_cast<uint32_t>(inter::CVarToInteger(a0, 0));
-    std::string cb_name = cvar_to_string(a2);
+    std::string cb_name = CVarToString(a2);
 
     std::vector<StmtParam> params;
     if (a1.type_ == static_cast<int>(VarType::Table) && a1.data_.t) {
@@ -312,90 +299,80 @@ CVar conn_stmt_execute(NativeObject *self, State *s, CVar *args, int n) {
             } else if (elem.type_ == static_cast<int>(VarType::Bool)) {
                 p.value = elem.data_.b ? "1" : "0";
             } else {
-                p.value = cvar_to_string(elem);
+                p.value = CVarToString(elem);
             }
             params.push_back(std::move(p));
         }
     }
 
-    auto *conn = unwrap_conn_native(self);
-    if (!conn || !conn->connected()) error("conn:stmt_execute: connection is closed");
+    auto *conn = UnwrapConnNative(self);
+    if (!conn || !conn->Connected()) error("conn:stmt_execute: connection is closed");
 
-    conn->set_state(s);
-    conn->set_result_callback(cb_name);
-    conn->stmt_execute(stmt_id, params);
-    maybe_release_owned_conn(self);
+    conn->SetState(s);
+    conn->SetResultCallback(cb_name);
+    conn->StmtExecute(stmt_id, params);
+    MaybeReleaseOwnedConn(self);
 
     return inter::NativeToFakeluaNil(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // conn:stmt_close(stmt_id)
-// ─────────────────────────────────────────────────────────────────────────────
 
-CVar conn_stmt_close(NativeObject *self, State *s, CVar *args, int n) {
+CVar ConnStmtClose(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "conn:stmt_close", "stmt_id expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     uint32_t stmt_id = static_cast<uint32_t>(inter::CVarToInteger(a0, 0));
 
-    auto *conn = unwrap_conn_native(self);
-    if (!conn || !conn->connected()) return inter::NativeToFakeluaNil(s);
+    auto *conn = UnwrapConnNative(self);
+    if (!conn || !conn->Connected()) return inter::NativeToFakeluaNil(s);
 
-    conn->stmt_close(stmt_id);
-    maybe_release_owned_conn(self);
+    conn->StmtClose(stmt_id);
+    MaybeReleaseOwnedConn(self);
     return inter::NativeToFakeluaNil(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Pump the connection's network events, via runtime.tick()
-// ─────────────────────────────────────────────────────────────────────────────
 
 // 连接关闭后 unwrap 返回空，于是自然变成 no-op。
 void TickMysqlConnection(NativeObject *self, State *s) {
-    auto *conn = unwrap_conn_native(self);
+    auto *conn = UnwrapConnNative(self);
     if (!conn) return;
-    if (conn->tick_depth() > 0) return;
+    if (conn->TickDepth() > 0) return;
 
-    conn->set_state(s);
-    conn->tick();
-    maybe_release_owned_conn(self);
-    maybe_reap_pool(self);
+    conn->SetState(s);
+    conn->Tick();
+    MaybeReleaseOwnedConn(self);
+    MaybeReapPool(self);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // conn:close()
-// ─────────────────────────────────────────────────────────────────────────────
 
-CVar conn_close(NativeObject *self, State *s, CVar *args, int n) {
-    auto *conn = unwrap_conn_native(self);
+CVar ConnClose(NativeObject *self, State *s, CVar *args, int n) {
+    auto *conn = UnwrapConnNative(self);
     if (conn) {
-        if (conn->tick_depth() > 0) {
-            conn->request_close();
+        if (conn->TickDepth() > 0) {
+            conn->RequestClose();
             return inter::NativeToFakeluaNil(s);
         }
-        conn->close();
+        conn->Close();
     }
     return inter::NativeToFakeluaNil(s);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // conn:ping() — send COM_PING heartbeat (for connection pool keepalive)
-// ─────────────────────────────────────────────────────────────────────────────
 
-CVar conn_ping(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *conn = unwrap_conn_native(self);
-    if (!conn || !conn->connected()) return inter::NativeToFakeluaBool(s, false);
-    bool sent = conn->ping();
+CVar ConnPing(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *conn = UnwrapConnNative(self);
+    if (!conn || !conn->Connected()) return inter::NativeToFakeluaBool(s, false);
+    bool sent = conn->Ping();
     return inter::NativeToFakeluaBool(s, sent);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Registration
-// ─────────────────────────────────────────────────────────────────────────────
 
 void RegisterMysqlLibraryApi(State *s) {
     if (!s) return;
-    RegisterNativeFunction(s, "mysql.connect", 2, false, mysql_connect);
+    RegisterNativeFunction(s, "mysql.connect", 2, false, MysqlConnect);
 }
 
-}  // namespace fakelua::mysql
+}// namespace fakelua::mysql

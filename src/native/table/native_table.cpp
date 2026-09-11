@@ -1,6 +1,6 @@
 #include "native/table/native_table.h"
-#include "native/native_common.h"
 #include "compile/c_runtime_header.h"
+#include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
 #include "state/state.h"
@@ -19,13 +19,10 @@ namespace fakelua::table {
 
 using string::GetStringArgView;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // 宿主侧 VarTable 操作核心。
-//
 // 这些辅助函数必须与 c_runtime_header.h 中对应的 Fl* 运行时函数保持一致的哈希
 // 计算、桶布局与 rehash 策略。JIT 生成的代码和宿主 C++ 会读写同一批 VarTable，
 // 只要两侧对「键落在哪个桶」的判断出现分歧，一侧写入的键在另一侧就会查不到。
-// ─────────────────────────────────────────────────────────────────────────────
 namespace {
 
 constexpr int kNilType = static_cast<int>(VarType::Nil);
@@ -131,7 +128,9 @@ bool TableHasIntKey(const VarTable *t, int64_t k) {
 }
 
 int64_t SeqScanFrom(const VarTable *t, int64_t base) {
-    while (base < INT64_MAX && TableHasIntKey(t, base + 1)) { base++; }
+    while (base < INT64_MAX && TableHasIntKey(t, base + 1)) {
+        base++;
+    }
     return base;
 }
 
@@ -920,8 +919,7 @@ void RegisterTableLibraryApi(State *s) {
             auto default_comp = [](const CVar &a, const CVar &b) -> bool {
                 // NaN 对 < 双向都是 false，破坏 strict weak ordering，std::stable_sort 是 UB。
                 // 对齐 Lua 5.4：报 invalid order function for sorting。
-                if ((a.type_ == static_cast<int>(VarType::Float) && std::isnan(a.data_.f)) ||
-                    (b.type_ == static_cast<int>(VarType::Float) && std::isnan(b.data_.f))) {
+                if ((a.type_ == static_cast<int>(VarType::Float) && std::isnan(a.data_.f)) || (b.type_ == static_cast<int>(VarType::Float) && std::isnan(b.data_.f))) {
                     ThrowFakeluaException("invalid order function for sorting");
                 }
                 if (a.type_ == static_cast<int>(VarType::Int) && b.type_ == static_cast<int>(VarType::Int)) {
@@ -953,7 +951,7 @@ void RegisterTableLibraryApi(State *s) {
                 }
                 // 其他类型组合（bool 等）抛出异常
                 ThrowFakeluaException("attempt to compare two values");
-                return false; // unreachable
+                return false;// unreachable
             };
             std::stable_sort(vec.begin(), vec.end(), default_comp);
         }

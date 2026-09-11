@@ -795,12 +795,10 @@ TEST(exception, goto_elseif_nonexistent) {
 // 其余可执行语句在 SemanticAnalysis::CheckFileLevelStmts 里就应该被拒绝，
 // 不能被悄悄搬进 __fakelua_init。
 TEST(exception, file_level_stmt_rejected) {
-    for (const char *file: {"./exception/test_top_level_if.lua", "./exception/test_top_level_while.lua",
-                            "./exception/test_top_level_repeat.lua", "./exception/test_top_level_for.lua",
-                            "./exception/test_top_level_for_in.lua", "./exception/test_top_level_do_end.lua",
-                            "./exception/test_top_level_assign.lua", "./exception/test_top_level_table_assign.lua",
-                            "./exception/test_top_level_function_call.lua", "./exception/test_top_level_return.lua",
-                            "./exception/test_top_level_goto.lua", "./exception/test_top_level_package_not_first.lua"}) {
+    for (const char *file:
+         {"./exception/test_top_level_if.lua", "./exception/test_top_level_while.lua", "./exception/test_top_level_repeat.lua", "./exception/test_top_level_for.lua",
+          "./exception/test_top_level_for_in.lua", "./exception/test_top_level_do_end.lua", "./exception/test_top_level_assign.lua", "./exception/test_top_level_table_assign.lua",
+          "./exception/test_top_level_function_call.lua", "./exception/test_top_level_return.lua", "./exception/test_top_level_goto.lua", "./exception/test_top_level_package_not_first.lua"}) {
         SCOPED_TRACE(file);
         FakeluaStateGuard sg;
         auto s = sg.GetState();
@@ -818,10 +816,9 @@ TEST(exception, raw_newline_in_short_string) {
         const char *name;
         const char *script;
     };
-    for (const Case &c: {Case{"double quoted with CR", "function f()\n  local s = \"a\rb\"\n  return s\nend"},
-                         Case{"single quoted with CR", "function f()\n  local s = 'a\rb'\n  return s\nend"},
-                         Case{"double quoted with LF", "function f()\n  local s = \"a\nb\"\n  return s\nend"},
-                         Case{"single quoted with LF", "function f()\n  local s = 'a\nb'\n  return s\nend"}}) {
+
+    for (const Case &c: {Case{"double quoted with CR", "function f()\n  local s = \"a\rb\"\n  return s\nend"}, Case{"single quoted with CR", "function f()\n  local s = 'a\rb'\n  return s\nend"},
+                         Case{"double quoted with LF", "function f()\n  local s = \"a\nb\"\n  return s\nend"}, Case{"single quoted with LF", "function f()\n  local s = 'a\nb'\n  return s\nend"}}) {
         SCOPED_TRACE(c.name);
         FakeluaStateGuard sg;
         auto s = sg.GetState();
@@ -835,8 +832,7 @@ TEST(exception, raw_newline_in_short_string) {
 // 在 Lua 里都是 malformed number。差分 fuzz 反复撞到这一类：只删掉数字和关键字
 // 之间的空格就能构造出来。
 TEST(exception, malformed_number) {
-    for (const char *body: {"local a = 3and 1", "local a = 3or 1", "local a = 1local b = 2", "local a = 5..2", "local a = 0x1g",
-                            "local a = 1e2x", "local a = 12abc"}) {
+    for (const char *body: {"local a = 3and 1", "local a = 3or 1", "local a = 1local b = 2", "local a = 5..2", "local a = 0x1g", "local a = 1e2x", "local a = 12abc"}) {
         SCOPED_TRACE(body);
         FakeluaStateGuard sg;
         auto s = sg.GetState();
@@ -876,8 +872,7 @@ TEST(exception, no_unary_plus) {
 
 // <const> 变量不能再被赋值，<const> / <close> 之外的属性名 Lua 也不认。
 TEST(exception, local_attrib_errors) {
-    for (const char *body: {"local x <const> = 1\n  x = 2", "local x <const> = 1\n  if true then x = 2 end",
-                            "local x <const> = 1\n  local y = 0\n  y, x = 1, 2", "local x <weird> = 1"}) {
+    for (const char *body: {"local x <const> = 1\n  x = 2", "local x <const> = 1\n  if true then x = 2 end", "local x <const> = 1\n  local y = 0\n  y, x = 1, 2", "local x <weird> = 1"}) {
         SCOPED_TRACE(body);
         FakeluaStateGuard sg;
         auto s = sg.GetState();
@@ -891,8 +886,7 @@ TEST(exception, local_attrib_errors) {
 // string.sub 的参数校验必须和 Lua 一样严：缺参、非整数下标、非数字字符串都要报错，
 // 不能悄悄返回空串（差分 fuzz 已抓到过）。
 TEST(exception, string_sub_arg_errors) {
-    for (const char *body: {"return string.sub()", "return string.sub(3)", "return string.sub(\"hello\")",
-                            "return string.sub(\"hello\", 10.5, 3)", "return string.sub(\"hello\", \"x\", 3)",
+    for (const char *body: {"return string.sub()", "return string.sub(3)", "return string.sub(\"hello\")", "return string.sub(\"hello\", 10.5, 3)", "return string.sub(\"hello\", \"x\", 3)",
                             "return string.sub(\"hello\", nil, 3)", "local s = \"hello\"\n  return string.sub(s, s, 3)"}) {
         SCOPED_TRACE(body);
         FakeluaStateGuard sg;
@@ -928,8 +922,7 @@ TEST(exception, concat_non_string_value) {
 // Lua 的 block ::= {stat} [retstat]：return 只能是所在块的最后一条语句。
 // FakeLua 不能比 Lua 更宽松，否则差分 fuzz 会把它报成 fakelua 接受、Lua 拒绝的分歧。
 TEST(exception, return_must_be_last_in_block) {
-    for (const char *file: {"./exception/test_return_not_last.lua", "./exception/test_return_twice.lua",
-                            "./exception/test_return_before_nested_block.lua"}) {
+    for (const char *file: {"./exception/test_return_not_last.lua", "./exception/test_return_twice.lua", "./exception/test_return_before_nested_block.lua"}) {
         SCOPED_TRACE(file);
         FakeluaStateGuard sg;
         auto s = sg.GetState();
@@ -976,8 +969,7 @@ TEST(exception, no_define_lvalue_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("compile") != std::string::npos ||
-                    std::string(e.what()).find("undeclared") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("compile") != std::string::npos || std::string(e.what()).find("undeclared") != std::string::npos);
     }
 }
 

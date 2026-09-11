@@ -10,9 +10,7 @@
 
 using namespace fakelua;
 
-// ---------------------------------------------------------------------------
 // ConstString tests
-// ---------------------------------------------------------------------------
 
 TEST(state, const_string_alloc_and_interning) {
     FakeluaStateGuard guard;
@@ -63,11 +61,9 @@ TEST(state, const_string_size) {
     ASSERT_EQ(cs.Size(), before + 1u);
 }
 
-// ---------------------------------------------------------------------------
 // GetFuncAddr tests
-// ---------------------------------------------------------------------------
 
-static CVar dummy_fn(VarClosure *_CL) {
+static CVar DummyFn(VarClosure *_CL) {
     Var r;
     r.SetInt(42);
     return r;
@@ -75,14 +71,14 @@ static CVar dummy_fn(VarClosure *_CL) {
 
 TEST(state, get_func_addr_success) {
     State s;
-    s.GetVM().RegisterFunction(VmFunction("myfunc", 0, JIT_TCC, reinterpret_cast<void *>(&dummy_fn), {}));
+    s.GetVM().RegisterFunction(VmFunction("myfunc", 0, JIT_TCC, reinterpret_cast<void *>(&DummyFn), {}));
 
     int arg_count = -1;
     bool dummy_vararg = false;
     void *addr = inter::GetFuncAddr(&s, JIT_TCC, "myfunc", arg_count, dummy_vararg);
     ASSERT_NE(addr, nullptr);
     ASSERT_EQ(arg_count, 0);
-    ASSERT_EQ(addr, reinterpret_cast<void *>(&dummy_fn));
+    ASSERT_EQ(addr, reinterpret_cast<void *>(&DummyFn));
 }
 
 TEST(state, get_func_addr_missing_returns_null) {
@@ -95,9 +91,7 @@ TEST(state, get_func_addr_missing_returns_null) {
     ASSERT_EQ(arg_count, -1);
 }
 
-// ---------------------------------------------------------------------------
 // Reentrant count tests
-// ---------------------------------------------------------------------------
 
 TEST(state, reentrant_count_increment_decrement) {
     FakeluaStateGuard guard;
@@ -118,9 +112,7 @@ TEST(state, reentrant_count_increment_decrement) {
     ASSERT_EQ(inter::GetReentrantCount(s), 0);
 }
 
-// ---------------------------------------------------------------------------
 // inter::Reset tests
-// ---------------------------------------------------------------------------
 
 TEST(state, reset_clears_heap) {
     FakeluaStateGuard guard;
@@ -135,9 +127,7 @@ TEST(state, reset_clears_heap) {
     ASSERT_EQ(temp_alloc.Size(), 0u);
 }
 
-// ---------------------------------------------------------------------------
 // SetVarInterfaceNewFunc / GetVarInterfaceNewFunc tests
-// ---------------------------------------------------------------------------
 
 struct TestVarImpl final : public VarInterface {
     [[nodiscard]] Type ViGetType() const override {
@@ -211,9 +201,7 @@ TEST(state, set_get_var_interface_new_func) {
     delete vi;
 }
 
-// ---------------------------------------------------------------------------
 // CompileConfig::skip_jit path
-// ---------------------------------------------------------------------------
 
 TEST(state, compile_config_skip_jit) {
     FakeluaStateGuard guard;
@@ -232,9 +220,7 @@ TEST(state, compile_config_skip_jit) {
     ASSERT_EQ(addr, nullptr);
 }
 
-// ---------------------------------------------------------------------------
 // CompileConfig::record_c_code with live TCC JIT
-// ---------------------------------------------------------------------------
 
 TEST(state, compile_config_record_c_code_with_live_jit) {
     FakeluaStateGuard guard;
@@ -256,9 +242,7 @@ TEST(state, compile_config_record_c_code_with_live_jit) {
     ASSERT_NE(code.find("test"), std::string::npos);
 }
 
-// ---------------------------------------------------------------------------
 // Vm::AllocGlobalName counter
-// ---------------------------------------------------------------------------
 
 TEST(state, vm_alloc_global_name_counter) {
     State s;
@@ -274,17 +258,15 @@ TEST(state, vm_alloc_global_name_counter) {
     ASSERT_NE(name1, name2);
 }
 
-// ---------------------------------------------------------------------------
 // VmFunction accessors and Merge
-// ---------------------------------------------------------------------------
 
-static CVar vmf_a(VarClosure *_CL) {
+static CVar VmfA(VarClosure *_CL) {
     Var r;
     r.SetInt(10);
     return r;
 }
 
-static CVar vmf_b(VarClosure *_CL) {
+static CVar VmfB(VarClosure *_CL) {
     Var r;
     r.SetInt(20);
     return r;
@@ -294,15 +276,15 @@ TEST(state, vm_function_empty) {
     VmFunction empty_func;
     ASSERT_TRUE(empty_func.Empty());
 
-    VmFunction named_func("myfn", 3, JIT_TCC, reinterpret_cast<void *>(&vmf_a), {});
+    VmFunction named_func("myfn", 3, JIT_TCC, reinterpret_cast<void *>(&VmfA), {});
     ASSERT_FALSE(named_func.Empty());
 }
 
 TEST(state, vm_function_accessors) {
-    VmFunction f("myfn", 2, JIT_TCC, reinterpret_cast<void *>(&vmf_a), {});
+    VmFunction f("myfn", 2, JIT_TCC, reinterpret_cast<void *>(&VmfA), {});
     ASSERT_EQ(f.GetName(), "myfn");
     ASSERT_EQ(f.GetArgCount(), 2);
-    ASSERT_EQ(f.GetAddr(JIT_TCC), reinterpret_cast<void *>(&vmf_a));
+    ASSERT_EQ(f.GetAddr(JIT_TCC), reinterpret_cast<void *>(&VmfA));
     ASSERT_EQ(f.GetAddr(JIT_GCC), nullptr);
     // Handle for TCC should be null (we passed {})
     ASSERT_EQ(f.GetHandle(JIT_TCC), nullptr);
@@ -310,33 +292,31 @@ TEST(state, vm_function_accessors) {
 
 TEST(state, vm_function_merge) {
     // Start with a TCC-only function
-    VmFunction f("merge_fn", 0, JIT_TCC, reinterpret_cast<void *>(&vmf_a), {});
-    ASSERT_EQ(f.GetAddr(JIT_TCC), reinterpret_cast<void *>(&vmf_a));
+    VmFunction f("merge_fn", 0, JIT_TCC, reinterpret_cast<void *>(&VmfA), {});
+    ASSERT_EQ(f.GetAddr(JIT_TCC), reinterpret_cast<void *>(&VmfA));
     ASSERT_EQ(f.GetAddr(JIT_GCC), nullptr);
 
-    // Merge in a GCC-typed function carrying vmf_b address
-    VmFunction gcc_func("merge_fn", 0, JIT_GCC, reinterpret_cast<void *>(&vmf_b), {});
+    // Merge in a GCC-typed function carrying VmfB address
+    VmFunction gcc_func("merge_fn", 0, JIT_GCC, reinterpret_cast<void *>(&VmfB), {});
     f.Merge(gcc_func);
 
     // After merge TCC address is unchanged, GCC address is now set
-    ASSERT_EQ(f.GetAddr(JIT_TCC), reinterpret_cast<void *>(&vmf_a));
-    ASSERT_EQ(f.GetAddr(JIT_GCC), reinterpret_cast<void *>(&vmf_b));
+    ASSERT_EQ(f.GetAddr(JIT_TCC), reinterpret_cast<void *>(&VmfA));
+    ASSERT_EQ(f.GetAddr(JIT_GCC), reinterpret_cast<void *>(&VmfB));
 }
 
 TEST(state, vm_register_and_get_function) {
     State s;
     ASSERT_TRUE(s.GetVM().GetFunction("absent").Empty());
 
-    s.GetVM().RegisterFunction(VmFunction("fn_reg", 1, JIT_TCC, reinterpret_cast<void *>(&vmf_a), {}));
+    s.GetVM().RegisterFunction(VmFunction("fn_reg", 1, JIT_TCC, reinterpret_cast<void *>(&VmfA), {}));
     VmFunction result = s.GetVM().GetFunction("fn_reg");
     ASSERT_FALSE(result.Empty());
     ASSERT_EQ(result.GetName(), "fn_reg");
     ASSERT_EQ(result.GetArgCount(), 1);
 }
 
-// ---------------------------------------------------------------------------
 // ConstString empty string
-// ---------------------------------------------------------------------------
 
 TEST(state, const_string_empty) {
     FakeluaStateGuard guard;
@@ -344,10 +324,10 @@ TEST(state, const_string_empty) {
     auto &cs = s->GetConstString();
 
     const int64_t id = cs.Alloc("");
-    ASSERT_NE(id, -1); // empty string must get a valid ID
+    ASSERT_NE(id, -1);// empty string must get a valid ID
 
     const std::string_view sv = ConstString::GetString(id);
-    ASSERT_EQ(sv, ""); // must retrieve the empty string
+    ASSERT_EQ(sv, "");// must retrieve the empty string
 
     const VarString *vs = ConstString::GetVarString(id);
     ASSERT_NE(vs, nullptr);
@@ -358,9 +338,7 @@ TEST(state, const_string_empty) {
     ASSERT_EQ(id2, id);
 }
 
-// ---------------------------------------------------------------------------
 // ConstString large key
-// ---------------------------------------------------------------------------
 
 TEST(state, const_string_large) {
     FakeluaStateGuard guard;
@@ -379,9 +357,7 @@ TEST(state, const_string_large) {
     ASSERT_EQ(sv.size(), 2048u);
 }
 
-// ---------------------------------------------------------------------------
 // State reset and reuse
-// ---------------------------------------------------------------------------
 
 TEST(state, reset_reuse_state) {
     FakeluaStateGuard guard;
@@ -416,9 +392,7 @@ TEST(state, reset_reuse_state) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Heap allocator: size 0 and block boundary
-// ---------------------------------------------------------------------------
 
 TEST(state, heap_alloc_boundary) {
     FakeluaStateGuard guard;
@@ -426,7 +400,7 @@ TEST(state, heap_alloc_boundary) {
     auto &alloc = s->GetHeap().GetAllocator(false);
 
     // Alloc of size 0 should succeed (implementation may return a valid pointer or nullptr)
-    (void)alloc.Alloc(0);  // result may be nullptr; verify no crash
+    (void) alloc.Alloc(0);// result may be nullptr; verify no crash
     // After alloc(0), subsequent operations must still work
     void *p1 = alloc.Alloc(64);
     ASSERT_NE(p1, nullptr);

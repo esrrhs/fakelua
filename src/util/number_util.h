@@ -8,7 +8,6 @@ namespace fakelua {
 
 // Try to convert a double to int64_t if it's a finite integer value within int64_t range.
 // Returns nullopt if the conversion is not possible.
-//
 // The upper bound must be checked as "< 2^63" rather than "<= INT64_MAX" because
 // double cannot exactly represent INT64_MAX - converting it to double yields 2^63,
 // and if we still compare against INT64_MAX, 2^63 would be incorrectly accepted,

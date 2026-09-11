@@ -285,13 +285,13 @@ private:
 
     const struct SpecFuncContext *cur_spec_ctx_ = nullptr;// 当前特化版本的上下文（func_name/bitmask/snapshot）
 
-    std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
-    int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
-    int repeat_depth_ = 0;             // repeat-until 循环嵌套深度（0 表示不在 repeat 内）
-    int repeat_label_counter_ = 0;     // repeat 循环标签计数器，保证每个 flua_until_ 标签唯一
-    std::vector<int> repeat_label_stack_; // 当前活跃的 repeat 标签 id 栈，栈顶即最近外层 repeat
-    int for_cont_id_ = 0;              // 动态 numeric for 的 continue 标签计数器
-    std::vector<int> for_cont_stack_;  // 动态 numeric for 的 continue 标签栈（while(1)+后置步进）
+    std::stringstream func_temp_decls_;  // 用于临时存放函数体内部临时 C 变量声明的代码流
+    int cur_tab_ = 0;                    // 当前 C 代码生成器所处的缩进级别深度
+    int repeat_depth_ = 0;               // repeat-until 循环嵌套深度（0 表示不在 repeat 内）
+    int repeat_label_counter_ = 0;       // repeat 循环标签计数器，保证每个 flua_until_ 标签唯一
+    std::vector<int> repeat_label_stack_;// 当前活跃的 repeat 标签 id 栈，栈顶即最近外层 repeat
+    int for_cont_id_ = 0;                // 动态 numeric for 的 continue 标签计数器
+    std::vector<int> for_cont_stack_;    // 动态 numeric for 的 continue 标签栈（while(1)+后置步进）
 
 private:
     struct FuncInfo;
@@ -365,9 +365,7 @@ private:
     // 返回例如 "x, y.data_.f, z"
     [[nodiscard]] static std::string BuildSpecCallArgs(const std::vector<std::string> &params, const std::vector<int> &math_params, int bitmask);
 
-    // -----------------------------------------------------------------------
     // 字面量 key 分类辅助
-    // -----------------------------------------------------------------------
     struct LiteralKeyInfo {
         TableKeyKind kind;// kString / kInt / kFloat / kBool
         std::string repr; // 归一化后的字符串，用于 spec 命中判定；

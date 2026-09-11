@@ -1,6 +1,6 @@
 #include "fakelua.h"
-#include "gtest/gtest.h"
 #include "var/var_type.h"
+#include "gtest/gtest.h"
 #include <unordered_map>
 
 using namespace fakelua;
@@ -102,7 +102,7 @@ TEST(test_native, test_fully_dynamic_property_and_builtin_api) {
     CompileConfig config;
     CompileFile(s, "./native/test_native_on_msg.lua", config);
 
-    // ── 1. 模拟登录：Call("on_msg", "on_login", 1001, "Alice") ────────────────
+    // 1. 模拟登录：Call("on_msg", "on_login", 1001, "Alice")
     CVar login_ret;
     Call(s, JIT_TCC, "on_msg", login_ret, "on_login", 1001, "Alice");
     int64_t initial_hp = inter::FakeluaToNative<int64_t>(s, login_ret);
@@ -115,10 +115,10 @@ TEST(test_native, test_fully_dynamic_property_and_builtin_api) {
     EXPECT_EQ(alice->GetInt("mp"), 200);
     EXPECT_EQ(alice->GetString("name"), "Alice");
 
-    // ── 2. 模拟跨帧 reset（Arena 内存重置）─────────────────────────────────
+    // 2. 模拟跨帧 reset（Arena 内存重置）
     inter::Reset(s);
 
-    // ── 3. 模拟对话：Call("on_msg", "on_talk", 1001, "Hello fakelua!") ─────────
+    // 3. 模拟对话：Call("on_msg", "on_talk", 1001, "Hello fakelua!")
     CVar talk_ret;
     Call(s, JIT_TCC, "on_msg", talk_ret, "on_talk", 1001, "Hello fakelua!");
     std::string talk_res = inter::FakeluaToNative<std::string>(s, talk_ret);
@@ -140,7 +140,7 @@ TEST(test_native, test_lua_nested_object) {
     CompileConfig config;
     CompileFile(s, "./native/test_native_nested.lua", config);
 
-    // ── 1. 执行 test_nested()，在 Lua 中创建 player 与 bag 并绑定嵌套 ────────
+    // 1. 执行 test_nested()，在 Lua 中创建 player 与 bag 并绑定嵌套
     CVar ret1;
     Call(s, JIT_TCC, "test_nested", ret1);
     int64_t sum = inter::FakeluaToNative<int64_t>(s, ret1);
@@ -154,10 +154,10 @@ TEST(test_native, test_lua_nested_object) {
     EXPECT_EQ(bag->GetInt("gold"), 999);
     EXPECT_EQ(bag->GetInt("capacity"), 50);
 
-    // ── 2. 跨帧 Reset 内存 ─────────────────────────────────────────────────
+    // 2. 跨帧 Reset 内存
     inter::Reset(s);
 
-    // ── 3. 再次在 Lua 中通过 get_native_obj 获取 player 并读取 player.bag.gold ─
+    // 3. 再次在 Lua 中通过 get_native_obj 获取 player 并读取 player.bag.gold
     CVar ret2;
     Call(s, JIT_TCC, "test_nested_fetch", ret2);
     int64_t remaining_gold = inter::FakeluaToNative<int64_t>(s, ret2);
@@ -177,7 +177,7 @@ TEST(test_native, test_group_arena_batch_destroy) {
     CompileConfig config;
     CompileFile(s, "./native/test_native_group.lua", config);
 
-    // ── 1. 在 Lua 中创建玩家 1001 以及归属于该 group 的 bag 和 item 对象 ─────────
+    // 1. 在 Lua 中创建玩家 1001 以及归属于该 group 的 bag 和 item 对象
     CVar ret1;
     Call(s, JIT_TCC, "test_group_create", ret1, 1001);
     int64_t gid = inter::FakeluaToNative<int64_t>(s, ret1);
@@ -190,7 +190,7 @@ TEST(test_native, test_group_arena_batch_destroy) {
     EXPECT_NE(mgr.Get("player", 1001), nullptr);
     EXPECT_NE(mgr.Get("bag", 10010), nullptr);
 
-    // ── 2. 一口气批处理销毁该组下的所有 NativeObject ────────────────────
+    // 2. 一口气批处理销毁该组下的所有 NativeObject
     CVar ret2;
     Call(s, JIT_TCC, "test_group_destroy", ret2, gid);
     int64_t destroyed_count = inter::FakeluaToNative<int64_t>(s, ret2);
@@ -430,9 +430,7 @@ TEST(test_native, test_native_obj_advanced_fields) {
     obj->SetInt("a", 1);
     obj->SetInt("b", 2);
     int field_count = 0;
-    obj->ForEach([&](std::string_view key, NativeObject::FieldKind kind) {
-        field_count++;
-    });
+    obj->ForEach([&](std::string_view key, NativeObject::FieldKind kind) { field_count++; });
     EXPECT_GE(field_count, 2);
 
     // Clear removes all fields and methods
@@ -497,7 +495,8 @@ TEST(test_native, test_native_lua_obj_ops) {
     struct TestCase {
         const char *func_name;
     };
-    for (auto &tc : (std::vector<TestCase>{
+
+    for (auto &tc: (std::vector<TestCase>{
                  {"test_del_field"},
                  {"test_float_field"},
                  {"test_bool_field"},
@@ -505,7 +504,7 @@ TEST(test_native, test_native_lua_obj_ops) {
                  {"test_object_field"},
                  {"test_pairs_on_native_obj"},
                  {"test_int_bool_not_equal_cross"},
-             })) {
+         })) {
         inter::Reset(s);
         mgr.Clear();
         CVar ret;
@@ -527,12 +526,13 @@ TEST(test_native, test_native_obj_wrap) {
     struct TestCase {
         const char *func_name;
     };
-    for (auto &tc : (std::vector<TestCase>{
+
+    for (auto &tc: (std::vector<TestCase>{
                  {"test_wrap_object_field"},
                  {"test_wrap_empty_spec_keys"},
                  {"test_wrap_set_from_cvar"},
                  {"test_wrap_get_as_cvar"},
-             })) {
+         })) {
         inter::Reset(s);
         mgr.Clear();
         CVar ret;
@@ -591,4 +591,3 @@ TEST(test_native, test_native_manager_destroy_empty) {
 
     FakeluaDeleteState(s);
 }
-

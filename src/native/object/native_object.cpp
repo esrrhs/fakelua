@@ -1,6 +1,6 @@
 #include "native/object/native_object.h"
-#include "jit/vm.h"
 #include "jit/jit_error_boundary.h"
+#include "jit/vm.h"
 #include "native/basic/native_basic.h"
 #include "native/io/native_io.h"
 #include "native/native_common.h"
@@ -16,9 +16,7 @@
 
 namespace fakelua {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // CVar ↔ NativeField 转换
-// ─────────────────────────────────────────────────────────────────────────────
 
 CVar NativeFieldToCVar(const NativeField &field, State *s) {
     CVar r{};
@@ -102,9 +100,7 @@ NativeField CVarToNativeField(CVar v) {
     return f;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NativeObjectManager 实现
-// ─────────────────────────────────────────────────────────────────────────────
 
 int64_t NativeObjectManager::CreateGroup() {
     int64_t gid = ++next_auto_group_id_;
@@ -154,7 +150,7 @@ bool NativeObjectManager::DestroySingle(const std::string &type_name, int64_t id
         }
 
         // 全局对象也可能走 DestroySingle；必须在 Destroy 之前清索引
-        for (auto gobj = global_objects_.begin(); gobj != global_objects_.end(); ) {
+        for (auto gobj = global_objects_.begin(); gobj != global_objects_.end();) {
             if (gobj->second == obj) {
                 gobj = global_objects_.erase(gobj);
             } else {
@@ -170,8 +166,7 @@ bool NativeObjectManager::DestroySingle(const std::string &type_name, int64_t id
     return false;
 }
 
-// ── 全局对象（group_id == 0，通过 string key 索引）─────────────────────────
-
+// 全局对象（group_id == 0，通过 string key 索引）
 NativeObject *NativeObjectManager::GlobalCreate(const std::string &key, const std::string &type_name, int64_t id) {
     auto it = global_objects_.find(key);
     if (it != global_objects_.end()) {
@@ -252,10 +247,7 @@ void NativeObjectManager::Clear() {
     zombies_.clear();
 }
 
-
-// ─────────────────────────────────────────────────────────────────────────────
 // NativeMethodBridge — 宿主 C++ 成员回调的方法派发桥接
-// ─────────────────────────────────────────────────────────────────────────────
 
 CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar) {
     if (!cl || cl->upvalue_count < 3) {
@@ -295,14 +287,10 @@ CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar) {
         call_n = total_arg_count;
     }
 
-    return GuardJitEntry(state, [&]() -> CVar {
-        return (*method_ptr)(actual_self, state, call_args, call_n);
-    });
+    return GuardJitEntry(state, [&]() -> CVar { return (*method_ptr)(actual_self, state, call_args, call_n); });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // spec_get / spec_set 实现
-// ─────────────────────────────────────────────────────────────────────────────
 
 // 依据 obj->impl_->kv 的当前内容，重建 tbl 的 spec_keys / spec_vals 快照数组，
 // 使 pairs()/next() 迭代结果能反映 NativeSpecSet 写入后的最新字段集合。
@@ -439,9 +427,7 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
     RefreshSpecKeys(tbl, obj, spec->state);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NativeObject 公开实现
-// ─────────────────────────────────────────────────────────────────────────────
 
 NativeObject::NativeObject(std::string type_name) : impl_(new Impl{std::move(type_name)}) {
 }
@@ -487,7 +473,7 @@ CVar NativeObject::Wrap(State *s) const {
     }
     auto &alloc = s->GetHeap().GetAllocator(false /* temp */);
 
-    // ── 分发 VarTable 壳（arena，帧内有效）──────────────────────────────────
+    // 分发 VarTable 壳（arena，帧内有效）
     auto *vtbl = static_cast<VarTable *>(alloc.Alloc(sizeof(VarTable)));
     *vtbl = VarTable{};
     for (auto &qd: vtbl->quick_data_) {
@@ -496,7 +482,7 @@ CVar NativeObject::Wrap(State *s) const {
     }
     vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
 
-    // ── 分发 NativeObjectSpec（arena，帧内有效）──────────────────────────────
+    // 分发 NativeObjectSpec（arena，帧内有效）
     auto *spec = static_cast<NativeObjectSpec *>(alloc.Alloc(sizeof(NativeObjectSpec)));
     spec->obj = const_cast<NativeObject *>(this);// C++ 堆，跨帧持久
     spec->state = s;
@@ -505,7 +491,7 @@ CVar NativeObject::Wrap(State *s) const {
     vtbl->spec_get = reinterpret_cast<void *>(NativeSpecGet);
     vtbl->spec_set = reinterpret_cast<void *>(NativeSpecSet);
 
-    // ── 填充 spec_keys / spec_vals（供 pairs() 迭代）─────────────────────────
+    // 填充 spec_keys / spec_vals（供 pairs() 迭代）
     RefreshSpecKeys(vtbl, this, s);
 
     CVar r{};
@@ -564,7 +550,7 @@ size_t NativeObject::Size() const {
     return impl_ ? impl_->kv.size() : 0;
 }
 
-// ── Set 系列 ─────────────────────────────────────────────────────────────────
+// Set 系列
 void NativeObject::SetNil(std::string_view key) {
     if (!impl_) return;
     impl_->kv.erase(std::string(key));
@@ -611,7 +597,7 @@ void NativeObject::SetFromCVar(std::string_view key, CVar v) {
     impl_->kv[std::string(key)] = CVarToNativeField(v);
 }
 
-// ── Get 系列 ─────────────────────────────────────────────────────────────────
+// Get 系列
 int64_t NativeObject::GetInt(std::string_view key, int64_t def) const {
     if (!impl_) return def;
     const auto it = impl_->kv.find(std::string(key));
@@ -621,8 +607,7 @@ int64_t NativeObject::GetInt(std::string_view key, int64_t def) const {
     if (f.kind == NativeField::Kind::Float) {
         int64_t iv = 0;
         if (DoubleFitsInt64(f.f, &iv)) return iv;
-        if (!std::isfinite(f.f) || f.f < static_cast<double>(INT64_MIN) ||
-            f.f >= static_cast<double>(INT64_MAX) + 1.0) {
+        if (!std::isfinite(f.f) || f.f < static_cast<double>(INT64_MIN) || f.f >= static_cast<double>(INT64_MAX) + 1.0) {
             return def;
         }
         return static_cast<int64_t>(f.f);
@@ -700,7 +685,7 @@ void NativeObject::SetGroupId(int64_t group_id) {
     impl_->group_id = group_id;
 }
 
-// ── Iterate（只读快照）──────────────────────────────────────────────────────
+// Iterate（只读快照）
 void NativeObject::ForEach(const std::function<void(std::string_view, NativeObject::FieldKind)> &fn) const {
     if (!impl_) return;
     for (const auto &[k, v]: impl_->kv) {
@@ -708,13 +693,11 @@ void NativeObject::ForEach(const std::function<void(std::string_view, NativeObje
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // RegisterNativeObjectApi — 自动注册内置原生对象 API：
 //   - new_native_obj(type, id, [group_id]) -> NativeObject (Wrap 壳)
 //   - get_native_obj(type, id) -> NativeObject (Wrap 壳) 或 nil
 //   - del_native_obj(type, id) -> bool
 //   - del_native_group(group_id) -> count (批处理销毁整个组空间的所有对象)
-// ─────────────────────────────────────────────────────────────────────────────
 
 NativeObjectManager &GetNativeObjectManager(State *s) {
     return s->GetNativeObjectManager();

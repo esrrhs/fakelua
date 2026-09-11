@@ -18,9 +18,7 @@
 
 namespace fakelua {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NativeField: 单个字段的值，存活于 C++ 堆，不依赖 fakelua arena
-// ─────────────────────────────────────────────────────────────────────────────
 struct NativeField {
     enum class Kind { Nil, Int, Float, Bool, String, Object, Table };
 
@@ -53,19 +51,15 @@ struct NativeField {
     }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NativeObjectSpec: arena 内的小结构体，被 VarTable.spec 指向
 // VarTable 每帧 reset，但 NativeObjectSpec.obj 和 .state 始终有效
-// ─────────────────────────────────────────────────────────────────────────────
 struct NativeObjectSpec {
     NativeObject *obj;// C++ 堆，跨帧持久
     State *state;     // fakelua 状态（单帧内有效即可）
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // NativeObject: 完整实现（pImpl 的 Impl 部分）
 // public API 在 fakelua.h 中声明
-// ─────────────────────────────────────────────────────────────────────────────
 struct NativeObject::Impl {
     std::string type_name;
     int64_t id = 0;

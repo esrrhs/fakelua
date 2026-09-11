@@ -15,8 +15,7 @@ namespace fakelua {
 // ===========================================================================
 
 // string 库方法名集合（对齐 Lua 5.4）。
-const std::unordered_set<std::string> CGen::kStringLibraryMethods = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char",
-                                                                      "format", "dump", "find", "match", "gmatch", "gsub"};
+const std::unordered_set<std::string> CGen::kStringLibraryMethods = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char", "format", "dump", "find", "match", "gmatch", "gsub"};
 
 // 非表值的 colon 方法调用转发（s:match() ≡ string.match(s, ...)）。
 // 返回空串表示不匹配，调用方回退到 FlGetTableStrId。
@@ -35,9 +34,7 @@ std::string CGen::TryBuildLibraryMethodCall(const std::string &method_name, cons
 CGen::CGen(State *s) : s_(s) {
 }
 
-// ---------------------------------------------------------------------------
 // 字面量 key 分类辅助
-// ---------------------------------------------------------------------------
 
 bool CGen::ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo &out) {
     if (!exp) return false;
@@ -83,8 +80,7 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Ana
     // 运行构建主流程
     GenResult gr = Build(pr, cfg);
 
-    LOG_DEBUG(s_, "engine", "CGen::Build complete: {} functions, {} bytes of C code",
-              gr.function_names.size(), gr.c_code.size());
+    LOG_DEBUG(s_, "engine", "CGen::Build complete: {} functions, {} bytes of C code", gr.function_names.size(), gr.c_code.size());
 
     // 如果开启了调试模式，将生成的 C 代码转储到临时文件中以供调试
     if (cfg.debug_mode) {
@@ -772,7 +768,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
         }
     }
     cur_tab_++;
-    repeat_depth_ = 0;  // 每个函数独立计数，避免跨函数标签名重复
+    repeat_depth_ = 0;// 每个函数独立计数，避免跨函数标签名重复
     repeat_label_counter_ = 0;
     repeat_label_stack_.clear();
     for_cont_id_ = 0;
@@ -1552,8 +1548,7 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         if (loop_type == T_INT) {
             Out() << GenTab() << stop_var << " = 0;\n";
             const std::string cmp = (step_int_val > 0) ? " <= " : " >= ";
-            Out() << GenTab() << "for (; " << ctrl_var << cmp << end_var << " && !" << stop_var << "; "
-                  << stop_var << " = !FlForIntAdvance(&" << ctrl_var << ", " << step_int_val << "LL)) {\n";
+            Out() << GenTab() << "for (; " << ctrl_var << cmp << end_var << " && !" << stop_var << "; " << stop_var << " = !FlForIntAdvance(&" << ctrl_var << ", " << step_int_val << "LL)) {\n";
         } else {
             if (step_double_val > 0.0) {
                 if (step_double_val == 1.0) {
@@ -1575,8 +1570,8 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         Out() << GenTab() << "if (UNLIKELY(" << step_var << " == " << zero_str << ")) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
         if (loop_type == T_INT) {
             Out() << GenTab() << stop_var << " = 0;\n";
-            Out() << GenTab() << "for (; ((" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var << ")) && !" << stop_var
-                  << "; " << stop_var << " = !FlForIntAdvance(&" << ctrl_var << ", " << step_var << ")) {\n";
+            Out() << GenTab() << "for (; ((" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var << ")) && !" << stop_var << "; " << stop_var
+                  << " = !FlForIntAdvance(&" << ctrl_var << ", " << step_var << ")) {\n";
         } else {
             Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var << "); " << ctrl_var
                   << " += " << step_var << ") {\n";
@@ -1677,10 +1672,10 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     Out() << "flua_for_cont_" << for_cont_id << ":\n";
     Out() << GenTab() << std::format("if ({0}.type_ == VAR_INT) {1} = {0}.data_.i;\n", ctrl_var, prev_var);
     Out() << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", ctrl_var, step_var, ctrl_var);
-    Out() << GenTab() << std::format(
-            "if ({0}.type_ == VAR_INT && {1}.type_ == VAR_INT && "
-            "({2} ^ {1}.data_.i) >= 0 && ({0}.data_.i ^ {2}) < 0) break;\n",
-            ctrl_var, step_var, prev_var);
+    Out() << GenTab()
+          << std::format("if ({0}.type_ == VAR_INT && {1}.type_ == VAR_INT && "
+                         "({2} ^ {1}.data_.i) >= 0 && ({0}.data_.i ^ {2}) < 0) break;\n",
+                         ctrl_var, step_var, prev_var);
 
     cur_tab_--;
     Out() << GenTab() << "}\n";
@@ -1736,7 +1731,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
 
-    auto handle_loop_var = [&](const std::string &vname, const std::string &src_tmp) {
+    auto HandleLoopVar = [&](const std::string &vname, const std::string &src_tmp) {
         if (IsCapturedInStmt(for_in.get(), vname)) {
             EmitCapturedBoxDecl(vname, src_tmp);
         } else {
@@ -1781,9 +1776,9 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
             Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", dummy_val + ".type_");
         }
 
-        handle_loop_var(key_name, tmp_k);
+        HandleLoopVar(key_name, tmp_k);
         if (names.size() >= 2) {
-            handle_loop_var(names[1], tmp_v);
+            HandleLoopVar(names[1], tmp_v);
         }
 
         Out() << GenTab() << "{\n";
@@ -1845,7 +1840,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         Out() << GenTab() << iter_var << " = " << loop_var_tmps[0] << ";\n";
 
         for (size_t i = 0; i < names.size(); ++i) {
-            handle_loop_var(names[i], loop_var_tmps[i]);
+            HandleLoopVar(names[i], loop_var_tmps[i]);
         }
 
         Out() << GenTab() << "{\n";
@@ -1966,8 +1961,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
     const auto var_name = std::format("flua_tbl_{}", tmp_var_counter_++);
 
-    func_temp_decls_ << "    "
-                     << "CVar " << var_name << ";\n";
+    func_temp_decls_ << "    " << "CVar " << var_name << ";\n";
 
     // table 特化：TypeInferencer 已在 table_spec_infos 中预分类所有静态 key 的构造器
     // （BuildCtorFields 对重复 key 抛出异常；can_specialize 表示可特化）。
@@ -2109,27 +2103,22 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     return var_name;
 }
 
-// ---------------------------------------------------------------------------
 // CompileBinop —— 二元运算符的代码生成
-//
 // 生成策略：
-//
 //   1. and / or（短路运算符）：
 //      Lua 的 and/or 不返回布尔值，而是返回某一操作数本身。
 //      必须先求左操作数并保存，再通过 IsTrue 判断真假，
 //      仅在必要时才求右操作数（保证短路语义）。
-//
 //   2. 原生算术快路径（native fast path）：
 //      若两侧操作数类型均已知（T_INT/T_FLOAT，通过 GetType 推断），
 //      则将两侧直接编译为原生数值（CompileNumericExp），
 //      生成 C 表达式（如 (a) + (b)），并通过 BoxNativeValue 装箱为 CVar 后返回。
 //      这条路径消除了 OpAdd/OpSub 等宏的运行时类型分支开销。
-//      注意：// 和 % 需要处理除零及 Lua 向下取整语义（FlFloorDivInt / FlModInt / FlModFloat）。
-//
+// 注意：
+// 和 % 需要处理除零及 Lua 向下取整语义（FlFloorDivInt / FlModInt / FlModFloat）。
 //   3. 通用慢速路径（slow path）：
 //      两侧均编译为 CVar，调用 OpXxx 宏（处理运行时类型判断和装拆箱）。
 //      适用于操作数类型未知或运算符不支持原生路径（如字符串连接 ..）的情形。
-// ---------------------------------------------------------------------------
 std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &exp, const SyntaxTreeInterfacePtr &op) {
     DEBUG_ASSERT(cur_section_ != Section::Globals);
 
@@ -2153,11 +2142,9 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &exp, const SyntaxTr
         const auto left_str = CompileExp(left);
 
         const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    "
-                         << "CVar " << tmp << ";\n";
+        func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
         const auto tmp_bool = std::format("flua_bt_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    "
-                         << "bool " << tmp_bool << ";\n";
+        func_temp_decls_ << "    " << "bool " << tmp_bool << ";\n";
 
         Out() << GenTab() << std::format("IsTrue(({}), {});\n", left_str, tmp_bool);
 
@@ -2198,8 +2185,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &exp, const SyntaxTr
     const auto right_str = CompileExp(right);
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    "
-                     << "CVar " << tmp << ";\n";
+    func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
 
     const auto l = std::format("({})", left_str);
     const auto r = std::format("({})", right_str);
@@ -2262,8 +2248,7 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &exp, const SyntaxTre
     const auto right_str = CompileExp(right);
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    "
-                     << "CVar " << tmp << ";\n";
+    func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
 
     const auto r = std::format("({})", right_str);
 
@@ -2440,21 +2425,16 @@ std::string CGen::CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOp
     return "";
 }
 
-// ---------------------------------------------------------------------------
 // CompileVar —— 变量引用的代码生成
-//
 // 生成策略（kSimple 变量）：
 // 生成策略（kSimple 变量）：
 //   优先级：原生局部变量/参数作用域（RuntimeTypeTracker / GetNativeVarType）
 //           > 文件级数值常量（ir().global_const_vars）
 //           > 普通 CVar 变量名
-//
 //   前两种情形均已知为原生类型（int64_t / double），需装箱为 CVar 字面量后返回，
 //   以保证所有调用方获得统一 the CVar 接口；普通 CVar 变量则直接返回变量名。
-//
 // kSquare（table[key]）：生成 FlGetTable(table, key) 调用。
 // kDot（table.key）：将 key 字符串化后同样生成 FlGetTable 调用。
-// ---------------------------------------------------------------------------
 std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
     DEBUG_ASSERT(v->Type() == SyntaxTreeType::Var);
     auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
@@ -2612,19 +2592,15 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
 // 第四部分：类型推断与原生优化辅助
 // ===========================================================================
 
-// ---------------------------------------------------------------------------
 // CompileNumericExp —— 将表达式编译为原生 C 数值字符串
-//
 // 与 CompileExp 的区别：
 //   CompileExp 始终返回 CVar 类型的表达式（装箱值），
 //   CompileNumericExp 返回 int64_t / double 的原生表达式，用于：
 //     1. 特化函数体内的算术运算，消除 CVar 装拆箱开销；
 //     2. 原生类型 for-loop 的边界/步长计算；
 //     3. TryCompileNativeBoolExpr 生成原生 C 比较运算的操作数。
-//
 // 失败策略：若无法将表达式编译为原生数值（例如操作数为 T_DYNAMIC 的 CVar），
 // 则直接抛出异常；调用方应通过 TryCompileNativeExpr 捕获并回退到 CompileExp。
-// ---------------------------------------------------------------------------
 std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
 
@@ -2736,21 +2712,17 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
     ThrowError("unsupported numeric-specialized expression", exp);
 }
 
-// ---------------------------------------------------------------------------
 // TryCompileNativeSpecCallExpr —— 将调用特化函数的结果编译为原生数值临时变量
-//
 // 用途：在 CompileNumericExp 遇到函数调用（kPrefixExp → kFunctionCall）时，
 // 若被调函数有数学参数且该特化版本返回原生数值类型（T_INT/T_FLOAT），则：
 //   1. 计算 bitmask（通过 TryInferMathCallSpec）；
 //   2. 将每个数学参数实参编译为原生表达式；
 //   3. 发出对应特化函数的直接调用（避免 CVar 装拆箱），
 //      结果存入原生类型临时变量并返回其名称。
-//
 // 与 CompileFunctioncall 的区别：
 //   - CompileFunctioncall 返回 CVar 类型的结果（已装箱）；
 //   - TryCompileNativeSpecCallExpr 返回 int64_t/double 的原生结果，
 //     可直接参与后续原生算术运算。
-// ---------------------------------------------------------------------------
 std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node) {
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall_node);
     DEBUG_ASSERT(fc);
@@ -2805,26 +2777,20 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
     return ntmp;
 }
 
-// ---------------------------------------------------------------------------
 // CompileFunctioncall —— 函数调用的代码生成
-//
 // 生成策略（按优先级）：
-//
 //   1. 特化直接调用（fast path）：
 //      若被调函数是同文件的数学函数（math_param_positions_ 中存在），
 //      且所有数学参数实参的类型均已知（TryInferMathCallBitmask 成功），
 //      则尝试将数学参数编译为原生表达式（TryCompileNativeExpr），
 //      并发出对应特化函数（SpecFuncName）的直接调用，避免走 CVar 入口分发器，
 //      消除运行时类型检查和分发开销。若特化函数返回原生类型，则装箱后存入 CVar tmp。
-//
 //   2. 普通路径（slow path）：
 //      将所有参数编译为 CVar，然后发出函数名(arg0, arg1, ...) 调用。
 //      - 同文件的普通函数：直接调用（local_func_names_ 中存在）。
 //      - 跨文件/内置函数：通过 FakeluaCallByName 动态分发（带字符串函数名）。
 //      - 特殊内置宏（FAKELUA_SET_TABLE）：生成 FlSetTable 调用。
-//
 // 返回值：CVar 类型的临时变量名，供调用方（CompileExp/CompileNumericExp）使用。
-// ---------------------------------------------------------------------------
 std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall) {
     DEBUG_ASSERT(cur_section_ != Section::Globals);
 
@@ -2921,8 +2887,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         call_expr = BuildDynamicCall(func_name, pe_pre, pe_pre_ptr, var, compiled_args, has_expansion, expansion_tmp, is_local_callee);
     }
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    "
-                     << "CVar " << tmp << ";\n";
+    func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
     Out() << GenTab() << tmp << " = " << call_expr << ";\n";
 
     return tmp;
@@ -2951,8 +2916,8 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
     const auto &raw_args = explist_arg_ptr->Exps();
 
-    static const std::unordered_set<std::string> math_builtins = {"abs", "floor", "ceil", "max", "min", "sqrt", "sin", "cos", "tan", "pow", "deg", "rad", "random", "randomseed",
-                                                                  "modf", "frexp", "exp", "log", "log10", "asin", "acos", "atan", "sinh", "cosh", "tanh"};
+    static const std::unordered_set<std::string> math_builtins = {"abs",        "floor", "ceil",  "max", "min", "sqrt",  "sin",  "cos",  "tan",  "pow",  "deg",  "rad", "random",
+                                                                  "randomseed", "modf",  "frexp", "exp", "log", "log10", "asin", "acos", "atan", "sinh", "cosh", "tanh"};
 
     if (!math_builtins.contains(method_name)) {
         return {};
@@ -2964,7 +2929,7 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     // 单参数数学函数的内联发射：参数为 INT/FLOAT 时直接调用原生 C 函数，其余类型
     // （数字字符串需转换、bool/table 需报错）回退到注册的 math.* native 实现，
     // 以保证内联路径与 native 路径语义完全一致。
-    const auto emit_guarded_unary = [&](const char *c_func, const std::string &lua_name) {
+    const auto EmitGuardedUnary = [&](const char *c_func, const std::string &lua_name) {
         const std::string arg = CompileExp(raw_args[0]);
         // 先绑定到临时变量：CompileExp 可能返回复合字面量 (CVar){.type_ = ..., .data_.i = ...}，
         // 其中的逗号会被预处理器当成 LIKELY 的参数分隔符（大括号不构成嵌套）。顺带避免重复求值。
@@ -2982,7 +2947,7 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     };
 
     // 多参数变体不做内联，直接转发给 native 实现（调用频度低，且可变参语义更复杂）。
-    const auto emit_native_call = [&](const std::string &lua_name) {
+    const auto EmitNativeCall = [&](const std::string &lua_name) {
         std::vector<std::string> compiled;
         compiled.reserve(raw_args.size());
         for (const auto &raw_arg: raw_args) {
@@ -3039,19 +3004,19 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         return tmp;
     }
     if (method_name == "sqrt" && raw_args.size() == 1) {
-        emit_guarded_unary("sqrt", method_name);
+        EmitGuardedUnary("sqrt", method_name);
         return tmp;
     }
     if (method_name == "sin" && raw_args.size() == 1) {
-        emit_guarded_unary("sin", method_name);
+        EmitGuardedUnary("sin", method_name);
         return tmp;
     }
     if (method_name == "cos" && raw_args.size() == 1) {
-        emit_guarded_unary("cos", method_name);
+        EmitGuardedUnary("cos", method_name);
         return tmp;
     }
     if (method_name == "tan" && raw_args.size() == 1) {
-        emit_guarded_unary("tan", method_name);
+        EmitGuardedUnary("tan", method_name);
         return tmp;
     }
     if (method_name == "pow" && raw_args.size() >= 2) {
@@ -3067,62 +3032,58 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         func_temp_decls_ << "    double " << val2_tmp << ";\n";
         Out() << GenTab() << a1_tmp << " = " << arg1 << ";\n";
         Out() << GenTab() << a2_tmp << " = " << arg2 << ";\n";
-        Out() << GenTab() << "if (LIKELY((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && "
-             << "(" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp << ".type_ == VAR_FLOAT))) {\n";
-        Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp
-             << ".data_.i : " << a1_tmp << ".data_.f);\n";
-        Out() << GenTab() << "    " << val2_tmp << " = (" << a2_tmp << ".type_ == VAR_INT ? (double)" << a2_tmp
-             << ".data_.i : " << a2_tmp << ".data_.f);\n";
-        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = pow(" << val1_tmp << ", " << val2_tmp
-             << ")};\n";
+        Out() << GenTab() << "if (LIKELY((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && " << "(" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp
+              << ".type_ == VAR_FLOAT))) {\n";
+        Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp << ".data_.i : " << a1_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << val2_tmp << " = (" << a2_tmp << ".type_ == VAR_INT ? (double)" << a2_tmp << ".data_.i : " << a2_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = pow(" << val1_tmp << ", " << val2_tmp << ")};\n";
         Out() << GenTab() << "} else {\n";
-        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.pow\", 2, " << a1_tmp
-             << ", " << a2_tmp << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.pow\", 2, " << a1_tmp << ", " << a2_tmp << ");\n";
         Out() << GenTab() << "}\n";
         return tmp;
     }
     if (method_name == "asin" && raw_args.size() == 1) {
-        emit_guarded_unary("asin", method_name);
+        EmitGuardedUnary("asin", method_name);
         return tmp;
     }
     if (method_name == "acos" && raw_args.size() == 1) {
-        emit_guarded_unary("acos", method_name);
+        EmitGuardedUnary("acos", method_name);
         return tmp;
     }
     if (method_name == "atan" && !raw_args.empty()) {
         if (raw_args.size() == 1) {
-            emit_guarded_unary("atan", method_name);
+            EmitGuardedUnary("atan", method_name);
         } else {
-            emit_native_call(method_name);
+            EmitNativeCall(method_name);
         }
         return tmp;
     }
     if (method_name == "exp" && raw_args.size() == 1) {
-        emit_guarded_unary("exp", method_name);
+        EmitGuardedUnary("exp", method_name);
         return tmp;
     }
     if (method_name == "log" && !raw_args.empty()) {
         if (raw_args.size() == 1) {
-            emit_guarded_unary("log", method_name);
+            EmitGuardedUnary("log", method_name);
         } else {
-            emit_native_call(method_name);
+            EmitNativeCall(method_name);
         }
         return tmp;
     }
     if (method_name == "log10" && raw_args.size() == 1) {
-        emit_guarded_unary("log10", method_name);
+        EmitGuardedUnary("log10", method_name);
         return tmp;
     }
     if (method_name == "sinh" && raw_args.size() == 1) {
-        emit_guarded_unary("sinh", method_name);
+        EmitGuardedUnary("sinh", method_name);
         return tmp;
     }
     if (method_name == "cosh" && raw_args.size() == 1) {
-        emit_guarded_unary("cosh", method_name);
+        EmitGuardedUnary("cosh", method_name);
         return tmp;
     }
     if (method_name == "tanh" && raw_args.size() == 1) {
-        emit_guarded_unary("tanh", method_name);
+        EmitGuardedUnary("tanh", method_name);
         return tmp;
     }
     if (method_name == "fmod" && raw_args.size() >= 2) {
@@ -3138,17 +3099,13 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         func_temp_decls_ << "    double " << val2_tmp << ";\n";
         Out() << GenTab() << a1_tmp << " = " << arg1 << ";\n";
         Out() << GenTab() << a2_tmp << " = " << arg2 << ";\n";
-        Out() << GenTab() << "if (LIKELY((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && "
-             << "(" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp << ".type_ == VAR_FLOAT))) {\n";
-        Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp
-             << ".data_.i : " << a1_tmp << ".data_.f);\n";
-        Out() << GenTab() << "    " << val2_tmp << " = (" << a2_tmp << ".type_ == VAR_INT ? (double)" << a2_tmp
-             << ".data_.i : " << a2_tmp << ".data_.f);\n";
-        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = fmod(" << val1_tmp << ", " << val2_tmp
-             << ")};\n";
+        Out() << GenTab() << "if (LIKELY((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && " << "(" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp
+              << ".type_ == VAR_FLOAT))) {\n";
+        Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp << ".data_.i : " << a1_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << val2_tmp << " = (" << a2_tmp << ".type_ == VAR_INT ? (double)" << a2_tmp << ".data_.i : " << a2_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = fmod(" << val1_tmp << ", " << val2_tmp << ")};\n";
         Out() << GenTab() << "} else {\n";
-        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.fmod\", 2, " << a1_tmp
-             << ", " << a2_tmp << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.fmod\", 2, " << a1_tmp << ", " << a2_tmp << ");\n";
         Out() << GenTab() << "}\n";
         return tmp;
     }
@@ -3165,17 +3122,14 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         func_temp_decls_ << "    int64_t " << exp_tmp << ";\n";
         Out() << GenTab() << a1_tmp << " = " << arg1 << ";\n";
         Out() << GenTab() << a2_tmp << " = " << arg2 << ";\n";
-        Out() << GenTab() << "if (LIKELY((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && "
-             << "(" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp << ".type_ == VAR_FLOAT))) {\n";
-        Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp
-             << ".data_.i : " << a1_tmp << ".data_.f);\n";
+        Out() << GenTab() << "if (LIKELY((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && " << "(" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp
+              << ".type_ == VAR_FLOAT))) {\n";
+        Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp << ".data_.i : " << a1_tmp << ".data_.f);\n";
         Out() << GenTab() << "    if (" << a2_tmp << ".type_ == VAR_INT) { " << exp_tmp << " = " << a2_tmp << ".data_.i; } ";
         Out() << "else { FlToIntChecked(" << a2_tmp << ".data_.f, " << exp_tmp << "); }\n";
-        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = ldexp(" << val1_tmp
-             << ", (int)" << exp_tmp << ")};\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = ldexp(" << val1_tmp << ", (int)" << exp_tmp << ")};\n";
         Out() << GenTab() << "} else {\n";
-        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ldexp\", 2, " << a1_tmp
-             << ", " << a2_tmp << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ldexp\", 2, " << a1_tmp << ", " << a2_tmp << ");\n";
         Out() << GenTab() << "}\n";
         return tmp;
     }
@@ -3207,11 +3161,9 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         Out() << GenTab() << b_tmp << " = " << arg2 << ";\n";
         // 未检查类型时 .data_.i 会读到 float/string 的 union 位型。非 INT 走 native CheckIntegerArg。
         Out() << GenTab() << "if (LIKELY(" << a_tmp << ".type_ == VAR_INT && " << b_tmp << ".type_ == VAR_INT)) {\n";
-        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_BOOL, .data_.b = ((uint64_t)" << a_tmp
-             << ".data_.i < (uint64_t)" << b_tmp << ".data_.i)};\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_BOOL, .data_.b = ((uint64_t)" << a_tmp << ".data_.i < (uint64_t)" << b_tmp << ".data_.i)};\n";
         Out() << GenTab() << "} else {\n";
-        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ult\", 2, " << a_tmp
-             << ", " << b_tmp << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ult\", 2, " << a_tmp << ", " << b_tmp << ");\n";
         Out() << GenTab() << "}\n";
         return tmp;
     }
@@ -3223,13 +3175,10 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         func_temp_decls_ << "    double " << val_tmp << ";\n";
         Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
         Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT || " << arg_tmp << ".type_ == VAR_FLOAT)) {\n";
-        Out() << GenTab() << "    " << val_tmp << " = (" << arg_tmp << ".type_ == VAR_INT ? (double)" << arg_tmp
-             << ".data_.i : " << arg_tmp << ".data_.f);\n";
-        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp
-             << " * (180.0 / 3.14159265358979323846)};\n";
+        Out() << GenTab() << "    " << val_tmp << " = (" << arg_tmp << ".type_ == VAR_INT ? (double)" << arg_tmp << ".data_.i : " << arg_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp << " * (180.0 / 3.14159265358979323846)};\n";
         Out() << GenTab() << "} else {\n";
-        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.deg\", 1, " << arg_tmp
-             << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.deg\", 1, " << arg_tmp << ");\n";
         Out() << GenTab() << "}\n";
         return tmp;
     }
@@ -3241,13 +3190,10 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         func_temp_decls_ << "    double " << val_tmp << ";\n";
         Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
         Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT || " << arg_tmp << ".type_ == VAR_FLOAT)) {\n";
-        Out() << GenTab() << "    " << val_tmp << " = (" << arg_tmp << ".type_ == VAR_INT ? (double)" << arg_tmp
-             << ".data_.i : " << arg_tmp << ".data_.f);\n";
-        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp
-             << " * (3.14159265358979323846 / 180.0)};\n";
+        Out() << GenTab() << "    " << val_tmp << " = (" << arg_tmp << ".type_ == VAR_INT ? (double)" << arg_tmp << ".data_.i : " << arg_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = " << val_tmp << " * (3.14159265358979323846 / 180.0)};\n";
         Out() << GenTab() << "} else {\n";
-        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.rad\", 1, " << arg_tmp
-             << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.rad\", 1, " << arg_tmp << ");\n";
         Out() << GenTab() << "}\n";
         return tmp;
     }
@@ -3329,8 +3275,7 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             Out() << GenTab() << "    srand((unsigned int)" << arg_tmp << ".data_.i);\n";
             Out() << GenTab() << "    " << tmp << " = kNil;\n";
             Out() << GenTab() << "} else {\n";
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.randomseed\", 1, "
-                 << arg_tmp << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.randomseed\", 1, " << arg_tmp << ");\n";
             Out() << GenTab() << "}\n";
         }
         return tmp;
@@ -3347,17 +3292,13 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         func_temp_decls_ << "    double " << val_tmp << ";\n";
         Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
         Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT || " << arg_tmp << ".type_ == VAR_FLOAT)) {\n";
-        Out() << GenTab() << "    if (" << arg_tmp << ".type_ == VAR_INT) { " << iptr_tmp << " = (double)" << arg_tmp
-             << ".data_.i; " << frac_tmp << " = 0.0; } else { " << val_tmp << " = " << arg_tmp << ".data_.f; " << frac_tmp
-             << " = modf(" << val_tmp << ", &" << iptr_tmp << "); }\n";
+        Out() << GenTab() << "    if (" << arg_tmp << ".type_ == VAR_INT) { " << iptr_tmp << " = (double)" << arg_tmp << ".data_.i; " << frac_tmp << " = 0.0; } else { " << val_tmp << " = " << arg_tmp
+              << ".data_.f; " << frac_tmp << " = modf(" << val_tmp << ", &" << iptr_tmp << "); }\n";
         Out() << GenTab() << "    " << tmp << " = FlAllocMulti(_S, 2);\n";
-        Out() << GenTab() << "    " << tmp << ".data_.m->vars[0] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << iptr_tmp
-             << "};\n";
-        Out() << GenTab() << "    " << tmp << ".data_.m->vars[1] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << frac_tmp
-             << "};\n";
+        Out() << GenTab() << "    " << tmp << ".data_.m->vars[0] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << iptr_tmp << "};\n";
+        Out() << GenTab() << "    " << tmp << ".data_.m->vars[1] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << frac_tmp << "};\n";
         Out() << GenTab() << "} else {\n";
-        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.modf\", 1, " << arg_tmp
-             << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.modf\", 1, " << arg_tmp << ");\n";
         Out() << GenTab() << "}\n";
         return tmp;
     }
@@ -3373,17 +3314,13 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         func_temp_decls_ << "    double " << val_tmp << ";\n";
         Out() << GenTab() << arg_tmp << " = " << arg << ";\n";
         Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT || " << arg_tmp << ".type_ == VAR_FLOAT)) {\n";
-        Out() << GenTab() << "    " << val_tmp << " = (" << arg_tmp << ".type_ == VAR_INT ? (double)" << arg_tmp
-             << ".data_.i : " << arg_tmp << ".data_.f);\n";
+        Out() << GenTab() << "    " << val_tmp << " = (" << arg_tmp << ".type_ == VAR_INT ? (double)" << arg_tmp << ".data_.i : " << arg_tmp << ".data_.f);\n";
         Out() << GenTab() << "    " << frac_tmp << " = frexp(" << val_tmp << ", &" << exp_tmp << ");\n";
         Out() << GenTab() << "    " << tmp << " = FlAllocMulti(_S, 2);\n";
-        Out() << GenTab() << "    " << tmp << ".data_.m->vars[0] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << frac_tmp
-             << "};\n";
-        Out() << GenTab() << "    " << tmp << ".data_.m->vars[1] = (CVar){.type_ = VAR_INT, .data_.i = " << exp_tmp
-             << "};\n";
+        Out() << GenTab() << "    " << tmp << ".data_.m->vars[0] = (CVar){.type_ = VAR_FLOAT, .data_.f = " << frac_tmp << "};\n";
+        Out() << GenTab() << "    " << tmp << ".data_.m->vars[1] = (CVar){.type_ = VAR_INT, .data_.i = " << exp_tmp << "};\n";
         Out() << GenTab() << "} else {\n";
-        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.frexp\", 1, " << arg_tmp
-             << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.frexp\", 1, " << arg_tmp << ");\n";
         Out() << GenTab() << "}\n";
         return tmp;
     }
@@ -3462,20 +3399,16 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         Out() << GenTab() << e_c << " = " << e_arg << ";\n";
         Out() << GenTab() << t_c << " = " << t_arg << ";\n";
         // 非 INT 下标（如 2.0）不能默认成 1/0，否则会搬错区间。
-        Out() << GenTab() << "if (LIKELY(" << f_c << ".type_ == VAR_INT && " << e_c << ".type_ == VAR_INT && " << t_c
-             << ".type_ == VAR_INT)) {\n";
+        Out() << GenTab() << "if (LIKELY(" << f_c << ".type_ == VAR_INT && " << e_c << ".type_ == VAR_INT && " << t_c << ".type_ == VAR_INT)) {\n";
         Out() << GenTab() << "    " << f_tmp << " = " << f_c << ".data_.i;\n";
         Out() << GenTab() << "    " << e_tmp << " = " << e_c << ".data_.i;\n";
         Out() << GenTab() << "    " << t_tmp << " = " << t_c << ".data_.i;\n";
-        Out() << GenTab() << "    " << tmp << " = FlTableMove(" << src_tmp << ", " << f_tmp << ", " << e_tmp << ", "
-             << t_tmp << ", " << dst_tmp << ");\n";
+        Out() << GenTab() << "    " << tmp << " = FlTableMove(" << src_tmp << ", " << f_tmp << ", " << e_tmp << ", " << t_tmp << ", " << dst_tmp << ");\n";
         Out() << GenTab() << "} else {\n";
         if (has_dst) {
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.move\", 5, "
-                 << src_tmp << ", " << f_c << ", " << e_c << ", " << t_c << ", " << dst_tmp << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.move\", 5, " << src_tmp << ", " << f_c << ", " << e_c << ", " << t_c << ", " << dst_tmp << ");\n";
         } else {
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.move\", 4, "
-                 << src_tmp << ", " << f_c << ", " << e_c << ", " << t_c << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.move\", 4, " << src_tmp << ", " << f_c << ", " << e_c << ", " << t_c << ");\n";
         }
         Out() << GenTab() << "}\n";
         return tmp;
@@ -3500,18 +3433,15 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         Out() << GenTab() << "    SET_TABLE(" << tmp << ");\n";
         Out() << GenTab() << "    if (" << val_tmp << ".type_ != VAR_NIL) {\n";
         Out() << GenTab() << "        if ((uint64_t)" << count_tmp << " > 10000000ULL) { FakeluaThrowError(_S, \"table.create: too many items\"); }\n";
-        Out() << GenTab() << "        for (" << idx_tmp << " = 1; " << idx_tmp << " <= " << count_tmp << "; " << idx_tmp
-             << "++) {\n";
+        Out() << GenTab() << "        for (" << idx_tmp << " = 1; " << idx_tmp << " <= " << count_tmp << "; " << idx_tmp << "++) {\n";
         Out() << GenTab() << "            FlSetTableInt(" << tmp << ", " << idx_tmp << ", " << val_tmp << ");\n";
         Out() << GenTab() << "        }\n";
         Out() << GenTab() << "    }\n";
         Out() << GenTab() << "} else {\n";
         if (has_val) {
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.create\", 2, "
-                 << seq_tmp << ", " << val_tmp << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.create\", 2, " << seq_tmp << ", " << val_tmp << ");\n";
         } else {
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.create\", 1, "
-                 << seq_tmp << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.create\", 1, " << seq_tmp << ");\n";
         }
         Out() << GenTab() << "}\n";
         return tmp;
@@ -3555,8 +3485,7 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
             Out() << GenTab() << "    FlLenInt(" << tbl_tmp << ", " << len_tmp << ");\n";
             Out() << GenTab() << "    " << pos_tmp << " = " << pos_c << ".data_.i;\n";
             Out() << GenTab() << "    if (" << pos_tmp << " >= 1 && " << pos_tmp << " <= " << len_tmp << " + 1) {\n";
-            Out() << GenTab() << "        for (" << idx_tmp << " = " << len_tmp << "; " << idx_tmp << " >= " << pos_tmp
-                 << "; " << idx_tmp << "--) {\n";
+            Out() << GenTab() << "        for (" << idx_tmp << " = " << len_tmp << "; " << idx_tmp << " >= " << pos_tmp << "; " << idx_tmp << "--) {\n";
             Out() << GenTab() << "            " << item_tmp << " = FlGetTableInt(" << tbl_tmp << ", " << idx_tmp << ");\n";
             Out() << GenTab() << "            FlSetTableInt(" << tbl_tmp << ", " << idx_tmp << " + 1, " << item_tmp << ");\n";
             Out() << GenTab() << "        }\n";
@@ -3564,8 +3493,7 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
             Out() << GenTab() << "    }\n";
             Out() << GenTab() << "    " << tmp << " = kNil;\n";
             Out() << GenTab() << "} else {\n";
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.insert\", 3, "
-                 << tbl_tmp << ", " << pos_c << ", " << val_tmp << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.insert\", 3, " << tbl_tmp << ", " << pos_c << ", " << val_tmp << ");\n";
             Out() << GenTab() << "}\n";
             return tmp;
         }
@@ -3591,12 +3519,10 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         // 省略 pos 或 INT 走内联；2.0 以前会当成 #t，删错元素。
         Out() << GenTab() << "if (LIKELY(" << pos_c << ".type_ == VAR_NIL || " << pos_c << ".type_ == VAR_INT)) {\n";
         Out() << GenTab() << "    FlLenInt(" << tbl_tmp << ", " << len_tmp << ");\n";
-        Out() << GenTab() << "    " << pos_tmp << " = (" << pos_c << ".type_ == VAR_INT) ? " << pos_c << ".data_.i : "
-             << len_tmp << ";\n";
+        Out() << GenTab() << "    " << pos_tmp << " = (" << pos_c << ".type_ == VAR_INT) ? " << pos_c << ".data_.i : " << len_tmp << ";\n";
         Out() << GenTab() << "    if (" << pos_tmp << " >= 1 && " << pos_tmp << " <= " << len_tmp << ") {\n";
         Out() << GenTab() << "        " << tmp << " = FlGetTableInt(" << tbl_tmp << ", " << pos_tmp << ");\n";
-        Out() << GenTab() << "        for (" << idx_tmp << " = " << pos_tmp << "; " << idx_tmp << " < " << len_tmp
-             << "; " << idx_tmp << "++) {\n";
+        Out() << GenTab() << "        for (" << idx_tmp << " = " << pos_tmp << "; " << idx_tmp << " < " << len_tmp << "; " << idx_tmp << "++) {\n";
         Out() << GenTab() << "            " << item_tmp << " = FlGetTableInt(" << tbl_tmp << ", " << idx_tmp << " + 1);\n";
         Out() << GenTab() << "            FlSetTableInt(" << tbl_tmp << ", " << idx_tmp << ", " << item_tmp << ");\n";
         Out() << GenTab() << "        }\n";
@@ -3606,11 +3532,9 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         Out() << GenTab() << "    }\n";
         Out() << GenTab() << "} else {\n";
         if (has_pos) {
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.remove\", 2, "
-                 << tbl_tmp << ", " << pos_c << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.remove\", 2, " << tbl_tmp << ", " << pos_c << ");\n";
         } else {
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.remove\", 1, "
-                 << tbl_tmp << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.remove\", 1, " << tbl_tmp << ");\n";
         }
         Out() << GenTab() << "}\n";
         return tmp;
@@ -3646,23 +3570,18 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         Out() << GenTab() << i_c << " = " << i_arg << ";\n";
         Out() << GenTab() << j_c << " = " << j_arg << ";\n";
         // i/j 缺省或 INT 走内联；2.0 以前会当成从 1 解包到 #t。
-        Out() << GenTab() << "if (LIKELY((" << i_c << ".type_ == VAR_NIL || " << i_c << ".type_ == VAR_INT) && ("
-             << j_c << ".type_ == VAR_NIL || " << j_c << ".type_ == VAR_INT))) {\n";
+        Out() << GenTab() << "if (LIKELY((" << i_c << ".type_ == VAR_NIL || " << i_c << ".type_ == VAR_INT) && (" << j_c << ".type_ == VAR_NIL || " << j_c << ".type_ == VAR_INT))) {\n";
         Out() << GenTab() << "    " << start_tmp << " = (" << i_c << ".type_ == VAR_INT) ? " << i_c << ".data_.i : 1;\n";
-        Out() << GenTab() << "    if (" << j_c << ".type_ == VAR_INT) { " << end_tmp << " = " << j_c
-             << ".data_.i; } else { FlLenInt(" << tbl_tmp << ", " << end_tmp << "); }\n";
+        Out() << GenTab() << "    if (" << j_c << ".type_ == VAR_INT) { " << end_tmp << " = " << j_c << ".data_.i; } else { FlLenInt(" << tbl_tmp << ", " << end_tmp << "); }\n";
         Out() << GenTab() << "    if (" << start_tmp << " <= " << end_tmp << ") {\n";
-        Out() << GenTab() << "        " << ucount_tmp << " = (uint64_t)" << end_tmp << " - (uint64_t)" << start_tmp
-             << " + 1;\n";
+        Out() << GenTab() << "        " << ucount_tmp << " = (uint64_t)" << end_tmp << " - (uint64_t)" << start_tmp << " + 1;\n";
         Out() << GenTab() << "        if (" << ucount_tmp << " == 0 || " << ucount_tmp << " > 1000000ULL) {\n";
         Out() << GenTab() << "            " << tmp << " = FlAllocMulti(_S, 0);\n";
         Out() << GenTab() << "        } else {\n";
         Out() << GenTab() << "            " << count_tmp << " = (int64_t)" << ucount_tmp << ";\n";
         Out() << GenTab() << "            " << tmp << " = FlAllocMulti(_S, (uint32_t)" << count_tmp << ");\n";
-        Out() << GenTab() << "            for (" << idx_tmp << " = 0; " << idx_tmp << " < " << count_tmp << "; "
-             << idx_tmp << "++) {\n";
-        Out() << GenTab() << "                " << item_tmp << " = FlGetTableInt(" << tbl_tmp << ", " << start_tmp
-             << " + " << idx_tmp << ");\n";
+        Out() << GenTab() << "            for (" << idx_tmp << " = 0; " << idx_tmp << " < " << count_tmp << "; " << idx_tmp << "++) {\n";
+        Out() << GenTab() << "                " << item_tmp << " = FlGetTableInt(" << tbl_tmp << ", " << start_tmp << " + " << idx_tmp << ");\n";
         Out() << GenTab() << "                " << tmp << ".data_.m->vars[" << idx_tmp << "] = " << item_tmp << ";\n";
         Out() << GenTab() << "            }\n";
         Out() << GenTab() << "        }\n";
@@ -3671,14 +3590,11 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         Out() << GenTab() << "    }\n";
         Out() << GenTab() << "} else {\n";
         if (has_j) {
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.unpack\", 3, "
-                 << tbl_tmp << ", " << i_c << ", " << j_c << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.unpack\", 3, " << tbl_tmp << ", " << i_c << ", " << j_c << ");\n";
         } else if (has_i) {
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.unpack\", 2, "
-                 << tbl_tmp << ", " << i_c << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.unpack\", 2, " << tbl_tmp << ", " << i_c << ");\n";
         } else {
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.unpack\", 1, "
-                 << tbl_tmp << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"table.unpack\", 1, " << tbl_tmp << ");\n";
         }
         Out() << GenTab() << "}\n";
         return tmp;
@@ -3833,8 +3749,7 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
 
     if (method_name == "format" && raw_args.size() == 2) {
         // 常量 "%d" + 数值参数 → FlFormatInt
-        if (const auto fmt_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[0]);
-            fmt_exp && fmt_exp->GetExpKind() == ExpKind::kString && fmt_exp->ExpValue() == "%d") {
+        if (const auto fmt_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[0]); fmt_exp && fmt_exp->GetExpKind() == ExpKind::kString && fmt_exp->ExpValue() == "%d") {
             const std::string arg = CompileExp(raw_args[1]);
             const auto arg_tmp = std::format("flua_sfmt_{}", tmp_var_counter_++);
             func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
@@ -3842,8 +3757,8 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
             Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT)) {\n";
             Out() << GenTab() << "    " << tmp << " = FlFormatInt(" << arg_tmp << ".data_.i);\n";
             Out() << GenTab() << "} else {\n";
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.format\", 2, "
-                 << "(CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("%d") << "}, " << arg_tmp << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.format\", 2, " << "(CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("%d")
+                  << "}, " << arg_tmp << ");\n";
             Out() << GenTab() << "}\n";
             return tmp;
         }
@@ -3914,8 +3829,8 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
             Out() << GenTab() << p_tmp << " = " << pat_arg << ";\n";
             const auto pat_len_tmp = std::format("flua_findpl_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << pat_len_tmp << ";\n";
-            Out() << GenTab() << "if (LIKELY((" << s_tmp << ".type_ == VAR_STRING || " << s_tmp << ".type_ == VAR_STRINGID) && ("
-                 << p_tmp << ".type_ == VAR_STRING || " << p_tmp << ".type_ == VAR_STRINGID))) {\n";
+            Out() << GenTab() << "if (LIKELY((" << s_tmp << ".type_ == VAR_STRING || " << s_tmp << ".type_ == VAR_STRINGID) && (" << p_tmp << ".type_ == VAR_STRING || " << p_tmp
+                  << ".type_ == VAR_STRINGID))) {\n";
             // FlStringFindPlain 返回单个 CVar：VAR_INT(pos) 或 VAR_NIL。需要构造 multi-value (start, end)。
             Out() << GenTab() << "    " << tmp << " = FlStringFindPlain(" << s_tmp << ", " << p_tmp << ");\n";
             Out() << GenTab() << "    if (" << tmp << ".type_ != VAR_NIL) {\n";
@@ -3929,7 +3844,7 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
             Out() << GenTab() << "    }\n";
             Out() << GenTab() << "} else {\n";
             Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.find\", 4, " << s_tmp << ", " << p_tmp
-                 << ", (CVar){.type_ = VAR_INT, .data_.i = 1}, (CVar){.type_ = VAR_BOOL, .data_.b = true});\n";
+                  << ", (CVar){.type_ = VAR_INT, .data_.i = 1}, (CVar){.type_ = VAR_BOOL, .data_.b = true});\n";
             Out() << GenTab() << "}\n";
             return tmp;
         }
@@ -3943,8 +3858,7 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
 // 生成: FAKELUA_LOG_DEBUG(msg, file, line, func)
 // 宏内部先检查级别，只有启用时才调用 C++ 函数
 // 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
-std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr,
-                                           const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
+std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreeArgs> &args_ptr, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr) {
     if (pe_pre_ptr->GetPrefixKind() != PrefixExpKind::kVar || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
         return {};
     }
@@ -4006,13 +3920,27 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     // 这样 log.debug(expensive_func()) 在级别禁用时完全不会执行 expensive_func()
     const char *log_macro;
     switch (level) {
-    case 0: log_macro = "FAKELUA_LOG_TRACE"; break;
-    case 1: log_macro = "FAKELUA_LOG_DEBUG"; break;
-    case 2: log_macro = "FAKELUA_LOG_INFO"; break;
-    case 3: log_macro = "FAKELUA_LOG_WARN"; break;
-    case 4: log_macro = "FAKELUA_LOG_ERROR"; break;
-    case 5: log_macro = "FAKELUA_LOG_CRITICAL"; break;
-    default: log_macro = "FAKELUA_LOG_DEBUG"; break;
+        case 0:
+            log_macro = "FAKELUA_LOG_TRACE";
+            break;
+        case 1:
+            log_macro = "FAKELUA_LOG_DEBUG";
+            break;
+        case 2:
+            log_macro = "FAKELUA_LOG_INFO";
+            break;
+        case 3:
+            log_macro = "FAKELUA_LOG_WARN";
+            break;
+        case 4:
+            log_macro = "FAKELUA_LOG_ERROR";
+            break;
+        case 5:
+            log_macro = "FAKELUA_LOG_CRITICAL";
+            break;
+        default:
+            log_macro = "FAKELUA_LOG_DEBUG";
+            break;
     }
 
     // 使用临时变量避免 TCC 预处理器把 CVar 初始化中的逗号当成参数分隔符
@@ -4021,8 +3949,7 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     func_temp_decls_ << "    CVar " << msg_tmp << ";\n";
     func_temp_decls_ << "    CVar " << ret_tmp << ";\n";
     Out() << GenTab() << msg_tmp << " = " << msg_cvar << ";\n";
-    Out() << GenTab() << log_macro << "(" << msg_tmp << ", "
-          << "\"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
+    Out() << GenTab() << log_macro << "(" << msg_tmp << ", " << "\"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
     Out() << GenTab() << ret_tmp << ".type_ = VAR_NIL;\n";
     return ret_tmp;
 }
@@ -4054,8 +3981,7 @@ std::string CGen::TryCompileBuiltinBasicCall(const std::shared_ptr<SyntaxTreeFun
         func_temp_decls_ << "    CVar " << tmp << ";\n";
         // select 的末尾 ... 必须保留 Multi，不能 FlUnboxMulti(..., 0)
         // select("#", ...)
-        if (const auto idx_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[0]);
-            idx_exp && idx_exp->GetExpKind() == ExpKind::kString && idx_exp->ExpValue() == "#") {
+        if (const auto idx_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[0]); idx_exp && idx_exp->GetExpKind() == ExpKind::kString && idx_exp->ExpValue() == "#") {
             const std::string vararg = CompileExp(raw_args[1], /*preserve_multi=*/true);
             Out() << GenTab() << tmp << " = FlSelectHash(" << vararg << ");\n";
             return tmp;
@@ -4391,13 +4317,13 @@ std::string CGen::BuildDynamicCall(const std::string &func_name, SyntaxTreeInter
 void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vector<Scope> &scopes, std::vector<FuncInfo *> &func_stack, FuncInfo *cur_func) {
     if (!node) return;
 
-    auto enter_scope = [&]() {
+    auto EnterScope = [&]() {
         Scope s;
         s.func = cur_func;
         scopes.push_back(s);
     };
-    auto exit_scope = [&]() { scopes.pop_back(); };
-    auto define_var = [&](const std::string &name, const SyntaxTreeInterface *def_node) {
+    auto ExitScope = [&]() { scopes.pop_back(); };
+    auto DefineVar = [&](const std::string &name, const SyntaxTreeInterface *def_node) {
         auto def = std::make_unique<VarDef>();
         def->name = name;
         def->def_node = def_node;
@@ -4411,12 +4337,12 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vector<Scope> 
 
     switch (node->Type()) {
         case SyntaxTreeType::Block: {
-            enter_scope();
+            EnterScope();
             const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
             for (const auto &stmt: block->Stmts()) {
                 ResolveScopes(stmt, scopes, func_stack, cur_func);
             }
-            exit_scope();
+            ExitScope();
             break;
         }
         case SyntaxTreeType::LocalVar: {
@@ -4424,7 +4350,7 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vector<Scope> 
             ResolveScopes(lv->Explist(), scopes, func_stack, cur_func);
             if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist())) {
                 for (const auto &name: nl->Names()) {
-                    define_var(name, lv.get());
+                    DefineVar(name, lv.get());
                 }
             }
             break;
@@ -4434,23 +4360,23 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vector<Scope> 
             ResolveScopes(fl->ExpBegin(), scopes, func_stack, cur_func);
             ResolveScopes(fl->ExpEnd(), scopes, func_stack, cur_func);
             ResolveScopes(fl->ExpStep(), scopes, func_stack, cur_func);
-            enter_scope();
-            define_var(fl->Name(), fl.get());
+            EnterScope();
+            DefineVar(fl->Name(), fl.get());
             ResolveScopes(fl->Block(), scopes, func_stack, cur_func);
-            exit_scope();
+            ExitScope();
             break;
         }
         case SyntaxTreeType::ForIn: {
             const auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
             ResolveScopes(fi->Explist(), scopes, func_stack, cur_func);
-            enter_scope();
+            EnterScope();
             if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(fi->Namelist())) {
                 for (const auto &name: nl->Names()) {
-                    define_var(name, fi.get());
+                    DefineVar(name, fi.get());
                 }
             }
             ResolveScopes(fi->Block(), scopes, func_stack, cur_func);
-            exit_scope();
+            ExitScope();
             break;
         }
         case SyntaxTreeType::Function:
@@ -4500,11 +4426,11 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vector<Scope> 
             all_funcs_.push_back(std::move(new_func));
 
             if (node->Type() == SyntaxTreeType::LocalFunction) {
-                define_var(orig_name, node.get());
+                DefineVar(orig_name, node.get());
             }
 
             func_stack.push_back(pf);
-            enter_scope();
+            EnterScope();
             if (funcbody) {
                 const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
                 if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(fb->Parlist())) {
@@ -4523,7 +4449,7 @@ void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vector<Scope> 
                 }
                 ResolveScopes(fb->Block(), scopes, func_stack, pf);
             }
-            exit_scope();
+            ExitScope();
             func_stack.pop_back();
             break;
         }

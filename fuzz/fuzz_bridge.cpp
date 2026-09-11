@@ -1,5 +1,4 @@
 // fuzz_bridge.cpp — Thin C wrapper implementation (compiled with GCC)
-//
 // Wraps fakelua C++ API behind simple C functions so fuzz targets
 // compiled with clang+libFuzzer can call fakelua without needing its
 // C++20 template headers.
@@ -42,9 +41,9 @@ static int CompileWith(void *s, const char *src, int len, const fakelua::Compile
 
     try {
         fakelua::CompileString(state, script, cfg);
-        return 1; // success
+        return 1;// success
     } catch (const fakelua::FakeluaException &) {
-        return 0; // expected: invalid Lua / unsupported feature / runtime error in initializers
+        return 0;// expected: invalid Lua / unsupported feature / runtime error in initializers
     } catch (const std::exception &) {
         // Unexpected exception type — likely a bug
         std::abort();
@@ -79,9 +78,9 @@ int fuzz_fakelua_call_int(void *s, const char *name, int64_t *out) {
 
     try {
         fakelua::Call(state, fakelua::JIT_GCC, name, *out);
-        return 1; // success
+        return 1;// success
     } catch (const fakelua::FakeluaException &) {
-        return 0; // expected runtime error
+        return 0;// expected runtime error
     } catch (const std::exception &) {
         std::abort();
     } catch (...) {
@@ -89,4 +88,4 @@ int fuzz_fakelua_call_int(void *s, const char *name, int64_t *out) {
     }
 }
 
-} // extern "C"
+}// extern "C"

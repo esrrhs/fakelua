@@ -9,4 +9,4 @@ namespace fakelua::yaml {
 //   yaml.encode(value) → YAML string
 void RegisterYamlLibraryApi(State *s);
 
-}  // namespace fakelua::yaml
+}// namespace fakelua::yaml

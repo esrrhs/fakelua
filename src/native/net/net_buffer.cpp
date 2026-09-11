@@ -159,7 +159,7 @@ bool WritePacket(CircularBuffer &buf, const NetConfig &cfg, const char *data, si
             break;
         }
         case FramerType::Header2BigEndian: {
-            if (len > 0xFFFF) return false; // 超出 uint16 表示范围，拒绝
+            if (len > 0xFFFF) return false;// 超出 uint16 表示范围，拒绝
             char header[2];
             uint16_t l = static_cast<uint16_t>(len);
             header[0] = static_cast<char>((l >> 8) & 0xFF);
@@ -169,7 +169,7 @@ bool WritePacket(CircularBuffer &buf, const NetConfig &cfg, const char *data, si
             break;
         }
         case FramerType::Header2LittleEndian: {
-            if (len > 0xFFFF) return false; // 超出 uint16 表示范围，拒绝
+            if (len > 0xFFFF) return false;// 超出 uint16 表示范围，拒绝
             char header[2];
             uint16_t l = static_cast<uint16_t>(len);
             header[0] = static_cast<char>(l & 0xFF);
@@ -209,9 +209,8 @@ bool WritePacket(CircularBuffer &buf, const NetConfig &cfg, const char *data, si
 // 使用 size_t 做全部比较，杜绝 uint32 加法溢出。
 // 返回 true 表示合法（可能数据不足，由调用方继续等）；
 // 返回 false 且 *out_error=true 表示协议违规，调用方应关闭连接。
-static bool ValidatePayloadLen(const NetConfig &cfg, size_t payload_len, size_t header_size,
-                                 size_t buf_size, size_t buf_capacity, bool &out_error) {
-    size_t total = header_size + payload_len; // size_t，不会溢出
+static bool ValidatePayloadLen(const NetConfig &cfg, size_t payload_len, size_t header_size, size_t buf_size, size_t buf_capacity, bool &out_error) {
+    size_t total = header_size + payload_len;// size_t，不会溢出
     if (payload_len > static_cast<size_t>(cfg.max_packet_len)) {
         out_error = true;
         return false;
@@ -228,8 +227,7 @@ static bool ValidatePayloadLen(const NetConfig &cfg, size_t payload_len, size_t 
     return true;
 }
 
-bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len,
-                      bool &out_error) {
+bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_payload, uint32_t &out_len, bool &out_error) {
     out_error = false;
 
     if (cfg.custom_parser_fn) {
@@ -238,7 +236,6 @@ bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_
 
     // 用 buf 自己的暂存区：一个连接只被它所属的 State 单线程访问，所以按缓冲区各存一份
     // 既没有竞争，也不会像共享一份那样"解析另一条连接就让先前的 payload 失效"。
-    //
     // 大小有上限：payload_len 在上面已经被 validate_payload_len 按 max_packet_len 卡过。
     auto &parse_tmp = buf.PayloadScratch();
 
@@ -247,10 +244,8 @@ bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_
             if (buf.Size() < 4) return false;
             char header[4];
             buf.Peek(header, 4);
-            size_t payload_len = (static_cast<size_t>(static_cast<uint8_t>(header[0])) << 24) |
-                                 (static_cast<size_t>(static_cast<uint8_t>(header[1])) << 16) |
-                                 (static_cast<size_t>(static_cast<uint8_t>(header[2])) << 8) |
-                                 static_cast<size_t>(static_cast<uint8_t>(header[3]));
+            size_t payload_len = (static_cast<size_t>(static_cast<uint8_t>(header[0])) << 24) | (static_cast<size_t>(static_cast<uint8_t>(header[1])) << 16) |
+                                 (static_cast<size_t>(static_cast<uint8_t>(header[2])) << 8) | static_cast<size_t>(static_cast<uint8_t>(header[3]));
             if (!ValidatePayloadLen(cfg, payload_len, 4, buf.Size(), buf.Capacity(), out_error)) {
                 return false;
             }
@@ -265,10 +260,8 @@ bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_
             if (buf.Size() < 4) return false;
             char header[4];
             buf.Peek(header, 4);
-            size_t payload_len = static_cast<size_t>(static_cast<uint8_t>(header[0])) |
-                                 (static_cast<size_t>(static_cast<uint8_t>(header[1])) << 8) |
-                                 (static_cast<size_t>(static_cast<uint8_t>(header[2])) << 16) |
-                                 (static_cast<size_t>(static_cast<uint8_t>(header[3])) << 24);
+            size_t payload_len = static_cast<size_t>(static_cast<uint8_t>(header[0])) | (static_cast<size_t>(static_cast<uint8_t>(header[1])) << 8) |
+                                 (static_cast<size_t>(static_cast<uint8_t>(header[2])) << 16) | (static_cast<size_t>(static_cast<uint8_t>(header[3])) << 24);
             if (!ValidatePayloadLen(cfg, payload_len, 4, buf.Size(), buf.Capacity(), out_error)) {
                 return false;
             }
@@ -283,8 +276,7 @@ bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_
             if (buf.Size() < 2) return false;
             char header[2];
             buf.Peek(header, 2);
-            size_t payload_len = (static_cast<size_t>(static_cast<uint8_t>(header[0])) << 8) |
-                                 static_cast<size_t>(static_cast<uint8_t>(header[1]));
+            size_t payload_len = (static_cast<size_t>(static_cast<uint8_t>(header[0])) << 8) | static_cast<size_t>(static_cast<uint8_t>(header[1]));
             if (!ValidatePayloadLen(cfg, payload_len, 2, buf.Size(), buf.Capacity(), out_error)) {
                 return false;
             }
@@ -299,8 +291,7 @@ bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_
             if (buf.Size() < 2) return false;
             char header[2];
             buf.Peek(header, 2);
-            size_t payload_len = static_cast<size_t>(static_cast<uint8_t>(header[0])) |
-                                 (static_cast<size_t>(static_cast<uint8_t>(header[1])) << 8);
+            size_t payload_len = static_cast<size_t>(static_cast<uint8_t>(header[0])) | (static_cast<size_t>(static_cast<uint8_t>(header[1])) << 8);
             if (!ValidatePayloadLen(cfg, payload_len, 2, buf.Size(), buf.Capacity(), out_error)) {
                 return false;
             }
@@ -349,8 +340,7 @@ bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_
         case FramerType::FixedLength: {
             if (cfg.fixed_packet_len <= 0) return false;
             uint32_t fixed_len = static_cast<uint32_t>(cfg.fixed_packet_len);
-            if (fixed_len > buf.Capacity() ||
-                (cfg.max_packet_len > 0 && fixed_len > static_cast<uint32_t>(cfg.max_packet_len))) {
+            if (fixed_len > buf.Capacity() || (cfg.max_packet_len > 0 && fixed_len > static_cast<uint32_t>(cfg.max_packet_len))) {
                 out_error = true;
                 return false;
             }

@@ -172,7 +172,8 @@ TEST(infer, test_infer_for_step_int) {
 }
 
 // ForLoop with a math param step: snapshot-based specialization generates two
-// specializations.  int specialization: all loop vars are int64_t, sum is int64_t.
+// specializations.
+// int specialization: all loop vars are int64_t, sum is int64_t.
 // float specialization: loop ctrl vars become double, sum degrades to CVar because
 // MergeType(T_INT, T_FLOAT) = T_DYNAMIC.
 TEST(infer, test_infer_for_step_dynamic) {
@@ -346,7 +347,7 @@ TEST(infer, test_infer_mutation) {
 // degraded to T_DYNAMIC by  sum = "done"  in an else branch that the
 // single-pass walk sees AFTER recording EvalType = T_INT on the assign node
 // for  sum = sum + i  in the then branch.  Without the fix CGen emits
-//   CVar sum = (int64_t expression)  -- a C type error.
+// CVar sum = (int64_t expression)  -- a C type error.
 // With the fix typed_native_vars_ is consulted instead of EvalType.
 TEST(infer, test_infer_assign_degraded_var) {
     const auto code = InferGetCCode("./infer/test_infer_assign_degraded_var.lua");
@@ -369,7 +370,7 @@ TEST(infer, test_infer_assign_degraded_var) {
 // (set by the single-pass walk before a later T_DYNAMIC mutation appears in
 // source), but the variable is declared as CVar.  In subsequent loop
 // iterations where the variable already holds a string, the old code emitted
-//   return (CVar){VAR_INT, x.data_.i}  -- returning a garbage integer.
+// return (CVar){VAR_INT, x.data_.i}  -- returning a garbage integer.
 // With the fix CompileExp is always used so the CVar is returned directly.
 TEST(infer, test_infer_return_stale_type) {
     const auto code = InferGetCCode("./infer/test_infer_return_stale_type.lua");
@@ -764,9 +765,7 @@ TEST(infer, test_spec_wrapper_var) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Optimization 1: bitwise operators propagate T_INT when both operands are T_INT
-// ────────────────────────────────────────────────────────────────────────────
 
 // INT & INT = T_INT: 10 & 3 = 2.
 TEST(infer, test_infer_typed_int_bitand) {
@@ -873,9 +872,7 @@ TEST(infer, test_infer_typed_int_rightshift) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Optimization 2: unary operators propagate T_INT / T_FLOAT
-// ────────────────────────────────────────────────────────────────────────────
 
 // Unary minus on an integer variable yields T_INT → int64_t.
 TEST(infer, test_infer_typed_int_unary_minus) {
@@ -949,9 +946,7 @@ TEST(infer, test_infer_unary_minus_for_bound) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Specialization: BITNOT (~) of a math param in arithmetic uses native fast path
-// ────────────────────────────────────────────────────────────────────────────
 
 // InferArgTypeForSpec handles BITNOT: when the operand is T_INT the result is
 // T_INT, so (~n) + 1 uses the native C arithmetic path in the int specialization.
@@ -973,9 +968,7 @@ TEST(infer, test_spec_bitnot_param) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Optimization 3: T_FLOAT for-loop fast path (double control variables)
-// ────────────────────────────────────────────────────────────────────────────
 
 // All-float bounds: for i = 1.0, 3.0 → double fast path.
 // sum = 1.0 + 2.0 + 3.0 = 6.0.
@@ -1129,9 +1122,7 @@ TEST(infer, test_infer_forin_scope_injection) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Optimization: reassigned math params are still specialized
-// ────────────────────────────────────────────────────────────────────────────
 
 // GCD-style: both a and b are reassigned inside the while loop body
 // (a = tmp; b = a % b). The compiler must still mark them as math params
@@ -1188,9 +1179,7 @@ TEST(infer, test_spec_reassign_powmod) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Optimization: native C comparisons in if/while/repeat/elseif conditions
-// ────────────────────────────────────────────────────────────────────────────
 
 // if condition with T_INT operands: TryCompileNativeBoolExpr must emit
 // if ((x) > (5)) directly, without IsTrue or a bool temp variable.
@@ -1395,10 +1384,8 @@ TEST(infer, test_native_bool_nested) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Missing grammar cases: LEFT_SHIFT/RIGHT_SHIFT and NUMBER_SIGN (#) in
 // math param specialization context
-// ────────────────────────────────────────────────────────────────────────────
 
 // Math param n: n << 2 should use the native arithmetic fast path via
 // kNativeArithOps + FlLShiftInt.  InferArgTypeForSpec already returns T_INT
@@ -1467,10 +1454,8 @@ TEST(infer, test_spec_len_param) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Missing grammar cases: for-loop with math param as bound, and comparison
 // with a specialized function call result.
-// ────────────────────────────────────────────────────────────────────────────
 
 // Math param n used as the upper bound of a numeric for-loop.
 // TypeInferencer identifies n as a math param via the inner sum + i arithmetic
@@ -1619,9 +1604,7 @@ TEST(infer, test_spec_compare_operand_int_float_degrade) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Missing grammar cases: pure unary ops as math params, and do...end blocks.
-// ────────────────────────────────────────────────────────────────────────────
 
 // Pure unary negation: function f(n) return -n end.
 // Previously IsArithmeticBinop would skip this because there is no binary
@@ -1834,10 +1817,8 @@ TEST(infer, test_spec_local_chain_from_func_call) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Missing grammar cases: local function, for-loop with arithmetic bounds/step,
 // break inside specialized loop, arithmetic local var chain, repeat...until.
-// ────────────────────────────────────────────────────────────────────────────
 
 // local function 形式的数学参数特化。
 // square 通过 local function 定义，n 是数学参数（n*n 有算术改善）。
@@ -1998,14 +1979,12 @@ TEST(infer, test_spec_repeat_arith) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Missing grammar cases: comparison-only math params (min/max/clamp patterns).
 // Previously, functions that used parameters ONLY in comparison expressions
 // (no arithmetic) were not detected as having math params.  After adding
 // IsNativeComparisonExpr detection in HasArithmeticImprovement /
 // ParamAffectsArithmetic, these functions are specialised and comparisons
 // use TryCompileNativeBoolExpr to emit native C comparisons.
-// ────────────────────────────────────────────────────────────────────────────
 
 // min(a, b): comparison-only math params.
 // Both a and b are detected as math params via the a < b comparison node.
@@ -2111,7 +2090,6 @@ TEST(infer, test_spec_clamp_param) {
 }
 
 // 缺失语法补全：and/or 运算符 + for 循环 begin 表达式
-// ────────────────────────────────────────────────────────────────────────────
 
 // n or 2 のような OR 式を含む特化：乗算 * 3 が数学パラメータ検出のトリガー。
 // Lua では整数（0 を含む）は常に真値なので n or 2 = n。
@@ -2541,9 +2519,7 @@ TEST(infer, test_count_loop) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // 遗漏语法补全测试
-// ────────────────────────────────────────────────────────────────────────────
 
 // NOT_EQUAL (~=) 在 if 条件中生成原生 C 不等比较。
 // n 通过 n + 1 算术运算被识别为数学参数；if 条件 n ~= 0 应发出 (n) != (0)。
@@ -2642,9 +2618,7 @@ TEST(infer, test_spec_funcdef_assignment) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // 遗漏语法补全测试（二）
-// ────────────────────────────────────────────────────────────────────────────
 
 // not (comparison) 作为 if 条件，直接使用数学参数（无局部变量中间体）。
 // n 通过 n < 0（IsNativeComparisonExpr: LESS）和算术 n + 1 被识别为数学参数。
@@ -2831,9 +2805,7 @@ TEST(infer, test_spec_and_or_only_no_spec) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Bug fixes: repeat...until scope and local-var degraded-expression guard.
-// ────────────────────────────────────────────────────────────────────────────
 
 // Bug 1 & 3 fix: repeat...until where the until condition uses a local variable
 // declared inside the repeat block.
@@ -2909,11 +2881,9 @@ TEST(infer, test_spec_local_degraded_binop) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Bug 1 fix: CVar fallback for typed-native-var assignment must check the CVar
 // type and throw FakeluaThrowError for non-numeric values instead of silently
 // reading a garbage int64_t/double from the wrong union field.
-// ────────────────────────────────────────────────────────────────────────────
 
 // Bug 1 fix – typed int path.
 // n is a math param (n + 1 triggers specialisation → test_0(int64_t n)).
@@ -2969,11 +2939,9 @@ TEST(infer, test_spec_assign_nonnumeric_typed_float) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Bug 2 fix: spec_param_types_ must be erased when a math param is reassigned
 // through the CVar fallback path, so that InferArgTypeForSpec falls through to
 // GetNativeVarType (which still returns T_INT since n is int64_t in the spec).
-// ────────────────────────────────────────────────────────────────────────────
 
 // n is a math param (n + 1 in the return triggers specialisation).
 // `n = cvar_helper(n)` reassigns n via the CVar fallback (cvar_helper is not
@@ -3000,9 +2968,7 @@ TEST(infer, test_spec_reassign_param_cvar_path) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // 文件级数值局部常量特化
-// ────────────────────────────────────────────────────────────────────────────
 
 // 文件级整数常量 N = 100 应生成 static const int64_t，
 // 函数 test() 内 for i = 1, N 的边界应为 T_INT，
@@ -3216,9 +3182,7 @@ TEST(infer, test_global_const_spec) {
     });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // Coverage tests: exercise previously-uncovered code paths in type_inferencer.cpp
-// ────────────────────────────────────────────────────────────────────────────
 
 // 表字段访问（kSquare var）作为右值表达式。
 // InferVar line 476: 对非简单 var（kSquare）调用 InferNode(pe)（prefixexp 非 null）。

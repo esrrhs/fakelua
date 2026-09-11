@@ -1,7 +1,6 @@
 #pragma once
 
 // net_asio.h — Boost.Asio 基于单线程非阻塞模型的 TCP 引擎
-//
 // 设计要点：
 // - 纯单线程非阻塞架构：移除后台工作线程，所有 IO 操作（accept/read/write/resolve/connect）
 //   在 tick() 调用的同一线程上驱动，与 fakelua 单线程极简模型完全契合。
@@ -129,9 +128,7 @@ public:
     void DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher);
 
     // 兼容旧 tick() 接口
-    void Tick(const std::function<void(int)> &on_conn,
-              const std::function<void(int, const char *, size_t)> &on_recv,
-              const std::function<void(int)> &on_close) {
+    void Tick(const std::function<void(int)> &on_conn, const std::function<void(int, const char *, size_t)> &on_recv, const std::function<void(int)> &on_close) {
         DrainEventsWith([&](const ConnEvent &ev) {
             switch (ev.kind) {
                 case EventKind::Connect:
@@ -189,8 +186,7 @@ public:
     bool Send(const char *data, size_t len);
 
     // 兼容旧 tick() 接口
-    void Tick(const std::function<void(const char *, size_t)> &on_recv,
-              const std::function<void()> &on_close) {
+    void Tick(const std::function<void(const char *, size_t)> &on_recv, const std::function<void()> &on_close) {
         DrainEventsWith([&](const ConnEvent &ev) {
             switch (ev.kind) {
                 case EventKind::Connect:

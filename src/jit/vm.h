@@ -9,7 +9,6 @@
 namespace fakelua {
 
 // 虚拟机：负责运行时函数注册与查找
-//
 // 线程模型：整个 fakelua 运行时假定单线程使用——一个 State 同一时刻只会被一个线程持有，
 // 注册/查找 VmFunction、分配全局名都发生在编译或初始化阶段，不会与执行期读者并发。
 // 因此本类所有成员（vm_functions_ 的 find+emplace、global_name_ 的自增）都没有加锁。
@@ -67,15 +66,19 @@ private:
     // 透明哈希：FakeluaCallByName 热路径可用 string_view 查表，避免每次堆分配
     struct TransparentStringHash {
         using is_transparent = void;
+
         size_t operator()(std::string_view s) const noexcept {
             return std::hash<std::string_view>{}(s);
         }
+
         size_t operator()(const std::string &s) const noexcept {
             return std::hash<std::string_view>{}(s);
         }
     };
+
     struct TransparentStringEq {
         using is_transparent = void;
+
         bool operator()(std::string_view a, std::string_view b) const noexcept {
             return a == b;
         }

@@ -12,8 +12,7 @@ class State;
 
 namespace fakelua::protobuf {
 
-// ─── 枚举定义 ───
-
+// 枚举定义
 struct EnumDef {
     std::string name;
     // (名称, 编号) 列表
@@ -22,30 +21,28 @@ struct EnumDef {
     std::unordered_map<int, std::string> number_to_name;
 };
 
-// ─── 字段定义 ───
-
+// 字段定义
 struct FieldDef {
     std::string name;
-    int number = 0;                // 字段编号（1-536870911）
-    FieldType type = TYPE_INT32;   // 标量类型
-    std::string type_name;         // message/enum 类型的完全限定名（含点），标量类型为空
+    int number = 0;             // 字段编号（1-536870911）
+    FieldType type = TYPE_INT32;// 标量类型
+    std::string type_name;      // message/enum 类型的完全限定名（含点），标量类型为空
     bool repeated = false;
-    bool is_map = false;           // map 字段标志
-    bool optional = false;         // proto3 optional（显式 presence）
-    int oneof_index = -1;          // -1 表示不属于 oneof
+    bool is_map = false;  // map 字段标志
+    bool optional = false;// proto3 optional（显式 presence）
+    int oneof_index = -1; // -1 表示不属于 oneof
 
     // map 专用字段
     FieldType map_key_type = TYPE_INT32;
     FieldType map_value_type = TYPE_INT32;
-    std::string map_value_type_name;  // map value 为 message/enum 时的类型名
+    std::string map_value_type_name;// map value 为 message/enum 时的类型名
 };
 
-// ─── 消息定义 ───
-
+// 消息定义
 struct MessageDef {
-    std::string name;                           // 完全限定名（如 "game.Player"）
-    std::vector<FieldDef> fields;               // 按 number 排序
-    std::unordered_map<int, const FieldDef*> number_to_field;  // 快速查找
+    std::string name;                                         // 完全限定名（如 "game.Player"）
+    std::vector<FieldDef> fields;                             // 按 number 排序
+    std::unordered_map<int, const FieldDef *> number_to_field;// 快速查找
 
     // 嵌套类型（名称相对于父消息）
     std::vector<MessageDef> nested_messages;
@@ -55,9 +52,8 @@ struct MessageDef {
     void BuildIndex();
 };
 
-// ─── Schema 注册器（进程全局单例） ───
-
-// .proto schema 注册表。每个 State 一份（见 pb_state），不是进程级单例：protobuf.load()
+// Schema 注册器（进程全局单例）
+// .proto schema 注册表。每个 State 一份（见 GetProtobufState），不是进程级单例：protobuf.load()
 // 会往里写，多个线程各跑自己的 State 时共享一份就是并发改同一个 map；而且一个 State 加载
 // 的 schema 也不该泄漏到另一个 State。
 class ProtobufState {
@@ -87,6 +83,6 @@ private:
 };
 
 // 取本 State 的 schema 注册表
-ProtobufState &pb_state(State *s);
+ProtobufState &GetProtobufState(State *s);
 
-}  // namespace fakelua::protobuf
+}// namespace fakelua::protobuf
