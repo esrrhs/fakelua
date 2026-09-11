@@ -79,7 +79,6 @@ String fkget_token_name(int token) {
         TOKEN_SWITCH(COLON)
         TOKEN_SWITCH(FOR)
         TOKEN_SWITCH(INC)
-        TOKEN_SWITCH(FAKE)
         TOKEN_SWITCH(FKUUID)
         TOKEN_SWITCH(OPEN_SQUARE_BRACKET)
         TOKEN_SWITCH(CLOSE_SQUARE_BRACKET)
@@ -92,8 +91,6 @@ String fkget_token_name(int token) {
         TOKEN_SWITCH(IS)
         TOKEN_SWITCH(NOT)
         TOKEN_SWITCH(CONTINUE)
-        TOKEN_SWITCH(YIELD)
-        TOKEN_SWITCH(SLEEP)
         TOKEN_SWITCH(SWITCH)
         TOKEN_SWITCH(CASE)
         TOKEN_SWITCH(DEFAULT)
@@ -193,6 +190,53 @@ String vartostring(const variant *v) {
     return s;
 }
 
+void fk_variant_cat(fake *fk, variant *d, const variant *l, const variant *r) {
+    const char *ls = "";
+    const char *rs = "";
+    int llen = 0;
+    int rlen = 0;
+    const stringele *le = 0;
+    const stringele *re = 0;
+    char lbuf[64];
+    char rbuf[64];
+    String lhold;
+    String rhold;
+    if (l && l->type == variant::STRING && l->data.str) {
+        le = l->data.str;
+        ls = le->s;
+        llen = (int) le->sz;
+    } else if (l && l->type == variant::REAL) {
+        if (fkisint(l->data.real)) {
+            llen = sprintf(lbuf, "%lld", (long long) l->data.real);
+        } else {
+            llen = sprintf(lbuf, "%g", l->data.real);
+        }
+        ls = lbuf;
+    } else {
+        V_TOSTRING(l, lhold);
+        ls = lhold.c_str();
+        llen = (int) lhold.size();
+    }
+    if (r && r->type == variant::STRING && r->data.str) {
+        re = r->data.str;
+        rs = re->s;
+        rlen = (int) re->sz;
+    } else if (r && r->type == variant::REAL) {
+        if (fkisint(r->data.real)) {
+            rlen = sprintf(rbuf, "%lld", (long long) r->data.real);
+        } else {
+            rlen = sprintf(rbuf, "%g", r->data.real);
+        }
+        rs = rbuf;
+    } else {
+        V_TOSTRING(r, rhold);
+        rs = rhold.c_str();
+        rlen = (int) rhold.size();
+    }
+    d->type = variant::STRING;
+    d->data.str = fk->sh.allocconcat(le, re, ls, llen, rs, rlen);
+}
+
 const char *vartypetostring(int type) {
     switch (type) {
         case variant::NIL:
@@ -253,9 +297,9 @@ String fkarraytoa(variant_array *va) {
     String ret;
     ret += "[";
     for (int i = 0; i < (int) ARRAY_SIZE(va->va); i++) {
-        variant *n = ARRAY_GET(va->va, i);
-        if (n) {
-            ret += vartostring(n);
+        variant &n = ARRAY_GET(va->va, i);
+        if (n.type != variant::NIL) {
+            ret += vartostring(&n);
         } else {
             ret += " ";
         }
@@ -321,8 +365,7 @@ bool save_variant(fake *fk, const variant *v, buffer *b) {
         }
 
         for (int i = 0; i < size; i++) {
-            variant *ele = ARRAY_GET(v->data.va->va, i);
-            if (!save_variant(fk, ele, b)) {
+            if (!save_variant(fk, &ARRAY_GET(v->data.va->va, i), b)) {
                 return false;
             }
         }
@@ -354,7 +397,7 @@ bool save_variant(fake *fk, const variant *v, buffer *b) {
 
         return true;
     } else if (v->type == variant::POINTER) {
-        // ÔÝÊ±²»Ö§³Ö
+        // æš‚æ—¶ä¸æ”¯æŒ
     }
 
     return false;
@@ -424,7 +467,7 @@ bool load_variant(fake *fk, variant *v, buffer *b) {
         V_SET_MAP(v, vm);
         return true;
     } else if (v->type == variant::POINTER) {
-        // ÔÝÊ±²»Ö§³Ö
+        // æš‚æ—¶ä¸æ”¯æŒ
     }
 
     return false;
@@ -466,18 +509,6 @@ String fix_string_wrap(const String &str, int len) {
 
 const fakeconfig &get_fakeconfig(fake *fk) {
     return fk->cfg;
-}
-
-void *fk_mmap_alloc(size_t size) {
-#ifndef __MINGW64__
-    return (char*)mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-#endif
-}
-
-void fk_mmap_set_exec(void *buff, size_t size) {
-#ifndef __MINGW64__
-    mprotect(buff, size, PROT_READ | PROT_EXEC);
-#endif
 }
 
 

@@ -24,7 +24,7 @@ typedef void (*bifunc)(fake *fk, interpreter *inter);
 
 class buildinfunc {
 public:
-    force_inline buildinfunc(fake *fk) : m_fk(fk), m_bifile(fk), m_bifos(fk), m_bifstring(fk), m_bifmath(fk) {
+    force_inline buildinfunc(fake *fk) : m_fk(fk), m_fkprint(0), m_bifile(fk), m_bifos(fk), m_bifstring(fk), m_bifmath(fk) {
     }
 
     force_inline ~buildinfunc() {
@@ -73,7 +73,7 @@ private:
     buildinfuncmath m_bifmath;
 };
 
-// ²ÎÊýºÍ·µ»ØÖµ¶¼ÔÚm_fk->psÀï
+// å‚æ•°å’Œè¿”å›žå€¼éƒ½åœ¨m_fk->psé‡Œ
 #define BUILDIN_FUNC_CALL(f, inter) \
     assert((f)->havebif);\
     assert((f)->bif); \

@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-// T需要原始C结构 支持memcpy memset
+// T闇�瑕佸師濮婥缁撴瀯 鏀寔memcpy memset
 template<typename T>
 struct pool {
     fake *m_fk;

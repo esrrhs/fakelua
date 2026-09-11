@@ -1,23 +1,20 @@
 #! /bin/sh
 
+set -e
+
 BUILD_FLAG=""
 
-if [ "$#" == 1 ] && [ "$1" == "release" ];then
-    BUILD_FLAG=" -DREMOD=ON"
+if [ "$#" = 1 ] && [ "$1" = "release" ]; then
+    BUILD_FLAG="-DFAKE_RELEASE=ON"
 fi
 
-#lib
-rm -rf CMakeCache.txt
-rm -rf CMakeFiles
-rm -rf cmake_install.cmake
-rm -rf Makefile
+rm -rf CMakeCache.txt CMakeFiles cmake_install.cmake Makefile \
+    src/CMakeFiles src/Makefile src/cmake_install.cmake \
+    test/CMakeFiles test/Makefile test/cmake_install.cmake \
+    CTestTestfile.cmake src/CTestTestfile.cmake test/CTestTestfile.cmake \
+    Testing DartConfiguration.tcl
+
 cmake . $BUILD_FLAG
-make clean
-make 
-
-if [ $? -ne 0 ];then
-	echo "build lib fail"
-	exit 1
-fi
+cmake --build . --parallel
 
 echo "build ok"

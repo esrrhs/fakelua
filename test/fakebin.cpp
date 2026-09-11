@@ -79,16 +79,15 @@ void error_log(fake *fk, int eno, const char *file, int lineno, const char *func
 
 static char g_replacebuff[] = "start compile";
 
-// 函数
+// ????
 bool readfile(const char *filename, int addsize, char *&buf, int &filesize);
 
 bool writefile(const char *filename, const char *buf, int filesize);
 
 int parsearg(fake *fk, int &argc, const char **&argv);
 
-// 开关选项
+// ???????
 bool g_isopenprofile = false;
-bool g_isopenjit = false;
 bool g_isopengoogleprofile = false;
 int g_testnum = 1;
 bool g_issave = false;
@@ -106,7 +105,7 @@ int main(int argc, const char *argv[]) {
 #endif
     fake *fk = newfake(&cfg);
 
-    // 解析参数
+    // ????????
     int parseret = parsearg(fk, argc, argv);
     if (parseret != 0) {
         return parseret;
@@ -131,9 +130,9 @@ int main(int argc, const char *argv[]) {
     fkreg(fk, "test_memfunc2", &test_class2::test_memfunc2);
     fkreg(fk, "self", &test_class2::self);
 
-    // 编译后文件
+    // ????????
     if (g_iscompiled) {
-        // 打开自己
+        // ?????
         char *selftmpbuf = 0;
         int selfsize = 0;
         if (!readfile(g_selfname, 0, selftmpbuf, selfsize)) {
@@ -152,16 +151,16 @@ int main(int argc, const char *argv[]) {
 
         free(selftmpbuf);
     }
-        // 解析文件
+        // ???????
     else if (!g_isload) {
         fkparse(fk, argv[1]);
         if (fkerror(fk)) {
             return -1;
         }
     }
-        // 读文件
+        // ?????
     else {
-        // 读文件
+        // ?????
         char *tmpbuf = 0;
         int size = 0;
         if (!readfile(argv[1], 0, tmpbuf, size)) {
@@ -177,7 +176,7 @@ int main(int argc, const char *argv[]) {
         printf("load from %s ok, size %d\n", argv[1], size);
     }
 
-    // 存文件
+    // ?????
     if (g_issave) {
         int tmpsize = 1024 * 1024;
         char *tmpbuf = (char *) malloc(tmpsize);
@@ -198,7 +197,7 @@ int main(int argc, const char *argv[]) {
         return 0;
     }
 
-    // 编译到一起
+    // ???????
     if (g_iscompile) {
         int tmpsize = 1024 * 1024;
         char *tmpbuf = (char *) malloc(tmpsize);
@@ -208,14 +207,14 @@ int main(int argc, const char *argv[]) {
             return -1;
         }
 
-        // 打开自己
+        // ?????
         char *selftmpbuf = 0;
         int selfsize = 0;
         if (!readfile(g_selfname, size, selftmpbuf, selfsize)) {
             return -1;
         }
 
-        // 替换内存中的字符串
+        // ??I????????????
         bool isfind = false;
         for (int i = 0; i < selfsize; i++) {
             if (memcmp(selftmpbuf + i, g_replacebuff, strlen(g_replacebuff)) == 0) {
@@ -230,11 +229,11 @@ int main(int argc, const char *argv[]) {
             return -1;
         }
 
-        // 复制后面的
+        // ????????
         memcpy(selftmpbuf + selfsize, tmpbuf, size);
         free(tmpbuf);
 
-        // 输出
+        // ???
         const char *filename = "fakebinout";
         if (!writefile(filename, selftmpbuf, selfsize + size)) {
             return -1;
@@ -260,14 +259,10 @@ int main(int argc, const char *argv[]) {
 
     // run
     for (int i = 0; i < g_testnum; i++) {
-        if (!g_isopenjit) {
-            if (g_isstep) {
-                fkret = fkdebugrun<int>(fk, "main");
-            } else {
-                fkret = fkrun<int>(fk, "main");
-            }
+        if (g_isstep) {
+            fkret = fkdebugrun<int>(fk, "main");
         } else {
-            fkret = fkrunjit<int>(fk, "main");
+            fkret = fkrun<int>(fk, "main");
         }
     }
 
@@ -300,7 +295,7 @@ int main(int argc, const char *argv[]) {
 }
 
 bool readfile(const char *filename, int addsize, char *&buf, int &filesize) {
-    // 打开
+    // ??
     FILE *fp = fopen(filename, "rb");
     if (!fp) {
         printf("open %s for read fail\n", filename);
@@ -345,7 +340,7 @@ bool writefile(const char *filename, const char *buf, int filesize) {
 int parsearg(fake *fk, int &argc, const char **&argv) {
     g_selfname = argv[0];
 
-    // start compile，memcmp无解只能用这种
+    // start compile??memcmp????????????
     if (g_replacebuff[0] != 's' ||
         g_replacebuff[1] != 't' ||
         g_replacebuff[2] != 'a' ||
@@ -368,9 +363,8 @@ int parsearg(fake *fk, int &argc, const char **&argv) {
     if (argc >= 2 && argv[1][0] == '-') {
         if (strstr(argv[1], "h")) {
             printf("\
-fake\n\narg : [-hjpgtslocd] file [arg]\n\
+fake\n\narg : [-hpgtslocd] file [arg]\n\
 -h help\n\
--j open jit\n\
 -p open profile\n\
 -g open google profile\n\
 -t open test mode\n\
@@ -381,11 +375,6 @@ fake\n\narg : [-hjpgtslocd] file [arg]\n\
 -d debug step mod\n\
 sample:./fake a.fk\n\n");
             return -1;
-        }
-
-        if (strstr(argv[1], "j")) {
-            fkopenjit(fk);
-            g_isopenjit = true;
         }
 
         if (strstr(argv[1], "p")) {

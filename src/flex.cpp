@@ -866,7 +866,8 @@ case 8:
 YY_RULE_SETUP
 #line 53 "flex.l"
 {
-	return FAKE;
+	lvalp->str = String(yytext);
+	return IDENTIFIER;
 }
 	YY_BREAK
 case 9:
@@ -1001,14 +1002,16 @@ case 27:
 YY_RULE_SETUP
 #line 131 "flex.l"
 {
-	return YIELD;
+	lvalp->str = String(yytext);
+	return IDENTIFIER;
 }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
 #line 135 "flex.l"
 {
-	return SLEEP;
+	lvalp->str = String(yytext);
+	return IDENTIFIER;
 }
 	YY_BREAK
 case 29:

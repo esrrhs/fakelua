@@ -258,6 +258,7 @@
 
 struct fake;
 struct processor;
+struct funcunion;
 
 struct interpreter {
 public:
@@ -270,6 +271,8 @@ public:
     }
 
     void call(const variant &func, int retnum, int *retpos);
+    void call_func(const funcunion *f, int retnum, int *retpos, const variant *func,
+                   const variant *args = 0, int argn = -1);
 
     variant *get_container_variant(const func_binary &fb, int conpos);
 
@@ -307,7 +310,11 @@ public:
 
     void set_running_vaiant(int frame, const char *name, int line, const char *value);
 
-    int run(int cmdnum);
+    void run();
+    void step();
+    void interpret(bool onestep);
+    template<bool STEP>
+    void interpret_t();
 
 public:
     fake *m_fk;
@@ -318,9 +325,6 @@ public:
     int m_ip;
     int m_bp;
     int m_sp;
-    uint32_t m_wakeuptime;
-    uint32_t m_yieldtime;
-    bool m_sleeping;
     processor *m_processor;
 };
 
@@ -332,10 +336,7 @@ public:
     (inter).m_fb = 0;\
     (inter).m_ip = 0;\
     (inter).m_bp = 0;\
-    (inter).m_sp = 0;\
-    (inter).m_wakeuptime = 0;\
-    (inter).m_yieldtime = 0;\
-    (inter).m_sleeping = false
+    (inter).m_sp = 0
 
 
 #define INTER_CLEAR(inter) (inter).m_isend = false;\
@@ -343,10 +344,7 @@ public:
     (inter).m_fb = 0;\
     (inter).m_ip = 0;\
     (inter).m_bp = 0;\
-    (inter).m_sp = 0;\
-    (inter).m_wakeuptime = 0;\
-    (inter).m_yieldtime = 0;\
-    (inter).m_sleeping = false;
+    (inter).m_sp = 0;
 
 #define INTER_SET_PRO(inter, pro) (inter).m_processor = pro
 

@@ -103,7 +103,5 @@ void codegen::output(const char *filename, const char *packagename, const char *
                bin->m_debug_stack_variant_info_num * sizeof(stack_variant_info));
     }
 
-    bin->m_fresh++;
-
     FKLOG("codegen out %s %d", name, m_maxstackpos);
 }

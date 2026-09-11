@@ -200,6 +200,8 @@ struct variant;
 
 String vartostring(const variant *v);
 
+void fk_variant_cat(fake *fk, variant *d, const variant *l, const variant *r);
+
 const char *vartypetostring(int type);
 
 template<typename T>
@@ -223,7 +225,7 @@ String fkarraytoa(variant_array *va);
 
 String fkmaptoa(variant_map *vm);
 
-#ifdef __x86_64
+#if defined(__LP64__) || defined(_WIN64) || defined(__x86_64) || defined(__x86_64__) || defined(__aarch64__)
 #define FK64
 #endif
 
@@ -347,8 +349,3 @@ const fakeconfig &get_fakeconfig(fake *fk);
             return false; \
         } \
     }
-
-void *fk_mmap_alloc(size_t size);
-
-void fk_mmap_set_exec(void *buff, size_t size);
-

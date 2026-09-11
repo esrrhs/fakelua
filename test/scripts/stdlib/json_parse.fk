@@ -1,0 +1,17 @@
+include "../package/json.fk"
+
+-- main comment
+func main()
+	
+	var ok, var ret, var errormsg = json.parse("56.json")
+	if not ok then
+		print(errormsg)
+		return -1
+	end
+
+	print(ret)
+	print(json.jsontostring(ret))
+	
+	return 0
+	
+end

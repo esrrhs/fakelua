@@ -210,5 +210,13 @@
 2019.7.16:添加特殊for指令，现在benchmark和lua差不多了
 2019.7.17:添加string benchmark，需要研究下JIT的gc咋弄，需要知道栈信息即可
 2019.7.18:JIT的gc，在machine调用函数的地方记录栈信息，然后gc的时候就可以遍历gc了
-
-
+2019.9.26:加 Travis CI
+2019.11.14:加 GitHub Actions
+2026.9.10:去掉全部 GC，运行期对象活到 delfake，不再做标记清除
+2026.9.11:重写 README；去掉全部 JIT，只留字节码 VM；CMake 3.16、C++14、ctest，CI 去掉 Travis；源码注释转 UTF-8；加 fkreset，热更新改成同名覆盖；删 sample_64；log 改 stderr，pause 改空操作；运行期 intern 字符串可 reset，常量 pin 住；加 reset/coro/bind 测试；去掉 Qt IDE，调试只留 fakebin 命令行；VM 一口气执行完，不再按步数切片，fkrun 不留暂停状态；单测换成 GoogleTest，benchmark 换成 Google Benchmark；sample 按功能改名，补了语言/API/错误用例；ARRAY_INI 把 data/size 清零，多次 newfake/delfake 才安全；CI 跑 GoogleTest 和 Google Benchmark；删掉 Heavy 大配置用例
+2026.9.11:VM computed-goto；C-style for 合成 OPCODE_FOR；叶子 return a+b 内联；紧循环把 count++ / a[i]=i 收到 C；数组改 packed variant[]；concat bump 分配不 intern。除无 GC 的 string RSS 外，ForLoop/Call/ArrayWrite/loop.fk/string 耗时均快过 Lua 5.4
+2026.9.11:去掉 fake/yield/sleep 模拟协程；optimizer 改为 CFG + 到达定值/常量传播/拷贝传播/活跃变量 DCE
+2026.9.11:optimizer 改为 SSA（Cytron）+ SCCP（Wegman-Zadeck）+ GVN + 活跃变量 DCE
+2026.9.11:test/sample 改成 test/scripts，按 lang/bind/stdlib/optimizer/template/package 分类
+2026.9.11:重跑 release benchmark；补 RangeFor/MapWrite/FoldedAdd/DeadBranch/Gvn/Switch/Recurse/Prime/ParseHeavy；结论写在 benchmark/README
+2026.9.11:benchmark 去掉 Python，只和 Lua 对比

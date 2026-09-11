@@ -6,36 +6,43 @@
 //////////////////////////////////////////////////////////////////////////
 
 void interpreter::call(const variant &func, int retnum, int *retpos) {
+    call_func(m_fk->fm.get_func(func), retnum, retpos, &func);
+}
+
+void interpreter::call_func(const funcunion *f, int retnum, int *retpos, const variant *func,
+                            const variant *args, int argn) {
     fake *fk = m_fk;
-    paramstack *ps = getps(m_fk);
-    const funcunion *f = m_fk->fm.get_func(func);
+    paramstack *ps = &fk->ps;
     bool &err = m_isend;
     USE(err);
     if (UNLIKE(!f)) {
-        FKERR("fkrun no func %s fail", vartostring(&func).c_str());
+        FKERR("fkrun no func %s fail", vartostring(func).c_str());
         m_isend = true;
         seterror(m_fk, efk_run_no_func_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
-                 "fkrun no func %s fail", vartostring(&func).c_str());
+                 "fkrun no func %s fail", vartostring(func).c_str());
         return;
     }
 
-    // 常规函数
     if (LIKE(f->havefb)) {
         const func_binary *fb = &f->fb;
         variant *v = 0;
 
-        // 准备栈大小
         int needsize = m_sp + BP_SIZE + retnum + FUNC_BINARY_MAX_STACK(*fb);
         if (UNLIKE(needsize > (int) ARRAY_MAX_SIZE(m_stack))) {
-            int newsize = needsize + 1 + ARRAY_MAX_SIZE(m_stack) * m_fk->cfg.array_grow_speed / 100;
+            int newsize = needsize + 1;
+            int grown = (int) ARRAY_MAX_SIZE(m_stack) * 2;
+            if (grown > newsize) {
+                newsize = grown;
+            }
+            if (newsize < 32) {
+                newsize = 32;
+            }
             ARRAY_GROW(m_stack, newsize, variant);
         }
 
-        // 老的bp
         int oldbp = m_bp;
         m_bp = m_sp;
 
-        // 记录返回位置
         for (int i = 0; i < retnum; i++) {
             v = &ARRAY_GET(m_stack, m_bp);
             v->type = variant::NIL;
@@ -43,131 +50,131 @@ void interpreter::call(const variant &func, int retnum, int *retpos) {
             m_bp++;
         }
 
-        // 记录返回值数目
         v = &ARRAY_GET(m_stack, m_bp);
         v->type = variant::NIL;
         v->data.buf = retnum;
         m_bp++;
 
-        // 记录老的ip
         v = &ARRAY_GET(m_stack, m_bp);
         v->type = variant::NIL;
         v->data.buf = m_ip;
         m_bp++;
 
-        // 记录profile
+        v = &ARRAY_GET(m_stack, m_bp);
         if (UNLIKE(m_fk->pf.isopen())) {
-            v = &ARRAY_GET(m_stack, m_bp);
             v->data.buf = fkgetmstick();
+        } else {
+            v->data.buf = 0;
         }
         v->type = variant::NIL;
         m_bp++;
 
-        // 记录老的fb
         v = &ARRAY_GET(m_stack, m_bp);
         v->type = variant::NIL;
         v->data.buf = (uint64_t) m_fb;
         m_bp++;
 
-        // 记录老的bp
         v = &ARRAY_GET(m_stack, m_bp);
         v->type = variant::NIL;
         v->data.buf = oldbp;
         m_bp++;
 
-        // 设置sp
         m_sp = m_bp + FUNC_BINARY_MAX_STACK(*fb);
 
-        if (UNLIKE((int) ps->m_variant_list_num != FUNC_BINARY_PARAMNUM(*fb))) {
-            FKERR("call func %s param not match", vartostring(&func).c_str());
+        int nparam = args ? argn : (int) ps->m_variant_list_num;
+        if (UNLIKE(nparam != FUNC_BINARY_PARAMNUM(*fb))) {
+            FKERR("call func %s param not match", vartostring(func).c_str());
             m_isend = true;
             seterror(m_fk, efk_run_param_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
-                     "call func %s param not match", vartostring(&func).c_str());
+                     "call func %s param not match", vartostring(func).c_str());
             return;
         }
 
         assert(FUNC_BINARY_PARAMNUM(*fb) <= REAL_MAX_FAKE_PARAM_NUM);
         assert(m_bp + FUNC_BINARY_PARAMNUM(*fb) <= (int) ARRAY_MAX_SIZE(m_stack));
 
-        // 分配入参
-        memcpy(&ARRAY_GET(m_stack, m_bp), ps->m_variant_list, FUNC_BINARY_PARAMNUM(*fb) * sizeof(variant));
-        PS_CLEAR(*ps);
+        if (nparam > 0) {
+            memcpy(&ARRAY_GET(m_stack, m_bp), args ? args : ps->m_variant_list,
+                   nparam * sizeof(variant));
+        }
+        if (!args) {
+            PS_CLEAR(*ps);
+        }
 
-        // 清空栈区
-        memset(&ARRAY_GET(m_stack, m_bp + FUNC_BINARY_PARAMNUM(*fb)), 0,
-               (FUNC_BINARY_MAX_STACK(*fb) - FUNC_BINARY_PARAMNUM(*fb)) * sizeof(variant));
+        // ??????
+        int locals = FUNC_BINARY_MAX_STACK(*fb) - FUNC_BINARY_PARAMNUM(*fb);
+        if (locals > 0) {
+            memset(&ARRAY_GET(m_stack, m_bp + FUNC_BINARY_PARAMNUM(*fb)), 0,
+                   locals * sizeof(variant));
+        }
 
-        // 重置ret
+        // ????ret
         V_SET_NIL(&m_ret[0]);
 
-        // 标记
-        FUNC_BINARY_USE(*fb)++;
-
-        // 新函数
         m_fb = fb;
         m_ip = 0;
 
         return;
     }
 
-    // 记录profile
+    // ???profile
     uint32_t s = 0;
     if (UNLIKE(m_fk->pf.isopen())) {
         s = fkgetmstick();
     }
 
-    // 绑定函数
+    // ?????
     if (f->haveff) {
-        // 检查返回值数目对不对
+        // ???????????????
         if (UNLIKE((int) ps->m_variant_list_num != f->ff.argnum)) {
-            FKERR("bind func %s param not match, give %d need %d", vartostring(&func).c_str(),
+            FKERR("bind func %s param not match, give %d need %d", vartostring(func).c_str(),
                   (int) ps->m_variant_list_num, f->ff.argnum);
             m_isend = true;
             seterror(m_fk, efk_run_param_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
-                     "bind func %s param not match, give %d need %d", vartostring(&func).c_str(),
+                     "bind func %s param not match, give %d need %d", vartostring(func).c_str(),
                      (int) ps->m_variant_list_num, f->ff.argnum);
             return;
         }
 
         BIND_FUNC_CALL(f, this);
-        FKLOG("call C func %s", vartostring(&func).c_str());
+        FKLOG("call C func %s", vartostring(func).c_str());
     }
-        // 内置函数
+        // ????????
     else if (f->havebif) {
         BUILDIN_FUNC_CALL(f, this);
-        FKLOG("call buildin func %s", vartostring(&func).c_str());
+        FKLOG("call buildin func %s", vartostring(func).c_str());
     } else {
         assert(0);
-        FKERR("fkrun no inter func %s fail", vartostring(&func).c_str());
+        FKERR("fkrun no inter func %s fail", vartostring(func).c_str());
         m_isend = true;
         seterror(m_fk, efk_run_no_func_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
-                 "fkrun no inter func %s fail", vartostring(&func).c_str());
+                 "fkrun no inter func %s fail", vartostring(func).c_str());
         return;
     }
 
-    // 返回值
-    // 这种情况是直接跳过脚本调用了C函数
+    // ?????
+    // ?????????????????????????C????
     if (UNLIKE(BP_END(m_bp))) {
         variant *cret;
         PS_POP_AND_GET(*ps, cret);
         m_isend = true;
-        // 直接塞返回值
+        // ??????????
         m_ret[0] = *cret;
     }
-        // 否则塞到当前堆栈上
+        // ????????????????
     else {
-        // 检查返回值数目对不对
+        // ???????????????
         if (UNLIKE((int) ps->m_variant_list_num != retnum)) {
-            FKERR("native func %s param not match, give %d need %d", vartostring(&func).c_str(),
+            FKERR("native func %s param not match, give %d need %d", vartostring(func).c_str(),
                   (int) ps->m_variant_list_num, retnum);
             m_isend = true;
             seterror(m_fk, efk_run_param_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
-                     "native func %s param not match, give %d need %d", vartostring(&func).c_str(),
+                     "native func %s param not match, give %d need %d", vartostring(func).c_str(),
                      (int) ps->m_variant_list_num, retnum);
             return;
         }
 
-        // 塞返回值
+        // ???????
         for (int i = 0; i < retnum; i++) {
             variant *ret;
             GET_VARIANT(*m_fb, m_bp, ret, retpos[i]);
@@ -181,517 +188,919 @@ void interpreter::call(const variant &func, int retnum, int *retpos) {
 
     if (UNLIKE(m_fk->pf.isopen())) {
         const char *name = 0;
-        V_GET_STRING(&func, name);
+        V_GET_STRING(func, name);
         m_fk->pf.add_func_sample(name, fkgetmstick() - s);
     }
 
     return;
 }
 
-int interpreter::run(int cmdnum) {
-    fake *fk = m_fk;
-    bool &err = m_isend;
-    int i = 0;
-
-    // 栈溢出检查
-    if (UNLIKE((int) ARRAY_MAX_SIZE(m_stack) > m_fk->cfg.stack_max)) {
-        m_isend = true;
-        seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "stack too big %d",
-                 ARRAY_MAX_SIZE(m_stack));
-        return 0;
-    }
-
-    // 切换检查
-    if (UNLIKE(m_sleeping)) {
-        if (LIKE(m_yieldtime)) {
-            m_yieldtime--;
-            return 0;
-        } else if (LIKE(fkgetmstick() < m_wakeuptime)) {
-            return 0;
-        } else {
-            m_wakeuptime = 0;
-        }
-    }
-
-    if (UNLIKE(m_isend)) {
-        return 0;
-    }
-
-    while (1) {
-        // 当前函数走完
-        if (UNLIKE(m_ip >= (int) FUNC_BINARY_CMDSIZE(*m_fb))) {
-            FKLOG("pop stack %s", FUNC_BINARY_NAME(*m_fb));
-
-            // 记录profile
-            if (UNLIKE(m_fk->pf.isopen())) {
-                uint32_t calltime = 0;
-                BP_GET_CALLTIME(m_bp, calltime);
-                m_fk->pf.add_func_sample(FUNC_BINARY_NAME(*m_fb), fkgetmstick() - calltime);
-            }
-
-            // 标记
-            FUNC_BINARY_USE(*m_fb)--;
-
-            // 更新
-            if (UNLIKE(!FUNC_BINARY_USE(*m_fb) && FUNC_BINARY_BACKUP(*m_fb))) {
-                FUNC_BINARY_BACKUP_MOVE(*m_fb);
-            }
-
-            // 出栈
-            int oldretnum = 0;
-            BP_GET_RETNUM(m_bp, oldretnum);
-            int callbp = 0;
-            BP_GET_BP(m_bp, callbp);
-            BP_GET_FB(m_bp, m_fb);
-            BP_GET_IP(m_bp, m_ip);
-            int oldbp = m_bp;
-            m_sp = m_bp - BP_SIZE - oldretnum;
-            m_bp = callbp;
-
-            // 所有都完
-            if (UNLIKE(BP_END(m_bp))) {
-                FKLOG("stack empty end");
-                m_isend = true;
-                break;
-            }
-                // 塞返回值
-            else {
-                for (int i = 0; i < oldretnum; i++) {
-                    int oldretpos = 0;
-                    BP_GET_RETPOS(oldbp, oldretnum, oldretpos, i);
-
-                    variant *ret;
-                    GET_VARIANT(*m_fb, m_bp, ret, oldretpos);
-                    *ret = m_ret[i];
-                }
-            }
-            continue;
-        }
-
-        int code = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
-
-        FKLOG("next %d %d %s", COMMAND_TYPE(GET_CMD(*m_fb, m_ip)), code, OpCodeStr(code));
-
-        assert (COMMAND_TYPE(GET_CMD(*m_fb, m_ip)) == COMMAND_OPCODE);
-
-        m_ip++;
-
-        if (UNLIKE(m_fk->pf.isopen())) {
-            m_fk->pf.add_code_sample(code);
-        }
-
-        // 执行对应命令，放一起switch效率更高，cpu有缓存
-        switch (code) {
-            case OPCODE_ASSIGN: {
-                // 赋值dest，必须为栈上或容器内
-                if (UNLIKE(!(CHECK_STACK_POS(*m_fb, m_ip) || CHECK_CONTAINER_POS(*m_fb, m_ip)))) {
-                    err = true;
-                    seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
-                             "interpreter assign error, dest is not stack or container, type %s",
-                             POS_TYPE_NAME(*m_fb, m_ip));
-                    break;
-                }
-
-                variant *varv = 0;
-                LOG_VARIANT(*m_fb, m_ip, "var");
-                GET_VARIANT(*m_fb, m_bp, varv, m_ip);
-                if (UNLIKE(CHECK_CONST_MAP_POS(varv) || CHECK_CONST_ARRAY_POS(varv))) {
-                    err = true;
-                    seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
-                             "interpreter assign error, dest is const container");
-                    break;
-                }
-                m_ip++;
-
-                // 赋值来源
-                const variant *valuev = 0;
-                LOG_VARIANT(*m_fb, m_ip, "value");
-                GET_VARIANT(*m_fb, m_bp, valuev, m_ip);
-                m_ip++;
-
-                // 赋值
-                *varv = *valuev;
-
-                FKLOG("assign %s to %s", (vartostring(valuev)).c_str(), (vartostring(varv)).c_str());
-            }
-                break;
-            case OPCODE_PLUS: {
-                MATH_OPER(*m_fb, m_bp, m_ip, PLUS);
-            }
-                break;
-            case OPCODE_MINUS: {
-                MATH_OPER(*m_fb, m_bp, m_ip, MINUS);
-            }
-                break;
-            case OPCODE_MULTIPLY: {
-                MATH_OPER(*m_fb, m_bp, m_ip, MULTIPLY);
-            }
-                break;
-            case OPCODE_DIVIDE: {
-                MATH_OPER(*m_fb, m_bp, m_ip, DIVIDE);
-            }
-                break;
-            case OPCODE_DIVIDE_MOD: {
-                MATH_OPER(*m_fb, m_bp, m_ip, DIVIDE_MOD);
-            }
-                break;
-            case OPCODE_STRING_CAT: {
-                MATH_OPER(*m_fb, m_bp, m_ip, STRING_CAT);
-            }
-                break;
-            case OPCODE_AND: {
-                MATH_OPER(*m_fb, m_bp, m_ip, AND);
-            }
-                break;
-            case OPCODE_OR: {
-                MATH_OPER(*m_fb, m_bp, m_ip, OR);
-            }
-                break;
-            case OPCODE_LESS: {
-                MATH_OPER(*m_fb, m_bp, m_ip, LESS);
-            }
-                break;
-            case OPCODE_MORE: {
-                MATH_OPER(*m_fb, m_bp, m_ip, MORE);
-            }
-                break;
-            case OPCODE_EQUAL: {
-                MATH_OPER(*m_fb, m_bp, m_ip, EQUAL);
-            }
-                break;
-            case OPCODE_MOREEQUAL: {
-                MATH_OPER(*m_fb, m_bp, m_ip, MOREEQUAL);
-            }
-                break;
-            case OPCODE_LESSEQUAL: {
-                MATH_OPER(*m_fb, m_bp, m_ip, LESSEQUAL);
-            }
-                break;
-            case OPCODE_NOTEQUAL: {
-                MATH_OPER(*m_fb, m_bp, m_ip, NOTEQUAL);
-            }
-                break;
-            case OPCODE_NOT: {
-                MATH_SINGLE_OPER(*m_fb, m_bp, m_ip, NOT);
-            }
-                break;
-            case OPCODE_AND_JNE: {
-                MATH_OPER_JNE(*m_fb, m_bp, m_ip, AND_JNE);
-            }
-                break;
-            case OPCODE_OR_JNE: {
-                MATH_OPER_JNE(*m_fb, m_bp, m_ip, OR_JNE);
-            }
-                break;
-            case OPCODE_LESS_JNE: {
-                MATH_OPER_JNE(*m_fb, m_bp, m_ip, LESS_JNE);
-            }
-                break;
-            case OPCODE_MORE_JNE: {
-                MATH_OPER_JNE(*m_fb, m_bp, m_ip, MORE_JNE);
-            }
-                break;
-            case OPCODE_EQUAL_JNE: {
-                MATH_OPER_JNE(*m_fb, m_bp, m_ip, EQUAL_JNE);
-            }
-                break;
-            case OPCODE_MOREEQUAL_JNE: {
-                MATH_OPER_JNE(*m_fb, m_bp, m_ip, MOREEQUAL_JNE);
-            }
-                break;
-            case OPCODE_LESSEQUAL_JNE: {
-                MATH_OPER_JNE(*m_fb, m_bp, m_ip, LESSEQUAL_JNE);
-            }
-                break;
-            case OPCODE_NOTEQUAL_JNE: {
-                MATH_OPER_JNE(*m_fb, m_bp, m_ip, NOTEQUAL_JNE);
-            }
-                break;
-            case OPCODE_NOT_JNE: {
-                MATH_SINGLE_OPER_JNE(*m_fb, m_bp, m_ip, NOT_JNE);
-            }
-                break;
-            case OPCODE_JNE: {
-                const variant *cmp = 0;
-                LOG_VARIANT(*m_fb, m_ip, "cmp");
-                GET_VARIANT(*m_fb, m_bp, cmp, m_ip);
-                m_ip++;
-
-                int ip = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
-                m_ip++;
-
-                if (!(V_ISBOOL(cmp))) {
-                    FKLOG("jne %d", ip);
-                    m_ip = ip;
-                } else {
-                    FKLOG("not jne %d", ip);
-                }
-            }
-                break;
-            case OPCODE_JMP: {
-                int ip = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
-                m_ip++;
-
-                FKLOG("jmp %d", ip);
-
-                m_ip = ip;
-            }
-                break;
-            case OPCODE_PLUS_ASSIGN: {
-                MATH_ASSIGN_OPER(*m_fb, m_bp, m_ip, PLUS);
-            }
-                break;
-            case OPCODE_MINUS_ASSIGN: {
-                MATH_ASSIGN_OPER(*m_fb, m_bp, m_ip, MINUS);
-            }
-                break;
-            case OPCODE_MULTIPLY_ASSIGN: {
-                MATH_ASSIGN_OPER(*m_fb, m_bp, m_ip, MULTIPLY);
-            }
-                break;
-            case OPCODE_DIVIDE_ASSIGN: {
-                MATH_ASSIGN_OPER(*m_fb, m_bp, m_ip, DIVIDE);
-            }
-                break;
-            case OPCODE_DIVIDE_MOD_ASSIGN: {
-                MATH_ASSIGN_OPER(*m_fb, m_bp, m_ip, DIVIDE_MOD);
-            }
-                break;
-            case OPCODE_CALL: {
-                int calltype = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
-                m_ip++;
-
-                const variant *callpos = 0;
-                LOG_VARIANT(*m_fb, m_ip, "callpos");
-                GET_VARIANT(*m_fb, m_bp, callpos, m_ip);
-                m_ip++;
-
-                int retnum = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
-                m_ip++;
-
-                int retpos[MAX_FAKE_RETURN_NUM];
-
-                for (int i = 0; i < retnum; i++) {
-                    assert(CHECK_STACK_POS(*m_fb, m_ip) || CHECK_CONTAINER_POS(*m_fb, m_ip));
-                    retpos[i] = m_ip;
-                    m_ip++;
-                }
-
-                int argnum = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
-                m_ip++;
-
-                paramstack &ps = *getps(m_fk);
-                PS_CLEAR(ps);
-                for (int i = 0; i < argnum; i++) {
-                    variant *arg = 0;
-                    LOG_VARIANT(*m_fb, m_ip, "arg");
-                    GET_VARIANT(*m_fb, m_bp, arg, m_ip);
-                    m_ip++;
-
-                    variant *argdest = 0;
-                    PS_PUSH_AND_GET(ps, argdest);
-                    *argdest = *arg;
-                }
-
-                if (LIKE(calltype == CALL_NORMAL)) {
-                    call(*callpos, retnum, retpos);
-                } else if (LIKE(calltype == CALL_CLASSMEM)) {
-                    void *classptr = 0;
-                    const char *classprefix = 0;
-
-                    // prefix
-                    variant *classvar;
-                    PS_GET(ps, classvar, PS_SIZE(ps) - 1);
-                    V_GET_POINTER(classvar, classptr, classprefix);
-
-                    if (UNLIKE(err)) {
-                        break;
-                    }
-
-                    // mem func name
-                    const char *funcname = 0;
-                    V_GET_STRING(callpos, funcname);
-
-                    if (UNLIKE(err)) {
-                        break;
-                    }
-
-                    if (UNLIKE(!classptr)) {
-                        err = true;
-                        seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
-                                 "interpreter class mem call error, the class ptr is null, type %s", classprefix);
-                        break;
-                    }
-
-                    // whole name
-                    char wholename[MAX_FAKE_REG_FUNC_NAME_LEN];
-                    if (UNLIKE(classvar->data.ponter->typesz + callpos->data.str->sz >= MAX_FAKE_REG_FUNC_NAME_LEN)) {
-                        err = true;
-                        seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
-                                 "interpreter class mem call error, the name is too long, func %s %s", classprefix,
-                                 funcname);
-                        break;
-                    }
-                    memcpy(wholename, classprefix, classvar->data.ponter->typesz);
-                    memcpy(wholename + classvar->data.ponter->typesz, funcname, callpos->data.str->sz);
-                    wholename[classvar->data.ponter->typesz + callpos->data.str->sz] = 0;
-
-                    // call it
-                    variant tmp;
-                    V_SET_STRING(&tmp, wholename);
-
-                    call(tmp, retnum, retpos);
-                } else {
-                    m_processor->start_routine(*callpos, retnum, retpos);
-                }
-            }
-                break;
-            case OPCODE_FOR: {
-                variant *iter = 0;
-                LOG_VARIANT(*m_fb, m_ip, "iter");
-                GET_VARIANT(*m_fb, m_bp, iter, m_ip);
-                m_ip++;
-
-                const variant *end = 0;
-                LOG_VARIANT(*m_fb, m_ip, "end");
-                GET_VARIANT(*m_fb, m_bp, end, m_ip);
-                m_ip++;
-
-                const variant *step = 0;
-                LOG_VARIANT(*m_fb, m_ip, "step");
-                GET_VARIANT(*m_fb, m_bp, step, m_ip);
-                m_ip++;
-
-                // tmp dest
-                m_ip++;
-
-                int ip = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
-                m_ip++;
-
-                V_PLUS(iter, iter, step);
-
-                bool b = false;
-                V_FOR_LESS(b, iter, end);
-
-                if (LIKE(b)) {
-                    FKLOG("jne %d", ip);
-                    m_ip = ip;
-                }
-            }
-                break;
-            case OPCODE_RETURN: {
-                int returnnum = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
-                if (UNLIKE(!returnnum)) {
-                    FKLOG("return empty");
-                    m_ip = (*m_fb).m_size;
-                    break;
-                }
-                m_ip++;
-
-                // 塞给ret
-                for (int i = 0; i < returnnum; i++) {
-                    const variant *ret = 0;
-                    LOG_VARIANT(*m_fb, m_ip, "ret");
-                    GET_VARIANT(*m_fb, m_bp, ret, m_ip);
-                    m_ip++;
-
-                    m_ret[i] = *ret;
-
-                    FKLOG("return %s", (vartostring(&m_ret[i])).c_str());
-                }
-
-                m_ip = (*m_fb).m_size;
-            }
-                break;
-            case OPCODE_SLEEP: {
-                const variant *time = 0;
-                LOG_VARIANT(*m_fb, m_ip, "time");
-                GET_VARIANT(*m_fb, m_bp, time, m_ip);
-                m_ip++;
-
-                uint32_t sleeptime = 0;
-                V_GET_REAL(time, sleeptime);
-
-                m_wakeuptime = fkgetmstick() + sleeptime;
-                m_sleeping = true;
-                return i + 1;
-            }
-                break;
-            case OPCODE_YIELD: {
-                const variant *time = 0;
-                LOG_VARIANT(*m_fb, m_ip, "time");
-                GET_VARIANT(*m_fb, m_bp, time, m_ip);
-                m_ip++;
-
-                V_GET_REAL(time, m_yieldtime);
-                m_sleeping = true;
-                return i + 1;
-            }
-                break;
-            default:
-                assert(0);
-                FKERR("next err code %d %s", code, OpCodeStr(code));
-                break;
-        }
-
-        if (UNLIKE(err)) {
-            // 发生错误
-            m_isend = true;
-
-            // 清除当前栈上函数的使用标记
-            {
-                int ip = m_ip;
-                int bp = m_bp;
-                const func_binary *fb = m_fb;
-
-                while (!BP_END(bp)) {
-                    // 标记
-                    FUNC_BINARY_USE(*fb)--;
-
-                    // 更新
-                    if (UNLIKE(!FUNC_BINARY_USE(*fb) && FUNC_BINARY_BACKUP(*fb))) {
-                        FUNC_BINARY_BACKUP_MOVE(*fb);
-                    }
-
-                    BP_GET_FB(bp, fb);
-                    BP_GET_IP(bp, ip);
-                    int callbp = 0;
-                    BP_GET_BP(bp, callbp);
-                    bp = callbp;
-                    if (BP_END(bp)) {
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (UNLIKE(m_isend)) {
-            break;
-        }
-
-        i++;
-
-        if (UNLIKE(i >= cmdnum)) {
-            break;
-        }
-    }
-
-    return i;
+void interpreter::run() {
+    interpret(false);
 }
 
-variant *interpreter::get_container_variant(const func_binary &fb, int conpos) {
-    variant *v = 0;
-    assert(conpos >= 0 && conpos < (int) fb.m_container_addr_list_num);
-    const container_addr &ca = fb.m_container_addr_list[conpos];
+void interpreter::step() {
+    interpret(true);
+}
+
+static force_inline variant *vm_addr(uint32_t w, variant *stack, int bp, variant *consts) {
+    int t = (int) (w >> 16);
+    int p = (int) (int16_t) w;
+    if (t == ADDR_STACK) {
+        return stack + bp + p;
+    }
+    if (t == ADDR_CONST) {
+        return consts + p;
+    }
+    return 0;
+}
+
+static force_inline bool vm_for_tight(bool step, const command *code, int destip, int for_ip,
+                                      variant *iter, const variant *endv, const variant *stepv,
+                                      variant *stack, int bp, variant *consts, const func_binary *fb) {
+    if (step || destip < 0) {
+        return false;
+    }
+    if (UNLIKE(iter->type != variant::REAL || endv->type != variant::REAL || stepv->type != variant::REAL)) {
+        return false;
+    }
+    double *iv = &iter->data.real;
+    double lim = endv->data.real;
+    double st = stepv->data.real;
+    int op = (int) COMMAND_CODE(code[destip]);
+
+    if (op == OPCODE_PLUS_ASSIGN && destip + 3 == for_ip) {
+        variant *var = vm_addr((uint32_t) code[destip + 1], stack, bp, consts);
+        variant *addv = vm_addr((uint32_t) code[destip + 2], stack, bp, consts);
+        if (UNLIKE(!var || !addv || var->type != variant::REAL || addv->type != variant::REAL)) {
+            return false;
+        }
+        uint32_t aw = (uint32_t) code[destip + 2];
+        if ((aw >> 16) == ADDR_CONST || addv != iter) {
+            double add = addv->data.real;
+            for (;;) {
+                *iv += st;
+                if (!(*iv < lim)) {
+                    break;
+                }
+                var->data.real += add;
+            }
+        } else {
+            for (;;) {
+                *iv += st;
+                if (!(*iv < lim)) {
+                    break;
+                }
+                var->data.real += addv->data.real;
+            }
+        }
+        return true;
+    }
+
+    if (op == OPCODE_PLUS && destip + 4 == for_ip) {
+        variant *left = vm_addr((uint32_t) code[destip + 1], stack, bp, consts);
+        variant *right = vm_addr((uint32_t) code[destip + 2], stack, bp, consts);
+        variant *dest = vm_addr((uint32_t) code[destip + 3], stack, bp, consts);
+        if (UNLIKE(!left || !right || !dest || left->type != variant::REAL || right->type != variant::REAL)) {
+            return false;
+        }
+        dest->type = variant::REAL;
+        for (;;) {
+            *iv += st;
+            if (!(*iv < lim)) {
+                break;
+            }
+            dest->data.real = left->data.real + right->data.real;
+        }
+        return true;
+    }
+
+    if (op == OPCODE_PLUS && destip + 7 == for_ip &&
+        (int) COMMAND_CODE(code[destip + 4]) == OPCODE_ASSIGN) {
+        variant *left = vm_addr((uint32_t) code[destip + 1], stack, bp, consts);
+        variant *right = vm_addr((uint32_t) code[destip + 2], stack, bp, consts);
+        variant *adest = vm_addr((uint32_t) code[destip + 5], stack, bp, consts);
+        if (UNLIKE(!left || !right || !adest || left->type != variant::REAL || right->type != variant::REAL)) {
+            return false;
+        }
+        adest->type = variant::REAL;
+        for (;;) {
+            *iv += st;
+            if (!(*iv < lim)) {
+                break;
+            }
+            adest->data.real = left->data.real + right->data.real;
+        }
+        return true;
+    }
+
+    if (op == OPCODE_ASSIGN && destip + 3 == for_ip) {
+        uint32_t dw = (uint32_t) code[destip + 1];
+        uint32_t sw = (uint32_t) code[destip + 2];
+        if ((dw >> 16) != ADDR_CONTAINER) {
+            return false;
+        }
+        variant *src = vm_addr(sw, stack, bp, consts);
+        if (UNLIKE(!src)) {
+            return false;
+        }
+        int conpos = (int) (int16_t) dw;
+        if (UNLIKE(conpos < 0 || conpos >= fb->m_container_addr_list_num)) {
+            return false;
+        }
+        const container_addr &ca = fb->m_container_addr_list[conpos];
+        variant *conv = vm_addr((uint32_t) ca.con, stack, bp, consts);
+        variant *keyv = vm_addr((uint32_t) ca.key, stack, bp, consts);
+        if (UNLIKE(!conv || !keyv || conv->type != variant::ARRAY)) {
+            return false;
+        }
+        variant_array *va = conv->data.va;
+        if (st > 0 && lim > *iv) {
+            int need = (int) lim;
+            if (need > (int) ARRAY_MAX_SIZE(va->va)) {
+                size_t newsize = ARRAY_MAX_SIZE(va->va) ? (size_t) ARRAY_MAX_SIZE(va->va) * 2 : 16;
+                while ((int) newsize < need) {
+                    newsize *= 2;
+                }
+                ARRAY_GROW(va->va, newsize, variant);
+            }
+        }
+        variant *data = va->va.m_data;
+        uint32_t *psz = &va->va.m_size;
+        uint32_t cap = va->va.m_max_size;
+        if (keyv == iter && src == iter) {
+            int last = -1;
+            for (;;) {
+                *iv += st;
+                if (!(*iv < lim)) {
+                    break;
+                }
+                int index = (int) *iv;
+                if (UNLIKE((uint32_t) index >= cap)) {
+                    break;
+                }
+                data[index].type = variant::REAL;
+                data[index].data.real = *iv;
+                last = index;
+            }
+            if (last >= 0 && *psz < (uint32_t) (last + 1)) {
+                *psz = (uint32_t) (last + 1);
+            }
+        } else {
+            for (;;) {
+                *iv += st;
+                if (!(*iv < lim)) {
+                    break;
+                }
+                int index = (int) keyv->data.real;
+                if (UNLIKE(index < 0 || (uint32_t) index >= cap)) {
+                    break;
+                }
+                data[index] = *src;
+                if (*psz < (uint32_t) (index + 1)) {
+                    *psz = (uint32_t) (index + 1);
+                }
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
+#define IGET(v, idx) \
+    do { \
+        uint32_t _w = (uint32_t) code[(idx)]; \
+        int _t = (int) (_w >> 16); \
+        int _p = (int) (int16_t) _w; \
+        if (LIKE(_t == ADDR_STACK)) { \
+            (v) = stack + bp + _p; \
+        } else if (_t == ADDR_CONST) { \
+            (v) = consts + _p; \
+        } else { \
+            m_ip = ip; \
+            m_bp = bp; \
+            m_fb = fb; \
+            (v) = get_container_variant(*fb, _p); \
+            stack = m_stack.m_data; \
+            if (UNLIKE(!(v))) { \
+                err = true; \
+                m_isend = true; \
+                return; \
+            } \
+        } \
+    } while (0)
+
+template<bool STEP>
+void interpreter::interpret_t() {
+    fake *fk = m_fk;
     bool &err = m_isend;
-    USE(err);
-    variant *conv = 0;
-    do { GET_VARIANT_BY_CMD(fb, m_bp, conv, ca.con); } while (0);
-    const variant *keyv = 0;
-    do { GET_VARIANT_BY_CMD(fb, m_bp, keyv, ca.key); } while (0);
 
     if (UNLIKE(m_isend)) {
-        return 0;
+        return;
+    }
+
+    int ip = m_ip;
+    int bp = m_bp;
+    const func_binary *fb = m_fb;
+    variant *stack = m_stack.m_data;
+    const command *code = fb->m_buff;
+    int codesize = fb->m_size;
+    variant *consts = fb->m_const_list;
+
+    static const void *const dt[OPCODE_MAX] = {
+            &&L_ASSIGN,
+            &&L_PLUS, &&L_MINUS, &&L_MULTIPLY, &&L_DIVIDE, &&L_DIVIDE_MOD, &&L_STRING_CAT,
+            &&L_PLUS_ASSIGN, &&L_MINUS_ASSIGN, &&L_MULTIPLY_ASSIGN, &&L_DIVIDE_ASSIGN, &&L_DIVIDE_MOD_ASSIGN,
+            &&L_RETURN,
+            &&L_JNE, &&L_JMP,
+            &&L_AND, &&L_OR, &&L_LESS, &&L_MORE, &&L_EQUAL, &&L_MOREEQUAL, &&L_LESSEQUAL, &&L_NOTEQUAL, &&L_NOT,
+            &&L_AND_JNE, &&L_OR_JNE, &&L_LESS_JNE, &&L_MORE_JNE, &&L_EQUAL_JNE, &&L_MOREEQUAL_JNE, &&L_LESSEQUAL_JNE, &&L_NOTEQUAL_JNE, &&L_NOT_JNE,
+            &&L_CALL,
+            &&L_FOR,
+    };
+
+#define VM_SAVE() do { m_ip = ip; m_bp = bp; m_fb = fb; } while (0)
+#define VM_RELOAD() do { \
+        ip = m_ip; \
+        bp = m_bp; \
+        fb = m_fb; \
+        stack = m_stack.m_data; \
+        code = fb->m_buff; \
+        codesize = fb->m_size; \
+        consts = fb->m_const_list; \
+    } while (0)
+#define VM_DISPATCH() do { \
+        if (STEP) { VM_SAVE(); return; } \
+        goto vm_dispatch; \
+    } while (0)
+
+    goto vm_dispatch;
+
+    vm_return: {
+        if (UNLIKE(m_fk->pf.isopen())) {
+            uint32_t calltime = 0;
+            BP_GET_CALLTIME(bp, calltime);
+            m_fk->pf.add_func_sample(FUNC_BINARY_NAME(*fb), fkgetmstick() - calltime);
+        }
+        int oldretnum = 0;
+        BP_GET_RETNUM(bp, oldretnum);
+        int callbp = 0;
+        BP_GET_BP(bp, callbp);
+        BP_GET_FB(bp, fb);
+        BP_GET_IP(bp, ip);
+        int oldbp = bp;
+        m_sp = bp - BP_SIZE - oldretnum;
+        bp = callbp;
+        if (UNLIKE(BP_END(bp))) {
+            VM_SAVE();
+            m_isend = true;
+            return;
+        }
+        stack = m_stack.m_data;
+        code = fb->m_buff;
+        codesize = fb->m_size;
+        consts = fb->m_const_list;
+        for (int i = 0; i < oldretnum; i++) {
+            int oldretpos = 0;
+            BP_GET_RETPOS(oldbp, oldretnum, oldretpos, i);
+            variant *ret = 0;
+            IGET(ret, oldretpos);
+            *ret = m_ret[i];
+        }
+        goto vm_dispatch;
+    }
+
+    vm_dispatch: {
+        if (UNLIKE(ip >= codesize)) {
+            goto vm_return;
+        }
+        int opcode = (int) (uint32_t) code[ip];
+        ip++;
+        if (UNLIKE(m_fk->pf.isopen())) {
+            m_fk->pf.add_code_sample(opcode);
+        }
+        goto *dt[opcode];
+    }
+
+    L_ASSIGN: {
+        variant *varv = 0;
+        IGET(varv, ip);
+        if (UNLIKE(CHECK_CONST_MAP_POS(varv) || CHECK_CONST_ARRAY_POS(varv))) {
+            err = true;
+            seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
+                     "interpreter assign error, dest is const container");
+            VM_SAVE();
+            m_isend = true;
+            return;
+        }
+        ip++;
+        const variant *valuev = 0;
+        IGET(valuev, ip);
+        ip++;
+        *varv = *valuev;
+        VM_DISPATCH();
+    }
+    L_PLUS: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        if (LIKE(left->type == variant::REAL && right->type == variant::REAL)) {
+            dest->type = variant::REAL;
+            dest->data.real = left->data.real + right->data.real;
+        } else {
+            V_PLUS(dest, left, right);
+            if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        }
+        VM_DISPATCH();
+    }
+    L_MINUS: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        if (LIKE(left->type == variant::REAL && right->type == variant::REAL)) {
+            dest->type = variant::REAL;
+            dest->data.real = left->data.real - right->data.real;
+        } else {
+            V_MINUS(dest, left, right);
+            if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        }
+        VM_DISPATCH();
+    }
+    L_MULTIPLY: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        if (LIKE(left->type == variant::REAL && right->type == variant::REAL)) {
+            dest->type = variant::REAL;
+            dest->data.real = left->data.real * right->data.real;
+        } else {
+            V_MULTIPLY(dest, left, right);
+            if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        }
+        VM_DISPATCH();
+    }
+    L_DIVIDE: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_DIVIDE(dest, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_DIVIDE_MOD: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_DIVIDE_MOD(dest, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_STRING_CAT: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_STRING_CAT(dest, left, right);
+        VM_DISPATCH();
+    }
+    L_AND: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_AND(dest, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_OR: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_OR(dest, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_LESS: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        if (LIKE(left->type == variant::REAL && right->type == variant::REAL)) {
+            dest->type = variant::REAL;
+            dest->data.real = left->data.real < right->data.real;
+        } else {
+            V_LESS(dest, left, right);
+            if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        }
+        VM_DISPATCH();
+    }
+    L_MORE: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_MORE(dest, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_EQUAL: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_EQUAL(dest, left, right);
+        VM_DISPATCH();
+    }
+    L_MOREEQUAL: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_MOREEQUAL(dest, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_LESSEQUAL: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_LESSEQUAL(dest, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_NOTEQUAL: {
+        const variant *left = 0;
+        const variant *right = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_NOTEQUAL(dest, left, right);
+        VM_DISPATCH();
+    }
+    L_NOT: {
+        const variant *left = 0;
+        variant *dest = 0;
+        IGET(left, ip); ip++;
+        IGET(dest, ip); ip++;
+        V_NOT(dest, left);
+        VM_DISPATCH();
+    }
+    L_AND_JNE: {
+        const variant *left = 0;
+        const variant *right = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        bool b = false;
+        V_AND_JNE(b, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        if (!b) {
+            ip = destip;
+        }
+        VM_DISPATCH();
+    }
+    L_OR_JNE: {
+        const variant *left = 0;
+        const variant *right = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        bool b = false;
+        V_OR_JNE(b, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        if (!b) {
+            ip = destip;
+        }
+        VM_DISPATCH();
+    }
+    L_LESS_JNE: {
+        const variant *left = 0;
+        const variant *right = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        if (LIKE(left->type == variant::REAL && right->type == variant::REAL)) {
+            if (!(left->data.real < right->data.real)) {
+                ip = destip;
+            }
+        } else {
+            bool b = false;
+            V_LESS_JNE(b, left, right);
+            if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+            if (!b) {
+                ip = destip;
+            }
+        }
+        VM_DISPATCH();
+    }
+    L_MORE_JNE: {
+        const variant *left = 0;
+        const variant *right = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        bool b = false;
+        V_MORE_JNE(b, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        if (!b) {
+            ip = destip;
+        }
+        VM_DISPATCH();
+    }
+    L_EQUAL_JNE: {
+        const variant *left = 0;
+        const variant *right = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        bool b = false;
+        V_EQUAL_JNE(b, left, right);
+        if (!b) {
+            ip = destip;
+        }
+        VM_DISPATCH();
+    }
+    L_MOREEQUAL_JNE: {
+        const variant *left = 0;
+        const variant *right = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        bool b = false;
+        V_MOREEQUAL_JNE(b, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        if (!b) {
+            ip = destip;
+        }
+        VM_DISPATCH();
+    }
+    L_LESSEQUAL_JNE: {
+        const variant *left = 0;
+        const variant *right = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        bool b = false;
+        V_LESSEQUAL_JNE(b, left, right);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        if (!b) {
+            ip = destip;
+        }
+        VM_DISPATCH();
+    }
+    L_NOTEQUAL_JNE: {
+        const variant *left = 0;
+        const variant *right = 0;
+        IGET(left, ip); ip++;
+        IGET(right, ip); ip++;
+        ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        bool b = false;
+        V_NOTEQUAL_JNE(b, left, right);
+        if (!b) {
+            ip = destip;
+        }
+        VM_DISPATCH();
+    }
+    L_NOT_JNE: {
+        const variant *left = 0;
+        IGET(left, ip); ip++;
+        ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        bool b = false;
+        V_NOT_JNE(b, left);
+        if (!b) {
+            ip = destip;
+        }
+        VM_DISPATCH();
+    }
+    L_JNE: {
+        const variant *cmp = 0;
+        IGET(cmp, ip); ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        if (!(V_ISBOOL(cmp))) {
+            ip = destip;
+        }
+        VM_DISPATCH();
+    }
+    L_JMP: {
+        ip = (int) COMMAND_CODE(code[ip]);
+        VM_DISPATCH();
+    }
+    L_PLUS_ASSIGN: {
+        variant *var = 0;
+        const variant *value = 0;
+        IGET(var, ip); ip++;
+        IGET(value, ip); ip++;
+        if (LIKE(var->type == variant::REAL && value->type == variant::REAL)) {
+            var->data.real += value->data.real;
+        } else {
+            V_PLUS(var, var, value);
+            if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        }
+        VM_DISPATCH();
+    }
+    L_MINUS_ASSIGN: {
+        variant *var = 0;
+        const variant *value = 0;
+        IGET(var, ip); ip++;
+        IGET(value, ip); ip++;
+        V_MINUS(var, var, value);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_MULTIPLY_ASSIGN: {
+        variant *var = 0;
+        const variant *value = 0;
+        IGET(var, ip); ip++;
+        IGET(value, ip); ip++;
+        V_MULTIPLY(var, var, value);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_DIVIDE_ASSIGN: {
+        variant *var = 0;
+        const variant *value = 0;
+        IGET(var, ip); ip++;
+        IGET(value, ip); ip++;
+        V_DIVIDE(var, var, value);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_DIVIDE_MOD_ASSIGN: {
+        variant *var = 0;
+        const variant *value = 0;
+        IGET(var, ip); ip++;
+        IGET(value, ip); ip++;
+        V_DIVIDE_MOD(var, var, value);
+        if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+        VM_DISPATCH();
+    }
+    L_CALL: {
+        int call_ip = ip - 1;
+        int calltype = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        const variant *callpos = 0;
+        IGET(callpos, ip); ip++;
+        int retnum = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        int retpos[MAX_FAKE_RETURN_NUM];
+        for (int i = 0; i < retnum; i++) {
+            retpos[i] = ip;
+            ip++;
+        }
+        int argnum = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        variant callargs[REAL_MAX_FAKE_PARAM_NUM];
+        for (int i = 0; i < argnum; i++) {
+            variant *arg = 0;
+            IGET(arg, ip); ip++;
+            callargs[i] = *arg;
+        }
+        VM_SAVE();
+        if (LIKE(calltype == CALL_NORMAL)) {
+            const funcunion *f = 0;
+            if (LIKE(fb->m_call_cache != 0)) {
+                f = (const funcunion *) fb->m_call_cache[call_ip];
+            }
+            if (UNLIKE(!f)) {
+                f = m_fk->fm.get_func(*callpos);
+                if (fb->m_call_cache) {
+                    fb->m_call_cache[call_ip] = f;
+                }
+            }
+            if (LIKE(f && f->havefb)) {
+                call_func(f, retnum, retpos, callpos, callargs, argnum);
+            } else {
+                paramstack &ps = fk->ps;
+                PS_CLEAR(ps);
+                for (int i = 0; i < argnum; i++) {
+                    variant *argdest = 0;
+                    PS_PUSH_AND_GET(ps, argdest);
+                    *argdest = callargs[i];
+                }
+                call_func(f, retnum, retpos, callpos);
+            }
+        } else if (LIKE(calltype == CALL_CLASSMEM)) {
+            paramstack &ps = fk->ps;
+            PS_CLEAR(ps);
+            for (int i = 0; i < argnum; i++) {
+                variant *argdest = 0;
+                PS_PUSH_AND_GET(ps, argdest);
+                *argdest = callargs[i];
+            }
+            void *classptr = 0;
+            const char *classprefix = 0;
+            variant *classvar;
+            PS_GET(ps, classvar, PS_SIZE(ps) - 1);
+            V_GET_POINTER(classvar, classptr, classprefix);
+            if (UNLIKE(err)) {
+                m_isend = true;
+                return;
+            }
+            const char *funcname = 0;
+            V_GET_STRING(callpos, funcname);
+            if (UNLIKE(err)) {
+                m_isend = true;
+                return;
+            }
+            if (UNLIKE(!classptr)) {
+                err = true;
+                seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
+                         "interpreter class mem call error, the class ptr is null, type %s", classprefix);
+                m_isend = true;
+                return;
+            }
+            char wholename[MAX_FAKE_REG_FUNC_NAME_LEN];
+            if (UNLIKE(classvar->data.ponter->typesz + callpos->data.str->sz >= MAX_FAKE_REG_FUNC_NAME_LEN)) {
+                err = true;
+                seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
+                         "interpreter class mem call error, the name is too long, func %s %s", classprefix, funcname);
+                m_isend = true;
+                return;
+            }
+            memcpy(wholename, classprefix, classvar->data.ponter->typesz);
+            memcpy(wholename + classvar->data.ponter->typesz, funcname, callpos->data.str->sz);
+            wholename[classvar->data.ponter->typesz + callpos->data.str->sz] = 0;
+            variant tmp;
+            V_SET_STRING(&tmp, wholename);
+            call(tmp, retnum, retpos);
+        } else {
+            err = true;
+            seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk),
+                     "interpreter call error, unknown call type %d", calltype);
+            m_isend = true;
+            return;
+        }
+        if (UNLIKE(m_isend)) {
+            return;
+        }
+        VM_RELOAD();
+        VM_DISPATCH();
+    }
+    L_FOR: {
+        int for_ip = ip - 1;
+        variant *iter = 0;
+        const variant *endv = 0;
+        const variant *step = 0;
+        IGET(iter, ip); ip++;
+        IGET(endv, ip); ip++;
+        IGET(step, ip); ip++;
+        ip++;
+        int destip = (int) COMMAND_CODE(code[ip]);
+        ip++;
+        if (LIKE(vm_for_tight(STEP, code, destip, for_ip, iter, endv, step, stack, bp, consts, fb))) {
+            VM_DISPATCH();
+        }
+        if (LIKE(iter->type == variant::REAL && endv->type == variant::REAL && step->type == variant::REAL)) {
+            iter->data.real += step->data.real;
+            if (iter->data.real < endv->data.real) {
+                ip = destip;
+            }
+        } else {
+            V_PLUS(iter, iter, step);
+            if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+            bool b = false;
+            V_FOR_LESS(b, iter, endv);
+            if (UNLIKE(err)) { VM_SAVE(); m_isend = true; return; }
+            if (LIKE(b)) {
+                ip = destip;
+            }
+        }
+        VM_DISPATCH();
+    }
+    L_RETURN: {
+        int returnnum = (int) COMMAND_CODE(code[ip]);
+        if (UNLIKE(!returnnum)) {
+            ip = codesize;
+            goto vm_dispatch;
+        }
+        ip++;
+        for (int i = 0; i < returnnum; i++) {
+            const variant *ret = 0;
+            IGET(ret, ip); ip++;
+            m_ret[i] = *ret;
+        }
+        ip = codesize;
+        goto vm_dispatch;
+    }
+
+#undef VM_SAVE
+#undef VM_RELOAD
+#undef VM_DISPATCH
+}
+
+#undef IGET
+
+void interpreter::interpret(bool onestep) {
+    if (onestep) {
+        interpret_t<true>();
+    } else {
+        interpret_t<false>();
+    }
+}
+
+template void interpreter::interpret_t<true>();
+template void interpreter::interpret_t<false>();
+
+variant *interpreter::get_container_variant(const func_binary &fb, int conpos) {
+    assert(conpos >= 0 && conpos < (int) fb.m_container_addr_list_num);
+    const container_addr &ca = fb.m_container_addr_list[conpos];
+    uint32_t cw = (uint32_t) ca.con;
+    uint32_t kw = (uint32_t) ca.key;
+    int ct = (int) (cw >> 16);
+    int cp = (int) (int16_t) cw;
+    int kt = (int) (kw >> 16);
+    int kp = (int) (int16_t) kw;
+    variant *conv = (ct == ADDR_STACK) ? &ARRAY_GET(m_stack, m_bp + cp) :
+                    (ct == ADDR_CONST) ? &fb.m_const_list[cp] : 0;
+    const variant *keyv = (kt == ADDR_STACK) ? &ARRAY_GET(m_stack, m_bp + kp) :
+                          (kt == ADDR_CONST) ? &fb.m_const_list[kp] : 0;
+    if (UNLIKE(!conv || !keyv)) {
+        bool &err = m_isend;
+        USE(err);
+        variant *tmp = 0;
+        do { GET_VARIANT_BY_CMD(fb, m_bp, tmp, ca.con); } while (0);
+        conv = tmp;
+        tmp = 0;
+        do { GET_VARIANT_BY_CMD(fb, m_bp, tmp, ca.key); } while (0);
+        keyv = tmp;
+        if (UNLIKE(m_isend || !conv || !keyv)) {
+            return 0;
+        }
+    }
+
+    if (LIKE(conv->type == variant::ARRAY && keyv->type == variant::REAL)) {
+        int index = (int) keyv->data.real;
+        variant_array *va = conv->data.va;
+        if (UNLIKE(index < 0)) {
+            m_isend = true;
+            seterror(m_fk, efk_run_inter_error, fkgetcurfile(m_fk), fkgetcurline(m_fk), fkgetcurfunc(m_fk),
+                     "interpreter get array fail, index %d", index);
+            return 0;
+        }
+        if (UNLIKE(index >= (int) ARRAY_MAX_SIZE(va->va))) {
+            size_t need = (size_t) index + 1;
+            size_t newsize = ARRAY_MAX_SIZE(va->va) ? (size_t) ARRAY_MAX_SIZE(va->va) * 2 : 16;
+            while (newsize < need) {
+                newsize *= 2;
+            }
+            ARRAY_GROW(va->va, newsize, variant);
+        }
+        ARRAY_SIZE(va->va) = FKMAX((int) ARRAY_SIZE(va->va), index + 1);
+        return &ARRAY_GET(va->va, index);
     }
 
     if (UNLIKE(!(conv->type == variant::ARRAY || conv->type == variant::MAP))) {
@@ -702,12 +1111,9 @@ variant *interpreter::get_container_variant(const func_binary &fb, int conpos) {
     }
 
     if (conv->type == variant::MAP) {
-        v = con_map_get(m_fk, conv->data.vm, keyv);
-    } else if (conv->type == variant::ARRAY) {
-        v = con_array_get(m_fk, conv->data.va, keyv);
+        return con_map_get(m_fk, conv->data.vm, keyv);
     }
-
-    return v;
+    return con_array_get(m_fk, conv->data.va, keyv);
 }
 
 const char *interpreter::get_running_call_stack() const {

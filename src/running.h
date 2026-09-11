@@ -11,24 +11,28 @@ struct running {
     }
 
     void clear() {
+        reset();
+        ARRAY_DELETE(curprocessor);
+    }
+
+    void reset() {
         rundeps = 0;
         ARRAY_CLEAR(curprocessor);
         cur_runinginfo.clear();
         stepmod = false;
         curcode.clear();
-        ARRAY_DELETE(curprocessor);
     }
 
     fake *m_fk;
-    // 执行迭代计数
+    // 鎵ц杩唬璁℃暟
     int rundeps;
-    // 当前执行的processor
+    // 褰撳墠鎵ц鐨刾rocessor
     array<processor *> curprocessor;
     // running info
     String cur_runinginfo;
     // step mod
     bool stepmod;
-    // 当前执行代码
+    // 褰撳墠鎵ц浠ｇ爜
     String curcode;
 };
 
