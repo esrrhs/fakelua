@@ -9,12 +9,12 @@
 #include "var/var.h"
 #include "var/var_multi.h"
 
+#include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
-#include <boost/beast/ssl.hpp>
 #include <boost/url.hpp>
 
 #include <algorithm>
@@ -230,14 +230,14 @@ private:
         boost::system::error_code ec;
         timer_.cancel();
         if (tls_) {
-            auto &sock = beast::get_lowest_layer(*tls_).socket();
+            auto &sock = tls_->next_layer();
             sock.cancel(ec);
             sock.shutdown(tcp::socket::shutdown_both, ec);
             sock.close(ec);
         } else if (plain_) {
-            plain_->socket().cancel(ec);
-            plain_->socket().shutdown(tcp::socket::shutdown_both, ec);
-            plain_->socket().close(ec);
+            plain_->cancel(ec);
+            plain_->shutdown(tcp::socket::shutdown_both, ec);
+            plain_->close(ec);
         }
     }
 
@@ -250,12 +250,12 @@ private:
         auto self = shared_from_this();
         auto watch = life_.GetWatch();
         if (tls_) {
-            beast::get_lowest_layer(*tls_).async_connect(results, [self, watch](beast::error_code conn_ec, tcp::resolver::results_type::endpoint_type) {
+            asio::async_connect(tls_->next_layer(), results, [self, watch](beast::error_code conn_ec, tcp::resolver::results_type::endpoint_type) {
                 if (!watch.Alive()) return;
                 self->OnConnect(conn_ec);
             });
         } else {
-            plain_->async_connect(results, [self, watch](beast::error_code conn_ec, tcp::resolver::results_type::endpoint_type) {
+            asio::async_connect(*plain_, results, [self, watch](beast::error_code conn_ec, tcp::resolver::results_type::endpoint_type) {
                 if (!watch.Alive()) return;
                 self->OnConnect(conn_ec);
             });
@@ -366,8 +366,10 @@ private:
 
     native::IoContext &io_;
     std::unique_ptr<ssl::context> ssl_ctx_;
-    std::optional<beast::tcp_stream> plain_;
-    std::optional<beast::ssl_stream<beast::tcp_stream>> tls_;
+    // Raw tcp::socket, not beast::tcp_stream: Beast's stream timeouts force
+    // non_blocking(true) and deadlock the Windows poll() thread.
+    std::optional<tcp::socket> plain_;
+    std::optional<ssl::stream<tcp::socket>> tls_;
     tcp::resolver resolver_;
     asio::steady_timer timer_;
     beast::flat_buffer buffer_;
@@ -451,14 +453,14 @@ public:
         boost::system::error_code ec;
         timer_.cancel();
         if (tls_) {
-            auto &sock = beast::get_lowest_layer(*tls_).socket();
+            auto &sock = tls_->next_layer();
             sock.cancel(ec);
             sock.shutdown(tcp::socket::shutdown_both, ec);
             sock.close(ec);
         } else if (plain_) {
-            plain_->socket().cancel(ec);
-            plain_->socket().shutdown(tcp::socket::shutdown_both, ec);
-            plain_->socket().close(ec);
+            plain_->cancel(ec);
+            plain_->shutdown(tcp::socket::shutdown_both, ec);
+            plain_->close(ec);
         }
         if (on_close_) on_close_(conn_id_);
     }
@@ -510,8 +512,8 @@ private:
         Close();
     }
 
-    std::optional<beast::tcp_stream> plain_;
-    std::optional<beast::ssl_stream<beast::tcp_stream>> tls_;
+    std::optional<tcp::socket> plain_;
+    std::optional<ssl::stream<tcp::socket>> tls_;
     asio::steady_timer timer_;
     beast::flat_buffer buffer_;
     http::request<http::string_body> req_;

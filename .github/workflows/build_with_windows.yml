@@ -161,10 +161,11 @@ jobs:
           ccache -s
 
       - name: Test
+        timeout-minutes: 60
         shell: msys2 {0}
         run: |
           set -eux
-          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe --gtest_print_time=1
 
       - name: Run flua
         shell: msys2 {0}
