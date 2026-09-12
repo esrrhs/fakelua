@@ -19,6 +19,7 @@ on:
 jobs:
   fuzz:
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -28,7 +29,7 @@ jobs:
       - uses: actions/checkout@v1
 
       - name: Setup Lua
-        timeout-minutes: 10
+        timeout-minutes: 60
         run: |
           # 从 GitHub 镜像编译 Lua 源码，避免 apt 镜像（azure.archive.ubuntu.com）间歇性超时卡死
           # make a 只构建 liblua.a（无需 readline），fakelua 只需头文件 + liblua.a
@@ -111,6 +112,7 @@ jobs:
           fi
 
       - name: Run fuzz (${{ matrix.target }})
+        timeout-minutes: 70
         run: |
           set -x
           cd build

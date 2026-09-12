@@ -17,6 +17,7 @@ jobs:
         build_type: [debug, release, asan, cov]
 
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
 
     services:
       mysql:
@@ -59,7 +60,7 @@ jobs:
             cpm-${{ runner.os }}-
 
       - name: Setup Lua
-        timeout-minutes: 10
+        timeout-minutes: 60
         run: |
           # 从 GitHub 镜像编译 Lua 源码，避免 apt 镜像（azure.archive.ubuntu.com）间歇性超时卡死
           # make a 只构建 liblua.a（无需 readline），fakelua 只需头文件 + liblua.a
@@ -143,6 +144,7 @@ jobs:
           exit 1
 
       - name: Build (${{ matrix.build_type }})
+        timeout-minutes: 60
         run: |
           set -x
           export CPM_SOURCE_CACHE=$HOME/.cache/CPM

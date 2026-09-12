@@ -12,6 +12,8 @@ permissions:
 jobs:
   build:
     runs-on: windows-2022
+    # Setup + compile sit in front of the 60-minute Test step.
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
@@ -151,6 +153,7 @@ jobs:
           cmake -S . -B build -G Ninja -DFAKELUA_TINYCC_GIT_URL=https://github.com/TinyCC/tinycc.git
 
       - name: Build
+        timeout-minutes: 60
         shell: msys2 {0}
         run: |
           set -eux
