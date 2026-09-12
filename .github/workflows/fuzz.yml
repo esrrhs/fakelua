@@ -31,9 +31,28 @@ jobs:
       - name: Setup Lua
         timeout-minutes: 60
         run: |
-          # 从 GitHub 镜像编译 Lua 源码，避免 apt 镜像（azure.archive.ubuntu.com）间歇性超时卡死
+          # 从 GitHub 编译 Lua 源码，避免 apt 镜像（azure.archive.ubuntu.com）间歇性超时卡死
           # make a 只构建 liblua.a（无需 readline），fakelua 只需头文件 + liblua.a
-          git clone --depth 1 --branch v5.4.8 https://github.com/lua/lua.git
+          # git clone 会偶发 HTTP 502（exit 128）；先拉 release tarball 并重试。
+          set -euo pipefail
+          fetch_lua() {
+            rm -rf lua lua.tar.gz lua-5.4.8
+            curl --retry 5 --retry-all-errors --retry-delay 5 -fsSL \
+              -o lua.tar.gz "https://github.com/lua/lua/archive/refs/tags/v5.4.8.tar.gz"
+            tar -xzf lua.tar.gz
+            mv lua-5.4.8 lua
+          }
+          ok=0
+          for i in 1 2 3 4 5; do
+            if fetch_lua; then ok=1; break; fi
+            echo "download lua failed (attempt $i), retrying..."
+            sleep $((i * 8))
+          done
+          if [ "$ok" != 1 ]; then
+            echo "falling back to git clone"
+            rm -rf lua
+            git clone --depth 1 --branch v5.4.8 https://github.com/lua/lua.git
+          fi
           cd lua
           make a -j$(nproc)
           # 手动安装头文件 + 库（该 makefile 无 install 目标）
@@ -62,7 +81,18 @@ jobs:
 
       - name: Setup TCC
         run: |
-          git clone https://github.com/TinyCC/tinycc.git
+          set -euo pipefail
+          ok=0
+          for i in 1 2 3 4 5; do
+            rm -rf tinycc
+            if git clone --depth 1 https://github.com/TinyCC/tinycc.git; then ok=1; break; fi
+            echo "git clone tinycc failed (attempt $i), retrying..."
+            sleep $((i * 8))
+          done
+          if [ "$ok" != 1 ]; then
+            echo "git clone tinycc failed after retries"
+            exit 1
+          fi
           cd tinycc
           ./configure --extra-cflags="-fPIC"
           make -j$(nproc)
