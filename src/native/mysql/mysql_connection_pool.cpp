@@ -20,7 +20,8 @@ MysqlConnectionPool::~MysqlConnectionPool() {
     if (!pool_.empty()) {
         std::lock_guard<std::mutex> lock(mutex_);
         for (auto &entry: pool_) {
-            // tick 栈上仍在用这条连接时不能 unique_ptr 析构，宁可泄漏也不能 UAF
+            // tick 栈上仍在用这条连接时不能 unique_ptr 析构（所有平台）。Windows 上
+            // 还不能 cancel/destroy Asio 运输层，见 native::kWindowsAsio。
             if (entry.conn && entry.conn->TickDepth() > 0) {
                 entry.conn.release();
             }

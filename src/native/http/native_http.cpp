@@ -224,20 +224,11 @@ private:
     }
 
     void ShutdownStream() {
-        // Close the TCP socket only. ssl::stream::shutdown() is synchronous and
-        // waits on the same reactor tick() poll()s — the Windows deadlock that
-        // mysql avoids by skipping close_statement()/close().
-        boost::system::error_code ec;
         timer_.cancel();
         if (tls_) {
-            auto &sock = tls_->next_layer();
-            sock.cancel(ec);
-            sock.shutdown(tcp::socket::shutdown_both, ec);
-            sock.close(ec);
+            tls::CloseTlsStream(*tls_);
         } else if (plain_) {
-            plain_->cancel(ec);
-            plain_->shutdown(tcp::socket::shutdown_both, ec);
-            plain_->close(ec);
+            tls::CloseTcpSocket(*plain_);
         }
     }
 
@@ -450,17 +441,11 @@ public:
     void Close() {
         if (closed_) return;
         closed_ = true;
-        boost::system::error_code ec;
         timer_.cancel();
         if (tls_) {
-            auto &sock = tls_->next_layer();
-            sock.cancel(ec);
-            sock.shutdown(tcp::socket::shutdown_both, ec);
-            sock.close(ec);
+            tls::CloseTlsStream(*tls_);
         } else if (plain_) {
-            plain_->cancel(ec);
-            plain_->shutdown(tcp::socket::shutdown_both, ec);
-            plain_->close(ec);
+            tls::CloseTcpSocket(*plain_);
         }
         if (on_close_) on_close_(conn_id_);
     }

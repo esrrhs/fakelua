@@ -348,9 +348,8 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     bp::process proc = LaunchProcess(ctx, exe, child_args, stdio, cwd, env_overrides, argv[0]);
     // Parent must drop the inheritable stdio handles so the child can see EOF.
     stdio.Close();
-    // BOOST_ASIO_DISABLE_IOCP makes windows::object_handle::wait() hang: it waits
-    // on an IOCP completion that never arrives. Do not call process::wait/terminate
-    // (both go through that path). Wait and reap with Win32, then detach.
+    // native::kWindowsAsio: DISABLE_IOCP 去掉 pipe 和 object_handle wait，
+    // process::wait/terminate 会永远卡住。用 Win32 WaitForSingleObject。
     HANDLE ph = proc.native_handle();
     DWORD wait_ms = INFINITE;
     if (timeout_ms > 0) {

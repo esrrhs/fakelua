@@ -132,9 +132,7 @@ public:
     }
 
     ~RedisConnection() {
-        // Never cancel(): Boost.Redis cancel() waits on the same reactor tick()
-        // poll()s. Drop the transport instead (mysql TeardownTransport leak).
-        Abandon();
+        Teardown();
     }
 
     RedisConnection(const RedisConnection &) = delete;
@@ -238,14 +236,13 @@ public:
         if (!connect_notified_) {
             NotifyConnect("closed");
         }
-        // Lua :close() during a callback/tick must not touch Boost.Redis: cancel()
-        // and even connection teardown wait on the same reactor poll() drives.
-        // Defer like mysql RequestClose + MaybeReleaseOwnedConn.
+        // Lua :close() during a callback/tick must not cancel/destroy: defer like
+        // mysql RequestClose. Actual teardown is Windows leak vs POSIX cancel().
         if (tick_depth_ > 0 || io_.InDispatch()) {
             close_pending_ = true;
             return;
         }
-        Abandon();
+        Teardown();
     }
 
     int TickDepth() const {
@@ -274,9 +271,18 @@ public:
     }
 
 private:
-    void Abandon() {
+    void Teardown() {
         if (!conn_) return;
-        (void) conn_.release();
+        if constexpr (native::kWindowsAsio) {
+            (void) conn_.release();
+            return;
+        }
+        conn_->cancel();
+        // Drain completions while conn_ is still alive (same as mysql TeardownTransport).
+        for (int i = 0; i < 64; ++i) {
+            if (io_.Poll() == 0) break;
+        }
+        conn_.reset();
     }
 
     void NotifyConnect(std::string err) {

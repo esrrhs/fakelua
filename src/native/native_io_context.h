@@ -15,6 +15,8 @@
 //    SSL shutdown、close_statement、windows::object_handle wait。
 //  - 不要 Asio pipe（DISABLE_IOCP 之后没有 BOOST_ASIO_HAS_PIPE）。
 //  - 连接级对象不要自建 io_context；concurrency_hint 保持 1。
+//  - 关连接：Windows 不要 cancel()/析构还在飞的 Boost.MySQL/Redis 对象（会等同一个
+//    poll()，死锁），必要时 leak；POSIX 正常 cancel + destroy，不要 leak。
 
 #include <boost/asio/io_context.hpp>
 
@@ -23,6 +25,25 @@
 #include <utility>
 
 namespace fakelua::native {
+
+#ifdef _WIN32
+inline constexpr bool kWindowsAsio = true;
+#else
+inline constexpr bool kWindowsAsio = false;
+#endif
+
+// Windows: drop ownership so cancel()/dtor never runs on the poll() thread.
+// POSIX: run `cancel` then destroy. TickDepth 推迟关闭在所有平台都要，和这个无关。
+template<class T, class Cancel>
+void TeardownTransport(std::unique_ptr<T> &p, Cancel &&cancel) {
+    if (!p) return;
+    if constexpr (kWindowsAsio) {
+        (void) p.release();
+    } else {
+        cancel(*p);
+        p.reset();
+    }
+}
 
 class IoContext {
 public:

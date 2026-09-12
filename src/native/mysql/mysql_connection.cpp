@@ -69,7 +69,8 @@ void MysqlConnection::TeardownTransport() {
     // resumed later, and Boost.MySQL would resume it on a destroyed connection. In
     // practice the cancellation completes in well under a millisecond.
     if (op_in_progress_) {
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
+        const int wait_ms = native::kWindowsAsio ? 1000 : 5000;
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(wait_ms);
         while (op_in_progress_ && std::chrono::steady_clock::now() < deadline) {
             if (io_.Poll() == 0) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -77,15 +78,11 @@ void MysqlConnection::TeardownTransport() {
         }
     }
 
-    // Transport-level close via destructor (no blocking COM_QUIT / close()).
-    if (op_in_progress_) {
-        // Never observed. Destroying the connection here would hand Boost.MySQL
-        // freed memory once the completion arrives, so keep it alive forever
-        // instead; our own handler is already inert via life_.
+    // Transport-level close via destructor (no blocking COM_QUIT). Windows: if
+    // cancel did not finish, leak — destroying any_connection on the poll()
+    // thread deadlocks. POSIX: always destroy so we do not leak.
+    if (op_in_progress_ && native::kWindowsAsio) {
         LOG_ERROR(lua_state_, "mysql", "cancellation did not complete, leaking the connection to stay safe");
-        // 故意泄漏。这里不能存进容器：静态容器是跨线程共享的（多个 State 可能同时走到
-        // 这条路），而 thread_local 容器会在线程退出时把连接销毁掉，正是要避免的事。
-        // release() 交出所有权就够了，不需要任何容器。
         (void) conn_.release();
     } else {
         conn_.reset();
@@ -291,8 +288,9 @@ void MysqlConnection::StmtClose(uint32_t stmt_id) {
         return;
     }
 
-    // Drop the local handle only. close_statement() is synchronous and waits
-    // on the same IOCP that tick() poll()s, which deadlocks on Windows.
+    // Drop the local handle only. close_statement() is synchronous impl_.run()
+    // on this State's io_context: Windows deadlocks the poll() thread, POSIX
+    // would nest run() inside tick(). COM_STMT_CLOSE goes out with the connection.
     prepared_statements_.erase(it);
 }
 

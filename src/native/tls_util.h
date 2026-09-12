@@ -1,5 +1,6 @@
 #pragma once
 
+#include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/system/error_code.hpp>
 #include <openssl/err.h>
@@ -55,6 +56,22 @@ inline std::string HostnameWithoutPort(std::string host) {
         return host.substr(0, colon);
     }
     return host;
+}
+
+template<class Socket>
+inline void CloseTcpSocket(Socket &sock) {
+    boost::system::error_code ec;
+    sock.cancel(ec);
+    sock.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+    sock.close(ec);
+}
+
+// Close the TCP socket under a TLS stream. Do not call ssl::stream::shutdown()
+// here: it waits for close_notify on the same reactor tick() poll()s, on every
+// platform. Windows additionally deadlocks the select reactor.
+template<class Stream>
+inline void CloseTlsStream(Stream &tls) {
+    CloseTcpSocket(tls.next_layer());
 }
 
 }// namespace fakelua::tls
