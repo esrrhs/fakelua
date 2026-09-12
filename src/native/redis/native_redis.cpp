@@ -17,6 +17,7 @@
 #include <deque>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -275,7 +276,11 @@ public:
 
 private:
     void Drain() {
-        for (int i = 0; i < 64; ++i) {
+        const int wait_ms = native::kWindowsAsio ? 1000 : 5000;
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(wait_ms);
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (io_.Poll() > 0) continue;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             if (io_.Poll() == 0) break;
         }
     }
@@ -283,7 +288,7 @@ private:
     void AbortSocket() {
         if (!conn_) return;
         // next_layer() is deprecated but is the only way to reach the TCP socket.
-        // connection::cancel() waits on this poll() thread (Windows select).
+        // connection::cancel() and socket.cancel() wait on this poll() thread.
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"

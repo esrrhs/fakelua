@@ -212,7 +212,8 @@ private:
     void DispatchResult(const boost::mysql::results &result, const char *err_msg);
     void SetError(MysqlErrorType type, uint16_t code, const std::string &msg, const std::string &sql_state);
 
-    // Cancel in-flight work and destroy any_connection (no blocking COM_QUIT).
+    // Abort the TCP socket (net TCP shutdown+close), drain, then destroy.
+    void AbortSocket();
     void TeardownTransport();
     void EnsureConn();
 

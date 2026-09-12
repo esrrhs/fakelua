@@ -60,8 +60,9 @@ inline std::string HostnameWithoutPort(std::string host) {
 
 template<class Socket>
 inline void CloseTcpSocket(Socket &sock) {
+    // Match net TCP (AsioConn::Close): shutdown+close only. socket.cancel()
+    // waits on the Windows select reactor that Poll() drives.
     boost::system::error_code ec;
-    sock.cancel(ec);
     sock.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
     sock.close(ec);
 }

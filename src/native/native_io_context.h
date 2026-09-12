@@ -16,7 +16,7 @@
 //  - 不要 Asio pipe（DISABLE_IOCP 之后没有 BOOST_ASIO_HAS_PIPE）。
 //  - 不要自建 io_context，concurrency_hint 保持 1。
 //  - 关连接（和 net TCP 一样，所有平台）：回调里只打标记；Tick()/Lua 返回后再
-//    socket.cancel + shutdown + close，poll() 收完完成包，然后 destroy。
+//    socket.shutdown + close（不要 socket.cancel()），poll() 收完完成包，然后 destroy。
 //    不要 Boost.Redis connection::cancel()、不要 ssl::stream::shutdown()——它们会
 //    在这条 poll() 线程上等待。不要 leak。
 
@@ -35,7 +35,7 @@ inline constexpr bool kWindowsAsio = false;
 #endif
 
 // Abort in-flight I/O then destroy. `abort` must be non-blocking (socket
-// cancel+shutdown+close), like net TCP. Do not Boost.Redis connection::cancel().
+// shutdown+close), like net TCP. Do not Boost.Redis connection::cancel().
 // Caller Poll()s to drain while `p` is still alive. TickDepth deferral is
 // separate and required on every platform.
 template<class T, class Abort>

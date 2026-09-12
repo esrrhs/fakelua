@@ -14,6 +14,9 @@
 
 #include <boost/asio/bind_cancellation_slot.hpp>
 #include <boost/asio/ssl.hpp>
+#include <boost/mysql/detail/access.hpp>
+#include <boost/mysql/detail/engine_impl.hpp>
+#include <boost/mysql/impl/internal/variant_stream.hpp>
 
 #include "native/tls_util.h"
 
@@ -59,15 +62,25 @@ void MysqlConnection::EnsureConn() {
     }
 }
 
+void MysqlConnection::AbortSocket() {
+    if (!conn_) return;
+    // any_connection hides the socket. variant_stream::close is shutdown+close,
+    // same as net TCP. Do not socket.cancel() — it waits on this poll() thread.
+    auto &eng = boost::mysql::detail::access::get_impl(*conn_).get_engine();
+    using Impl = boost::mysql::detail::engine_impl<boost::mysql::detail::variant_stream>;
+    boost::mysql::error_code ec;
+    static_cast<Impl &>(eng).stream().close(ec);
+}
+
 void MysqlConnection::TeardownTransport() {
+    AbortSocket();
     if (cancel_signal_) {
         cancel_signal_->emit(boost::asio::cancellation_type::all);
     }
 
-    // Let the cancelled operation complete WHILE conn_ is still alive. The State's
+    // Let the aborted operation complete WHILE conn_ is still alive. The State's
     // io_context outlives this connection, so an operation left in flight really is
-    // resumed later, and Boost.MySQL would resume it on a destroyed connection. In
-    // practice the cancellation completes in well under a millisecond.
+    // resumed later, and Boost.MySQL would resume it on a destroyed connection.
     if (op_in_progress_) {
         const int wait_ms = native::kWindowsAsio ? 1000 : 5000;
         auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(wait_ms);
@@ -78,9 +91,6 @@ void MysqlConnection::TeardownTransport() {
         }
     }
 
-    // Transport-level close via destructor (no blocking COM_QUIT). Cancellation
-    // is the MySQL equivalent of net TCP's socket abort; always destroy after
-    // the drain above — do not leak.
     conn_.reset();
     io_.Poll();
     cancel_signal_.reset();
