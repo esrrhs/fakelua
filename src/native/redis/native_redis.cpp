@@ -115,8 +115,16 @@ struct CmdOp {
 
 class RedisConnection {
 public:
-    explicit RedisConnection(State *state) : io_(state->GetIoContext()), conn_(io_.Get(), br::logger{br::logger::level::disabled}), lua_state_(state) {
+    explicit RedisConnection(State *state)
+        : io_(state->GetIoContext()), conn_(std::make_unique<br::connection>(io_.Get(), br::logger{br::logger::level::disabled})), lua_state_(state) {
     }
+
+    ~RedisConnection() {
+        Abandon();
+    }
+
+    RedisConnection(const RedisConnection &) = delete;
+    RedisConnection &operator=(const RedisConnection &) = delete;
 
     void Connect(const std::string &host, uint16_t port, const std::string &username, const std::string &password, int db, int timeout_ms) {
         cfg_.addr.host = host;
@@ -146,7 +154,7 @@ public:
         cfg_.setup = std::move(setup);
 
         auto watch = life_.GetWatch();
-        conn_.async_run(cfg_, [this, watch](boost::system::error_code ec) {
+        conn_->async_run(cfg_, [this, watch](boost::system::error_code ec) {
             if (!watch.Alive()) return;
             if (!connect_notified_) {
                 NotifyConnect(ec ? ec.message() : std::string("connection closed"));
@@ -154,7 +162,7 @@ public:
         });
 
         ping_.req.push("PING");
-        conn_.async_exec(ping_.req, ping_.resp, [this, watch](boost::system::error_code ec, std::size_t) {
+        conn_->async_exec(ping_.req, ping_.resp, [this, watch](boost::system::error_code ec, std::size_t) {
             if (!watch.Alive()) return;
             if (ec) {
                 NotifyConnect(ec.message());
@@ -178,7 +186,7 @@ public:
         auto *raw = op.get();
         cmds_.push_back(std::move(op));
         auto watch = life_.GetWatch();
-        conn_.async_exec(raw->req, raw->resp, [this, raw, watch](boost::system::error_code ec, std::size_t) {
+        conn_->async_exec(raw->req, raw->resp, [this, raw, watch](boost::system::error_code ec, std::size_t) {
             if (!watch.Alive()) return;
             raw->done = true;
             if (ec) raw->err = ec.message();
@@ -204,7 +212,7 @@ public:
         in_dispatch_ = false;
         if (close_pending_) {
             close_pending_ = false;
-            DoCancel();
+            Abandon();
         }
     }
 
@@ -213,13 +221,14 @@ public:
         if (!connect_notified_) {
             NotifyConnect("closed");
         }
-        // cancel() waits on the same reactor tick() poll()s. From a Lua
-        // callback Poll is a no-op (DispatchScope), so defer like mysql.
+        // Boost.Redis cancel() waits on the same reactor tick() poll()s and
+        // deadlocks on Windows, even after the Lua callback returns. Drop the
+        // connection instead (same idea as mysql leaking a cancelled transport).
         if (in_dispatch_) {
             close_pending_ = true;
             return;
         }
-        DoCancel();
+        Abandon();
     }
 
     void SetConnectCallback(std::string name) {
@@ -235,12 +244,9 @@ public:
     }
 
 private:
-    void DoCancel() {
-        conn_.cancel();
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
-        while (std::chrono::steady_clock::now() < deadline) {
-            if (io_.Poll() == 0) break;
-        }
+    void Abandon() {
+        if (!conn_) return;
+        (void) conn_.release();
     }
 
     void NotifyConnect(std::string err) {
@@ -284,7 +290,7 @@ private:
 
     native::IoContext &io_;
     br::config cfg_;
-    br::connection conn_;
+    std::unique_ptr<br::connection> conn_;
     CmdOp ping_;
     std::deque<std::unique_ptr<CmdOp>> cmds_;
     std::string connect_cb_;
