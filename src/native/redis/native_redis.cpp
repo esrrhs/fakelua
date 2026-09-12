@@ -211,8 +211,8 @@ public:
         if (tick_depth_ > 0) return;
         TickDepthGuard guard(tick_depth_);
         if (!conn_) return;
-        // Lua :close() from a callback only sets flags. Do not Poll/AbortSocket
-        // on later ticks either until ConnClose(TickDepth==0) or DeleteState —
+        // Lua :close() from a callback only sets flags. Do not Poll this
+        // connection until a later TickAll reaps it (ReadyToDestroy) —
         // Boost.Redis writer_cv_ (expires_at max) deadlocks Windows select.
         if (close_pending_) return;
 
@@ -261,6 +261,17 @@ public:
     void RequestClose() {
         closed_ = true;
         close_pending_ = true;
+    }
+
+    // First TickAll after a Lua :close() from a callback is flags-only.
+    // AbortSocket on that same runtime.tick() deadlocks Windows select.
+    // A later TickAll (ReadyToDestroy) tears down before anyone Polls.
+    bool ReadyToDestroy() {
+        if (!destroy_ready_) {
+            destroy_ready_ = true;
+            return false;
+        }
+        return true;
     }
 
     void SetConnectCallback(std::string name) {
@@ -405,6 +416,7 @@ private:
     bool close_pending_ = false;
     bool ping_started_ = false;
     bool run_done_ = false;
+    bool destroy_ready_ = false;
     int tick_depth_ = 0;
     native::LifeToken life_;
 };
@@ -434,20 +446,34 @@ static void UnregisterWrapper(NativeObject *nat) {
     ws->conns.erase(std::remove(ws->conns.begin(), ws->conns.end(), nat), ws->conns.end());
 }
 
+static void MaybeReleaseOwnedConn(NativeObject *self) {
+    if (!self) return;
+    auto *conn = Unwrap(self);
+    if (!conn || conn->TickDepth() > 0 || !conn->ClosePending()) return;
+    if (!conn->ReadyToDestroy()) return;
+    conn->Close();
+    self->SetInt("__redis_conn__", 0);
+    delete conn;
+}
+
 void TickAll(State *s) {
     if (!s) return;
     auto *ws = s->TryGetModuleState<RedisWrappers>();
     if (!ws) return;
     auto conns = ws->conns;
+    // Reap a previous tick's Lua :close() BEFORE any Poll. Leaving Boost.Redis
+    // writer_cv_ (expires_at max) in the shared io_context makes Windows select
+    // wait forever on the next connection's Tick().
+    for (auto *nat: conns) {
+        MaybeReleaseOwnedConn(nat);
+    }
+    conns = ws->conns;
     for (auto *nat: conns) {
         auto *c = Unwrap(nat);
         if (!c) continue;
         if (c->TickDepth() > 0) continue;
         c->Tick();
-        // Do not AbortSocket/reset here. TickAll runs on the poll() thread;
-        // Boost.Redis writer_cv_ (expires_at max) deadlocks Windows select.
-        // Lua :close() from a callback only sets flags. Teardown is
-        // ConnClose with TickDepth==0 (after Lua unwind) or FakeluaDeleteState.
+        MaybeReleaseOwnedConn(nat);
     }
 }
 
