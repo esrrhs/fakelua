@@ -213,8 +213,7 @@ public:
 private:
     void ArmTimeout() {
         if (timeout_ms_ <= 0) return;
-        boost::system::error_code ec;
-        timer_.cancel(ec);
+        timer_.cancel();
         timer_.expires_after(std::chrono::milliseconds(timeout_ms_));
         auto self = shared_from_this();
         auto watch = life_.GetWatch();
@@ -229,7 +228,7 @@ private:
         // waits on the same reactor tick() poll()s — the Windows deadlock that
         // mysql avoids by skipping close_statement()/close().
         boost::system::error_code ec;
-        timer_.cancel(ec);
+        timer_.cancel();
         if (tls_) {
             auto &sock = beast::get_lowest_layer(*tls_).socket();
             sock.cancel(ec);
@@ -450,7 +449,7 @@ public:
         if (closed_) return;
         closed_ = true;
         boost::system::error_code ec;
-        timer_.cancel(ec);
+        timer_.cancel();
         if (tls_) {
             auto &sock = beast::get_lowest_layer(*tls_).socket();
             sock.cancel(ec);
@@ -471,8 +470,7 @@ public:
 private:
     void ArmTimeout() {
         if (timeout_ms_ <= 0) return;
-        boost::system::error_code ec;
-        timer_.cancel(ec);
+        timer_.cancel();
         timer_.expires_after(std::chrono::milliseconds(timeout_ms_));
         auto self = shared_from_this();
         auto watch = life_.GetWatch();
