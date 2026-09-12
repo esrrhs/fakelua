@@ -259,6 +259,23 @@ public:
         close_pending_ = true;
     }
 
+    // Close the TCP socket like net TCP. Must not destroy boost::redis::connection
+    // here — that waits on writer_cv_ (expires_at max) on this poll() thread.
+    void ShutdownSocket() {
+        AbortSocket();
+    }
+
+    // First TickAll after Lua :close() only shuts the socket. Destroying the
+    // connection inside that same runtime.tick() deadlocks Windows select.
+    // The next TickAll, or FakeluaDeleteState, is the known-good teardown path.
+    bool ReadyToDestroy() {
+        if (!destroy_ready_) {
+            destroy_ready_ = true;
+            return false;
+        }
+        return true;
+    }
+
     void SetConnectCallback(std::string name) {
         connect_cb_ = std::move(name);
     }
@@ -401,6 +418,7 @@ private:
     bool close_pending_ = false;
     bool ping_started_ = false;
     bool run_done_ = false;
+    bool destroy_ready_ = false;
     int tick_depth_ = 0;
     native::LifeToken life_;
 };
@@ -434,6 +452,8 @@ static void MaybeReleaseOwnedConn(NativeObject *self) {
     if (!self) return;
     auto *conn = Unwrap(self);
     if (!conn || conn->TickDepth() > 0 || !conn->ClosePending()) return;
+    conn->ShutdownSocket();
+    if (!conn->ReadyToDestroy()) return;
     conn->Close();
     self->SetInt("__redis_conn__", 0);
     delete conn;
