@@ -11,6 +11,29 @@
 
 namespace fakelua {
 
+namespace {
+
+// Spec structs are emitted as C (`CVar <key>;`). Lua keys like "stdin" collide
+// with stdio macros on Windows (`#define stdin (__acrt_iob_func(0))`), which
+// makes TCC report "identifier expected". Prefix like _int_/_float_/_bool_.
+std::string SpecStringFieldCName(const std::string &key) {
+    std::string out = "_s_";
+    out.reserve(key.size() + 4);
+    for (unsigned char ch: key) {
+        if ((ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || ch == '_') {
+            out.push_back(static_cast<char>(ch));
+        } else {
+            out.push_back('_');
+        }
+    }
+    if (out.size() == 3) {
+        out += 'x';
+    }
+    return out;
+}
+
+}// namespace
+
 TypeInferencer::TypeInferencer(State *s) : s_(s) {
 }
 
@@ -1580,7 +1603,7 @@ bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vect
         if (fp->GetFieldKind() == FieldKind::kObject) {
             f.key = fp->Name();
             f.key_kind = TableKeyKind::kString;
-            f.c_field_name = fp->Name();
+            f.c_field_name = SpecStringFieldCName(f.key);
             desc = "S_" + f.key;
         } else {
             // FieldKind::kArray
@@ -1612,7 +1635,7 @@ bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vect
                 if (kind == ExpKind::kString) {
                     f.key = key_exp->ExpValue();
                     f.key_kind = TableKeyKind::kString;
-                    f.c_field_name = f.key;
+                    f.c_field_name = SpecStringFieldCName(f.key);
                     desc = "S_" + f.key;
                 } else if (kind == ExpKind::kNumber) {
                     std::string num_str = key_exp->ExpValue();
