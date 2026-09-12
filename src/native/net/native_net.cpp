@@ -564,7 +564,6 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
     if (cfg.fixed_packet_len == 0) {
         cfg.fixed_packet_len = static_cast<int>(GetTableField(s, a0, "fixed_packet_len", 0));
     }
-    cfg.non_blocking = GetTableField(s, a0, "nonblocking", 1) != 0;
     cfg.no_delay = GetTableField(s, a0, "nodelay", 1) != 0;
     cfg.keep_alive = GetTableField(s, a0, "keepalive", 1) != 0;
 

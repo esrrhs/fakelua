@@ -284,7 +284,7 @@ Windows 上 `io.open` / `loadfile` / `dofile` / `os.getenv` / `os.tmpname` 以�
 
 **文件：** `net/native_net.h` · **注册：** `RegisterNetLibraryApi`
 
-**配置表字段：** `ip`、`port`、`maxconn`、`backlog`、`nonblocking`、`nodelay`、`keepalive`、`framer`、`parser`、`fixed_len`、`ws_path`、`ws_host`、`ws_origin`
+**配置表字段：** `ip`、`port`、`maxconn`、`backlog`、`nodelay`、`keepalive`、`framer`、`parser`、`fixed_len`、`ws_path`、`ws_host`、`ws_origin`
 
 **帧协议：**
 

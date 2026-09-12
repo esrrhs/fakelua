@@ -288,7 +288,7 @@ On Windows, `io.open` / `loadfile` / `dofile` / `os.getenv` / `os.tmpname` / Boo
 
 **File:** `net/native_net.h` · **Registration:** `RegisterNetLibraryApi`
 
-**Config table fields:** `ip`, `port`, `maxconn`, `backlog`, `nonblocking`, `nodelay`, `keepalive`, `framer`, `parser`, `fixed_len`, `ws_path`, `ws_host`, `ws_origin`
+**Config table fields:** `ip`, `port`, `maxconn`, `backlog`, `nodelay`, `keepalive`, `framer`, `parser`, `fixed_len`, `ws_path`, `ws_host`, `ws_origin`
 
 **Framer protocols:**
 
