@@ -95,6 +95,18 @@ static CVar NodeToLua(State *s, const std::vector<resp3::node> &nodes, size_t &i
     }
 }
 
+struct TickDepthGuard {
+    int &depth;
+
+    explicit TickDepthGuard(int &d) : depth(d) {
+        ++depth;
+    }
+
+    ~TickDepthGuard() {
+        if (depth > 0) --depth;
+    }
+};
+
 static CVar ResponseToLua(State *s, const br::generic_response &resp) {
     if (resp.has_error()) {
         return inter::NativeToFakeluaString(s, resp.error().diagnostic);
@@ -120,6 +132,8 @@ public:
     }
 
     ~RedisConnection() {
+        // Never cancel(): Boost.Redis cancel() waits on the same reactor tick()
+        // poll()s. Drop the transport instead (mysql TeardownTransport leak).
         Abandon();
     }
 
@@ -173,6 +187,9 @@ public:
     }
 
     void Command(std::vector<std::string> parts, std::string cb) {
+        if (closed_ || close_pending_ || !conn_) {
+            ThrowFakeluaException("redis: connection is closed");
+        }
         if (parts.empty()) {
             ThrowFakeluaException("redis command: empty argv");
         }
@@ -194,8 +211,13 @@ public:
     }
 
     void Tick() {
+        // Nested tick (Lua runtime.tick() from a callback) must not poll or
+        // dispatch: same re-entrancy guard as MysqlConnection::Tick.
+        if (tick_depth_ > 0) return;
+        TickDepthGuard guard(tick_depth_);
+        if (close_pending_) return;
+
         io_.Poll();
-        in_dispatch_ = true;
         if (pending_connect_) {
             pending_connect_ = false;
             DispatchConnect();
@@ -209,11 +231,6 @@ public:
         while (!cmds_.empty() && cmds_.front() && cmds_.front()->done && cmds_.front()->cb.empty()) {
             cmds_.pop_front();
         }
-        in_dispatch_ = false;
-        if (close_pending_) {
-            close_pending_ = false;
-            Abandon();
-        }
     }
 
     void Close() {
@@ -221,14 +238,27 @@ public:
         if (!connect_notified_) {
             NotifyConnect("closed");
         }
-        // Boost.Redis cancel() waits on the same reactor tick() poll()s and
-        // deadlocks on Windows, even after the Lua callback returns. Drop the
-        // connection instead (same idea as mysql leaking a cancelled transport).
-        if (in_dispatch_) {
+        // Lua :close() during a callback/tick must not touch Boost.Redis: cancel()
+        // and even connection teardown wait on the same reactor poll() drives.
+        // Defer like mysql RequestClose + MaybeReleaseOwnedConn.
+        if (tick_depth_ > 0 || io_.InDispatch()) {
             close_pending_ = true;
             return;
         }
         Abandon();
+    }
+
+    int TickDepth() const {
+        return tick_depth_;
+    }
+
+    bool ClosePending() const {
+        return close_pending_;
+    }
+
+    void RequestClose() {
+        closed_ = true;
+        close_pending_ = true;
     }
 
     void SetConnectCallback(std::string name) {
@@ -258,6 +288,9 @@ private:
     }
 
     void DispatchConnect() {
+        TickDepthGuard guard(tick_depth_);
+        native::IoContext::DispatchScope dispatch_scope(io_);
+        if (close_pending_) return;
         if (!lua_state_ || connect_cb_.empty()) return;
         CVar args[3];
         args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
@@ -272,6 +305,9 @@ private:
     }
 
     void DispatchCmd(CmdOp &op) {
+        TickDepthGuard guard(tick_depth_);
+        native::IoContext::DispatchScope dispatch_scope(io_);
+        if (close_pending_) return;
         if (!lua_state_ || op.cb.empty()) return;
         CVar args[3];
         args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
@@ -302,7 +338,7 @@ private:
     bool ready_ = false;
     bool closed_ = false;
     bool close_pending_ = false;
-    bool in_dispatch_ = false;
+    int tick_depth_ = 0;
     native::LifeToken life_;
 };
 
@@ -331,6 +367,13 @@ static void UnregisterWrapper(NativeObject *nat) {
     ws->conns.erase(std::remove(ws->conns.begin(), ws->conns.end(), nat), ws->conns.end());
 }
 
+static void MaybeReleaseOwnedConn(NativeObject *self) {
+    if (!self) return;
+    auto *conn = Unwrap(self);
+    if (!conn || conn->TickDepth() > 0 || !conn->ClosePending()) return;
+    conn->Close();
+}
+
 void TickAll(State *s) {
     if (!s) return;
     auto *ws = s->TryGetModuleState<RedisWrappers>();
@@ -338,7 +381,10 @@ void TickAll(State *s) {
     auto conns = ws->conns;
     for (auto *nat: conns) {
         auto *c = Unwrap(nat);
-        if (c) c->Tick();
+        if (!c) continue;
+        if (c->TickDepth() > 0) continue;
+        c->Tick();
+        MaybeReleaseOwnedConn(nat);
     }
 }
 
@@ -383,7 +429,13 @@ static CVar ConnCommand(NativeObject *self, State *s, CVar *args, int n) {
 
 static CVar ConnClose(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *conn = Unwrap(self);
-    if (conn) conn->Close();
+    if (conn) {
+        if (conn->TickDepth() > 0) {
+            conn->RequestClose();
+            return inter::NativeToFakeluaNil(s);
+        }
+        conn->Close();
+    }
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -429,8 +481,12 @@ static CVar RedisConnect(State *s, CVar *args, int n) {
         auto *c = Unwrap(self);
         if (c) {
             self->SetInt("__redis_conn__", 0);
-            c->Close();
-            delete c;
+            if (c->TickDepth() > 0) {
+                c->RequestClose();
+            } else {
+                c->Close();
+                delete c;
+            }
         }
     });
     RegisterWrapper(s, nat);

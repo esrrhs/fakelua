@@ -41,6 +41,10 @@ public:
     // 方还在读自己的状态时把它改写掉。
     std::size_t Poll();
 
+    bool InDispatch() const {
+        return dispatch_depth_ > 0;
+    }
+
     // 标记"正在把事件派发进 Lua"。它活着的期间 Poll() 不做事。
     class DispatchScope {
     public:
