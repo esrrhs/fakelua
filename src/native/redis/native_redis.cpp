@@ -128,7 +128,16 @@ struct CmdOp {
 class RedisConnection {
 public:
     explicit RedisConnection(State *state)
-        : io_(state->GetIoContext()), conn_(std::make_unique<br::connection>(io_.Get(), br::logger{br::logger::level::disabled})), lua_state_(state) {
+        : io_(state->GetIoContext()), lua_state_(state) {
+        if constexpr (native::kWindowsAsio) {
+            // Own reactor: leaking conn_ still bound to State::io_context makes
+            // FakeluaDeleteState hang in ~io_context (Boost.Redis cancel on the
+            // same poll thread). POSIX stays on the shared State context.
+            own_io_ = std::make_unique<native::IoContext>();
+            conn_ = std::make_unique<br::connection>(own_io_->Get(), br::logger{br::logger::level::disabled});
+        } else {
+            conn_ = std::make_unique<br::connection>(io_.Get(), br::logger{br::logger::level::disabled});
+        }
     }
 
     ~RedisConnection() {
@@ -214,8 +223,9 @@ public:
         if (tick_depth_ > 0) return;
         TickDepthGuard guard(tick_depth_);
         if (close_pending_) return;
+        if (!conn_ && !own_io_) return;
 
-        io_.Poll();
+        PollTransport();
         if (pending_connect_) {
             pending_connect_ = false;
             DispatchConnect();
@@ -271,12 +281,22 @@ public:
     }
 
 private:
+    void PollTransport() {
+        if constexpr (native::kWindowsAsio) {
+            if (own_io_) own_io_->Poll();
+        } else {
+            io_.Poll();
+        }
+    }
+
     void Teardown() {
-        if (!conn_) return;
+        if (!conn_ && !own_io_) return;
         if constexpr (native::kWindowsAsio) {
             (void) conn_.release();
+            (void) own_io_.release();
             return;
         }
+        if (!conn_) return;
         conn_->cancel();
         // Drain completions while conn_ is still alive (same as mysql TeardownTransport).
         for (int i = 0; i < 64; ++i) {
@@ -331,6 +351,7 @@ private:
     }
 
     native::IoContext &io_;
+    std::unique_ptr<native::IoContext> own_io_;
     br::config cfg_;
     std::unique_ptr<br::connection> conn_;
     CmdOp ping_;
