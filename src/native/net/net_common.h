@@ -66,6 +66,7 @@ struct NetConfig {
     int fixed_packet_len = 0;
     int wait_timeout_ms = 1;
     int backlog = 128;
+    // Lua 仍可传 nonblocking；C++ 忽略。Windows 上不能 socket.non_blocking(true)。
     bool non_blocking = true;
     bool no_delay = true;
     bool keep_alive = true;

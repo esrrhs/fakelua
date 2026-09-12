@@ -248,7 +248,8 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     }
     std::vector<std::string> child_args(argv.begin() + 1, argv.end());
 
-    asio::io_context ctx;
+    // concurrency_hint=1：与 State::IoContext 相同，不给 Asio 再开一条 timer 线程。
+    asio::io_context ctx{1};
     std::string stdout_s;
     std::string stderr_s;
     int exit_code = -1;
@@ -320,6 +321,9 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
         drain.expires_after(std::chrono::milliseconds(10));
         drain.async_wait([&](const boost::system::error_code &) { cancel_reads(); });
     });
+    // POSIX-only (BOOST_ASIO_HAS_PIPE). Windows never compiles this branch:
+    // DISABLE_IOCP removes pipes and object_handle wait, so process.run uses
+    // Win32 WaitForSingleObject instead of ctx.run().
     ctx.run();
 #else
     const auto out_path = MakeProcTempPath();
@@ -368,6 +372,7 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
         exit_code = 9;
     }
     proc.detach();
+    ctx.stop();
     stdout_s = ReadCappedFile(out_path);
     stderr_s = ReadCappedFile(err_path);
     boost::system::error_code rec;

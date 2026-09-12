@@ -11,6 +11,7 @@
 
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
@@ -115,7 +116,7 @@ struct HttpResponseData {
 
 class HttpClientOp : public std::enable_shared_from_this<HttpClientOp> {
 public:
-    HttpClientOp(State *state, NativeObject *nat) : io_(state->GetIoContext()), resolver_(io_.Get()), lua_state_(state), native_obj_(nat) {
+    HttpClientOp(State *state, NativeObject *nat) : io_(state->GetIoContext()), resolver_(io_.Get()), timer_(io_.Get()), lua_state_(state), native_obj_(nat) {
     }
 
     void Start(std::string method, std::string url, http::fields headers, std::string body, int timeout_ms, unsigned version, bool tls_verify, std::string tls_ca) {
@@ -177,7 +178,7 @@ public:
             return;
         }
 
-        SetExpiry();
+        ArmTimeout();
         auto self = shared_from_this();
         auto watch = life_.GetWatch();
         resolver_.async_resolve(host_, port, [self, watch](beast::error_code ec, tcp::resolver::results_type results) {
@@ -210,25 +211,34 @@ public:
     }
 
 private:
-    void SetExpiry() {
+    void ArmTimeout() {
         if (timeout_ms_ <= 0) return;
-        auto d = std::chrono::milliseconds(timeout_ms_);
-        if (tls_) {
-            beast::get_lowest_layer(*tls_).expires_after(d);
-        } else if (plain_) {
-            plain_->expires_after(d);
-        }
+        boost::system::error_code ec;
+        timer_.cancel(ec);
+        timer_.expires_after(std::chrono::milliseconds(timeout_ms_));
+        auto self = shared_from_this();
+        auto watch = life_.GetWatch();
+        timer_.async_wait([self, watch](boost::system::error_code wait_ec) {
+            if (!watch.Alive() || wait_ec) return;
+            self->Finish("timeout");
+        });
     }
 
     void ShutdownStream() {
-        beast::error_code ec;
+        // Close the TCP socket only. ssl::stream::shutdown() is synchronous and
+        // waits on the same reactor tick() poll()s — the Windows deadlock that
+        // mysql avoids by skipping close_statement()/close().
+        boost::system::error_code ec;
+        timer_.cancel(ec);
         if (tls_) {
-            tls_->shutdown(ec);
-            beast::get_lowest_layer(*tls_).socket().shutdown(tcp::socket::shutdown_both, ec);
-            beast::get_lowest_layer(*tls_).close();
+            auto &sock = beast::get_lowest_layer(*tls_).socket();
+            sock.cancel(ec);
+            sock.shutdown(tcp::socket::shutdown_both, ec);
+            sock.close(ec);
         } else if (plain_) {
+            plain_->socket().cancel(ec);
             plain_->socket().shutdown(tcp::socket::shutdown_both, ec);
-            plain_->close();
+            plain_->socket().close(ec);
         }
     }
 
@@ -237,7 +247,7 @@ private:
             Finish(ec.message());
             return;
         }
-        SetExpiry();
+        ArmTimeout();
         auto self = shared_from_this();
         auto watch = life_.GetWatch();
         if (tls_) {
@@ -259,8 +269,6 @@ private:
             return;
         }
         if (tls_) {
-            boost::system::error_code nec;
-            beast::get_lowest_layer(*tls_).socket().non_blocking(true, nec);
             boost::system::error_code sni_ec;
             if (!tls::SetSniHostname(*tls_, host_, sni_ec)) {
                 Finish(sni_ec.message());
@@ -269,7 +277,7 @@ private:
             if (tls_verify_) {
                 tls_->set_verify_callback(ssl::host_name_verification(host_));
             }
-            SetExpiry();
+            ArmTimeout();
             auto self = shared_from_this();
             auto watch = life_.GetWatch();
             tls_->async_handshake(ssl::stream_base::client, [self, watch](beast::error_code hs_ec) {
@@ -290,7 +298,7 @@ private:
     }
 
     void DoWrite() {
-        SetExpiry();
+        ArmTimeout();
         auto self = shared_from_this();
         auto watch = life_.GetWatch();
         auto on_write = [self, watch](beast::error_code write_ec, std::size_t) {
@@ -309,7 +317,7 @@ private:
             Finish(ec.message());
             return;
         }
-        SetExpiry();
+        ArmTimeout();
         auto self = shared_from_this();
         auto watch = life_.GetWatch();
         auto on_read = [self, watch](beast::error_code read_ec, std::size_t) {
@@ -362,6 +370,7 @@ private:
     std::optional<beast::tcp_stream> plain_;
     std::optional<beast::ssl_stream<beast::tcp_stream>> tls_;
     tcp::resolver resolver_;
+    asio::steady_timer timer_;
     beast::flat_buffer buffer_;
     http::request<http::string_body> req_;
     http::response<http::string_body> res_;
@@ -381,11 +390,9 @@ private:
 
 class HttpServerConn : public std::enable_shared_from_this<HttpServerConn> {
 public:
-    HttpServerConn(asio::io_context &ioc, tcp::socket sock, int conn_id, int timeout_ms, ssl::context *ctx) : conn_id_(conn_id), timeout_ms_(timeout_ms) {
-        (void) ioc;
+    HttpServerConn(asio::io_context &ioc, tcp::socket sock, int conn_id, int timeout_ms, ssl::context *ctx)
+        : timer_(ioc), conn_id_(conn_id), timeout_ms_(timeout_ms) {
         if (ctx) {
-            boost::system::error_code nec;
-            sock.non_blocking(true, nec);
             tls_.emplace(std::move(sock), *ctx);
         } else {
             plain_.emplace(std::move(sock));
@@ -396,7 +403,7 @@ public:
         on_request_ = std::move(on_request);
         on_close_ = std::move(on_close);
         if (tls_) {
-            SetExpiry();
+            ArmTimeout();
             auto self = shared_from_this();
             auto watch = life_.GetWatch();
             tls_->async_handshake(ssl::stream_base::server, [self, watch](beast::error_code ec) {
@@ -425,7 +432,7 @@ public:
         }
         res_.body() = std::move(body);
         res_.prepare_payload();
-        SetExpiry();
+        ArmTimeout();
         auto self = shared_from_this();
         auto watch = life_.GetWatch();
         auto on_write = [self, watch](beast::error_code ec, std::size_t) {
@@ -442,14 +449,17 @@ public:
     void Close() {
         if (closed_) return;
         closed_ = true;
-        beast::error_code ec;
+        boost::system::error_code ec;
+        timer_.cancel(ec);
         if (tls_) {
-            tls_->shutdown(ec);
-            beast::get_lowest_layer(*tls_).socket().shutdown(tcp::socket::shutdown_both, ec);
-            beast::get_lowest_layer(*tls_).close();
+            auto &sock = beast::get_lowest_layer(*tls_).socket();
+            sock.cancel(ec);
+            sock.shutdown(tcp::socket::shutdown_both, ec);
+            sock.close(ec);
         } else if (plain_) {
+            plain_->socket().cancel(ec);
             plain_->socket().shutdown(tcp::socket::shutdown_both, ec);
-            plain_->close();
+            plain_->socket().close(ec);
         }
         if (on_close_) on_close_(conn_id_);
     }
@@ -459,21 +469,24 @@ public:
     }
 
 private:
-    void SetExpiry() {
+    void ArmTimeout() {
         if (timeout_ms_ <= 0) return;
-        auto d = std::chrono::milliseconds(timeout_ms_);
-        if (tls_) {
-            beast::get_lowest_layer(*tls_).expires_after(d);
-        } else if (plain_) {
-            plain_->expires_after(d);
-        }
+        boost::system::error_code ec;
+        timer_.cancel(ec);
+        timer_.expires_after(std::chrono::milliseconds(timeout_ms_));
+        auto self = shared_from_this();
+        auto watch = life_.GetWatch();
+        timer_.async_wait([self, watch](boost::system::error_code wait_ec) {
+            if (!watch.Alive() || wait_ec) return;
+            self->Close();
+        });
     }
 
     void DoRead() {
         if (closed_) return;
         req_ = {};
         buffer_.consume(buffer_.size());
-        SetExpiry();
+        ArmTimeout();
         auto self = shared_from_this();
         auto watch = life_.GetWatch();
         auto on_read = [self, watch](beast::error_code ec, std::size_t) {
@@ -501,6 +514,7 @@ private:
 
     std::optional<beast::tcp_stream> plain_;
     std::optional<beast::ssl_stream<beast::tcp_stream>> tls_;
+    asio::steady_timer timer_;
     beast::flat_buffer buffer_;
     http::request<http::string_body> req_;
     http::response<http::string_body> res_;

@@ -8,6 +8,13 @@
 // 粒度定在 State 而不是全进程：State 本身就是单线程实体（见 state.h 的线程模型注释），
 // 所以下面的计数器都是普通成员，不需要原子操作。反过来全进程一份是错的 —— 不同 State
 // 可能跑在不同线程上，一个线程 poll() 时另一个 restart() 是未定义行为。
+//
+// Windows 约束（根 CMakeLists 全局 BOOST_ASIO_DISABLE_IOCP，必须所有 native IO 遵守）：
+//  - 只用本对象的 poll()，不要 io_context::run()。
+//  - 不要 socket.non_blocking(true)；不要在 poll() 线程上做同步 read_some/write_some、
+//    SSL shutdown、close_statement、windows::object_handle wait。
+//  - 不要 Asio pipe（DISABLE_IOCP 之后没有 BOOST_ASIO_HAS_PIPE）。
+//  - 连接级对象不要自建 io_context；concurrency_hint 保持 1。
 
 #include <boost/asio/io_context.hpp>
 

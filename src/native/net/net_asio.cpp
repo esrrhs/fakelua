@@ -24,8 +24,10 @@ bool IsWebSocket(const NetConfig &cfg) {
 
 void SetSocketOptions(boost::asio::ip::tcp::socket &sock, const NetConfig &cfg) {
     boost::system::error_code ec;
-    // Do not set non_blocking(true): on Windows IOCP a reactor-style
-    // write_some from the poll() thread waits on the same IOCP and deadlocks.
+    // Do not set non_blocking(true). Even with IOCP disabled, a reactor-style
+    // write_some/read_some from the poll() thread can wait on the same
+    // completion that poll() is already driving and deadlock. HTTP/MySQL/Redis
+    // follow the same rule: async_* only, drive with IoContext::Poll().
     if (cfg.keep_alive) {
         sock.set_option(boost::asio::socket_base::keep_alive(true), ec);
     }
@@ -90,8 +92,6 @@ void AsioConn::ResetSocket(boost::asio::ip::tcp::socket sock) {
     if (socket_.is_open()) socket_.close(ec);
     socket_ = std::move(sock);
     closed_ = false;
-    boost::system::error_code nec;
-    socket_.non_blocking(true, nec);
     if (cfg_.tls && ssl_ctx_ && IsWebSocket(cfg_)) {
         ssl_.emplace(socket_, *ssl_ctx_);
         wss_.emplace(*ssl_);
