@@ -45,8 +45,13 @@ function test_close_in_connect_cb()
     if not conn.closed_ok then
         return 0
     end
-    -- TickDepth==0: same teardown as connect_failure_catchable. Needed before
-    -- CallAll's next JIT Polls the shared io_context (writer_cv_ expires_at max).
+    -- Keep polling after the connect-callback :close() flags, then teardown
+    -- with TickDepth==0 like connect_failure_catchable. Immediate Teardown
+    -- (or skipping Poll) deadlocks Windows select on writer_cv_.
+    for i = 1, 50 do
+        runtime.tick()
+        os.sleep(1)
+    end
     conn:close()
     return 1
 end
