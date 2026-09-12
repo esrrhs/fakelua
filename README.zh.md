@@ -126,7 +126,8 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **Package 包管理**：`package "Name"` 命名空间隔离，零 `require` 跨模块互调。
 - **全局变量复杂初始化**：文件级变量支持任意复杂表达式初始化器，在生成的 `__fakelua_init()` 中执行。
 - **NativeObject 与 C++ 互操作**：支持组粒度 Arena 批量释放、C++ 成员方法 `RegisterMethod` 绑定、冒号语法调用。
-- **ECMAScript 正则**：`string.find`/`match`/`gmatch`/`gsub` 底层使用 `std::regex`（支持前瞻、交替、非贪婪等能力，强于 Lua pattern）。
+- **ECMAScript 正则**：`string.find`/`match`/`gmatch`/`gsub` 底层使用 Boost.Regex（支持前瞻、交替、非贪婪等能力，强于 Lua pattern）。
+- **字符串算法**：`string.trim`/`trim_left`/`trim_right`/`split`/`join`/`replace`/`starts_with`/`ends_with`/`contains`/`iequals`/`icontains`/`istarts_with`/`iends_with` 底层使用 Boost.Algorithm。
 
 ### 未支持
 
@@ -139,22 +140,23 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 ## 标准内置扩展库
 
-FakeLua 在 `src/native/` 下提供 24 个独立 C++ 原生模块，覆盖数学、字符串、表、IO、网络、定时器、事件、随机数、压缩、加密、序列化、数据库、Protobuf、配置解析、日志等领域。
+FakeLua 在 `src/native/` 下提供 29 个独立 C++ 原生模块，覆盖数学、字符串、表、IO、网络、定时器、事件、随机数、容器、压缩、加密、序列化、数据库、Protobuf、配置解析、日志、子进程等领域。
 
 > **完整 API 文档：** [src/native/README.zh.md](src/native/README.zh.md) / [English](src/native/README.md)
 
 | 分类 | 模块 |
 |------|------|
 | 核心 Lua | `math`、`table`、`string`、`os`、`utf8`、`io`、`random` |
-| 网络 | `net`（TCP 服务端/客户端）、`timer`、`event` |
-| 数据 | `json`、`csv`、`serialize`、`protobuf` |
+| 网络 | `net`（TCP/UDP 服务端/客户端）、`http`（Beast HTTP/1.1）、`url`、`timer`、`event` |
+| 数据 | `json`、`csv`、`serialize`、`protobuf`、`container`（Boost.Container deque/vector/list/map/set） |
 | 配置解析 | `yaml`、`toml`、`xml`、`ini` |
-| 数据库 | `mysql`（异步 + 连接池）、`sqlite`（同步） |
-| 加解密 | `compress`（LZ4/zlib/gzip/Zstd）、`crypto`（MD5/SHA/AES/RC4/Blowfish/DES） |
+| 数据库 | `mysql`（异步 + 连接池）、`redis`（异步）、`sqlite`（同步） |
+| 加解密 | `compress`（LZ4/zlib/gzip/Zstd）、`crypto`（MD5/SHA/AES/RC4/Blowfish/DES、UUID、CRC-32、xxHash） |
+| 进程 | `process`（`process.run`；不替换 `os.execute`） |
 | 日志 | `log`（7 级别，分类标签输出，文件滚动） |
 | 对象 | `object`（NativeObject Lua 侧 API） |
 
-> ⚠️ `string.find`/`match`/`gmatch`/`gsub` 底层使用 **ECMAScript 正则**（`std::regex::ECMAScript`），而非 Lua pattern。从标准 Lua 迁移时需改写模式串。
+> ⚠️ `string.find`/`match`/`gmatch`/`gsub` 底层使用 **ECMAScript 正则**（`boost::regex::ECMAScript`），而非 Lua pattern。从标准 Lua 迁移时需改写模式串。
 
 ### 正则匹配：ECMAScript 语法
 
@@ -174,7 +176,7 @@ FakeLua 在 `src/native/` 下提供 24 个独立 C++ 原生模块，覆盖数学
 主要差异：
 
 - **`gsub` 替换串**使用 JS 风格：`$1`…`$9`、`$&`、`` $` ``、`$'`、`$$`
-- **非法模式串不抛异常**：`std::regex_error` 被捕获后返回 `nil`
+- **非法模式串不抛异常**：`boost::regex_error` 被捕获后返回 `nil`
 - **`plain` 参数**：传 `true` 退化为纯子串查找，绕过正则引擎，是最快路径
 - **性能**：正则路径慢于 Lua 原生 pattern，热路径建议优先用 `plain` 查找
 

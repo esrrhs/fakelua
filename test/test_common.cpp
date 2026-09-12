@@ -4,6 +4,17 @@
 #include "util/string_util.h"
 #include "gtest/gtest.h"
 
+#include <cstdio>
+
+namespace {
+struct UnbufferedStdio {
+    UnbufferedStdio() {
+        setvbuf(stdout, nullptr, _IONBF, 0);
+        setvbuf(stderr, nullptr, _IONBF, 0);
+    }
+} g_unbuffered_stdio;
+}// namespace
+
 using namespace fakelua;
 
 TEST(common, escapse_string) {

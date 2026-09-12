@@ -1,108 +1,50 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
 
-// 全局定时器 Lua 绑定测试
+// 定时器队列挂在 State 上，CallAll 同 State 连跑会把上一后端留下的 delay-0
+// 回调带进下一后端。每种后端单独建 State。
+static void RunTimerScript(const char *file, const char *fn) {
+    for (auto jit_type: AllJitTypes()) {
+        State *s = FakeluaNewState();
+        EXPECT_NE(s, nullptr) << JitTypeName(jit_type);
+        if (!s) {
+            continue;
+        }
+        CompileFile(s, file, {});
+        int64_t ret = 0;
+        Call(s, jit_type, fn, ret);
+        EXPECT_EQ(ret, 1) << fn << " jit=" << JitTypeName(jit_type);
+        FakeluaDeleteState(s);
+    }
+}
 
-// 测试 1: 设置定时器并让它触发
 TEST(test_timer, test_set_and_fire) {
-    State *s = FakeluaNewState();
-    ASSERT_NE(s, nullptr);
-
-    CompileConfig config;
-    CompileFile(s, "./timer/test_timer_set_and_fire.lua", config);
-
-    int64_t ret = 0;
-    Call(s, JIT_TCC, "TimerTest.test_set_and_fire", ret);
-    EXPECT_EQ(ret, 1);
-
-    FakeluaDeleteState(s);
+    RunTimerScript("./timer/test_timer_set_and_fire.lua", "TimerTest.test_set_and_fire");
 }
 
-// 测试 2: 删除未触发的定时器
 TEST(test_timer, test_del_before_fire) {
-    State *s = FakeluaNewState();
-    ASSERT_NE(s, nullptr);
-
-    CompileConfig config;
-    CompileFile(s, "./timer/test_timer_del_before_fire.lua", config);
-
-    int64_t ret = 0;
-    Call(s, JIT_TCC, "TimerTest.test_del_before_fire", ret);
-    EXPECT_EQ(ret, 1);
-
-    FakeluaDeleteState(s);
+    RunTimerScript("./timer/test_timer_del_before_fire.lua", "TimerTest.test_del_before_fire");
 }
 
-// 测试 3: 多个定时器全部触发后自动清除
 TEST(test_timer, test_multiple_timers_order) {
-    State *s = FakeluaNewState();
-    ASSERT_NE(s, nullptr);
-
-    CompileConfig config;
-    CompileFile(s, "./timer/test_timer_multiple_order.lua", config);
-
-    int64_t ret = 0;
-    Call(s, JIT_TCC, "TimerTest.test_multiple_timers_order", ret);
-    EXPECT_EQ(ret, 1);
-
-    FakeluaDeleteState(s);
+    RunTimerScript("./timer/test_timer_multiple_order.lua", "TimerTest.test_multiple_timers_order");
 }
 
-// 测试 4: 心跳注册与触发
 TEST(test_timer, test_heartbeat) {
-    State *s = FakeluaNewState();
-    ASSERT_NE(s, nullptr);
-
-    CompileConfig config;
-    CompileFile(s, "./timer/test_timer_heartbeat.lua", config);
-
-    int64_t ret = 0;
-    Call(s, JIT_TCC, "TimerTest.test_heartbeat", ret);
-    EXPECT_EQ(ret, 1);
-
-    FakeluaDeleteState(s);
+    RunTimerScript("./timer/test_timer_heartbeat.lua", "TimerTest.test_heartbeat");
 }
 
 TEST(test_timer, test_reenter) {
-    State *s = FakeluaNewState();
-    ASSERT_NE(s, nullptr);
-
-    CompileConfig config;
-    CompileFile(s, "./timer/test_timer_reenter.lua", config);
-
-    int64_t ret = 0;
-    Call(s, JIT_TCC, "TimerTest.test_reenter", ret);
-    EXPECT_EQ(ret, 1);
-
-    FakeluaDeleteState(s);
+    RunTimerScript("./timer/test_timer_reenter.lua", "TimerTest.test_reenter");
 }
 
 TEST(test_timer, test_heartbeat_nested) {
-    State *s = FakeluaNewState();
-    ASSERT_NE(s, nullptr);
-
-    CompileConfig config;
-    CompileFile(s, "./timer/test_timer_heartbeat_nested.lua", config);
-
-    int64_t ret = 0;
-    Call(s, JIT_TCC, "TimerTest.test_heartbeat_nested", ret);
-    EXPECT_EQ(ret, 1);
-
-    FakeluaDeleteState(s);
+    RunTimerScript("./timer/test_timer_heartbeat_nested.lua", "TimerTest.test_heartbeat_nested");
 }
 
 TEST(test_timer, test_nested_tick_noop) {
-    State *s = FakeluaNewState();
-    ASSERT_NE(s, nullptr);
-
-    CompileConfig config;
-    CompileFile(s, "./timer/test_timer_reenter.lua", config);
-
-    int64_t ret = 0;
-    Call(s, JIT_TCC, "TimerTest.test_nested_tick_noop", ret);
-    EXPECT_EQ(ret, 1);
-
-    FakeluaDeleteState(s);
+    RunTimerScript("./timer/test_timer_reenter.lua", "TimerTest.test_nested_tick_noop");
 }

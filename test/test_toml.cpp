@@ -4,7 +4,7 @@
 using namespace fakelua;
 
 TEST(test_toml, decode_int) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -17,7 +17,7 @@ TEST(test_toml, decode_int) {
 }
 
 TEST(test_toml, decode_float) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -30,7 +30,7 @@ TEST(test_toml, decode_float) {
 }
 
 TEST(test_toml, decode_bool) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -43,7 +43,7 @@ TEST(test_toml, decode_bool) {
 }
 
 TEST(test_toml, decode_string) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -56,7 +56,7 @@ TEST(test_toml, decode_string) {
 }
 
 TEST(test_toml, decode_array) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -69,7 +69,7 @@ TEST(test_toml, decode_array) {
 }
 
 TEST(test_toml, decode_table) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -82,7 +82,7 @@ TEST(test_toml, decode_table) {
 }
 
 TEST(test_toml, decode_error) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -95,7 +95,7 @@ TEST(test_toml, decode_error) {
 }
 
 TEST(test_toml, encode_basic) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -108,7 +108,7 @@ TEST(test_toml, encode_basic) {
 }
 
 TEST(test_toml, roundtrip) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -121,7 +121,7 @@ TEST(test_toml, roundtrip) {
 }
 
 TEST(test_toml, decode_date) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -134,7 +134,7 @@ TEST(test_toml, decode_date) {
 }
 
 TEST(test_toml, decode_time) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -147,7 +147,7 @@ TEST(test_toml, decode_time) {
 }
 
 TEST(test_toml, decode_datetime) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -160,7 +160,7 @@ TEST(test_toml, decode_datetime) {
 }
 
 TEST(test_toml, encode_nested_table) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -173,7 +173,7 @@ TEST(test_toml, encode_nested_table) {
 }
 
 TEST(test_toml, encode_bool_float) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -186,7 +186,7 @@ TEST(test_toml, encode_bool_float) {
 }
 
 TEST(test_toml, encode_array_with_tables) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -199,7 +199,7 @@ TEST(test_toml, encode_array_with_tables) {
 }
 
 TEST(test_toml, encode_top_scalar) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -212,7 +212,7 @@ TEST(test_toml, encode_top_scalar) {
 }
 
 TEST(test_toml, encode_empty_table) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -225,7 +225,7 @@ TEST(test_toml, encode_empty_table) {
 }
 
 TEST(test_toml, encode_cyclic) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;

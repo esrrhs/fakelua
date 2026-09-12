@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -9,7 +10,7 @@ TEST(test_csv, decode_simple) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_decode_simple", ret);
+    CallAll(s, "CsvTest.test_decode_simple", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -20,7 +21,7 @@ TEST(test_csv, decode_single_row) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_decode_single_row", ret);
+    CallAll(s, "CsvTest.test_decode_single_row", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -31,7 +32,7 @@ TEST(test_csv, decode_single_column) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_decode_single_column", ret);
+    CallAll(s, "CsvTest.test_decode_single_column", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -42,7 +43,7 @@ TEST(test_csv, decode_quoted) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_decode_quoted", ret);
+    CallAll(s, "CsvTest.test_decode_quoted", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -53,7 +54,7 @@ TEST(test_csv, decode_escaped_quotes) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_decode_escaped_quotes", ret);
+    CallAll(s, "CsvTest.test_decode_escaped_quotes", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -64,7 +65,7 @@ TEST(test_csv, decode_numbers) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_decode_numbers", ret);
+    CallAll(s, "CsvTest.test_decode_numbers", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -75,7 +76,7 @@ TEST(test_csv, decode_empty_field) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_decode_empty_field", ret);
+    CallAll(s, "CsvTest.test_decode_empty_field", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -86,7 +87,7 @@ TEST(test_csv, decode_custom_sep) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_decode_custom_sep", ret);
+    CallAll(s, "CsvTest.test_decode_custom_sep", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -97,7 +98,7 @@ TEST(test_csv, encode_simple) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_encode_simple", ret);
+    CallAll(s, "CsvTest.test_encode_simple", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -108,7 +109,7 @@ TEST(test_csv, encode_quotes) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_encode_quotes", ret);
+    CallAll(s, "CsvTest.test_encode_quotes", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -119,7 +120,7 @@ TEST(test_csv, encode_escaped_quotes) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_encode_escaped_quotes", ret);
+    CallAll(s, "CsvTest.test_encode_escaped_quotes", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -130,7 +131,7 @@ TEST(test_csv, encode_numbers) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_encode_numbers", ret);
+    CallAll(s, "CsvTest.test_encode_numbers", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -141,7 +142,7 @@ TEST(test_csv, encode_custom_sep) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_encode_custom_sep", ret);
+    CallAll(s, "CsvTest.test_encode_custom_sep", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -152,7 +153,7 @@ TEST(test_csv, roundtrip) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_roundtrip", ret);
+    CallAll(s, "CsvTest.test_roundtrip", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -163,7 +164,7 @@ TEST(test_csv, roundtrip_with_commas) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "CsvTest.test_roundtrip_with_commas", ret);
+    CallAll(s, "CsvTest.test_roundtrip_with_commas", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -174,6 +175,6 @@ TEST(test_csv, unterminated_quote) {
     CompileConfig config;
     CompileFile(s, "./csv/test_csv_basic.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "CsvTest.test_unterminated_quote", ret), std::exception);
+    CallThrow(s, "CsvTest.test_unterminated_quote", ret);
     FakeluaDeleteState(s);
 }

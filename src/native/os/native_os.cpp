@@ -1,15 +1,22 @@
 #include "native/os/native_os.h"
+#include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
 #include "native/table/native_table.h"
+#include "util/utf8_io.h"
 #include "var/var.h"
+#include <algorithm>
+#include <boost/filesystem.hpp>
+#include <boost/system/error_code.hpp>
 #include <cerrno>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 #include <limits>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -24,12 +31,26 @@ namespace fakelua::os {
 
 using string::GetStringArgView;
 using table::TableHelper;
+namespace fs = boost::filesystem;
 
 // Helper: extract int64 from CVar arg, return default if not numeric
 static int64_t GetIntArg(State *state, CVar *args, int n, int index, int64_t default_val) {
     if (index >= n) return default_val;
     CVar a = inter::GetNativeArg(state, args, n, index);
     return inter::CVarToInteger(a, default_val);
+}
+
+static fs::path PathArg(State *state, CVar *args, int n, int index, const char *fname) {
+    if (index >= n) ThrowBadArgument(index + 1, fname, "string expected");
+    CVar a = inter::GetNativeArg(state, args, n, index);
+    CheckStringArg(a, index + 1, fname);
+    std::string tmp;
+    return fs::path(std::string(GetStringArgView(a, tmp)));
+}
+
+static CVar BoolOrNil(State *state, bool ok) {
+    if (ok) return inter::NativeToFakeluaBool(state, true);
+    return inter::NativeToFakeluaNil(state);
 }
 
 // Helper: build a 3-value shell result (status, how, code)
@@ -212,7 +233,7 @@ void RegisterOsLibraryApi(State *s) {
         if (cmd_sv.empty()) {
             return MakeShellResult(state, inter::NativeToFakeluaBool(state, true), "exit", 0);
         }
-        int ret = std::system(std::string(cmd_sv).c_str());
+        int ret = utf8_io::System(std::string(cmd_sv).c_str());
 #if defined(_WIN32)
         if (ret == 0) {
             return MakeShellResult(state, inter::NativeToFakeluaBool(state, true), "exit", 0);
@@ -283,14 +304,14 @@ void RegisterOsLibraryApi(State *s) {
         if (varname.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
-        const char *val = std::getenv(std::string(varname).c_str());
+        const char *val = utf8_io::Getenv(std::string(varname).c_str());
         if (val) {
             return inter::NativeToFakeluaStringView(state, std::string_view(val));
         }
         return inter::NativeToFakeluaNil(state);
     });
 
-    // os.remove(filename)
+    // os.remove(filename) — Boost.Filesystem；成功 true，失败/不存在 nil（与 Lua 一致）
     RegisterNativeFunction(s, "os.remove", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "os.remove");
@@ -299,11 +320,9 @@ void RegisterOsLibraryApi(State *s) {
         if (filename.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
-        int ret = std::remove(std::string(filename).c_str());
-        if (ret == 0) {
-            return inter::NativeToFakeluaBool(state, true);
-        }
-        return inter::NativeToFakeluaNil(state);
+        boost::system::error_code ec;
+        bool removed = fs::remove(fs::path(std::string(filename)), ec);
+        return BoolOrNil(state, removed && !ec);
     });
 
     // os.rename(oldname, newname)
@@ -318,11 +337,9 @@ void RegisterOsLibraryApi(State *s) {
         if (oldname.empty() || newname.empty()) {
             return inter::NativeToFakeluaNil(state);
         }
-        int ret = std::rename(std::string(oldname).c_str(), std::string(newname).c_str());
-        if (ret == 0) {
-            return inter::NativeToFakeluaBool(state, true);
-        }
-        return inter::NativeToFakeluaNil(state);
+        boost::system::error_code ec;
+        fs::rename(fs::path(std::string(oldname)), fs::path(std::string(newname)), ec);
+        return BoolOrNil(state, !ec);
     });
 
 
@@ -428,27 +445,157 @@ void RegisterOsLibraryApi(State *s) {
         return inter::NativeToFakeluaInt(state, static_cast<int64_t>(t));
     });
 
-    // os.tmpname()
+    // os.tmpname() — temp_directory_path + unique_path，并创建空文件（与 mkstemp/GetTempFileName 一致）
     RegisterNativeFunction(s, "os.tmpname", 0, false, [](State *state, CVar *args, int n) -> CVar {
-#if defined(_WIN32)
-        // Windows: use GetTempPath + GetTempFileName for a safe temp file name
-        char temp_path[MAX_PATH];
-        char temp_file[MAX_PATH];
-        if (GetTempPathA(MAX_PATH, temp_path) == 0) {
-            return inter::NativeToFakeluaNil(state);
+        boost::system::error_code ec;
+        auto dir = fs::temp_directory_path(ec);
+        if (ec) return inter::NativeToFakeluaNil(state);
+        for (int i = 0; i < 32; ++i) {
+            auto p = dir / fs::unique_path("lua_%%%%-%%%%-%%%%-%%%%", ec);
+            if (ec) return inter::NativeToFakeluaNil(state);
+            boost::system::error_code exists_ec;
+            if (fs::exists(p, exists_ec)) continue;
+            utf8_io::ofstream out(p.string(), std::ios::out | std::ios::trunc);
+            if (!out) continue;
+            out.close();
+            return inter::NativeToFakeluaStringView(state, p.string());
         }
-        if (GetTempFileNameA(temp_path, "lua", 0, temp_file) == 0) {
-            return inter::NativeToFakeluaNil(state);
+        return inter::NativeToFakeluaNil(state);
+    });
+
+    // --- Boost.Filesystem 扩展（Lua 5.4 os 没有这些）---
+
+    RegisterNativeFunction(s, "os.exists", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.exists");
+        boost::system::error_code ec;
+        return inter::NativeToFakeluaBool(state, fs::exists(p, ec) && !ec);
+    });
+
+    RegisterNativeFunction(s, "os.isfile", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.isfile");
+        boost::system::error_code ec;
+        return inter::NativeToFakeluaBool(state, fs::is_regular_file(p, ec) && !ec);
+    });
+
+    RegisterNativeFunction(s, "os.isdir", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.isdir");
+        boost::system::error_code ec;
+        return inter::NativeToFakeluaBool(state, fs::is_directory(p, ec) && !ec);
+    });
+
+    RegisterNativeFunction(s, "os.filesize", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.filesize");
+        boost::system::error_code ec;
+        auto sz = fs::file_size(p, ec);
+        if (ec) return inter::NativeToFakeluaNil(state);
+        return inter::NativeToFakeluaLonglong(state, static_cast<long long>(sz));
+    });
+
+    RegisterNativeFunction(s, "os.mtime", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.mtime");
+        boost::system::error_code ec;
+        auto ft = fs::last_write_time(p, ec);
+        if (ec) return inter::NativeToFakeluaNil(state);
+        return inter::NativeToFakeluaLonglong(state, static_cast<long long>(ft));
+    });
+
+    RegisterNativeFunction(s, "os.mkdir", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.mkdir");
+        boost::system::error_code ec;
+        fs::create_directories(p, ec);
+        if (ec) return inter::NativeToFakeluaNil(state);
+        return BoolOrNil(state, fs::is_directory(p, ec) && !ec);
+    });
+
+    RegisterNativeFunction(s, "os.remove_all", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.remove_all");
+        boost::system::error_code ec;
+        auto nrm = fs::remove_all(p, ec);
+        if (ec) return inter::NativeToFakeluaNil(state);
+        return inter::NativeToFakeluaLonglong(state, static_cast<long long>(nrm));
+    });
+
+    RegisterNativeFunction(s, "os.copy", 2, false, [](State *state, CVar *args, int n) -> CVar {
+        auto from = PathArg(state, args, n, 0, "os.copy");
+        auto to = PathArg(state, args, n, 1, "os.copy");
+        boost::system::error_code ec;
+        fs::copy(from, to, fs::copy_options::overwrite_existing | fs::copy_options::recursive, ec);
+        return BoolOrNil(state, !ec);
+    });
+
+    RegisterNativeFunction(s, "os.listdir", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.listdir");
+        boost::system::error_code ec;
+        if (!fs::is_directory(p, ec) || ec) return inter::NativeToFakeluaNil(state);
+        std::vector<std::string> names;
+        fs::directory_iterator it(p, ec), end;
+        for (; !ec && it != end; it.increment(ec)) {
+            names.push_back(it->path().filename().string());
         }
-        return inter::NativeToFakeluaStringView(state, std::string_view(temp_file));
-#else
-        // POSIX: use mkstemp for a safe temp file name
-        char tmpname[] = "/tmp/lua_XXXXXX";
-        int fd = mkstemp(tmpname);
-        if (fd < 0) return inter::NativeToFakeluaNil(state);
-        close(fd);
-        return inter::NativeToFakeluaStringView(state, std::string_view(tmpname));
-#endif
+        if (ec && names.empty()) return inter::NativeToFakeluaNil(state);
+        std::sort(names.begin(), names.end());
+        CVar tbl = TableHelper::CreateTable(state);
+        for (size_t i = 0; i < names.size(); ++i) {
+            TableHelper::SetTableInt(state, tbl, static_cast<int64_t>(i + 1), inter::NativeToFakeluaString(state, names[i]));
+        }
+        return tbl;
+    });
+
+    RegisterNativeFunction(s, "os.getcwd", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar {
+        boost::system::error_code ec;
+        auto p = fs::current_path(ec);
+        if (ec) return inter::NativeToFakeluaNil(state);
+        return inter::NativeToFakeluaStringView(state, p.string());
+    });
+
+    RegisterNativeFunction(s, "os.chdir", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.chdir");
+        boost::system::error_code ec;
+        fs::current_path(p, ec);
+        return BoolOrNil(state, !ec);
+    });
+
+    RegisterNativeFunction(s, "os.absolute", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.absolute");
+        boost::system::error_code ec;
+        auto abs = fs::absolute(p, ec);
+        if (ec) return inter::NativeToFakeluaNil(state);
+        return inter::NativeToFakeluaStringView(state, abs.lexically_normal().string());
+    });
+
+    RegisterNativeFunction(s, "os.canonical", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.canonical");
+        boost::system::error_code ec;
+        auto c = fs::weakly_canonical(p, ec);
+        if (ec) return inter::NativeToFakeluaNil(state);
+        return inter::NativeToFakeluaStringView(state, c.string());
+    });
+
+    RegisterNativeFunction(s, "os.join", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) return inter::NativeToFakeluaStringView(state, "");
+        fs::path p;
+        for (int i = 0; i < n; ++i) {
+            CVar a = inter::GetNativeArg(state, args, n, i);
+            CheckStringArg(a, i + 1, "os.join");
+            std::string tmp;
+            p /= std::string(GetStringArgView(a, tmp));
+        }
+        return inter::NativeToFakeluaStringView(state, p.lexically_normal().string());
+    });
+
+    RegisterNativeFunction(s, "os.dirname", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.dirname");
+        return inter::NativeToFakeluaStringView(state, p.parent_path().string());
+    });
+
+    RegisterNativeFunction(s, "os.basename", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.basename");
+        return inter::NativeToFakeluaStringView(state, p.filename().string());
+    });
+
+    RegisterNativeFunction(s, "os.extension", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        auto p = PathArg(state, args, n, 0, "os.extension");
+        return inter::NativeToFakeluaStringView(state, p.extension().string());
     });
 
     // os.sleep(ms)

@@ -67,10 +67,21 @@ end
 
 -- 测试 string.pack < > (字节序)
 function test_pack_endian()
-    local s1 = string.pack("<i4", 1)
-    if #s1 ~= 4 then return 0 end
-    local s2 = string.pack(">i4", 1)
-    if #s2 ~= 4 then return 0 end
+    local le = string.pack("<i4", 0x01020304)
+    local be = string.pack(">i4", 0x01020304)
+    if #le ~= 4 or #be ~= 4 then return 0 end
+    if le == be then return 0 end
+    if string.byte(le, 1) ~= 0x04 or string.byte(le, 4) ~= 0x01 then return 0 end
+    if string.byte(be, 1) ~= 0x01 or string.byte(be, 4) ~= 0x04 then return 0 end
+    local native = string.pack("=i4", 1)
+    if string.unpack("=i4", native) ~= 1 then return 0 end
+    local i3be = string.pack(">i3", -2)
+    if #i3be ~= 3 then return 0 end
+    if string.byte(i3be, 1) ~= 0xFF or string.byte(i3be, 3) ~= 0xFE then return 0 end
+    if string.unpack(">i3", i3be) ~= -2 then return 0 end
+    local i3le = string.pack("<i3", -2)
+    if string.byte(i3le, 1) ~= 0xFE or string.byte(i3le, 3) ~= 0xFF then return 0 end
+    if string.unpack("<i3", i3le) ~= -2 then return 0 end
     return 1
 end
 

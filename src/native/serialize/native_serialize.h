@@ -4,7 +4,7 @@
 
 namespace fakelua::serialize {
 
-// 注册序列化库到 State：暴露 serialize.encode / serialize.decode
+// 注册序列化库：serialize.encode/decode（紧凑 wire）以及 text/xml（Boost.Serialization）。
 void RegisterSerializeLibraryApi(State *s);
 
 }// namespace fakelua::serialize

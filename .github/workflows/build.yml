@@ -17,6 +17,7 @@ jobs:
         build_type: [debug, release, asan, cov]
 
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
 
     services:
       mysql:
@@ -28,6 +29,15 @@ jobs:
           - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
@@ -50,7 +60,7 @@ jobs:
             cpm-${{ runner.os }}-
 
       - name: Setup Lua
-        timeout-minutes: 10
+        timeout-minutes: 60
         run: |
           # 从 GitHub 镜像编译 Lua 源码，避免 apt 镜像（azure.archive.ubuntu.com）间歇性超时卡死
           # make a 只构建 liblua.a（无需 readline），fakelua 只需头文件 + liblua.a
@@ -120,7 +130,21 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot -e "SELECT 1" 2>/dev/null && echo "MySQL auth OK" || echo "MySQL auth failed"
           echo "MySQL ready"
 
+      - name: Wait for Redis
+        run: |
+          for i in $(seq 1 30); do
+            if timeout 1 bash -c 'echo > /dev/tcp/127.0.0.1/6379' 2>/dev/null; then
+              echo "Redis is ready"
+              exit 0
+            fi
+            echo "Waiting for Redis... ($i)"
+            sleep 2
+          done
+          echo "Redis did not become ready"
+          exit 1
+
       - name: Build (${{ matrix.build_type }})
+        timeout-minutes: 60
         run: |
           set -x
           export CPM_SOURCE_CACHE=$HOME/.cache/CPM
@@ -148,7 +172,7 @@ jobs:
           cmake ${CMAKE_FLAGS} ..
           make -j$(nproc)
           ccache -s
-          # Run all tests (including MySQL integration tests)
+          # Run all tests (including MySQL / Redis integration tests)
           # Must run from test/lua so relative Lua file paths resolve correctly
           (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
           ./bin/flua

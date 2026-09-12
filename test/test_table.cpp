@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "test_jit.h"
 
 using namespace fakelua;
 
@@ -9,7 +10,7 @@ TEST(test_table, test_table_insert_remove) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_insert_remove.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_insert_remove", res);
@@ -24,7 +25,7 @@ TEST(test_table, test_table_concat) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_concat.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_concat", res);
@@ -39,7 +40,7 @@ TEST(test_table, test_table_pack_unpack) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_pack_unpack.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_pack_unpack", res);
@@ -54,7 +55,7 @@ TEST(test_table, test_table_sort) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_sort.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_sort", res);
@@ -69,7 +70,7 @@ TEST(test_table, test_table_large_seq) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_large_seq.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_large_seq", res);
@@ -84,7 +85,7 @@ TEST(test_table, test_table_seqlen) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_seqlen.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_seqlen", res);
@@ -103,7 +104,7 @@ TEST(test_table, test_table_sort_invalid_comparator) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_sort_bad_cmp", res), std::exception);
+    CallThrow(s, "test_table_sort_bad_cmp", res);
 
     FakeluaDeleteState(s);
 }
@@ -113,7 +114,7 @@ TEST(test_table, test_table_create) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_create.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_create", res);
@@ -128,7 +129,7 @@ TEST(test_table, test_table_move) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_move.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_move", res);
@@ -143,7 +144,7 @@ TEST(test_table, test_table_create_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_create_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_create_boundary", res);
@@ -158,7 +159,7 @@ TEST(test_table, test_table_insert_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_insert_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_insert_boundary", res);
@@ -173,7 +174,7 @@ TEST(test_table, test_table_float_index) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_float_index.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_float_index", res);
@@ -188,7 +189,7 @@ TEST(test_table, test_table_remove_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_remove_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_remove_boundary", res);
@@ -203,7 +204,7 @@ TEST(test_table, test_table_concat_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_concat_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_concat_boundary", res);
@@ -218,7 +219,7 @@ TEST(test_table, test_table_sort_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_sort_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_sort_boundary", res);
@@ -233,7 +234,7 @@ TEST(test_table, test_table_sort_custom_cmp) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_sort_cmp.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_sort_custom_cmp", res);
@@ -248,7 +249,7 @@ TEST(test_table, test_table_move_overlap) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_sort_cmp.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_move_overlap", res);
@@ -263,7 +264,7 @@ TEST(test_table, test_table_move_no_overlap) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_sort_cmp.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_move_no_overlap", res);
@@ -278,7 +279,7 @@ TEST(test_table, test_table_concat_float) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_sort_cmp.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_concat_float", res);
@@ -293,7 +294,7 @@ TEST(test_table, test_table_sort_single) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_sort_cmp.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_sort_single", res);
@@ -308,7 +309,7 @@ TEST(test_table, test_table_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./table/test_table_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_table_boundary", res);
@@ -327,7 +328,7 @@ TEST(test_table, test_table_boundary_error) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_boundary_error", res), std::exception);
+    CallThrow(s, "test_table_boundary_error", res);
 
     FakeluaDeleteState(s);
 }
@@ -341,18 +342,18 @@ TEST(test_table, test_table_error_paths) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_insert_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_remove_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_sort_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_concat_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_concat_bad_sep", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_move_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_concat_too_many", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_concat_min_max_range", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_create_too_many", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_insert_2pow63", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_remove_2pow63", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_table_sort_nan", res), std::exception);
+    CallThrow(s, "test_table_insert_bad_arg", res);
+    CallThrow(s, "test_table_remove_bad_arg", res);
+    CallThrow(s, "test_table_sort_bad_arg", res);
+    CallThrow(s, "test_table_concat_bad_arg", res);
+    CallThrow(s, "test_table_concat_bad_sep", res);
+    CallThrow(s, "test_table_move_bad_arg", res);
+    CallThrow(s, "test_table_concat_too_many", res);
+    CallThrow(s, "test_table_concat_min_max_range", res);
+    CallThrow(s, "test_table_create_too_many", res);
+    CallThrow(s, "test_table_insert_2pow63", res);
+    CallThrow(s, "test_table_remove_2pow63", res);
+    CallThrow(s, "test_table_sort_nan", res);
 
     FakeluaDeleteState(s);
 }

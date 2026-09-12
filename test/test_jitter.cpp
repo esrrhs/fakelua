@@ -56,15 +56,11 @@ static std::string ViTableGetStr(VarInterface *t, int64_t key) {
     return v && v->ViGetType() == VarInterface::Type::STRING ? std::string(v->ViGetString()) : "";
 }
 
-static std::vector<JITType> GetSupportedJitTypes() {
-    return {JIT_TCC, JIT_GCC};
-}
-
 static void JitterRunHelper(const std::function<void(State *, JITType, bool)> &f) {
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     SetVarInterfaceNewFunc(s, []() { return new SimpleVarImpl(); });
-    for (const auto type: GetSupportedJitTypes()) {
+    for (const auto type: AllJitTypes()) {
         f(s, type, true);
         f(s, type, false);
     }

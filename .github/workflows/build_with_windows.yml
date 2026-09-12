@@ -12,6 +12,8 @@ permissions:
 jobs:
   build:
     runs-on: windows-2022
+    # Setup + compile sit in front of the 60-minute Test step.
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
@@ -112,6 +114,33 @@ jobs:
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-ccache
 
+      # MSYS2 没有 redis 包。Windows 用 tporadowski 的 Redis 移植版。
+      - name: Install Redis
+        shell: pwsh
+        run: |
+          $ver = "5.0.14.1"
+          $url = "https://github.com/tporadowski/redis/releases/download/v$ver/Redis-x64-$ver.zip"
+          $zip = Join-Path $env:RUNNER_TEMP "redis.zip"
+          $dest = Join-Path $env:RUNNER_TEMP "redis"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $dest -Force
+          Add-Content -Path $env:GITHUB_PATH -Value $dest
+
+      - name: Start Redis
+        shell: pwsh
+        run: |
+          Start-Process redis-server -ArgumentList "--bind","127.0.0.1","--port","6379","--protected-mode","no" -WindowStyle Hidden
+          for ($i = 1; $i -le 30; $i++) {
+            $pong = & redis-cli -h 127.0.0.1 ping 2>$null
+            if ($pong -match "PONG") {
+              Write-Host "Redis is ready"
+              exit 0
+            }
+            Write-Host "Waiting for Redis... ($i)"
+            Start-Sleep -Seconds 1
+          }
+          throw "Redis did not become ready"
+
       - name: Configure
         shell: msys2 {0}
         run: |
@@ -124,6 +153,7 @@ jobs:
           cmake -S . -B build -G Ninja -DFAKELUA_TINYCC_GIT_URL=https://github.com/TinyCC/tinycc.git
 
       - name: Build
+        timeout-minutes: 60
         shell: msys2 {0}
         run: |
           set -eux
@@ -134,10 +164,11 @@ jobs:
           ccache -s
 
       - name: Test
+        timeout-minutes: 60
         shell: msys2 {0}
         run: |
           set -eux
-          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe --gtest_print_time=1
 
       - name: Run flua
         shell: msys2 {0}

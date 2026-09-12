@@ -9,6 +9,7 @@
 #include "var/var_table.h"
 #include "var/var_type.h"
 
+#include <boost/container/small_vector.hpp>
 #include <cstring>
 #include <functional>
 #include <string>
@@ -32,7 +33,7 @@ struct NativeField {
 
     // 惰性构建 VarString 缓存（存在 C++ 堆，供 spec_get 返回 VAR_STRING CVar）
     // 当 s 内容变化时重建；由于 fakelua 是单线程的，此处不加锁。
-    mutable std::vector<char> vs_cache;// [sizeof(VarString) + s.size()] 的 buffer
+    mutable boost::container::small_vector<char, 40> vs_cache;// [sizeof(VarString) + s.size()]，短串走 SSO
     mutable bool vs_dirty = true;
 
     // 返回与 VarString 内存布局兼容的指针（data_ 紧跟在结构体后）

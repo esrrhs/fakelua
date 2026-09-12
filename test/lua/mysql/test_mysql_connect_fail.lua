@@ -66,3 +66,24 @@ function test_close_in_connect_cb()
     end
     return 1
 end
+
+function test_connect_ssl_require()
+    local config = {}
+    config["host"] = "127.0.0.1"
+    config["port"] = 1
+    config["user"] = "root"
+    config["password"] = "irrelevant"
+    config["db"] = "test"
+    config["timeout_ms"] = 1000
+    config["ssl"] = true
+
+    local conn = mysql.connect(config, "on_connect")
+    for i = 1, 1500 do
+        runtime.tick()
+        if conn.done then break end
+        os.sleep(1)
+    end
+    if not conn.done then return 0 end
+    if type(conn.err) ~= "string" or #conn.err == 0 then return 0 end
+    return 1
+end

@@ -4,7 +4,7 @@
 using namespace fakelua;
 
 TEST(test_yaml, decode_scalar_int) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -17,7 +17,7 @@ TEST(test_yaml, decode_scalar_int) {
 }
 
 TEST(test_yaml, decode_scalar_float) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -30,7 +30,7 @@ TEST(test_yaml, decode_scalar_float) {
 }
 
 TEST(test_yaml, decode_scalar_bool) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -43,7 +43,7 @@ TEST(test_yaml, decode_scalar_bool) {
 }
 
 TEST(test_yaml, decode_scalar_null) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -56,7 +56,7 @@ TEST(test_yaml, decode_scalar_null) {
 }
 
 TEST(test_yaml, decode_scalar_string) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -69,7 +69,7 @@ TEST(test_yaml, decode_scalar_string) {
 }
 
 TEST(test_yaml, decode_map) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -82,7 +82,7 @@ TEST(test_yaml, decode_map) {
 }
 
 TEST(test_yaml, decode_array) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -95,7 +95,7 @@ TEST(test_yaml, decode_array) {
 }
 
 TEST(test_yaml, decode_nested) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -108,7 +108,7 @@ TEST(test_yaml, decode_nested) {
 }
 
 TEST(test_yaml, decode_error) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -121,7 +121,7 @@ TEST(test_yaml, decode_error) {
 }
 
 TEST(test_yaml, encode_scalar) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -134,7 +134,7 @@ TEST(test_yaml, encode_scalar) {
 }
 
 TEST(test_yaml, encode_map) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;
@@ -147,7 +147,7 @@ TEST(test_yaml, encode_map) {
 }
 
 TEST(test_yaml, roundtrip) {
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         State *s = FakeluaNewState();
         ASSERT_NE(s, nullptr);
         CompileConfig config;

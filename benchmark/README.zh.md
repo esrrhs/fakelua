@@ -65,7 +65,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 | StringFindPattern | n=1000 | 0.12x | 39.6 | ECMAScript 正则；已加编译缓存 |
 | StringGmatch | n=1000 | 0.21x | 23.3 | ECMAScript 正则；已加编译缓存 |
 
-> **关于正则比 Lua 慢**：FakeLua 的 `string.find` / `match` / `gmatch` / `gsub` 走的是 **ECMAScript `std::regex`**（已做进程级编译缓存），能力强于 Lua 5.4 自带的 pattern（lookahead、完整字符类、非贪婪等）。因此正则场景慢于 Lua（当前约 0.06~0.21x）**可以接受**，属于能力换性能；后续若要追平 Lua，方向是另做 Lua pattern 引擎，而不是继续抠 `std::regex`。脚本统一用 `[0-9]+`（在 Lua pattern 与 ECMAScript 正则中语义一致）。
+> **关于正则比 Lua 慢**：FakeLua 的 `string.find` / `match` / `gmatch` / `gsub` 走的是 **ECMAScript Boost.Regex**（已做进程级编译缓存），能力强于 Lua 5.4 自带的 pattern（lookahead、完整字符类、非贪婪等）。因此正则场景慢于 Lua（当前约 0.06~0.21x）**可以接受**，属于能力换性能；后续若要追平 Lua，方向是另做 Lua pattern 引擎，而不是继续抠 Boost.Regex。脚本统一用 `[0-9]+`（在 Lua pattern 与 ECMAScript 正则中语义一致）。
 
 ### 表操作（table）
 
@@ -122,7 +122,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 5. **arena 分配器在表频繁创建场景优势明显**：TableChurn 快于 Lua 9.3x——无 GC、批量释放。
 
-6. **正则场景慢于 Lua 可接受**（Gsub 0.06x、FindPattern 0.12x、Gmatch 0.21x）：使用更强的 ECMAScript `std::regex`（非 Lua pattern），已加编译缓存；能力不同，不作为追平目标。
+6. **正则场景慢于 Lua 可接受**（Gsub 0.06x、FindPattern 0.12x、Gmatch 0.21x）：使用更强的 ECMAScript Boost.Regex（非 Lua pattern），已加编译缓存；能力不同，不作为追平目标。
 
 7. **剩余慢项为调用派发开销主导**：GCD（0.45x）、ToNumber（0.53x）、ToString（0.74x）、Variadic（0.91x）函数体极小（< 1 µs），JIT 的 CVar 装箱/拆箱与调用约定开销占比大，非运算本身慢。需跨函数内联或调用约定优化才能追平。
 

@@ -10,7 +10,7 @@
 #include "var/var_multi.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
-#include <charconv>
+#include <boost/charconv.hpp>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -299,19 +299,14 @@ void RegisterBasicLibraryApi(State *s) {
                 s_view.remove_prefix(1);
             }
             int64_t ival = 0;
-            auto [ptr, ec] = std::from_chars(s_view.data(), s_view.data() + s_view.size(), ival);
-            if (ec == std::errc{} && ptr == s_view.data() + s_view.size()) {
+            auto r = boost::charconv::from_chars(s_view.data(), s_view.data() + s_view.size(), ival);
+            if (r.ec == std::errc{} && r.ptr == s_view.data() + s_view.size()) {
                 return inter::NativeToFakeluaInt(state, ival);
             }
-            // 浮点解析需要 NUL 结尾或 stod；此处才拷一次
-            std::string str(trimmed);
-            try {
-                size_t pos = 0;
-                double dval = std::stod(str, &pos);
-                if (pos == str.size()) {
-                    return inter::NativeToFakeluaDouble(state, dval);
-                }
-            } catch (...) {
+            double dval = 0;
+            auto fr = boost::charconv::from_chars(s_view.data(), s_view.data() + s_view.size(), dval);
+            if (fr.ec == std::errc{} && fr.ptr == s_view.data() + s_view.size()) {
+                return inter::NativeToFakeluaDouble(state, dval);
             }
             return inter::NativeToFakeluaNil(state);
         } else {
@@ -331,19 +326,9 @@ void RegisterBasicLibraryApi(State *s) {
             }
             if (i >= str.size()) return inter::NativeToFakeluaNil(state);
             uint64_t acc = 0;
-            for (; i < str.size(); ++i) {
-                char c = str[i];
-                int digit = -1;
-                if (c >= '0' && c <= '9') digit = c - '0';
-                else if (c >= 'a' && c <= 'z')
-                    digit = c - 'a' + 10;
-                else if (c >= 'A' && c <= 'Z')
-                    digit = c - 'A' + 10;
-                if (digit < 0 || digit >= base) return inter::NativeToFakeluaNil(state);
-                if (acc > (std::numeric_limits<uint64_t>::max() - static_cast<uint64_t>(digit)) / static_cast<uint64_t>(base)) {
-                    return inter::NativeToFakeluaNil(state);
-                }
-                acc = acc * static_cast<uint64_t>(base) + static_cast<uint64_t>(digit);
+            auto ir = boost::charconv::from_chars(str.data() + i, str.data() + str.size(), acc, base);
+            if (ir.ec != std::errc{} || ir.ptr != str.data() + str.size()) {
+                return inter::NativeToFakeluaNil(state);
             }
             int64_t result = 0;
             if (negative) {

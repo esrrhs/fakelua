@@ -4,8 +4,7 @@
 
 namespace fakelua::crypto {
 
-// Register crypto library: crypto.md5(str), crypto.sha1(str), crypto.sha256(str)
-// Each returns the hex-encoded digest string.
+// Register crypto library: hashes, encodings, ciphers, crypto.uuid(), crypto.crc32(), crypto.xxhash().
 void RegisterCryptoLibraryApi(State *s);
 
 }// namespace fakelua::crypto

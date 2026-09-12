@@ -3,6 +3,7 @@
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
 #include "util/logging.h"
+#include "util/utf8_io.h"
 #include "var/var.h"
 
 #include <algorithm>
@@ -492,7 +493,7 @@ void RegisterIoLibraryApi(State *s) {
                 mode = std::string(KeyToStringView(a1));
             }
         }
-        FILE *fp = std::fopen(std::string(filename).c_str(), mode.c_str());
+        FILE *fp = utf8_io::Fopen(std::string(filename).c_str(), mode.c_str());
         if (!fp) {
             LOG_ERROR(state, "io", "io.open failed: filename={} mode={} err={}", filename, mode, std::strerror(errno));
             auto multi = inter::AllocMultiCVar(state, 3);
@@ -663,7 +664,7 @@ void RegisterIoLibraryApi(State *s) {
         std::string fn_str;
         std::string_view filename = GetStringArgView(fn_arg, fn_str);
         if (filename.empty()) return inter::NativeToFakeluaNil(state);
-        FILE *fp = std::fopen(std::string(filename).c_str(), "r");
+        FILE *fp = utf8_io::Fopen(std::string(filename).c_str(), "r");
         if (!fp) return inter::NativeToFakeluaNil(state);
         auto *obj = MakeIoFile(state, fp);
         obj->SetBool(kLinesCloseKey, true);

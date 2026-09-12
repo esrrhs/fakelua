@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <format>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -34,6 +35,10 @@ struct NetObject {
 
     std::unique_ptr<net::TcpServer> server;
     std::unique_ptr<net::TcpClient> client;
+    std::unique_ptr<net::UdpSocket> udp;
+
+    std::string last_peer_ip;
+    uint16_t last_peer_port = 0;
 
     // tick 回调里 Lua 可能 :close()，不能立刻 delete this。延后到 tick 返回。
     int tick_depth = 0;
@@ -135,7 +140,13 @@ static void HandleCallbackReturn(NetObject *obj, const CVar &ret, int connid) {
     if (cmd == "echo") {
         CVar data_var = inter::GetMultiCVarElement(ret, 1);
         std::string echo_data = CVarToString(data_var);
-        if (obj->is_server) {
+        if (obj->udp) {
+            if (obj->udp->Connected()) {
+                obj->udp->Send(echo_data.data(), echo_data.size());
+            } else {
+                obj->udp->SendTo(echo_data.data(), echo_data.size(), obj->last_peer_ip, obj->last_peer_port);
+            }
+        } else if (obj->is_server) {
             obj->server->Send(connid, echo_data.data(), echo_data.size());
         } else {
             obj->client->Send(echo_data.data(), echo_data.size());
@@ -233,6 +244,8 @@ static void DispatchEventFor(NetObject *obj, const ConnEvent &ev) {
             break;
         case EventKind::Recv:
             obj->recv_count++;
+            obj->last_peer_ip = ev.peer_ip;
+            obj->last_peer_port = ev.peer_port;
             if (obj->is_server) obj->last_server_data = ev.data;
             else
                 obj->last_client_data = ev.data;
@@ -271,7 +284,9 @@ static void TickNetObject(NativeObject *self) {
 
     obj->tick_depth++;
     try {
-        if (obj->is_server && obj->server && obj->server->Running()) {
+        if (obj->udp && obj->udp->Running()) {
+            obj->udp->DrainEventsWith([obj](const ConnEvent &ev) { DispatchEventFor(obj, ev); });
+        } else if (obj->is_server && obj->server && obj->server->Running()) {
             obj->server->DrainEventsWith([obj](const ConnEvent &ev) { DispatchEventFor(obj, ev); });
         } else if (!obj->is_server && obj->client) {
             obj->client->DrainEventsWith([obj](const ConnEvent &ev) { DispatchEventFor(obj, ev); });
@@ -301,6 +316,24 @@ void TickAll(State *s) {
 static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
     auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaBool(s, false);
+
+    if (obj->udp) {
+        if (obj->udp->Connected()) {
+            if (n < 1) ThrowBadArgument(1, "send", "data expected");
+            std::string data = CVarToString(inter::GetNativeArg(s, args, n, 0));
+            bool ok = obj->udp->Send(data.data(), data.size());
+            return inter::NativeToFakeluaBool(s, ok);
+        }
+        if (n < 3) ThrowBadArgument(1, "send", "data, ip and port expected");
+        std::string data = CVarToString(inter::GetNativeArg(s, args, n, 0));
+        std::string ip = CVarToString(inter::GetNativeArg(s, args, n, 1));
+        int64_t port_val = CheckIntegerArg(inter::GetNativeArg(s, args, n, 2), 3, "send");
+        if (port_val <= 0 || port_val > 65535) {
+            ThrowFakeluaException(std::format("net: port {} out of range (1-65535)", port_val));
+        }
+        bool ok = obj->udp->SendTo(data.data(), data.size(), ip, static_cast<uint16_t>(port_val));
+        return inter::NativeToFakeluaBool(s, ok);
+    }
 
     if (obj->is_server && obj->server) {
         // server: send(connid, data)
@@ -366,6 +399,10 @@ static void ReleaseNetObject(NativeObject *self) {
         obj->client->Disconnect();
         obj->client.reset();
     }
+    if (obj->udp) {
+        obj->udp->Stop();
+        obj->udp.reset();
+    }
     delete obj;
     self->SetInt("__net_obj__", 0);
 }
@@ -422,6 +459,21 @@ static CVar NetGetConnId(NativeObject *self, State *s, CVar * /*args*/, int /*n*
     auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaNil(s);
     return inter::NativeToFakeluaInt(s, obj->server_connid);
+}
+
+static CVar NetGetPort(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = Unwrap(self);
+    if (!obj || !obj->udp) return inter::NativeToFakeluaNil(s);
+    return inter::NativeToFakeluaInt(s, obj->udp->BoundPort());
+}
+
+static CVar NetGetPeer(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *obj = Unwrap(self);
+    if (!obj || !obj->udp) return inter::NativeToFakeluaNil(s);
+    CVar multi = inter::AllocMultiCVar(s, 2);
+    inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaString(s, obj->last_peer_ip));
+    inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(s, obj->last_peer_port));
+    return multi;
 }
 
 // 工厂函数
@@ -512,7 +564,6 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
     if (cfg.fixed_packet_len == 0) {
         cfg.fixed_packet_len = static_cast<int>(GetTableField(s, a0, "fixed_packet_len", 0));
     }
-    cfg.non_blocking = GetTableField(s, a0, "nonblocking", 1) != 0;
     cfg.no_delay = GetTableField(s, a0, "nodelay", 1) != 0;
     cfg.keep_alive = GetTableField(s, a0, "keepalive", 1) != 0;
 
@@ -532,6 +583,30 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
     if (cfg.ws_path.empty()) cfg.ws_path = "/";
     cfg.ws_host = GetTableFieldString(s, a0, "ws_host", "");
     cfg.ws_origin = GetTableFieldString(s, a0, "ws_origin", "");
+
+    CVar tls_var = table::TableHelper::GetTableStrId(s, a0, "tls");
+    if (tls_var.type_ == static_cast<int>(VarType::Bool)) {
+        cfg.tls = AsVar(tls_var).GetBool();
+    } else if (tls_var.type_ == static_cast<int>(VarType::Int)) {
+        cfg.tls = tls_var.data_.i != 0;
+    } else if (tls_var.type_ != static_cast<int>(VarType::Nil)) {
+        std::string ts = CVarToString(tls_var);
+        cfg.tls = !(ts.empty() || ts == "0" || ts == "false" || ts == "disable");
+    }
+    CVar tv = table::TableHelper::GetTableStrId(s, a0, "tls_verify");
+    if (tv.type_ == static_cast<int>(VarType::Bool)) {
+        cfg.tls_verify = AsVar(tv).GetBool();
+    } else if (tv.type_ == static_cast<int>(VarType::Int)) {
+        cfg.tls_verify = tv.data_.i != 0;
+    } else if (tv.type_ != static_cast<int>(VarType::Nil)) {
+        std::string ts = CVarToString(tv);
+        cfg.tls_verify = !(ts.empty() || ts == "0" || ts == "false");
+    }
+    cfg.tls_cert = GetTableFieldString(s, a0, "cert", "");
+    if (cfg.tls_cert.empty()) cfg.tls_cert = GetTableFieldString(s, a0, "tls_cert", "");
+    cfg.tls_key = GetTableFieldString(s, a0, "key", "");
+    if (cfg.tls_key.empty()) cfg.tls_key = GetTableFieldString(s, a0, "tls_key", "");
+    cfg.tls_ca = GetTableFieldString(s, a0, "tls_ca", "");
 
     return cfg;
 }
@@ -632,6 +707,9 @@ static void SetupLuaCustomParser(State *s, net::NetConfig &cfg, const std::strin
 static CVar CreateNetServer(State *s, net::NetConfig cfg, const char *type_name) {
     if (!cfg.custom_parser_name.empty()) {
         SetupLuaCustomParser(s, cfg, cfg.custom_parser_name);
+    }
+    if (cfg.tls && (cfg.tls_cert.empty() || cfg.tls_key.empty())) {
+        ThrowFakeluaException(std::format("{}: tls=true requires cert and key", type_name));
     }
 
     net::NetInit();
@@ -737,6 +815,77 @@ static CVar NetWsClient(State *s, CVar *args, int n) {
     return CreateNetClient(s, cfg, "net_ws_client");
 }
 
+static net::NetConfig ParseUdpConfig(State *s, CVar *args, int n, bool connected) {
+    net::NetConfig cfg;
+    cfg.ip = "127.0.0.1";
+    cfg.port = 0;
+    if (n < 1) {
+        if (connected) ThrowFakeluaException("net.udp_client: config table expected");
+        return cfg;
+    }
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    if (a0.type_ != static_cast<int>(VarType::Table)) {
+        ThrowFakeluaException("net.udp: config table expected");
+    }
+    cfg.ip = GetTableFieldString(s, a0, "ip", "127.0.0.1");
+    int64_t port_val = GetTableField(s, a0, "port", connected ? 0 : 0);
+    if (connected) {
+        if (port_val <= 0 || port_val > 65535) {
+            ThrowFakeluaException(std::format("net.udp_client: port {} out of range (1-65535)", port_val));
+        }
+    } else if (port_val < 0 || port_val > 65535) {
+        ThrowFakeluaException(std::format("net.udp_server: port {} out of range (0-65535)", port_val));
+    }
+    cfg.port = static_cast<uint16_t>(port_val);
+    int64_t mpl = GetTableField(s, a0, "max_packet_len", 0);
+    if (mpl > 0) cfg.max_packet_len = static_cast<int>(mpl);
+    return cfg;
+}
+
+static CVar CreateUdp(State *s, net::NetConfig cfg, bool connected, const char *type_name) {
+    net::NetInit();
+
+    auto *obj = new NetObject();
+    obj->state = s;
+    obj->is_server = !connected;
+    obj->udp = std::make_unique<net::UdpSocket>(cfg, s, connected);
+    if (!obj->udp->Start()) {
+        delete obj;
+        net::NetShutdown();
+        LOG_ERROR(s, "net", "{}: failed to {} {}:{}", type_name, connected ? "connect to" : "bind", cfg.ip, cfg.port);
+        ThrowFakeluaException(std::format("{}: failed to {} {}:{}", type_name, connected ? "connect to" : "bind", cfg.ip, cfg.port));
+    }
+    LOG_DEBUG(s, "net", "{}: {} {}:{} (bound {})", type_name, connected ? "connected to" : "bound", cfg.ip, cfg.port, obj->udp->BoundPort());
+
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(gid, type_name);
+    nat->SetInt("__net_obj__", reinterpret_cast<int64_t>(obj));
+    nat->SetInt("__net_state__", reinterpret_cast<int64_t>(s));
+    RegisterNetWrapper(s, nat);
+    nat->SetFinalizer([](NativeObject *self) {
+        UnregisterNetWrapper(self);
+        net::NetShutdown();
+        ReleaseNetObject(self);
+    });
+    nat->RegisterMethod("dispatch", NetDispatch);
+    nat->RegisterMethod("send", NetSend);
+    nat->RegisterMethod("close", NetClose);
+    nat->RegisterMethod("get_events", NetGetEvents);
+    nat->RegisterMethod("get_last_data", NetGetLastData);
+    nat->RegisterMethod("get_recv_count", NetGetRecvCount);
+    nat->RegisterMethod("get_port", NetGetPort);
+    nat->RegisterMethod("get_peer", NetGetPeer);
+    return inter::NativeToFakeluaNativeObject(s, nat);
+}
+
+static CVar NetUdpServer(State *s, CVar *args, int n) {
+    return CreateUdp(s, ParseUdpConfig(s, args, n, false), false, "net_udp_server");
+}
+
+static CVar NetUdpClient(State *s, CVar *args, int n) {
+    return CreateUdp(s, ParseUdpConfig(s, args, n, true), true, "net_udp_client");
+}
+
 // 注册
 
 void RegisterNetLibraryApi(State *s) {
@@ -746,6 +895,8 @@ void RegisterNetLibraryApi(State *s) {
     RegisterNativeFunction(s, "net.client", 1, false, NetClient);
     RegisterNativeFunction(s, "net.ws_server", 1, false, NetWsServer);
     RegisterNativeFunction(s, "net.ws_client", 1, false, NetWsClient);
+    RegisterNativeFunction(s, "net.udp_server", 1, false, NetUdpServer);
+    RegisterNativeFunction(s, "net.udp_client", 1, false, NetUdpClient);
 }
 
 }// namespace fakelua::net

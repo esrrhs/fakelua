@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -12,7 +13,7 @@ TEST(test_mysql, connect_failure_catchable) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_connect_fail.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_connect_fail", ret);
+    CallAll(s, "MysqlTest.test_connect_fail", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -24,7 +25,7 @@ TEST(test_mysql, connect_failure_message) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_error_message.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_error_message", ret);
+    CallAll(s, "MysqlTest.test_error_message", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -35,7 +36,18 @@ TEST(test_mysql, close_in_connect_callback) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_connect_fail.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_close_in_connect_cb", ret);
+    CallAll(s, "MysqlTest.test_close_in_connect_cb", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_mysql, connect_ssl_require_failure) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_connect_fail.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "MysqlTest.test_connect_ssl_require", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -48,7 +60,7 @@ TEST(test_mysql, integration_callback_api) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_integration.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_mysql_integration", ret);
+    CallAll(s, "MysqlTest.test_mysql_integration", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -60,7 +72,7 @@ TEST(test_mysql, integration_prepared_statements) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_stmt.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_stmt", ret);
+    CallAll(s, "MysqlTest.test_stmt", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -72,7 +84,7 @@ TEST(test_mysql, integration_multi_result) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_multi_result.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_multi_result", ret);
+    CallAll(s, "MysqlTest.test_multi_result", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -84,7 +96,7 @@ TEST(test_mysql, integration_pool) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_pool.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_pool", ret);
+    CallAll(s, "MysqlTest.test_pool", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -96,7 +108,7 @@ TEST(test_mysql, integration_query_error) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_query_error.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_query_error", ret);
+    CallAll(s, "MysqlTest.test_query_error", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -108,7 +120,7 @@ TEST(test_mysql, integration_datatypes_and_null) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_datatypes.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_datatypes", ret);
+    CallAll(s, "MysqlTest.test_datatypes", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -120,7 +132,7 @@ TEST(test_mysql, integration_dml_status) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_dml.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_dml", ret);
+    CallAll(s, "MysqlTest.test_dml", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -132,7 +144,7 @@ TEST(test_mysql, integration_stmt_params) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_stmt_params.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_stmt_params", ret);
+    CallAll(s, "MysqlTest.test_stmt_params", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -144,7 +156,7 @@ TEST(test_mysql, integration_pool_advanced) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_pool_adv.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_pool_advanced", ret);
+    CallAll(s, "MysqlTest.test_pool_advanced", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -156,7 +168,7 @@ TEST(test_mysql, integration_ping_and_lifecycle) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_lifecycle.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MysqlTest.test_lifecycle", ret);
+    CallAll(s, "MysqlTest.test_lifecycle", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

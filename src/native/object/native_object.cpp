@@ -383,6 +383,7 @@ CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish) {
         cl->upvalue_count = 3;
         cl->expected_arg_count = 1;
         cl->is_vararg = true;
+        cl->code_str = nullptr;
         cl->upvalues[0] = uv0;
         cl->upvalues[1] = uv1;
         cl->upvalues[2] = uv2;

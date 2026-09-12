@@ -1,6 +1,10 @@
 #include "native/math/native_math.h"
 #include "native/native_common.h"
 #include "var/var.h"
+#include <boost/algorithm/clamp.hpp>
+#include <boost/math/policies/policy.hpp>
+#include <boost/math/special_functions/erf.hpp>
+#include <boost/math/special_functions/gamma.hpp>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -413,6 +417,60 @@ void RegisterMathLibraryApi(State *s) {
         inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaFloat(state, frac));
         inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, exp_val));
         return multi;
+    });
+
+    using MathPol = boost::math::policies::policy<boost::math::policies::domain_error<boost::math::policies::ignore_error>,
+                                                  boost::math::policies::pole_error<boost::math::policies::ignore_error>,
+                                                  boost::math::policies::overflow_error<boost::math::policies::ignore_error>,
+                                                  boost::math::policies::evaluation_error<boost::math::policies::ignore_error>>;
+
+    RegisterNativeFunction(s, "math.erf", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckNumberArg(a0, 1, "math.erf");
+        double v0 = inter::CVarToNumber(a0, 0.0);
+        return inter::NativeToFakeluaFloat(state, boost::math::erf(v0, MathPol()));
+    });
+
+    RegisterNativeFunction(s, "math.erfc", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckNumberArg(a0, 1, "math.erfc");
+        double v0 = inter::CVarToNumber(a0, 0.0);
+        return inter::NativeToFakeluaFloat(state, boost::math::erfc(v0, MathPol()));
+    });
+
+    RegisterNativeFunction(s, "math.gamma", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckNumberArg(a0, 1, "math.gamma");
+        double v0 = inter::CVarToNumber(a0, 0.0);
+        return inter::NativeToFakeluaFloat(state, boost::math::tgamma(v0, MathPol()));
+    });
+
+    RegisterNativeFunction(s, "math.lgamma", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        CheckNumberArg(a0, 1, "math.lgamma");
+        double v0 = inter::CVarToNumber(a0, 0.0);
+        return inter::NativeToFakeluaFloat(state, boost::math::lgamma(v0, MathPol()));
+    });
+
+    // math.clamp(x, lo, hi) — Boost.Algorithm; integers stay integers when all three are Int
+    RegisterNativeFunction(s, "math.clamp", 3, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "math.clamp", "number expected");
+        if (n < 2) ThrowBadArgument(2, "math.clamp", "number expected");
+        if (n < 3) ThrowBadArgument(3, "math.clamp", "number expected");
+        CVar ax = inter::GetNativeArg(state, args, n, 0);
+        CVar alo = inter::GetNativeArg(state, args, n, 1);
+        CVar ahi = inter::GetNativeArg(state, args, n, 2);
+        CheckNumberArg(ax, 1, "math.clamp");
+        CheckNumberArg(alo, 2, "math.clamp");
+        CheckNumberArg(ahi, 3, "math.clamp");
+        if (ax.type_ == static_cast<int>(VarType::Int) && alo.type_ == static_cast<int>(VarType::Int) &&
+            ahi.type_ == static_cast<int>(VarType::Int)) {
+            return inter::NativeToFakeluaInt(state, boost::algorithm::clamp(ax.data_.i, alo.data_.i, ahi.data_.i));
+        }
+        double x = inter::CVarToNumber(ax, 0.0);
+        double lo = inter::CVarToNumber(alo, 0.0);
+        double hi = inter::CVarToNumber(ahi, 0.0);
+        return inter::NativeToFakeluaFloat(state, boost::algorithm::clamp(x, lo, hi));
     });
 }
 

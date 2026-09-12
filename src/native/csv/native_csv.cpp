@@ -1,10 +1,10 @@
 #include "native/csv/native_csv.h"
 #include "native/native_common.h"
 #include "native/table/native_table.h"
+#include "util/string_util.h"
 #include "var/var_table.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -146,16 +146,14 @@ static CVar FieldToLua(State *s, const std::string &str) {
     if (str.empty()) return inter::NativeToFakeluaString(s, str);
 
     // Keep leading zeros as strings ("001"); reject inf/nan.
-    const char *start = str.c_str();
     bool leading_zero_int = str.size() > 1 && str[0] == '0' && str[1] >= '0' && str[1] <= '9';
     if (!leading_zero_int) {
-        char *end = nullptr;
-        long long ival = strtoll(start, &end, 10);
-        if (end && *end == '\0' && end != start) {
+        int64_t ival = 0;
+        if (TryParseInt64(str, ival)) {
             return inter::NativeToFakeluaLonglong(s, ival);
         }
-        double dval = strtod(start, &end);
-        if (end && *end == '\0' && end != start && std::isfinite(dval)) {
+        double dval = 0;
+        if (TryParseDouble(str, dval)) {
             return inter::NativeToFakeluaDouble(s, dval);
         }
     }

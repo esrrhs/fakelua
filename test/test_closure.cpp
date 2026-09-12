@@ -7,14 +7,10 @@
 
 using namespace fakelua;
 
-static std::vector<JITType> GetSupportedJitTypes() {
-    return {JIT_TCC, JIT_GCC};
-}
-
 static void ClosureRunHelper(const std::function<void(State *, JITType, bool)> &f) {
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
-    for (const auto type: GetSupportedJitTypes()) {
+    for (const auto type: AllJitTypes()) {
         f(s, type, true);
         f(s, type, false);
     }

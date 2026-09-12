@@ -1,12 +1,12 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
 #include "util/debug.h"
+#include "util/exception.h"
 #include "util/string_util.h"
 #include "gtest/gtest.h"
+#include <cstring>
 
 using namespace fakelua;
-
-#define TEST_JIT_TYPE JIT_TCC
 
 // 这些用例的全局初始化在编译期就会执行（__fakelua_init），求值过程可能触发运行时错误。
 // 两个 JIT 后端都参与：TCC 的代码页没有 DWARF 展开表，错误经 jit_error_boundary 的
@@ -27,8 +27,7 @@ static std::string GetRecordedCCode(const std::string &lua_file) {
     CompileConfig cfg;
     cfg.debug_mode = false;
     cfg.record_c_code = true;
-    cfg.disable_jit[JIT_TCC] = true;
-    cfg.disable_jit[JIT_GCC] = true;
+    DisableAllJit(cfg);
     CompileFile(s, lua_file, cfg);
     const auto code = GetLastRecordedCCode(s);
     FakeluaDeleteState(s);
@@ -104,22 +103,26 @@ TEST(exception, function_call_exception) {
 
     CompileFile(s, "./exception/test_function_call_exception.lua", {});
 
-    try {
-        CVar ret;
-        Call(s, TEST_JIT_TYPE, "test", ret, 1, 2, 3);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not match") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            CVar ret;
+            Call(s, jit_type, "test", ret, 1, 2, 3);
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("not match") != std::string::npos);
+        }
     }
 
-    try {
-        CVar ret;
-        Call(s, TEST_JIT_TYPE, "test1", ret, 1, 2, 3);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not found") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            CVar ret;
+            Call(s, jit_type, "test1", ret, 1, 2, 3);
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("not found") != std::string::npos);
+        }
     }
 }
 
@@ -199,13 +202,15 @@ TEST(exception, return_type_error_bool) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        bool ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, 1);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeBool failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            bool ret = 0;
+            Call(s, jit_type, "test", ret, 1);
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeBool failed") != std::string::npos);
+        }
     }
 }
 
@@ -216,13 +221,15 @@ TEST(exception, return_type_error_char) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        char ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeChar failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            char ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeChar failed") != std::string::npos);
+        }
     }
 }
 
@@ -233,13 +240,15 @@ TEST(exception, return_type_error_uchar) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        unsigned char ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeUchar failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            unsigned char ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeUchar failed") != std::string::npos);
+        }
     }
 }
 
@@ -250,13 +259,15 @@ TEST(exception, return_type_error_short) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        short ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeShort failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            short ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeShort failed") != std::string::npos);
+        }
     }
 }
 
@@ -267,13 +278,15 @@ TEST(exception, return_type_error_ushort) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        unsigned short ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeUshort failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            unsigned short ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeUshort failed") != std::string::npos);
+        }
     }
 }
 
@@ -284,13 +297,15 @@ TEST(exception, return_type_error_int) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        int ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeInt failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            int ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeInt failed") != std::string::npos);
+        }
     }
 }
 
@@ -301,13 +316,15 @@ TEST(exception, return_type_error_uint) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        unsigned int ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeUint failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            unsigned int ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeUint failed") != std::string::npos);
+        }
     }
 }
 
@@ -318,13 +335,15 @@ TEST(exception, return_type_error_long) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        long ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeLong failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            long ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeLong failed") != std::string::npos);
+        }
     }
 }
 
@@ -335,13 +354,15 @@ TEST(exception, return_type_error_ulong) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        unsigned long ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeUlong failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            unsigned long ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeUlong failed") != std::string::npos);
+        }
     }
 }
 
@@ -352,13 +373,15 @@ TEST(exception, return_type_error_long_long) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        long long ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeLonglong failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            long long ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeLonglong failed") != std::string::npos);
+        }
     }
 }
 
@@ -369,13 +392,15 @@ TEST(exception, return_type_error_ulong_long) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        unsigned long long ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeUlonglong failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            unsigned long long ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeUlonglong failed") != std::string::npos);
+        }
     }
 }
 
@@ -386,13 +411,15 @@ TEST(exception, return_type_error_float) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        float ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeFloat failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            float ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeFloat failed") != std::string::npos);
+        }
     }
 }
 
@@ -403,13 +430,15 @@ TEST(exception, return_type_error_double) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        double ret = 0;
-        Call(s, TEST_JIT_TYPE, "test", ret, "1");
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeDouble failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            double ret = 0;
+            Call(s, jit_type, "test", ret, "1");
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeDouble failed") != std::string::npos);
+        }
     }
 }
 
@@ -420,13 +449,15 @@ TEST(exception, return_type_error_string) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        std::string ret;
-        Call(s, TEST_JIT_TYPE, "test", ret, 123);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeString failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            std::string ret;
+            Call(s, jit_type, "test", ret, 123);
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeString failed") != std::string::npos);
+        }
     }
 }
 
@@ -437,13 +468,15 @@ TEST(exception, return_type_error_stringview) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_return_type_error.lua", {});
 
-    try {
-        std::string_view ret;
-        Call(s, TEST_JIT_TYPE, "test", ret, 123);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeStringview failed") != std::string::npos);
+    for (auto jit_type: AllJitTypes()) {
+        try {
+            std::string_view ret;
+            Call(s, jit_type, "test", ret, 123);
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeStringview failed") != std::string::npos);
+        }
     }
 }
 
@@ -895,7 +928,7 @@ TEST(exception, string_sub_arg_errors) {
         SetDebugLogLevel(s, 0);
         const std::string script = std::string("function f()\n  ") + body + "\nend";
         ASSERT_NO_THROW(CompileString(s, script, {}));
-        for (const auto jit_type: {JIT_TCC, JIT_GCC}) {
+        for (const auto jit_type: AllJitTypes()) {
             CVar ret;
             EXPECT_THROW(Call(s, jit_type, "f", ret), std::exception);
         }
@@ -912,7 +945,7 @@ TEST(exception, concat_non_string_value) {
         SetDebugLogLevel(s, 0);
         const std::string script = std::string("function f()\n  ") + body + "\nend";
         ASSERT_NO_THROW(CompileString(s, script, {}));
-        for (const auto jit_type: {JIT_TCC, JIT_GCC}) {
+        for (const auto jit_type: AllJitTypes()) {
             CVar ret;
             EXPECT_THROW(Call(s, jit_type, "f", ret), std::exception);
         }
@@ -1048,13 +1081,15 @@ TEST(exception, math_param_non_numeric_error) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_math_param_non_numeric_error.lua", {});
 
-    try {
-        CVar ret;
-        Call(s, JIT_GCC, "test", ret, "hello", 1);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("bad argument #1 (a): attempt to perform arithmetic on non-numeric value") != std::string::npos);
+    for (auto jit_type: CCodeJitTypes()) {
+        try {
+            CVar ret;
+            Call(s, jit_type, "test", ret, "hello", 1);
+            ASSERT_TRUE(false);
+        } catch (const std::exception &e) {
+            std::cout << e.what() << std::endl;
+            ASSERT_TRUE(std::string(e.what()).find("bad argument #1 (a): attempt to perform arithmetic on non-numeric value") != std::string::npos);
+        }
     }
 }
 
@@ -1376,7 +1411,7 @@ TEST(exception, spec_assign_nonnumeric_float_throws) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_spec_assign_nonnumeric_float_throws.lua", {});
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: CCodeJitTypes()) {
         try {
             double dret = 0.0;
             Call(s, jit_type, "test", dret, 2.5);
@@ -1409,7 +1444,7 @@ TEST(exception, spec_assign_nonnumeric_int_throws) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_spec_assign_nonnumeric_int_throws.lua", {});
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: CCodeJitTypes()) {
         try {
             int ret = 0;
             Call(s, jit_type, "test", ret, 5);
@@ -1444,7 +1479,7 @@ TEST(exception, const_table_modify_error) {
 
     CompileFile(s, "./exception/test_const_table_modify_error.lua", {});
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         double res = 0;
         EXPECT_THROW(Call(s, jit_type, "test_modify_const", res), std::exception);
     }
@@ -1475,8 +1510,31 @@ TEST(exception, call_runtime_error_is_catchable) {
 
     CompileString(s, "function call_non_function()\nlocal s = \"hello\"\nreturn string.sub(s, 1, 3)(s)\nend", {});
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         double res = 0;
         EXPECT_THROW(Call(s, jit_type, "call_non_function", res), FakeluaException);
     }
+}
+
+TEST(exception, stacktrace_in_thrown_message) {
+    try {
+        ThrowFakeluaException("stacktrace probe");
+        FAIL() << "ThrowFakeluaException should throw";
+    } catch (const FakeluaException &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("stacktrace probe"), std::string::npos) << msg;
+        const auto pos = msg.find("stacktrace:\n");
+        ASSERT_NE(pos, std::string::npos) << msg;
+        EXPECT_GT(msg.size(), pos + std::strlen("stacktrace:\n")) << msg;
+        EXPECT_NE(msg.find("0#"), std::string::npos) << msg;
+    }
+}
+
+TEST(exception, stacktrace_in_build_error_message) {
+    const std::string msg = BuildFakeluaErrorMessage("build probe");
+    EXPECT_NE(msg.find("build probe"), std::string::npos) << msg;
+    const auto pos = msg.find("stacktrace:\n");
+    ASSERT_NE(pos, std::string::npos) << msg;
+    EXPECT_GT(msg.size(), pos + std::strlen("stacktrace:\n")) << msg;
+    EXPECT_NE(msg.find("0#"), std::string::npos) << msg;
 }

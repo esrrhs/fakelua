@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "test_jit.h"
 
 using namespace fakelua;
 
@@ -9,7 +10,7 @@ TEST(test_utf8, test_utf8_char) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_char.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_char", res);
@@ -24,7 +25,7 @@ TEST(test_utf8, test_utf8_codepoint) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_codepoint.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_codepoint", res);
@@ -39,7 +40,7 @@ TEST(test_utf8, test_utf8_len) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_len.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_len", res);
@@ -54,7 +55,7 @@ TEST(test_utf8, test_utf8_offset) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_offset.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_offset", res);
@@ -69,7 +70,7 @@ TEST(test_utf8, test_utf8_charpattern) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_charpattern.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_charpattern", res);
@@ -84,7 +85,7 @@ TEST(test_utf8, test_utf8_codes) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_codes.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_codes", res);
@@ -99,7 +100,7 @@ TEST(test_utf8, test_utf8_char_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_char_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_char_boundary", res);
@@ -114,7 +115,7 @@ TEST(test_utf8, test_utf8_codepoint_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_codepoint_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_codepoint_boundary", res);
@@ -129,7 +130,7 @@ TEST(test_utf8, test_utf8_len_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_len_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_len_boundary", res);
@@ -144,7 +145,7 @@ TEST(test_utf8, test_utf8_offset_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_offset_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_offset_boundary", res);
@@ -159,7 +160,7 @@ TEST(test_utf8, test_utf8_codes_boundary) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./utf8/test_utf8_codes_boundary.lua", config);
         double res = 0;
         Call(s, jit_type, "test_utf8_codes_boundary", res);
@@ -178,10 +179,10 @@ TEST(test_utf8, test_utf8_boundary_error) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_utf8_char_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_utf8_codepoint_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_utf8_len_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_utf8_offset_bad_arg", res), std::exception);
+    CallThrow(s, "test_utf8_char_bad_arg", res);
+    CallThrow(s, "test_utf8_codepoint_bad_arg", res);
+    CallThrow(s, "test_utf8_len_bad_arg", res);
+    CallThrow(s, "test_utf8_offset_bad_arg", res);
 
     FakeluaDeleteState(s);
 }

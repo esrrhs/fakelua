@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -9,7 +10,7 @@ TEST(test_random, basic) {
     CompileConfig config;
     CompileFile(s, "./random/test_random_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RandomTest.test_random_basic", ret);
+    CallAll(s, "RandomTest.test_random_basic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -20,7 +21,7 @@ TEST(test_random, dice) {
     CompileConfig config;
     CompileFile(s, "./random/test_random_dice.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RandomTest.test_random_dice", ret);
+    CallAll(s, "RandomTest.test_random_dice", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -31,7 +32,7 @@ TEST(test_random, chance) {
     CompileConfig config;
     CompileFile(s, "./random/test_random_chance.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RandomTest.test_random_chance", ret);
+    CallAll(s, "RandomTest.test_random_chance", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -42,7 +43,7 @@ TEST(test_random, weighted) {
     CompileConfig config;
     CompileFile(s, "./random/test_random_weighted.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RandomTest.test_random_weighted", ret);
+    CallAll(s, "RandomTest.test_random_weighted", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -53,7 +54,7 @@ TEST(test_random, deterministic) {
     CompileConfig config;
     CompileFile(s, "./random/test_random_deterministic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RandomTest.test_random_deterministic", ret);
+    CallAll(s, "RandomTest.test_random_deterministic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -64,7 +65,7 @@ TEST(test_random, save_restore) {
     CompileConfig config;
     CompileFile(s, "./random/test_random_save_restore.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RandomTest.test_random_save_restore", ret);
+    CallAll(s, "RandomTest.test_random_save_restore", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -75,7 +76,7 @@ TEST(test_random, independent) {
     CompileConfig config;
     CompileFile(s, "./random/test_random_independent.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RandomTest.test_random_independent", ret);
+    CallAll(s, "RandomTest.test_random_independent", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -86,7 +87,7 @@ TEST(test_random, destroy) {
     CompileConfig config;
     CompileFile(s, "./random/test_random_destroy.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "RandomTest.test_random_destroy", ret);
+    CallAll(s, "RandomTest.test_random_destroy", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

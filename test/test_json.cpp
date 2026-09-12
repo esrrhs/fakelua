@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -9,7 +10,7 @@ TEST(test_json, decode_null) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_null", ret);
+    CallAll(s, "JsonTest.test_decode_null", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -20,7 +21,7 @@ TEST(test_json, decode_bool) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_bool", ret);
+    CallAll(s, "JsonTest.test_decode_bool", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -31,7 +32,7 @@ TEST(test_json, decode_int) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_int", ret);
+    CallAll(s, "JsonTest.test_decode_int", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -42,7 +43,7 @@ TEST(test_json, decode_negative) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_negative", ret);
+    CallAll(s, "JsonTest.test_decode_negative", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -53,7 +54,7 @@ TEST(test_json, decode_float) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_float", ret);
+    CallAll(s, "JsonTest.test_decode_float", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -64,7 +65,7 @@ TEST(test_json, decode_string) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_string", ret);
+    CallAll(s, "JsonTest.test_decode_string", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -75,7 +76,7 @@ TEST(test_json, decode_string_escape) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_string_escape", ret);
+    CallAll(s, "JsonTest.test_decode_string_escape", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -86,7 +87,7 @@ TEST(test_json, decode_array) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_array", ret);
+    CallAll(s, "JsonTest.test_decode_array", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -97,7 +98,7 @@ TEST(test_json, decode_object) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_object", ret);
+    CallAll(s, "JsonTest.test_decode_object", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -108,7 +109,7 @@ TEST(test_json, decode_nested) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_nested", ret);
+    CallAll(s, "JsonTest.test_decode_nested", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -119,7 +120,7 @@ TEST(test_json, encode_null) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_null", ret);
+    CallAll(s, "JsonTest.test_encode_null", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -130,7 +131,7 @@ TEST(test_json, encode_bool) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_bool", ret);
+    CallAll(s, "JsonTest.test_encode_bool", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -141,7 +142,7 @@ TEST(test_json, encode_int) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_int", ret);
+    CallAll(s, "JsonTest.test_encode_int", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -152,7 +153,7 @@ TEST(test_json, encode_float) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_float", ret);
+    CallAll(s, "JsonTest.test_encode_float", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -163,7 +164,7 @@ TEST(test_json, encode_string) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_string", ret);
+    CallAll(s, "JsonTest.test_encode_string", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -174,7 +175,7 @@ TEST(test_json, encode_array) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_array", ret);
+    CallAll(s, "JsonTest.test_encode_array", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -185,7 +186,7 @@ TEST(test_json, encode_object) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_object", ret);
+    CallAll(s, "JsonTest.test_encode_object", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -196,7 +197,7 @@ TEST(test_json, roundtrip) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_roundtrip", ret);
+    CallAll(s, "JsonTest.test_roundtrip", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -207,7 +208,7 @@ TEST(test_json, encode_array_9) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_array_9", ret);
+    CallAll(s, "JsonTest.test_encode_array_9", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -218,7 +219,7 @@ TEST(test_json, decode_deep_ok) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_deep_ok", ret);
+    CallAll(s, "JsonTest.test_decode_deep_ok", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -229,7 +230,7 @@ TEST(test_json, decode_too_deep) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "JsonTest.test_decode_too_deep", ret), std::exception);
+    CallThrow(s, "JsonTest.test_decode_too_deep", ret);
     FakeluaDeleteState(s);
 }
 
@@ -239,7 +240,7 @@ TEST(test_json, decode_big_int) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_big_int", ret);
+    CallAll(s, "JsonTest.test_decode_big_int", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -250,7 +251,7 @@ TEST(test_json, decode_invalid_number) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "JsonTest.test_decode_invalid_number", ret), std::exception);
+    CallThrow(s, "JsonTest.test_decode_invalid_number", ret);
     FakeluaDeleteState(s);
 }
 
@@ -260,7 +261,7 @@ TEST(test_json, decode_invalid_exp) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "JsonTest.test_decode_invalid_exp", ret), std::exception);
+    CallThrow(s, "JsonTest.test_decode_invalid_exp", ret);
     FakeluaDeleteState(s);
 }
 
@@ -270,7 +271,7 @@ TEST(test_json, decode_control_char) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_basic.lua", config);
     int64_t ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "JsonTest.test_decode_control_char", ret), std::exception);
+    CallThrow(s, "JsonTest.test_decode_control_char", ret);
     FakeluaDeleteState(s);
 }
 
@@ -281,7 +282,7 @@ TEST(test_json, decode_trailing_garbage) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_trailing_garbage", ret);
+    CallAll(s, "JsonTest.test_decode_trailing_garbage", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -292,7 +293,7 @@ TEST(test_json, decode_invalid_escape) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_invalid_escape", ret);
+    CallAll(s, "JsonTest.test_decode_invalid_escape", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -303,7 +304,7 @@ TEST(test_json, decode_invalid_null) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_invalid_null", ret);
+    CallAll(s, "JsonTest.test_decode_invalid_null", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -314,7 +315,7 @@ TEST(test_json, decode_invalid_bool) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_invalid_bool", ret);
+    CallAll(s, "JsonTest.test_decode_invalid_bool", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -325,7 +326,7 @@ TEST(test_json, decode_leading_zero) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_leading_zero", ret);
+    CallAll(s, "JsonTest.test_decode_leading_zero", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -336,7 +337,7 @@ TEST(test_json, decode_dot_no_digit) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_dot_no_digit", ret);
+    CallAll(s, "JsonTest.test_decode_dot_no_digit", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -347,7 +348,7 @@ TEST(test_json, decode_exp_no_digit) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_exp_no_digit", ret);
+    CallAll(s, "JsonTest.test_decode_exp_no_digit", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -358,7 +359,7 @@ TEST(test_json, decode_empty_input) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_empty_input", ret);
+    CallAll(s, "JsonTest.test_decode_empty_input", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -369,7 +370,7 @@ TEST(test_json, decode_whitespace_only) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_whitespace_only", ret);
+    CallAll(s, "JsonTest.test_decode_whitespace_only", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -380,7 +381,7 @@ TEST(test_json, decode_unterminated_string) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_unterminated_string", ret);
+    CallAll(s, "JsonTest.test_decode_unterminated_string", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -391,7 +392,7 @@ TEST(test_json, decode_unterminated_array) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_unterminated_array", ret);
+    CallAll(s, "JsonTest.test_decode_unterminated_array", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -402,7 +403,7 @@ TEST(test_json, decode_unterminated_object) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_unterminated_object", ret);
+    CallAll(s, "JsonTest.test_decode_unterminated_object", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -413,7 +414,7 @@ TEST(test_json, decode_non_string_key) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_non_string_key", ret);
+    CallAll(s, "JsonTest.test_decode_non_string_key", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -424,7 +425,7 @@ TEST(test_json, decode_missing_colon) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_missing_colon", ret);
+    CallAll(s, "JsonTest.test_decode_missing_colon", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -435,7 +436,7 @@ TEST(test_json, decode_unexpected_char) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_unexpected_char", ret);
+    CallAll(s, "JsonTest.test_decode_unexpected_char", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -446,7 +447,7 @@ TEST(test_json, decode_escape_backslash) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_escape_backslash", ret);
+    CallAll(s, "JsonTest.test_decode_escape_backslash", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -457,7 +458,7 @@ TEST(test_json, decode_escape_slash) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_escape_slash", ret);
+    CallAll(s, "JsonTest.test_decode_escape_slash", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -468,7 +469,7 @@ TEST(test_json, decode_escape_cr) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_escape_cr", ret);
+    CallAll(s, "JsonTest.test_decode_escape_cr", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -479,7 +480,7 @@ TEST(test_json, decode_escape_bs) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_escape_bs", ret);
+    CallAll(s, "JsonTest.test_decode_escape_bs", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -490,7 +491,7 @@ TEST(test_json, decode_escape_ff) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_escape_ff", ret);
+    CallAll(s, "JsonTest.test_decode_escape_ff", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -501,7 +502,7 @@ TEST(test_json, decode_escape_unicode) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_escape_unicode", ret);
+    CallAll(s, "JsonTest.test_decode_escape_unicode", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -512,7 +513,7 @@ TEST(test_json, decode_escape_unicode_chinese) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_escape_unicode_chinese", ret);
+    CallAll(s, "JsonTest.test_decode_escape_unicode_chinese", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -523,7 +524,7 @@ TEST(test_json, decode_escape_unicode_surrogate) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_escape_unicode_surrogate", ret);
+    CallAll(s, "JsonTest.test_decode_escape_unicode_surrogate", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -534,7 +535,7 @@ TEST(test_json, decode_invalid_surrogate) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_invalid_surrogate", ret);
+    CallAll(s, "JsonTest.test_decode_invalid_surrogate", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -545,7 +546,7 @@ TEST(test_json, decode_invalid_surrogate_low) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_invalid_surrogate_low", ret);
+    CallAll(s, "JsonTest.test_decode_invalid_surrogate_low", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -556,7 +557,7 @@ TEST(test_json, decode_lone_low_surrogate) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_decode_lone_low_surrogate", ret);
+    CallAll(s, "JsonTest.test_decode_lone_low_surrogate", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -567,7 +568,7 @@ TEST(test_json, encode_int_key) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_int_key", ret);
+    CallAll(s, "JsonTest.test_encode_int_key", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -578,7 +579,7 @@ TEST(test_json, encode_float_key) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_float_key", ret);
+    CallAll(s, "JsonTest.test_encode_float_key", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -589,7 +590,7 @@ TEST(test_json, encode_bool_key) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_bool_key", ret);
+    CallAll(s, "JsonTest.test_encode_bool_key", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -600,7 +601,7 @@ TEST(test_json, encode_special_chars) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_special_chars", ret);
+    CallAll(s, "JsonTest.test_encode_special_chars", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -611,7 +612,7 @@ TEST(test_json, encode_control_chars) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_control_chars", ret);
+    CallAll(s, "JsonTest.test_encode_control_chars", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -622,7 +623,7 @@ TEST(test_json, encode_empty_object) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_empty_object", ret);
+    CallAll(s, "JsonTest.test_encode_empty_object", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -633,7 +634,7 @@ TEST(test_json, encode_nested_too_deep) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_nested_too_deep", ret);
+    CallAll(s, "JsonTest.test_encode_nested_too_deep", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -644,7 +645,7 @@ TEST(test_json, encode_unsupported_type) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_unsupported_type", ret);
+    CallAll(s, "JsonTest.test_encode_unsupported_type", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -655,7 +656,7 @@ TEST(test_json, encode_cyclic) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_cyclic", ret);
+    CallAll(s, "JsonTest.test_encode_cyclic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -666,7 +667,7 @@ TEST(test_json, encode_sparse_array) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_sparse_array", ret);
+    CallAll(s, "JsonTest.test_encode_sparse_array", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -677,7 +678,7 @@ TEST(test_json, encode_large_int_key) {
     CompileConfig config;
     CompileFile(s, "./json/test_json_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "JsonTest.test_encode_large_int_key", ret);
+    CallAll(s, "JsonTest.test_encode_large_int_key", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }

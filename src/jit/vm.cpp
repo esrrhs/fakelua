@@ -179,5 +179,8 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
     return inter::DispatchCall(state, addr, arg_arr, expected_arg_count, static_cast<JITType>(jit_type));
 }
 
+CVar CallByNameArgs(State *state, int jit_type, const char *name, int arg_num, const CVar *args) {
+    return GuardJitEntry(state, [&] { return CallByNameImpl(state, jit_type, name, arg_num, args); });
+}
 
 }// namespace fakelua

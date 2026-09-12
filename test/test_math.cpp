@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "test_jit.h"
 
 using namespace fakelua;
 
@@ -9,7 +10,7 @@ TEST(test_math, test_math_basic) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_basic.lua", config);
         double res1 = 0;
         Call(s, jit_type, "test_math_basic", res1);
@@ -24,7 +25,7 @@ TEST(test_math, test_math_trig) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_trig.lua", config);
         double res2 = 0.0;
         Call(s, jit_type, "test_math_trig", res2);
@@ -39,7 +40,7 @@ TEST(test_math, test_math_exp_log) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_exp_log.lua", config);
         double res = 0.0;
         Call(s, jit_type, "test_math_exp_log", res);
@@ -54,7 +55,7 @@ TEST(test_math, test_math_utils) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_utils.lua", config);
         double res = 0.0;
         Call(s, jit_type, "test_math_utils", res);
@@ -69,7 +70,7 @@ TEST(test_math, test_math_constants) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_constants.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_math_constants", res);
@@ -84,7 +85,7 @@ TEST(test_math, test_math_deg_rad) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_deg_rad.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_math_deg_rad", res);
@@ -99,7 +100,7 @@ TEST(test_math, test_math_random) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_random.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_math_random", res);
@@ -118,7 +119,7 @@ TEST(test_math, test_math_random_reverse_interval) {
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     // math.random(100, 50) 应抛 "interval is empty"
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_reverse_interval", res), std::exception);
+    CallThrow(s, "test_math_random_reverse_interval", res);
 
     FakeluaDeleteState(s);
 }
@@ -128,7 +129,7 @@ TEST(test_math, test_math_modf_frexp) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_modf_frexp.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_math_modf_frexp", res);
@@ -143,7 +144,7 @@ TEST(test_math, test_math_atan2) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_atan2.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_atan2", res);
@@ -158,7 +159,7 @@ TEST(test_math, test_math_copysign) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_copysign.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_copysign", res);
@@ -177,7 +178,7 @@ TEST(test_math, test_math_tointeger_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_tointeger_bad_arg", res), std::exception);
+    CallThrow(s, "test_math_tointeger_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -191,7 +192,7 @@ TEST(test_math, test_math_tointeger_bad_arg_table) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_tointeger_bad_tbl", res), std::exception);
+    CallThrow(s, "test_math_tointeger_bad_tbl", res);
 
     FakeluaDeleteState(s);
 }
@@ -205,7 +206,7 @@ TEST(test_math, test_math_abs_bad_arg) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_abs_bad_arg", res), std::exception);
+    CallThrow(s, "test_math_abs_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -219,7 +220,7 @@ TEST(test_math, test_math_abs_bad_arg_table) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_abs_bad_tbl", res), std::exception);
+    CallThrow(s, "test_math_abs_bad_tbl", res);
 
     FakeluaDeleteState(s);
 }
@@ -232,11 +233,11 @@ TEST(test_math, test_math_jit_guard) {
     CompileFile(s, "./math/test_math_jit_guard.lua", config);
 
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_sqrt_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_sin_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_fmod_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_randomseed_bad_table", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_modf_bad_arg", res), std::exception);
+    CallThrow(s, "test_math_sqrt_bad_arg", res);
+    CallThrow(s, "test_math_sin_bad_arg", res);
+    CallThrow(s, "test_math_fmod_bad_arg", res);
+    CallThrow(s, "test_math_randomseed_bad_table", res);
+    CallThrow(s, "test_math_modf_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -246,7 +247,7 @@ TEST(test_math, test_math_randomseed_nan) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_jit_guard.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_randomseed_nan", res);
@@ -261,7 +262,7 @@ TEST(test_math, test_math_abs) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_abs.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_abs", res);
@@ -276,7 +277,7 @@ TEST(test_math, test_math_floor_ceil) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_floor_ceil.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_floor_ceil", res);
@@ -291,7 +292,7 @@ TEST(test_math, test_math_sqrt) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_sqrt.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_sqrt", res);
@@ -306,7 +307,7 @@ TEST(test_math, test_math_trig_full) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_trig_full.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_trig_full", res);
@@ -321,7 +322,7 @@ TEST(test_math, test_math_sinh_cosh_tanh) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_sinh_cosh_tanh.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_sinh_cosh_tanh", res);
@@ -336,7 +337,7 @@ TEST(test_math, test_math_fmod_ldexp) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_fmod_ldexp.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_fmod_ldexp", res);
@@ -351,7 +352,7 @@ TEST(test_math, test_math_ult_ldexp_int) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_ult_ldexp_int.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_ult_ldexp_int", res);
@@ -368,9 +369,9 @@ TEST(test_math, test_math_ult_2pow63) {
 
     CompileFile(s, "./math/test_math_ult_ldexp_int.lua", config);
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_ult_2pow63", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_ult_frac", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_ldexp_2pow63", res), std::exception);
+    CallThrow(s, "test_math_ult_2pow63", res);
+    CallThrow(s, "test_math_ult_frac", res);
+    CallThrow(s, "test_math_ldexp_2pow63", res);
 
     FakeluaDeleteState(s);
 }
@@ -380,7 +381,7 @@ TEST(test_math, test_math_type_tointeger) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_type_tointeger.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_type_tointeger", res);
@@ -395,7 +396,7 @@ TEST(test_math, test_math_max_min) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_max_min.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_max_min", res);
@@ -410,7 +411,7 @@ TEST(test_math, test_math_constants_full) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_constants_full.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_constants_full", res);
@@ -425,7 +426,7 @@ TEST(test_math, test_math_log_with_base) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_log_atan.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_log_with_base", res);
@@ -452,7 +453,7 @@ TEST(test_math, test_math_type_nil) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_type_nil.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_math_type_nil", res);
@@ -467,7 +468,7 @@ TEST(test_math, test_math_fmod_zero) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_fmod_zero.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_math_fmod_zero", res);
@@ -482,7 +483,7 @@ TEST(test_math, test_math_boundary_nan_inf) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_boundary_nan_inf.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_math_boundary_nan_inf", res);
@@ -497,7 +498,7 @@ TEST(test_math, test_math_boundary_integer) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_boundary_integer.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_math_boundary_integer", res);
@@ -516,8 +517,8 @@ TEST(test_math, test_math_boundary_error) {
 
     // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_bad_arg", res), std::exception);
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_randomseed_bad_arg", res), std::exception);
+    CallThrow(s, "test_math_random_bad_arg", res);
+    CallThrow(s, "test_math_randomseed_bad_arg", res);
 
     FakeluaDeleteState(s);
 }
@@ -530,7 +531,7 @@ TEST(test_math, test_math_critical_boundary) {
     // TCC 是 C 编译器，不支持 C++ 异常传播和某些表操作，只测试 GCC 后端
     CompileFile(s, "./math/test_math_critical_boundary.lua", config);
     int64_t res = 0;
-    Call(s, JIT_GCC, "test_math_critical_boundary", res);
+    CallAll(s, "test_math_critical_boundary", res);
     EXPECT_EQ(res, 9999);
 
     FakeluaDeleteState(s);
@@ -541,7 +542,7 @@ TEST(test_math, test_math_int64_min_arith) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_math_int64_min_arith.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_math_int64_min_arith", res);
@@ -556,7 +557,7 @@ TEST(test_math, test_float_2pow63) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_float_2pow63.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_float_2pow63", res);
@@ -571,7 +572,7 @@ TEST(test_math, test_for_int64_overflow) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: {JIT_TCC, JIT_GCC}) {
+    for (auto jit_type: AllJitTypes()) {
         CompileFile(s, "./math/test_for_int64_overflow.lua", config);
         int64_t res = 0;
         Call(s, jit_type, "test_for_int64_overflow", res);
@@ -589,7 +590,7 @@ TEST(test_math, test_string_sub_overflow) {
     CompileFile(s, "./math/test_math_critical_boundary.lua", config);
     // 超大 float index 应抛 "number has no integer representation"
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_string_sub_overflow", res), std::exception);
+    CallThrow(s, "test_string_sub_overflow", res);
 
     FakeluaDeleteState(s);
 }
@@ -601,7 +602,7 @@ TEST(test_math, test_string_byte_overflow) {
 
     CompileFile(s, "./math/test_math_critical_boundary.lua", config);
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_string_byte_overflow", res), std::exception);
+    CallThrow(s, "test_string_byte_overflow", res);
 
     FakeluaDeleteState(s);
 }
@@ -614,7 +615,7 @@ TEST(test_math, test_math_random_neg) {
     CompileFile(s, "./math/test_math_critical_boundary.lua", config);
     double res = 0;
     // math.random(-5) 应抛 "interval is empty"
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_neg", res), std::exception);
+    CallThrow(s, "test_math_random_neg", res);
 
     FakeluaDeleteState(s);
 }
@@ -627,7 +628,7 @@ TEST(test_math, test_math_random_reverse) {
     CompileFile(s, "./math/test_math_critical_boundary.lua", config);
     double res = 0;
     // math.random(5,3) 应抛 "interval is empty"
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_reverse", res), std::exception);
+    CallThrow(s, "test_math_random_reverse", res);
 
     FakeluaDeleteState(s);
 }
@@ -639,7 +640,7 @@ TEST(test_math, test_math_random_2pow63) {
 
     CompileFile(s, "./math/test_math_critical_boundary.lua", config);
     double res = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "test_math_random_2pow63", res), std::exception);
+    CallThrow(s, "test_math_random_2pow63", res);
 
     FakeluaDeleteState(s);
 }
@@ -652,7 +653,7 @@ TEST(test_math, test_string_method_colon) {
     // 验证 string 库方法 colon 调用不 crash（Bug #1: FlGetTableStrId on string）
     CompileFile(s, "./math/test_math_critical_boundary.lua", config);
     int64_t res = 0;
-    Call(s, JIT_GCC, "test_string_method_colon", res);
+    CallAll(s, "test_string_method_colon", res);
     EXPECT_EQ(res, 0);
 
     FakeluaDeleteState(s);
@@ -666,7 +667,7 @@ TEST(test_math, test_err_match) {
     // 验证 err:match 不 crash（Bug #1: FlGetTableStrId on string in method call）
     CompileFile(s, "./math/test_math_critical_boundary.lua", config);
     int64_t res = 0;
-    Call(s, JIT_GCC, "test_err_match", res);
+    CallAll(s, "test_err_match", res);
     EXPECT_EQ(res, 0);
 
     FakeluaDeleteState(s);
@@ -679,7 +680,7 @@ TEST(test_math, unified_abs_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_abs_various", ret);
+    CallAll(s, "MathUnified.test_math_abs_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -690,7 +691,7 @@ TEST(test_math, unified_floor_ceil_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_floor_ceil_various", ret);
+    CallAll(s, "MathUnified.test_math_floor_ceil_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -701,7 +702,7 @@ TEST(test_math, unified_sqrt_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_sqrt_various", ret);
+    CallAll(s, "MathUnified.test_math_sqrt_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -712,7 +713,7 @@ TEST(test_math, unified_pow_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_pow_various", ret);
+    CallAll(s, "MathUnified.test_math_pow_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -723,7 +724,7 @@ TEST(test_math, unified_trig_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_trig_various", ret);
+    CallAll(s, "MathUnified.test_math_trig_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -734,7 +735,7 @@ TEST(test_math, unified_asin_acos) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_asin_acos", ret);
+    CallAll(s, "MathUnified.test_math_asin_acos", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -745,7 +746,7 @@ TEST(test_math, unified_atan_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_atan_various", ret);
+    CallAll(s, "MathUnified.test_math_atan_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -756,7 +757,7 @@ TEST(test_math, unified_exp_log_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_exp_log_various", ret);
+    CallAll(s, "MathUnified.test_math_exp_log_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -767,7 +768,7 @@ TEST(test_math, unified_hyperbolic) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_hyperbolic", ret);
+    CallAll(s, "MathUnified.test_math_hyperbolic", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -778,7 +779,7 @@ TEST(test_math, unified_fmod_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_fmod_various", ret);
+    CallAll(s, "MathUnified.test_math_fmod_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -789,7 +790,7 @@ TEST(test_math, unified_ldexp_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_ldexp_various", ret);
+    CallAll(s, "MathUnified.test_math_ldexp_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -800,7 +801,7 @@ TEST(test_math, unified_deg_rad_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_deg_rad_various", ret);
+    CallAll(s, "MathUnified.test_math_deg_rad_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -811,7 +812,7 @@ TEST(test_math, unified_copysign_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_copysign_various", ret);
+    CallAll(s, "MathUnified.test_math_copysign_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -822,7 +823,7 @@ TEST(test_math, unified_modf_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_modf_various", ret);
+    CallAll(s, "MathUnified.test_math_modf_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -833,7 +834,7 @@ TEST(test_math, unified_frexp_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_frexp_various", ret);
+    CallAll(s, "MathUnified.test_math_frexp_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -844,7 +845,7 @@ TEST(test_math, unified_type_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_type_various", ret);
+    CallAll(s, "MathUnified.test_math_type_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -855,7 +856,7 @@ TEST(test_math, unified_tointeger_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_tointeger_various", ret);
+    CallAll(s, "MathUnified.test_math_tointeger_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -866,7 +867,7 @@ TEST(test_math, unified_ult_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_ult_various", ret);
+    CallAll(s, "MathUnified.test_math_ult_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -877,7 +878,7 @@ TEST(test_math, unified_max_min_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_max_min_various", ret);
+    CallAll(s, "MathUnified.test_math_max_min_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -888,7 +889,7 @@ TEST(test_math, unified_random_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_random_various", ret);
+    CallAll(s, "MathUnified.test_math_random_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -899,7 +900,7 @@ TEST(test_math, unified_random_m) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_random_m", ret);
+    CallAll(s, "MathUnified.test_math_random_m", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -910,7 +911,7 @@ TEST(test_math, unified_random_m_n) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_random_m_n", ret);
+    CallAll(s, "MathUnified.test_math_random_m_n", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -921,7 +922,7 @@ TEST(test_math, unified_randomseed_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_unified.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_GCC, "MathUnified.test_math_randomseed_various", ret);
+    CallAll(s, "MathUnified.test_math_randomseed_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -933,7 +934,7 @@ TEST(test_math, math_random_zero) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_random_zero", ret);
+    CallAll(s, "MathTest.test_math_random_zero", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -944,7 +945,7 @@ TEST(test_math, math_randomseed_with_arg) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_randomseed_with_arg", ret);
+    CallAll(s, "MathTest.test_math_randomseed_with_arg", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -955,7 +956,7 @@ TEST(test_math, math_randomseed_no_arg) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_randomseed_no_arg", ret);
+    CallAll(s, "MathTest.test_math_randomseed_no_arg", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -966,7 +967,7 @@ TEST(test_math, math_random_int_arg) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_random_int_arg", ret);
+    CallAll(s, "MathTest.test_math_random_int_arg", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -977,7 +978,7 @@ TEST(test_math, math_random_int_args) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_random_int_args", ret);
+    CallAll(s, "MathTest.test_math_random_int_args", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -988,7 +989,7 @@ TEST(test_math, math_random_negative) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_random_negative", ret);
+    CallAll(s, "MathTest.test_math_random_negative", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -999,7 +1000,7 @@ TEST(test_math, math_random_reverse) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_random_reverse", ret);
+    CallAll(s, "MathTest.test_math_random_reverse", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1010,7 +1011,7 @@ TEST(test_math, math_abs_int64_min) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_abs_int64_min", ret);
+    CallAll(s, "MathTest.test_math_abs_int64_min", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1021,7 +1022,7 @@ TEST(test_math, math_modf_negative) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_modf_negative", ret);
+    CallAll(s, "MathTest.test_math_modf_negative", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1032,7 +1033,7 @@ TEST(test_math, math_frexp_negative) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_frexp_negative", ret);
+    CallAll(s, "MathTest.test_math_frexp_negative", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1043,7 +1044,7 @@ TEST(test_math, math_frexp_zero) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_frexp_zero", ret);
+    CallAll(s, "MathTest.test_math_frexp_zero", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1054,7 +1055,7 @@ TEST(test_math, math_type_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_type_various", ret);
+    CallAll(s, "MathTest.test_math_type_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1065,7 +1066,7 @@ TEST(test_math, math_tointeger_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_tointeger_various", ret);
+    CallAll(s, "MathTest.test_math_tointeger_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1076,7 +1077,7 @@ TEST(test_math, math_ult_unsigned) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_ult_unsigned", ret);
+    CallAll(s, "MathTest.test_math_ult_unsigned", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1087,7 +1088,7 @@ TEST(test_math, math_deg_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_deg_various", ret);
+    CallAll(s, "MathTest.test_math_deg_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1098,7 +1099,7 @@ TEST(test_math, math_rad_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_rad_various", ret);
+    CallAll(s, "MathTest.test_math_rad_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1109,7 +1110,7 @@ TEST(test_math, math_copysign_various) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_copysign_various", ret);
+    CallAll(s, "MathTest.test_math_copysign_various", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1120,7 +1121,7 @@ TEST(test_math, math_log_with_base) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_log_with_base", ret);
+    CallAll(s, "MathTest.test_math_log_with_base", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1131,7 +1132,7 @@ TEST(test_math, math_atan_two_args) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_atan_two_args", ret);
+    CallAll(s, "MathTest.test_math_atan_two_args", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1142,7 +1143,7 @@ TEST(test_math, math_max_string) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_max_string", ret);
+    CallAll(s, "MathTest.test_math_max_string", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1153,7 +1154,7 @@ TEST(test_math, math_floor_ceil_int) {
     CompileConfig config;
     CompileFile(s, "./math/test_math_edge.lua", config);
     int64_t ret = 0;
-    Call(s, JIT_TCC, "MathTest.test_math_floor_ceil_int", ret);
+    CallAll(s, "MathTest.test_math_floor_ceil_int", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1167,32 +1168,32 @@ TEST(test_math, random_branches) {
     CompileFile(s, "./math/test_math_random_branches.lua", config);
     int64_t ret = 0;
     // Normal tests use TCC
-    Call(s, JIT_TCC, "MathRandomBranches.test_random_single_arg", ret);
+    CallAll(s, "MathRandomBranches.test_random_single_arg", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_random_two_args", ret);
+    CallAll(s, "MathRandomBranches.test_random_two_args", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_random_zero", ret);
+    CallAll(s, "MathRandomBranches.test_random_zero", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_random_same_bounds", ret);
+    CallAll(s, "MathRandomBranches.test_random_same_bounds", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_random_large_range", ret);
+    CallAll(s, "MathRandomBranches.test_random_large_range", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_random_full_uint64", ret);
+    CallAll(s, "MathRandomBranches.test_random_full_uint64", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
     // Exception tests use GCC (TCC doesn't support C++ exception propagation)
-    EXPECT_THROW(Call(s, JIT_GCC, "MathRandomBranches.test_random_negative_interval", ret), std::exception);
+    CallThrow(s, "MathRandomBranches.test_random_negative_interval", ret);
     ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "MathRandomBranches.test_random_empty_interval", ret), std::exception);
+    CallThrow(s, "MathRandomBranches.test_random_empty_interval", ret);
     ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "MathRandomBranches.test_random_bad_type", ret), std::exception);
+    CallThrow(s, "MathRandomBranches.test_random_bad_type", ret);
     ret = 0;
-    EXPECT_THROW(Call(s, JIT_GCC, "MathRandomBranches.test_random_two_args_bad_type", ret), std::exception);
+    CallThrow(s, "MathRandomBranches.test_random_two_args_bad_type", ret);
     FakeluaDeleteState(s);
 }
 
@@ -1203,28 +1204,28 @@ TEST(test_math, modf_frexp) {
     CompileFile(s, "./math/test_math_random_branches.lua", config);
     int64_t ret = 0;
     // All normal tests use TCC
-    Call(s, JIT_TCC, "MathRandomBranches.test_modf_float", ret);
+    CallAll(s, "MathRandomBranches.test_modf_float", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_modf_negative", ret);
+    CallAll(s, "MathRandomBranches.test_modf_negative", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_modf_integer", ret);
+    CallAll(s, "MathRandomBranches.test_modf_integer", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_modf_zero", ret);
+    CallAll(s, "MathRandomBranches.test_modf_zero", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_frexp_positive", ret);
+    CallAll(s, "MathRandomBranches.test_frexp_positive", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_frexp_one", ret);
+    CallAll(s, "MathRandomBranches.test_frexp_one", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_frexp_zero", ret);
+    CallAll(s, "MathRandomBranches.test_frexp_zero", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_frexp_fraction", ret);
+    CallAll(s, "MathRandomBranches.test_frexp_fraction", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
@@ -1236,46 +1237,57 @@ TEST(test_math, pow_trig_coverage) {
     CompileFile(s, "./math/test_math_random_branches.lua", config);
     int64_t ret = 0;
     // All normal tests use TCC
-    Call(s, JIT_TCC, "MathRandomBranches.test_pow_basic", ret);
+    CallAll(s, "MathRandomBranches.test_pow_basic", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_pow_negative_exp", ret);
+    CallAll(s, "MathRandomBranches.test_pow_negative_exp", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_pow_zero_exp", ret);
+    CallAll(s, "MathRandomBranches.test_pow_zero_exp", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_tan", ret);
+    CallAll(s, "MathRandomBranches.test_tan", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_tan_pi_over_4", ret);
+    CallAll(s, "MathRandomBranches.test_tan_pi_over_4", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_exp", ret);
+    CallAll(s, "MathRandomBranches.test_exp", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_log10", ret);
+    CallAll(s, "MathRandomBranches.test_log10", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_log10_one", ret);
+    CallAll(s, "MathRandomBranches.test_log10_one", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_sinh", ret);
+    CallAll(s, "MathRandomBranches.test_sinh", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_cosh", ret);
+    CallAll(s, "MathRandomBranches.test_cosh", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_tanh", ret);
+    CallAll(s, "MathRandomBranches.test_tanh", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_deg", ret);
+    CallAll(s, "MathRandomBranches.test_deg", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_rad", ret);
+    CallAll(s, "MathRandomBranches.test_rad", ret);
     EXPECT_EQ(ret, 1);
     ret = 0;
-    Call(s, JIT_TCC, "MathRandomBranches.test_sqrt_edge", ret);
+    CallAll(s, "MathRandomBranches.test_sqrt_edge", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, special_functions) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./math/test_math_special.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "test_math_special", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
