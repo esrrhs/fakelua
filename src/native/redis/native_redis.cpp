@@ -214,11 +214,12 @@ public:
 
         io_.Poll();
         if (close_pending_) return;
-        MaybeStartPing();
         if (pending_connect_) {
             pending_connect_ = false;
             DispatchConnect();
+            if (close_pending_) return;
         }
+        MaybeStartPing();
         for (auto &op: cmds_) {
             if (op && op->done && !op->cb.empty()) {
                 DispatchCmd(*op);
@@ -240,7 +241,6 @@ public:
         // boost::redis::connection::cancel().
         if (tick_depth_ > 0 || io_.InDispatch()) {
             close_pending_ = true;
-            AbortSocket();
             return;
         }
         Teardown();
@@ -257,7 +257,6 @@ public:
     void RequestClose() {
         closed_ = true;
         close_pending_ = true;
-        AbortSocket();
     }
 
     void SetConnectCallback(std::string name) {
@@ -298,7 +297,12 @@ private:
     }
 
     void MaybeStartPing() {
-        if (ping_started_ || closed_ || close_pending_ || !conn_ || connect_notified_) return;
+        // Never arm PING on a failed/finished run or on the tick that is about
+        // to dispatch the connect callback. A refused connect can still leave
+        // the TCP socket is_open(); async_exec then waits on writer_cv_ and
+        // Teardown deadlocks the Windows select reactor.
+        if (ping_started_ || closed_ || close_pending_ || !conn_) return;
+        if (run_done_ || connect_notified_ || pending_connect_) return;
         bool open = false;
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
@@ -308,7 +312,16 @@ private:
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
-        if (!open) return;
+        if (!open) {
+            ping_open_seen_ = false;
+            return;
+        }
+        // Wait one tick after is_open so a refused connect can finish async_run
+        // before we arm writer_cv_ with PING.
+        if (!ping_open_seen_) {
+            ping_open_seen_ = true;
+            return;
+        }
         ping_started_ = true;
         ping_.req.push("PING");
         auto watch = life_.GetWatch();
@@ -324,6 +337,8 @@ private:
 
     void Teardown() {
         if (!conn_) return;
+        // Settle handlers from the connect callback before aborting the socket.
+        io_.Poll();
         AbortSocket();
         Drain();
         auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(native::kWindowsAsio ? 1000 : 5000);
@@ -396,6 +411,7 @@ private:
     bool closed_ = false;
     bool close_pending_ = false;
     bool ping_started_ = false;
+    bool ping_open_seen_ = false;
     bool run_done_ = false;
     int tick_depth_ = 0;
     native::LifeToken life_;
