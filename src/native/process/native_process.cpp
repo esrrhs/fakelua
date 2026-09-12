@@ -344,20 +344,30 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     bp::process proc = LaunchProcess(ctx, exe, child_args, stdio, cwd, env_overrides, argv[0]);
     // Parent must drop the inheritable stdio handles so the child can see EOF.
     stdio.Close();
-    // BOOST_ASIO_DISABLE_IOCP uses the select reactor, which cannot wait on a
-    // process HANDLE. async_wait + ctx.run() never completes. WaitForSingleObject
-    // (via process::wait) does not go through that reactor.
+    // BOOST_ASIO_DISABLE_IOCP makes windows::object_handle::wait() hang: it waits
+    // on an IOCP completion that never arrives. Do not call process::wait/terminate
+    // (both go through that path). Wait and reap with Win32, then detach.
     HANDLE ph = proc.native_handle();
     DWORD wait_ms = INFINITE;
     if (timeout_ms > 0) {
         wait_ms = timeout_ms >= static_cast<int64_t>(INFINITE) ? INFINITE - 1 : static_cast<DWORD>(timeout_ms);
     }
-    if (ph != nullptr && ph != INVALID_HANDLE_VALUE && ::WaitForSingleObject(ph, wait_ms) == WAIT_TIMEOUT) {
-        timed_out = true;
-        boost::system::error_code tec;
-        proc.terminate(tec);
+    DWORD wr = WAIT_FAILED;
+    if (ph != nullptr && ph != INVALID_HANDLE_VALUE) {
+        wr = ::WaitForSingleObject(ph, wait_ms);
     }
-    exit_code = proc.wait();
+    if (wr == WAIT_TIMEOUT) {
+        timed_out = true;
+        ::TerminateProcess(ph, 9);
+        ::WaitForSingleObject(ph, INFINITE);
+    }
+    DWORD code = 0;
+    if (ph != nullptr && ph != INVALID_HANDLE_VALUE && ::GetExitCodeProcess(ph, &code) && code != STILL_ACTIVE) {
+        exit_code = static_cast<int>(code);
+    } else if (timed_out) {
+        exit_code = 9;
+    }
+    proc.detach();
     stdout_s = ReadCappedFile(out_path);
     stderr_s = ReadCappedFile(err_path);
     boost::system::error_code rec;
