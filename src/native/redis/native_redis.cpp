@@ -169,21 +169,16 @@ public:
 
         auto watch = life_.GetWatch();
         conn_->async_run(cfg_, [this, watch](boost::system::error_code ec) {
+            run_done_ = true;
             if (!watch.Alive()) return;
             if (!connect_notified_) {
                 NotifyConnect(ec ? ec.message() : std::string("connection closed"));
             }
         });
-
-        ping_.req.push("PING");
-        conn_->async_exec(ping_.req, ping_.resp, [this, watch](boost::system::error_code ec, std::size_t) {
-            if (!watch.Alive()) return;
-            if (ec) {
-                NotifyConnect(ec.message());
-                return;
-            }
-            NotifyConnect({});
-        });
+        // Do not async_exec PING here. Boost.Redis queues it on writer_cv_
+        // (expires_at max). Closing the TCP socket does not wake that wait;
+        // destroying the connection then deadlocks the Windows select reactor.
+        // Start PING only after the TCP socket is actually open.
     }
 
     void Command(std::vector<std::string> parts, std::string cb) {
@@ -215,10 +210,11 @@ public:
         // dispatch: same re-entrancy guard as MysqlConnection::Tick.
         if (tick_depth_ > 0) return;
         TickDepthGuard guard(tick_depth_);
-        if (close_pending_) return;
         if (!conn_) return;
 
         io_.Poll();
+        if (close_pending_) return;
+        MaybeStartPing();
         if (pending_connect_) {
             pending_connect_ = false;
             DispatchConnect();
@@ -244,6 +240,7 @@ public:
         // boost::redis::connection::cancel().
         if (tick_depth_ > 0 || io_.InDispatch()) {
             close_pending_ = true;
+            AbortSocket();
             return;
         }
         Teardown();
@@ -260,6 +257,7 @@ public:
     void RequestClose() {
         closed_ = true;
         close_pending_ = true;
+        AbortSocket();
     }
 
     void SetConnectCallback(std::string name) {
@@ -299,10 +297,41 @@ private:
 #endif
     }
 
+    void MaybeStartPing() {
+        if (ping_started_ || closed_ || close_pending_ || !conn_ || connect_notified_) return;
+        bool open = false;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+        open = conn_->next_layer().next_layer().is_open();
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+        if (!open) return;
+        ping_started_ = true;
+        ping_.req.push("PING");
+        auto watch = life_.GetWatch();
+        conn_->async_exec(ping_.req, ping_.resp, [this, watch](boost::system::error_code ec, std::size_t) {
+            if (!watch.Alive()) return;
+            if (ec) {
+                NotifyConnect(ec.message());
+                return;
+            }
+            NotifyConnect({});
+        });
+    }
+
     void Teardown() {
         if (!conn_) return;
         AbortSocket();
         Drain();
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(native::kWindowsAsio ? 1000 : 5000);
+        while (!run_done_ && std::chrono::steady_clock::now() < deadline) {
+            if (io_.Poll() == 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
         conn_.reset();
         Drain();
     }
@@ -366,6 +395,8 @@ private:
     bool ready_ = false;
     bool closed_ = false;
     bool close_pending_ = false;
+    bool ping_started_ = false;
+    bool run_done_ = false;
     int tick_depth_ = 0;
     native::LifeToken life_;
 };
