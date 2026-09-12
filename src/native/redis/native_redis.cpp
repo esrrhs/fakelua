@@ -187,6 +187,7 @@ public:
 
     void Tick() {
         io_.Poll();
+        in_dispatch_ = true;
         if (pending_connect_) {
             pending_connect_ = false;
             DispatchConnect();
@@ -200,14 +201,25 @@ public:
         while (!cmds_.empty() && cmds_.front() && cmds_.front()->done && cmds_.front()->cb.empty()) {
             cmds_.pop_front();
         }
+        in_dispatch_ = false;
+        if (close_pending_) {
+            close_pending_ = false;
+            DoCancel();
+        }
     }
 
     void Close() {
         closed_ = true;
-        conn_.cancel();
         if (!connect_notified_) {
             NotifyConnect("closed");
         }
+        // cancel() waits on the same reactor tick() poll()s. From a Lua
+        // callback Poll is a no-op (DispatchScope), so defer like mysql.
+        if (in_dispatch_) {
+            close_pending_ = true;
+            return;
+        }
+        DoCancel();
     }
 
     void SetConnectCallback(std::string name) {
@@ -223,6 +235,14 @@ public:
     }
 
 private:
+    void DoCancel() {
+        conn_.cancel();
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (io_.Poll() == 0) break;
+        }
+    }
+
     void NotifyConnect(std::string err) {
         if (connect_notified_) return;
         connect_notified_ = true;
@@ -275,6 +295,8 @@ private:
     bool pending_connect_ = false;
     bool ready_ = false;
     bool closed_ = false;
+    bool close_pending_ = false;
+    bool in_dispatch_ = false;
     native::LifeToken life_;
 };
 
