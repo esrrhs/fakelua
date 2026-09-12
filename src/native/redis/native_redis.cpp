@@ -4,6 +4,7 @@
 #include "native/native_io_context.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
+#include "native/tls_util.h"
 #include "state/state.h"
 #include "var/var.h"
 
@@ -128,16 +129,7 @@ struct CmdOp {
 class RedisConnection {
 public:
     explicit RedisConnection(State *state)
-        : io_(state->GetIoContext()), lua_state_(state) {
-        if constexpr (native::kWindowsAsio) {
-            // Own reactor: leaking conn_ still bound to State::io_context makes
-            // FakeluaDeleteState hang in ~io_context (Boost.Redis cancel on the
-            // same poll thread). POSIX stays on the shared State context.
-            own_io_ = std::make_unique<native::IoContext>();
-            conn_ = std::make_unique<br::connection>(own_io_->Get(), br::logger{br::logger::level::disabled});
-        } else {
-            conn_ = std::make_unique<br::connection>(io_.Get(), br::logger{br::logger::level::disabled});
-        }
+        : io_(state->GetIoContext()), conn_(std::make_unique<br::connection>(io_.Get(), br::logger{br::logger::level::disabled})), lua_state_(state) {
     }
 
     ~RedisConnection() {
@@ -223,9 +215,9 @@ public:
         if (tick_depth_ > 0) return;
         TickDepthGuard guard(tick_depth_);
         if (close_pending_) return;
-        if (!conn_ && !own_io_) return;
+        if (!conn_) return;
 
-        PollTransport();
+        io_.Poll();
         if (pending_connect_) {
             pending_connect_ = false;
             DispatchConnect();
@@ -246,8 +238,9 @@ public:
         if (!connect_notified_) {
             NotifyConnect("closed");
         }
-        // Lua :close() during a callback/tick must not cancel/destroy: defer like
-        // mysql RequestClose. Actual teardown is Windows leak vs POSIX cancel().
+        // Lua :close() during a callback/tick must not abort/destroy: defer like
+        // mysql RequestClose. Teardown closes the TCP socket (net style), not
+        // boost::redis::connection::cancel().
         if (tick_depth_ > 0 || io_.InDispatch()) {
             close_pending_ = true;
             return;
@@ -281,28 +274,32 @@ public:
     }
 
 private:
-    void PollTransport() {
-        if constexpr (native::kWindowsAsio) {
-            if (own_io_) own_io_->Poll();
-        } else {
-            io_.Poll();
-        }
-    }
-
-    void Teardown() {
-        if (!conn_ && !own_io_) return;
-        if constexpr (native::kWindowsAsio) {
-            (void) conn_.release();
-            (void) own_io_.release();
-            return;
-        }
-        if (!conn_) return;
-        conn_->cancel();
-        // Drain completions while conn_ is still alive (same as mysql TeardownTransport).
+    void Drain() {
         for (int i = 0; i < 64; ++i) {
             if (io_.Poll() == 0) break;
         }
+    }
+
+    void AbortSocket() {
+        if (!conn_) return;
+        // next_layer() is deprecated but is the only way to reach the TCP socket.
+        // connection::cancel() waits on this poll() thread (Windows select).
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+        tls::CloseTcpSocket(conn_->next_layer().next_layer());
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+    }
+
+    void Teardown() {
+        if (!conn_) return;
+        AbortSocket();
+        Drain();
         conn_.reset();
+        Drain();
     }
 
     void NotifyConnect(std::string err) {
@@ -351,7 +348,6 @@ private:
     }
 
     native::IoContext &io_;
-    std::unique_ptr<native::IoContext> own_io_;
     br::config cfg_;
     std::unique_ptr<br::connection> conn_;
     CmdOp ping_;
@@ -399,6 +395,8 @@ static void MaybeReleaseOwnedConn(NativeObject *self) {
     auto *conn = Unwrap(self);
     if (!conn || conn->TickDepth() > 0 || !conn->ClosePending()) return;
     conn->Close();
+    self->SetInt("__redis_conn__", 0);
+    delete conn;
 }
 
 void TickAll(State *s) {
@@ -507,10 +505,10 @@ static CVar RedisConnect(State *s, CVar *args, int n) {
         UnregisterWrapper(self);
         auto *c = Unwrap(self);
         if (c) {
-            self->SetInt("__redis_conn__", 0);
             if (c->TickDepth() > 0) {
                 c->RequestClose();
             } else {
+                self->SetInt("__redis_conn__", 0);
                 c->Close();
                 delete c;
             }

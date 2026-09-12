@@ -78,15 +78,10 @@ void MysqlConnection::TeardownTransport() {
         }
     }
 
-    // Transport-level close via destructor (no blocking COM_QUIT). Windows: if
-    // cancel did not finish, leak — destroying any_connection on the poll()
-    // thread deadlocks. POSIX: always destroy so we do not leak.
-    if (op_in_progress_ && native::kWindowsAsio) {
-        LOG_ERROR(lua_state_, "mysql", "cancellation did not complete, leaking the connection to stay safe");
-        (void) conn_.release();
-    } else {
-        conn_.reset();
-    }
+    // Transport-level close via destructor (no blocking COM_QUIT). Cancellation
+    // is the MySQL equivalent of net TCP's socket abort; always destroy after
+    // the drain above — do not leak.
+    conn_.reset();
     io_.Poll();
     cancel_signal_.reset();
     op_in_progress_ = false;

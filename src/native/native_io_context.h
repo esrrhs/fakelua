@@ -14,12 +14,11 @@
 //  - 不要 socket.non_blocking(true)；不要在 poll() 线程上做同步 read_some/write_some、
 //    SSL shutdown、close_statement、windows::object_handle wait。
 //  - 不要 Asio pipe（DISABLE_IOCP 之后没有 BOOST_ASIO_HAS_PIPE）。
-//  - 常规路径不要自建 io_context，concurrency_hint 保持 1。Windows 上 Boost.Redis
-//    这类 cancel() 会卡死的库例外：给运输层一份私有 context，关连接时连它一起 leak。
-//  - 关连接：Windows 不要 cancel()/析构还在飞的 Boost.MySQL/Redis 对象（会等同一个
-//    poll()，死锁），必要时 leak；POSIX 正常 cancel + destroy，不要 leak。
-//  - leak 必须连运输层绑着的 io_context 一起丢掉。只 release() 连接、还把操作留在
-//    State 的 context 上，死锁会挪到 FakeluaDeleteState 的 ~io_context。
+//  - 不要自建 io_context，concurrency_hint 保持 1。
+//  - 关连接（和 net TCP 一样，所有平台）：回调里只打标记；Tick()/Lua 返回后再
+//    socket.cancel + shutdown + close，poll() 收完完成包，然后 destroy。
+//    不要 Boost.Redis connection::cancel()、不要 ssl::stream::shutdown()——它们会
+//    在这条 poll() 线程上等待。不要 leak。
 
 #include <boost/asio/io_context.hpp>
 
@@ -35,19 +34,15 @@ inline constexpr bool kWindowsAsio = true;
 inline constexpr bool kWindowsAsio = false;
 #endif
 
-// Windows: drop ownership so cancel()/dtor never runs on the poll() thread.
-// Only safe if `p` is NOT bound to State::GetIoContext() — leak that context
-// too, or ~State waits on the same cancel(). POSIX: run `cancel` then destroy.
-// TickDepth 推迟关闭在所有平台都要，和这个无关。
-template<class T, class Cancel>
-void TeardownTransport(std::unique_ptr<T> &p, Cancel &&cancel) {
+// Abort in-flight I/O then destroy. `abort` must be non-blocking (socket
+// cancel+shutdown+close), like net TCP. Do not Boost.Redis connection::cancel().
+// Caller Poll()s to drain while `p` is still alive. TickDepth deferral is
+// separate and required on every platform.
+template<class T, class Abort>
+void TeardownTransport(std::unique_ptr<T> &p, Abort &&abort) {
     if (!p) return;
-    if constexpr (kWindowsAsio) {
-        (void) p.release();
-    } else {
-        cancel(*p);
-        p.reset();
-    }
+    abort(*p);
+    p.reset();
 }
 
 class IoContext {
