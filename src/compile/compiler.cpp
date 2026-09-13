@@ -1,0 +1,123 @@
+#include "compile/compiler.h"
+#include "bison/parser.h"
+#include "compile/c_gen.h"
+#include "compile/preprocessor.h"
+#include "compile/semantic_analysis.h"
+#include "compile/type_inferencer.h"
+#include "interp/codegen.h"
+#include "jit/gcc_jit.h"
+#include "jit/tcc_jit.h"
+#include "state/state.h"
+#include "util/logging.h"
+
+namespace fakelua {
+
+// 构造函数
+Compiler::Compiler(State *s) : s_(s) {
+}
+
+// 编译文件接口
+ParseResult Compiler::CompileFile(const std::string &file, const CompileConfig &cfg) {
+    LOG_INFO(s_, "engine", "start CompileFile {}", file);
+    MyFlexer f;
+    f.SetState(s_);
+    f.InputFile(file);
+    return Compile(f, cfg);
+}
+
+// 编译字符串接口
+ParseResult Compiler::CompileString(const std::string &str, const CompileConfig &cfg) {
+    LOG_INFO(s_, "engine", "start CompileString");
+    MyFlexer f;
+    f.SetState(s_);
+    f.InputString(str);
+    return Compile(f, cfg);
+}
+
+// 核心编译逻辑
+ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
+    LOG_DEBUG(s_, "engine", "start compile {}", f.GetFilename());
+
+    ParseResult pr;
+    pr.file_name = f.GetFilename();
+
+    // 1. 生成语法树（AST）
+    LOG_DEBUG(s_, "engine", "step 1: parsing AST");
+    yy::parser parse(&f);
+    auto code = parse.parse();
+    LOG_DEBUG(s_, "engine", "compile ret {}", code);
+
+    // 检查语法解析结果，解析失败必须抛出异常
+    if (code != 0) {
+        ThrowFakeluaException(std::format("Parse failed with code {}", code));
+    }
+    pr.chunk = f.GetChunk();
+    LOG_DEBUG(s_, "engine", "AST generated, top-level stmts: {}", pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block ? std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk)->Stmts().size() : 0);
+
+    // 调试模式下遍历语法树，可用于语法树检查
+    if (cfg.debug_mode) {
+        LOG_DEBUG(s_, "engine", "debug_mode: walking syntax tree");
+        WalkSyntaxTree(pr.chunk, [](const SyntaxTreeInterfacePtr &ptr) {});
+    }
+
+    if (cfg.skip_jit) {
+        LOG_DEBUG(s_, "engine", "skip_jit enabled, returning after parsing");
+        return pr;
+    }
+
+    // 2. 文件级语句校验：必须在预处理改写语法树之前，此时顶层语句还保持源码里的原始形态
+    LOG_DEBUG(s_, "engine", "step 2: semantic analysis - file level stmt check");
+    SemanticAnalysis semantic_analysis(s_);
+    semantic_analysis.CheckFileLevelStmts(pr);
+
+    // 3. 预处理语法树
+    LOG_DEBUG(s_, "engine", "step 3: preprocessing");
+    PreProcessor pp(s_);
+    pp.Process(pr, cfg);
+
+    // 4. 语义与控制流分析
+    LOG_DEBUG(s_, "engine", "step 4: semantic analysis");
+    AnalysisResult ar = semantic_analysis.Analyze(pr, cfg);
+
+    // 5. 类型推导（同时识别数学参数）
+    LOG_DEBUG(s_, "engine", "step 5: type inference");
+    TypeInferencer inferencer(s_);
+    InferResult ir = inferencer.InferTypes(pr, cfg);
+
+    // 6. 转译为C（TCC/GCC 需要；仅解释器时跳过）
+    const bool need_c = !cfg.disable_jit[JIT_TCC] || !cfg.disable_jit[JIT_GCC] || cfg.record_c_code;
+    GenResult gr;
+    if (need_c) {
+        LOG_DEBUG(s_, "engine", "step 6: C code generation");
+        CGen cgen(s_);
+        gr = cgen.Generate(pr, ir, ar, cfg);
+    } else {
+        LOG_DEBUG(s_, "engine", "step 6: skip C code generation (interpreter only)");
+    }
+
+    // 7. JIT编译
+    LOG_DEBUG(s_, "engine", "step 7: JIT compilation (TCC={}, GCC={}, INTERP={})", !cfg.disable_jit[JIT_TCC], !cfg.disable_jit[JIT_GCC], !cfg.disable_jit[JIT_INTERP]);
+    if (need_c && !cfg.disable_jit[JIT_TCC]) {
+        TccJitter jitter(s_);
+        jitter.Compile(pr, gr, cfg);
+    }
+    if (need_c && !cfg.disable_jit[JIT_GCC]) {
+        GccJitter jitter(s_);
+        jitter.Compile(pr, gr, cfg);
+    }
+    if (!cfg.disable_jit[JIT_INTERP]) {
+        LOG_DEBUG(s_, "engine", "step 7b: interpreter bytecode generation");
+        InterpCodegen icgen(s_);
+        icgen.Generate(pr, ar, cfg);
+    }
+
+    if (cfg.record_c_code) {
+        last_recorded_c_code_ = gr.recorded_c_code;
+        LOG_DEBUG(s_, "engine", "record_c_code: {} bytes", gr.recorded_c_code.size());
+    }
+
+    LOG_INFO(s_, "engine", "compile finished: {}, functions: {}", pr.file_name, gr.function_names.size());
+    return pr;
+}
+
+}// namespace fakelua

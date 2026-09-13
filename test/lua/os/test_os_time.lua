@@ -1,0 +1,44 @@
+function test_os_time()
+    -- os.time() returns a number (unix timestamp)
+    local t1 = os.time()
+    if type(t1) ~= "number" then return 0 end
+    -- reasonable range: after year 2000 and before year 2100
+    if t1 < 946684800 then return 0 end  -- 2000-01-01
+    if t1 > 4102444800 then return 0 end -- 2100-01-01
+
+    -- os.time(nil) returns current time
+    local t2 = os.time(nil)
+    if type(t2) ~= "number" then return 0 end
+
+    -- os.time with table: 2024-01-15 10:30:00
+    local t3 = os.time({ year = 2024, month = 1, day = 15, hour = 10, min = 30, sec = 0 })
+    if type(t3) ~= "number" then return 0 end
+    if t3 < 1700000000 then return 0 end
+
+    -- 字符串与数字混合字段表验证
+    local t3_str = os.time({ year = "2024", month = "1", day = "15", hour = "10", min = "30", sec = "0" })
+    if t3_str ~= t3 then return 0 end
+
+    -- 动态 Key (VarType::String) 传入 os.time 验证
+    local y_key = "ye" .. "ar"
+    local m_key = "mon" .. "th"
+    local d_key = "d" .. "ay"
+    local dyn_tbl = {}
+    dyn_tbl[y_key] = 2024
+    dyn_tbl[m_key] = 1
+    dyn_tbl[d_key] = 15
+    dyn_tbl["hour"] = 10
+    dyn_tbl["min"] = 30
+    dyn_tbl["sec"] = 0
+    local t4 = os.time(dyn_tbl)
+    if t4 ~= t3 then return 0 end
+
+    -- os.difftime 支持数字字符串参数测试 (Lua 兼容)
+    local diff = os.difftime("200", "100")
+    if diff ~= 100.0 then return 0 end
+
+    -- os.getenv 参数隐式转换测试 (非 nil 均不崩溃)
+    local _ = os.getenv(12345)
+
+    return 6000
+end

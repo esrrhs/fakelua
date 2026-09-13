@@ -1,0 +1,3 @@
+function test()
+    ::label::
+end
