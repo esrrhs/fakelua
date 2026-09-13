@@ -1,0 +1,621 @@
+#include "native/basic/native_basic.h"
+#include "compile/c_runtime_header.h"
+#include "native/native_common.h"
+#include "native/object/native_object.h"
+#include "native/string/native_string.h"
+#include "native/table/native_table.h"
+#include "state/state.h"
+#include "var/var.h"
+#include "var/var_closure.h"
+#include "var/var_multi.h"
+#include "var/var_string.h"
+#include "var/var_table.h"
+#include <boost/charconv.hpp>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace fakelua::basic {
+
+using string::GetStringArgView;
+using table::TableHelper;
+
+// Helper: call a closure, capturing any exception into err_msg
+// Returns true on success (result written to 'result'), false on failure.
+static bool CallClosure(State *state, VarClosure *cl, CVar *args, int n, CVar &result, std::string &err_msg) {
+    try {
+        void *addr = cl->func_ptr;
+        if (addr != nullptr) {
+            result = inter::DispatchCallClosure(state, cl, args, n, JIT_TCC);
+        } else if (cl->code_str) {
+            result = FlEvalLoadClosure(state, cl, n, args);
+        } else {
+            ThrowFakeluaException("closure has no code");
+        }
+        return true;
+    } catch (const FakeluaException &e) {
+        err_msg = e.what();
+    } catch (const std::exception &e) {
+        err_msg = e.what();
+    } catch (...) {
+        err_msg = "unknown error";
+    }
+    return false;
+}
+
+// Helper: build a success result, flattening Multi returns
+static CVar MakeSuccessResult(State *state, CVar result) {
+    if (result.type_ == static_cast<int>(VarType::Multi) && result.data_.m) {
+        int count = result.data_.m->GetCount();
+        CVar multi = inter::AllocMultiCVar(state, 1 + count);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+        for (int i = 0; i < count; ++i) {
+            inter::SetMultiCVarElement(multi, i + 1, inter::GetMultiCVarElement(result, i));
+        }
+        return multi;
+    } else {
+        CVar multi = inter::AllocMultiCVar(state, 2);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, true));
+        inter::SetMultiCVarElement(multi, 1, result);
+        return multi;
+    }
+}
+
+// pairs 迭代器状态
+struct PairIterState {
+    CVar table;
+    CVar last_key;// nil 表示刚开始
+};
+
+// ipairs 迭代器状态
+struct IpairsState {
+    CVar table;
+    int64_t next_idx;
+};
+
+// pairs 迭代器原生函数
+// 闭包签名：CVar (*)(VarClosure *cl, CVar s, CVar var)
+// upvalues[0] = State* (as int)
+// upvalues[1] = PairIterState* (as int)
+// 辅助：比较 key 是否相等
+static bool KeysEqual(CVar a, CVar b) {
+    if (a.type_ == b.type_) {
+        if (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Bool)) return a.data_.i == b.data_.i;
+        if (b.type_ == static_cast<int>(VarType::Float)) return a.data_.f == b.data_.f;
+        if (b.type_ == static_cast<int>(VarType::StringId)) return a.data_.i == b.data_.i;
+        if (b.type_ == static_cast<int>(VarType::String)) {
+            if (!a.data_.s || !b.data_.s) return a.data_.s == b.data_.s;
+            return a.data_.s->Str() == b.data_.s->Str();
+        }
+        return a.data_.i == b.data_.i;
+    }
+    // 跨 Int 和 Float 比较
+    if ((a.type_ == static_cast<int>(VarType::Int) || a.type_ == static_cast<int>(VarType::Float)) && (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Float))) {
+        double va = (a.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(a.data_.i) : a.data_.f;
+        double vb = (b.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(b.data_.i) : b.data_.f;
+        return va == vb;
+    }
+    // 跨 String 和 StringId 比较
+    if ((a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) &&
+        (b.type_ == static_cast<int>(VarType::String) || b.type_ == static_cast<int>(VarType::StringId))) {
+        return KeyToStringView(a) == KeyToStringView(b);
+    }
+    return false;
+}
+
+extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
+    if (!cl || cl->upvalue_count < 2) {
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+    State *state = reinterpret_cast<State *>(cl->upvalues[0]->data_.i);
+    auto *st = reinterpret_cast<PairIterState *>(cl->upvalues[1]->data_.i);
+    if (!state || !st) {
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+
+    CVar tbl = st->table;
+    CVar last = st->last_key;
+
+    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+        return inter::NativeToFakeluaNil(state);
+    }
+
+    // 遍历查找 last_key 的下一个（与 GET_TABLE_ENTRY 一致：spec + quick XOR buckets）
+    bool found_last = (last.type_ == static_cast<int>(VarType::Nil));// nil 表示刚开始
+    CVar next_key{static_cast<int>(VarType::Nil)};
+    CVar next_val{static_cast<int>(VarType::Nil)};
+    bool has_next = false;
+
+    TableHelper::ForEachKV(tbl, [&](CVar k, CVar v) {
+        if (has_next) return;
+        if (found_last) {
+            next_key = k;
+            next_val = v;
+            has_next = true;
+            return;
+        }
+        if (KeysEqual(k, last)) {
+            found_last = true;
+        }
+    });
+
+    if (!has_next) return inter::NativeToFakeluaNil(state);
+
+    st->last_key = next_key;
+
+    CVar multi = inter::AllocMultiCVar(state, 2);
+    inter::SetMultiCVarElement(multi, 0, next_key);
+    inter::SetMultiCVarElement(multi, 1, next_val);
+    return multi;
+}
+
+// ipairs 迭代器原生函数
+extern "C" CVar BasicIpairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
+    if (!cl || cl->upvalue_count < 2) {
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+    State *state = reinterpret_cast<State *>(cl->upvalues[0]->data_.i);
+    auto *st = reinterpret_cast<IpairsState *>(cl->upvalues[1]->data_.i);
+    if (!state || !st) {
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+
+    CVar tbl = st->table;
+    int64_t idx = st->next_idx;
+
+    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+        return inter::NativeToFakeluaNil(state);
+    }
+
+    CVar val = TableHelper::GetTableInt(state, tbl, idx);
+    if (val.type_ == static_cast<int>(VarType::Nil)) {
+        return inter::NativeToFakeluaNil(state);
+    }
+
+    st->next_idx = idx + 1;
+
+    CVar multi = inter::AllocMultiCVar(state, 2);
+    inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaInt(state, idx));
+    inter::SetMultiCVarElement(multi, 1, val);
+    return multi;
+}
+
+void RegisterBasicLibraryApi(State *s) {
+    if (!s) return;
+
+    // print(...)
+    RegisterNativeFunction(s, "print", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        for (int i = 0; i < n; ++i) {
+            if (i > 0) std::printf("\t");
+            CVar arg = inter::GetNativeArg(state, args, n, i);
+            std::string str = AsVar(arg).ToString();
+            std::printf("%s", str.c_str());
+        }
+        std::printf("\n");
+        std::fflush(stdout);
+        return inter::NativeToFakeluaNil(state);
+    });
+
+    // type(v)
+    RegisterNativeFunction(s, "type", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        switch (static_cast<VarType>(a0.type_)) {
+            case VarType::Nil:
+                return inter::NativeToFakeluaStringView(state, "nil");
+            case VarType::Bool:
+                return inter::NativeToFakeluaStringView(state, "boolean");
+            case VarType::Int:
+            case VarType::Float:
+                return inter::NativeToFakeluaStringView(state, "number");
+            case VarType::String:
+            case VarType::StringId:
+                return inter::NativeToFakeluaStringView(state, "string");
+            case VarType::Table:
+                return inter::NativeToFakeluaStringView(state, "table");
+            case VarType::Closure:
+                return inter::NativeToFakeluaStringView(state, "function");
+            default:
+                return inter::NativeToFakeluaStringView(state, "userdata");
+        }
+    });
+
+    // tostring(v)
+    RegisterNativeFunction(s, "tostring", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        const auto &v = AsVar(a0);
+        if (v.Type() == VarType::String || v.Type() == VarType::StringId) {
+            return a0;
+        }
+        std::string str = v.ToString(/*has_quote=*/false, /*has_postfix=*/false);
+        return inter::NativeToFakeluaString(state, str);
+    });
+
+    // tonumber(e [, base])
+    RegisterNativeFunction(s, "tonumber", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        const auto &v = AsVar(a0);
+
+        if (v.Type() == VarType::Int) return a0;
+        if (v.Type() == VarType::Float) return a0;
+        if (v.Type() != VarType::String && v.Type() != VarType::StringId) {
+            return inter::NativeToFakeluaNil(state);
+        }
+
+        std::string_view raw = v.GetString()->Str();
+        // Trim leading and trailing whitespace per Lua spec（不先拷整串）
+        size_t start = raw.find_first_not_of(" \t\n\r\f\v");
+        if (start == std::string_view::npos) return inter::NativeToFakeluaNil(state);
+        size_t end = raw.find_last_not_of(" \t\n\r\f\v");
+        std::string_view trimmed = raw.substr(start, end - start + 1);
+
+        int64_t base_i = 10;
+        bool has_custom_base = false;
+        if (n >= 2) {
+            CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                // 标准 Lua 5.3：tonumber 的 base 可以是 number 或可转换为 number 的 string
+                CheckNumberArg(a1, 2, "tonumber");
+                if (a1.type_ == static_cast<int>(VarType::Float)) {
+                    if (!DoubleFitsInt64(a1.data_.f, &base_i)) {
+                        return inter::NativeToFakeluaNil(state);
+                    }
+                } else if (a1.type_ == static_cast<int>(VarType::String) || a1.type_ == static_cast<int>(VarType::StringId)) {
+                    double d = inter::CVarToNumber(a1, std::numeric_limits<double>::quiet_NaN());
+                    if (!std::isfinite(d)) {
+                        ThrowFakeluaException("bad argument #2 to 'tonumber' (number expected)");
+                    }
+                    if (!DoubleFitsInt64(d, &base_i)) {
+                        return inter::NativeToFakeluaNil(state);
+                    }
+                } else {
+                    base_i = inter::CVarToInteger(a1, 10);
+                }
+                has_custom_base = true;
+            }
+        }
+
+        if (has_custom_base && (base_i < 2 || base_i > 36)) {
+            return inter::NativeToFakeluaNil(state);
+        }
+        int base = static_cast<int>(base_i);
+
+        // Auto-detect 0x/0X prefix when no custom base is provided
+        auto starts_hex = [](std::string_view s) {
+            return s.rfind("0x", 0) == 0 || s.rfind("0X", 0) == 0 || s.rfind("-0x", 0) == 0 || s.rfind("-0X", 0) == 0 || s.rfind("+0x", 0) == 0 || s.rfind("+0X", 0) == 0;
+        };
+        if (!has_custom_base && starts_hex(trimmed)) {
+            base = 16;
+        }
+
+        if (base == 10) {
+            // 整数：直接在 string_view 上 from_chars，避免拷贝
+            std::string_view s_view = trimmed;
+            if (!s_view.empty() && s_view[0] == '+') {
+                s_view.remove_prefix(1);
+            }
+            int64_t ival = 0;
+            auto r = boost::charconv::from_chars(s_view.data(), s_view.data() + s_view.size(), ival);
+            if (r.ec == std::errc{} && r.ptr == s_view.data() + s_view.size()) {
+                return inter::NativeToFakeluaInt(state, ival);
+            }
+            double dval = 0;
+            auto fr = boost::charconv::from_chars(s_view.data(), s_view.data() + s_view.size(), dval);
+            if (fr.ec == std::errc{} && fr.ptr == s_view.data() + s_view.size()) {
+                return inter::NativeToFakeluaDouble(state, dval);
+            }
+            return inter::NativeToFakeluaNil(state);
+        } else {
+            std::string str(trimmed);
+            if (base < 2 || base > 36) return inter::NativeToFakeluaNil(state);
+            bool negative = false;
+            size_t i = 0;
+            if (str[0] == '-') {
+                negative = true;
+                i = 1;
+            } else if (str[0] == '+') {
+                i = 1;
+            }
+            // Skip 0x/0X prefix for base 16
+            if (base == 16 && i + 2 <= str.size() && str[i] == '0' && (str[i + 1] == 'x' || str[i + 1] == 'X')) {
+                i += 2;
+            }
+            if (i >= str.size()) return inter::NativeToFakeluaNil(state);
+            uint64_t acc = 0;
+            auto ir = boost::charconv::from_chars(str.data() + i, str.data() + str.size(), acc, base);
+            if (ir.ec != std::errc{} || ir.ptr != str.data() + str.size()) {
+                return inter::NativeToFakeluaNil(state);
+            }
+            int64_t result = 0;
+            if (negative) {
+                if (acc > static_cast<uint64_t>(INT64_MAX) + 1) return inter::NativeToFakeluaNil(state);
+                if (acc == static_cast<uint64_t>(INT64_MAX) + 1) result = INT64_MIN;
+                else
+                    result = -static_cast<int64_t>(acc);
+            } else {
+                if (acc > static_cast<uint64_t>(INT64_MAX)) return inter::NativeToFakeluaNil(state);
+                result = static_cast<int64_t>(acc);
+            }
+            return inter::NativeToFakeluaInt(state, result);
+        }
+    });
+
+    // select(n, ...)
+    RegisterNativeFunction(s, "select", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        // 支持 select("#", ...) 返回总数
+        std::string temp;
+        std::string_view sv = GetStringArgView(a0, temp);
+        if (sv == "#") {
+            return inter::NativeToFakeluaInt(state, n - 1);
+        }
+        // 标准 Lua：select 的参数必须是 number，Bool/Table/String/Nil 不合法
+        CheckNumberArg(a0, 1, "select");
+        int64_t idx = inter::CVarToInteger(a0, 1);
+        int var_count = n - 1;
+        if (idx < 0) {
+            idx = var_count + idx + 1;
+        }
+        if (idx < 1 || idx > var_count) {
+            return inter::NativeToFakeluaNil(state);
+        }
+        int start = static_cast<int>(idx);
+        int count = var_count - start + 1;
+        if (count <= 0) return inter::NativeToFakeluaNil(state);
+        if (count == 1) {
+            return inter::GetNativeArg(state, args, n, start);
+        }
+        CVar multi = inter::AllocMultiCVar(state, count);
+        for (int i = 0; i < count; ++i) {
+            inter::SetMultiCVarElement(multi, i, inter::GetNativeArg(state, args, n, start + i));
+        }
+        return multi;
+    });
+
+    // error(message [, level])
+    RegisterNativeFunction(s, "error", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        const auto &v = AsVar(a0);
+        // 标准 Lua：error 的 message 必须是 string，其他类型抛出异常
+        if (v.Type() != VarType::String && v.Type() != VarType::StringId) {
+            ThrowFakeluaException("bad argument #1 to 'error' (string expected)");
+        }
+        std::string msg = std::string(v.GetString()->Str());
+        ThrowFakeluaException(msg);
+    });
+
+    // assert(v [, message])
+    RegisterNativeFunction(s, "assert", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        CVar a0 = inter::GetNativeArg(state, args, n, 0);
+        const auto &v = AsVar(a0);
+        bool is_true = (v.Type() != VarType::Nil) && !(v.Type() == VarType::Bool && !v.GetBool());
+        if (is_true) {
+            if (n == 1) return a0;
+            CVar multi = inter::AllocMultiCVar(state, n);
+            for (int i = 0; i < n; ++i) {
+                inter::SetMultiCVarElement(multi, i, inter::GetNativeArg(state, args, n, i));
+            }
+            return multi;
+        }
+        std::string msg = "assertion failed!";
+        if (n >= 2) {
+            CVar a1 = inter::GetNativeArg(state, args, n, 1);
+            const auto &m = AsVar(a1);
+            // 标准 Lua：assert 的 message 必须是 string，其他类型抛出异常
+            if (m.Type() != VarType::String && m.Type() != VarType::StringId) {
+                ThrowFakeluaException("bad argument #2 to 'assert' (string expected)");
+            }
+            msg = std::string(m.GetString()->Str());
+        }
+        ThrowFakeluaException(msg);
+    });
+
+    // pcall(f [, arg1, ...])
+    RegisterNativeFunction(s, "pcall", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        CVar func = inter::GetNativeArg(state, args, n, 0);
+        if (func.type_ != static_cast<int>(VarType::Closure) || !func.data_.cl) {
+            CVar multi = inter::AllocMultiCVar(state, 2);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, false));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaStringView(state, "attempt to call a non-function"));
+            return multi;
+        }
+
+        VarClosure *cl = func.data_.cl;
+        int call_arg_count = n - 1;
+        if (call_arg_count < 0) call_arg_count = 0;
+
+        std::vector<CVar> call_args(call_arg_count);
+        for (int i = 0; i < call_arg_count; ++i) {
+            call_args[i] = inter::GetNativeArg(state, args, n, i + 1);
+        }
+
+        CVar result{static_cast<int>(VarType::Nil)};
+        std::string err_msg;
+
+        if (CallClosure(state, cl, call_args.data(), static_cast<int>(call_args.size()), result, err_msg)) {
+            return MakeSuccessResult(state, result);
+        } else {
+            CVar multi = inter::AllocMultiCVar(state, 2);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, false));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaString(state, err_msg));
+            return multi;
+        }
+    });
+
+    // xpcall(f, err [, arg1, ...])
+    RegisterNativeFunction(s, "xpcall", 2, true, [](State *state, CVar *args, int n) -> CVar {
+        CVar func = inter::GetNativeArg(state, args, n, 0);
+        CVar err_func = inter::GetNativeArg(state, args, n, 1);
+        if (err_func.type_ != static_cast<int>(VarType::Closure) || !err_func.data_.cl) {
+            ThrowFakeluaException("bad argument #2 to 'xpcall' (function expected)");
+        }
+
+        if (func.type_ != static_cast<int>(VarType::Closure) || !func.data_.cl) {
+            CVar multi = inter::AllocMultiCVar(state, 2);
+            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, false));
+            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaStringView(state, "attempt to call a non-function"));
+            return multi;
+        }
+
+        VarClosure *cl = func.data_.cl;
+        int call_arg_count = n - 2;
+        if (call_arg_count < 0) call_arg_count = 0;
+
+        std::vector<CVar> call_args(static_cast<size_t>(call_arg_count));
+        for (int i = 0; i < call_arg_count; ++i) {
+            call_args[static_cast<size_t>(i)] = inter::GetNativeArg(state, args, n, i + 2);
+        }
+
+        CVar result{static_cast<int>(VarType::Nil)};
+        std::string err_msg;
+
+        if (CallClosure(state, cl, call_args.data(), static_cast<int>(call_args.size()), result, err_msg)) {
+            return MakeSuccessResult(state, result);
+        }
+
+        // 调用错误处理函数
+        if (err_func.type_ == static_cast<int>(VarType::Closure) && err_func.data_.cl) {
+            VarClosure *err_cl = err_func.data_.cl;
+            CVar err_arg = inter::NativeToFakeluaString(state, err_msg);
+            try {
+                void *addr = err_cl->func_ptr;
+                CVar err_result{static_cast<int>(VarType::Nil)};
+                if (addr != nullptr) {
+                    err_result = inter::DispatchCallClosure(state, err_cl, &err_arg, 1, JIT_TCC);
+                } else if (err_cl->code_str) {
+                    err_result = FlEvalLoadClosure(state, err_cl, 1, &err_arg);
+                } else {
+                    err_result = inter::NativeToFakeluaString(state, err_msg);
+                }
+                CVar multi = inter::AllocMultiCVar(state, 2);
+                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, false));
+                inter::SetMultiCVarElement(multi, 1, err_result);
+                return multi;
+            } catch (...) {
+                CVar multi = inter::AllocMultiCVar(state, 2);
+                inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, false));
+                inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaString(state, err_msg));
+                return multi;
+            }
+        }
+
+        CVar multi = inter::AllocMultiCVar(state, 2);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaBool(state, false));
+        inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaString(state, err_msg));
+        return multi;
+    });
+
+    // 注意：fakelua 没有元表，所以 rawequal/rawget/rawset/rawlen 不需要实现
+
+    // next(table [, index])
+    RegisterNativeFunction(s, "next", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'next' (table expected)");
+        }
+
+        bool has_index = (n >= 2);
+        CVar index = has_index ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
+
+        bool found_index = !has_index || index.type_ == static_cast<int>(VarType::Nil);
+        CVar next_key{static_cast<int>(VarType::Nil)};
+        CVar next_val{static_cast<int>(VarType::Nil)};
+        bool has_next = false;
+        TableHelper::ForEachKV(tbl, [&](CVar k, CVar v) {
+            if (has_next) return;
+            if (found_index) {
+                next_key = k;
+                next_val = v;
+                has_next = true;
+                return;
+            }
+            if (KeysEqual(k, index)) {
+                found_index = true;
+            }
+        });
+
+        if (!has_next) return inter::NativeToFakeluaNil(state);
+        CVar multi = inter::AllocMultiCVar(state, 2);
+        inter::SetMultiCVarElement(multi, 0, next_key);
+        inter::SetMultiCVarElement(multi, 1, next_val);
+        return multi;
+    });
+
+    // pairs(t)
+    RegisterNativeFunction(s, "pairs", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'pairs' (table expected)");
+        }
+        auto &alloc = state->GetHeap().GetAllocator(false);
+
+        // 分配迭代器状态
+        auto *st = static_cast<PairIterState *>(alloc.Alloc(sizeof(PairIterState)));
+        st->table = tbl;
+        st->last_key = CVar{static_cast<int>(VarType::Nil)};
+
+        // 使用共享辅助函数创建迭代器闭包
+        CVar iter_closure = MakeIteratorClosure(state, reinterpret_cast<void *>(BasicPairsIterator), st);
+
+        // 返回 next, tbl, nil
+        CVar multi = inter::AllocMultiCVar(state, 3);
+        inter::SetMultiCVarElement(multi, 0, iter_closure);
+        inter::SetMultiCVarElement(multi, 1, tbl);
+        inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaNil(state));
+        return multi;
+    });
+
+    // ipairs(t)
+    RegisterNativeFunction(s, "ipairs", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        CVar tbl = inter::GetNativeArg(state, args, n, 0);
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            ThrowFakeluaException("bad argument #1 to 'ipairs' (table expected)");
+        }
+        auto &alloc = state->GetHeap().GetAllocator(false);
+
+        auto *st = static_cast<IpairsState *>(alloc.Alloc(sizeof(IpairsState)));
+        st->table = tbl;
+        st->next_idx = 1;
+
+        // 使用共享辅助函数创建迭代器闭包
+        CVar iter_closure = MakeIteratorClosure(state, reinterpret_cast<void *>(BasicIpairsIterator), st);
+
+        CVar multi = inter::AllocMultiCVar(state, 3);
+        inter::SetMultiCVarElement(multi, 0, iter_closure);
+        inter::SetMultiCVarElement(multi, 1, tbl);
+        inter::SetMultiCVarElement(multi, 2, inter::NativeToFakeluaInt(state, 0));
+        return multi;
+    });
+
+    // collectgarbage([opt [, arg]])
+    // fakelua 使用 Arena 分配器，无标准 GC。目前仅支持 "count"：
+    //   返回当前临时 + 常量分配器总使用量（单位 KB，与 Lua 一致）。
+    // 其他选项（"collect"/"step"/"stop"/"restart" 等）为 no-op，返回 0。
+    RegisterNativeFunction(s, "collectgarbage", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        std::string_view opt = "count";
+        std::string temp_opt;
+        if (n >= 1) {
+            CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            // 标准 Lua：collectgarbage 的 opt 必须是 string（nil 使用默认值 "count"）
+            if (a0.type_ != static_cast<int>(VarType::Nil)) {
+                CheckStringArg(a0, 1, "collectgarbage");
+            }
+            opt = GetStringArgView(a0, temp_opt);
+            if (opt.empty()) opt = "count";
+        }
+        if (opt == "count") {
+            // 返回内存使用量（KB）= (temp + const allocator bytes) / 1024
+            const size_t total_bytes = state->GetHeap().GetAllocator(false /* temp */).Size() + state->GetHeap().GetAllocator(true /* const */).Size();
+            double kb = static_cast<double>(total_bytes) / 1024.0;
+            return inter::NativeToFakeluaDouble(state, kb);
+        }
+        // 其他选项：no-op，返回 0
+        return inter::NativeToFakeluaInt(state, 0);
+    });
+}
+
+}// namespace fakelua::basic

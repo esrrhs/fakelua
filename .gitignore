@@ -1,29 +1,67 @@
-Makefile
-CMakeFiles
-CMakeCache.txt
-bison.output
-cmake_install.cmake
-CTestTestfile.cmake
-CTestCustom.cmake
-DartConfiguration.tcl
-Testing
-compile_commands.json
-_deps
-lib
-.vscode
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
 .idea
-test/scripts/template/*.h
-test/scripts/template/*.java
-*.log
-bin/fakebin
-bin/fake_tests
-bin/fake_bench
-bin/reset_test
-bin/hotreload_test
-bin/coro_test
-bin/bind_test
-bin/*.so
-bin/*.dylib
-bin/*.a
-core
-core.*
+build
+build_*
+!fuzz/build_fuzz.sh
+!.github/workflows/build_with_windows.yml
+!.github/workflows/build_with_macos.yml
+cmake-build-debug
+cmake_install.cmake
+CMakeCache.txt
+CMakeFiles
+CTestTestfile.cmake
+Makefile
+
+# CPM package manager artifacts (in-source builds)
+CPM_modules/
+_deps/
+cpm-package-lock.cmake
+googletest
+_build/
+coverage.info
+coverage_filtered.info
+coverage_src.info
+coverage_html/
+*.gcov
+*.gcda
+*.gcno
+src/compile/bison/parser.gv
+src/compile/bison/parser.xml
+test_results.log
+.antigravitycli/
+.mimocode/
+.cache/
+base_cov/
+new_cov/

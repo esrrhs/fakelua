@@ -1,0 +1,3 @@
+function prefix_and_vararg(prefix, ...)
+    return prefix, ...
+end

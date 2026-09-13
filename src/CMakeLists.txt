@@ -1,53 +1,490 @@
-set(FAKE_SOURCES
-    binary.cpp
-    bindfunc.cpp
-    bison.cpp
-    buildinfunc.cpp
-    buildinfuncfile.cpp
-    buildinfuncmath.cpp
-    buildinfuncos.cpp
-    buildinfuncstring.cpp
-    codegen.cpp
-    compiler.cpp
-    container.cpp
-    debuging.cpp
-    fake-inc.cpp
-    flex.cpp
-    funcmap.cpp
-    interpreter.cpp
-    myflexer.cpp
-    optimizer.cpp
-    parser.cpp
-    pointerheap.cpp
-    processor.cpp
-    profile.cpp
-    stringheap.cpp
-    syntree.cpp
-    types.cpp
+cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+
+project(libfakelua)
+
+include(ExternalProject)
+include(GNUInstallDirs)
+include(ProcessorCount)
+
+aux_source_directory(compile/bison FAKELUA_SRC_LIST)
+aux_source_directory(compile/flex FAKELUA_SRC_LIST)
+aux_source_directory(./compile FAKELUA_SRC_LIST)
+aux_source_directory(./state FAKELUA_SRC_LIST)
+aux_source_directory(./util FAKELUA_SRC_LIST)
+aux_source_directory(./fakelua FAKELUA_SRC_LIST)
+aux_source_directory(./jit FAKELUA_SRC_LIST)
+aux_source_directory(./interp FAKELUA_SRC_LIST)
+aux_source_directory(./var FAKELUA_SRC_LIST)
+aux_source_directory(./native FAKELUA_SRC_LIST)
+aux_source_directory(./native/basic FAKELUA_SRC_LIST)
+aux_source_directory(./native/io FAKELUA_SRC_LIST)
+aux_source_directory(./native/math FAKELUA_SRC_LIST)
+aux_source_directory(./native/net FAKELUA_SRC_LIST)
+aux_source_directory(./native/http FAKELUA_SRC_LIST)
+aux_source_directory(./native/url FAKELUA_SRC_LIST)
+aux_source_directory(./native/redis FAKELUA_SRC_LIST)
+aux_source_directory(./native/object FAKELUA_SRC_LIST)
+aux_source_directory(./native/os FAKELUA_SRC_LIST)
+aux_source_directory(./native/process FAKELUA_SRC_LIST)
+aux_source_directory(./native/string FAKELUA_SRC_LIST)
+aux_source_directory(./native/table FAKELUA_SRC_LIST)
+aux_source_directory(./native/timer FAKELUA_SRC_LIST)
+aux_source_directory(./native/runtime FAKELUA_SRC_LIST)
+aux_source_directory(./native/serialize FAKELUA_SRC_LIST)
+aux_source_directory(./native/protobuf FAKELUA_SRC_LIST)
+aux_source_directory(./native/crypto FAKELUA_SRC_LIST)
+aux_source_directory(./native/mysql FAKELUA_SRC_LIST)
+aux_source_directory(./native/compress FAKELUA_SRC_LIST)
+aux_source_directory(./native/json FAKELUA_SRC_LIST)
+aux_source_directory(./native/csv FAKELUA_SRC_LIST)
+aux_source_directory(./native/sqlite FAKELUA_SRC_LIST)
+aux_source_directory(./native/event FAKELUA_SRC_LIST)
+aux_source_directory(./native/random FAKELUA_SRC_LIST)
+aux_source_directory(./native/container FAKELUA_SRC_LIST)
+aux_source_directory(./native/utf8 FAKELUA_SRC_LIST)
+aux_source_directory(./native/yaml FAKELUA_SRC_LIST)
+aux_source_directory(./native/xml FAKELUA_SRC_LIST)
+aux_source_directory(./native/toml FAKELUA_SRC_LIST)
+aux_source_directory(./native/ini FAKELUA_SRC_LIST)
+aux_source_directory(./native/log FAKELUA_SRC_LIST)
+aux_source_directory(./ FAKELUA_SRC_LIST)
+include_directories(./)
+include_directories(../include)
+include_directories(./platform)
+ProcessorCount(FAKELUA_TINYCC_BUILD_JOBS)
+if (NOT FAKELUA_TINYCC_BUILD_JOBS GREATER 0)
+    set(FAKELUA_TINYCC_BUILD_JOBS 1)
+endif ()
+
+set(FAKELUA_TINYCC_GIT_URL "https://github.com/TinyCC/tinycc.git" CACHE STRING "TinyCC git repository URL")
+set(FAKELUA_TINYCC_GIT_TAG "mob" CACHE STRING "TinyCC git branch/tag/commit")
+CPMAddPackage(
+        NAME tinycc_src
+        GIT_REPOSITORY ${FAKELUA_TINYCC_GIT_URL}
+        GIT_TAG ${FAKELUA_TINYCC_GIT_TAG}
+        DOWNLOAD_ONLY YES
 )
+if (NOT tinycc_src_ADDED)
+    message(FATAL_ERROR "Failed to fetch TinyCC source from ${FAKELUA_TINYCC_GIT_URL}")
+endif ()
 
-add_library(fake SHARED ${FAKE_SOURCES})
+set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
+set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
+# Create a dedicated include directory for libtcc.h only.
+# We can't use either the source dir (Windows case-insensitive FS matches VERSION to <version>
+# C++20 header) or the install dir (contains win32 headers wchar.h/time.h that conflict with
+# system headers when added as SYSTEM include). So we copy libtcc.h to its own dir.
+set(TINYCC_LIBTCC_INCLUDE_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_include")
+include_directories(${TINYCC_LIBTCC_INCLUDE_DIR})
 
-target_include_directories(fake
-    PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/deps
+# SQLite3 amalgamation via CPM — compiled directly into fakelua (not a separate static lib)
+# to avoid CRT mismatch issues on Windows/MSYS2.
+CPMAddPackage(
+    NAME sqlite3_amalgamation
+    URL https://www.sqlite.org/2024/sqlite-amalgamation-3450000.zip
+    DOWNLOAD_ONLY YES
 )
+if (NOT sqlite3_amalgamation_ADDED)
+    message(FATAL_ERROR "Failed to fetch SQLite3 amalgamation")
+endif ()
+include_directories(${sqlite3_amalgamation_SOURCE_DIR})
+set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${sqlite3_amalgamation_SOURCE_DIR}/sqlite3.c)
 
-if(FAKE_RELEASE)
-    target_compile_options(fake PRIVATE -O3 -Wall -flto)
-    target_compile_definitions(fake PRIVATE NDEBUG)
-    target_link_options(fake PRIVATE -flto)
-else()
-    target_compile_options(fake PRIVATE -g3 -O0 -Wall)
-    target_compile_definitions(fake PRIVATE _DEBUG)
+# INI (inih) — pure C single-file, compile ini.c directly (like sqlite3)
+CPMAddPackage(
+    NAME inih
+    GITHUB_REPOSITORY benhoyt/inih
+    GIT_TAG r56
+    DOWNLOAD_ONLY YES
+)
+if (NOT inih_ADDED)
+    message(FATAL_ERROR "Failed to fetch inih")
+endif ()
+include_directories(${inih_SOURCE_DIR})
+set(FAKELUA_SRC_LIST ${FAKELUA_SRC_LIST} ${inih_SOURCE_DIR}/ini.c)
+
+add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
+if (WIN32)
+    # MinGW ld stops auto-exporting as soon as any linked .a (Boost.Filesystem, …)
+    # contains a dllexport symbol, so fakelua APIs never reach libfakelua.dll.a.
+    # --export-all-symbols forces this target's objects out; --exclude-libs,ALL
+    # keeps Boost archive internals from blowing the 64k PE export cap.
+    # WINDOWS_EXPORT_ALL_SYMBOLS is a no-op for Ninja+MinGW (no .def is generated).
+    target_link_options(fakelua PRIVATE "-Wl,--export-all-symbols" "-Wl,--exclude-libs,ALL")
+endif ()
+
+find_package(Threads REQUIRED)
+
+if (WIN32)
+    # On Windows, TCC installs libtcc.a to PREFIX/libtcc/ instead of PREFIX/lib/
+    set(TINYCC_STATIC_LIB "${TINYCC_PREFIX_DIR}/libtcc/libtcc.a")
+else ()
+    set(TINYCC_STATIC_LIB "${TINYCC_PREFIX_DIR}/lib/libtcc.a")
+endif ()
+
+if (WIN32)
+    # On Windows (MSYS2/MinGW), TCC's configure auto-detects Windows and generates CONFIG_WIN32=yes.
+    # TCC does not support true out-of-source builds, so we copy source to the build directory.
+    # We must invoke configure/make through bash since MinGW Makefiles runs commands via CMD.
+    # Do NOT use hardcoded paths - let find_program search PATH to find the actual MSYS2 installation.
+    find_program(BASH_EXECUTABLE bash)
+    if (NOT BASH_EXECUTABLE)
+        message(FATAL_ERROR "bash not found. MSYS2 bash is required to build TinyCC on Windows.")
+    endif ()
+    # MSYSTEM=MINGW64 ensures bash login shell loads MinGW64 PATH (where gcc lives),
+    # not the MSYS2 native environment which lacks gcc.
+    # Inside bash, we explicitly prepend /usr/bin and /mingw64/bin to PATH to ensure
+    # uname, gcc, make etc are found. /usr/bin contains uname and other MSYS2 utilities.
+    set(MSYS2_BASH ${CMAKE_COMMAND} -E env MSYSTEM=MINGW64 ${BASH_EXECUTABLE} -l)
+    ExternalProject_Add(tinycc_external
+            SOURCE_DIR ${tinycc_src_SOURCE_DIR}
+            BINARY_DIR ${TINYCC_BUILD_DIR}
+            CONFIGURE_COMMAND ${CMAKE_COMMAND} -E copy_directory ${tinycc_src_SOURCE_DIR} ${TINYCC_BUILD_DIR}
+                COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && ./configure --prefix=${TINYCC_PREFIX_DIR} --enable-static --extra-cflags=-fPIC"
+            BUILD_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && make -j${FAKELUA_TINYCC_BUILD_JOBS}"
+            INSTALL_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && make install"
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${TINYCC_LIBTCC_INCLUDE_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy ${TINYCC_PREFIX_DIR}/libtcc/libtcc.h ${TINYCC_LIBTCC_INCLUDE_DIR}/libtcc.h
+            BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
+    )
+else ()
+    ExternalProject_Add(tinycc_external
+            SOURCE_DIR ${tinycc_src_SOURCE_DIR}
+            BINARY_DIR ${TINYCC_BUILD_DIR}
+            CONFIGURE_COMMAND ${CMAKE_COMMAND} -E copy_directory ${tinycc_src_SOURCE_DIR} ${TINYCC_BUILD_DIR}
+                COMMAND sh -c "cd ${TINYCC_BUILD_DIR} && ./configure --prefix=${TINYCC_PREFIX_DIR} --extra-cflags=-fPIC"
+            BUILD_COMMAND make -j${FAKELUA_TINYCC_BUILD_JOBS}
+            INSTALL_COMMAND make install
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${TINYCC_LIBTCC_INCLUDE_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy ${TINYCC_PREFIX_DIR}/include/libtcc.h ${TINYCC_LIBTCC_INCLUDE_DIR}/libtcc.h
+            BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
+    )
+endif ()
+
+if (WIN32)
+    set(TARGET_LIB ${TARGET_LIB} ws2_32)
+else ()
+    set(TARGET_LIB ${TARGET_LIB} Threads::Threads)
+    if (NOT APPLE)
+        set(TARGET_LIB ${TARGET_LIB} dl m)
+    endif ()
+endif ()
+
+add_library(tinycc_embedded STATIC IMPORTED GLOBAL)
+set_target_properties(tinycc_embedded PROPERTIES IMPORTED_LOCATION ${TINYCC_STATIC_LIB})
+add_dependencies(tinycc_embedded tinycc_external)
+add_dependencies(fakelua tinycc_external)
+set(TARGET_LIB ${TARGET_LIB} tinycc_embedded)
+
+if (USE_COV)
+    set(TARGET_LIB ${TARGET_LIB} gcov)
+endif ()
+
+# ── Compression libraries via CPM ──
+
+# LZ4
+CPMAddPackage(
+    NAME lz4
+    GITHUB_REPOSITORY lz4/lz4
+    GIT_TAG v1.9.4
+    SOURCE_SUBDIR build/cmake
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        "LZ4_BUILD_CLI OFF"
+        "LZ4_BUILD_LEGACY_LZ4C OFF"
+)
+if (NOT lz4_ADDED)
+    message(FATAL_ERROR "Failed to fetch LZ4")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} lz4_static)
+
+# zlib
+CPMAddPackage(
+    NAME zlib
+    GITHUB_REPOSITORY madler/zlib
+    GIT_TAG v1.3.1
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        "ZLIB_BUILD_EXAMPLES OFF"
+)
+if (NOT zlib_ADDED)
+    message(FATAL_ERROR "Failed to fetch zlib")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} zlibstatic)
+
+# Zstd
+CPMAddPackage(
+    NAME zstd
+    GITHUB_REPOSITORY facebook/zstd
+    GIT_TAG v1.5.6
+    SOURCE_SUBDIR build/cmake
+    OPTIONS
+        "ZSTD_BUILD_SHARED_LIB OFF"
+        "ZSTD_BUILD_PROGRAMS OFF"
+        "ZSTD_BUILD_CONTRIB OFF"
+        "ZSTD_BUILD_TESTS OFF"
+        "ZSTD_DISABLE_ASM ON"
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+)
+if (NOT zstd_ADDED)
+    message(FATAL_ERROR "Failed to fetch zstd")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} libzstd_static)
+
+# ── Config format libraries via CPM ──
+
+# YAML (yaml-cpp)
+CPMAddPackage(
+    NAME yaml_cpp
+    GITHUB_REPOSITORY jbeder/yaml-cpp
+    GIT_TAG 0.8.0
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        "YAML_CPP_BUILD_TESTS OFF"
+        "YAML_CPP_BUILD_TOOLS OFF"
+        "YAML_CPP_BUILD_CONTRIB OFF"
+        "YAML_CPP_INSTALL OFF"
+)
+if (NOT yaml_cpp_ADDED)
+    message(FATAL_ERROR "Failed to fetch yaml-cpp")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} yaml-cpp::yaml-cpp)
+
+# XML (pugixml)
+CPMAddPackage(
+    NAME pugixml
+    GITHUB_REPOSITORY zeux/pugixml
+    GIT_TAG v1.14
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+)
+if (NOT pugixml_ADDED)
+    message(FATAL_ERROR "Failed to fetch pugixml")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} pugixml::pugixml)
+
+# TOML (toml++) — header-only
+CPMAddPackage(
+    NAME tomlplusplus
+    GITHUB_REPOSITORY marzer/tomlplusplus
+    GIT_TAG v3.4.0
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+)
+if (NOT tomlplusplus_ADDED)
+    message(FATAL_ERROR "Failed to fetch tomlplusplus")
+endif ()
+set(TARGET_LIB ${TARGET_LIB} tomlplusplus::tomlplusplus)
+
+if (WIN32)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS)
 endif()
 
-set_target_properties(fake PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin
-    ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin
-    BUILD_RPATH ${PROJECT_SOURCE_DIR}/bin
+# OpenSSL for TLS (libevent bufferevent_openssl, libmysqlclient).
+if (WIN32 AND NOT OPENSSL_ROOT_DIR)
+    get_filename_component(_fakelua_mingw_bin "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    get_filename_component(_fakelua_mingw_root "${_fakelua_mingw_bin}" DIRECTORY)
+    if (EXISTS "${_fakelua_mingw_root}/include/openssl/ssl.h")
+        set(OPENSSL_ROOT_DIR "${_fakelua_mingw_root}")
+        list(APPEND CMAKE_PREFIX_PATH "${_fakelua_mingw_root}")
+        message(STATUS "Using OpenSSL from compiler prefix: ${OPENSSL_ROOT_DIR}")
+    endif()
+endif()
+find_package(OpenSSL REQUIRED)
+find_package(Threads REQUIRED)
+
+# libevent: per-State event_base, driven by runtime.tick() via EVLOOP_NONBLOCK.
+CPMAddPackage(
+    NAME libevent
+    GITHUB_REPOSITORY libevent/libevent
+    GIT_TAG release-2.1.12-stable
+    OPTIONS
+        "EVENT__LIBRARY_TYPE STATIC"
+        "EVENT__DISABLE_BENCHMARK ON"
+        "EVENT__DISABLE_TESTS ON"
+        "EVENT__DISABLE_SAMPLES ON"
+        "EVENT__DISABLE_REGRESS ON"
+        "EVENT__DISABLE_MBEDTLS ON"
+        "EVENT__DISABLE_OPENSSL OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
 )
+if (NOT TARGET event_core)
+    message(FATAL_ERROR "Failed to fetch libevent")
+endif ()
+if (NOT TARGET event_openssl)
+    message(FATAL_ERROR "libevent was built without OpenSSL (event_openssl)")
+endif ()
+if (libevent_SOURCE_DIR)
+    include_directories(${libevent_SOURCE_DIR}/include)
+endif ()
+if (libevent_BINARY_DIR)
+    include_directories(${libevent_BINARY_DIR}/include)
+endif ()
+
+# hiredis: official Redis C client, async API attached to the State libevent base.
+CPMAddPackage(
+    NAME hiredis
+    GITHUB_REPOSITORY redis/hiredis
+    GIT_TAG v1.2.0
+    OPTIONS
+        "DISABLE_TESTS ON"
+        "ENABLE_SSL OFF"
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+)
+if (NOT TARGET hiredis)
+    message(FATAL_ERROR "Failed to fetch hiredis")
+endif ()
+set_property(TARGET hiredis PROPERTY POSITION_INDEPENDENT_CODE ON)
+include_directories(${hiredis_SOURCE_DIR})
+
+# libmysqlclient C API via MariaDB Connector/C (static). MYSQL_OPT_NONBLOCK
+# lets us wait on mysql_get_socket() with the same libevent base.
+# Default DYNAMIC plugins (zstd, pvio_shmem, dialog, ...) call
+# INSTALL(TARGETS ... DESTINATION) which CMake 3.31+ rejects for MODULE libs.
+# Connector/C's bundled zlib also names its target `zlib`, which collides with
+# madler/zlib's shared target; reuse zlibstatic instead.
+set(ZLIB_FOUND TRUE)
+set(ZLIB_LIBRARY zlibstatic)
+set(ZLIB_LIBRARIES zlibstatic)
+if (zlib_SOURCE_DIR AND zlib_BINARY_DIR)
+    set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR};${zlib_BINARY_DIR}")
+elseif (zlib_SOURCE_DIR)
+    set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR}")
+endif ()
+CPMAddPackage(
+    NAME mariadb_connector_c
+    GITHUB_REPOSITORY mariadb-corporation/mariadb-connector-c
+    GIT_TAG v3.3.11
+    OPTIONS
+        "WITH_SSL OPENSSL"
+        "WITH_UNIT_TESTS OFF"
+        "WITH_EXTERNAL_ZLIB ON"
+        "WITH_CURL OFF"
+        "CLIENT_PLUGIN_DIALOG STATIC"
+        "CLIENT_PLUGIN_CLIENT_ED25519 STATIC"
+        "CLIENT_PLUGIN_CACHING_SHA2_PASSWORD STATIC"
+        "CLIENT_PLUGIN_SHA256_PASSWORD STATIC"
+        "CLIENT_PLUGIN_AUTH_GSSAPI_CLIENT OFF"
+        "CLIENT_PLUGIN_MYSQL_CLEAR_PASSWORD STATIC"
+        "CLIENT_PLUGIN_ZSTD OFF"
+        "CLIENT_PLUGIN_PVIO_SHMEM STATIC"
+        "CLIENT_PLUGIN_REMOTE_IO OFF"
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+)
+if (NOT TARGET mariadbclient AND NOT TARGET libmariadb)
+    message(FATAL_ERROR "Failed to fetch libmysqlclient (mariadb-connector-c)")
+endif ()
+if (TARGET mariadbclient)
+    set(FAKELUA_MYSQLCLIENT_LIB mariadbclient)
+else ()
+    set(FAKELUA_MYSQLCLIENT_LIB libmariadb)
+endif ()
+if (mariadb_connector_c_SOURCE_DIR)
+    include_directories(${mariadb_connector_c_SOURCE_DIR}/include)
+endif ()
+if (mariadb_connector_c_BINARY_DIR)
+    include_directories(${mariadb_connector_c_BINARY_DIR}/include)
+endif ()
+# MariaDB Connector/C typedefs `bool` in ma_global.h. GCC 16 defaults to C23
+# where `bool` is a keyword, so force C11 on its objects.
+foreach (_fl_mysql_tgt mariadb_obj mariadbclient libmariadb mariadb)
+    if (TARGET ${_fl_mysql_tgt})
+        target_compile_options(${_fl_mysql_tgt} PRIVATE -std=gnu11)
+    endif ()
+endforeach ()
+
+# Boost remains for JSON/filesystem/url/etc. No Asio, Beast, Redis, MySQL, Process, Math.
+# BOOST_CHARCONV_NO_QUADMATH: Charconv 探测到 libquadmath 会 PUBLIC 链上它；我们只用
+# int/double from_chars，不需要 __float128。
+set(BOOST_CHARCONV_NO_QUADMATH ON)
+# BOOST_INCLUDE_LIBRARIES 必须在 CPMAddPackage 之前 set：CPM OPTIONS 用 foreach(${OPTIONS})
+# 展开，分号会被拆成多个参数。
+set(BOOST_INCLUDE_LIBRARIES system charconv json regex stacktrace url uuid crc endian algorithm container filesystem serialization nowide hash2)
+CPMAddPackage(
+    NAME boost
+    GITHUB_REPOSITORY boostorg/boost
+    GIT_TAG boost-1.90.0
+    # 注意分隔符是空格：这个版本的 CPM 用第一个空格切 key/value，写成 KEY=VALUE 会被
+    # 当成一个名叫 "KEY=VALUE" 的变量并赋值 ON，也就是彻底的空操作。
+    OPTIONS
+        "BUILD_SHARED_LIBS OFF"
+        "CMAKE_POSITION_INDEPENDENT_CODE ON"
+        "BOOST_CHARCONV_NO_QUADMATH ON"
+)
+if (NOT boost_ADDED)
+    message(FATAL_ERROR "Failed to fetch boost")
+endif()
+set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
+target_include_directories(fakelua PRIVATE ${BOOST_SOURCE_DIR}/libs/json/include)
+
+# Include ALL Boost headers needed for MySQL + Asio + System
+# This is the comprehensive include path approach since FindBoost doesn't work with CPM
+include_directories(${BOOST_SOURCE_DIR})
+include_directories(${BOOST_SOURCE_DIR}/libs/system/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/assert/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/charconv/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/json/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/regex/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/stacktrace/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/url/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/uuid/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/crc/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/static_string/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/logic/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/type_index/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/container_hash/include)
+
+include_directories(${BOOST_SOURCE_DIR}/libs/compat/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/config/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/container/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/core/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/describe/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/endian/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/algorithm/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/range/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/filesystem/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/intrusive/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/mp11/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/optional/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/throw_exception/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/variant2/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/pfr/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/type_traits/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/align/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/detail/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/smart_ptr/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/utility/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/move/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/function/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/bind/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/ref/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/predef/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/integer/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/cstdint/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/winapi/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/nowide/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/hash2/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/static_assert/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/exception/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/iterator/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/mpl/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/serialization/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/any/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/pool/include)
+include_directories(${BOOST_SOURCE_DIR}/libs/array/include)
+
+# boost_charconv / boost_system / boost_json are compiled; other Boost libs are headers.
+set(TARGET_LIB ${TARGET_LIB} OpenSSL::SSL OpenSSL::Crypto Threads::Threads event_core event_extra event_openssl hiredis ${FAKELUA_MYSQLCLIENT_LIB} boost_charconv boost_system boost_json Boost::regex Boost::stacktrace Boost::url Boost::uuid Boost::crc Boost::endian Boost::algorithm Boost::container Boost::filesystem Boost::serialization Boost::nowide Boost::hash2)
+if (WIN32)
+    set(TARGET_LIB ${TARGET_LIB} crypt32 bcrypt ws2_32)
+endif()
+
+target_link_libraries(fakelua PRIVATE ${TARGET_LIB})

@@ -1,0 +1,186 @@
+name: BuildWithWindows
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    # Setup + compile sit in front of the 60-minute Test step.
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .cache/ccache
+          key: windows-ccache-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            windows-ccache-${{ github.ref }}-
+            windows-ccache-
+
+      - name: Cache CPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: .cache/CPM
+          key: windows-cpm-${{ hashFiles('**/CMakeLists.txt', 'cmake/*.cmake') }}
+          restore-keys: |
+            windows-cpm-
+
+      - name: Install MySQL
+        run: |
+          choco install mysql -y
+          echo "MySQL installed"
+
+      - name: Start MySQL
+        run: |
+          # Find and start MySQL service
+          $service = Get-Service | Where-Object { $_.Name -like "*MySQL*" } | Select-Object -First 1
+          if ($service) {
+            Write-Host "Found MySQL service: $($service.Name)"
+            Start-Service $service.Name
+            Start-Sleep -Seconds 10
+          } else {
+            Write-Host "MySQL service not found, trying to start..."
+            net start MySQL80 2>$true
+            net start MySQL 2>$true
+          }
+          echo "MySQL started"
+
+      - name: Configure MySQL
+        run: |
+          $bins = @(
+            "$env:ChocolateyInstall\bin",
+            "C:\tools\mysql\current\bin"
+          )
+          Get-ChildItem "C:\Program Files\MySQL" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $p = Join-Path $_.FullName "bin"
+            if (Test-Path (Join-Path $p "mysql.exe")) { $bins += $p }
+          }
+          $env:Path = ($bins + $env:Path) -join ';'
+          Get-Command mysql, mysqladmin -ErrorAction Stop | ForEach-Object { Write-Host "Using $($_.Source)" }
+
+          $ready = $false
+          for ($i = 1; $i -le 30; $i++) {
+            & mysqladmin -h 127.0.0.1 --protocol=tcp ping 2>$null
+            if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+            Write-Host "Waiting for MySQL... ($i)"
+            Start-Sleep -Seconds 2
+          }
+          if (-not $ready) { throw "MySQL did not become ready" }
+
+          $sql = @"
+          CREATE DATABASE IF NOT EXISTS test;
+          CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY 'root';
+          ALTER USER 'root'@'127.0.0.1' IDENTIFIED BY 'root';
+          ALTER USER 'root'@'localhost' IDENTIFIED BY 'root';
+          GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;
+          GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
+          FLUSH PRIVILEGES;
+          "@
+          $configured = $false
+          foreach ($pwd in @('', 'root')) {
+            if ($pwd -eq '') {
+              & mysql -h 127.0.0.1 -uroot --protocol=tcp -e $sql
+            } else {
+              & mysql -h 127.0.0.1 -uroot "-p$pwd" --protocol=tcp -e $sql
+            }
+            if ($LASTEXITCODE -eq 0) { $configured = $true; break }
+          }
+          if (-not $configured) { throw "Failed to configure MySQL test user (root/root) and database" }
+          & mysql -h 127.0.0.1 -uroot -proot --protocol=tcp -e "SELECT 1"
+          echo "MySQL configured (root/root, database test)"
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-lua
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-ccache
+
+      # MSYS2 没有 redis 包。Windows 用 tporadowski 的 Redis 移植版。
+      - name: Install Redis
+        shell: pwsh
+        run: |
+          $ver = "5.0.14.1"
+          $url = "https://github.com/tporadowski/redis/releases/download/v$ver/Redis-x64-$ver.zip"
+          $zip = Join-Path $env:RUNNER_TEMP "redis.zip"
+          $dest = Join-Path $env:RUNNER_TEMP "redis"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $dest -Force
+          Add-Content -Path $env:GITHUB_PATH -Value $dest
+
+      - name: Start Redis
+        shell: pwsh
+        run: |
+          Start-Process redis-server -ArgumentList "--bind","127.0.0.1","--port","6379","--protected-mode","no" -WindowStyle Hidden
+          for ($i = 1; $i -le 30; $i++) {
+            $pong = & redis-cli -h 127.0.0.1 ping 2>$null
+            if ($pong -match "PONG") {
+              Write-Host "Redis is ready"
+              exit 0
+            }
+            Write-Host "Waiting for Redis... ($i)"
+            Start-Sleep -Seconds 1
+          }
+          throw "Redis did not become ready"
+
+      - name: Configure
+        shell: msys2 {0}
+        run: |
+          set -eux
+          WORKSPACE_DIR="$(pwd)"
+          export CCACHE_DIR="${WORKSPACE_DIR}/.cache/ccache"
+          export CPM_SOURCE_CACHE="${WORKSPACE_DIR}/.cache/CPM"
+          ccache --max-size=2G
+          rm -rf build
+          cmake -S . -B build -G Ninja -DFAKELUA_TINYCC_GIT_URL=https://github.com/TinyCC/tinycc.git
+
+      - name: Build
+        timeout-minutes: 60
+        shell: msys2 {0}
+        run: |
+          set -eux
+          WORKSPACE_DIR="$(pwd)"
+          export CCACHE_DIR="${WORKSPACE_DIR}/.cache/ccache"
+          export CPM_SOURCE_CACHE="${WORKSPACE_DIR}/.cache/CPM"
+          cmake --build build --parallel
+          ccache -s
+
+      - name: Test
+        timeout-minutes: 60
+        shell: msys2 {0}
+        run: |
+          set -eux
+          cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests.exe --gtest_print_time=1
+
+      - name: Run flua
+        shell: msys2 {0}
+        run: |
+          set -eux
+          cd build/bin
+          ./flua.exe
+
+      - name: Run benchmarks
+        if: github.event_name != 'pull_request'
+        shell: msys2 {0}
+        run: |
+          set -eux
+          cd build/bin
+          ./bench_mark.exe

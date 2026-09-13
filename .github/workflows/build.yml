@@ -1,0 +1,202 @@
+name: Build
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [debug, release, asan, cov]
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-${{ matrix.build_type }}
+          max-size: 2G
+
+      - name: Cache CPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/CPM
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', 'cmake/*.cmake') }}
+          restore-keys: |
+            cpm-${{ runner.os }}-
+
+      - name: Setup Lua
+        timeout-minutes: 60
+        run: |
+          # 从 GitHub 镜像编译 Lua 源码，避免 apt 镜像（azure.archive.ubuntu.com）间歇性超时卡死
+          # make a 只构建 liblua.a（无需 readline），fakelua 只需头文件 + liblua.a
+          git clone --depth 1 --branch v5.4.8 https://github.com/lua/lua.git
+          cd lua
+          make a -j$(nproc)
+          # 手动安装头文件 + 库（该 makefile 无 install 目标）
+          sudo cp liblua.a /usr/local/lib/
+          sudo cp lua.h luaconf.h lualib.h lauxlib.h /usr/local/include/
+          # 测试 CMake 的 fallback 路径查找 /usr/include/lua5.4，建子目录适配
+          sudo mkdir -p /usr/include/lua5.4
+          for h in lua.h luaconf.h lualib.h lauxlib.h; do
+            sudo ln -sf "/usr/local/include/$h" "/usr/include/lua5.4/$h"
+          done
+          sudo ldconfig
+          cd ..
+          rm -rf lua
+          ls -l /usr/include/lua5.4/
+
+      - name: Setup TCC
+        if: matrix.build_type == 'asan' || matrix.build_type == 'cov'
+        run: |
+          git clone https://github.com/TinyCC/tinycc.git
+          cd tinycc
+          ./configure --extra-cflags="-fPIC"
+          make -j$(nproc)
+          sudo make install
+          cd ..
+
+      - name: Setup lcov
+        if: matrix.build_type == 'cov'
+        run: |
+          wget https://github.com/linux-test-project/lcov/releases/download/v2.0/lcov-2.0.tar.gz
+          tar -xf lcov-2.0.tar.gz
+          cd lcov-2.0/
+          sudo make install
+          yes|sudo perl -MCPAN -e 'install Capture::Tiny'
+          sudo apt-get install libdatetime-perl -y
+          sudo rm /usr/bin/lcov -f
+          sudo ln -s /usr/local/bin/lcov /usr/bin/lcov
+          lcov --version
+          cd ..
+
+      - name: Setup MySQL
+        run: |
+          # Wait for MySQL to be ready
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 --silent 2>/dev/null; then
+              echo "MySQL is ready"
+              break
+            fi
+            echo "Waiting for MySQL... ($i)"
+            sleep 2
+          done
+          # Configure root user to use mysql_native_password (MySQL 8 defaults to caching_sha2_password)
+          mysql -h 127.0.0.1 -uroot -proot <<'EOF' 2>/dev/null || true
+            ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root';
+            CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY 'root';
+            ALTER USER 'root'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY 'root';
+            CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'root';
+            ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'root';
+            GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
+            GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+            CREATE DATABASE IF NOT EXISTS test;
+            FLUSH PRIVILEGES;
+          EOF
+          mysql -h 127.0.0.1 -uroot -proot -e "SELECT 1" 2>/dev/null && echo "MySQL auth OK" || echo "MySQL auth failed"
+          echo "MySQL ready"
+
+      - name: Wait for Redis
+        run: |
+          for i in $(seq 1 30); do
+            if timeout 1 bash -c 'echo > /dev/tcp/127.0.0.1/6379' 2>/dev/null; then
+              echo "Redis is ready"
+              exit 0
+            fi
+            echo "Waiting for Redis... ($i)"
+            sleep 2
+          done
+          echo "Redis did not become ready"
+          exit 1
+
+      - name: Build (${{ matrix.build_type }})
+        timeout-minutes: 60
+        run: |
+          set -x
+          export CPM_SOURCE_CACHE=$HOME/.cache/CPM
+          rm -rf build
+          mkdir build
+          cd build
+
+          # Select CMake flags based on build type
+          case "${{ matrix.build_type }}" in
+            debug)
+              CMAKE_FLAGS=""
+              ;;
+            release)
+              CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release"
+              ;;
+            asan)
+              CMAKE_FLAGS="-DUSE_ASAN=ON"
+              export ASAN_OPTIONS=detect_leaks=0
+              ;;
+            cov)
+              CMAKE_FLAGS="-DUSE_COV=ON"
+              ;;
+          esac
+
+          cmake ${CMAKE_FLAGS} ..
+          make -j$(nproc)
+          ccache -s
+          # Run all tests (including MySQL / Redis integration tests)
+          # Must run from test/lua so relative Lua file paths resolve correctly
+          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
+          ./bin/flua
+
+      # 单独一步而不是内联 if：这样 PR 里 GitHub 会把它显式标成 skipped，看得出是按策略
+      # 跳过而不是没配。限定 release 是因为这是 matrix 构建，不限定的话一次 push 要跑四遍。
+      - name: Run benchmarks
+        if: github.event_name != 'pull_request' && matrix.build_type == 'release'
+        run: |
+          set -x
+          cd build/bin
+          ./bench_mark
+
+      # If PR #395 adds test groups, Group D's mysql tests need to exclude flaky integration tests:
+      # -test_mysql.integration_* (prepared_statements, multi_result, pool are flaky)
+
+      - name: Coverage report
+        if: matrix.build_type == 'cov'
+        run: |
+          set -x
+          cd build
+          echo "function main() return 0 end" > test.lua
+          ./bin/flua --repeat=2 test.lua
+          lcov --directory ./ --capture --output-file coverage.info --ignore-errors source --ignore-errors mismatch
+          ls -l coverage.info
+          lcov --list coverage.info
+          bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV }} -f coverage.info || echo "Codecov did not collect coverage reports"

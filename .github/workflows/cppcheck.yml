@@ -1,0 +1,39 @@
+name: CppCheck
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v1
+
+
+          
+      - name: Build
+        run: |
+          set -x
+          wget https://github.com/danmar/cppcheck/archive/refs/tags/2.12.1.tar.gz
+          tar -xf 2.12.1.tar.gz
+          cd cppcheck-2.12.1
+          mkdir build
+          cd build
+          cmake ..
+          make -j8
+          sudo make install
+          cd ..
+          cd ..
+          cppcheck --version
+          FILES=`find src/ cmd/ -type f -name "*.cpp" -o -name "*.h"|grep -v parser|grep -v scanner|grep -v third_party`
+          cppcheck --language=c++ --check-level=exhaustive --max-ctu-depth=64 -j8 $FILES 2> err.txt
+          cat err.txt
+          if [[ -s err.txt ]]
+          then
+            exit 1
+          fi

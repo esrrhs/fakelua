@@ -1,9 +1,0 @@
--- main comment
-func main()
-	
-	var arg1 = 1
-	var arg2 = 2
-	
-	return (arg1 * arg2) + 1
-	
-end
