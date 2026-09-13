@@ -1,0 +1,36 @@
+# EmmyLua CodeFormat config for fakelua test Lua files.
+# see https://github.com/CppCXY/EmmyLuaCodeStyle
+[*.lua]
+indent_style = space
+indent_size = 4
+tab_width = 4
+quote_style = none
+continuation_indent = 4
+max_line_length = 100
+end_of_line = lf
+table_separator_style = none
+trailing_table_separator = keep
+call_arg_parentheses = keep
+insert_final_newline = true
+space_around_table_field_list = true
+space_before_function_open_parenthesis = false
+space_before_function_call_open_parenthesis = false
+space_before_closure_open_parenthesis = true
+space_before_function_call_single_arg = always
+space_inside_function_call_parentheses = false
+space_inside_function_param_list_parentheses = false
+space_before_inline_comment = 1
+align_continuous_assign_statement = false
+align_continuous_rect_table_field = false
+align_array_table = false
+never_indent_before_exits = false
+line_space_after_if_statement = keep
+line_space_after_do_statement = keep
+line_space_after_while_statement = keep
+line_space_after_repeat_statement = keep
+line_space_after_for_statement = keep
+line_space_after_local_or_assign_statement = keep
+line_space_after_function_statement = fixed
+line_space_after_expression_statement = keep
+line_space_after_comment = keep
+line_space_around_block = fixed

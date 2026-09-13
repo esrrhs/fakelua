@@ -1,0 +1,109 @@
+name: BuildWithMacOS
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-release
+          max-size: 2G
+
+      - name: Cache CPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/CPM
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', 'cmake/*.cmake') }}
+          restore-keys: |
+            cpm-${{ runner.os }}-
+
+      - name: Setup dependencies
+        run: |
+          brew update || true
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install lua || brew link --overwrite lua
+          # Find Lua include and lib paths
+          LUA_INC_DIR="$(brew --prefix)/include"
+          echo "LUA_INC_DIR=$LUA_INC_DIR"
+          ls "$LUA_INC_DIR"
+          # Find the actual lua.h location
+          find "$(brew --prefix)" -name "lua.h" -type f 2>/dev/null || true
+          # Set pkg-config path
+          echo "PKG_CONFIG_PATH=$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
+
+      - name: Setup MySQL
+        run: |
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install mysql
+          # Start MySQL
+          brew services start mysql
+          sleep 5
+          # Wait for MySQL to be ready
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 --silent 2>/dev/null; then
+              echo "MySQL is ready"
+              break
+            fi
+            echo "Waiting for MySQL... ($i)"
+            sleep 2
+          done
+          # Set root password (Homebrew MySQL starts with empty password)
+          # Try without password first, then with 'root' if already set
+          MYSQL_PWD="" mysql -h 127.0.0.1 -uroot -e "SELECT 1" 2>/dev/null && echo "MYSQL_AUTH=empty" >> $GITHUB_ENV || {
+            MYSQL_PWD="root" mysql -h 127.0.0.1 -uroot -e "SELECT 1" 2>/dev/null && echo "MYSQL_AUTH=root" >> $GITHUB_ENV || {
+              echo "MYSQL_AUTH=failed" >> $GITHUB_ENV
+            }
+          }
+          # Create test database (required for integration tests)
+          MYSQL_PWD="" mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE IF NOT EXISTS test" 2>/dev/null || true
+
+      - name: Setup Redis
+        run: |
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install redis
+          brew services start redis || redis-server --daemonize yes --bind 127.0.0.1 --port 6379
+          for i in $(seq 1 30); do
+            if redis-cli -h 127.0.0.1 ping 2>/dev/null | grep -q PONG; then
+              echo "Redis is ready"
+              exit 0
+            fi
+            echo "Waiting for Redis... ($i)"
+            sleep 2
+          done
+          echo "Redis did not become ready"
+          exit 1
+
+      - name: Build
+        timeout-minutes: 60
+        run: |
+          set -x
+          export CPM_SOURCE_CACHE=$HOME/.cache/CPM
+          rm -rf build
+          mkdir build
+          cd build
+          cmake -DCMAKE_PREFIX_PATH="$(brew --prefix)" ..
+          make -j$(sysctl -n hw.ncpu)
+          ccache -s
+          # Run all tests (including MySQL / Redis integration tests)
+          (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
+          ./bin/flua
+
+      # 单独一步而不是内联 if：这样 PR 里 GitHub 会把它显式标成 skipped，看得出是按策略
+      # 跳过而不是没配。
+      - name: Run benchmarks
+        if: github.event_name != 'pull_request'
+        run: |
+          set -x
+          cd build/bin
+          ./bench_mark

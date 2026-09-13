@@ -1,29 +1,74 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
-project(fake VERSION 1.5 LANGUAGES CXX)
+project(fakelua CXX)
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 23)
 
-option(FAKE_RELEASE "Build with optimizations (NDEBUG)" OFF)
-option(FAKE_BUILD_TESTS "Build GoogleTest suite" ON)
-option(FAKE_BUILD_BENCH "Build Google Benchmark binaries" ON)
+# add dependencies
+include(cmake/CPM.cmake)
 
-if(FAKE_RELEASE AND NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
-endif()
+# place binaries and libraries according to GNU standards
+include(GNUInstallDirs)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
 
-enable_testing()
+set(ENV{FAKELUA_HOME} "${CMAKE_CURRENT_SOURCE_DIR}/")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-local-typedefs -Wno-unused-function -DNDEBUG -g3 -ggdb3 -fPIC")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -DNDEBUG -g3 -ggdb3 -fPIC")
+
+option(USE_ASAN "use asan" OFF)
+if (USE_ASAN)
+    message("build with asan")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+endif ()
+
+option(USE_COV "use cov" OFF)
+if (USE_COV)
+    message("build with cov")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage -fprofile-update=atomic")
+endif ()
+
+IF (WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
+    # native IO 用 libevent（select），不再用 Boost.Asio。
+ELSEIF (APPLE)
+    if (USE_COV)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -Wno-non-pod-varargs")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
+    else ()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wno-non-pod-varargs")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+    endif ()
+ELSE ()
+    if (USE_COV)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
+    else ()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+    endif ()
+ENDIF ()
+
+find_program(CCACHE_PROGRAM ccache)
+if (CCACHE_PROGRAM)
+    message("build with ccache")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif ()
 
 add_subdirectory(src)
+add_subdirectory(cmd)
 
-if(FAKE_BUILD_TESTS OR FAKE_BUILD_BENCH)
-    include(${PROJECT_SOURCE_DIR}/cmake/ThirdParty.cmake)
-endif()
-
+enable_testing()
 add_subdirectory(test)
+add_subdirectory(benchmark)
 
-if(FAKE_BUILD_BENCH)
-    add_subdirectory(benchmark)
-endif()
+option(BUILD_FUZZ "Build fuzz targets (requires clang)" OFF)
+if (BUILD_FUZZ)
+    add_subdirectory(fuzz)
+endif ()
