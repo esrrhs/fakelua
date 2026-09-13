@@ -1,0 +1,319 @@
+name: Release
+
+# 头文件版本号变化时，为 Linux / macOS / Windows 打包公开头文件 + 动态库，并发布 GitHub Release。
+on:
+  push:
+    branches: [ "master" ]
+    paths:
+      - "include/fakelua.h"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  detect-version:
+    name: Detect version change
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check FAKELUA_VERSION_STRING
+        id: check
+        run: |
+          set -euo pipefail
+
+          extract_version() {
+            sed -n 's/^#define FAKELUA_VERSION_STRING "\(.*\)"/\1/p' "$1" | head -n 1
+          }
+
+          VERSION="$(extract_version include/fakelua.h)"
+          if [ -z "${VERSION}" ]; then
+            echo "Failed to parse FAKELUA_VERSION_STRING from include/fakelua.h"
+            exit 1
+          fi
+          echo "Current version: ${VERSION}"
+
+          PREV=""
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            PREV="$(git show HEAD^:include/fakelua.h 2>/dev/null | sed -n 's/^#define FAKELUA_VERSION_STRING "\(.*\)"/\1/p' | head -n 1 || true)"
+          fi
+          echo "Previous version: ${PREV:-<none>}"
+
+          CHANGED=false
+          if [ "${VERSION}" != "${PREV}" ]; then
+            CHANGED=true
+          fi
+
+          SHOULD=false
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${VERSION} already exists, skip release"
+          elif [ "${CHANGED}" = true ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHOULD=true
+            echo "Will package and publish v${VERSION}"
+          else
+            echo "Version unchanged (${VERSION}), skip release"
+          fi
+
+          {
+            echo "version=${VERSION}"
+            echo "should_release=${SHOULD}"
+          } >> "${GITHUB_OUTPUT}"
+
+  build-linux:
+    name: Package Linux
+    needs: detect-version
+    if: needs.detect-version.outputs.should_release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: linux-release-pkg
+          max-size: 2G
+
+      - name: Cache CPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/CPM
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', 'cmake/*.cmake') }}
+          restore-keys: |
+            cpm-${{ runner.os }}-
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libssl-dev ninja-build pkg-config
+
+      - name: Build shared library
+        timeout-minutes: 60
+        run: |
+          set -eux
+          export CPM_SOURCE_CACHE="${HOME}/.cache/CPM"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DFAKELUA_BUILD_TESTS=OFF \
+            -DFAKELUA_BUILD_BENCHMARKS=OFF
+          cmake --build build --parallel --target fakelua
+          ccache -s
+
+      - name: Package header and shared library
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.detect-version.outputs.version }}"
+          ARCH="$(uname -m)"
+          PKG="fakelua-${VERSION}-linux-${ARCH}"
+          mkdir -p "${PKG}/include" "${PKG}/lib"
+          cp include/fakelua.h "${PKG}/include/"
+          SO="$(find build -name 'libfakelua.so' | head -n 1)"
+          test -n "${SO}" && test -f "${SO}"
+          strip --strip-unneeded "${SO}"
+          cp -a "${SO}" "${PKG}/lib/"
+          cmake -E tar czf "${PKG}.tar.gz" "${PKG}"
+          ls -lh "${PKG}.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fakelua-linux
+          path: fakelua-*.tar.gz
+          if-no-files-found: error
+
+  build-macos:
+    name: Package macOS
+    needs: detect-version
+    if: needs.detect-version.outputs.should_release == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: macos-release-pkg
+          max-size: 2G
+
+      - name: Cache CPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/CPM
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', 'cmake/*.cmake') }}
+          restore-keys: |
+            cpm-${{ runner.os }}-
+
+      - name: Setup dependencies
+        run: |
+          brew update || true
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install openssl@3 ninja
+
+      - name: Build shared library
+        timeout-minutes: 60
+        run: |
+          set -eux
+          export CPM_SOURCE_CACHE="${HOME}/.cache/CPM"
+          OPENSSL_ROOT="$(brew --prefix openssl@3)"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${OPENSSL_ROOT};$(brew --prefix)" \
+            -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}" \
+            -DFAKELUA_BUILD_TESTS=OFF \
+            -DFAKELUA_BUILD_BENCHMARKS=OFF
+          cmake --build build --parallel --target fakelua
+          ccache -s
+
+      - name: Package header and shared library
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.detect-version.outputs.version }}"
+          ARCH="$(uname -m)"
+          PKG="fakelua-${VERSION}-macos-${ARCH}"
+          mkdir -p "${PKG}/include" "${PKG}/lib"
+          cp include/fakelua.h "${PKG}/include/"
+          DYLIB="$(find build -name 'libfakelua.dylib' | head -n 1)"
+          test -n "${DYLIB}" && test -f "${DYLIB}"
+          strip -x "${DYLIB}"
+          cp -a "${DYLIB}" "${PKG}/lib/"
+          cmake -E tar czf "${PKG}.tar.gz" "${PKG}"
+          ls -lh "${PKG}.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fakelua-macos
+          path: fakelua-*.tar.gz
+          if-no-files-found: error
+
+  build-windows:
+    name: Package Windows
+    needs: detect-version
+    if: needs.detect-version.outputs.should_release == 'true'
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .cache/ccache
+          key: windows-release-ccache-${{ github.sha }}
+          restore-keys: |
+            windows-release-ccache-
+            windows-ccache-
+
+      - name: Cache CPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: .cache/CPM
+          key: windows-cpm-${{ hashFiles('**/CMakeLists.txt', 'cmake/*.cmake') }}
+          restore-keys: |
+            windows-cpm-
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            make
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-ccache
+
+      - name: Configure
+        shell: msys2 {0}
+        run: |
+          set -eux
+          WORKSPACE_DIR="$(pwd)"
+          export CCACHE_DIR="${WORKSPACE_DIR}/.cache/ccache"
+          export CPM_SOURCE_CACHE="${WORKSPACE_DIR}/.cache/CPM"
+          ccache --max-size=2G
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DFAKELUA_TINYCC_GIT_URL=https://github.com/TinyCC/tinycc.git \
+            -DFAKELUA_BUILD_TESTS=OFF \
+            -DFAKELUA_BUILD_BENCHMARKS=OFF
+
+      - name: Build shared library
+        timeout-minutes: 90
+        shell: msys2 {0}
+        run: |
+          set -eux
+          WORKSPACE_DIR="$(pwd)"
+          export CCACHE_DIR="${WORKSPACE_DIR}/.cache/ccache"
+          export CPM_SOURCE_CACHE="${WORKSPACE_DIR}/.cache/CPM"
+          cmake --build build --parallel --target fakelua
+          ccache -s
+
+      - name: Package header and shared library
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.detect-version.outputs.version }}"
+          PKG="fakelua-${VERSION}-windows-x86_64"
+          mkdir -p "${PKG}/include" "${PKG}/lib" "${PKG}/bin"
+          cp include/fakelua.h "${PKG}/include/"
+          DLL="$(find build -name 'libfakelua.dll' -o -name 'fakelua.dll' | head -n 1)"
+          test -n "${DLL}" && test -f "${DLL}"
+          strip --strip-unneeded "${DLL}"
+          cp -a "${DLL}" "${PKG}/bin/"
+          IMPLIB="$(find build -name 'libfakelua.dll.a' -o -name 'fakelua.lib' | head -n 1 || true)"
+          if [ -n "${IMPLIB}" ] && [ -f "${IMPLIB}" ]; then
+            cp -a "${IMPLIB}" "${PKG}/lib/"
+          fi
+          cmake -E tar cf "${PKG}.zip" --format=zip "${PKG}"
+          ls -lh "${PKG}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fakelua-windows
+          path: fakelua-*.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [detect-version, build-linux, build-macos, build-windows]
+    if: needs.detect-version.outputs.should_release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.detect-version.outputs.version }}
+          name: FakeLua v${{ needs.detect-version.outputs.version }}
+          body: |
+            FakeLua ${{ needs.detect-version.outputs.version }}
+
+            每个包内含公开头文件 `include/fakelua.h` 与对应平台动态库：
+            - Linux: `lib/libfakelua.so`
+            - macOS: `lib/libfakelua.dylib`
+            - Windows: `bin/libfakelua.dll`（及 MinGW 导入库 `lib/libfakelua.dll.a`）
+          files: dist/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
