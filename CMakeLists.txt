@@ -61,12 +61,19 @@ if (CCACHE_PROGRAM)
     set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
 endif ()
 
+option(FAKELUA_BUILD_TESTS "Build unit tests" ON)
+option(FAKELUA_BUILD_BENCHMARKS "Build benchmarks" ON)
+
 add_subdirectory(src)
 add_subdirectory(cmd)
 
 enable_testing()
-add_subdirectory(test)
-add_subdirectory(benchmark)
+if (FAKELUA_BUILD_TESTS)
+    add_subdirectory(test)
+endif ()
+if (FAKELUA_BUILD_BENCHMARKS)
+    add_subdirectory(benchmark)
+endif ()
 
 option(BUILD_FUZZ "Build fuzz targets (requires clang)" OFF)
 if (BUILD_FUZZ)
