@@ -10,6 +10,7 @@
 #include <boost/container/list.hpp>
 #include <boost/container/small_vector.hpp>
 #include <boost/container/vector.hpp>
+#include <cmath>
 #include <cstdint>
 #include <format>
 #include <iterator>
@@ -96,7 +97,14 @@ struct ContainerKey {
             case Kind::Int:
                 return a.i < b.i;
             case Kind::Float:
-                return a.f < b.f;
+                // NaN breaks strict weak ordering (a<b and b<a both false vs self).
+                // Sort all NaNs after non-NaN floats; NaNs compare equal to each other.
+                {
+                    const bool a_nan = std::isnan(a.f);
+                    const bool b_nan = std::isnan(b.f);
+                    if (a_nan || b_nan) return !a_nan && b_nan;
+                    return a.f < b.f;
+                }
             case Kind::String:
                 return a.s < b.s;
         }
