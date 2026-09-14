@@ -8,7 +8,7 @@
 
 中文 | [English](README.md)
 
-FakeLua 是一个可嵌入的 Lua 子集编译引擎：将 Lua 脚本编译为 C 代码，通过 GCC 后端动态编译为原生机器码执行。提供 C++23 接口，支持脚本与原生代码高效互操作。
+FakeLua 是面向高性能宿主的可嵌入 Lua 子集运行时：脚本可编译为字节码由内置虚拟机执行，也可经 GCC/TCC JIT 生成原生机器码；并内置大量 C++ native 标准库（网络/HTTP/数据库/加密等），采用 Arena 内存池 + 帧重置，无 GC 停顿。
 
 ## 设计初衷与内存设计哲学
 
@@ -28,18 +28,19 @@ FakeLua 的设计初衷是为了在**高性能游戏服务器**或类似的实�
 
 ## 核心特性
 
-### 双 JIT 后端
+### 三种执行后端
 
-支持两种 JIT 模式，同一套 API 无缝切换：
+同一套 `Call` API 可切换任意已注册后端：
 
-- **JIT_GCC**：调用系统 GCC（`-O3`），生成高质量原生代码。这是 FakeLua 实际运行和生产环境采用的主力后端。
-- **JIT_TCC**：内嵌 TinyCC，编译速度极快。主要用于开发调试和测试验证（TCC 源码在 CMake 配置阶段自动拉取，无需系统预装）。
+- **JIT_GCC**：调用系统 GCC（`-O3`）生成高质量原生代码，生产环境主力。
+- **JIT_TCC**：内嵌 TinyCC，编译极快，适合开发调试与测试（CMake 自动拉取 TCC，无需系统预装）。
+- **JIT_INTERP**：编译为 FakeLua 字节码，由内置解释器执行（`src/interp/`）。无需宿主 C 编译器，便于移植、工具链以及 JIT↔解释器混合闭包。
 
 ```cpp
 int ret = 0;
-// 同一套 Call API，可按需指定 JIT_GCC 或 JIT_TCC 后端
-Call(s, JIT_GCC, "add", ret, 10, 20); // 生产环境推荐：GCC 后端 (-O3 高性能)
-Call(s, JIT_TCC, "add", ret, 10, 20); // 开发调试推荐：TCC 后端 (极速编译)
+Call(s, JIT_GCC, "add", ret, 10, 20);    // 生产：GCC (-O3)
+Call(s, JIT_TCC, "add", ret, 10, 20);    // 开发/测试：TCC（极速编译）
+Call(s, JIT_INTERP, "add", ret, 10, 20); // 字节码虚拟机（无需宿主 C 编译器）
 ```
 
 ### 数值参数特化（Numeric Specialization）
@@ -140,20 +141,20 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 ## 标准内置扩展库
 
-FakeLua 在 `src/native/` 下提供 29 个独立 C++ 原生模块，覆盖数学、字符串、表、IO、网络、定时器、事件、随机数、容器、压缩、加密、序列化、数据库、Protobuf、配置解析、日志、子进程等领域。
+FakeLua 在 `src/native/` 下提供 30+ 个独立 C++ 原生模块（每个 `State` 创建时自动注册），覆盖数学、字符串、表、IO、网络、定时器、事件、随机数、容器、压缩、加密、序列化、数据库、Protobuf、配置解析、日志、子进程等领域。
 
 > **完整 API 文档：** [src/native/README.zh.md](src/native/README.zh.md) / [English](src/native/README.md)
 
 | 分类 | 模块 |
 |------|------|
-| 核心 Lua | `math`、`table`、`string`、`os`、`utf8`、`io`、`random` |
-| 网络 | `net`（TCP/UDP 服务端/客户端）、`http`（Beast HTTP/1.1）、`url`、`timer`、`event` |
+| 核心 Lua | `basic`、`math`、`table`、`string`、`os`、`utf8`、`io`、`random` |
+| 运行时 / IO | `runtime`（`runtime.tick()`）、`net`（TCP/UDP）、`http`（HTTP/1.1）、`url`、`timer`、`event` |
 | 数据 | `json`、`csv`、`serialize`、`protobuf`、`container`（Boost.Container deque/vector/list/map/set） |
 | 配置解析 | `yaml`、`toml`、`xml`、`ini` |
 | 数据库 | `mysql`（异步 + 连接池）、`redis`（异步）、`sqlite`（同步） |
-| 加解密 | `compress`（LZ4/zlib/gzip/Zstd）、`crypto`（MD5/SHA/AES/RC4/Blowfish/DES、UUID、CRC-32、xxHash） |
+| 加解密 / 压缩 | `compress`（LZ4/zlib/gzip/Zstd）、`crypto`（OpenSSL 摘要/对称加密、UUID、CRC-32、xxHash） |
 | 进程 | `process`（`process.run`；不替换 `os.execute`） |
-| 日志 | `log`（7 级别，分类标签输出，文件滚动） |
+| 日志 | `log`（级别、分类标签输出、文件滚动） |
 | 对象 | `object`（NativeObject Lua 侧 API） |
 
 > ⚠️ `string.find`/`match`/`gmatch`/`gsub` 底层使用 **ECMAScript 正则**（`boost::regex::ECMAScript`），而非 Lua pattern。从标准 Lua 迁移时需改写模式串。
@@ -229,13 +230,13 @@ ctest --test-dir build -V
 ### 命令行工具 `flua`
 
 ```bash
-./build/bin/flua <script.lua> --entry=<func> --jit_type=<0|1> --repeat=<N>
+./build/bin/flua <script.lua> --entry=<func> --jit_type=<0|1|2> --repeat=<N>
 ```
 
 - `--entry`：入口函数名（默认 `main`）
-- `--jit_type`：`0`=TCC，`1`=GCC
+- `--jit_type`：`0`=TCC，`1`=GCC，`2`=INTERP（字节码虚拟机）
 - `--repeat`：重复调用次数（用于性能测量）
-- `--debug`：是否启用调试模式（默认 `false`，若为 `true` 则输出生成的 C 源码）
+- `--debug`：是否启用调试模式（默认 `false`，若为 `true` 则输出生成的 C 源码 / 更详细诊断）
 
 ## 性能基准
 
@@ -332,11 +333,14 @@ Lua 源码
    ↓
 [类型推导] → type hints (type_inferencer)
    ↓
-[C 代码生成] → C 源码 (c_gen)
-   ↓
-[JIT 编译] → 机器码 (tcc_jit / gcc_jit)
-   ↓
-[加载执行] → 结果
+        ┌─────────────────────────────┬──────────────────────────────┐
+        ↓                             ↓                              ↓
+[C 代码生成]                      [字节码生成]                    （共享 AST）
+   (c_gen)                         (interp/codegen)
+        ↓                             ↓
+[JIT TCC / GCC]                   [解释器虚拟机]
+   原生机器码                        (interp/interpreter)
+        └───────────── Call(s, JIT_*, …) ─────────────┘
 ```
 
 ### 关键组件
@@ -349,8 +353,10 @@ Lua 源码
 | `semantic_analysis` | 语义和控制流分析 |
 | `type_inferencer` | 静态类型推导和 specialization 决策 |
 | `c_gen` | C 代码生成和类型驱动优化 |
+| `interp/*` | 字节码生成、指令集与解释器虚拟机 |
 | `compile_common` | 公共类型推导和代码生成工具 |
-| `jit/*` | TCC 和 GCC 后端集成 |
+| `jit/*` | TCC/GCC 后端与 `Vm` 函数注册表 |
+| `native/*` | 内置标准库（net、http、db、crypto 等） |
 | `state` | FakeLua 运行时状态管理 |
 | `var` | 动态值 CVar 和转换工具 |
 
@@ -359,11 +365,11 @@ Lua 源码
 ### Q: 为什么选择 Lua 子集而不是完整 Lua？
 A: 完整 Lua 的某些动态特性（如 metatable）很难高效编译。子集实现聚焦于可静态分析的常见模式，通过类型推导和 JIT 编译获得接近 C 的性能。
 
-### Q: TCC 和 GCC 后端如何选择？
-A: **GCC** 是生产环境主力后端（`-O3` 生成高质量原生代码）；**TCC** 编译极快，主要用于开发调试和测试。
+### Q: TCC、GCC 与 INTERP 如何选择？
+A: **GCC** 是生产环境主力（`-O3`）。**TCC** 编译极快，适合开发与 CI。**INTERP** 跑字节码、无需宿主 C 编译器，适合受限环境、工具链与语义校验；热路径仍可与 JIT 闭包混合调用。
 
 ### Q: 可以在嵌入式环境中使用吗？
-A: 可以，TCC 后端体积小、编译速度快。核心库依赖极少（仅 C++ 标准库），可交叉编译。
+A: 可以——用 **JIT_INTERP**（运行时不依赖 GCC/TCC）或体积很小的 **TCC** 后端。OpenSSL/MySQL 等 native 依赖可按构建需求裁剪。
 
 ### Q: 如何调试生成的 C 代码？
 A: 启用 `CompileConfig::debug_mode` 查看日志和 C 代码；使用 `GetLastRecordedCCode()` 导出 C 代码进行分析。
