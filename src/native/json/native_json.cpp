@@ -5,7 +5,9 @@
 
 #include <algorithm>
 #include <boost/json.hpp>
+#include <limits>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 
 namespace fakelua::json {
@@ -46,15 +48,20 @@ static CVar JsonValueToLua(State *s, const bj::value &v) {
         return inter::NativeToFakeluaLonglong(s, v.get_int64());
     }
     if (v.is_uint64()) {
-        // Lua numbers are signed; but we can still represent up to 2^63-1 as positive.
-        // For values > 2^63-1, we could convert to double, but keep simple.
-        return inter::NativeToFakeluaLonglong(s, static_cast<int64_t>(v.get_uint64()));
+        const uint64_t u = v.get_uint64();
+        // Keep exact integers in int64 range; larger values become double
+        // (lossy above 2^53) instead of wrapping to a negative int64.
+        if (u <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+            return inter::NativeToFakeluaLonglong(s, static_cast<int64_t>(u));
+        }
+        return inter::NativeToFakeluaDouble(s, static_cast<double>(u));
     }
     if (v.is_double()) {
         return inter::NativeToFakeluaDouble(s, v.get_double());
     }
     if (v.is_string()) {
-        return inter::NativeToFakeluaString(s, v.get_string().c_str());
+        const auto &js = v.get_string();
+        return inter::NativeToFakeluaStringView(s, std::string_view(js.data(), js.size()));
     }
     if (v.is_array()) {
         CVar tbl = table::TableHelper::CreateTable(s);

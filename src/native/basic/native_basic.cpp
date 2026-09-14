@@ -85,7 +85,9 @@ struct IpairsState {
 // 辅助：比较 key 是否相等
 static bool KeysEqual(CVar a, CVar b) {
     if (a.type_ == b.type_) {
-        if (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Bool)) return a.data_.i == b.data_.i;
+        // Bool only writes data_.b; comparing data_.i can see stale union bytes.
+        if (b.type_ == static_cast<int>(VarType::Bool)) return a.data_.b == b.data_.b;
+        if (b.type_ == static_cast<int>(VarType::Int)) return a.data_.i == b.data_.i;
         if (b.type_ == static_cast<int>(VarType::Float)) return a.data_.f == b.data_.f;
         if (b.type_ == static_cast<int>(VarType::StringId)) return a.data_.i == b.data_.i;
         if (b.type_ == static_cast<int>(VarType::String)) {

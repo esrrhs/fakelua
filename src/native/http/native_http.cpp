@@ -23,6 +23,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #if defined(_WIN32)
 #define strcasecmp _stricmp
@@ -206,8 +207,13 @@ static bool TryParseHttpMessage(std::string &buf, bool request, HttpRequestData 
     std::string cl = HeaderGet(hdrs, "Content-Length");
     size_t body_off = hdr_end + 4;
     if (!cl.empty()) {
-        size_t n = static_cast<size_t>(std::strtoull(cl.c_str(), nullptr, 10));
-        if (buf.size() < body_off + n) return false;
+        // Reject non-decimal / overflow so body_off + n cannot wrap.
+        char *end = nullptr;
+        unsigned long long parsed = std::strtoull(cl.c_str(), &end, 10);
+        if (end == cl.c_str() || *end != '\0') return false;
+        if (parsed > std::numeric_limits<size_t>::max() - body_off) return false;
+        size_t n = static_cast<size_t>(parsed);
+        if (buf.size() < body_off || buf.size() - body_off < n) return false;
         if (body) *body = buf.substr(body_off, n);
         if (req) req->body = buf.substr(body_off, n);
         buf.erase(0, body_off + n);
@@ -995,9 +1001,11 @@ static CVar HttpServerFn(State *s, CVar *args, int n) {
     auto *srv = new HttpServer(s);
     srv->SetNativeObject(nat);
     try {
+        // Listen takes ownership of tls_ctx immediately (stores in ssl_ctx_).
+        // On failure, ~HttpServer/Close frees it — do not SSL_CTX_free here.
         srv->Listen(ip, port, backlog, timeout_ms, tls_ctx);
+        tls_ctx = nullptr;
     } catch (const std::exception &e) {
-        if (tls_ctx) SSL_CTX_free(tls_ctx);
         delete srv;
         s->GetNativeObjectManager().DestroyGroup(gid);
         ThrowFakeluaException(std::string("http.server: ") + e.what());
