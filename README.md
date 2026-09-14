@@ -8,7 +8,7 @@
 
 [中文](README.zh.md) | English
 
-FakeLua is an embeddable Lua-subset compilation engine: it compiles Lua scripts into C code and dynamically compiles them into native machine code via the GCC backend for execution. It provides a C++23 interface with high-performance interop between scripts and native code.
+FakeLua is an embeddable Lua-subset runtime for high-performance hosts: it compiles scripts to a bytecode VM and optionally to native code via GCC/TCC JIT, ships a large C++ native standard library (net/http/db/crypto/…), and uses an arena allocator with frame reset so there is no GC pause.
 
 ## Design Philosophy & Memory Model
 
@@ -28,18 +28,19 @@ This design allows FakeLua to fully eliminate GC pause impact on frame rates whi
 
 ## Core Features
 
-### Dual JIT Backends
+### Three Execution Backends
 
-Supports two JIT modes with a seamless API switch:
+The same `Call` API can target any registered backend:
 
-- **JIT_GCC**: Invokes system GCC (`-O3`) to generate high-quality native code. This is the primary backend for production use.
-- **JIT_TCC**: Embeds TinyCC for extremely fast compilation. Primarily used for development, debugging, and testing (TCC source is automatically fetched during CMake configuration — no system installation needed).
+- **JIT_GCC**: Invokes system GCC (`-O3`) to generate high-quality native code. Primary backend for production.
+- **JIT_TCC**: Embeds TinyCC for extremely fast compilation. Best for development, debugging, and tests (TCC is fetched automatically by CMake).
+- **JIT_INTERP**: Compiles to FakeLua bytecode and runs on the built-in interpreter (`src/interp/`). No external C compiler required; useful for portability, tooling, and mixed JIT↔interp closures.
 
 ```cpp
 int ret = 0;
-// Same Call API, switching between JIT_GCC and JIT_TCC on demand
-Call(s, JIT_GCC, "add", ret, 10, 20); // Production: GCC backend (-O3 high performance)
-Call(s, JIT_TCC, "add", ret, 10, 20); // Development: TCC backend (ultra-fast compilation)
+Call(s, JIT_GCC, "add", ret, 10, 20);    // Production: GCC (-O3)
+Call(s, JIT_TCC, "add", ret, 10, 20);    // Dev/test: TCC (fast compile)
+Call(s, JIT_INTERP, "add", ret, 10, 20); // Bytecode VM (no host C compiler)
 ```
 
 ### Numeric Specialization
@@ -140,20 +141,20 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 
 ## Built-in Standard Libraries
 
-FakeLua provides 29 independent C++ native modules under `src/native/`, covering math, string, table, IO, networking, timers, events, random, containers, compression, encryption, serialization, databases, protobuf, config formats, logging, and subprocesses.
+FakeLua provides 30+ independent C++ native modules under `src/native/` (registered automatically on each `State`), covering math, string, table, IO, networking, timers, events, random, containers, compression, cryptography, serialization, databases, protobuf, config formats, logging, and subprocesses.
 
 > **Full API reference:** [src/native/README.md](src/native/README.md) / [中文](src/native/README.zh.md)
 
 | Category | Modules |
 |----------|---------|
-| Core Lua | `math`, `table`, `string`, `os`, `utf8`, `io`, `random` |
-| Networking | `net` (TCP/UDP server/client), `http` (Beast HTTP/1.1), `url`, `timer`, `event` |
+| Core Lua | `basic`, `math`, `table`, `string`, `os`, `utf8`, `io`, `random` |
+| Runtime / I/O | `runtime` (`runtime.tick()`), `net` (TCP/UDP), `http` (HTTP/1.1), `url`, `timer`, `event` |
 | Data | `json`, `csv`, `serialize`, `protobuf`, `container` (Boost.Container deque/vector/list/map/set) |
 | Config | `yaml`, `toml`, `xml`, `ini` |
 | Database | `mysql` (async + pool), `redis` (async), `sqlite` (synchronous) |
-| Crypto | `compress` (LZ4/zlib/gzip/Zstd), `crypto` (MD5/SHA/AES/RC4/Blowfish/DES, UUID, CRC-32, xxHash) |
+| Crypto / compress | `compress` (LZ4/zlib/gzip/Zstd), `crypto` (OpenSSL digests/ciphers, UUID, CRC-32, xxHash) |
 | Process | `process` (`process.run`; does not replace `os.execute`) |
-| Logging | `log` (7 levels, tagged output, file rotation) |
+| Logging | `log` (levels, tagged output, file rotation) |
 | Object | `object` (NativeObject Lua-side API) |
 
 **Regex note:** `string.find`/`match`/`gmatch`/`gsub` use **ECMAScript regex** (`boost::regex::ECMAScript`), not Lua patterns. See [Regex Guide](#regex-matching-ecmascript-syntax-not-lua-patterns) below for migration tips.
@@ -230,13 +231,13 @@ ctest --test-dir build -V
 ### CLI Tool `flua`
 
 ```bash
-./build/bin/flua <script.lua> --entry=<func> --jit_type=<0|1> --repeat=<N>
+./build/bin/flua <script.lua> --entry=<func> --jit_type=<0|1|2> --repeat=<N>
 ```
 
 - `--entry`: Entry function name (default `main`)
-- `--jit_type`: `0`=TCC, `1`=GCC
+- `--jit_type`: `0`=TCC, `1`=GCC, `2`=INTERP (bytecode VM)
 - `--repeat`: Repeat call count (for performance measurement)
-- `--debug`: Enable debug mode (default `false`; when `true`, outputs generated C source)
+- `--debug`: Enable debug mode (default `false`; when `true`, outputs generated C source / richer diagnostics)
 
 ## Performance Benchmarks
 
@@ -333,11 +334,14 @@ Lua source
    ↓
 [Type inference] → type hints (type_inferencer)
    ↓
-[C code generation] → C source (c_gen)
-   ↓
-[JIT compilation] → machine code (tcc_jit / gcc_jit)
-   ↓
-[Load & execute] → result
+        ┌─────────────────────────────┬──────────────────────────────┐
+        ↓                             ↓                              ↓
+[C code generation]            [Bytecode codegen]            (shared AST)
+   (c_gen)                        (interp/codegen)
+        ↓                             ↓
+[JIT TCC / GCC]                [Interpreter VM]
+   native code                    (interp/interpreter)
+        └───────────── Call(s, JIT_*, …) ─────────────┘
 ```
 
 ### Key Components
@@ -350,8 +354,10 @@ Lua source
 | `semantic_analysis` | Semantic and control flow analysis |
 | `type_inferencer` | Static type inference and specialization decisions |
 | `c_gen` | C code generation and type-driven optimization |
+| `interp/*` | Bytecode codegen, opcodes, and interpreter VM |
 | `compile_common` | Common type inference and codegen utilities |
-| `jit/*` | TCC and GCC backend integration |
+| `jit/*` | TCC/GCC backends plus `Vm` function registry |
+| `native/*` | Built-in standard libraries (net, http, db, crypto, …) |
 | `state` | FakeLua runtime state management |
 | `var` | Dynamic value CVar and conversion utilities |
 
@@ -360,11 +366,11 @@ Lua source
 ### Q: Why choose a Lua subset over full Lua?
 A: Certain dynamic features of full Lua (e.g., metatables) are difficult to compile efficiently. The subset focuses on statically analyzable common patterns, achieving near-C performance through type inference and JIT compilation.
 
-### Q: How to choose between TCC and GCC backends?
-A: **GCC** is the primary backend for production (with `-O3` optimization); **TCC** compiles extremely fast, primarily for development and testing.
+### Q: How to choose among TCC, GCC, and INTERP?
+A: **GCC** is the primary production backend (`-O3`). **TCC** compiles extremely fast for development and CI. **INTERP** runs bytecode without a host C compiler — good for constrained environments, tooling, and validating script semantics; hot paths can still call JIT closures when mixed.
 
 ### Q: Can it be used in embedded or constrained environments?
-A: Yes — the TCC backend is small and fast. The core library has minimal dependencies (C++ standard library only) and is cross-compilable.
+A: Yes — use **JIT_INTERP** (no GCC/TCC required at runtime) or the small **TCC** backend. Native modules that need OpenSSL/MySQL/etc. are optional at the dependency level for your build.
 
 ### Q: How to debug generated C code?
 A: Enable `CompileConfig::debug_mode` to inspect logs and C code; use `GetLastRecordedCCode()` to export C code for analysis.
