@@ -38,7 +38,10 @@ std::vector<uint8_t> Rc4(const uint8_t *key, size_t key_len, const uint8_t *data
         }
     }
     int final_len = 0;
-    EVP_EncryptFinal_ex(ctx, out.data() + outlen, &final_len);
+    if (EVP_EncryptFinal_ex(ctx, out.data() + outlen, &final_len) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        ThrowFakeluaException("rc4: EVP_EncryptFinal_ex failed");
+    }
 
     EVP_CIPHER_CTX_free(ctx);
     return out;
