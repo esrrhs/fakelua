@@ -308,3 +308,24 @@ function test_encode_large_int_key()
     if not string.find(s, "9999999") then return 0 end
     return 1
 end
+
+-- uint64 > INT64_MAX must not wrap to a negative int64
+function test_decode_uint64_overflow()
+    local v = json.decode("9223372036854775808")
+    if type(v) ~= "number" then return 0 end
+    if v < 0 then return 0 end
+    -- Exact int64 can't hold 2^63; expect double approximation
+    if v < 9.223372036854e18 then return 0 end
+    return 1
+end
+
+-- JSON strings may contain embedded NUL via \u0000
+function test_decode_embedded_nul()
+    local v = json.decode('"a\\u0000b"')
+    if type(v) ~= "string" then return 0 end
+    if #v ~= 3 then return 0 end
+    if string.byte(v, 1) ~= 97 then return 0 end
+    if string.byte(v, 2) ~= 0 then return 0 end
+    if string.byte(v, 3) ~= 98 then return 0 end
+    return 1
+end
