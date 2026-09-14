@@ -166,8 +166,13 @@ static CVar IniEncode(State *s, CVar *args, int n) {
                 // INI has no nested tables; encode array as comma-separated
                 auto arr_kvs = table::TableHelper::CollectKVPairs(skv.val);
                 std::sort(arr_kvs.begin(), arr_kvs.end(), [](const table::TableKV &a, const table::TableKV &b) {
-                    if (a.key.type_ == static_cast<int>(VarType::Int) && b.key.type_ == static_cast<int>(VarType::Int)) return a.key.data_.i < b.key.data_.i;
-                    return false;
+                    const bool a_int = a.key.type_ == static_cast<int>(VarType::Int);
+                    const bool b_int = b.key.type_ == static_cast<int>(VarType::Int);
+                    // Integer keys first (array part), then others by string form —
+                    // keeps a total order for mixed Int/String section values.
+                    if (a_int && b_int) return a.key.data_.i < b.key.data_.i;
+                    if (a_int != b_int) return a_int;
+                    return inter::FakeluaToNativeString(nullptr, a.key) < inter::FakeluaToNativeString(nullptr, b.key);
                 });
                 for (size_t i = 0; i < arr_kvs.size(); i++) {
                     if (i > 0) out += ", ";

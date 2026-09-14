@@ -305,25 +305,36 @@ bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_
         case FramerType::LineDelimiter: {
             if (buf.Empty()) return false;
             size_t total = buf.Size();
-            if (total > static_cast<size_t>(cfg.max_packet_len)) {
-                // 超过 max_packet_len 仍未见到换行符，视为恶意/异常连接
-                out_error = true;
-                return false;
+            // Only scan up to max_packet_len+1: a complete short line may sit at
+            // the front while later bytes push total past max_packet_len.
+            size_t scan = total;
+            if (cfg.max_packet_len > 0) {
+                scan = std::min(total, static_cast<size_t>(cfg.max_packet_len) + 1);
             }
-            if (parse_tmp.size() < total) parse_tmp.resize(total);
-            buf.Peek(parse_tmp.data(), total);
+            if (parse_tmp.size() < scan) parse_tmp.resize(scan);
+            buf.Peek(parse_tmp.data(), scan);
 
             // 查找 '\n'
             size_t line_end = 0;
             bool found = false;
-            for (size_t i = 0; i < total; ++i) {
+            for (size_t i = 0; i < scan; ++i) {
                 if (parse_tmp[i] == '\n') {
                     line_end = i;
                     found = true;
                     break;
                 }
             }
-            if (!found) return false;
+            if (!found) {
+                // No newline in the first max_packet_len(+1) bytes → oversize line
+                if (cfg.max_packet_len > 0 && total > static_cast<size_t>(cfg.max_packet_len)) {
+                    out_error = true;
+                }
+                return false;
+            }
+            if (cfg.max_packet_len > 0 && line_end > static_cast<size_t>(cfg.max_packet_len)) {
+                out_error = true;
+                return false;
+            }
 
             // 消费包含 '\n' 在内的所有字节
             buf.Read(parse_tmp.data(), line_end + 1);

@@ -682,3 +682,25 @@ TEST(test_json, encode_large_int_key) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_json, decode_uint64_overflow) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_edge.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "JsonTest.test_decode_uint64_overflow", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_json, decode_embedded_nul) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_edge.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "JsonTest.test_decode_embedded_nul", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
