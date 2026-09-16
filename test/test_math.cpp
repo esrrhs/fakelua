@@ -1289,5 +1289,7 @@ TEST(test_math, special_functions) {
     int64_t ret = 0;
     CallAll(s, "test_math_special", ret);
     EXPECT_EQ(ret, 1);
+    int64_t throw_ret = 0;
+    CallThrow(s, "test_math_clamp_bad_bounds", throw_ret);
     FakeluaDeleteState(s);
 }

@@ -115,21 +115,27 @@ double ToDouble(const CVar &v) {
 CVar BinAdd(const CVar &a, const CVar &b) {
     CheckNum(a);
     CheckNum(b);
-    if (a.type_ == kInt && b.type_ == kInt) return Int(a.data_.i + b.data_.i);
+    if (a.type_ == kInt && b.type_ == kInt) {
+        return Int(static_cast<int64_t>(static_cast<uint64_t>(a.data_.i) + static_cast<uint64_t>(b.data_.i)));
+    }
     return Float(ToDouble(a) + ToDouble(b));
 }
 
 CVar BinSub(const CVar &a, const CVar &b) {
     CheckNum(a);
     CheckNum(b);
-    if (a.type_ == kInt && b.type_ == kInt) return Int(a.data_.i - b.data_.i);
+    if (a.type_ == kInt && b.type_ == kInt) {
+        return Int(static_cast<int64_t>(static_cast<uint64_t>(a.data_.i) - static_cast<uint64_t>(b.data_.i)));
+    }
     return Float(ToDouble(a) - ToDouble(b));
 }
 
 CVar BinMul(const CVar &a, const CVar &b) {
     CheckNum(a);
     CheckNum(b);
-    if (a.type_ == kInt && b.type_ == kInt) return Int(a.data_.i * b.data_.i);
+    if (a.type_ == kInt && b.type_ == kInt) {
+        return Int(static_cast<int64_t>(static_cast<uint64_t>(a.data_.i) * static_cast<uint64_t>(b.data_.i)));
+    }
     return Float(ToDouble(a) * ToDouble(b));
 }
 

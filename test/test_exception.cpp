@@ -824,6 +824,30 @@ TEST(exception, goto_elseif_nonexistent) {
     EXPECT_THROW(CompileFile(s, "./exception/test_goto_elseif_nonexistent.lua", {}), std::exception);
 }
 
+TEST(exception, goto_nested_skip_local) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, 0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_goto_nested_skip_local.lua", {}), std::exception);
+}
+
+TEST(exception, duplicate_label) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, 0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_duplicate_label.lua", {}), std::exception);
+}
+
+TEST(exception, goto_skip_local_function) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, 0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_goto_skip_local_function.lua", {}), std::exception);
+}
+
 // 文件级只承载声明：local 定义、函数定义，以及可选的首行 package 声明。
 // 其余可执行语句在 SemanticAnalysis::CheckFileLevelStmts 里就应该被拒绝，
 // 不能被悄悄搬进 __fakelua_init。

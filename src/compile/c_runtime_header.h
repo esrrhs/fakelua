@@ -1116,15 +1116,31 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 
 #define CVAR_TO_DOUBLE(v) ((v).type_ == VAR_INT ? (double)(v).data_.i : (v).data_.f)
 
+#define FL_INT_ADD(a, b) ((int64_t)((uint64_t)(int64_t)(a) + (uint64_t)(int64_t)(b)))
+#define FL_INT_SUB(a, b) ((int64_t)((uint64_t)(int64_t)(a) - (uint64_t)(int64_t)(b)))
+#define FL_INT_MUL(a, b) ((int64_t)((uint64_t)(int64_t)(a) * (uint64_t)(int64_t)(b)))
+
 #define OP_ARITH_IMPL(a, b, res, op) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, _ra.data_.i op _rb.data_.i); } \
     else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
 
-#define OpAdd(a, b, res) OP_ARITH_IMPL(a, b, res, +)
-#define OpSub(a, b, res) OP_ARITH_IMPL(a, b, res, -)
-#define OpMul(a, b, res) OP_ARITH_IMPL(a, b, res, *)
+#define OpAdd(a, b, res) do { \
+    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_ADD(_ra.data_.i, _rb.data_.i)); } \
+    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) + CVAR_TO_DOUBLE(_rb)); } \
+} while(0)
+#define OpSub(a, b, res) do { \
+    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_SUB(_ra.data_.i, _rb.data_.i)); } \
+    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) - CVAR_TO_DOUBLE(_rb)); } \
+} while(0)
+#define OpMul(a, b, res) do { \
+    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_MUL(_ra.data_.i, _rb.data_.i)); } \
+    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) * CVAR_TO_DOUBLE(_rb)); } \
+} while(0)
 
 #define OpDiv(a, b, res) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \

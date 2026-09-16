@@ -47,13 +47,15 @@ bool CGen::ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo 
         return true;
     }
     if (exp_node->GetExpKind() == ExpKind::kNumber) {
-        std::string num_str = exp_node->ExpValue();
-        if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-            out.kind = TableKeyKind::kInt;
-        } else {
-            out.kind = TableKeyKind::kFloat;
+        TableKeyKind kind = TableKeyKind::kInt;
+        std::string canonical;
+        int64_t int_value = 0;
+        double float_value = 0;
+        if (!ClassifyLuaNumberKey(exp_node->ExpValue(), kind, canonical, int_value, float_value)) {
+            return false;
         }
-        out.repr = num_str;
+        out.kind = kind;
+        out.repr = canonical;
         return true;
     }
     if (exp_node->GetExpKind() == ExpKind::kTrue) {
@@ -188,11 +190,11 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
         for (const auto &f: meta.fields) {
             if (f.key_kind == TableKeyKind::kString) {
                 if (is_get) {
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->"
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << EscapeCStringLiteral(f.key) << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->"
                           << f.c_field_name << "; }\n";
                 } else {
                     const auto id = s_->GetConstString().Alloc(f.key);
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << EscapeCStringLiteral(f.key) << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name
                           << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
                 }
             }
@@ -1700,6 +1702,7 @@ CGen::PairsIpairsKind CGen::TryMatchPairsIpairs(const std::shared_ptr<SyntaxTree
     if (!func_var) return PairsIpairsKind::kNone;
     const auto func_name = func_var->GetName();
     if (func_name != "pairs" && func_name != "ipairs") return PairsIpairsKind::kNone;
+    if (var_to_def_map_.contains(func_var.get())) return PairsIpairsKind::kNone;
     const auto args_node = fc_ptr->Args();
     if (!args_node || args_node->Type() != SyntaxTreeType::Args) return PairsIpairsKind::kNone;
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
@@ -1742,7 +1745,39 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     SyntaxTreeInterfacePtr tbl_exp_node;
     const auto kind = TryMatchPairsIpairs(explist_ptr, names, tbl_exp_node);
 
-    if (kind != PairsIpairsKind::kNone) {
+    if (kind == PairsIpairsKind::kIpairs) {
+        const auto tbl_expr = CompileExp(tbl_exp_node);
+
+        const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);
+        const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << tbl_var << ";\n";
+        func_temp_decls_ << "    int64_t " << idx_var << ";\n";
+
+        Out() << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
+        Out() << GenTab() << "if (UNLIKELY(" << tbl_var << ".type_ != VAR_TABLE)) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
+        Out() << GenTab() << "for (" << idx_var << " = 1; ; " << idx_var << "++) {\n";
+        cur_tab_++;
+
+        const auto tmp_v = std::format("flua_fi_v_{}", tmp_var_counter_++);
+        Out() << GenTab() << "CVar " << tmp_v << " = FlGetTableInt(" << tbl_var << ", " << idx_var << ");\n";
+        Out() << GenTab() << "if (" << tmp_v << ".type_ == VAR_NIL) { break; }\n";
+        const auto tmp_k = std::format("flua_fi_k_{}", tmp_var_counter_++);
+        Out() << GenTab() << "CVar " << tmp_k << " = (CVar){.type_ = VAR_INT, .data_.i = " << idx_var << "};\n";
+
+        HandleLoopVar(names[0], tmp_k);
+        if (names.size() >= 2) {
+            HandleLoopVar(names[1], tmp_v);
+        }
+
+        Out() << GenTab() << "{\n";
+        cur_tab_++;
+        CompileStmtBlock(for_in->Block());
+        cur_tab_--;
+        Out() << GenTab() << "}\n";
+
+        cur_tab_--;
+        Out() << GenTab() << "}\n";
+    } else if (kind == PairsIpairsKind::kPairs) {
         const auto tbl_expr = CompileExp(tbl_exp_node);
 
         const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);
@@ -2005,9 +2040,8 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                                         break;
                                     }
                                     case TableKeyKind::kInt: {
-                                        int64_t int_val = std::stoll(key_info.repr);
+                                        int64_t int_val = std::stoll(key_info.repr, nullptr, 0);
                                         Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, int_val, value_str);
-                                        cur_array_idx = std::max(cur_array_idx, static_cast<int>(int_val + 1));
                                         break;
                                     }
                                     case TableKeyKind::kFloat: {
@@ -2305,12 +2339,21 @@ std::string CGen::CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left,
     };
 
     if (op_kind == BinOpKind::kPlus) {
+        if (result_type == T_INT) {
+            return std::format("FL_INT_ADD(({}), ({}))", left_native, right_native);
+        }
         return std::format("(({}) + ({}))", left_native, right_native);
     }
     if (op_kind == BinOpKind::kMinus) {
+        if (result_type == T_INT) {
+            return std::format("FL_INT_SUB(({}), ({}))", left_native, right_native);
+        }
         return std::format("(({}) - ({}))", left_native, right_native);
     }
     if (op_kind == BinOpKind::kStar) {
+        if (result_type == T_INT) {
+            return std::format("FL_INT_MUL(({}), ({}))", left_native, right_native);
+        }
         return std::format("(({}) * ({}))", left_native, right_native);
     }
     if (op_kind == BinOpKind::kSlash) {
@@ -4068,6 +4111,22 @@ std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctio
                         func_temp_decls_ << "    CVar " << tmp_val << ";\n";
                         Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
                         Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                        switch (info.kind) {
+                            case TableKeyKind::kString: {
+                                const auto id = s_->GetConstString().Alloc(info.repr);
+                                Out() << GenTab() << std::format("{}.data_.t->spec_keys[{}] = (CVar){{.type_ = VAR_STRINGID, .data_.i = {}}};\n", tbl_str, index, id);
+                                break;
+                            }
+                            case TableKeyKind::kInt:
+                                Out() << GenTab() << std::format("{}.data_.t->spec_keys[{}] = (CVar){{.type_ = VAR_INT, .data_.i = {}}};\n", tbl_str, index, info.repr);
+                                break;
+                            case TableKeyKind::kFloat:
+                                Out() << GenTab() << std::format("{}.data_.t->spec_keys[{}] = (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}};\n", tbl_str, index, info.repr);
+                                break;
+                            case TableKeyKind::kBool:
+                                Out() << GenTab() << std::format("{}.data_.t->spec_keys[{}] = {};\n", tbl_str, index, info.repr == "true" ? "kTrue" : "kFalse");
+                                break;
+                        }
                     } else {
                         switch (info.kind) {
                             case TableKeyKind::kString: {
