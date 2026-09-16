@@ -1546,6 +1546,14 @@ void RegisterStringLibraryApi(State *s) {
                     payload.append(reinterpret_cast<const char *>(&v), sizeof(v));
                 } else if (uv.type_ == static_cast<int>(VarType::Bool)) {
                     payload.push_back(uv.data_.b ? 1 : 0);
+                } else if (uv.type_ == static_cast<int>(VarType::String) || uv.type_ == static_cast<int>(VarType::StringId)) {
+                    std::string temp;
+                    std::string_view sv = GetStringArgView(uv, temp);
+                    uint32_t len = static_cast<uint32_t>(sv.size());
+                    payload.append(reinterpret_cast<const char *>(&len), sizeof(len));
+                    payload.append(sv.data(), sv.size());
+                } else if (uv.type_ != static_cast<int>(VarType::Nil)) {
+                    ThrowFakeluaException("string.dump: cannot dump upvalue of type " + VarTypeToString(static_cast<VarType>(uv.type_)));
                 }
             } else {
                 payload.push_back(static_cast<char>(VarType::Nil));
@@ -1593,6 +1601,18 @@ void RegisterStringLibraryApi(State *s) {
                         idx += sizeof(double);
                     } else if (type == static_cast<int>(VarType::Bool) && idx < sv.size()) {
                         uv.data_.b = (sv[idx++] != 0);
+                    } else if ((type == static_cast<int>(VarType::String) || type == static_cast<int>(VarType::StringId)) && idx + sizeof(uint32_t) <= sv.size()) {
+                        uint32_t len = 0;
+                        std::memcpy(&len, sv.data() + idx, sizeof(len));
+                        idx += sizeof(uint32_t);
+                        if (len > sv.size() - idx) {
+                            uv.type_ = static_cast<int>(VarType::Nil);
+                        } else {
+                            uv = inter::NativeToFakeluaStringView(state, std::string_view(sv.data() + idx, len));
+                            idx += len;
+                        }
+                    } else if (type != static_cast<int>(VarType::Nil)) {
+                        uv.type_ = static_cast<int>(VarType::Nil);
                     }
                     saved_upvalues.push_back(uv);
                 }

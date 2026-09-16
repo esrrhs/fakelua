@@ -599,6 +599,16 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
     if (cfg.ws_path.empty()) cfg.ws_path = "/";
     cfg.ws_host = GetTableFieldString(s, a0, "ws_host", "");
     cfg.ws_origin = GetTableFieldString(s, a0, "ws_origin", "");
+    auto check_ws_field = [](const std::string &val, const char *what) {
+        for (unsigned char c: val) {
+            if (c < 0x20 || c == 0x7f || c == ' ') {
+                ThrowFakeluaException(std::format("net: invalid {} (contains control or space)", what));
+            }
+        }
+    };
+    check_ws_field(cfg.ws_path, "ws_path");
+    check_ws_field(cfg.ws_host, "ws_host");
+    check_ws_field(cfg.ws_origin, "ws_origin");
 
     CVar tls_var = table::TableHelper::GetTableStrId(s, a0, "tls");
     if (tls_var.type_ == static_cast<int>(VarType::Bool)) {

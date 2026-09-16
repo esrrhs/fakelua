@@ -775,6 +775,8 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
     repeat_label_stack_.clear();
     for_cont_id_ = 0;
     for_cont_stack_.clear();
+    label_uniq_ = 0;
+    label_c_stack_.clear();
     CompileStmtBlock(func_block);
     cur_tab_--;
 
@@ -968,10 +970,21 @@ std::string CGen::BuildSpecCallArgs(const std::vector<std::string> &params, cons
 void CGen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
     DEBUG_ASSERT(block->Type() == SyntaxTreeType::Block);
     const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
-
+    label_c_stack_.emplace_back();
+    auto &cur = label_c_stack_.back();
+    for (const auto &stmts = block_ptr->Stmts(); auto &stmt: stmts) {
+        if (!stmt || stmt->Type() != SyntaxTreeType::Label) continue;
+        const auto label_stmt = std::dynamic_pointer_cast<SyntaxTreeLabel>(stmt);
+        const auto &name = label_stmt->GetName();
+        if (cur.contains(name)) {
+            ThrowError("label '" + name + "' already defined", stmt);
+        }
+        cur[name] = "flua_L_" + name + "_" + std::to_string(++label_uniq_);
+    }
     for (const auto &stmts = block_ptr->Stmts(); auto &stmt: stmts) {
         CompileStmt(stmt);
     }
+    label_c_stack_.pop_back();
 }
 
 bool CGen::IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const {
@@ -1450,13 +1463,29 @@ void CGen::CompileStmtContinue(const SyntaxTreeInterfacePtr &stmt) {
 void CGen::CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Goto);
     const auto goto_stmt = std::dynamic_pointer_cast<SyntaxTreeGoto>(stmt);
-    Out() << GenTab() << "goto flua_L_" << goto_stmt->GetLabel() << ";\n";
+    const auto &label = goto_stmt->GetLabel();
+    for (int i = static_cast<int>(label_c_stack_.size()) - 1; i >= 0; --i) {
+        const auto it = label_c_stack_[static_cast<size_t>(i)].find(label);
+        if (it != label_c_stack_[static_cast<size_t>(i)].end()) {
+            Out() << GenTab() << "goto " << it->second << ";\n";
+            return;
+        }
+    }
+    ThrowError("no visible label '" + label + "' for <goto>", stmt);
 }
 
 void CGen::CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Label);
     const auto label_stmt = std::dynamic_pointer_cast<SyntaxTreeLabel>(stmt);
-    Out() << "flua_L_" << label_stmt->GetName() << ": ;\n";
+    const auto &name = label_stmt->GetName();
+    if (label_c_stack_.empty()) {
+        ThrowError("label '" + name + "' outside a block", stmt);
+    }
+    const auto it = label_c_stack_.back().find(name);
+    if (it == label_c_stack_.back().end()) {
+        ThrowError("label '" + name + "' is not visible in this block", stmt);
+    }
+    Out() << it->second << ": ;\n";
 }
 
 void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {

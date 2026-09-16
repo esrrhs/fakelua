@@ -141,8 +141,12 @@ private:
     int stack_top_ = 0;
     int local_top_ = 0;
     std::vector<LoopInfo> loops_;
-    std::unordered_map<std::string, int> labels_;
-    std::unordered_map<std::string, std::vector<int>> pending_gotos_;
+
+    struct LabelScope {
+        std::unordered_map<std::string, int> defined;
+        std::unordered_map<std::string, std::vector<int>> pending;
+    };
+    std::vector<LabelScope> label_scopes_;
 };
 
 }// namespace fakelua

@@ -152,7 +152,7 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
 
         CVar port_var = table::TableHelper::GetTableStrId(s, a0, "port");
         if (port_var.type_ != static_cast<int>(VarType::Nil)) {
-            port = static_cast<uint16_t>(inter::CVarToInteger(port_var, 3306));
+            port = CheckPortRange(inter::CVarToInteger(port_var, 3306), "mysql.connect", 1, 65535);
         }
 
         CVar user_var = table::TableHelper::GetTableStrId(s, a0, "user");

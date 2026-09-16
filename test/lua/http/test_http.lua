@@ -145,3 +145,22 @@ function test_bad_port()
     if ok then return 0 end
     return 1
 end
+
+function test_method_inject()
+    local ok = pcall(function()
+        http.request({
+            method = "GET /evil",
+            url = "http://127.0.0.1/"
+        }, "HttpTest.on_client")
+    end)
+    if ok then return 0 end
+    local ok2 = pcall(function()
+        http.request({
+            method = "GET",
+            url = "http://127.0.0.1/",
+            headers = { ["X:Y"] = "z" }
+        }, "HttpTest.on_client")
+    end)
+    if ok2 then return 0 end
+    return 1
+end

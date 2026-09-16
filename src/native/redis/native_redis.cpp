@@ -541,7 +541,7 @@ static CVar RedisConnect(State *s, CVar *args, int n) {
         CVar v = table::TableHelper::GetTableStrId(s, a0, "host");
         if (v.type_ != static_cast<int>(VarType::Nil)) host = CVarToString(v);
         v = table::TableHelper::GetTableStrId(s, a0, "port");
-        if (v.type_ != static_cast<int>(VarType::Nil)) port = static_cast<uint16_t>(inter::CVarToInteger(v, 6379));
+        if (v.type_ != static_cast<int>(VarType::Nil)) port = CheckPortRange(inter::CVarToInteger(v, 6379), "redis.connect", 1, 65535);
         v = table::TableHelper::GetTableStrId(s, a0, "user");
         if (v.type_ != static_cast<int>(VarType::Nil)) user = CVarToString(v);
         v = table::TableHelper::GetTableStrId(s, a0, "password");
