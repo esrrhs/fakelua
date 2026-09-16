@@ -36,3 +36,14 @@ TEST(test_url, encode_decode) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_url, format_bad_port) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./url/test_url.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "UrlTest.test_format_bad_port", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
