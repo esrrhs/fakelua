@@ -553,7 +553,7 @@ void RegisterBasicLibraryApi(State *s) {
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'pairs' (table expected)");
         }
-        auto &alloc = state->GetHeap().GetAllocator(false);
+        auto &alloc = state->GetValueAllocator();
 
         // 分配迭代器状态
         auto *st = static_cast<PairIterState *>(alloc.Alloc(sizeof(PairIterState)));
@@ -577,7 +577,7 @@ void RegisterBasicLibraryApi(State *s) {
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'ipairs' (table expected)");
         }
-        auto &alloc = state->GetHeap().GetAllocator(false);
+        auto &alloc = state->GetValueAllocator();
 
         auto *st = static_cast<IpairsState *>(alloc.Alloc(sizeof(IpairsState)));
         st->table = tbl;

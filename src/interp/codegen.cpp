@@ -1046,11 +1046,55 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
     SyntaxTreeInterfacePtr tbl_exp_node;
     const auto kind = TryMatchPairsIpairs(explist_ptr, tbl_exp_node);
-    if (kind != PairsIpairsKind::kNone) {
+    auto bind_loop_vars = [&](int kreg, int vreg) {
+        if (defs[0]->is_captured) {
+            Emit(Op::NEWBOX, defs[0]->reg);
+        }
+        StoreLocal(defs[0]->reg, kreg);
+        if (defs.size() >= 2) {
+            if (defs[1]->is_captured) {
+                Emit(Op::NEWBOX, defs[1]->reg);
+            }
+            StoreLocal(defs[1]->reg, vreg);
+        }
+    };
+    if (kind == PairsIpairsKind::kIpairs) {
         const int tbl = CompileExp(tbl_exp_node, false);
-        // if not table: THROW. Use GETTABLE on dummy? Use TABCOUNT which should throw from GetTable...
-        // TableEntryCount on non-table: implement check via GETTABLE? runtime TableEntryCount:
-        // check runtime
+        const int idx = AllocReg();
+        LoadConstTo(idx, interp_rt::Int(1));
+        LoopInfo loop;
+        loop.kind = LoopInfo::kForIn;
+        const int head = static_cast<int>(cur_proto_->code.size());
+        loop.continue_ip = -1;
+        const int vreg = AllocReg();
+        Emit(Op::GETTABLE, vreg, tbl, idx);
+        const int nlit = AllocReg();
+        Emit(Op::LOADNIL, nlit);
+        const int vnil = AllocReg();
+        Emit(Op::EQ, vnil, vreg, nlit);
+        const int jmp_exit = Emit(Op::TESTJMP, vnil, 1);
+        bind_loop_vars(idx, vreg);
+        loops_.push_back(std::move(loop));
+        CompileStmtBlock(for_in->Block());
+        const int cont = static_cast<int>(cur_proto_->code.size());
+        loops_.back().continue_ip = cont;
+        for (int ip: loops_.back().continue_jmps) {
+            PatchSbx(ip, cont);
+        }
+        const int one = AllocReg();
+        LoadConstTo(one, interp_rt::Int(1));
+        Emit(Op::ADD, idx, idx, one);
+        Emit(Op::JMP, 0, 0, 0, head - static_cast<int>(cur_proto_->code.size()) - 1);
+        const int end = static_cast<int>(cur_proto_->code.size());
+        PatchSbx(jmp_exit, end);
+        for (int ip: loops_.back().break_jmps) {
+            PatchSbx(ip, end);
+        }
+        loops_.pop_back();
+        return;
+    }
+    if (kind == PairsIpairsKind::kPairs) {
+        const int tbl = CompileExp(tbl_exp_node, false);
         const int sz = AllocReg();
         Emit(Op::TABCOUNT, sz, tbl);
         const int idx = AllocReg();
@@ -1065,28 +1109,13 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         const int kreg = AllocReg();
         const int vreg = AllocReg();
         Emit(Op::TABENT, tbl, kreg, vreg, 0);
-        cur_proto_->code.back().sbx = 0;
-        // idx is int CVar; TABENT uses sbx as uint index — need the runtime idx from register.
-        // Fix: store idx in sbx is wrong for dynamic idx. Change: use B/C already; put idx in extra.
-        // Interpreter TABENT uses inst.sbx as index. We need register index.
-        // Patch: reuse inst.b/c for k/v, inst.a for table, and read index from a side register via sbx being the reg?
-        // I'll encode idx register in inst.sbx as a register number (non-negative small).
         cur_proto_->code.back().sbx = idx;
         const int vnil = AllocReg();
         const int nlit = AllocReg();
         Emit(Op::LOADNIL, nlit);
         Emit(Op::EQ, vnil, vreg, nlit);
         const int skip_body = Emit(Op::TESTJMP, vnil, 1);
-        if (defs[0]->is_captured) {
-            Emit(Op::NEWBOX, defs[0]->reg);
-        }
-        StoreLocal(defs[0]->reg, kreg);
-        if (defs.size() >= 2) {
-            if (defs[1]->is_captured) {
-                Emit(Op::NEWBOX, defs[1]->reg);
-            }
-            StoreLocal(defs[1]->reg, vreg);
-        }
+        bind_loop_vars(kreg, vreg);
         loops_.push_back(std::move(loop));
         CompileStmtBlock(for_in->Block());
         const int cont = static_cast<int>(cur_proto_->code.size());
@@ -1484,14 +1513,10 @@ int InterpCodegen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     if (const auto fieldlist = tc_ptr->Fieldlist()) {
         const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
         std::shared_ptr<SyntaxTreeField> last_array_field;
-        bool has_multi_list_field = false;
         for (const auto &field: fieldlist_ptr->Fields()) {
             const auto field_ptr = std::dynamic_pointer_cast<SyntaxTreeField>(field);
             if (field_ptr->GetFieldKind() == FieldKind::kArray && !field_ptr->Key()) {
                 last_array_field = field_ptr;
-                if (LastPreservesMulti(field_ptr->Value())) {
-                    has_multi_list_field = true;
-                }
             }
         }
         int array_idx = 1;
@@ -1509,17 +1534,6 @@ int InterpCodegen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             } else if (const auto key = field_ptr->Key()) {
                 const int k = CompileExp(key, false);
                 Emit(Op::SETTABLE, tbl, k, val);
-                // 与 CGen 特化路径一致：字面量整数键推进隐式下标。
-                // 含 `...` / 多返回展开时走 Lua 列表语义（后续隐式字段从 1 起，可覆盖）。
-                if (!has_multi_list_field) {
-                    if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key);
-                        key_exp && key_exp->GetExpKind() == ExpKind::kNumber && IsInteger(key_exp->ExpValue())) {
-                        const auto iv = ToInteger(key_exp->ExpValue());
-                        if (iv >= 0 && iv < std::numeric_limits<int>::max()) {
-                            array_idx = std::max(array_idx, static_cast<int>(iv) + 1);
-                        }
-                    }
-                }
             } else if (is_expand) {
                 Emit(Op::SETLIST, tbl, array_idx, val);
             } else {
@@ -1725,9 +1739,8 @@ void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, co
     }
 
     if (unit_->init_proto) {
-        s_->SetInterpConstAlloc(true);
+        State::ConstAllocScope const_alloc(s_);
         InterpreterExecute(s_, unit_->init_proto, nullptr, 0, nullptr);
-        s_->SetInterpConstAlloc(false);
         for (const auto &name: ar.global_const_names) {
             if (auto it = unit_->globals.find(name); it != unit_->globals.end()) {
                 it->second.flag_ |= 0x1;

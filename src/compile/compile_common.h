@@ -5,8 +5,12 @@
 #include "syntax_tree.h"
 #include "util/debug.h"
 #include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <format>
+#include <limits>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -275,6 +279,79 @@ struct AnalysisResult {
 
 // ---- 阶段四：类型推断结果 ---------------------------------------------------
 enum class TableKeyKind { kString, kInt, kBool, kFloat };
+
+// 把 Lua 数字字面量（含 0x10 / 1.0 / 0x1p4）分类成 table 键。
+// 能无损落成 int64 的浮点（1.0）按整数键处理，与运行时 NORMALIZE_TABLE_KEY 一致。
+inline bool ClassifyLuaNumberKey(const std::string &num_str, TableKeyKind &kind, std::string &canonical, int64_t &int_value, double &float_value) {
+    if (num_str.empty()) return false;
+    try {
+        size_t pos = 0;
+        const long long parsed = std::stoll(num_str, &pos, 0);
+        if (pos == num_str.size()) {
+            kind = TableKeyKind::kInt;
+            int_value = static_cast<int64_t>(parsed);
+            canonical = std::to_string(int_value);
+            float_value = 0.0;
+            return true;
+        }
+    } catch (...) {
+    }
+    try {
+        size_t pos = 0;
+        const double d = std::stod(num_str, &pos);
+        if (pos != num_str.size() || !std::isfinite(d)) return false;
+        double ip = 0;
+        if (std::modf(d, &ip) == 0.0) {
+            constexpr double kExcl = 9223372036854775808.0;
+            if (ip >= static_cast<double>(INT64_MIN) && ip < kExcl) {
+                kind = TableKeyKind::kInt;
+                int_value = static_cast<int64_t>(ip);
+                canonical = std::to_string(int_value);
+                float_value = 0.0;
+                return true;
+            }
+        }
+        kind = TableKeyKind::kFloat;
+        float_value = d;
+        canonical = num_str;
+        int_value = 0;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+inline std::string EscapeCStringLiteral(const std::string &s) {
+    std::string out;
+    out.reserve(s.size() + 8);
+    for (unsigned char c: s) {
+        switch (c) {
+            case '\\':
+                out += "\\\\";
+                break;
+            case '"':
+                out += "\\\"";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                if (c < 32 || c >= 127) {
+                    out += std::format("\\{:03o}", c);
+                } else {
+                    out += static_cast<char>(c);
+                }
+                break;
+        }
+    }
+    return out;
+}
 
 // table 特化信息：描述一个 table 的字段结构
 struct TableFieldInfo {

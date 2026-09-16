@@ -125,7 +125,7 @@ private:
 
     // 若 explist 是 pairs(tbl) 或 ipairs(tbl) 的单调用，返回对应 kind 并通过
     // out_tbl_arg 输出 tbl 表达式节点；否则返回 kNone，out_tbl_arg 不写入。
-    [[nodiscard]] static PairsIpairsKind TryMatchPairsIpairs(const std::shared_ptr<SyntaxTreeExplist> &explist_ptr, const std::vector<std::string> &names, SyntaxTreeInterfacePtr &out_tbl_arg);
+    [[nodiscard]] PairsIpairsKind TryMatchPairsIpairs(const std::shared_ptr<SyntaxTreeExplist> &explist_ptr, const std::vector<std::string> &names, SyntaxTreeInterfacePtr &out_tbl_arg);
 
     void CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt);

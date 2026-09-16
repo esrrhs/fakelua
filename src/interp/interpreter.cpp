@@ -10,6 +10,7 @@
 #include "var/var_closure.h"
 #include "var/var_multi.h"
 #include "var/var_string.h"
+#include <format>
 #include <vector>
 
 namespace fakelua {
@@ -220,6 +221,9 @@ CVar InterpreterExecute(State *s, FuncProto *proto, const CVar *args, int arg_co
                 const std::string name = ConstToName(proto->constants[static_cast<size_t>(inst.sbx)]);
                 CVar call_args[kMaxFunctionInputParams];
                 const int nargs = inst.b;
+                if (nargs < 0 || nargs > static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("interpreter: too many arguments ({}) passed for function '{}', max is {}", nargs, name, kMaxFunctionInputParams));
+                }
                 for (int i = 0; i < nargs; ++i) {
                     call_args[i] = read(inst.a + i);
                 }
@@ -234,7 +238,7 @@ CVar InterpreterExecute(State *s, FuncProto *proto, const CVar *args, int arg_co
             case Op::CLOSURE: {
                 FuncProto *child = proto->child_protos[static_cast<size_t>(inst.sbx)];
                 const int nup = static_cast<int>(child->upvalues.size());
-                CVar *upbufs[kMaxFunctionInputParams];
+                std::vector<CVar *> upbufs(static_cast<size_t>(nup), nullptr);
                 for (int i = 0; i < nup; ++i) {
                     const auto &uv = child->upvalues[static_cast<size_t>(i)];
                     if (uv.in_stack) {
@@ -248,7 +252,7 @@ CVar InterpreterExecute(State *s, FuncProto *proto, const CVar *args, int arg_co
                         upbufs[i] = (cl && uv.idx < static_cast<uint16_t>(cl->upvalue_count)) ? cl->upvalues[uv.idx] : nullptr;
                     }
                 }
-                write(inst.a, interp_rt::MakeClosure(s, TagInterpProto(child), nup, child->param_count, child->is_vararg, upbufs));
+                write(inst.a, interp_rt::MakeClosure(s, TagInterpProto(child), nup, child->param_count, child->is_vararg, upbufs.empty() ? nullptr : upbufs.data()));
                 break;
             }
             case Op::SETLIST:

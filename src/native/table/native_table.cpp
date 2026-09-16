@@ -13,6 +13,7 @@
 #include <cstring>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace fakelua::table {
@@ -234,7 +235,7 @@ void TableRehashTo(State *s, VarTable *tbl, uint32_t min_buckets) {
     if (min_buckets > new_bucket_count) new_bucket_count = NextPowerOfTwo(min_buckets);
     if (new_bucket_count < 1) new_bucket_count = 1;
 
-    auto &alloc = s->GetHeap().GetAllocator(false /* temp */);
+    auto &alloc = s->GetValueAllocator();
     while (true) {
         const uint32_t overflow_count = new_bucket_count / 2;
         const uint32_t total_nodes = new_bucket_count + overflow_count;
@@ -659,7 +660,7 @@ void TableHelper::SetTable(State *s, CVar tbl, CVar key, CVar val) {
     if (key.type_ == kIntType) SeqNoteIntSet(t, key.data_.i, val.type_ == kNilType);
 }
 
-void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val) {
+void TableHelper::SetTableStrId(State *s, CVar tbl, std::string_view str_key, CVar val) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
     VarTable *t = tbl.data_.t;
     const int64_t id = s->GetConstString().Alloc(str_key);
@@ -669,13 +670,15 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
     CVar key{static_cast<int>(VarType::StringId)};
     key.data_.i = id;
 
-    // 此前这里是一套独立的探测逻辑：只比较 hash 而不比较键内容（哈希冲突会串值），
-    // 并且在 quick_data_ 满、桶也满时直接返回，静默丢弃写入。现在统一走带扩容的公共路径。
     if (val.type_ == kNilType) {
         TableDelete(t, key, hash);
     } else {
         TableSetNonNil(s, t, key, val, hash);
     }
+}
+
+void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val) {
+    SetTableStrId(s, tbl, std::string_view(str_key ? str_key : ""), val);
 }
 
 // Use shared CheckNumberArg from native_common.h

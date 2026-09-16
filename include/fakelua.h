@@ -689,6 +689,10 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
     const int user_arg_count = static_cast<int>(sizeof...(Args));
     const int fixed_count = is_vararg ? arg_count - 1 : arg_count;
 
+    if (__builtin_expect(user_arg_count > static_cast<int>(kMaxFunctionInputParams), 0)) {
+        inter::ThrowInterFakeluaException(std::format("Call failed, function {} too many arguments ({}), max is {}", name, user_arg_count, kMaxFunctionInputParams));
+    }
+
     if (__builtin_expect(!is_vararg && user_arg_count != arg_count, 0)) {
         inter::ThrowInterFakeluaException(std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, user_arg_count));
     }

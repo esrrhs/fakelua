@@ -17,7 +17,10 @@ namespace fakelua {
 }
 
 extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const) {
-    return GuardJitEntry(state, [&] { return state->GetHeap().GetAllocator(is_const).Alloc(size); });
+    return GuardJitEntry(state, [&] {
+        // Native 库在 init 里仍传 is_const=false；与 JIT 的 !__fakelua_init_flag__ 对齐，强制走常量堆。
+        return state->GetHeap().GetAllocator(is_const || state->InterpConstAlloc()).Alloc(size);
+    });
 }
 
 extern "C" void FakeluaThrowError(State *state, const char *msg) {

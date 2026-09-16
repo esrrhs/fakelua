@@ -77,7 +77,7 @@ static CVar JsonValueToLua(State *s, const bj::value &v) {
         const bj::object &obj = v.get_object();
         for (const auto &[key, val]: obj) {
             CVar lua_val = JsonValueToLua(s, val);
-            table::TableHelper::SetTableStrId(s, tbl, key.data(), lua_val);
+            table::TableHelper::SetTableStrId(s, tbl, std::string_view(key.data(), key.size()), lua_val);
         }
         return tbl;
     }

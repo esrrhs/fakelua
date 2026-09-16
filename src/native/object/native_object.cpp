@@ -296,7 +296,7 @@ CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar) {
 // 使 pairs()/next() 迭代结果能反映 NativeSpecSet 写入后的最新字段集合。
 // 该函数在 Wrap() 和 NativeSpecSet() 之后都会被调用，以保持快照与实际字段同步。
 void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
-    auto &alloc = s->GetHeap().GetAllocator(false /* is_const */);
+    auto &alloc = s->GetValueAllocator();
     const auto &kv = obj->impl_->kv;
     const size_t n = kv.size();
 
@@ -364,7 +364,7 @@ CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish) {
     const auto &methods = obj->impl_->methods;
     const auto mit = methods.find(skey);
     if (mit != methods.end()) {
-        auto &alloc = s->GetHeap().GetAllocator(false /* temp */);
+        auto &alloc = s->GetValueAllocator();
 
         auto *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
         uv0->type_ = static_cast<int>(VarType::Int);
@@ -472,7 +472,7 @@ CVar NativeObject::Wrap(State *s) const {
     if (!impl_ || !s) {
         return inter::NativeToFakeluaNil(s);
     }
-    auto &alloc = s->GetHeap().GetAllocator(false /* temp */);
+    auto &alloc = s->GetValueAllocator();
 
     // 分发 VarTable 壳（arena，帧内有效）
     auto *vtbl = static_cast<VarTable *>(alloc.Alloc(sizeof(VarTable)));

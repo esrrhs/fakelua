@@ -1638,25 +1638,30 @@ bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vect
                     f.c_field_name = SpecStringFieldCName(f.key);
                     desc = "S_" + f.key;
                 } else if (kind == ExpKind::kNumber) {
-                    std::string num_str = key_exp->ExpValue();
-                    if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                        f.key = num_str;
+                    TableKeyKind nkind = TableKeyKind::kInt;
+                    std::string canonical;
+                    int64_t int_value = 0;
+                    double float_value = 0;
+                    if (!ClassifyLuaNumberKey(key_exp->ExpValue(), nkind, canonical, int_value, float_value)) {
+                        return false;
+                    }
+                    if (nkind == TableKeyKind::kInt) {
+                        f.key = canonical;
                         f.key_kind = TableKeyKind::kInt;
-                        f.int_value = std::stoll(num_str);
+                        f.int_value = int_value;
                         std::string sanitized = f.key;
                         std::replace(sanitized.begin(), sanitized.end(), '-', '_');
                         f.c_field_name = "_int_" + sanitized;
                         desc = "I_" + f.key;
-                        array_idx = std::max(array_idx, static_cast<int>(f.int_value + 1));
                     } else {
-                        f.key = num_str;
+                        f.key = canonical;
                         f.key_kind = TableKeyKind::kFloat;
-                        std::string sanitized = num_str;
+                        std::string sanitized = canonical;
                         std::replace(sanitized.begin(), sanitized.end(), '.', '_');
                         std::replace(sanitized.begin(), sanitized.end(), '-', '_');
                         std::replace(sanitized.begin(), sanitized.end(), '+', '_');
                         f.c_field_name = "_float_" + sanitized;
-                        f.float_value = std::stod(num_str);
+                        f.float_value = float_value;
                         desc = "F_" + f.key;
                     }
                 } else if (kind == ExpKind::kTrue) {

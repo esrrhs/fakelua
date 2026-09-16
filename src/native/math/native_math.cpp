@@ -457,11 +457,17 @@ void RegisterMathLibraryApi(State *s) {
         CheckNumberArg(ahi, 3, "math.clamp");
         if (ax.type_ == static_cast<int>(VarType::Int) && alo.type_ == static_cast<int>(VarType::Int) &&
             ahi.type_ == static_cast<int>(VarType::Int)) {
+            if (alo.data_.i > ahi.data_.i) {
+                ThrowBadArgument(2, "math.clamp", "low bound must not exceed high bound");
+            }
             return inter::NativeToFakeluaInt(state, std::clamp(ax.data_.i, alo.data_.i, ahi.data_.i));
         }
         double x = inter::CVarToNumber(ax, 0.0);
         double lo = inter::CVarToNumber(alo, 0.0);
         double hi = inter::CVarToNumber(ahi, 0.0);
+        if (lo > hi) {
+            ThrowBadArgument(2, "math.clamp", "low bound must not exceed high bound");
+        }
         return inter::NativeToFakeluaFloat(state, std::clamp(x, lo, hi));
     });
 }

@@ -1375,7 +1375,7 @@ void RegisterStringLibraryApi(State *s) {
         if (!re) return inter::NativeToFakeluaNil(state);
 
         // 使用 arena 分配器分配迭代器状态（re 由全局缓存持有）
-        auto &alloc = state->GetHeap().GetAllocator(false);
+        auto &alloc = state->GetValueAllocator();
         GMatchState *gs = new (alloc.Alloc(sizeof(GMatchState))) GMatchState{std::move(text), re, 0};
 
         // 使用共享辅助函数创建迭代器闭包
@@ -1613,7 +1613,7 @@ void RegisterStringLibraryApi(State *s) {
                 }
             }
 
-            auto &alloc = state->GetHeap().GetAllocator(false);
+            auto &alloc = state->GetValueAllocator();
             char *saved_code = nullptr;
             if (!wrapper_code.empty()) {
                 saved_code = static_cast<char *>(alloc.Alloc(wrapper_code.size() + 1));
