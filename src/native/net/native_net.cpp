@@ -609,6 +609,7 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
     check_ws_field(cfg.ws_path, "ws_path");
     check_ws_field(cfg.ws_host, "ws_host");
     check_ws_field(cfg.ws_origin, "ws_origin");
+    check_ws_field(cfg.ip, "ip");
 
     CVar tls_var = table::TableHelper::GetTableStrId(s, a0, "tls");
     if (tls_var.type_ == static_cast<int>(VarType::Bool)) {

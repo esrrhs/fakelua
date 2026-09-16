@@ -384,7 +384,10 @@ public:
             Finish("url missing host");
             return;
         }
-        int port = u.has_port() ? std::atoi(std::string(u.port()).c_str()) : (use_tls_ ? 443 : 80);
+        int64_t port = use_tls_ ? 443 : 80;
+        if (u.has_port()) {
+            port = CheckPortRange(std::atoi(std::string(u.port()).c_str()), "http.request", 1, 65535);
+        }
         std::string target = std::string(u.encoded_path());
         if (target.empty()) target = "/";
         if (u.has_query()) {
@@ -414,7 +417,7 @@ public:
             bufferevent_socket_connect(bev_, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
             return;
         }
-        bufferevent_socket_connect_hostname(bev_, io_.Dns(), AF_UNSPEC, host_.c_str(), port);
+        bufferevent_socket_connect_hostname(bev_, io_.Dns(), AF_UNSPEC, host_.c_str(), static_cast<int>(port));
     }
 
     void Tick() {

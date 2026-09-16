@@ -69,3 +69,14 @@ TEST(test_http, method_inject) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_http, client_bad_port) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./http/test_http.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "HttpTest.test_client_bad_port", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
