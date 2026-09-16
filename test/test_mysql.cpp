@@ -172,3 +172,14 @@ TEST(test_mysql, integration_ping_and_lifecycle) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_mysql, bad_port) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_connect_fail.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "MysqlTest.test_bad_port", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

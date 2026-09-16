@@ -115,17 +115,18 @@ public:
     }
 
     struct ConstAllocScope {
-        explicit ConstAllocScope(State *s) : s_(s) {
+        explicit ConstAllocScope(State *s) : s_(s), prev_(s->InterpConstAlloc()) {
             s_->SetInterpConstAlloc(true);
         }
         ~ConstAllocScope() {
-            s_->SetInterpConstAlloc(false);
+            s_->SetInterpConstAlloc(prev_);
         }
         ConstAllocScope(const ConstAllocScope &) = delete;
         ConstAllocScope &operator=(const ConstAllocScope &) = delete;
 
     private:
         State *s_;
+        bool prev_;
     };
 
     // 本 State 的日志输出目标。为 nullptr 表示没指定日志文件，只打控制台。

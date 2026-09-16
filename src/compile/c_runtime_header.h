@@ -395,16 +395,26 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
     } else {
         CVar flat_args_buf[kMaxFunctionInputParams];
         int flat_count = 0;
-        for (int i = 0; i < arg_num && flat_count < (int)kMaxFunctionInputParams; ++i) {
+        for (int i = 0; i < arg_num; ++i) {
             if (i == arg_num - 1 && raw_arg_arr[i].type_ == VAR_MULTI) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                for (uint32_t j = 0; j < m->count && flat_count < (int)kMaxFunctionInputParams; ++j) {
+                const int extra = m ? (int)m->count : 0;
+                if (flat_count + extra > (int)kMaxFunctionInputParams) {
+                    FakeluaThrowError(state, "too many arguments");
+                }
+                for (uint32_t j = 0; j < m->count; ++j) {
                     flat_args_buf[flat_count++] = m->vars[j];
                 }
             } else if (raw_arg_arr[i].type_ == VAR_MULTI) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
+                if (flat_count >= (int)kMaxFunctionInputParams) {
+                    FakeluaThrowError(state, "too many arguments");
+                }
                 flat_args_buf[flat_count++] = m->count > 0 ? m->vars[0] : (CVar){VAR_NIL};
             } else {
+                if (flat_count >= (int)kMaxFunctionInputParams) {
+                    FakeluaThrowError(state, "too many arguments");
+                }
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
             }
         }

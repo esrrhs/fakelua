@@ -292,6 +292,8 @@ private:
     std::vector<int> repeat_label_stack_;// 当前活跃的 repeat 标签 id 栈，栈顶即最近外层 repeat
     int for_cont_id_ = 0;                // 动态 numeric for 的 continue 标签计数器
     std::vector<int> for_cont_stack_;    // 动态 numeric for 的 continue 标签栈（while(1)+后置步进）
+    int label_uniq_ = 0;                 // Lua ::label:: 生成的 C 标签后缀，保证兄弟块同名不冲突
+    std::vector<std::unordered_map<std::string, std::string>> label_c_stack_;// Lua 名 → 当前块唯一 C 标签
 
 private:
     struct FuncInfo;
