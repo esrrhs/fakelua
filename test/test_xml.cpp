@@ -184,3 +184,16 @@ TEST(test_xml, encode_empty_table) {
         FakeluaDeleteState(s);
     }
 }
+
+TEST(test_xml, decode_too_deep) {
+    for (auto jit_type: AllJitTypes()) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./xml/test_xml_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "XmlTest.test_decode_too_deep", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}

@@ -78,19 +78,36 @@ static CVar ScalarToLua(State *s, const std::string &str) {
     return inter::NativeToFakeluaString(s, str);
 }
 
+static constexpr int kMaxYamlDepth = 64;
+
 // YAML::Node → CVar
-static CVar NodeToLua(State *s, const YAML::Node &node) {
+static CVar NodeToLua(State *s, const YAML::Node &node, int depth, std::vector<YAML::Node> &stack) {
+    if (depth > kMaxYamlDepth) {
+        ThrowFakeluaException("yaml.decode: nesting too deep");
+    }
     if (!node.IsDefined() || node.IsNull()) {
         return inter::NativeToFakeluaNil(s);
     }
     if (node.IsScalar()) {
         return ScalarToLua(s, node.as<std::string>());
     }
+    for (const auto &seen: stack) {
+        if (node.is(seen)) {
+            ThrowFakeluaException("yaml.decode: cyclic alias");
+        }
+    }
+    stack.push_back(node);
+    struct PopGuard {
+        std::vector<YAML::Node> &stack;
+        ~PopGuard() {
+            stack.pop_back();
+        }
+    } guard{stack};
     if (node.IsSequence()) {
         CVar tbl = table::TableHelper::CreateTable(s);
         size_t idx = 1;
         for (auto it = node.begin(); it != node.end(); ++it, ++idx) {
-            table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(idx), NodeToLua(s, *it));
+            table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(idx), NodeToLua(s, *it, depth + 1, stack));
         }
         return tbl;
     }
@@ -98,7 +115,7 @@ static CVar NodeToLua(State *s, const YAML::Node &node) {
         CVar tbl = table::TableHelper::CreateTable(s);
         for (auto it = node.begin(); it != node.end(); ++it) {
             std::string key = it->first.as<std::string>();
-            table::TableHelper::SetTableStrId(s, tbl, key.c_str(), NodeToLua(s, it->second));
+            table::TableHelper::SetTableStrId(s, tbl, key.c_str(), NodeToLua(s, it->second, depth + 1, stack));
         }
         return tbl;
     }
@@ -106,8 +123,6 @@ static CVar NodeToLua(State *s, const YAML::Node &node) {
 }
 
 // CVar → YAML::Emitter
-static constexpr int kMaxYamlDepth = 64;
-
 static void LuaToEmitter(YAML::Emitter &out, CVar v, int depth, std::unordered_set<VarTable *> &visited) {
     if (depth > kMaxYamlDepth) {
         ThrowFakeluaException("YAML encode: nesting too deep");
@@ -195,7 +210,8 @@ static CVar YamlDecode(State *s, CVar *args, int n) {
     std::string str = inter::FakeluaToNativeString(s, a0);
     try {
         YAML::Node root = YAML::Load(str);
-        return NodeToLua(s, root);
+        std::vector<YAML::Node> stack;
+        return NodeToLua(s, root, 0, stack);
     } catch (const YAML::Exception &e) {
         ThrowFakeluaException(std::format("YAML parse error: {}", e.what()));
     }

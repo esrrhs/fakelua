@@ -164,3 +164,14 @@ function test_method_inject()
     if ok2 then return 0 end
     return 1
 end
+
+function test_client_bad_port()
+    local ok = pcall(function()
+        http.request({
+            method = "GET",
+            url = "http://127.0.0.1:70000/"
+        }, "HttpTest.on_client")
+    end)
+    if ok then return 0 end
+    return 1
+end

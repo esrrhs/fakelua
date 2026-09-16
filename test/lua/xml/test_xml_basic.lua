@@ -143,3 +143,18 @@ function test_encode_nested_array_parent()
     if s:find("<list ?/>", 1, false) ~= nil then return 0 end
     return 1
 end
+
+function test_decode_too_deep()
+    local s = ""
+    for i = 1, 80 do
+        s = s .. "<a>"
+    end
+    for i = 1, 80 do
+        s = s .. "</a>"
+    end
+    local ok = pcall(function()
+        xml.decode(s)
+    end)
+    if ok then return 0 end
+    return 1
+end

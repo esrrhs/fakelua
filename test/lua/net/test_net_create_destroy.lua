@@ -27,3 +27,11 @@ function test_ws_path_crlf()
     if ok then return 0 end
     return 1
 end
+
+function test_ip_crlf()
+    local ok = pcall(function()
+        net.client({ ip = "127.0.0.1\r\nX: y", port = 19995, framer = "websocket" })
+    end)
+    if ok then return 0 end
+    return 1
+end
