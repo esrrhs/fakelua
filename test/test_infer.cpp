@@ -4356,3 +4356,24 @@ TEST(infer, test_infer_cvar_to_int) {
         ASSERT_EQ(ret, 2);
     });
 }
+
+TEST(infer, test_spec_literal_keys) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_literal_keys.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_hex_key", ret);
+        ASSERT_EQ(ret, 48);
+        ret = 0;
+        Call(s, type, "test_float_one_is_int", ret);
+        ASSERT_EQ(ret, 7);
+        ret = 0;
+        Call(s, type, "test_implicit_after_explicit", ret);
+        ASSERT_EQ(ret, 1);
+        ret = 0;
+        Call(s, type, "test_quote_key", ret);
+        ASSERT_EQ(ret, 9);
+        ret = 0;
+        Call(s, type, "test_spec_assign_pairs", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}

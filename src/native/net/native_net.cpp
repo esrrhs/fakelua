@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstring>
 #include <format>
+#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -551,14 +552,29 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
     {
         int64_t sbs = GetTableField(s, a0, "send_buf_size", 0);
         if (sbs == 0) sbs = GetTableField(s, a0, "sendbuf", 0);
-        if (sbs > 0) cfg.send_buf_size = static_cast<int>(sbs);
+        if (sbs > 0) {
+            if (sbs > static_cast<int64_t>(std::numeric_limits<int>::max())) {
+                ThrowFakeluaException(std::format("net: send_buf_size {} out of range", sbs));
+            }
+            cfg.send_buf_size = static_cast<int>(sbs);
+        }
 
         int64_t rbs = GetTableField(s, a0, "recv_buf_size", 0);
         if (rbs == 0) rbs = GetTableField(s, a0, "recvbuf", 0);
-        if (rbs > 0) cfg.recv_buf_size = static_cast<int>(rbs);
+        if (rbs > 0) {
+            if (rbs > static_cast<int64_t>(std::numeric_limits<int>::max())) {
+                ThrowFakeluaException(std::format("net: recv_buf_size {} out of range", rbs));
+            }
+            cfg.recv_buf_size = static_cast<int>(rbs);
+        }
 
         int64_t mpl = GetTableField(s, a0, "max_packet_len", 0);
-        if (mpl > 0) cfg.max_packet_len = static_cast<int>(mpl);
+        if (mpl > 0) {
+            if (mpl > static_cast<int64_t>(std::numeric_limits<int>::max())) {
+                ThrowFakeluaException(std::format("net: max_packet_len {} out of range", mpl));
+            }
+            cfg.max_packet_len = static_cast<int>(mpl);
+        }
     }
     cfg.fixed_packet_len = static_cast<int>(GetTableField(s, a0, "fixed_len", 0));
     if (cfg.fixed_packet_len == 0) {

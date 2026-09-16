@@ -41,7 +41,7 @@ std::vector<uint8_t> AesDecryptCbc(const uint8_t *data, size_t len, const uint8_
 
 // CTR mode (counter)
 // Stream cipher mode: no padding. Output length = input length.
-// iv[0..7] = nonce; iv[8..15] are ignored. Counter starts at 0.
+// iv is the full 16-byte initial counter block (OpenSSL AES-CTR / NIST SP 800-38A).
 // key must point to at least static_cast<int>(key_size) bytes.
 std::vector<uint8_t> AesEncryptCtr(const uint8_t *data, size_t len, const uint8_t *key, AesKeySize key_size, const uint8_t iv[AES_BLOCK_SIZE]);
 std::vector<uint8_t> AesDecryptCtr(const uint8_t *data, size_t len, const uint8_t *key, AesKeySize key_size, const uint8_t iv[AES_BLOCK_SIZE]);

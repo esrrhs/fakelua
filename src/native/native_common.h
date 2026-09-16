@@ -87,7 +87,7 @@ inline void CheckStringArg(const CVar &a, int argno, const char *fname) {
 // The closure is allocated from the state's non-temp arena and is valid for the
 // current frame. Returns a CVar of type Closure ready to be returned to Lua.
 inline CVar MakeIteratorClosure(State *state, void *func_ptr, void *iter_state) {
-    auto &alloc = state->GetHeap().GetAllocator(false /* temp */);
+    auto &alloc = state->GetValueAllocator();
 
     // upvalue 0: State*
     auto *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));

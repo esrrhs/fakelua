@@ -156,7 +156,7 @@ void RegisterOsLibraryApi(State *s) {
         // "*t" format: return a table with date fields
         if (fmt == "*t") {
             // 分配带 bucket 的表（9 个字段 > quick_data_ 的 8 槽）
-            auto &alloc = state->GetHeap().GetAllocator(false);
+            auto &alloc = state->GetValueAllocator();
             auto *vtbl = static_cast<VarTable *>(alloc.Alloc(sizeof(VarTable)));
             *vtbl = VarTable{};
             for (auto &qd: vtbl->quick_data_) {

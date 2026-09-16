@@ -282,7 +282,17 @@ private:
         if (!hs_buf_.empty()) recv_buf_.Write(hs_buf_.data(), hs_buf_.size());
         hs_buf_.clear();
         if (from_client_) {
-            if (headers.find("101") == std::string::npos) {
+            auto nl = headers.find("\r\n");
+            std::string status_line = headers.substr(0, nl == std::string::npos ? headers.size() : nl);
+            auto sp1 = status_line.find(' ');
+            auto sp2 = (sp1 == std::string::npos) ? std::string::npos : status_line.find(' ', sp1 + 1);
+            std::string code = (sp1 == std::string::npos) ? std::string{} : status_line.substr(sp1 + 1, (sp2 == std::string::npos ? status_line.size() : sp2) - sp1 - 1);
+            if (code != "101") {
+                Close();
+                return;
+            }
+            std::string accept = FindHeader(headers, "Sec-WebSocket-Accept");
+            if (accept.empty() || accept != WsAcceptKey(ws_key_)) {
                 Close();
                 return;
             }
@@ -347,7 +357,11 @@ static bufferevent *MakeBev(native::IoContext &io, evutil_socket_t fd, SSL_CTX *
         SSL *ssl = SSL_new(ssl_ctx);
         if (!ssl) return nullptr;
         auto *bev = bufferevent_openssl_socket_new(io.Get(), fd, ssl, client ? BUFFEREVENT_SSL_CONNECTING : BUFFEREVENT_SSL_ACCEPTING, BEV_OPT_CLOSE_ON_FREE);
-        if (bev) bufferevent_openssl_set_allow_dirty_shutdown(bev, 1);
+        if (!bev) {
+            SSL_free(ssl);
+            return nullptr;
+        }
+        bufferevent_openssl_set_allow_dirty_shutdown(bev, 1);
         return bev;
     }
     return bufferevent_socket_new(io.Get(), fd, BEV_OPT_CLOSE_ON_FREE);
