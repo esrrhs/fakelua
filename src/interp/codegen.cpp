@@ -572,8 +572,7 @@ void InterpCodegen::CompileFunction(FuncInfo *func) {
     const int prev_stack = stack_top_;
     const int prev_local = local_top_;
     auto prev_loops = std::move(loops_);
-    auto prev_labels = std::move(labels_);
-    auto prev_gotos = std::move(pending_gotos_);
+    auto prev_label_scopes = std::move(label_scopes_);
 
     auto proto = std::make_unique<FuncProto>();
     proto->unit = unit_;
@@ -596,8 +595,7 @@ void InterpCodegen::CompileFunction(FuncInfo *func) {
     stack_top_ = func->proto->param_count;
     local_top_ = func->proto->param_count;
     loops_.clear();
-    labels_.clear();
-    pending_gotos_.clear();
+    label_scopes_.clear();
 
     if (func->funcbody) {
         const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(func->funcbody);
@@ -629,31 +627,53 @@ void InterpCodegen::CompileFunction(FuncInfo *func) {
         Emit(Op::RETURN, r, 1);
     }
 
-    for (auto &[label, ips]: pending_gotos_) {
-        const auto lit = labels_.find(label);
-        if (lit == labels_.end()) {
-            ThrowError("no visible label '" + label + "' for goto", func->funcbody);
-        }
-        for (int ip: ips) {
-            PatchSbx(ip, lit->second);
-        }
-    }
-
     cur_func_ = prev_func;
     cur_proto_ = prev_proto;
     stack_top_ = prev_stack;
     local_top_ = prev_local;
     loops_ = std::move(prev_loops);
-    labels_ = std::move(prev_labels);
-    pending_gotos_ = std::move(prev_gotos);
+    label_scopes_ = std::move(prev_label_scopes);
 }
 
 void InterpCodegen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
     if (!block) return;
     const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
+    label_scopes_.emplace_back();
     for (const auto &stmt: block_ptr->Stmts()) {
         CompileStmt(stmt);
     }
+    LabelScope &sc = label_scopes_.back();
+    if (label_scopes_.size() == 1) {
+        for (auto &[label, ips]: sc.pending) {
+            const auto it = sc.defined.find(label);
+            if (it == sc.defined.end()) {
+                ThrowError("no visible label '" + label + "' for goto", block);
+            }
+            for (int ip: ips) {
+                PatchSbx(ip, it->second);
+            }
+        }
+    } else {
+        LabelScope &parent = label_scopes_[label_scopes_.size() - 2];
+        for (auto &[label, ips]: sc.pending) {
+            bool resolved = false;
+            for (int i = static_cast<int>(label_scopes_.size()) - 2; i >= 0; --i) {
+                const auto it = label_scopes_[static_cast<size_t>(i)].defined.find(label);
+                if (it != label_scopes_[static_cast<size_t>(i)].defined.end()) {
+                    for (int ip: ips) {
+                        PatchSbx(ip, it->second);
+                    }
+                    resolved = true;
+                    break;
+                }
+            }
+            if (!resolved) {
+                auto &dst = parent.pending[label];
+                dst.insert(dst.end(), ips.begin(), ips.end());
+            }
+        }
+    }
+    label_scopes_.pop_back();
 }
 
 void InterpCodegen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
@@ -928,16 +948,37 @@ void InterpCodegen::CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt) {
     const auto goto_stmt = std::dynamic_pointer_cast<SyntaxTreeGoto>(stmt);
     const auto &label = goto_stmt->GetLabel();
     const int ip = Emit(Op::JMP);
-    if (const auto it = labels_.find(label); it != labels_.end()) {
-        PatchSbx(ip, it->second);
-    } else {
-        pending_gotos_[label].push_back(ip);
+    for (int i = static_cast<int>(label_scopes_.size()) - 1; i >= 0; --i) {
+        const auto it = label_scopes_[static_cast<size_t>(i)].defined.find(label);
+        if (it != label_scopes_[static_cast<size_t>(i)].defined.end()) {
+            PatchSbx(ip, it->second);
+            return;
+        }
     }
+    if (label_scopes_.empty()) {
+        ThrowError("no visible label '" + label + "' for goto", stmt);
+    }
+    label_scopes_.back().pending[label].push_back(ip);
 }
 
 void InterpCodegen::CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt) {
     const auto label_stmt = std::dynamic_pointer_cast<SyntaxTreeLabel>(stmt);
-    labels_[label_stmt->GetName()] = static_cast<int>(cur_proto_->code.size());
+    const auto &name = label_stmt->GetName();
+    if (label_scopes_.empty()) {
+        ThrowError("label '" + name + "' outside a block", stmt);
+    }
+    LabelScope &sc = label_scopes_.back();
+    if (sc.defined.contains(name)) {
+        ThrowError("label '" + name + "' already defined", stmt);
+    }
+    const int ip = static_cast<int>(cur_proto_->code.size());
+    sc.defined[name] = ip;
+    if (const auto it = sc.pending.find(name); it != sc.pending.end()) {
+        for (int jmp: it->second) {
+            PatchSbx(jmp, ip);
+        }
+        sc.pending.erase(it);
+    }
 }
 
 void InterpCodegen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {

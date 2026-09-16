@@ -251,6 +251,20 @@ TEST(test_net, test_server_stop_restart) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_net, test_ws_path_crlf) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_create_destroy.lua", config);
+
+    int64_t ret = 0;
+    CallAll(s, "NetCreate.test_ws_path_crlf", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}
+
 // 测试 12: 反复 connect + close，验证 slot 自动释放并复用（maxconn=2 时成功服务 6 次客户端连接）
 TEST(test_net, test_slot_reuse_repeated_connect) {
     State *s = FakeluaNewState();

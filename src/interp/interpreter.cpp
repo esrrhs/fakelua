@@ -201,12 +201,19 @@ CVar InterpreterExecute(State *s, FuncProto *proto, const CVar *args, int arg_co
                 }
                 CVar call_args[kMaxFunctionInputParams];
                 const int nargs = inst.b;
+                if (nargs < 0 || nargs > static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("interpreter: too many arguments ({}), max is {}", nargs, kMaxFunctionInputParams));
+                }
                 int nflat = 0;
-                for (int i = 0; i < nargs && nflat < static_cast<int>(kMaxFunctionInputParams); ++i) {
+                for (int i = 0; i < nargs; ++i) {
                     CVar av = read(inst.a + 1 + i);
                     if (i == nargs - 1 && av.type_ == static_cast<int>(VarType::Multi)) {
                         VarMulti *m = av.data_.m;
-                        for (uint32_t j = 0; j < m->GetCount() && nflat < static_cast<int>(kMaxFunctionInputParams); ++j) {
+                        const int extra = m ? static_cast<int>(m->GetCount()) : 0;
+                        if (nflat + extra > static_cast<int>(kMaxFunctionInputParams)) {
+                            ThrowFakeluaException(std::format("interpreter: too many arguments ({}), max is {}", nflat + extra, kMaxFunctionInputParams));
+                        }
+                        for (uint32_t j = 0; j < m->GetCount(); ++j) {
                             call_args[nflat++] = m->GetVars()[j];
                         }
                     } else {

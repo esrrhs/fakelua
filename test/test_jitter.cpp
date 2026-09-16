@@ -2881,6 +2881,15 @@ TEST(jitter, goto_in_if_else) {
     });
 }
 
+TEST(jitter, goto_sibling_labels) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_sibling_labels.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_goto_sibling_labels", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
 TEST(jitter, test_table_negative_int_key) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_negative_int_key.lua", {.debug_mode = debug_mode});

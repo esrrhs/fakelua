@@ -100,9 +100,12 @@ static bool ContainsCRLF(const std::string &s) {
     return s.find('\r') != std::string::npos || s.find('\n') != std::string::npos;
 }
 
-static void CheckHttpToken(const std::string &s, const char *what) {
-    if (s.empty() || ContainsCRLF(s)) {
-        ThrowFakeluaException(std::format("http: invalid {} (empty or contains CR/LF)", what));
+static void CheckHttpToken(const std::string &s, const char *what, bool header_name = false) {
+    if (s.empty() || ContainsCRLF(s) || s.find(' ') != std::string::npos || s.find('\t') != std::string::npos) {
+        ThrowFakeluaException(std::format("http: invalid {} (empty or contains CR/LF/space)", what));
+    }
+    if (header_name && s.find(':') != std::string::npos) {
+        ThrowFakeluaException(std::format("http: invalid {} (contains ':')", what));
     }
 }
 
@@ -309,7 +312,7 @@ static std::string FormatRequest(const std::string &method, const std::string &t
     CheckHttpToken(method, "method");
     CheckHttpToken(target, "target");
     for (auto const &h: headers) {
-        CheckHttpToken(h.first, "header name");
+        CheckHttpToken(h.first, "header name", true);
         if (ContainsCRLF(h.second)) {
             ThrowFakeluaException("http: invalid header value (contains CR/LF)");
         }
@@ -330,7 +333,7 @@ static std::string FormatResponse(int status, std::string reason, HeaderList hea
         ThrowFakeluaException("http: invalid reason phrase (contains CR/LF)");
     }
     for (auto const &h: headers) {
-        CheckHttpToken(h.first, "header name");
+        CheckHttpToken(h.first, "header name", true);
         if (ContainsCRLF(h.second)) {
             ThrowFakeluaException("http: invalid header value (contains CR/LF)");
         }

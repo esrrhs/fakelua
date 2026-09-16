@@ -47,3 +47,11 @@ function test_close_in_connect_cb()
     end
     return 1
 end
+
+function test_bad_port()
+    local ok = pcall(function()
+        redis.connect({ host = "127.0.0.1", port = 70000, timeout_ms = 500 }, "RedisTest.on_connect")
+    end)
+    if ok then return 0 end
+    return 1
+end
