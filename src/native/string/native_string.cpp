@@ -1436,7 +1436,8 @@ void RegisterStringLibraryApi(State *s) {
                     if (match.size() > 1) {
                         int call_arg_count = static_cast<int>(match.size()) - 1;
                         if (call_arg_count > static_cast<int>(kMaxFunctionInputParams)) {
-                            call_arg_count = static_cast<int>(kMaxFunctionInputParams);
+                            ThrowFakeluaException(std::format("string.gsub: too many capture arguments ({}), max is {}",
+                                                              call_arg_count, kMaxFunctionInputParams));
                         }
                         std::vector<CVar> call_args(static_cast<size_t>(call_arg_count));
                         for (int i = 0; i < call_arg_count; ++i) {

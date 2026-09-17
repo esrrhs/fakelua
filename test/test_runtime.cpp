@@ -545,8 +545,7 @@ TEST(vm_cvar_call, multi_return_expansion) {
     CVar r3 = FakeluaCallByName(&s, TEST_JIT_TYPE, "echo3", 2, int100, multi_one);
     ASSERT_EQ(AsVar(r3).Type(), VarType::Nil);
 
-    // 5. 超出最大输入限制解包时的保护分支
-    // 构造一个长度极大的 Multi
+    // 5. 末尾 Multi 展开后超过 32：抛错，不截断（截断会让实参对错位）。
     VarMulti *m_huge = VarMulti::AllocTemp(&s, 20);
     for (int i = 0; i < 20; ++i) {
         m_huge->GetVars()[i] = int1;
@@ -555,15 +554,12 @@ TEST(vm_cvar_call, multi_return_expansion) {
     multi_huge.type_ = static_cast<int>(VarType::Multi);
     multi_huge.data_.m = m_huge;
 
-    // 注册 32 个参数的函数并调用，传入 32 个参数，最后一个是 multi_huge，
-    // 它会尝试解包 20 个，但解包到 32 限制后应该直接安全中止，防止溢出。
     s.GetVM().RegisterFunction(VmFunction("fnv32", 32, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho32), {}));
 
-    // 传入 31 个 int1 参数，最后 1 个是 multi_huge。合计参数应该被截断到 32 限制
-    CVar r4 = FakeluaCallByName(&s, TEST_JIT_TYPE, "fnv32", 32, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1,
-                                int1, int1, int1, int1, int1, int1, int1, int1, int1, multi_huge);
-    ASSERT_EQ(r4.type_, static_cast<int>(VarType::Int));
-    ASSERT_EQ(r4.data_.i, 32);
+    // 31 个 int + 末尾 20 元 Multi → 摊平 51 个参数
+    EXPECT_THROW((void) FakeluaCallByName(&s, TEST_JIT_TYPE, "fnv32", 32, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, int1,
+                                          int1, int1, int1, int1, int1, int1, int1, int1, int1, int1, multi_huge),
+                 std::exception);
 }
 
 // ============================================================================

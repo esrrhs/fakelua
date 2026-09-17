@@ -31,6 +31,9 @@ int InterpCodegen::AllocReg() {
         stack_top_ = local_top_;
     }
     const int r = stack_top_++;
+    if (r > 255) {
+        ThrowFakeluaException("interpreter: function uses too many registers");
+    }
     if (cur_proto_ && stack_top_ > cur_proto_->max_stack) {
         cur_proto_->max_stack = stack_top_;
     }
@@ -44,6 +47,9 @@ int InterpCodegen::AllocLocal() {
     }
     const int r = local_top_++;
     stack_top_ = local_top_;
+    if (r > 255) {
+        ThrowFakeluaException("interpreter: function uses too many registers");
+    }
     if (cur_proto_ && stack_top_ > cur_proto_->max_stack) {
         cur_proto_->max_stack = stack_top_;
     }
@@ -79,12 +85,18 @@ int InterpCodegen::AddStringConst(const std::string &s) {
 }
 
 int InterpCodegen::Emit(Op op, int a, int b, int c, int sbx) {
+    if (a < 0 || a > 255 || b < 0 || b > 255 || c < 0 || c > 255) {
+        ThrowFakeluaException("interpreter: instruction operand out of range");
+    }
     Inst inst;
     inst.op = op;
-    inst.a = static_cast<uint16_t>(a);
-    inst.b = static_cast<uint16_t>(b);
-    inst.c = static_cast<uint16_t>(c);
+    inst.a = static_cast<uint8_t>(a);
+    inst.b = static_cast<uint8_t>(b);
+    inst.c = static_cast<uint8_t>(c);
     inst.sbx = sbx;
+    if (op == Op::NEWBOX) {
+        cur_proto_->uses_boxes = true;
+    }
     const int ip = static_cast<int>(cur_proto_->code.size());
     cur_proto_->code.push_back(inst);
     cur_proto_->lineinfo.push_back(0);
@@ -114,6 +126,25 @@ int InterpCodegen::MoveTo(int dest, int src) {
         Emit(Op::MOVE, dest, src);
     }
     return dest;
+}
+
+int InterpCodegen::CommitDest(int dest, int src) {
+    return dest >= 0 ? MoveTo(dest, src) : src;
+}
+
+int InterpCodegen::LocalAssignDest(const SyntaxTreeVar *var) {
+    if (!var || var->GetVarKind() != VarKind::kSimple) {
+        return -1;
+    }
+    const auto it = var_to_def_map_.find(var);
+    if (it == var_to_def_map_.end()) {
+        return -1;
+    }
+    VarDef *def = it->second;
+    if (def->defining_func == cur_func_ && def->reg >= 0) {
+        return def->reg;
+    }
+    return -1;
 }
 
 void InterpCodegen::StoreLocal(int dest, int src) {
@@ -555,6 +586,9 @@ int InterpCodegen::EmitClosure(FuncInfo *child) {
             uv.idx = static_cast<uint16_t>(idx);
         }
         child->proto->upvalues.push_back(uv);
+        if (uv.in_stack) {
+            cur_proto_->uses_boxes = true;
+        }
     }
     const int idx = static_cast<int>(cur_proto_->child_protos.size());
     cur_proto_->child_protos.push_back(child->proto);
@@ -825,15 +859,16 @@ void InterpCodegen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
 
     for (size_t i = 0; i < names.size(); ++i) {
         int r;
+        const int dest = (defs[i]->defining_func == nullptr) ? -1 : defs[i]->reg;
         if (i < exps.size()) {
-            r = CompileExp(exps[i], false);
+            r = CompileExp(exps[i], false, dest);
         } else {
-            r = AllocReg();
+            r = dest >= 0 ? dest : AllocReg();
             Emit(Op::LOADNIL, r);
         }
         if (defs[i]->defining_func == nullptr) {
             Emit(Op::SETGLOBAL, r, 0, 0, AddStringConst(names[i]));
-        } else {
+        } else if (r != dest) {
             StoreLocal(defs[i]->reg, r);
         }
     }
@@ -849,8 +884,13 @@ void InterpCodegen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     const auto &vars = varlist_ptr->Vars();
     const auto &exps = explist_ptr->Exps();
     const auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[0]);
-    const int r = CompileExp(exps[0], false);
-    AssignToVar(v_ptr.get(), r);
+    const int dest = LocalAssignDest(v_ptr.get());
+    const int r = CompileExp(exps[0], false, dest);
+    if (dest < 0) {
+        AssignToVar(v_ptr.get(), r);
+    } else if (r != dest) {
+        StoreLocal(dest, r);
+    }
 }
 
 void InterpCodegen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
@@ -987,37 +1027,31 @@ void InterpCodegen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     const int ctrl = AllocReg();
     const int endv = AllocReg();
     const int step = AllocReg();
-    const int pos = AllocReg();
-    MoveTo(ctrl, CompileExp(for_stmt->ExpBegin(), false));
-    MoveTo(endv, CompileExp(for_stmt->ExpEnd(), false));
-    if (for_stmt->ExpStep()) {
-        MoveTo(step, CompileExp(for_stmt->ExpStep(), false));
-    } else {
-        LoadConstTo(step, interp_rt::Int(1));
-    }
-    Emit(Op::FORCHECK, pos, step);
-
     VarDef *ldef = stmt_var_to_def_.at({stmt.get(), for_stmt->Name()});
     if (ldef->reg < 0) {
         ldef->reg = AllocLocal();
     }
+    // FORPREP/FORLOOP 约定 R(A+3) 就是用户可见的循环变量；先占槽再编译初值，
+    // 避免 begin/end/step 的临时寄存器插到 ctrl 和 i 中间。
+    if (ldef->reg != ctrl + 3) {
+        ThrowError("numeric for: loop variable is not R(A+3)", stmt);
+    }
+    CompileExp(for_stmt->ExpBegin(), false, ctrl);
+    CompileExp(for_stmt->ExpEnd(), false, endv);
+    if (for_stmt->ExpStep()) {
+        CompileExp(for_stmt->ExpStep(), false, step);
+    } else {
+        LoadConstTo(step, interp_rt::Int(1));
+    }
 
     LoopInfo loop;
     loop.kind = LoopInfo::kFor;
+    const int prep = Emit(Op::FORPREP, ctrl);
     const int loop_head = static_cast<int>(cur_proto_->code.size());
-    const int cmp = AllocReg();
-    const int skip_ge = Emit(Op::TESTJMP, pos, 0);
-    Emit(Op::LE, cmp, ctrl, endv);
-    const int after_le = Emit(Op::JMP);
-    PatchSbx(skip_ge, static_cast<int>(cur_proto_->code.size()));
-    Emit(Op::LE, cmp, endv, ctrl);
-    PatchSbx(after_le, static_cast<int>(cur_proto_->code.size()));
-    const int jmp_exit = Emit(Op::TESTJMP, cmp, 0);
-    // 先换新 box 再写入，避免 MOVE 写穿上一轮闭包捕获的旧 box。
+    // 先换新 box。FORLOOP 写 R(A+3) 时会清 box 指针，避免写穿上一轮闭包。
     if (ldef->is_captured) {
         Emit(Op::NEWBOX, ldef->reg);
     }
-    StoreLocal(ldef->reg, ctrl);
 
     loop.continue_ip = -1;
     loops_.push_back(std::move(loop));
@@ -1026,17 +1060,13 @@ void InterpCodegen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     for (int ip: loops_.back().continue_jmps) {
         PatchSbx(ip, loops_.back().continue_ip);
     }
-    const int adv = Emit(Op::FORADVANCE, ctrl, step);
-    Emit(Op::JMP, 0, 0, 0, loop_head - static_cast<int>(cur_proto_->code.size()) - 1);
+    const int loop_op = Emit(Op::FORLOOP, ctrl);
+    PatchSbx(loop_op, loop_head);
     const int end = static_cast<int>(cur_proto_->code.size());
-    PatchSbx(jmp_exit, end);
-    PatchSbx(adv, end);
+    PatchSbx(prep, end);
     for (int ip: loops_.back().break_jmps) {
         PatchSbx(ip, end);
     }
-    // continue jumped to continue_ip which was -1 and stored in break_jmps if patched wrong.
-    // Re-patch continues that were emitted before continue_ip was set: they used JMP with dest=-1
-    // stored via break_jmps only when dest<0. Those went into break_jmps — WRONG, they'd become breaks.
     loops_.pop_back();
     FreeTo(saved);
 }
@@ -1271,26 +1301,26 @@ void InterpCodegen::CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt)
     StoreLocal(def->reg, cl);
 }
 
-int InterpCodegen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_multi) {
+int InterpCodegen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_multi, int dest) {
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     switch (e->GetExpKind()) {
         case ExpKind::kNil: {
-            const int r = AllocReg();
+            const int r = dest >= 0 ? dest : AllocReg();
             Emit(Op::LOADNIL, r);
             return r;
         }
         case ExpKind::kFalse: {
-            const int r = AllocReg();
+            const int r = dest >= 0 ? dest : AllocReg();
             Emit(Op::LOADBOOL, r, 0);
             return r;
         }
         case ExpKind::kTrue: {
-            const int r = AllocReg();
+            const int r = dest >= 0 ? dest : AllocReg();
             Emit(Op::LOADBOOL, r, 1);
             return r;
         }
         case ExpKind::kNumber: {
-            const int r = AllocReg();
+            const int r = dest >= 0 ? dest : AllocReg();
             if (IsInteger(e->ExpValue())) {
                 LoadConstTo(r, interp_rt::Int(ToInteger(e->ExpValue())));
             } else {
@@ -1299,7 +1329,7 @@ int InterpCodegen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_m
             return r;
         }
         case ExpKind::kString: {
-            const int r = AllocReg();
+            const int r = dest >= 0 ? dest : AllocReg();
             CVar v{};
             v.type_ = static_cast<int>(VarType::StringId);
             v.data_.i = s_->GetConstString().Alloc(e->ExpValue());
@@ -1307,38 +1337,38 @@ int InterpCodegen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_m
             return r;
         }
         case ExpKind::kPrefixExp:
-            return CompilePrefixexp(e->Right(), preserve_multi);
+            return CompilePrefixexp(e->Right(), preserve_multi, dest);
         case ExpKind::kTableConstructor:
-            return CompileTableconstructor(e->Right());
+            return CommitDest(dest, CompileTableconstructor(e->Right()));
         case ExpKind::kFunctionDef: {
             const auto func_def = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(e->Right());
-            return EmitClosure(func_map_[func_def.get()]);
+            return CommitDest(dest, EmitClosure(func_map_[func_def.get()]));
         }
         case ExpKind::kBinop:
-            return CompileBinop(exp);
+            return CompileBinop(exp, dest);
         case ExpKind::kUnop:
-            return CompileUnop(exp);
+            return CompileUnop(exp, dest);
         default:
             ThrowError("unsupported expression kind", e);
     }
 }
 
-int InterpCodegen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preserve_multi) {
+int InterpCodegen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preserve_multi, int dest) {
     const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
     if (pe_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
         const int r = CompileVar(pe_ptr->GetValue());
         const auto var_node = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue());
         if (!preserve_multi && var_node && var_node->GetVarKind() == VarKind::kSimple && var_node->GetName().rfind("__fakelua_vararg_", 0) == 0) {
-            const int o = AllocReg();
+            const int o = dest >= 0 ? dest : AllocReg();
             Emit(Op::UNBOX, o, r, 0);
             return o;
         }
-        return r;
+        return CommitDest(dest, r);
     }
     if (pe_ptr->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
-        return CompileFunctioncall(pe_ptr->GetValue(), preserve_multi);
+        return CommitDest(dest, CompileFunctioncall(pe_ptr->GetValue(), preserve_multi));
     }
-    return CompileExp(pe_ptr->GetValue(), preserve_multi);
+    return CompileExp(pe_ptr->GetValue(), preserve_multi, dest);
 }
 
 int InterpCodegen::CompileVar(const SyntaxTreeInterfacePtr &v) {
@@ -1564,6 +1594,7 @@ int InterpCodegen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
         for (const auto &field: fieldlist_ptr->Fields()) {
             const auto field_ptr = std::dynamic_pointer_cast<SyntaxTreeField>(field);
             const bool is_expand = (field_ptr == last_array_field) && LastPreservesMulti(field_ptr->Value());
+            const int saved = stack_top_;
             const int val = CompileExp(field_ptr->Value(), is_expand);
             if (field_ptr->GetFieldKind() == FieldKind::kObject) {
                 const int k = AllocReg();
@@ -1576,24 +1607,25 @@ int InterpCodegen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 const int k = CompileExp(key, false);
                 Emit(Op::SETTABLE, tbl, k, val);
             } else if (is_expand) {
-                Emit(Op::SETLIST, tbl, array_idx, val);
+                Emit(Op::SETLIST, tbl, 0, val, array_idx);
             } else {
                 const int k = AllocReg();
                 LoadConstTo(k, interp_rt::Int(array_idx));
                 Emit(Op::SETTABLE, tbl, k, val);
                 ++array_idx;
             }
+            FreeTo(saved);
         }
     }
     return tbl;
 }
 
-int InterpCodegen::CompileBinop(const SyntaxTreeInterfacePtr &exp) {
+int InterpCodegen::CompileBinop(const SyntaxTreeInterfacePtr &exp, int dest) {
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
     const auto op_kind = op_ptr->GetOpKind();
     if (op_kind == BinOpKind::kAnd || op_kind == BinOpKind::kOr) {
-        const int result = AllocReg();
+        const int result = dest >= 0 ? dest : AllocReg();
         const int left = CompileExp(e->Left(), false);
         const int jmp = Emit(Op::TESTJMP, left, op_kind == BinOpKind::kAnd ? 0 : 1);
         const int right = CompileExp(e->Right(), false);
@@ -1606,7 +1638,7 @@ int InterpCodegen::CompileBinop(const SyntaxTreeInterfacePtr &exp) {
     }
     const int left = CompileExp(e->Left(), false);
     const int right = CompileExp(e->Right(), false);
-    const int r = AllocReg();
+    const int r = dest >= 0 ? dest : AllocReg();
     switch (op_kind) {
         case BinOpKind::kPlus:
             Emit(Op::ADD, r, left, right);
@@ -1672,11 +1704,11 @@ int InterpCodegen::CompileBinop(const SyntaxTreeInterfacePtr &exp) {
     return r;
 }
 
-int InterpCodegen::CompileUnop(const SyntaxTreeInterfacePtr &exp) {
+int InterpCodegen::CompileUnop(const SyntaxTreeInterfacePtr &exp, int dest) {
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
     const int operand = CompileExp(e->Right(), false);
-    const int r = AllocReg();
+    const int r = dest >= 0 ? dest : AllocReg();
     switch (op_ptr->GetOpKind()) {
         case UnOpKind::kNot:
             Emit(Op::NOT, r, operand);

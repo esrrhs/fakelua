@@ -1452,7 +1452,7 @@ TEST(exception, spec_assign_nonnumeric_int_throws) {
     // n is a math param: the int specialization must be generated.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     // x is a native int64_t accumulator initialized via native arithmetic.
-    ASSERT_NE(code.find("int64_t x = ((n) + (1))"), std::string::npos);
+    ASSERT_NE(code.find("int64_t x = FL_INT_ADD((n), (1))"), std::string::npos);
     // CVar guard – int branch.
     ASSERT_NE(code.find(".type_ == VAR_INT)"), std::string::npos);
     // CVar guard – float branch casts to int64_t.
@@ -1460,7 +1460,7 @@ TEST(exception, spec_assign_nonnumeric_int_throws) {
     // Error branch for non-numeric CVar.
     ASSERT_NE(code.find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
     // Return uses native addition.
-    ASSERT_NE(code.find("return ((n) + (x))"), std::string::npos);
+    ASSERT_NE(code.find("return FL_INT_ADD((n), (x))"), std::string::npos);
 
     FakeluaStateGuard sg;
     auto s = sg.GetState();

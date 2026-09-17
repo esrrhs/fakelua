@@ -9,45 +9,13 @@
 #include "var/var_multi.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
-#include <cmath>
+#include <cstdio>
 #include <cstring>
-#include <limits>
+#include <string>
 
 namespace fakelua::interp_rt {
 
 namespace {
-
-constexpr int kNil = static_cast<int>(VarType::Nil);
-constexpr int kBool = static_cast<int>(VarType::Bool);
-constexpr int kInt = static_cast<int>(VarType::Int);
-constexpr int kFloat = static_cast<int>(VarType::Float);
-constexpr int kString = static_cast<int>(VarType::String);
-constexpr int kStringId = static_cast<int>(VarType::StringId);
-constexpr int kTable = static_cast<int>(VarType::Table);
-constexpr int kMulti = static_cast<int>(VarType::Multi);
-constexpr int kClosure = static_cast<int>(VarType::Closure);
-constexpr int kConstFlag = 0x1;
-
-bool DoubleFitsInt64(double d, int64_t *out) {
-    if (!std::isfinite(d)) return false;
-    double ip = 0;
-    if (std::modf(d, &ip) != 0.0) return false;
-    constexpr double kExcl = 9223372036854775808.0;
-    if (ip < static_cast<double>(INT64_MIN) || ip >= kExcl) return false;
-    *out = static_cast<int64_t>(ip);
-    return true;
-}
-
-int64_t FloorDivQuotient(int64_t a, int64_t b) {
-    if (b == static_cast<int64_t>(-1)) {
-        return static_cast<int64_t>(static_cast<uint64_t>(0) - static_cast<uint64_t>(a));
-    }
-    int64_t q = a / b;
-    if (((a ^ b) < 0) && (a % b != 0)) {
-        q -= 1;
-    }
-    return q;
-}
 
 VarString *AsVarString(const CVar &v) {
     if (v.type_ == kString) return v.data_.s;
@@ -57,150 +25,8 @@ VarString *AsVarString(const CVar &v) {
 
 }// namespace
 
-CVar Nil() {
-    return CVar{kNil};
-}
-
-CVar Bool(bool v) {
-    CVar r{};
-    r.type_ = kBool;
-    r.data_.b = v;
-    return r;
-}
-
-CVar Int(int64_t v) {
-    CVar r{};
-    r.type_ = kInt;
-    r.data_.i = v;
-    return r;
-}
-
-CVar Float(double v) {
-    CVar r{};
-    r.type_ = kFloat;
-    r.data_.f = v;
-    return r;
-}
-
-bool IsTrue(const CVar &v) {
-    return v.type_ != kNil && (v.type_ != kBool || v.data_.b);
-}
-
 bool IsEqual(const CVar &a, const CVar &b) {
     return AsVar(a).Equal(AsVar(b));
-}
-
-void CheckNum(const CVar &v) {
-    if (v.type_ != kInt && v.type_ != kFloat) {
-        ThrowFakeluaException("attempt to perform arithmetic on non-numeric value");
-    }
-}
-
-int64_t CheckInt(const CVar &v) {
-    if (v.type_ == kInt) return v.data_.i;
-    if (v.type_ == kFloat) {
-        int64_t i = 0;
-        if (!DoubleFitsInt64(v.data_.f, &i)) {
-            ThrowFakeluaException("number has no integer representation");
-        }
-        return i;
-    }
-    ThrowFakeluaException("attempt to perform bitwise operation on non-numeric value");
-}
-
-double ToDouble(const CVar &v) {
-    return v.type_ == kInt ? static_cast<double>(v.data_.i) : v.data_.f;
-}
-
-CVar BinAdd(const CVar &a, const CVar &b) {
-    CheckNum(a);
-    CheckNum(b);
-    if (a.type_ == kInt && b.type_ == kInt) {
-        return Int(static_cast<int64_t>(static_cast<uint64_t>(a.data_.i) + static_cast<uint64_t>(b.data_.i)));
-    }
-    return Float(ToDouble(a) + ToDouble(b));
-}
-
-CVar BinSub(const CVar &a, const CVar &b) {
-    CheckNum(a);
-    CheckNum(b);
-    if (a.type_ == kInt && b.type_ == kInt) {
-        return Int(static_cast<int64_t>(static_cast<uint64_t>(a.data_.i) - static_cast<uint64_t>(b.data_.i)));
-    }
-    return Float(ToDouble(a) - ToDouble(b));
-}
-
-CVar BinMul(const CVar &a, const CVar &b) {
-    CheckNum(a);
-    CheckNum(b);
-    if (a.type_ == kInt && b.type_ == kInt) {
-        return Int(static_cast<int64_t>(static_cast<uint64_t>(a.data_.i) * static_cast<uint64_t>(b.data_.i)));
-    }
-    return Float(ToDouble(a) * ToDouble(b));
-}
-
-CVar BinDiv(const CVar &a, const CVar &b) {
-    CheckNum(a);
-    CheckNum(b);
-    return Float(ToDouble(a) / ToDouble(b));
-}
-
-CVar BinIdiv(const CVar &a, const CVar &b) {
-    CheckNum(a);
-    CheckNum(b);
-    if (a.type_ == kInt && b.type_ == kInt) {
-        if (b.data_.i == 0) ThrowFakeluaException("floor division by zero");
-        return Int(FloorDivQuotient(a.data_.i, b.data_.i));
-    }
-    return Float(std::floor(ToDouble(a) / ToDouble(b)));
-}
-
-CVar BinMod(const CVar &a, const CVar &b) {
-    CheckNum(a);
-    CheckNum(b);
-    if (a.type_ == kInt && b.type_ == kInt) {
-        if (b.data_.i == 0) ThrowFakeluaException("modulo by zero");
-        if (b.data_.i == static_cast<int64_t>(-1)) return Int(0);
-        const int64_t q = FloorDivQuotient(a.data_.i, b.data_.i);
-        return Int(a.data_.i - b.data_.i * q);
-    }
-    const double fa = ToDouble(a);
-    const double fb = ToDouble(b);
-    return Float(fa - fb * std::floor(fa / fb));
-}
-
-CVar BinPow(const CVar &a, const CVar &b) {
-    CheckNum(a);
-    CheckNum(b);
-    return Float(std::pow(ToDouble(a), ToDouble(b)));
-}
-
-CVar BinBand(const CVar &a, const CVar &b) {
-    return Int(CheckInt(a) & CheckInt(b));
-}
-
-CVar BinBxor(const CVar &a, const CVar &b) {
-    return Int(CheckInt(a) ^ CheckInt(b));
-}
-
-CVar BinBor(const CVar &a, const CVar &b) {
-    return Int(CheckInt(a) | CheckInt(b));
-}
-
-CVar BinShl(const CVar &a, const CVar &b) {
-    const int64_t ai = CheckInt(a);
-    const int64_t bi = CheckInt(b);
-    if (bi >= 64 || bi <= -64) return Int(0);
-    if (bi >= 0) return Int(static_cast<int64_t>(static_cast<uint64_t>(ai) << bi));
-    return Int(static_cast<int64_t>(static_cast<uint64_t>(ai) >> (-bi)));
-}
-
-CVar BinShr(const CVar &a, const CVar &b) {
-    const int64_t ai = CheckInt(a);
-    const int64_t bi = CheckInt(b);
-    if (bi >= 64 || bi <= -64) return Int(0);
-    if (bi >= 0) return Int(static_cast<int64_t>(static_cast<uint64_t>(ai) >> bi));
-    return Int(static_cast<int64_t>(static_cast<uint64_t>(ai) << (-bi)));
 }
 
 CVar BinConcat(State *s, const CVar &a, const CVar &b) {
@@ -241,19 +67,6 @@ CVar BinConcat(State *s, const CVar &a, const CVar &b) {
     return r;
 }
 
-CVar UnMinus(const CVar &a) {
-    CheckNum(a);
-    if (a.type_ == kInt) {
-        if (a.data_.i == INT64_MIN) return Float(-static_cast<double>(a.data_.i));
-        return Int(-a.data_.i);
-    }
-    return Float(-a.data_.f);
-}
-
-CVar UnNot(const CVar &a) {
-    return Bool(!IsTrue(a));
-}
-
 CVar UnLen(const CVar &a) {
     if (a.type_ == kString) return Int(static_cast<int64_t>(a.data_.s->Size()));
     if (a.type_ == kStringId) {
@@ -262,24 +75,6 @@ CVar UnLen(const CVar &a) {
     }
     if (a.type_ == kTable) return Int(table::TableHelper::GetTableLen(a));
     ThrowFakeluaException("attempt to get length of a non-string/table value");
-}
-
-CVar UnBnot(const CVar &a) {
-    return Int(~CheckInt(a));
-}
-
-CVar CmpLt(const CVar &a, const CVar &b) {
-    CheckNum(a);
-    CheckNum(b);
-    if (a.type_ == kInt && b.type_ == kInt) return Bool(a.data_.i < b.data_.i);
-    return Bool(ToDouble(a) < ToDouble(b));
-}
-
-CVar CmpLe(const CVar &a, const CVar &b) {
-    CheckNum(a);
-    CheckNum(b);
-    if (a.type_ == kInt && b.type_ == kInt) return Bool(a.data_.i <= b.data_.i);
-    return Bool(ToDouble(a) <= ToDouble(b));
 }
 
 CVar GetTable(State *s, CVar t, CVar k) {
@@ -362,14 +157,6 @@ uint32_t TableEntryCount(CVar t) {
     return t.data_.t->count_ + t.data_.t->spec_count;
 }
 
-CVar UnboxMulti(const CVar &v, uint32_t idx) {
-    if (v.type_ != kMulti) {
-        return idx == 0 ? v : Nil();
-    }
-    VarMulti *m = v.data_.m;
-    return idx < m->GetCount() ? m->GetVars()[idx] : Nil();
-}
-
 CVar CombineMulti(State *s, const CVar *prefix, uint32_t prefix_count, CVar last) {
     uint32_t last_count = 1;
     const CVar *last_vars = &last;
@@ -418,30 +205,6 @@ CVar MakeClosure(State *s, void *func_ptr, int upvalue_count, int expected_arg_c
     r.type_ = kClosure;
     r.data_.cl = cl;
     return r;
-}
-
-bool ForIntAdvance(int64_t *ctrl, int64_t step) {
-    const int64_t cur = *ctrl;
-    const int64_t next = static_cast<int64_t>(static_cast<uint64_t>(cur) + static_cast<uint64_t>(step));
-    if ((cur ^ step) >= 0 && (next ^ cur) < 0) return false;
-    *ctrl = next;
-    return true;
-}
-
-bool ForStepPositive(const CVar &step) {
-    if (step.type_ == kInt) {
-        if (step.data_.i == 0) {
-            ThrowFakeluaException("'for' step is zero");
-        }
-        return step.data_.i > 0;
-    }
-    if (step.type_ == kFloat) {
-        if (step.data_.f == 0.0) {
-            ThrowFakeluaException("'for' step is zero");
-        }
-        return step.data_.f > 0.0;
-    }
-    ThrowFakeluaException("'for' step must be a number");
 }
 
 void *Alloc(State *s, size_t size) {
