@@ -658,15 +658,16 @@ InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoo
     const InferredType step_type = InferNode(for_loop->ExpStep(), tctx);
 
     // 根据循环边界的推断类型，分类确定循环变量类型：
-    //   T_INT      — 所有边界均为 T_INT（step 缺省或 T_INT）
-    //   T_FLOAT    — 所有边界均为数值但非全 T_INT
+    //   T_INT      — Lua 整数 for：init 与 step 为整数（limit 可以是 float）
+    //   T_FLOAT    — 所有边界均为数值但非整数 for
     //   T_DYNAMIC  — 存在非数值边界
     const bool begin_valid = for_loop->ExpBegin() != nullptr;
     const bool end_valid = for_loop->ExpEnd() != nullptr;
     const bool step_numeric = !for_loop->ExpStep() || step_type == T_INT || step_type == T_FLOAT;
     const bool all_numeric_boundaries = begin_valid && end_valid && (begin_type == T_INT || begin_type == T_FLOAT) && (end_type == T_INT || end_type == T_FLOAT) && step_numeric;
-    const bool all_int = all_numeric_boundaries && begin_type == T_INT && end_type == T_INT && (!for_loop->ExpStep() || step_type == T_INT);
-    const InferredType loop_var_type = all_int ? T_INT : (all_numeric_boundaries ? T_FLOAT : T_DYNAMIC);
+    // Lua 5.4：init 与 step 都是整数时走整数 for（limit 可以是 float）。
+    const bool lua_int_loop = begin_valid && begin_type == T_INT && (!for_loop->ExpStep() || step_type == T_INT) && (end_type == T_INT || end_type == T_FLOAT);
+    const InferredType loop_var_type = lua_int_loop ? T_INT : (all_numeric_boundaries ? T_FLOAT : T_DYNAMIC);
 
     auto &current_map = tctx.current_map;
     tctx.env.EnterScope();
@@ -1819,6 +1820,15 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
             auto &frame = *frames[static_cast<size_t>(pending.frame_idx)];
             frame.ctor_target_vars[tc_key] = pending.var_name;
             MergeFieldsInto(frame.var_fields[pending.var_name], ctor_own_fields[tc_key]);
+        }
+    }
+
+    // 并集后同一变量上 ["a-b"] 与 a_b 会落到相同 C 名，必须再 uniquify，
+    // 否则 optional FL_SET_SPEC 会写到错误的 struct 字段。
+    for (const auto &frame_ptr: frames) {
+        for (auto &[name, fields]: frame_ptr->var_fields) {
+            (void)name;
+            UniquifySpecFieldCNames(fields);
         }
     }
 
