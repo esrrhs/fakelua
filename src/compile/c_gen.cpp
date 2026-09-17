@@ -1687,6 +1687,10 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
     if (float_end_to_int) {
         func_temp_decls_ << "    int " << skip_var << ";\n";
     }
+    const auto started_var = std::format("flua_for_started_{}", tmp_var_counter_++);
+    if (loop_type == T_FLOAT) {
+        func_temp_decls_ << "    int " << started_var << ";\n";
+    }
 
     const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
     Out() << GenTab() << ctrl_var << " = " << cast_prefix << "(" << native_begin << ");\n";
@@ -1705,25 +1709,25 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         Out() << GenTab() << end_var << " = " << cast_prefix << "(" << native_end << ");\n";
     }
 
+    auto emit_float_for = [&](const std::string &prep, const std::string &incr_and_next) {
+        Out() << GenTab() << started_var << " = 0;\n";
+        // Lua 5.4 浮点 for：FORPREP 用严格 < 决定整段跳过（NaN 不跳过），
+        // FORLOOP 在步进后再用 <=。C continue 走 for 的 incr 子句，所以把
+        // 步进塞进后续条件，首轮靠 !started 进入。
+        Out() << GenTab() << "for (; " << prep << " && (!" << started_var << " || (" << incr_and_next << ")); " << started_var << " = 1) {\n";
+    };
+
     if (is_constant_step) {
         if (loop_type == T_INT) {
             Out() << GenTab() << stop_var << " = 0;\n";
             const std::string cmp = (step_int_val > 0) ? " <= " : " >= ";
             Out() << GenTab() << "for (; " << ctrl_var << cmp << end_var << " && !" << stop_var << "; " << stop_var << " = !FlForIntAdvance(&" << ctrl_var << ", " << step_int_val << "LL)) {\n";
+        } else if (step_double_val > 0.0) {
+            const std::string incr = (step_double_val == 1.0) ? (ctrl_var + "++") : (ctrl_var + " += " + std::to_string(step_double_val));
+            emit_float_for("!(" + end_var + " < " + ctrl_var + ")", incr + ", " + ctrl_var + " <= " + end_var);
         } else {
-            if (step_double_val > 0.0) {
-                if (step_double_val == 1.0) {
-                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << "++) {\n";
-                } else {
-                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << " += " << step_double_val << ") {\n";
-                }
-            } else {
-                if (step_double_val == -1.0) {
-                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << "--) {\n";
-                } else {
-                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << " += " << step_double_val << ") {\n";
-                }
-            }
+            const std::string incr = (step_double_val == -1.0) ? (ctrl_var + "--") : (ctrl_var + " += " + std::to_string(step_double_val));
+            emit_float_for("!(" + ctrl_var + " < " + end_var + ")", incr + ", " + end_var + " <= " + ctrl_var);
         }
     } else if (!float_end_to_int) {
         const auto native_step = CompileNumericExp(for_stmt->ExpStep());
@@ -1734,8 +1738,8 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
             Out() << GenTab() << "for (; ((" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var << ")) && !" << stop_var << "; " << stop_var
                   << " = !FlForIntAdvance(&" << ctrl_var << ", " << step_var << ")) {\n";
         } else {
-            Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var << "); " << ctrl_var
-                  << " += " << step_var << ") {\n";
+            emit_float_for("!((" + step_var + " > " + zero_str + ") ? (" + end_var + " < " + ctrl_var + ") : (" + ctrl_var + " < " + end_var + "))",
+                           ctrl_var + " += " + step_var + ", (" + step_var + " > " + zero_str + ") ? (" + ctrl_var + " <= " + end_var + ") : (" + end_var + " <= " + ctrl_var + ")");
         }
     } else {
         Out() << GenTab() << stop_var << " = 0;\n";
@@ -1778,8 +1782,9 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     const auto step_pos_var = std::format("flua_for_step_pos_{}", tmp_var_counter_++);
     const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);
     const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);
-
-    const auto prev_var = std::format("flua_for_prev_{}", tmp_var_counter_++);
+    const auto skip_var = std::format("flua_for_skip_{}", tmp_var_counter_++);
+    const auto is_int_var = std::format("flua_for_is_int_{}", tmp_var_counter_++);
+    const auto lim_var = std::format("flua_for_lim_{}", tmp_var_counter_++);
 
     func_temp_decls_ << "    CVar " << ctrl_var << ";\n";
     func_temp_decls_ << "    CVar " << end_var << ";\n";
@@ -1787,7 +1792,9 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     func_temp_decls_ << "    bool " << step_pos_var << ";\n";
     func_temp_decls_ << "    bool " << cond_var << ";\n";
     func_temp_decls_ << "    CVar " << cmp_var << ";\n";
-    func_temp_decls_ << "    int64_t " << prev_var << ";\n";
+    func_temp_decls_ << "    int " << skip_var << ";\n";
+    func_temp_decls_ << "    int " << is_int_var << ";\n";
+    func_temp_decls_ << "    int64_t " << lim_var << ";\n";
 
     const auto begin_expr = CompileExp(for_stmt->ExpBegin());
     Out() << GenTab() << ctrl_var << " = " << begin_expr << ";\n";
@@ -1810,21 +1817,44 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     Out() << GenTab() << "    " << step_pos_var << " = (" << step_var << ".data_.f > 0.0);\n";
     Out() << GenTab() << "} else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
 
-    Out() << GenTab() << "while (1) {\n";
+    // Lua 5.4 FORPREP：init+step 都是整数走 forlimit；否则转 float，用严格 < 跳过（NaN 不跳）。
+    Out() << GenTab() << is_int_var << " = (" << ctrl_var << ".type_ == VAR_INT && " << step_var << ".type_ == VAR_INT);\n";
+    Out() << GenTab() << skip_var << " = 0;\n";
+    Out() << GenTab() << "if (" << is_int_var << ") {\n";
     cur_tab_++;
-
-    Out() << GenTab() << "if (" << step_pos_var << ") {\n";
-    cur_tab_++;
-    Out() << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
+    Out() << GenTab() << "if (" << end_var << ".type_ == VAR_INT) {\n";
+    Out() << GenTab() << "    " << lim_var << " = " << end_var << ".data_.i;\n";
+    Out() << GenTab() << "} else if (" << end_var << ".type_ == VAR_FLOAT) {\n";
+    Out() << GenTab() << "    " << skip_var << " = FlForLimitToInt(" << end_var << ".data_.f, " << step_var << ".data_.i, &" << lim_var << ");\n";
+    Out() << GenTab() << "} else { FakeluaThrowError(_S, \"'for' limit must be a number\"); " << lim_var << " = 0; }\n";
+    Out() << GenTab() << "if (!" << skip_var << ") {\n";
+    Out() << GenTab() << "    SET_INT(" << end_var << ", " << lim_var << ");\n";
+    Out() << GenTab() << "    " << skip_var << " = (" << step_var << ".data_.i > 0) ? (" << ctrl_var << ".data_.i > " << lim_var << ") : (" << ctrl_var << ".data_.i < " << lim_var << ");\n";
+    Out() << GenTab() << "}\n";
     cur_tab_--;
     Out() << GenTab() << "} else {\n";
     cur_tab_++;
-    Out() << GenTab() << std::format("OpGe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
+    Out() << GenTab() << "if (" << step_pos_var << ") {\n";
+    cur_tab_++;
+    Out() << GenTab() << std::format("OpLt(({0}), ({1}), {2});\n", end_var, ctrl_var, cmp_var);
+    cur_tab_--;
+    Out() << GenTab() << "} else {\n";
+    cur_tab_++;
+    Out() << GenTab() << std::format("OpLt(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
+    cur_tab_--;
+    Out() << GenTab() << "}\n";
+    Out() << GenTab() << std::format("IsTrue(({0}), {1});\n", cmp_var, cond_var);
+    Out() << GenTab() << skip_var << " = " << cond_var << ";\n";
+    Out() << GenTab() << "SET_FLOAT(" << ctrl_var << ", CVAR_TO_DOUBLE(" << ctrl_var << "));\n";
+    Out() << GenTab() << "SET_FLOAT(" << end_var << ", CVAR_TO_DOUBLE(" << end_var << "));\n";
+    Out() << GenTab() << "SET_FLOAT(" << step_var << ", CVAR_TO_DOUBLE(" << step_var << "));\n";
     cur_tab_--;
     Out() << GenTab() << "}\n";
 
-    Out() << GenTab() << std::format("IsTrue(({0}), {1});\n", cmp_var, cond_var);
-    Out() << GenTab() << std::format("if (!{}) break;\n", cond_var);
+    Out() << GenTab() << "if (!" << skip_var << ") {\n";
+    cur_tab_++;
+    Out() << GenTab() << "while (1) {\n";
+    cur_tab_++;
 
     const auto &loop_var_name = for_stmt->Name();
     const auto loop_cname = CIdent(loop_var_name);
@@ -1845,13 +1875,38 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
 
     // Lua continue 必须落到步进处；C continue 会回到 while(1) 并跳过 OpAdd。
     Out() << "flua_for_cont_" << for_cont_id << ":\n";
-    Out() << GenTab() << std::format("if ({0}.type_ == VAR_INT) {1} = {0}.data_.i;\n", ctrl_var, prev_var);
+    Out() << GenTab() << "if (" << is_int_var << ") {\n";
+    cur_tab_++;
+    Out() << GenTab() << "if (!FlForIntAdvance(&" << ctrl_var << ".data_.i, " << step_var << ".data_.i)) break;\n";
+    Out() << GenTab() << "if (" << step_pos_var << ") {\n";
+    cur_tab_++;
+    Out() << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
+    cur_tab_--;
+    Out() << GenTab() << "} else {\n";
+    cur_tab_++;
+    Out() << GenTab() << std::format("OpGe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
+    cur_tab_--;
+    Out() << GenTab() << "}\n";
+    cur_tab_--;
+    Out() << GenTab() << "} else {\n";
+    cur_tab_++;
     Out() << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", ctrl_var, step_var, ctrl_var);
-    Out() << GenTab()
-          << std::format("if ({0}.type_ == VAR_INT && {1}.type_ == VAR_INT && "
-                         "({2} ^ {1}.data_.i) >= 0 && ({0}.data_.i ^ {2}) < 0) break;\n",
-                         ctrl_var, step_var, prev_var);
+    Out() << GenTab() << "if (" << step_pos_var << ") {\n";
+    cur_tab_++;
+    Out() << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
+    cur_tab_--;
+    Out() << GenTab() << "} else {\n";
+    cur_tab_++;
+    Out() << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", end_var, ctrl_var, cmp_var);
+    cur_tab_--;
+    Out() << GenTab() << "}\n";
+    cur_tab_--;
+    Out() << GenTab() << "}\n";
+    Out() << GenTab() << std::format("IsTrue(({0}), {1});\n", cmp_var, cond_var);
+    Out() << GenTab() << std::format("if (!{}) break;\n", cond_var);
 
+    cur_tab_--;
+    Out() << GenTab() << "}\n";
     cur_tab_--;
     Out() << GenTab() << "}\n";
     for_cont_stack_.pop_back();

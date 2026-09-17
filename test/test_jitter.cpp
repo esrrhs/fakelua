@@ -2978,3 +2978,31 @@ TEST(jitter, spec_c_keyword) {
         ASSERT_EQ(ret, 7);
     });
 }
+
+TEST(jitter, nan_float_for) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_nan_float_for.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_nan_float_for", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_nan_float_for_neg", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_nan_dynamic_float", ret, 0.0 / 0.0);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_nan_dynamic_int_neg", ret, 0.0 / 0.0);
+        ASSERT_EQ(ret, 3);
+        Call(s, type, "test_nan_dynamic_int_pos", ret, 0.0 / 0.0);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+TEST(jitter, spec_field_merge_sanitize) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_field_merge_sanitize.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_spec_field_merge_sanitize", ret, true);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_spec_field_merge_sanitize", ret, false);
+        ASSERT_EQ(ret, 2);
+    });
+}

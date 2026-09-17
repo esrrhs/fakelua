@@ -107,9 +107,9 @@ TEST(infer, test_infer_degrade_func_call) {
     });
 }
 
-// Mid-way degradation: a parameter-bound for loop makes i T_DYNAMIC, which
-// causes sum to degrade from T_INT to T_DYNAMIC during the loop body.
-// The compiler must still produce correct CVar arithmetic for the fallback path.
+// Mid-way degradation: a parameter-bound for loop. n is a math param.
+// int 特化：sum/i 都是 int64_t。float 特化：Lua 5.4 仍走整数 for（FlForLimitToInt），
+// sum 不会退化成 double。
 TEST(infer, test_infer_degrade_param) {
     const auto code = InferGetCCode("./infer/test_infer_degrade_param.lua");
     // With snapshot-based specialization n becomes a math param (int64_t / double).
@@ -117,8 +117,8 @@ TEST(infer, test_infer_degrade_param) {
     ASSERT_NE(code.find("int64_t sum = 0"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = "), std::string::npos);
     // Lua 5.4：init/step 是整数时即使用 float 上限也走整数 for（FlForLimitToInt）。
-    ASSERT_NE(code.find("double sum = 0"), std::string::npos);
     ASSERT_NE(code.find("FlForLimitToInt("), std::string::npos);
+    ASSERT_EQ(code.find("double sum = 0"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_degrade_param.lua", {.debug_mode = debug_mode});
@@ -1036,6 +1036,20 @@ TEST(infer, test_spec_c_keyword) {
     });
 }
 
+TEST(infer, test_spec_field_merge_sanitize) {
+    const auto code = InferGetCCode("./jit/test_spec_field_merge_sanitize.lua");
+    ASSERT_NE(code.find("_s_a_b_1"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_field_merge_sanitize.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_spec_field_merge_sanitize", ret, true);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_spec_field_merge_sanitize", ret, false);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
 TEST(infer, test_infer_typed_int_for_neg_step_1) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_1.lua");
     ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
@@ -1069,7 +1083,7 @@ TEST(infer, test_infer_typed_int_for_neg_step_2) {
 TEST(infer, test_infer_typed_float_for_neg_step_1) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for_neg_step_1.lua");
     ASSERT_NE(code.find("double sum = "), std::string::npos);
-    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("flua_for_started_"), std::string::npos);
     ASSERT_NE(code.find("--"), std::string::npos);
     ASSERT_EQ(code.find("double flua_for_step_"), std::string::npos);
 
@@ -1084,7 +1098,7 @@ TEST(infer, test_infer_typed_float_for_neg_step_1) {
 TEST(infer, test_infer_typed_float_for_neg_step_2) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for_neg_step_2.lua");
     ASSERT_NE(code.find("double sum = "), std::string::npos);
-    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("flua_for_started_"), std::string::npos);
     ASSERT_NE(code.find(" += -2"), std::string::npos);
     ASSERT_EQ(code.find("double flua_for_step_"), std::string::npos);
 
