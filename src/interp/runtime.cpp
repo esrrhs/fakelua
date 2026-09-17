@@ -9,6 +9,7 @@
 #include "var/var_multi.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -84,6 +85,9 @@ CVar GetTable(State *s, CVar t, CVar k) {
     if (k.type_ == kNil) {
         ThrowFakeluaException("table index is nil");
     }
+    if (k.type_ == kFloat && std::isnan(k.data_.f)) {
+        ThrowFakeluaException("table index is NaN");
+    }
     return table::TableHelper::GetTable(s, t, k);
 }
 
@@ -93,6 +97,9 @@ void SetTable(State *s, CVar t, CVar k, CVar v) {
     }
     if (k.type_ == kNil) {
         ThrowFakeluaException("table index is nil");
+    }
+    if (k.type_ == kFloat && std::isnan(k.data_.f)) {
+        ThrowFakeluaException("table index is NaN");
     }
     if (t.flag_ & kConstFlag) {
         ThrowFakeluaException("attempt to modify a const table");

@@ -2,6 +2,7 @@
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
+#include "util/exception.h"
 #include "util/logging.h"
 #include "util/utf8_io.h"
 #include "var/var.h"
@@ -47,7 +48,10 @@ static FILE *CurrentInFp(State *s) {
     auto &st = s->GetModuleState<IoState>();
     if (st.default_in && st.default_in->Alive()) {
         auto *fp = reinterpret_cast<FILE *>(st.default_in->GetInt(kFpKey, 0));
-        if (fp) return fp;
+        if (!fp) {
+            ThrowFakeluaException("standard file is closed");
+        }
+        return fp;
     }
     return stdin;
 }
@@ -56,7 +60,10 @@ static FILE *CurrentOutFp(State *s) {
     auto &st = s->GetModuleState<IoState>();
     if (st.default_out && st.default_out->Alive()) {
         auto *fp = reinterpret_cast<FILE *>(st.default_out->GetInt(kFpKey, 0));
-        if (fp) return fp;
+        if (!fp) {
+            ThrowFakeluaException("standard file is closed");
+        }
+        return fp;
     }
     return stdout;
 }
@@ -284,6 +291,23 @@ static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var, int argno, const
     return inter::NativeToFakeluaNil(state);
 }
 
+// Lua file:read 多格式：读到第一个 nil 为止，返回值个数含该 nil。
+static CVar ReadMultiFormats(FILE *fp, State *state, CVar *args, int n, const char *fname) {
+    std::vector<CVar> results;
+    results.reserve(static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i) {
+        CVar fmt_var = inter::GetNativeArg(state, args, n, i);
+        CVar res = ReadOneFormat(fp, state, fmt_var, i + 1, fname);
+        results.push_back(res);
+        if (res.type_ == static_cast<int>(VarType::Nil)) break;
+    }
+    auto multi = inter::AllocMultiCVar(state, static_cast<int>(results.size()));
+    for (size_t i = 0; i < results.size(); ++i) {
+        inter::SetMultiCVarElement(multi, static_cast<int>(i), results[i]);
+    }
+    return multi;
+}
+
 // Helper: create a file:lines() iterator closure
 // Uses shared MakeIteratorClosure from native_common.h to dedupe the standard
 // 2-upvalue (State*, opaque state) iterator pattern.
@@ -332,14 +356,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
 
         // 多格式参数：逐个读取，返回 multi-value
         if (n >= 2) {
-            auto multi = inter::AllocMultiCVar(state, n);
-            for (int i = 0; i < n; ++i) {
-                CVar fmt_var = inter::GetNativeArg(state, args, n, i);
-                CVar res = ReadOneFormat(fp, state, fmt_var, i + 1, "file:read");
-                inter::SetMultiCVarElement(multi, i, res);
-                if (res.type_ == static_cast<int>(VarType::Nil)) break;
-            }
-            return multi;
+            return ReadMultiFormats(fp, state, args, n, "file:read");
         }
 
         // 单格式参数
@@ -579,14 +596,7 @@ void RegisterIoLibraryApi(State *s) {
         }
         // 多格式参数：逐个读取，返回 multi-value
         if (n >= 2) {
-            auto multi = inter::AllocMultiCVar(state, n);
-            for (int i = 0; i < n; ++i) {
-                CVar fmt_var = inter::GetNativeArg(state, args, n, i);
-                CVar res = ReadOneFormat(fp, state, fmt_var, i + 1, "io.read");
-                inter::SetMultiCVarElement(multi, i, res);
-                if (res.type_ == static_cast<int>(VarType::Nil)) break;
-            }
-            return multi;
+            return ReadMultiFormats(fp, state, args, n, "io.read");
         }
         // 单格式参数
         CVar a0 = inter::GetNativeArg(state, args, n, 0);

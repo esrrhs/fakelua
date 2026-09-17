@@ -1378,7 +1378,6 @@ void RegisterStringLibraryApi(State *s) {
         std::string temp0, temp1;
         std::string text(GetStringArgView(a0, temp0));
         std::string pattern(GetStringArgView(a1, temp1));
-        if (text.empty() || pattern.empty()) return inter::NativeToFakeluaNil(state);
 
         const boost::regex *re = GetCachedRegex(pattern);
         if (!re) return inter::NativeToFakeluaNil(state);
@@ -1457,14 +1456,22 @@ void RegisterStringLibraryApi(State *s) {
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
-                        replacement = std::string(KeyToStringView(fn_res));
+                        if (fn_res.type_ == static_cast<int>(VarType::Nil)) {
+                            replacement = match[0].str();
+                        } else {
+                            replacement = std::string(KeyToStringView(fn_res));
+                        }
                     } else {
                         CVar call_arg = inter::NativeToFakeluaStringView(state, match[0].str());
                         CVar fn_res = (addr != nullptr) ? inter::DispatchCallClosure(state, cl, &call_arg, 1, JIT_TCC) : FlEvalLoadClosure(state, cl, 1, &call_arg);
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
-                        replacement = std::string(KeyToStringView(fn_res));
+                        if (fn_res.type_ == static_cast<int>(VarType::Nil)) {
+                            replacement = match[0].str();
+                        } else {
+                            replacement = std::string(KeyToStringView(fn_res));
+                        }
                     }
                 } else if (repl_is_table) {
                     std::string gsub_key = (match.size() > 1) ? match[1].str() : match[0].str();

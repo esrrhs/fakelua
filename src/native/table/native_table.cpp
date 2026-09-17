@@ -1,9 +1,11 @@
 #include "native/table/native_table.h"
 #include "compile/c_runtime_header.h"
 #include "native/native_common.h"
+#include "var/lua_num_cmp.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
 #include "state/state.h"
+#include "util/exception.h"
 #include "var/var.h"
 #include "var/var_closure.h"
 #include "var/var_string.h"
@@ -71,10 +73,10 @@ bool VarKeyEqual(CVar a, CVar b) {
         return KeyToStringView(a) == KeyToStringView(b);
     }
     if (a.type_ == kIntType && b.type_ == kFloatType) {
-        return static_cast<double>(a.data_.i) == b.data_.f;
+        return LuaEqIntFloat(a.data_.i, b.data_.f);
     }
     if (a.type_ == kFloatType && b.type_ == kIntType) {
-        return a.data_.f == static_cast<double>(b.data_.i);
+        return LuaEqIntFloat(b.data_.i, a.data_.f);
     }
     if (a.type_ != b.type_) return false;
     switch (a.type_) {
@@ -509,6 +511,9 @@ CVar TableHelper::GetTable(State *s, CVar tbl, CVar key) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return CVar{static_cast<int>(VarType::Nil)};
     VarTable *t = tbl.data_.t;
     key = NormalizeTableKey(key);
+    if (key.type_ == kFloatType && std::isnan(key.data_.f)) {
+        ThrowFakeluaException("table index is NaN");
+    }
 
     if (t->spec_get) {
         using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
@@ -642,6 +647,9 @@ void TableHelper::SetTable(State *s, CVar tbl, CVar key, CVar val) {
 
     key = NormalizeTableKey(key);
     if (key.type_ == kNilType) return;
+    if (key.type_ == kFloatType && std::isnan(key.data_.f)) {
+        ThrowFakeluaException("table index is NaN");
+    }
 
     if (t->spec_set) {
         using SpecSetFn = void (*)(VarTable *, CVar, CVar, bool *);
@@ -776,14 +784,12 @@ void RegisterTableLibraryApi(State *s) {
         int64_t start_i = 1;
         if (n >= 3) {
             CVar start_var = inter::GetNativeArg(state, args, n, 2);
-            CheckNumberArg(start_var, 3, "table.concat");
-            start_i = inter::CVarToInteger(start_var, 1);
+            start_i = CheckIntegerArg(start_var, 3, "table.concat");
         }
         int64_t end_j = TableHelper::GetTableLen(tbl);
         if (n >= 4) {
             CVar end_var = inter::GetNativeArg(state, args, n, 3);
-            CheckNumberArg(end_var, 4, "table.concat");
-            end_j = inter::CVarToInteger(end_var, end_j);
+            end_j = CheckIntegerArg(end_var, 4, "table.concat");
         }
 
         if (end_j < start_i) {

@@ -56,5 +56,11 @@ function test_string_gsub()
     end)
     if s10 ~= "OK" then return 0 end
 
+    -- 替换函数返回 nil 时保留原匹配，而不是删掉
+    local s11, c11 = string.gsub("aaa", "a", function()
+        return nil
+    end)
+    if s11 ~= "aaa" or c11 ~= 3 then return 0 end
+
     return 4000
 end
