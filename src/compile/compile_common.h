@@ -19,6 +19,30 @@ namespace fakelua {
 
 inline constexpr const char *kInitFunctionName = "__fakelua_init";
 
+// Lua 标识符已是 [A-Za-z_][A-Za-z0-9_]*，用作 C 标识符时只需避开关键字和运行时保留名。
+inline std::string SanitizeCIdent(const std::string &lua_name) {
+    static const std::unordered_set<std::string> kReserved = {
+            "auto",       "break",     "case",     "char",      "const",       "continue",     "default",     "do",
+            "double",     "else",      "enum",     "extern",    "float",       "for",          "goto",        "if",
+            "inline",     "int",       "long",     "register",  "restrict",    "return",       "short",       "signed",
+            "sizeof",     "static",    "struct",   "switch",    "typedef",     "union",        "unsigned",    "void",
+            "volatile",   "while",     "_Alignas", "_Alignof",  "_Atomic",     "_Bool",        "_Complex",    "_Generic",
+            "_Imaginary", "_Noreturn", "_Static_assert", "_Thread_local", "bool", "class", "template", "typename",
+            "namespace",  "new",       "delete",   "this",      "operator",    "private",      "public",      "protected",
+            "virtual",    "override",  "final",    "constexpr", "nullptr",     "true",         "false",       "catch",
+            "try",        "throw",     "using",    "friend",    "explicit",    "export",       "mutable",     "wchar_t",
+            "char16_t",   "char32_t",  "char8_t",  "noexcept",  "static_assert", "thread_local", "alignas",    "alignof",
+            "decltype",   "consteval", "constinit", "concept",  "requires",    "co_await",     "co_return",   "co_yield",
+            "and",        "or",        "not",      "xor",       "bitand",      "bitor",        "compl",       "and_eq",
+            "or_eq",      "xor_eq",    "not_eq",   "CVar",      "VarType",     "VarTable",     "VarClosure",  "State",
+            "stdin",      "stdout",    "stderr",   "_S",        "_CL",         "kNil",         "kTrue",       "kFalse",
+    };
+    if (kReserved.contains(lua_name)) {
+        return "flua_id_" + lua_name;
+    }
+    return lua_name;
+}
+
 // AST 节点类型快照：节点原始指针 → 推断类型。
 // 每个特化 bitmask 对应一份快照，由 TypeInferencer::InferTypes 产生，
 // 供 CGen 在生成特化体时查询任意节点的类型。

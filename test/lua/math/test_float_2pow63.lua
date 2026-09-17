@@ -10,7 +10,8 @@ function test_float_2pow63()
     if math.tointeger(15.0) ~= 15 then return 3 end
     if math.tointeger(k) ~= nil then return 4 end
     if math.tointeger(-k) ~= math.mininteger then return 5 end
-    if math.tointeger(-math.mininteger) ~= nil then return 6 end
+    -- Lua 5.4：-mininteger 回绕仍是 mininteger
+    if -math.mininteger ~= math.mininteger then return 6 end
 
     -- 表键：2^63 不得归一成 mininteger
     local t = {}
@@ -18,7 +19,8 @@ function test_float_2pow63()
     t[k] = 2
     if t[math.mininteger] ~= 1 then return 7 end
     if t[k] ~= 2 then return 8 end
-    if t[-math.mininteger] ~= 2 then return 9 end
+    -- -2^63 作为 float 能精确表示 mininteger，表键会归一成整数
+    if t[-k] ~= 1 then return 9 end
 
     -- 位运算：2^63 没有整数表示
     local ok, err = pcall(function() return 1 << k end)

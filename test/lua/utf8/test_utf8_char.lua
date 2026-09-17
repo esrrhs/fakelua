@@ -24,7 +24,8 @@ function test_utf8_char()
     if s6 ~= "" then return 0 end
 
     -- 浮点小数非整数码点过滤校验 (Lua 5.3 规范)
-    if utf8.char(65.5) ~= nil then return 0 end
+    local ok55 = pcall(function() utf8.char(65.5) end)
+    if ok55 then return 0 end
 
     return 6000
 end

@@ -32,17 +32,22 @@ function test_utf8_char_boundary()
     if #s7 ~= 4 then return 0 end
 
     -- 9. 无效码点：负数
-    if utf8.char(-1) ~= nil then return 0 end
+    local ok_neg = pcall(function() utf8.char(-1) end)
+    if ok_neg then return 0 end
 
     -- 10. 无效码点：> 0x10FFFF
-    if utf8.char(0x110000) ~= nil then return 0 end
+    local ok_big = pcall(function() utf8.char(0x110000) end)
+    if ok_big then return 0 end
 
     -- 11. 无效码点：代理区 0xD800-0xDFFF
-    if utf8.char(0xD800) ~= nil then return 0 end
-    if utf8.char(0xDFFF) ~= nil then return 0 end
+    local ok_s1 = pcall(function() utf8.char(0xD800) end)
+    if ok_s1 then return 0 end
+    local ok_s2 = pcall(function() utf8.char(0xDFFF) end)
+    if ok_s2 then return 0 end
 
-    -- 12. 混合有效和无效码点（第一个无效即返回 nil）
-    if utf8.char(65, 0x110000, 66) ~= nil then return 0 end
+    -- 12. 混合有效和无效码点（第一个无效即报错）
+    local ok_mix = pcall(function() utf8.char(65, 0x110000, 66) end)
+    if ok_mix then return 0 end
 
     return 5000
 end

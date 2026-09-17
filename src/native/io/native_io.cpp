@@ -37,7 +37,41 @@ struct IoState {
     NativeObject *stdin_obj = nullptr;
     NativeObject *stdout_obj = nullptr;
     NativeObject *stderr_obj = nullptr;
+    NativeObject *default_in = nullptr;
+    NativeObject *default_out = nullptr;
 };
+
+static NativeObject *StdHandle(State *s, FILE *fp);
+
+static FILE *CurrentInFp(State *s) {
+    auto &st = s->GetModuleState<IoState>();
+    if (st.default_in && st.default_in->Alive()) {
+        auto *fp = reinterpret_cast<FILE *>(st.default_in->GetInt(kFpKey, 0));
+        if (fp) return fp;
+    }
+    return stdin;
+}
+
+static FILE *CurrentOutFp(State *s) {
+    auto &st = s->GetModuleState<IoState>();
+    if (st.default_out && st.default_out->Alive()) {
+        auto *fp = reinterpret_cast<FILE *>(st.default_out->GetInt(kFpKey, 0));
+        if (fp) return fp;
+    }
+    return stdout;
+}
+
+static NativeObject *CurrentInObj(State *s) {
+    auto &st = s->GetModuleState<IoState>();
+    if (st.default_in && st.default_in->Alive()) return st.default_in;
+    return StdHandle(s, stdin);
+}
+
+static NativeObject *CurrentOutObj(State *s) {
+    auto &st = s->GetModuleState<IoState>();
+    if (st.default_out && st.default_out->Alive()) return st.default_out;
+    return StdHandle(s, stdout);
+}
 
 static bool IsStdHandle(FILE *fp) {
     return fp == stdin || fp == stdout || fp == stderr;
@@ -100,6 +134,8 @@ void OnNativeObjectManagerCleared(State *s) {
     io_state->stdin_obj = nullptr;
     io_state->stdout_obj = nullptr;
     io_state->stderr_obj = nullptr;
+    io_state->default_in = nullptr;
+    io_state->default_out = nullptr;
 }
 
 // 行读取辅助函数
@@ -188,6 +224,11 @@ static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var, int argno, const
                 result.append(chunk, nread);
             }
             return inter::NativeToFakeluaString(state, result);
+        } else if (fmt == "*s" || fmt == "s") {
+            // FakeLua 扩展：*s 读一行（历史测试依赖；标准 Lua 没有 *s）。
+            std::string result;
+            if (!ReadLine(fp, result)) return inter::NativeToFakeluaNil(state);
+            return inter::NativeToFakeluaString(state, result);
         } else if (fmt == "*n" || fmt == "n") {
             double val;
             if (std::fscanf(fp, "%lf", &val) == 1) {
@@ -221,14 +262,9 @@ static CVar ReadOneFormat(FILE *fp, State *state, CVar fmt_var, int argno, const
             }
         } catch (...) {
         }
-        return inter::NativeToFakeluaNil(state);
+        ThrowFakeluaException(std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (invalid format)");
     } else if (fmt_var.type_ == static_cast<int>(VarType::Int) || fmt_var.type_ == static_cast<int>(VarType::Float)) {
-        int64_t count = 0;
-        if (fmt_var.type_ == static_cast<int>(VarType::Int)) {
-            count = fmt_var.data_.i;
-        } else if (!DoubleFitsInt64(fmt_var.data_.f, &count)) {
-            return inter::NativeToFakeluaNil(state);
-        }
+        int64_t count = CheckIntegerArg(fmt_var, argno, fname);
         if (count == 0) {
             int c = std::fgetc(fp);
             if (c == EOF) return inter::NativeToFakeluaNil(state);
@@ -378,7 +414,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             // 标准 Lua：file:seek 的 offset 必须是 number
             CheckNumberArg(a1, 2, "file:seek");
-            offset = inter::CVarToInteger(a1, 0);
+            offset = CheckIntegerArg(a1, 2, "file:seek");
         }
 
         int whence;
@@ -508,17 +544,19 @@ void RegisterIoLibraryApi(State *s) {
     });
 
     // io.close([file])
-    // 关闭指定 file（默认当前输出文件，简化为 flush stdout）
+    // 无参时关闭当前默认输出文件（Lua：registry IO_OUTPUT）。stdout 只 flush 不关。
     RegisterNativeFunction(s, "io.close", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        NativeObject *obj = nullptr;
         if (n < 1) {
-            std::fflush(stdout);
-            return inter::NativeToFakeluaBool(state, true);
+            obj = CurrentOutObj(state);
+        } else {
+            CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            obj = NativeObject::Unwrap(a0);
+            if (!obj || obj->GetTypeName() != "iofile") {
+                ThrowFakeluaException("bad argument #1 to 'io.close' (FILE* expected)");
+            }
         }
-        CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        NativeObject *obj = NativeObject::Unwrap(a0);
-        if (!obj || obj->GetTypeName() != "iofile") {
-            ThrowFakeluaException("bad argument #1 to 'io.close' (FILE* expected)");
-        }
+        if (!obj) return inter::NativeToFakeluaBool(state, true);
         auto *fp = reinterpret_cast<FILE *>(obj->GetInt(kFpKey, 0));
         if (!fp) return inter::NativeToFakeluaBool(state, true);
         if (IsStdHandle(fp)) {
@@ -533,35 +571,38 @@ void RegisterIoLibraryApi(State *s) {
     // io.read([format ...]) → string|number|nil
     // 从 stdin 读取，支持多格式参数（返回 multi-value）
     RegisterNativeFunction(s, "io.read", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        FILE *fp = CurrentInFp(state);
         if (n < 1) {
             CVar fake_fmt{static_cast<int>(VarType::StringId)};
             fake_fmt.data_.i = state->GetConstString().Alloc("*l");
-            return ReadOneFormat(stdin, state, fake_fmt, 1, "io.read");
+            return ReadOneFormat(fp, state, fake_fmt, 1, "io.read");
         }
         // 多格式参数：逐个读取，返回 multi-value
         if (n >= 2) {
             auto multi = inter::AllocMultiCVar(state, n);
             for (int i = 0; i < n; ++i) {
                 CVar fmt_var = inter::GetNativeArg(state, args, n, i);
-                CVar res = ReadOneFormat(stdin, state, fmt_var, i + 1, "io.read");
+                CVar res = ReadOneFormat(fp, state, fmt_var, i + 1, "io.read");
                 inter::SetMultiCVarElement(multi, i, res);
+                if (res.type_ == static_cast<int>(VarType::Nil)) break;
             }
             return multi;
         }
         // 单格式参数
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        return ReadOneFormat(stdin, state, a0, 1, "io.read");
+        return ReadOneFormat(fp, state, a0, 1, "io.read");
     });
 
     // io.write(...) → true
     // 写入 stdout
     RegisterNativeFunction(s, "io.write", 0, true, [](State *state, CVar *args, int n) -> CVar {
+        FILE *fp = CurrentOutFp(state);
         std::string temp;
         for (int i = 0; i < n; i++) {
             CVar a = inter::GetNativeArg(state, args, n, i);
             std::string_view sv = ArgToStringView(a, state, temp, i + 1, "io.write");
             if (!sv.empty()) {
-                std::fwrite(sv.data(), 1, sv.size(), stdout);
+                std::fwrite(sv.data(), 1, sv.size(), fp);
             }
         }
         return inter::NativeToFakeluaBool(state, true);
@@ -569,7 +610,8 @@ void RegisterIoLibraryApi(State *s) {
 
     // io.flush() → true
     RegisterNativeFunction(s, "io.flush", 0, false, [](State *state, CVar * /*args*/, int /*n*/) -> CVar {
-        std::fflush(stdout);
+        FILE *fp = CurrentOutFp(state);
+        if (fp) std::fflush(fp);
         return inter::NativeToFakeluaBool(state, true);
     });
 
@@ -629,11 +671,12 @@ void RegisterIoLibraryApi(State *s) {
     // 设置/获取当前默认输入文件（简化：仅返回参数或 stdin 包装）
     RegisterNativeFunction(s, "io.input", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) {
-            return inter::NativeToFakeluaNativeObject(state, StdHandle(state, stdin));
+            return inter::NativeToFakeluaNativeObject(state, CurrentInObj(state));
         }
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         NativeObject *obj = NativeObject::Unwrap(a0);
         if (obj && obj->GetTypeName() == "iofile") {
+            state->GetModuleState<IoState>().default_in = obj;
             return inter::NativeToFakeluaNativeObject(state, obj);
         }
         return inter::NativeToFakeluaNil(state);
@@ -642,11 +685,12 @@ void RegisterIoLibraryApi(State *s) {
     // io.output([file]) → file
     RegisterNativeFunction(s, "io.output", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) {
-            return inter::NativeToFakeluaNativeObject(state, StdHandle(state, stdout));
+            return inter::NativeToFakeluaNativeObject(state, CurrentOutObj(state));
         }
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         NativeObject *obj = NativeObject::Unwrap(a0);
         if (obj && obj->GetTypeName() == "iofile") {
+            state->GetModuleState<IoState>().default_out = obj;
             return inter::NativeToFakeluaNativeObject(state, obj);
         }
         return inter::NativeToFakeluaNil(state);
@@ -656,8 +700,7 @@ void RegisterIoLibraryApi(State *s) {
     // 简化：如果指定文件名则打开文件返回对象（用户手动循环 read），否则返回 nil
     RegisterNativeFunction(s, "io.lines", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) {
-            // stdin 迭代不支持（需要维护跨调用的 FILE* 状态）
-            return inter::NativeToFakeluaNil(state);
+            return MakeFileLinesClosure(state, CurrentInObj(state));
         }
         CVar fn_arg = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(fn_arg, 1, "io.lines");

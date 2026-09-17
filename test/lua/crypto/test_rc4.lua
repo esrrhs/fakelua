@@ -73,5 +73,11 @@ function test_rc4_encrypt_decrypt()
         return 0
     end
 
+    local empty = crypto.rc4(key, "")
+    if empty ~= "" then
+        print("rc4 empty encrypt should be empty")
+        return 0
+    end
+
     return 1
 end
