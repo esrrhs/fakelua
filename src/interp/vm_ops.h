@@ -406,13 +406,17 @@ FL_VM_INLINE bool ForPrep(CVar &idx, CVar &limit, CVar &step, CVar &loopvar) {
 }
 
 // 二元算术：int/int 快路径就地写 type_/data_.i，不构造临时 CVar。
-#define FL_VM_ARITH_INT(HAS, stk, box, ra, rb, rc, OP, SLOWFN)                                                                             \
+// 运算符用具名宏而不是裸 + / - / * 作参数，避免 cppcheck 把 `+,` 当成 syntaxError。
+#define FL_VM_INT_OP_add(a, b) ((a) + (b))
+#define FL_VM_INT_OP_sub(a, b) ((a) - (b))
+#define FL_VM_INT_OP_mul(a, b) ((a) * (b))
+#define FL_VM_ARITH_INT(HAS, stk, box, ra, rb, rc, OPNAME, SLOWFN)                                                                         \
     do {                                                                                                                                   \
         const CVar &fl_rb_ = ::fakelua::interp_rt::VmSlot<HAS>(stk, box, rb);                                                               \
         const CVar &fl_rc_ = ::fakelua::interp_rt::VmSlot<HAS>(stk, box, rc);                                                               \
         if (FL_VM_LIKELY(fl_rb_.type_ == ::fakelua::interp_rt::kInt && fl_rc_.type_ == ::fakelua::interp_rt::kInt)) {                       \
             ::fakelua::interp_rt::VmWriteInt<HAS>(stk, box, ra,                                                                            \
-                static_cast<int64_t>(static_cast<uint64_t>(fl_rb_.data_.i) OP static_cast<uint64_t>(fl_rc_.data_.i)));                     \
+                static_cast<int64_t>(FL_VM_INT_OP_##OPNAME(static_cast<uint64_t>(fl_rb_.data_.i), static_cast<uint64_t>(fl_rc_.data_.i)))); \
         } else {                                                                                                                           \
             ::fakelua::interp_rt::VmWrite<HAS>(stk, box, ra, (SLOWFN)(fl_rb_, fl_rc_));                                                     \
         }                                                                                                                                  \
