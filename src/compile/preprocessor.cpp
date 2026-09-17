@@ -269,6 +269,13 @@ void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
                 parlist_node = fbody->Parlist();
                 block_node = fbody->Block();
             }
+        } else if (node->Type() == SyntaxTreeType::FunctionDef) {
+            const auto fd = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
+            const auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(fd->Funcbody());
+            if (fbody) {
+                parlist_node = fbody->Parlist();
+                block_node = fbody->Block();
+            }
         }
 
         if (!parlist_node) return;
@@ -296,8 +303,13 @@ void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
             WalkSyntaxTreePruned(block_node, [this, &vararg_name](const SyntaxTreeInterfacePtr &sub_node) -> bool {
                 if (!sub_node) return false;
 
+                const auto t = sub_node->Type();
+                if (t == SyntaxTreeType::Function || t == SyntaxTreeType::LocalFunction || t == SyntaxTreeType::FunctionDef) {
+                    return false;
+                }
+
                 // 找到 `...` 表达式进行替换
-                if (sub_node->Type() == SyntaxTreeType::Exp) {
+                if (t == SyntaxTreeType::Exp) {
                     const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(sub_node);
                     if (exp->GetExpKind() == ExpKind::kVarParams) {
                         exp->SetExpKind(ExpKind::kPrefixExp);

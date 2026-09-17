@@ -117,57 +117,79 @@ CVar DbExec(NativeObject *self, State *s, CVar *args, int n) {
     auto *obj = UnwrapDb(self);
     if (!obj || !obj->db) error("db:exec: database is closed");
 
-    sqlite3_stmt *stmt = nullptr;
-    int rc = sqlite3_prepare_v2(obj->db, sql.c_str(), -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        const char *err = sqlite3_errmsg(obj->db);
-        if (stmt) sqlite3_finalize(stmt);
-        LOG_ERROR(s, "sqlite", "db:exec prepare failed: err={}", err ? err : "unknown error");
-        error("db:exec: " + std::string(err ? err : "unknown error"));
-    }
+    const char *sqlp = sql.data();
+    const char *sql_end = sqlp + sql.size();
+    CVar last_tbl = inter::NativeToFakeluaNil(s);
+    bool have_rows = false;
 
-    LOG_DEBUG(s, "sqlite", "db:exec: sql={}", sql);
-    int col_count = sqlite3_column_count(stmt);
-    CVar tbl = table::TableHelper::CreateTable(s);
+    while (sqlp < sql_end) {
+        while (sqlp < sql_end && (*sqlp == ' ' || *sqlp == '\t' || *sqlp == '\n' || *sqlp == '\r' || *sqlp == ';')) {
+            ++sqlp;
+        }
+        if (sqlp >= sql_end) break;
 
-    if (col_count > 0) {
-        // Store column names
-        std::vector<std::string> col_names;
-        col_names.reserve(col_count);
-        for (int i = 0; i < col_count; i++) {
-            const char *name = sqlite3_column_name(stmt, i);
-            col_names.push_back(name ? name : "");
+        sqlite3_stmt *stmt = nullptr;
+        const char *tail = nullptr;
+        const int nbyte = static_cast<int>(std::min(static_cast<size_t>(sql_end - sqlp), static_cast<size_t>(std::numeric_limits<int>::max())));
+        int rc = sqlite3_prepare_v2(obj->db, sqlp, nbyte, &stmt, &tail);
+        if (rc != SQLITE_OK) {
+            const char *err = sqlite3_errmsg(obj->db);
+            if (stmt) sqlite3_finalize(stmt);
+            LOG_ERROR(s, "sqlite", "db:exec prepare failed: err={}", err ? err : "unknown error");
+            error("db:exec: " + std::string(err ? err : "unknown error"));
+        }
+        if (!stmt) {
+            // prepare 成功但 stmt 为空：空语句 / 开头 NUL。tail 不前进时必须推进，否则死循环。
+            const char *nextp = (tail && tail > sqlp) ? tail : sqlp + 1;
+            if (nextp > sql_end) nextp = sql_end;
+            sqlp = nextp;
+            continue;
         }
 
-        // Fetch rows
-        int64_t row_idx = 1;
-        while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-            CVar row_tbl = table::TableHelper::CreateTable(s);
+        LOG_DEBUG(s, "sqlite", "db:exec: sql={}", sql);
+        int col_count = sqlite3_column_count(stmt);
+        CVar tbl = table::TableHelper::CreateTable(s);
+
+        if (col_count > 0) {
+            std::vector<std::string> col_names;
+            col_names.reserve(col_count);
             for (int i = 0; i < col_count; i++) {
-                CVar val = SqliteColumnToCVar(s, stmt, i);
-                table::TableHelper::SetTableStrId(s, row_tbl, col_names[i].c_str(), val);
+                const char *name = sqlite3_column_name(stmt, i);
+                col_names.push_back(name ? name : "");
             }
-            table::TableHelper::SetTableInt(s, tbl, row_idx++, row_tbl);
+
+            int64_t row_idx = 1;
+            while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                CVar row_tbl = table::TableHelper::CreateTable(s);
+                for (int i = 0; i < col_count; i++) {
+                    CVar val = SqliteColumnToCVar(s, stmt, i);
+                    table::TableHelper::SetTableStrId(s, row_tbl, col_names[i].c_str(), val);
+                }
+                table::TableHelper::SetTableInt(s, tbl, row_idx++, row_tbl);
+            }
+            if (rc != SQLITE_DONE) {
+                const char *err = sqlite3_errmsg(obj->db);
+                sqlite3_finalize(stmt);
+                error("db:exec: " + std::string(err ? err : "unknown error"));
+            }
+            last_tbl = tbl;
+            have_rows = true;
+        } else {
+            rc = sqlite3_step(stmt);
+            if (rc != SQLITE_DONE) {
+                const char *err = sqlite3_errmsg(obj->db);
+                sqlite3_finalize(stmt);
+                error("db:exec: " + std::string(err ? err : "unknown error"));
+            }
         }
-        if (rc != SQLITE_DONE) {
-            const char *err = sqlite3_errmsg(obj->db);
-            sqlite3_finalize(stmt);
-            error("db:exec: " + std::string(err ? err : "unknown error"));
-        }
-    } else {
-        // Non-SELECT: execute and check for errors
-        rc = sqlite3_step(stmt);
-        if (rc != SQLITE_DONE) {
-            const char *err = sqlite3_errmsg(obj->db);
-            sqlite3_finalize(stmt);
-            error("db:exec: " + std::string(err ? err : "unknown error"));
-        }
+
+        sqlite3_finalize(stmt);
+        if (!tail || tail <= sqlp) break;
+        sqlp = tail;
     }
 
-    sqlite3_finalize(stmt);
-
-    if (col_count > 0) {
-        return tbl;
+    if (have_rows) {
+        return last_tbl;
     }
     return inter::NativeToFakeluaNil(s);
 }
@@ -182,7 +204,8 @@ CVar DbPrepare(NativeObject *self, State *s, CVar *args, int n) {
     if (!obj || !obj->db) error("db:prepare: database is closed");
 
     sqlite3_stmt *stmt = nullptr;
-    int rc = sqlite3_prepare_v2(obj->db, sql.c_str(), -1, &stmt, nullptr);
+    const int nbyte = sql.size() > static_cast<size_t>(std::numeric_limits<int>::max()) ? std::numeric_limits<int>::max() : static_cast<int>(sql.size());
+    int rc = sqlite3_prepare_v2(obj->db, sql.c_str(), nbyte, &stmt, nullptr);
     if (rc != SQLITE_OK) {
         const char *err = sqlite3_errmsg(obj->db);
         if (stmt) sqlite3_finalize(stmt);

@@ -86,12 +86,13 @@ NativeField CVarToNativeField(CVar v) {
             f.kind = NativeField::Kind::Nil;
         }
     } else if (t == static_cast<int>(VarType::Table)) {
-        // 如果是 NativeObject 的 wrapper，记录引用；否则记录 table
         NativeObject *nested = NativeObject::Unwrap(v);
         if (nested) {
             f.kind = NativeField::Kind::Object;
             f.obj = nested;
         } else if (v.data_.t) {
+            // 指针跟 Lua 表同一生命周期：跨 Call() Reset 后失效。存在 C++ 堆上的
+            // NativeObject 不能深拷整个表，所以只保留指针，调用方需在同一帧内使用。
             f.kind = NativeField::Kind::Table;
             f.t = v.data_.t;
         }

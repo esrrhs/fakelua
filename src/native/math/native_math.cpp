@@ -17,22 +17,17 @@ void RegisterMathLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckNumberArg(a0, 1, "math.abs");
         if (a0.type_ == static_cast<int>(VarType::Int)) {
-            // std::abs(INT64_MIN) 是 UB（绝对值无法存入 int64）。
-            // 与 Lua 5.4 对齐：返回 float 9.2233720368548e+18。
-            if (a0.data_.i == INT64_MIN) {
-                return inter::NativeToFakeluaFloat(state, static_cast<double>(a0.data_.i) * -1.0);
-            }
-            return inter::NativeToFakeluaInt(state, std::abs(a0.data_.i));
+            int64_t n = a0.data_.i;
+            if (n < 0) n = static_cast<int64_t>(0ull - static_cast<uint64_t>(n));
+            return inter::NativeToFakeluaInt(state, n);
         }
         if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::abs(a0.data_.f));
         double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
         if (!std::isnan(f)) {
             int64_t iv = 0;
             if (DoubleFitsInt64(f, &iv)) {
-                if (iv == INT64_MIN) {
-                    return inter::NativeToFakeluaFloat(state, static_cast<double>(iv) * -1.0);
-                }
-                return inter::NativeToFakeluaInt(state, std::abs(iv));
+                if (iv < 0) iv = static_cast<int64_t>(0ull - static_cast<uint64_t>(iv));
+                return inter::NativeToFakeluaInt(state, iv);
             }
             return inter::NativeToFakeluaFloat(state, std::abs(f));
         }

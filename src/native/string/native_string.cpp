@@ -1162,9 +1162,12 @@ void RegisterStringLibraryApi(State *s) {
                 int64_t ival = inter::CVarToInteger(curr_arg, 0);
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
-                char buf[128];
-                snprintf(buf, sizeof(buf), llspec.c_str(), ival);
-                res.append(buf);
+                int needed = snprintf(nullptr, 0, llspec.c_str(), static_cast<long long>(ival));
+                if (needed > 0) {
+                    std::vector<char> buf(static_cast<size_t>(needed) + 1);
+                    snprintf(buf.data(), buf.size(), llspec.c_str(), static_cast<long long>(ival));
+                    res.append(buf.data());
+                }
             } else if (spec == 'u' || spec == 'x' || spec == 'X' || spec == 'o') {
                 // 标准 Lua 5.3：无符号整数格式接受 number 或 numeric string
                 if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
@@ -1173,18 +1176,24 @@ void RegisterStringLibraryApi(State *s) {
                 uint64_t uval = static_cast<uint64_t>(inter::CVarToInteger(curr_arg, 0));
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
-                char buf[128];
-                snprintf(buf, sizeof(buf), llspec.c_str(), uval);
-                res.append(buf);
+                int needed = snprintf(nullptr, 0, llspec.c_str(), static_cast<unsigned long long>(uval));
+                if (needed > 0) {
+                    std::vector<char> buf(static_cast<size_t>(needed) + 1);
+                    snprintf(buf.data(), buf.size(), llspec.c_str(), static_cast<unsigned long long>(uval));
+                    res.append(buf.data());
+                }
             } else if (spec == 'f' || spec == 'e' || spec == 'E' || spec == 'g' || spec == 'G') {
                 // 标准 Lua 5.3：浮点格式接受 number 或 numeric string
                 if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
                 double fval = inter::CVarToNumber(curr_arg, 0.0);
-                char buf[128];
-                snprintf(buf, sizeof(buf), spec_str.c_str(), fval);
-                res.append(buf);
+                int needed = snprintf(nullptr, 0, spec_str.c_str(), fval);
+                if (needed > 0) {
+                    std::vector<char> buf(static_cast<size_t>(needed) + 1);
+                    snprintf(buf.data(), buf.size(), spec_str.c_str(), fval);
+                    res.append(buf.data());
+                }
             } else if (spec == 'c') {
                 // 标准 Lua 5.3：%c 接受 number 或 numeric string
                 if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
@@ -1376,7 +1385,7 @@ void RegisterStringLibraryApi(State *s) {
 
         // 使用 arena 分配器分配迭代器状态（re 由全局缓存持有）
         auto &alloc = state->GetValueAllocator();
-        GMatchState *gs = new (alloc.Alloc(sizeof(GMatchState))) GMatchState{std::move(text), re, 0};
+        GMatchState *gs = alloc.New<GMatchState>(std::move(text), re, 0);
 
         // 使用共享辅助函数创建迭代器闭包
         return MakeIteratorClosure(state, reinterpret_cast<void *>(GMatchIterator), gs);

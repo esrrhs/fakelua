@@ -247,8 +247,7 @@ FL_VM_INLINE CVar BinShr(const CVar &a, const CVar &b) {
 FL_VM_INLINE CVar UnMinus(const CVar &a) {
     CheckNum(a);
     if (FL_VM_LIKELY(a.type_ == kInt)) {
-        if (FL_VM_UNLIKELY(a.data_.i == INT64_MIN)) return Float(-static_cast<double>(a.data_.i));
-        return Int(-a.data_.i);
+        return Int(static_cast<int64_t>(0ull - static_cast<uint64_t>(a.data_.i)));
     }
     return Float(-a.data_.f);
 }
@@ -331,7 +330,7 @@ FL_VM_INLINE int64_t ForLimitToInt(const CVar &limit, int64_t step, bool *skip) 
             }
             return std::numeric_limits<int64_t>::max();
         }
-        if (step > 0 || std::isnan(flim)) {
+        if (step > 0) {
             *skip = true;
             return 0;
         }

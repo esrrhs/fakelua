@@ -292,7 +292,7 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
 }
 
 #define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)
-#define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.b = (val); } while(0)
+#define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.i = 0; (v).data_.b = (val); } while(0)
 #define SET_INT(v, val) do { (v).type_ = VAR_INT; (v).data_.i = (val); } while(0)
 #define SET_FLOAT(v, val) do { \
     double __f = (val); \
@@ -1221,10 +1221,8 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 
 #define OpUnaryMinus(a, res) do { \
     CVar _ra = (a); CheckNum(_ra); \
-    if (LIKELY(_ra.type_ == VAR_INT)) { \
-        if (UNLIKELY(_ra.data_.i == INT64_MIN)) { SET_FLOAT(res, -(double)_ra.data_.i); } \
-        else { SET_INT(res, -_ra.data_.i); } \
-    } else { SET_FLOAT(res, -_ra.data_.f); } \
+    if (LIKELY(_ra.type_ == VAR_INT)) { SET_INT(res, FL_INT_SUB(0, _ra.data_.i)); } \
+    else { SET_FLOAT(res, -_ra.data_.f); } \
 } while(0)
 
 #define OpBitNot(a, res) do { int64_t _ai; CheckInt(a, _ai); SET_INT(res, ~_ai); } while(0)
@@ -1595,6 +1593,38 @@ static inline int FlForIntAdvance(int64_t *ctrl, int64_t step) {
     if ((cur ^ step) >= 0 && (next ^ cur) < 0) return 0;
     *ctrl = next;
     return 1;
+}
+
+// Lua 5.4 forlimit：无法落入 int64 时按符号裁成 min/max integer；NaN 与负无穷同样处理。
+// 返回 1 表示整段跳过。
+static inline int FlForLimitToInt(double flim, int64_t step, int64_t *out) {
+    int64_t p = 0;
+    if (FlDoubleFitsInt64(flim, &p)) {
+        *out = p;
+        return 0;
+    }
+    if (!isfinite(flim)) {
+        if (flim > 0.0) {
+            if (step < 0) return 1;
+            *out = INT64_MAX;
+            return 0;
+        }
+        if (step > 0) return 1;
+        *out = INT64_MIN;
+        return 0;
+    }
+    if (flim >= FL_INT64_FLOAT_EXCL) {
+        if (step < 0) return 1;
+        *out = INT64_MAX;
+        return 0;
+    }
+    if (flim < (double)INT64_MIN) {
+        if (step > 0) return 1;
+        *out = INT64_MIN;
+        return 0;
+    }
+    *out = step > 0 ? (int64_t)floor(flim) : (int64_t)ceil(flim);
+    return 0;
 }
 
 #define FlToIntChecked(v, result) do { \
