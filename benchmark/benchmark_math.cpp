@@ -102,9 +102,13 @@ struct Ctx : RuntimeContext {
         // Warmup (TCC only)
         double w = 0;
         Call(flua, JIT_TCC, "bench_math_trig", w, 10);
+        Call(flua, JIT_INTERP, "bench_math_trig", w, 10);
         Call(flua, JIT_TCC, "bench_math_sqrt", w, 10);
+        Call(flua, JIT_INTERP, "bench_math_sqrt", w, 10);
         Call(flua, JIT_TCC, "bench_math_exp_log", w, 10);
+        Call(flua, JIT_INTERP, "bench_math_exp_log", w, 10);
         Call(flua, JIT_TCC, "bench_math_minmax", w, 10);
+        Call(flua, JIT_INTERP, "bench_math_minmax", w, 10);
     }
 
     ~Ctx() {
@@ -148,6 +152,15 @@ static void BM_FakeLua_MathTrig_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_MathTrig_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        double ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_math_trig", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: math sqrt
 
 static void BM_CPP_MathSqrt(benchmark::State &state) {
@@ -180,6 +193,15 @@ static void BM_FakeLua_MathSqrt_GCC(benchmark::State &state) {
     for (auto _: state) {
         double ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_math_sqrt", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_MathSqrt_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        double ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_math_sqrt", ret, n);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -220,6 +242,15 @@ static void BM_FakeLua_MathExpLog_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_MathExpLog_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        double ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_math_exp_log", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: math minmax
 
 static void BM_CPP_MathMinMax(benchmark::State &state) {
@@ -256,6 +287,15 @@ static void BM_FakeLua_MathMinMax_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_MathMinMax_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        double ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_math_minmax", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 }// namespace
 
 // Benchmark registrations
@@ -266,18 +306,19 @@ BENCHMARK(BM_CPP_MathTrig) MATH_ARGS;
 BENCHMARK(BM_Lua_MathTrig) MATH_ARGS;
 BENCHMARK(BM_FakeLua_MathTrig_TCC) MATH_ARGS;
 BENCHMARK(BM_FakeLua_MathTrig_GCC) MATH_ARGS;
-
+BENCHMARK(BM_FakeLua_MathTrig_INTERP) MATH_ARGS;
 BENCHMARK(BM_CPP_MathSqrt) MATH_ARGS;
 BENCHMARK(BM_Lua_MathSqrt) MATH_ARGS;
 BENCHMARK(BM_FakeLua_MathSqrt_TCC) MATH_ARGS;
 BENCHMARK(BM_FakeLua_MathSqrt_GCC) MATH_ARGS;
-
+BENCHMARK(BM_FakeLua_MathSqrt_INTERP) MATH_ARGS;
 BENCHMARK(BM_CPP_MathExpLog) MATH_ARGS;
 BENCHMARK(BM_Lua_MathExpLog) MATH_ARGS;
 BENCHMARK(BM_FakeLua_MathExpLog_TCC) MATH_ARGS;
 BENCHMARK(BM_FakeLua_MathExpLog_GCC) MATH_ARGS;
-
+BENCHMARK(BM_FakeLua_MathExpLog_INTERP) MATH_ARGS;
 BENCHMARK(BM_CPP_MathMinMax) MATH_ARGS;
 BENCHMARK(BM_Lua_MathMinMax) MATH_ARGS;
 BENCHMARK(BM_FakeLua_MathMinMax_TCC) MATH_ARGS;
 BENCHMARK(BM_FakeLua_MathMinMax_GCC) MATH_ARGS;
+BENCHMARK(BM_FakeLua_MathMinMax_INTERP) MATH_ARGS;

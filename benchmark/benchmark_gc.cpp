@@ -92,8 +92,11 @@ struct Ctx : RuntimeContext {
         // Warmup (TCC only)
         int64_t w = 0;
         Call(flua, JIT_TCC, "bench_table_churn", w, 10);
+        Call(flua, JIT_INTERP, "bench_table_churn", w, 10);
         Call(flua, JIT_TCC, "bench_string_churn", w, 10);
+        Call(flua, JIT_INTERP, "bench_string_churn", w, 10);
         Call(flua, JIT_TCC, "bench_mixed_alloc", w, 10);
+        Call(flua, JIT_INTERP, "bench_mixed_alloc", w, 10);
     }
 
     ~Ctx() {
@@ -137,6 +140,15 @@ static void BM_FakeLua_TableChurn_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_TableChurn_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_table_churn", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: string churn
 
 static void BM_CPP_StringChurn(benchmark::State &state) {
@@ -169,6 +181,15 @@ static void BM_FakeLua_StringChurn_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_string_churn", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_StringChurn_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_churn", ret, n);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -209,6 +230,15 @@ static void BM_FakeLua_MixedAlloc_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_MixedAlloc_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_mixed_alloc", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 }// namespace
 
 // Benchmark registrations
@@ -221,13 +251,14 @@ BENCHMARK(BM_CPP_TableChurn) TABLE_CHURN_ARGS;
 BENCHMARK(BM_Lua_TableChurn) TABLE_CHURN_ARGS;
 BENCHMARK(BM_FakeLua_TableChurn_TCC) TABLE_CHURN_ARGS;
 BENCHMARK(BM_FakeLua_TableChurn_GCC) TABLE_CHURN_ARGS;
-
+BENCHMARK(BM_FakeLua_TableChurn_INTERP) TABLE_CHURN_ARGS;
 BENCHMARK(BM_CPP_StringChurn) STRING_CHURN_ARGS;
 BENCHMARK(BM_Lua_StringChurn) STRING_CHURN_ARGS;
 BENCHMARK(BM_FakeLua_StringChurn_TCC) STRING_CHURN_ARGS;
 BENCHMARK(BM_FakeLua_StringChurn_GCC) STRING_CHURN_ARGS;
-
+BENCHMARK(BM_FakeLua_StringChurn_INTERP) STRING_CHURN_ARGS;
 BENCHMARK(BM_CPP_MixedAlloc) MIXED_ALLOC_ARGS;
 BENCHMARK(BM_Lua_MixedAlloc) MIXED_ALLOC_ARGS;
 BENCHMARK(BM_FakeLua_MixedAlloc_TCC) MIXED_ALLOC_ARGS;
 BENCHMARK(BM_FakeLua_MixedAlloc_GCC) MIXED_ALLOC_ARGS;
+BENCHMARK(BM_FakeLua_MixedAlloc_INTERP) MIXED_ALLOC_ARGS;

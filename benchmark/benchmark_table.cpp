@@ -268,15 +268,25 @@ struct Ctx : RuntimeContext {
         // Warmup (TCC only)
         int64_t warmup = 0;
         Call(flua, JIT_TCC, "bench_table_insert", warmup, 10);
+        Call(flua, JIT_INTERP, "bench_table_insert", warmup, 10);
         Call(flua, JIT_TCC, "bench_table_remove", warmup, 10);
+        Call(flua, JIT_INTERP, "bench_table_remove", warmup, 10);
         Call(flua, JIT_TCC, "bench_table_concat", warmup, 10);
+        Call(flua, JIT_INTERP, "bench_table_concat", warmup, 10);
         Call(flua, JIT_TCC, "bench_table_pack", warmup, 10);
+        Call(flua, JIT_INTERP, "bench_table_pack", warmup, 10);
         Call(flua, JIT_TCC, "bench_table_move", warmup, 10);
+        Call(flua, JIT_INTERP, "bench_table_move", warmup, 10);
         Call(flua, JIT_TCC, "bench_table_sort", warmup, 10);
+        Call(flua, JIT_INTERP, "bench_table_sort", warmup, 10);
         Call(flua, JIT_TCC, "bench_table_create", warmup, 10);
+        Call(flua, JIT_INTERP, "bench_table_create", warmup, 10);
         Call(flua, JIT_TCC, "bench_hash_insert", warmup, 10);
+        Call(flua, JIT_INTERP, "bench_hash_insert", warmup, 10);
         Call(flua, JIT_TCC, "bench_hash_lookup", warmup, 10);
+        Call(flua, JIT_INTERP, "bench_hash_lookup", warmup, 10);
         Call(flua, JIT_TCC, "bench_nested_table", warmup, 10);
+        Call(flua, JIT_INTERP, "bench_nested_table", warmup, 10);
     }
 
     ~Ctx() {
@@ -322,6 +332,15 @@ static void BM_FakeLua_TableInsert_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_TableInsert_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_table_insert", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: table.remove
 
 static void BM_CPP_TableRemove(benchmark::State &state) {
@@ -356,6 +375,15 @@ static void BM_FakeLua_TableRemove_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_table_remove", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_TableRemove_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_table_remove", ret, n);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -396,6 +424,15 @@ static void BM_FakeLua_TableConcat_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_TableConcat_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_table_concat", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: table.pack (fixed-size pack/unpack)
 
 static void BM_CPP_TablePack(benchmark::State &state) {
@@ -426,6 +463,14 @@ static void BM_FakeLua_TablePack_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_table_pack", ret, 10);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_TablePack_INTERP(benchmark::State &state) {
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_table_pack", ret, 10);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -468,6 +513,15 @@ static void BM_FakeLua_TableMove_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_TableMove_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_table_move", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: table.sort
 
 static void BM_CPP_TableSort(benchmark::State &state) {
@@ -500,6 +554,15 @@ static void BM_FakeLua_TableSort_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_table_sort", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_TableSort_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_table_sort", ret, n);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -542,6 +605,15 @@ static void BM_FakeLua_TableCreate_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_TableCreate_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_table_create", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: hash insert
 
 static void BM_CPP_HashInsert(benchmark::State &state) {
@@ -576,6 +648,15 @@ static void BM_FakeLua_HashInsert_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_hash_insert", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_HashInsert_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_hash_insert", ret, n);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -616,6 +697,15 @@ static void BM_FakeLua_HashLookup_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_HashLookup_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_hash_lookup", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: nested table access
 
 static void BM_CPP_NestedTable(benchmark::State &state) {
@@ -652,6 +742,15 @@ static void BM_FakeLua_NestedTable_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_NestedTable_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_nested_table", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 }// namespace
 
 // Benchmark registrations
@@ -671,48 +770,49 @@ BENCHMARK(BM_CPP_TableInsert) TABLE_INSERT_ARGS;
 BENCHMARK(BM_Lua_TableInsert) TABLE_INSERT_ARGS;
 BENCHMARK(BM_FakeLua_TableInsert_TCC) TABLE_INSERT_ARGS;
 BENCHMARK(BM_FakeLua_TableInsert_GCC) TABLE_INSERT_ARGS;
-
+BENCHMARK(BM_FakeLua_TableInsert_INTERP) TABLE_INSERT_ARGS;
 BENCHMARK(BM_CPP_TableRemove) TABLE_REMOVE_ARGS;
 BENCHMARK(BM_Lua_TableRemove) TABLE_REMOVE_ARGS;
 BENCHMARK(BM_FakeLua_TableRemove_TCC) TABLE_REMOVE_ARGS;
 BENCHMARK(BM_FakeLua_TableRemove_GCC) TABLE_REMOVE_ARGS;
-
+BENCHMARK(BM_FakeLua_TableRemove_INTERP) TABLE_REMOVE_ARGS;
 BENCHMARK(BM_CPP_TableConcat) TABLE_CONCAT_ARGS;
 BENCHMARK(BM_Lua_TableConcat) TABLE_CONCAT_ARGS;
 BENCHMARK(BM_FakeLua_TableConcat_TCC) TABLE_CONCAT_ARGS;
 BENCHMARK(BM_FakeLua_TableConcat_GCC) TABLE_CONCAT_ARGS;
-
+BENCHMARK(BM_FakeLua_TableConcat_INTERP) TABLE_CONCAT_ARGS;
 BENCHMARK(BM_CPP_TablePack) TABLE_PACK_ARGS;
 BENCHMARK(BM_Lua_TablePack) TABLE_PACK_ARGS;
 BENCHMARK(BM_FakeLua_TablePack_TCC) TABLE_PACK_ARGS;
 BENCHMARK(BM_FakeLua_TablePack_GCC) TABLE_PACK_ARGS;
-
+BENCHMARK(BM_FakeLua_TablePack_INTERP) TABLE_PACK_ARGS;
 BENCHMARK(BM_CPP_TableMove) TABLE_MOVE_ARGS;
 BENCHMARK(BM_Lua_TableMove) TABLE_MOVE_ARGS;
 BENCHMARK(BM_FakeLua_TableMove_TCC) TABLE_MOVE_ARGS;
 BENCHMARK(BM_FakeLua_TableMove_GCC) TABLE_MOVE_ARGS;
-
+BENCHMARK(BM_FakeLua_TableMove_INTERP) TABLE_MOVE_ARGS;
 BENCHMARK(BM_CPP_TableSort) TABLE_SORT_ARGS;
 BENCHMARK(BM_Lua_TableSort) TABLE_SORT_ARGS;
 BENCHMARK(BM_FakeLua_TableSort_TCC) TABLE_SORT_ARGS;
 BENCHMARK(BM_FakeLua_TableSort_GCC) TABLE_SORT_ARGS;
-
+BENCHMARK(BM_FakeLua_TableSort_INTERP) TABLE_SORT_ARGS;
 BENCHMARK(BM_CPP_TableCreate) TABLE_CREATE_ARGS;
 BENCHMARK(BM_Lua_TableCreate) TABLE_CREATE_ARGS;
 BENCHMARK(BM_FakeLua_TableCreate_TCC) TABLE_CREATE_ARGS;
 BENCHMARK(BM_FakeLua_TableCreate_GCC) TABLE_CREATE_ARGS;
-
+BENCHMARK(BM_FakeLua_TableCreate_INTERP) TABLE_CREATE_ARGS;
 BENCHMARK(BM_CPP_HashInsert) HASH_INSERT_ARGS;
 BENCHMARK(BM_Lua_HashInsert) HASH_INSERT_ARGS;
 BENCHMARK(BM_FakeLua_HashInsert_TCC) HASH_INSERT_ARGS;
 BENCHMARK(BM_FakeLua_HashInsert_GCC) HASH_INSERT_ARGS;
-
+BENCHMARK(BM_FakeLua_HashInsert_INTERP) HASH_INSERT_ARGS;
 BENCHMARK(BM_CPP_HashLookup) HASH_LOOKUP_ARGS;
 BENCHMARK(BM_Lua_HashLookup) HASH_LOOKUP_ARGS;
 BENCHMARK(BM_FakeLua_HashLookup_TCC) HASH_LOOKUP_ARGS;
 BENCHMARK(BM_FakeLua_HashLookup_GCC) HASH_LOOKUP_ARGS;
-
+BENCHMARK(BM_FakeLua_HashLookup_INTERP) HASH_LOOKUP_ARGS;
 BENCHMARK(BM_CPP_NestedTable) NESTED_TABLE_ARGS;
 BENCHMARK(BM_Lua_NestedTable) NESTED_TABLE_ARGS;
 BENCHMARK(BM_FakeLua_NestedTable_TCC) NESTED_TABLE_ARGS;
 BENCHMARK(BM_FakeLua_NestedTable_GCC) NESTED_TABLE_ARGS;
+BENCHMARK(BM_FakeLua_NestedTable_INTERP) NESTED_TABLE_ARGS;
