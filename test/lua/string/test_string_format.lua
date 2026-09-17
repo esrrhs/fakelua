@@ -34,5 +34,8 @@ function test_string_format()
     if string.format(12345) ~= "12345" then return 0 end
     if string.format("%q", 123) ~= "\"123\"" then return 0 end
 
+    local s6 = string.format("%200d", 1)
+    if string.len(s6) ~= 200 then return 0 end
+
     return 600
 end

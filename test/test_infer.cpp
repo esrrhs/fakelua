@@ -116,10 +116,9 @@ TEST(infer, test_infer_degrade_param) {
     // int specialization: sum and i are fully typed as int64_t.
     ASSERT_NE(code.find("int64_t sum = 0"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = "), std::string::npos);
-    // float specialization: loop control vars become double, sum becomes double.
+    // Lua 5.4：init/step 是整数时即使用 float 上限也走整数 for（FlForLimitToInt）。
     ASSERT_NE(code.find("double sum = 0"), std::string::npos);
-    ASSERT_NE(code.find("double i = "), std::string::npos);
-    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("FlForLimitToInt("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_degrade_param.lua", {.debug_mode = debug_mode});
@@ -873,8 +872,8 @@ TEST(infer, test_infer_typed_int_unary_minus) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_unary_minus.lua");
     ASSERT_NE(code.find("int64_t n = 5;"), std::string::npos);
     ASSERT_NE(code.find("int64_t x = "), std::string::npos);
-    // Must use the native negation form -(n), not the dynamic OpUnaryMinus macro.
-    ASSERT_NE(code.find("(-(n))"), std::string::npos);
+    // Lua 5.4：整数取负走无符号回绕，不能写成 C 的 `-(n)`（INT64_MIN 是 UB）。
+    ASSERT_NE(code.find("FL_INT_SUB(0, (n))"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("OpUnaryMinus("), std::string::npos);
 
@@ -926,8 +925,7 @@ TEST(infer, test_infer_unary_minus_for_bound) {
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
     ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
-    // The lower bound must use native negation form via unop inference.
-    ASSERT_NE(code.find("(-(bound))"), std::string::npos);
+    ASSERT_NE(code.find("FL_INT_SUB(0, (bound))"), std::string::npos);
     ASSERT_EQ(code.find("CVar sum"), std::string::npos);
     ASSERT_EQ(code.find("CVar i"), std::string::npos);
     ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
@@ -1003,22 +1001,38 @@ TEST(infer, test_infer_typed_float_for_step) {
     });
 }
 
-// Mixed int/float bounds (begin=int, end=float): for i = 1, 5.0 → double fast path.
-// sum = 1.0+2.0+3.0+4.0+5.0 = 15.0.
+// Mixed int/float bounds (begin=int, end=float): Lua 5.4 integer for + forlimit.
+// sum = 1+2+3+4+5 = 15.
 TEST(infer, test_infer_typed_float_for_mixed) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for_mixed.lua");
-    ASSERT_NE(code.find("double sum = "), std::string::npos);
-    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("double i = flua_for_ctrl_"), std::string::npos);
-    ASSERT_EQ(code.find("CVar sum"), std::string::npos);
-    ASSERT_EQ(code.find("CVar i"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("FlForLimitToInt("), std::string::npos);
     ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+    ASSERT_EQ(code.find("CVar i = "), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_typed_float_for_mixed.lua", {.debug_mode = debug_mode});
         double ret = 0;
         Call(s, type, "test", ret);
         ASSERT_NEAR(ret, 15.0, 0.001);// 1+2+3+4+5
+    });
+}
+
+// C 关键字函数的特化调用必须发出 sanitization 后的符号。
+TEST(infer, test_spec_c_keyword) {
+    const auto code = InferGetCCode("./jit/test_spec_c_keyword.lua");
+    ASSERT_NE(code.find("flua_id_int_0("), std::string::npos);
+    for (size_t p = 0; (p = code.find("int_0(", p)) != std::string::npos; p += 6) {
+        ASSERT_GE(p, 8u);
+        ASSERT_EQ(code.compare(p - 8, 8, "flua_id_"), 0);
+    }
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_c_keyword.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_spec_c_keyword", ret);
+        ASSERT_EQ(ret, 7);
     });
 }
 
@@ -2273,7 +2287,7 @@ TEST(infer, test_infer_native_binop_rshift) {
 // Both operands T_INT -> native fast path for PLUS. -3 + 7 = 4.
 TEST(infer, test_infer_native_unop_minus_in_binop) {
     const auto code = InferGetCCode("./infer/test_infer_native_unop_minus_in_binop.lua");
-    ASSERT_NE(code.find("-(x)"), std::string::npos);
+    ASSERT_NE(code.find("FL_INT_SUB(0, (x))"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_native_unop_minus_in_binop.lua", {.debug_mode = debug_mode});
@@ -3313,9 +3327,8 @@ TEST(infer, test_spec_forloop_int_float_degrade) {
     // n and m must both be detected as math params.
     ASSERT_NE(code.find("test_0_0(int64_t n, int64_t m)"), std::string::npos);
     ASSERT_NE(code.find("test_1_1(double n, double m)"), std::string::npos);
-    // Both typed for-loop fast paths should be generated across specializations.
     ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("FlForLimitToInt("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_forloop_int_float_degrade.lua", {.debug_mode = debug_mode});

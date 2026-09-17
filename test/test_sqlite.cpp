@@ -267,3 +267,14 @@ TEST(test_sqlite, stmt_close_after_db_close) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_sqlite, exec_nul) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./sqlite/test_sqlite_basic.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "SqliteTest.test_exec_nul", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

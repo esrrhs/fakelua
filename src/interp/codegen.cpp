@@ -1799,14 +1799,15 @@ void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, co
     const auto handle = std::static_pointer_cast<JITHandle>(unit);
     for (const auto &func: all_funcs_) {
         if (func->parent != nullptr || !func->proto) continue;
-        const std::string &name = func->unique_c_name;
+        const std::string &c_name = func->unique_c_name;
+        const std::string &lua_name = (!func->name.empty()) ? func->name : c_name;
         void *addr = TagInterpProto(func->proto);
-        s_->GetVM().RegisterFunction(VmFunction(name, func->proto->param_count, JIT_INTERP, addr, handle, func->is_vararg));
-        if (!cur_package_name_.empty() && name != kInitFunctionName && !func->name.empty()) {
+        s_->GetVM().RegisterFunction(VmFunction(lua_name, func->proto->param_count, JIT_INTERP, addr, handle, func->is_vararg));
+        if (!cur_package_name_.empty() && c_name != kInitFunctionName && !func->name.empty()) {
             const std::string pkg = cur_package_name_ + "." + func->name;
             s_->GetVM().RegisterFunction(VmFunction(pkg, func->proto->param_count, JIT_INTERP, addr, handle, func->is_vararg));
         }
-        if (name == kInitFunctionName) {
+        if (c_name == kInitFunctionName) {
             unit_->init_proto = func->proto;
         }
     }

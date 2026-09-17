@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <format>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -87,12 +88,14 @@ static CVar IniDecode(State *s, CVar *args, int n) {
     st.state = s;
     st.root = table::TableHelper::CreateTable(s);
 
-    int rc = ini_parse_string(str.c_str(), IniHandlerV2, &st);
-    if (rc < 0) {
-        ThrowFakeluaException("INI parse error: invalid input");
+    if (str.find('\0') != std::string::npos) {
+        ThrowFakeluaException("INI parse error: embedded NUL");
     }
-    // rc > 0 means line number of first error; still return what we parsed, but warn via exception
-    // (inih returns rc = 0 on success, rc = line of first error otherwise; rc < 0 = error code)
+
+    int rc = ini_parse_string(str.c_str(), IniHandlerV2, &st);
+    if (rc != 0) {
+        ThrowFakeluaException(rc < 0 ? "INI parse error: invalid input" : std::format("INI parse error at line {}", rc));
+    }
 
     for (auto &sec: st.sections) {
         table::TableHelper::SetTableStrId(s, st.root, sec.name.c_str(), sec.tbl);
@@ -101,6 +104,19 @@ static CVar IniDecode(State *s, CVar *args, int n) {
 }
 
 // Encode
+static std::string IniEscapeKey(const std::string &key) {
+    std::string out;
+    out.reserve(key.size());
+    for (unsigned char c: key) {
+        if (c == '\0' || c == '\n' || c == '\r' || c == '[' || c == ']' || c == '=' || c == ';') {
+            out.push_back('_');
+        } else {
+            out.push_back(static_cast<char>(c));
+        }
+    }
+    return out.empty() ? "_" : out;
+}
+
 static std::string CVarToIniValue(CVar v) {
     switch (v.type_) {
         case static_cast<int>(VarType::Int):
@@ -140,7 +156,7 @@ static CVar IniEncode(State *s, CVar *args, int n) {
     bool first_section = true;
     for (auto &kv: kvs) {
         if (kv.val.type_ != static_cast<int>(VarType::Table)) continue;// non-table top-level entries skipped
-        std::string sec_name = inter::FakeluaToNativeString(nullptr, kv.key);
+        std::string sec_name = IniEscapeKey(inter::FakeluaToNativeString(nullptr, kv.key));
         auto *t = kv.val.data_.t;
         if (!t) continue;
 
@@ -159,7 +175,7 @@ static CVar IniEncode(State *s, CVar *args, int n) {
         });
 
         for (auto &skv: sec_kvs) {
-            std::string key = inter::FakeluaToNativeString(nullptr, skv.key);
+            std::string key = IniEscapeKey(inter::FakeluaToNativeString(nullptr, skv.key));
             out += key;
             out += " = ";
             if (skv.val.type_ == static_cast<int>(VarType::Table)) {

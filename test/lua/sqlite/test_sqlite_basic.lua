@@ -344,3 +344,17 @@ function test_stmt_close_after_db_close()
     stmt:close()
     return 1
 end
+
+function test_exec_nul()
+    local db = open_db()
+    -- 空语句 / 嵌入 NUL：prepare 返回 stmt=NULL 且 tail 不前进时不能死循环
+    db:exec(";")
+    local sql = string.char(0) .. "CREATE TABLE t (id INTEGER)"
+    db:exec(sql)
+    db:exec("INSERT INTO t VALUES (1)")
+    local rows = db:exec("SELECT * FROM t")
+    if type(rows) ~= "table" or #rows ~= 1 then return 0 end
+    if rows[1].id ~= 1 then return 0 end
+    db:close()
+    return 1
+end

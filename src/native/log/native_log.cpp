@@ -22,7 +22,7 @@ static std::string FormatArgs(State *s, CVar *args, int n) {
                 result += "nil";
                 break;
             case static_cast<int>(VarType::Bool):
-                result += (arg.data_.i != 0) ? "true" : "false";
+                result += (arg.data_.b) ? "true" : "false";
                 break;
             case static_cast<int>(VarType::Int):
                 result += std::to_string(arg.data_.i);

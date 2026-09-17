@@ -32,6 +32,19 @@ std::string SpecStringFieldCName(const std::string &key) {
     return out;
 }
 
+void UniquifySpecFieldCNames(std::vector<TableFieldInfo> &fields) {
+    std::unordered_set<std::string> used;
+    for (auto &f: fields) {
+        std::string base = f.c_field_name.empty() ? "_f" : f.c_field_name;
+        std::string cand = base;
+        int n = 0;
+        while (!used.insert(cand).second) {
+            cand = base + "_" + std::to_string(++n);
+        }
+        f.c_field_name = cand;
+    }
+}
+
 }// namespace
 
 TypeInferencer::TypeInferencer(State *s) : s_(s) {
@@ -1694,6 +1707,7 @@ bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vect
     for (const auto &d: order) {
         out.push_back(unique[d].info);
     }
+    UniquifySpecFieldCNames(out);
     return true;
 }
 
@@ -2290,7 +2304,8 @@ void TypeInferencer::ComputeSpecTypeMetadata(InferResult &ir) {
         SpecTypeMetadata meta;
         meta.name = spec_type;
         meta.fields = info.fields;
-        for (const auto &f: info.fields) {
+        UniquifySpecFieldCNames(meta.fields);
+        for (const auto &f: meta.fields) {
             switch (f.key_kind) {
                 case TableKeyKind::kString:
                     meta.has_string_keys = true;
@@ -2312,7 +2327,7 @@ void TypeInferencer::ComputeSpecTypeMetadata(InferResult &ir) {
         }
         // 字段索引：按 emit 顺序（fields 已是排序后布局）编号，与 CGen 原行为一致。
         int idx = 0;
-        for (const auto &f: info.fields) {
+        for (const auto &f: meta.fields) {
             meta.field_indices[TableFieldDescriptor(f)] = idx++;
         }
         ir.spec_type_metadata[spec_type] = std::move(meta);
