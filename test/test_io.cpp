@@ -998,3 +998,34 @@ TEST(test_io, io_flush_gcc) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_io, closed_default_read) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_closed_default.lua", config);
+    int64_t ret = 0;
+    CallThrow(s, "test_io_closed_default_read", ret);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, closed_default_write) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_closed_default.lua", config);
+    int64_t ret = 0;
+    CallThrow(s, "test_io_closed_default_write", ret);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_io, file_read_multi_nil_count) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./io/test_io_closed_default.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "test_file_read_multi_nil_count", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
