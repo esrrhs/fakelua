@@ -1310,17 +1310,11 @@ TEST(infer, test_native_bool_float) {
     });
 }
 
-// AND of two native comparisons in if: (x == 1) and (y > 0) must produce
-// a direct C &&-expression without IsTrue or temp bool variables.
+// AND of two native comparisons in if: (x == 1) and (y > 0) 必须短路，走 CompileBinop。
 TEST(infer, test_native_bool_and) {
     const auto code = InferGetCCode("./infer/test_native_bool_and.lua");
-    // Both sub-comparisons and the && combiner must appear in the generated code.
-    ASSERT_NE(code.find("((x) == (1))"), std::string::npos);
-    ASSERT_NE(code.find("((y) > (0))"), std::string::npos);
-    ASSERT_NE(code.find("&&"), std::string::npos);
-    // No IsTrue or temp bool variables.
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
-    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+    ASSERT_NE(code.find("(x) == (1)"), std::string::npos);
+    ASSERT_NE(code.find("(y) > (0)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_native_bool_and.lua", {.debug_mode = debug_mode});
@@ -1334,17 +1328,11 @@ TEST(infer, test_native_bool_and) {
     });
 }
 
-// OR of two native comparisons in if: (x < 0) or (x > 10) must produce
-// a direct C ||-expression without IsTrue or temp bool variables.
+// OR of two native comparisons in if: (x < 0) or (x > 10) 必须短路，走 CompileBinop。
 TEST(infer, test_native_bool_or) {
     const auto code = InferGetCCode("./infer/test_native_bool_or.lua");
-    // Both sub-comparisons and the || combiner must appear in the generated code.
-    ASSERT_NE(code.find("((x) < (0))"), std::string::npos);
-    ASSERT_NE(code.find("((x) > (10))"), std::string::npos);
-    ASSERT_NE(code.find("||"), std::string::npos);
-    // No IsTrue or temp bool variables.
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
-    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+    ASSERT_NE(code.find("(x) < (0)"), std::string::npos);
+    ASSERT_NE(code.find("(x) > (10)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_native_bool_or.lua", {.debug_mode = debug_mode});
@@ -1379,18 +1367,12 @@ TEST(infer, test_native_bool_not) {
     });
 }
 
-// Deeply nested AND chain: (x > 0) and (y > 0) and (z > 0) must produce
-// a direct C &&-chain without IsTrue or temp bool variables.
+// Deeply nested AND chain: (x > 0) and (y > 0) and (z > 0) 必须短路，走 CompileBinop。
 TEST(infer, test_native_bool_nested) {
     const auto code = InferGetCCode("./infer/test_native_bool_nested.lua");
-    // All three sub-comparisons and the && combiners must appear.
-    ASSERT_NE(code.find("((x) > (0))"), std::string::npos);
-    ASSERT_NE(code.find("((y) > (0))"), std::string::npos);
-    ASSERT_NE(code.find("((z) > (0))"), std::string::npos);
-    ASSERT_NE(code.find("&&"), std::string::npos);
-    // No IsTrue or temp bool variables.
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
-    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+    ASSERT_NE(code.find("(x) > (0)"), std::string::npos);
+    ASSERT_NE(code.find("(y) > (0)"), std::string::npos);
+    ASSERT_NE(code.find("(z) > (0)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_native_bool_nested.lua", {.debug_mode = debug_mode});
@@ -2674,7 +2656,7 @@ TEST(infer, test_spec_not_if_cond) {
 
 // 复合 and 条件：if a > 0 and b > 0 then。
 // a 和 b 均通过比较（IsNativeComparisonExpr: MORE）和算术 a + b 被识别为数学参数。
-// if 条件应生成原生 C 布尔 ((a) > (0)) && ((b) > (0))，不使用 IsTrue。
+// and 走 CompileBinop 短路。
 // test(3, 4) == 7, test(-1, 4) == 0, test(3, -1) == 0, test(0, 0) == 0.
 TEST(infer, test_spec_and_cond) {
     const auto code = InferGetCCode("./infer/test_spec_and_cond.lua");
@@ -2683,9 +2665,7 @@ TEST(infer, test_spec_and_cond) {
     ASSERT_NE(code.find("test_1_1(double a, double b)"), std::string::npos);
     // Entry dispatcher must exist.
     ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
-    // The if condition must use native && comparison, not IsTrue.
-    ASSERT_NE(code.find("((a) > (0)) && ((b) > (0))"), std::string::npos);
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    // and 走 CompileBinop 短路，条件里会出现 IsTrue。
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_and_cond.lua", {.debug_mode = debug_mode});
@@ -2706,9 +2686,20 @@ TEST(infer, test_spec_and_cond) {
     });
 }
 
+TEST(infer, test_spec_and_shortcircuit) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_and_shortcircuit.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 2);
+        ASSERT_EQ(ret, 101);
+    });
+}
+
 // 复合 or 条件：if n < 0 or n > 10 then。
 // n 通过比较（IsNativeComparisonExpr: LESS, MORE）和算术 n + 1 被识别为数学参数。
-// if 条件应生成原生 C 布尔 ((n) < (0)) || ((n) > (10))，不使用 IsTrue。
+// or 走 CompileBinop 短路。
 // test(5) == 6, test(-1) == 0, test(11) == 0, test(0) == 1, test(10) == 11.
 TEST(infer, test_spec_or_cond) {
     const auto code = InferGetCCode("./infer/test_spec_or_cond.lua");
@@ -2717,9 +2708,7 @@ TEST(infer, test_spec_or_cond) {
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     // Entry dispatcher must exist.
     ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
-    // The if condition must use native || comparison, not IsTrue.
-    ASSERT_NE(code.find("((n) < (0)) || ((n) > (10))"), std::string::npos);
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    // or 走 CompileBinop 短路，条件里会出现 IsTrue。
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_or_cond.lua", {.debug_mode = debug_mode});

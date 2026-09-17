@@ -51,3 +51,21 @@ function test_table_sort_nan()
     -- NaN 破坏 C++ strict weak ordering，std::stable_sort 是 UB
     table.sort({ 1, 0.0 / 0.0, 2 })
 end
+
+function test_table_nan_key_set()
+    local t = {}
+    t[0 / 0] = 1
+end
+
+function test_table_nan_key_get()
+    local t = {}
+    return t[0 / 0]
+end
+
+function test_table_concat_nan()
+    table.concat({ "a", "b" }, ",", 0 / 0, 1)
+end
+
+function test_table_concat_frac()
+    table.concat({ "a", "b" }, ",", 1.5, 2)
+end

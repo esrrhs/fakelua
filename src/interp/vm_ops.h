@@ -7,6 +7,7 @@
 #include "util/exception.h"
 #include "var/var_multi.h"
 #include "var/var_type.h"
+#include "var/lua_num_cmp.h"
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -264,14 +265,18 @@ FL_VM_INLINE CVar CmpLt(const CVar &a, const CVar &b) {
     if (FL_VM_LIKELY(a.type_ == kInt && b.type_ == kInt)) return Bool(a.data_.i < b.data_.i);
     CheckNum(a);
     CheckNum(b);
-    return Bool(ToDouble(a) < ToDouble(b));
+    if (a.type_ == kInt && b.type_ == kFloat) return Bool(LuaLtIntFloat(a.data_.i, b.data_.f));
+    if (a.type_ == kFloat && b.type_ == kInt) return Bool(LuaLtFloatInt(a.data_.f, b.data_.i));
+    return Bool(a.data_.f < b.data_.f);
 }
 
 FL_VM_INLINE CVar CmpLe(const CVar &a, const CVar &b) {
     if (FL_VM_LIKELY(a.type_ == kInt && b.type_ == kInt)) return Bool(a.data_.i <= b.data_.i);
     CheckNum(a);
     CheckNum(b);
-    return Bool(ToDouble(a) <= ToDouble(b));
+    if (a.type_ == kInt && b.type_ == kFloat) return Bool(LuaLeIntFloat(a.data_.i, b.data_.f));
+    if (a.type_ == kFloat && b.type_ == kInt) return Bool(LuaLeFloatInt(a.data_.f, b.data_.i));
+    return Bool(a.data_.f <= b.data_.f);
 }
 
 FL_VM_INLINE CVar UnboxMulti(const CVar &v, uint32_t idx) {

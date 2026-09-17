@@ -53,8 +53,11 @@ static std::string ReadCappedFile(const boost::filesystem::path &p) {
         const auto room = kMaxOutput - out.size();
         out.append(buf, n < room ? n : room);
     }
-    if (in && out.size() >= kMaxOutput) {
-        ThrowFakeluaException("process.run: output exceeds 8MB limit");
+    if (out.size() >= kMaxOutput) {
+        char extra = 0;
+        if (in.read(&extra, 1) && in.gcount() > 0) {
+            ThrowFakeluaException("process.run: output exceeds 8MB limit");
+        }
     }
     return out;
 }
