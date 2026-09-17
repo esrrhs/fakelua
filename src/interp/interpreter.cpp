@@ -227,15 +227,15 @@ vm_switch_dispatch:
         VM_DISPATCH_NEXT();
     }
     VM_CASE(ADD) {
-        FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, +, interp_rt::BinAdd);
+        FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, add, interp_rt::BinAdd);
         VM_DISPATCH_NEXT();
     }
     VM_CASE(SUB) {
-        FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, -, interp_rt::BinSub);
+        FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, sub, interp_rt::BinSub);
         VM_DISPATCH_NEXT();
     }
     VM_CASE(MUL) {
-        FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, *, interp_rt::BinMul);
+        FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, mul, interp_rt::BinMul);
         VM_DISPATCH_NEXT();
     }
     VM_CASE(DIV) {
