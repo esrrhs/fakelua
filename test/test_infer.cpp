@@ -42,8 +42,8 @@ TEST(infer, test_infer_typed_int_for) {
     // Both the accumulator and the loop variable must be declared as int64_t.
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
-    // Native integer addition — no OpAdd macro.
-    ASSERT_NE(code.find("sum = ((sum) + (i));"), std::string::npos);
+    // Native integer addition wraps via FL_INT_ADD — no OpAdd macro.
+    ASSERT_NE(code.find("sum = FL_INT_ADD((sum), (i));"), std::string::npos);
     // No dynamic (CVar) accumulator declaration.
     ASSERT_EQ(code.find("CVar sum"), std::string::npos);
 
@@ -135,7 +135,7 @@ TEST(infer, test_infer_reassign_stable) {
     const auto code = InferGetCCode("./infer/test_infer_reassign_stable.lua");
     // x must stay int64_t throughout.
     ASSERT_NE(code.find("int64_t x = 1;"), std::string::npos);
-    ASSERT_NE(code.find("x = ((x) + (2));"), std::string::npos);
+    ASSERT_NE(code.find("x = FL_INT_ADD((x), (2));"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -393,7 +393,7 @@ TEST(infer, test_infer_paren_exp) {
     const auto code = InferGetCCode("./infer/test_infer_paren_exp.lua");
     // Both a and b must be int64_t.
     ASSERT_NE(code.find("int64_t a = 3;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t b = ((a) + (2));"), std::string::npos);
+    ASSERT_NE(code.find("int64_t b = FL_INT_ADD((a), (2));"), std::string::npos);
     ASSERT_EQ(code.find("CVar a"), std::string::npos);
     ASSERT_EQ(code.find("CVar b"), std::string::npos);
 
@@ -442,7 +442,7 @@ TEST(infer, test_infer_for_shadow_case3) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case3.lua");
     ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);            // outer a
     ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos);// cursor a
-    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos);          // outer post-loop assign
+    ASSERT_NE(code.find("a = FL_INT_ADD((a), (1));"), std::string::npos); // outer post-loop assign
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case3.lua", {.debug_mode = debug_mode});
@@ -458,7 +458,7 @@ TEST(infer, test_infer_for_shadow_case4) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case4.lua");
     ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);                                                       // outer a
     ASSERT_NE(code.find("CVar a = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(flua_for_ctrl_"), std::string::npos);// cursor a
-    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos);                                                     // outer post-loop assign
+    ASSERT_NE(code.find("a = FL_INT_ADD((a), (1));"), std::string::npos);                                            // outer post-loop assign
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case4.lua", {.debug_mode = debug_mode});
@@ -487,7 +487,7 @@ TEST(infer, test_infer_do_shadow_typed_over_dynamic) {
 TEST(infer, test_infer_typed_int_minus) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_minus.lua");
     ASSERT_NE(code.find("int64_t x = 10;"), std::string::npos);
-    ASSERT_NE(code.find("x = ((x) - (3));"), std::string::npos);
+    ASSERT_NE(code.find("x = FL_INT_SUB((x), (3));"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -502,7 +502,7 @@ TEST(infer, test_infer_typed_int_minus) {
 TEST(infer, test_infer_typed_int_star) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_star.lua");
     ASSERT_NE(code.find("int64_t x = 3;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t y = ((x) * (4));"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = FL_INT_MUL((x), (4));"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
 
@@ -552,7 +552,7 @@ TEST(infer, test_infer_typed_int_for_star) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_star.lua");
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("sum = ((sum) + (((i) * (2))));"), std::string::npos);
+    ASSERT_NE(code.find("sum = FL_INT_ADD((sum), (FL_INT_MUL((i), (2))));"), std::string::npos);
     ASSERT_EQ(code.find("CVar sum"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -695,9 +695,8 @@ TEST(infer, test_spec_fib) {
     ASSERT_NE(code.find("fib_0(n.data_.i)"), std::string::npos);
     ASSERT_NE(code.find("fib_1(n.data_.f)"), std::string::npos);
     // Inside fib_0, recursive calls must go directly to fib_0 (not fib).
-    // The pattern looks like: fib_0(((n) - (1)))
-    ASSERT_NE(code.find("fib_0(((n) - (1)))"), std::string::npos);
-    ASSERT_NE(code.find("fib_0(((n) - (2)))"), std::string::npos);
+    ASSERT_NE(code.find("fib_0(FL_INT_SUB((n), (1)))"), std::string::npos);
+    ASSERT_NE(code.find("fib_0(FL_INT_SUB((n), (2)))"), std::string::npos);
     // Inside fib_1, recursive calls must go directly to fib_1.
     ASSERT_NE(code.find("fib_1(((n) - (1)))"), std::string::npos);
     ASSERT_NE(code.find("fib_1(((n) - (2)))"), std::string::npos);
@@ -705,7 +704,7 @@ TEST(infer, test_spec_fib) {
     // Check: no FakeluaCallByName("fib") in the generated code.
     ASSERT_EQ(code.find("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"fib\""), std::string::npos);
     // Verify spec bodies use native add directly (no CVar wrapping of recursive results).
-    ASSERT_NE(code.find("return ((flua_native_"), std::string::npos);
+    ASSERT_NE(code.find("return FL_INT_ADD((flua_native_"), std::string::npos);
 
     // Functional verification: fib(10) == 55.
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -2314,7 +2313,7 @@ TEST(infer, test_infer_typed_float_var_cvar_assign) {
 TEST(infer, test_infer_native_binop_star) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_star.lua");
     // Native multiplication must appear in the generated C code.
-    ASSERT_NE(code.find("((x) * (4))"), std::string::npos);
+    ASSERT_NE(code.find("FL_INT_MUL((x), (4))"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_native_binop_star.lua", {.debug_mode = debug_mode});

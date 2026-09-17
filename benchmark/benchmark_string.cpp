@@ -263,19 +263,33 @@ struct Ctx : RuntimeContext {
         std::string warmup_str;
         std::string test_s = std::string(100, 'a');
         Call(flua, JIT_TCC, "bench_string_len", warmup_int, test_s);
+        Call(flua, JIT_INTERP, "bench_string_len", warmup_int, test_s);
         Call(flua, JIT_TCC, "bench_string_sub", warmup_str, test_s, 26, 75);
+        Call(flua, JIT_INTERP, "bench_string_sub", warmup_str, test_s, 26, 75);
         Call(flua, JIT_TCC, "bench_string_rep", warmup_str, std::string("x"), 10);
+        Call(flua, JIT_INTERP, "bench_string_rep", warmup_str, std::string("x"), 10);
         Call(flua, JIT_TCC, "bench_string_reverse", warmup_str, test_s);
+        Call(flua, JIT_INTERP, "bench_string_reverse", warmup_str, test_s);
         Call(flua, JIT_TCC, "bench_string_lower", warmup_str, test_s);
+        Call(flua, JIT_INTERP, "bench_string_lower", warmup_str, test_s);
         Call(flua, JIT_TCC, "bench_string_upper", warmup_str, test_s);
+        Call(flua, JIT_INTERP, "bench_string_upper", warmup_str, test_s);
         Call(flua, JIT_TCC, "bench_string_byte", warmup_int, test_s, 50);
+        Call(flua, JIT_INTERP, "bench_string_byte", warmup_int, test_s, 50);
         Call(flua, JIT_TCC, "bench_string_format", warmup_int, 10);
+        Call(flua, JIT_INTERP, "bench_string_format", warmup_int, 10);
         Call(flua, JIT_TCC, "bench_string_find", warmup_int, test_s, std::string("aaa"));
+        Call(flua, JIT_INTERP, "bench_string_find", warmup_int, test_s, std::string("aaa"));
         Call(flua, JIT_TCC, "bench_string_gsub", warmup_int, test_s, std::string("a"), std::string("b"));
+        Call(flua, JIT_INTERP, "bench_string_gsub", warmup_int, test_s, std::string("a"), std::string("b"));
         Call(flua, JIT_TCC, "bench_tonumber", warmup_int, std::string("12345"));
+        Call(flua, JIT_INTERP, "bench_tonumber", warmup_int, std::string("12345"));
         Call(flua, JIT_TCC, "bench_tostring", warmup_str, 12345);
+        Call(flua, JIT_INTERP, "bench_tostring", warmup_str, 12345);
         Call(flua, JIT_TCC, "bench_string_find_pattern", warmup_int, 10);
+        Call(flua, JIT_INTERP, "bench_string_find_pattern", warmup_int, 10);
         Call(flua, JIT_TCC, "bench_string_gmatch", warmup_int, 10);
+        Call(flua, JIT_INTERP, "bench_string_gmatch", warmup_int, 10);
     }
 
     ~Ctx() {
@@ -321,6 +335,16 @@ static void BM_FakeLua_StringLen_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_string_len", ret, s);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_StringLen_INTERP(benchmark::State &state) {
+    const int64_t len = state.range(0);
+    std::string s(static_cast<size_t>(len), 'a');
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_len", ret, s);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -375,6 +399,18 @@ static void BM_FakeLua_StringSub_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_StringSub_INTERP(benchmark::State &state) {
+    const int64_t len = state.range(0);
+    std::string s(static_cast<size_t>(len), 'a');
+    const int64_t i = len / 4 + 1;
+    const int64_t j = len / 4 + len / 2;
+    for (auto _: state) {
+        std::string ret;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_sub", ret, s, i, j);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: string.rep
 
 static void BM_CPP_StringRep(benchmark::State &state) {
@@ -410,6 +446,15 @@ static void BM_FakeLua_StringRep_GCC(benchmark::State &state) {
     for (auto _: state) {
         std::string ret;
         Call(g_ctx.flua, JIT_GCC, "bench_string_rep", ret, std::string("c"), n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_StringRep_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        std::string ret;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_rep", ret, std::string("c"), n);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -456,6 +501,16 @@ static void BM_FakeLua_StringReverse_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_StringReverse_INTERP(benchmark::State &state) {
+    const int64_t len = state.range(0);
+    std::string s(static_cast<size_t>(len), 'a');
+    for (auto _: state) {
+        std::string ret;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_reverse", ret, s);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: string.lower
 
 static void BM_CPP_StringLower(benchmark::State &state) {
@@ -494,6 +549,16 @@ static void BM_FakeLua_StringLower_GCC(benchmark::State &state) {
     for (auto _: state) {
         std::string ret;
         Call(g_ctx.flua, JIT_GCC, "bench_string_lower", ret, s);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_StringLower_INTERP(benchmark::State &state) {
+    const int64_t len = state.range(0);
+    std::string s(static_cast<size_t>(len), 'A');
+    for (auto _: state) {
+        std::string ret;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_lower", ret, s);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -540,6 +605,16 @@ static void BM_FakeLua_StringUpper_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_StringUpper_INTERP(benchmark::State &state) {
+    const int64_t len = state.range(0);
+    std::string s(static_cast<size_t>(len), 'a');
+    for (auto _: state) {
+        std::string ret;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_upper", ret, s);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: string.byte
 
 static void BM_CPP_StringByte(benchmark::State &state) {
@@ -578,6 +653,16 @@ static void BM_FakeLua_StringByte_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_string_byte", ret, s, len / 2);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_StringByte_INTERP(benchmark::State &state) {
+    const int64_t len = state.range(0);
+    std::string s(static_cast<size_t>(len), 'a');
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_byte", ret, s, len / 2);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -622,6 +707,15 @@ static void BM_FakeLua_StringChar_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_StringChar_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        std::string ret;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_char", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: string.format
 
 static void BM_CPP_StringFormat(benchmark::State &state) {
@@ -657,6 +751,15 @@ static void BM_FakeLua_StringFormat_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_string_format", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_StringFormat_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_format", ret, n);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -709,6 +812,18 @@ static void BM_FakeLua_StringFind_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_StringFind_INTERP(benchmark::State &state) {
+    const int64_t len = state.range(0);
+    std::string s(static_cast<size_t>(len / 2), 'a');
+    s += "needle";
+    s += std::string(static_cast<size_t>(len / 2), 'a');
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_find", ret, s, std::string("needle"));
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: string.gsub
 
 static void BM_CPP_StringGsub(benchmark::State &state) {
@@ -751,6 +866,16 @@ static void BM_FakeLua_StringGsub_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_StringGsub_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    std::string s(static_cast<size_t>(n), 'a');
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_gsub", ret, s, std::string("a"), std::string("b"));
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: tonumber
 
 // 所有实现都解析同一个字符串，保证对比公平
@@ -784,6 +909,14 @@ static void BM_FakeLua_ToNumber_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_tonumber", ret, std::string(kToNumberInput));
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_ToNumber_INTERP(benchmark::State &state) {
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_tonumber", ret, std::string(kToNumberInput));
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -827,6 +960,15 @@ static void BM_FakeLua_ToString_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_ToString_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        std::string ret;
+        Call(g_ctx.flua, JIT_INTERP, "bench_tostring", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: string find with pattern
 
 static void BM_CPP_StringFindPattern(benchmark::State &state) {
@@ -864,6 +1006,17 @@ static void BM_FakeLua_StringFindPattern_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_string_find_pattern", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua GCC string.find pattern");
+    }
+}
+
+static void BM_FakeLua_StringFindPattern_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppStringFindPattern(n);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_find_pattern", ret, n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "FakeLua GCC string.find pattern");
     }
@@ -911,6 +1064,17 @@ static void BM_FakeLua_StringGmatch_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_StringGmatch_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppStringGmatch(n);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_string_gmatch", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua GCC string.gmatch");
+    }
+}
+
 }// namespace
 
 // Benchmark registrations
@@ -933,67 +1097,67 @@ BENCHMARK(BM_CPP_StringLen) STRING_LEN_ARGS;
 BENCHMARK(BM_Lua_StringLen) STRING_LEN_ARGS;
 BENCHMARK(BM_FakeLua_StringLen_TCC) STRING_LEN_ARGS;
 BENCHMARK(BM_FakeLua_StringLen_GCC) STRING_LEN_ARGS;
-
+BENCHMARK(BM_FakeLua_StringLen_INTERP) STRING_LEN_ARGS;
 BENCHMARK(BM_CPP_StringSub) STRING_SUB_ARGS;
 BENCHMARK(BM_Lua_StringSub) STRING_SUB_ARGS;
 BENCHMARK(BM_FakeLua_StringSub_TCC) STRING_SUB_ARGS;
 BENCHMARK(BM_FakeLua_StringSub_GCC) STRING_SUB_ARGS;
-
+BENCHMARK(BM_FakeLua_StringSub_INTERP) STRING_SUB_ARGS;
 BENCHMARK(BM_CPP_StringRep) STRING_REP_ARGS;
 BENCHMARK(BM_Lua_StringRep) STRING_REP_ARGS;
 BENCHMARK(BM_FakeLua_StringRep_TCC) STRING_REP_ARGS;
 BENCHMARK(BM_FakeLua_StringRep_GCC) STRING_REP_ARGS;
-
+BENCHMARK(BM_FakeLua_StringRep_INTERP) STRING_REP_ARGS;
 BENCHMARK(BM_CPP_StringReverse) STRING_REVERSE_ARGS;
 BENCHMARK(BM_Lua_StringReverse) STRING_REVERSE_ARGS;
 BENCHMARK(BM_FakeLua_StringReverse_TCC) STRING_REVERSE_ARGS;
 BENCHMARK(BM_FakeLua_StringReverse_GCC) STRING_REVERSE_ARGS;
-
+BENCHMARK(BM_FakeLua_StringReverse_INTERP) STRING_REVERSE_ARGS;
 BENCHMARK(BM_CPP_StringLower) STRING_LOWER_ARGS;
 BENCHMARK(BM_Lua_StringLower) STRING_LOWER_ARGS;
 BENCHMARK(BM_FakeLua_StringLower_TCC) STRING_LOWER_ARGS;
 BENCHMARK(BM_FakeLua_StringLower_GCC) STRING_LOWER_ARGS;
-
+BENCHMARK(BM_FakeLua_StringLower_INTERP) STRING_LOWER_ARGS;
 BENCHMARK(BM_CPP_StringUpper) STRING_UPPER_ARGS;
 BENCHMARK(BM_Lua_StringUpper) STRING_UPPER_ARGS;
 BENCHMARK(BM_FakeLua_StringUpper_TCC) STRING_UPPER_ARGS;
 BENCHMARK(BM_FakeLua_StringUpper_GCC) STRING_UPPER_ARGS;
-
+BENCHMARK(BM_FakeLua_StringUpper_INTERP) STRING_UPPER_ARGS;
 BENCHMARK(BM_CPP_StringByte) STRING_BYTE_ARGS;
 BENCHMARK(BM_Lua_StringByte) STRING_BYTE_ARGS;
 BENCHMARK(BM_FakeLua_StringByte_TCC) STRING_BYTE_ARGS;
 BENCHMARK(BM_FakeLua_StringByte_GCC) STRING_BYTE_ARGS;
-
+BENCHMARK(BM_FakeLua_StringByte_INTERP) STRING_BYTE_ARGS;
 BENCHMARK(BM_CPP_StringChar) STRING_CHAR_ARGS;
 BENCHMARK(BM_Lua_StringChar) STRING_CHAR_ARGS;
 BENCHMARK(BM_FakeLua_StringChar_TCC) STRING_CHAR_ARGS;
 BENCHMARK(BM_FakeLua_StringChar_GCC) STRING_CHAR_ARGS;
-
+BENCHMARK(BM_FakeLua_StringChar_INTERP) STRING_CHAR_ARGS;
 BENCHMARK(BM_CPP_StringFormat) STRING_FORMAT_ARGS;
 BENCHMARK(BM_Lua_StringFormat) STRING_FORMAT_ARGS;
 BENCHMARK(BM_FakeLua_StringFormat_TCC) STRING_FORMAT_ARGS;
 BENCHMARK(BM_FakeLua_StringFormat_GCC) STRING_FORMAT_ARGS;
-
+BENCHMARK(BM_FakeLua_StringFormat_INTERP) STRING_FORMAT_ARGS;
 BENCHMARK(BM_CPP_StringFind) STRING_FIND_ARGS;
 BENCHMARK(BM_Lua_StringFind) STRING_FIND_ARGS;
 BENCHMARK(BM_FakeLua_StringFind_TCC) STRING_FIND_ARGS;
 BENCHMARK(BM_FakeLua_StringFind_GCC) STRING_FIND_ARGS;
-
+BENCHMARK(BM_FakeLua_StringFind_INTERP) STRING_FIND_ARGS;
 BENCHMARK(BM_CPP_StringGsub) STRING_GSUB_ARGS;
 BENCHMARK(BM_Lua_StringGsub) STRING_GSUB_ARGS;
 BENCHMARK(BM_FakeLua_StringGsub_TCC) STRING_GSUB_ARGS;
 BENCHMARK(BM_FakeLua_StringGsub_GCC) STRING_GSUB_ARGS;
-
+BENCHMARK(BM_FakeLua_StringGsub_INTERP) STRING_GSUB_ARGS;
 BENCHMARK(BM_CPP_ToNumber) TONUMBER_ARGS;
 BENCHMARK(BM_Lua_ToNumber) TONUMBER_ARGS;
 BENCHMARK(BM_FakeLua_ToNumber_TCC) TONUMBER_ARGS;
 BENCHMARK(BM_FakeLua_ToNumber_GCC) TONUMBER_ARGS;
-
+BENCHMARK(BM_FakeLua_ToNumber_INTERP) TONUMBER_ARGS;
 BENCHMARK(BM_CPP_ToString) TOSTRING_ARGS;
 BENCHMARK(BM_Lua_ToString) TOSTRING_ARGS;
 BENCHMARK(BM_FakeLua_ToString_TCC) TOSTRING_ARGS;
 BENCHMARK(BM_FakeLua_ToString_GCC) TOSTRING_ARGS;
-
+BENCHMARK(BM_FakeLua_ToString_INTERP) TOSTRING_ARGS;
 #define STRING_FIND_PATTERN_ARGS ->Arg(1000)
 #define STRING_GMATCH_ARGS ->Arg(1000)
 
@@ -1001,8 +1165,9 @@ BENCHMARK(BM_CPP_StringFindPattern) STRING_FIND_PATTERN_ARGS;
 BENCHMARK(BM_Lua_StringFindPattern) STRING_FIND_PATTERN_ARGS;
 BENCHMARK(BM_FakeLua_StringFindPattern_TCC) STRING_FIND_PATTERN_ARGS;
 BENCHMARK(BM_FakeLua_StringFindPattern_GCC) STRING_FIND_PATTERN_ARGS;
-
+BENCHMARK(BM_FakeLua_StringFindPattern_INTERP) STRING_FIND_PATTERN_ARGS;
 BENCHMARK(BM_CPP_StringGmatch) STRING_GMATCH_ARGS;
 BENCHMARK(BM_Lua_StringGmatch) STRING_GMATCH_ARGS;
 BENCHMARK(BM_FakeLua_StringGmatch_TCC) STRING_GMATCH_ARGS;
 BENCHMARK(BM_FakeLua_StringGmatch_GCC) STRING_GMATCH_ARGS;
+BENCHMARK(BM_FakeLua_StringGmatch_INTERP) STRING_GMATCH_ARGS;

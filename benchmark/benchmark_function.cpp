@@ -150,11 +150,17 @@ struct Ctx : RuntimeContext {
         // Warmup (TCC only)
         int64_t w = 0;
         Call(flua, JIT_TCC, "bench_call_empty", w, 10);
+        Call(flua, JIT_INTERP, "bench_call_empty", w, 10);
         Call(flua, JIT_TCC, "bench_fib", w, 10);
+        Call(flua, JIT_INTERP, "bench_fib", w, 10);
         Call(flua, JIT_TCC, "bench_variadic", w, 1, 2, 3, 4, 5);
+        Call(flua, JIT_INTERP, "bench_variadic", w, 1, 2, 3, 4, 5);
         Call(flua, JIT_TCC, "bench_multi_return", w, 10);
+        Call(flua, JIT_INTERP, "bench_multi_return", w, 10);
         Call(flua, JIT_TCC, "bench_closure", w, 10);
+        Call(flua, JIT_INTERP, "bench_closure", w, 10);
         Call(flua, JIT_TCC, "bench_tail_sum", w, 10);
+        Call(flua, JIT_INTERP, "bench_tail_sum", w, 10);
     }
 
     ~Ctx() {
@@ -198,6 +204,15 @@ static void BM_FakeLua_EmptyCall_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_EmptyCall_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_call_empty", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: recursion (fib)
 
 static void BM_CPP_Recursion(benchmark::State &state) {
@@ -236,6 +251,15 @@ static void BM_FakeLua_Recursion_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_Recursion_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_fib", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: variadic
 
 static void BM_CPP_Variadic(benchmark::State &state) {
@@ -266,6 +290,14 @@ static void BM_FakeLua_Variadic_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_variadic", ret, 1, 2, 3, 4, 5);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_Variadic_INTERP(benchmark::State &state) {
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_variadic", ret, 1, 2, 3, 4, 5);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -306,6 +338,15 @@ static void BM_FakeLua_MultiReturn_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_MultiReturn_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_multi_return", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 // Benchmarks: closure
 
 static void BM_CPP_Closure(benchmark::State &state) {
@@ -338,6 +379,15 @@ static void BM_FakeLua_Closure_GCC(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_closure", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
+static void BM_FakeLua_Closure_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_closure", ret, n);
         benchmark::DoNotOptimize(ret);
     }
 }
@@ -378,6 +428,15 @@ static void BM_FakeLua_TailRecursion_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_TailRecursion_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_tail_sum", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 }// namespace
 
 // Benchmark registrations
@@ -393,28 +452,29 @@ BENCHMARK(BM_CPP_EmptyCall) EMPTY_CALL_ARGS;
 BENCHMARK(BM_Lua_EmptyCall) EMPTY_CALL_ARGS;
 BENCHMARK(BM_FakeLua_EmptyCall_TCC) EMPTY_CALL_ARGS;
 BENCHMARK(BM_FakeLua_EmptyCall_GCC) EMPTY_CALL_ARGS;
-
+BENCHMARK(BM_FakeLua_EmptyCall_INTERP) EMPTY_CALL_ARGS;
 BENCHMARK(BM_CPP_Recursion) RECURSION_ARGS;
 BENCHMARK(BM_Lua_Recursion) RECURSION_ARGS;
 BENCHMARK(BM_FakeLua_Recursion_TCC) RECURSION_ARGS;
 BENCHMARK(BM_FakeLua_Recursion_GCC) RECURSION_ARGS;
-
+BENCHMARK(BM_FakeLua_Recursion_INTERP) RECURSION_ARGS;
 BENCHMARK(BM_CPP_Variadic) VARIADIC_ARGS;
 BENCHMARK(BM_Lua_Variadic) VARIADIC_ARGS;
 BENCHMARK(BM_FakeLua_Variadic_TCC) VARIADIC_ARGS;
 BENCHMARK(BM_FakeLua_Variadic_GCC) VARIADIC_ARGS;
-
+BENCHMARK(BM_FakeLua_Variadic_INTERP) VARIADIC_ARGS;
 BENCHMARK(BM_CPP_MultiReturn) MULTI_RETURN_ARGS;
 BENCHMARK(BM_Lua_MultiReturn) MULTI_RETURN_ARGS;
 BENCHMARK(BM_FakeLua_MultiReturn_TCC) MULTI_RETURN_ARGS;
 BENCHMARK(BM_FakeLua_MultiReturn_GCC) MULTI_RETURN_ARGS;
-
+BENCHMARK(BM_FakeLua_MultiReturn_INTERP) MULTI_RETURN_ARGS;
 BENCHMARK(BM_CPP_Closure) CLOSURE_ARGS;
 BENCHMARK(BM_Lua_Closure) CLOSURE_ARGS;
 BENCHMARK(BM_FakeLua_Closure_TCC) CLOSURE_ARGS;
 BENCHMARK(BM_FakeLua_Closure_GCC) CLOSURE_ARGS;
-
+BENCHMARK(BM_FakeLua_Closure_INTERP) CLOSURE_ARGS;
 BENCHMARK(BM_CPP_TailRecursion) TAIL_RECURSION_ARGS;
 BENCHMARK(BM_Lua_TailRecursion) TAIL_RECURSION_ARGS;
 BENCHMARK(BM_FakeLua_TailRecursion_TCC) TAIL_RECURSION_ARGS;
 BENCHMARK(BM_FakeLua_TailRecursion_GCC) TAIL_RECURSION_ARGS;
+BENCHMARK(BM_FakeLua_TailRecursion_INTERP) TAIL_RECURSION_ARGS;

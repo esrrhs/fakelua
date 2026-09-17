@@ -84,13 +84,13 @@ private:
     void CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt);
 
-    int CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_multi = false);
-    int CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preserve_multi);
+    int CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_multi = false, int dest = -1);
+    int CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preserve_multi, int dest = -1);
     int CompileVar(const SyntaxTreeInterfacePtr &v);
     int CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall, bool preserve_multi);
     int CompileTableconstructor(const SyntaxTreeInterfacePtr &tc);
-    int CompileBinop(const SyntaxTreeInterfacePtr &exp);
-    int CompileUnop(const SyntaxTreeInterfacePtr &exp);
+    int CompileBinop(const SyntaxTreeInterfacePtr &exp, int dest = -1);
+    int CompileUnop(const SyntaxTreeInterfacePtr &exp, int dest = -1);
 
     int EmitClosure(FuncInfo *child);
     void EmitCallArgs(const std::shared_ptr<class SyntaxTreeArgs> &args_ptr, std::vector<int> &arg_regs, bool &last_expand);
@@ -106,6 +106,8 @@ private:
 
     int LoadConstTo(int dest, const CVar &v);
     int MoveTo(int dest, int src);
+    int CommitDest(int dest, int src);
+    int LocalAssignDest(const SyntaxTreeVar *var);
     void StoreLocal(int dest, int src);
     int LoadLocal(VarDef *def);
     int ResolveSimpleName(const SyntaxTreeVar *var, const std::string &name, bool as_callee);

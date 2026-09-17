@@ -443,18 +443,31 @@ struct Ctx : RuntimeContext {
         double warmup_double = 0;
         Call(flua, JIT_TCC, "bench_float_poly", warmup_double, 100);
         Call(flua, JIT_GCC, "bench_fib", warmup_ret, 10);
+        Call(flua, JIT_INTERP, "bench_fib", warmup_ret, 10);
         Call(flua, JIT_GCC, "bench_gcd", warmup_ret, 832040, 514229);
+        Call(flua, JIT_INTERP, "bench_gcd", warmup_ret, 832040, 514229);
         Call(flua, JIT_GCC, "bench_powmod", warmup_ret, 2, 1000, 1000000007);
+        Call(flua, JIT_INTERP, "bench_powmod", warmup_ret, 2, 1000, 1000000007);
         Call(flua, JIT_GCC, "bench_sum", warmup_ret, 100);
+        Call(flua, JIT_INTERP, "bench_sum", warmup_ret, 100);
         Call(flua, JIT_GCC, "bench_bubble_sort", warmup_ret, 10);
+        Call(flua, JIT_INTERP, "bench_bubble_sort", warmup_ret, 10);
         Call(flua, JIT_GCC, "bench_sieve", warmup_ret, 100);
+        Call(flua, JIT_INTERP, "bench_sieve", warmup_ret, 100);
         Call(flua, JIT_GCC, "bench_binary_search", warmup_ret, 100);
+        Call(flua, JIT_INTERP, "bench_binary_search", warmup_ret, 100);
         Call(flua, JIT_GCC, "bench_fast_pow", warmup_ret, 2, 1000, 1000000007);
+        Call(flua, JIT_INTERP, "bench_fast_pow", warmup_ret, 2, 1000, 1000000007);
         Call(flua, JIT_GCC, "bench_popcount", warmup_ret, 100);
+        Call(flua, JIT_INTERP, "bench_popcount", warmup_ret, 100);
         Call(flua, JIT_GCC, "bench_insertion_sort", warmup_ret, 10);
+        Call(flua, JIT_INTERP, "bench_insertion_sort", warmup_ret, 10);
         Call(flua, JIT_GCC, "bench_matmul", warmup_ret);
+        Call(flua, JIT_INTERP, "bench_matmul", warmup_ret);
         Call(flua, JIT_GCC, "bench_vector3", warmup_ret, 100);
+        Call(flua, JIT_INTERP, "bench_vector3", warmup_ret, 100);
         Call(flua, JIT_GCC, "bench_float_poly", warmup_double, 100);
+        Call(flua, JIT_INTERP, "bench_float_poly", warmup_double, 100);
     }
 
     ~Ctx() {
@@ -506,6 +519,17 @@ static void BM_FakeLua_Fibonacci_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_Fibonacci_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppFib(n);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_fib", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua fib");
+    }
+}
+
 static void BM_CPP_GCD(benchmark::State &state) {
     const int64_t a = state.range(0);
     const int64_t b = state.range(1);
@@ -551,6 +575,18 @@ static void BM_FakeLua_GCD_GCC(benchmark::State &state) {
     for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_gcd", ret, a, b);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua gcd");
+    }
+}
+
+static void BM_FakeLua_GCD_INTERP(benchmark::State &state) {
+    const int64_t a = state.range(0);
+    const int64_t b = state.range(1);
+    const int64_t expected = CppGcd(a, b);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_gcd", ret, a, b);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "FakeLua gcd");
     }
@@ -612,6 +648,19 @@ static void BM_FakeLua_PowMod_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_PowMod_INTERP(benchmark::State &state) {
+    const int64_t base = state.range(0);
+    const int64_t exp = state.range(1);
+    const int64_t mod = state.range(2);
+    const int64_t expected = CppPowMod(base, exp, mod);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_powmod", ret, base, exp, mod);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua powmod");
+    }
+}
+
 static void BM_CPP_Sum(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSum(n);
@@ -656,6 +705,17 @@ static void BM_FakeLua_Sum_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_Sum_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppSum(n);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_sum", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua sum");
+    }
+}
+
 static void BM_CPP_BubbleSort(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = 1;
@@ -692,6 +752,16 @@ static void BM_FakeLua_BubbleSort_GCC(benchmark::State &state) {
     for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_bubble_sort", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, 1, "FakeLua bubble_sort");
+    }
+}
+
+static void BM_FakeLua_BubbleSort_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_bubble_sort", ret, n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, 1, "FakeLua bubble_sort");
     }
@@ -741,6 +811,17 @@ static void BM_FakeLua_Sieve_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_Sieve_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppSieve(n);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_sieve", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua sieve");
+    }
+}
+
 static void BM_CPP_BinarySearch(benchmark::State &state) {
     const int64_t n = state.range(0);
     for ([[maybe_unused]] auto _: state) {
@@ -776,6 +857,16 @@ static void BM_FakeLua_BinarySearch_GCC(benchmark::State &state) {
     for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_binary_search", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, n, "FakeLua binary_search");
+    }
+}
+
+static void BM_FakeLua_BinarySearch_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_binary_search", ret, n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, n, "FakeLua binary_search");
     }
@@ -837,6 +928,19 @@ static void BM_FakeLua_FastPow_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_FastPow_INTERP(benchmark::State &state) {
+    const int64_t base = state.range(0);
+    const int64_t exp = state.range(1);
+    const int64_t mod = state.range(2);
+    const int64_t expected = CppFastPow(base, exp, mod);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_fast_pow", ret, base, exp, mod);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua fast_pow");
+    }
+}
+
 static void BM_CPP_Popcount(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppPopcount(n);
@@ -876,6 +980,17 @@ static void BM_FakeLua_Popcount_GCC(benchmark::State &state) {
     for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_popcount", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua popcount");
+    }
+}
+
+static void BM_FakeLua_Popcount_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppPopcount(n);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_popcount", ret, n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "FakeLua popcount");
     }
@@ -922,6 +1037,16 @@ static void BM_FakeLua_InsertionSort_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_InsertionSort_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_insertion_sort", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, 1, "FakeLua insertion_sort");
+    }
+}
+
 static void BM_CPP_MatMul(benchmark::State &state) {
     const int64_t expected = CppMatMul();
     for ([[maybe_unused]] auto _: state) {
@@ -955,6 +1080,16 @@ static void BM_FakeLua_MatMul_GCC(benchmark::State &state) {
     for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_matmul", ret);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua matmul");
+    }
+}
+
+static void BM_FakeLua_MatMul_INTERP(benchmark::State &state) {
+    const int64_t expected = CppMatMul();
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_matmul", ret);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "FakeLua matmul");
     }
@@ -1002,6 +1137,17 @@ static void BM_FakeLua_Vector3_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_Vector3_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppVector3(n);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_vector3", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua vector3");
+    }
+}
+
 // Benchmarks: float polynomial (double specialization path)
 
 static void BM_CPP_FloatPoly(benchmark::State &state) {
@@ -1038,6 +1184,15 @@ static void BM_FakeLua_FloatPoly_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_FakeLua_FloatPoly_INTERP(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    for ([[maybe_unused]] auto _: state) {
+        double ret = 0;
+        Call(g_ctx.flua, JIT_INTERP, "bench_float_poly", ret, n);
+        benchmark::DoNotOptimize(ret);
+    }
+}
+
 }// namespace
 
 #define FIB_ARGS ->Arg(20)->Arg(25)->Arg(30)->Arg(32)
@@ -1055,67 +1210,68 @@ BENCHMARK(BM_CPP_Fibonacci) FIB_ARGS;
 BENCHMARK(BM_Lua_Fibonacci) FIB_ARGS;
 BENCHMARK(BM_FakeLua_Fibonacci_TCC) FIB_ARGS;
 BENCHMARK(BM_FakeLua_Fibonacci_GCC) FIB_ARGS;
-
+BENCHMARK(BM_FakeLua_Fibonacci_INTERP) FIB_ARGS;
 BENCHMARK(BM_CPP_GCD) GCD_ARGS;
 BENCHMARK(BM_Lua_GCD) GCD_ARGS;
 BENCHMARK(BM_FakeLua_GCD_TCC) GCD_ARGS;
 BENCHMARK(BM_FakeLua_GCD_GCC) GCD_ARGS;
-
+BENCHMARK(BM_FakeLua_GCD_INTERP) GCD_ARGS;
 BENCHMARK(BM_CPP_PowMod) POWMOD_ARGS;
 BENCHMARK(BM_Lua_PowMod) POWMOD_ARGS;
 BENCHMARK(BM_FakeLua_PowMod_TCC) POWMOD_ARGS;
 BENCHMARK(BM_FakeLua_PowMod_GCC) POWMOD_ARGS;
-
+BENCHMARK(BM_FakeLua_PowMod_INTERP) POWMOD_ARGS;
 BENCHMARK(BM_CPP_Sum) SUM_ARGS;
 BENCHMARK(BM_Lua_Sum) SUM_ARGS;
 BENCHMARK(BM_FakeLua_Sum_TCC) SUM_ARGS;
 BENCHMARK(BM_FakeLua_Sum_GCC) SUM_ARGS;
-
+BENCHMARK(BM_FakeLua_Sum_INTERP) SUM_ARGS;
 BENCHMARK(BM_CPP_BubbleSort) BUBBLE_SORT_ARGS;
 BENCHMARK(BM_Lua_BubbleSort) BUBBLE_SORT_ARGS;
 BENCHMARK(BM_FakeLua_BubbleSort_TCC) BUBBLE_SORT_ARGS;
 BENCHMARK(BM_FakeLua_BubbleSort_GCC) BUBBLE_SORT_ARGS;
-
+BENCHMARK(BM_FakeLua_BubbleSort_INTERP) BUBBLE_SORT_ARGS;
 BENCHMARK(BM_CPP_Sieve) SIEVE_ARGS;
 BENCHMARK(BM_Lua_Sieve) SIEVE_ARGS;
 BENCHMARK(BM_FakeLua_Sieve_TCC) SIEVE_ARGS;
 BENCHMARK(BM_FakeLua_Sieve_GCC) SIEVE_ARGS;
-
+BENCHMARK(BM_FakeLua_Sieve_INTERP) SIEVE_ARGS;
 BENCHMARK(BM_CPP_BinarySearch) BINARY_SEARCH_ARGS;
 BENCHMARK(BM_Lua_BinarySearch) BINARY_SEARCH_ARGS;
 BENCHMARK(BM_FakeLua_BinarySearch_TCC) BINARY_SEARCH_ARGS;
 BENCHMARK(BM_FakeLua_BinarySearch_GCC) BINARY_SEARCH_ARGS;
-
+BENCHMARK(BM_FakeLua_BinarySearch_INTERP) BINARY_SEARCH_ARGS;
 BENCHMARK(BM_CPP_FastPow) FAST_POW_ARGS;
 BENCHMARK(BM_Lua_FastPow) FAST_POW_ARGS;
 BENCHMARK(BM_FakeLua_FastPow_TCC) FAST_POW_ARGS;
 BENCHMARK(BM_FakeLua_FastPow_GCC) FAST_POW_ARGS;
-
+BENCHMARK(BM_FakeLua_FastPow_INTERP) FAST_POW_ARGS;
 BENCHMARK(BM_CPP_Popcount) POPCOUNT_ARGS;
 BENCHMARK(BM_Lua_Popcount) POPCOUNT_ARGS;
 BENCHMARK(BM_FakeLua_Popcount_TCC) POPCOUNT_ARGS;
 BENCHMARK(BM_FakeLua_Popcount_GCC) POPCOUNT_ARGS;
-
+BENCHMARK(BM_FakeLua_Popcount_INTERP) POPCOUNT_ARGS;
 BENCHMARK(BM_CPP_InsertionSort) INSERTION_SORT_ARGS;
 BENCHMARK(BM_Lua_InsertionSort) INSERTION_SORT_ARGS;
 BENCHMARK(BM_FakeLua_InsertionSort_TCC) INSERTION_SORT_ARGS;
 BENCHMARK(BM_FakeLua_InsertionSort_GCC) INSERTION_SORT_ARGS;
-
+BENCHMARK(BM_FakeLua_InsertionSort_INTERP) INSERTION_SORT_ARGS;
 BENCHMARK(BM_CPP_MatMul);
 BENCHMARK(BM_Lua_MatMul);
 BENCHMARK(BM_FakeLua_MatMul_TCC);
 BENCHMARK(BM_FakeLua_MatMul_GCC);
-
+BENCHMARK(BM_FakeLua_MatMul_INTERP);
 #define VECTOR3_ARGS ->Arg(10000)->Arg(100000)->Arg(1000000)
 
 BENCHMARK(BM_CPP_Vector3) VECTOR3_ARGS;
 BENCHMARK(BM_Lua_Vector3) VECTOR3_ARGS;
 BENCHMARK(BM_FakeLua_Vector3_TCC) VECTOR3_ARGS;
 BENCHMARK(BM_FakeLua_Vector3_GCC) VECTOR3_ARGS;
-
+BENCHMARK(BM_FakeLua_Vector3_INTERP) VECTOR3_ARGS;
 #define FLOAT_POLY_ARGS ->Arg(1000000)
 
 BENCHMARK(BM_CPP_FloatPoly) FLOAT_POLY_ARGS;
 BENCHMARK(BM_Lua_FloatPoly) FLOAT_POLY_ARGS;
 BENCHMARK(BM_FakeLua_FloatPoly_TCC) FLOAT_POLY_ARGS;
 BENCHMARK(BM_FakeLua_FloatPoly_GCC) FLOAT_POLY_ARGS;
+BENCHMARK(BM_FakeLua_FloatPoly_INTERP) FLOAT_POLY_ARGS;
