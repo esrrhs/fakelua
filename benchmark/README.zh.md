@@ -14,8 +14,6 @@ build/bin/bench_mark --benchmark_filter='BM_Lua_|BM_FakeLua_.*_INTERP' \
 build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_only=true
 ```
 
-`BM_FakeLua_TailRecursion_INTERP/5000` 是 5000 层 C++ 调用（解释器没有把尾调用收成循环）。默认 8 MiB C 栈会溢出；若包含该用例请先 `ulimit -s unlimited`。
-
 ---
 
 ## 解释器 vs Lua 5.4（2026-09-16）
