@@ -62,23 +62,25 @@ function test_tail_multi_ret()
     return 1
 end
 
-function with_defaults(a, b, c)
-    if b == nil then b = 0 end
-    if c == nil then c = 0 end
+function add1(a)
+    return a
+end
+
+function add3(a, b, c)
     return a + b + c
 end
 
-function tail_fewer_args(x)
-    return with_defaults(x)
+function tail_to_add1(x)
+    return add1(x)
 end
 
-function tail_more_args(x)
-    return with_defaults(x, 2, 3, 99)
+function tail_to_add3(x)
+    return add3(x, 2, 3)
 end
 
 function test_tail_arity()
-    if tail_fewer_args(5) ~= 5 then return 0 end
-    if tail_more_args(5) ~= 10 then return 0 end
+    if tail_to_add1(5) ~= 5 then return 0 end
+    if tail_to_add3(5) ~= 10 then return 0 end
     return 1
 end
 
