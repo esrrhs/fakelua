@@ -3006,14 +3006,3 @@ TEST(jitter, spec_field_merge_sanitize) {
         ASSERT_EQ(ret, 2);
     });
 }
-
-TEST(jitter, int_float_cmp) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_int_float_cmp.lua", {.debug_mode = debug_mode});
-        int64_t ret = 0;
-        Call(s, type, "test_int_float_cmp", ret);
-        ASSERT_EQ(ret, 100);
-        Call(s, type, "test_int_float_cmp_spec", ret);
-        ASSERT_EQ(ret, 100);
-    });
-}

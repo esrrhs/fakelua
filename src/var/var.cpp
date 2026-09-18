@@ -1,6 +1,5 @@
 #include "var.h"
 #include "fakelua.h"
-#include "lua_num_cmp.h"
 #include "state/const_string.h"
 #include "state/state.h"
 #include "util/common.h"
@@ -134,10 +133,10 @@ bool Var::Equal(const Var &rhs) const {
         }
         // Int and Float with the same mathematical value are equal (Lua semantics).
         if (Type() == VarType::Int && rhs.Type() == VarType::Float) {
-            return LuaEqIntFloat(data_.i, rhs.data_.f);
+            return static_cast<double>(data_.i) == rhs.data_.f;
         }
         if (Type() == VarType::Float && rhs.Type() == VarType::Int) {
-            return LuaEqIntFloat(rhs.data_.i, data_.f);
+            return data_.f == static_cast<double>(rhs.data_.i);
         }
         return false;
     }

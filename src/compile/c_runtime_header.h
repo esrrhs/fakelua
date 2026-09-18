@@ -313,75 +313,6 @@ static inline int FlDoubleFitsInt64(double d, int64_t *out) {
     return 1;
 }
 
-/* Lua 5.4：|i|<=2^53 才能无损转 double。超出则把 float 往整数方向转再比。 */
-#define FL_F2I_EQ 0
-#define FL_F2I_FLOOR 1
-#define FL_F2I_CEIL 2
-
-static inline int FlIntFitsFloat(int64_t i) {
-    return ((uint64_t)i + 9007199254740992ull) <= 18014398509481984ull;
-}
-
-static inline int FlFltToInt(double n, int64_t *p, int mode) {
-    double f = floor(n);
-    if (n != f) {
-        if (mode == FL_F2I_EQ) return 0;
-        if (mode == FL_F2I_CEIL) f += 1.0;
-    }
-    if (!isfinite(f)) return 0;
-    if (f < (double)INT64_MIN || f >= FL_INT64_FLOAT_EXCL) return 0;
-    *p = (int64_t)f;
-    return 1;
-}
-
-static inline int FlEqIntFloat(int64_t i, double f) {
-    if (FlIntFitsFloat(i)) return (double)i == f;
-    int64_t fi;
-    return FlFltToInt(f, &fi, FL_F2I_EQ) && fi == i;
-}
-
-static inline int FlLtIntFloat(int64_t i, double f) {
-    if (FlIntFitsFloat(i)) return (double)i < f;
-    int64_t fi;
-    if (FlFltToInt(f, &fi, FL_F2I_CEIL)) return i < fi;
-    return f > 0;
-}
-
-static inline int FlLeIntFloat(int64_t i, double f) {
-    if (FlIntFitsFloat(i)) return (double)i <= f;
-    int64_t fi;
-    if (FlFltToInt(f, &fi, FL_F2I_FLOOR)) return i <= fi;
-    return f > 0;
-}
-
-static inline int FlLtFloatInt(double f, int64_t i) {
-    if (FlIntFitsFloat(i)) return f < (double)i;
-    int64_t fi;
-    if (FlFltToInt(f, &fi, FL_F2I_FLOOR)) return fi < i;
-    return f < 0;
-}
-
-static inline int FlLeFloatInt(double f, int64_t i) {
-    if (FlIntFitsFloat(i)) return f <= (double)i;
-    int64_t fi;
-    if (FlFltToInt(f, &fi, FL_F2I_CEIL)) return fi <= i;
-    return f < 0;
-}
-
-static inline int FlNumLt(CVar a, CVar b) {
-    if (a.type_ == VAR_INT && b.type_ == VAR_INT) return a.data_.i < b.data_.i;
-    if (a.type_ == VAR_INT && b.type_ == VAR_FLOAT) return FlLtIntFloat(a.data_.i, b.data_.f);
-    if (a.type_ == VAR_FLOAT && b.type_ == VAR_INT) return FlLtFloatInt(a.data_.f, b.data_.i);
-    return a.data_.f < b.data_.f;
-}
-
-static inline int FlNumLe(CVar a, CVar b) {
-    if (a.type_ == VAR_INT && b.type_ == VAR_INT) return a.data_.i <= b.data_.i;
-    if (a.type_ == VAR_INT && b.type_ == VAR_FLOAT) return FlLeIntFloat(a.data_.i, b.data_.f);
-    if (a.type_ == VAR_FLOAT && b.type_ == VAR_INT) return FlLeFloatInt(a.data_.f, b.data_.i);
-    return a.data_.f <= b.data_.f;
-}
-
 #define NORMALIZE_TABLE_KEY(key) ({ \
     CVar __k = (key); \
     if (LIKELY(__k.type_ == VAR_FLOAT)) { \
@@ -760,9 +691,9 @@ static inline uint32_t FlHashString(const char *str, int len) {
             VarString *__sb = (__b.type_ == VAR_STRING) ? __b.data_.s : (VarString *)__b.data_.i; \
             (result) = (__sa == __sb) || (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0); \
         } else if (__a.type_ == VAR_INT && __b.type_ == VAR_FLOAT) { \
-            (result) = FlEqIntFloat(__a.data_.i, __b.data_.f); \
+            (result) = ((double)__a.data_.i == __b.data_.f); \
         } else if (__a.type_ == VAR_FLOAT && __b.type_ == VAR_INT) { \
-            (result) = FlEqIntFloat(__b.data_.i, __a.data_.f); \
+            (result) = (__a.data_.f == (double)__b.data_.i); \
         } else { \
             (result) = false; \
         } \
@@ -1273,22 +1204,16 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 #define OpRightShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 1)
 #define OpLeftShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 0)
 
-#define OpLt(a, b, res) do { \
+#define OP_CMP_IMPL(a, b, res, op) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    SET_BOOL(res, FlNumLt(_ra, _rb)); \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_BOOL(res, _ra.data_.i op _rb.data_.i); } \
+    else { SET_BOOL(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
-#define OpGt(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    SET_BOOL(res, FlNumLt(_rb, _ra)); \
-} while(0)
-#define OpLe(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    SET_BOOL(res, FlNumLe(_ra, _rb)); \
-} while(0)
-#define OpGe(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    SET_BOOL(res, FlNumLe(_rb, _ra)); \
-} while(0)
+
+#define OpLt(a, b, res) OP_CMP_IMPL(a, b, res, <)
+#define OpGt(a, b, res) OP_CMP_IMPL(a, b, res, >)
+#define OpLe(a, b, res) OP_CMP_IMPL(a, b, res, <=)
+#define OpGe(a, b, res) OP_CMP_IMPL(a, b, res, >=)
 
 #define OpEq(a, b, res) do { bool _eq; VarEqual(a, b, _eq); SET_BOOL(res, _eq); } while(0)
 

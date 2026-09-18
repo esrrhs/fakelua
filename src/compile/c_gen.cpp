@@ -982,46 +982,6 @@ std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
 static const std::unordered_map<BinOpKind, std::string_view> kCmpOpMap = {{BinOpKind::kLess, "<"},       {BinOpKind::kLessEqual, "<="}, {BinOpKind::kMore, ">"},
                                                                           {BinOpKind::kMoreEqual, ">="}, {BinOpKind::kEqual, "=="},     {BinOpKind::kNotEqual, "!="}};
 
-static std::string NativeCmpExpr(InferredType lt, const std::string &l, InferredType rt, const std::string &r, BinOpKind op) {
-    if (lt == T_INT && rt == T_FLOAT) {
-        switch (op) {
-            case BinOpKind::kEqual:
-                return std::format("FlEqIntFloat(({}), ({}))", l, r);
-            case BinOpKind::kNotEqual:
-                return std::format("!FlEqIntFloat(({}), ({}))", l, r);
-            case BinOpKind::kLess:
-                return std::format("FlLtIntFloat(({}), ({}))", l, r);
-            case BinOpKind::kLessEqual:
-                return std::format("FlLeIntFloat(({}), ({}))", l, r);
-            case BinOpKind::kMore:
-                return std::format("FlLtFloatInt(({}), ({}))", r, l);
-            case BinOpKind::kMoreEqual:
-                return std::format("FlLeFloatInt(({}), ({}))", r, l);
-            default:
-                break;
-        }
-    }
-    if (lt == T_FLOAT && rt == T_INT) {
-        switch (op) {
-            case BinOpKind::kEqual:
-                return std::format("FlEqIntFloat(({}), ({}))", r, l);
-            case BinOpKind::kNotEqual:
-                return std::format("!FlEqIntFloat(({}), ({}))", r, l);
-            case BinOpKind::kLess:
-                return std::format("FlLtFloatInt(({}), ({}))", l, r);
-            case BinOpKind::kLessEqual:
-                return std::format("FlLeFloatInt(({}), ({}))", l, r);
-            case BinOpKind::kMore:
-                return std::format("FlLtIntFloat(({}), ({}))", r, l);
-            case BinOpKind::kMoreEqual:
-                return std::format("FlLeIntFloat(({}), ({}))", r, l);
-            default:
-                break;
-        }
-    }
-    return std::format("({}) {} ({})", l, kCmpOpMap.at(op), r);
-}
-
 std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
     // 只处理 Exp 节点。
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
@@ -1070,7 +1030,7 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
         const auto left_native = TryCompileNativeExpr(e->Left());
         const auto right_native = TryCompileNativeExpr(e->Right());
         DEBUG_ASSERT(!left_native.empty() && !right_native.empty());
-        return NativeCmpExpr(left_type, left_native, right_type, right_native, op_kind);
+        return std::format("({}) {} ({})", left_native, op_it->second, right_native);
     }
     return {};
 }
@@ -2684,7 +2644,7 @@ std::string CGen::CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, cons
             if (rt == T_INT || rt == T_FLOAT) {
                 const auto left_native = TryCompileNativeExpr(left);
                 if (const auto right_native = TryCompileNativeExpr(right); !left_native.empty() && !right_native.empty()) {
-                    const auto native_bool = NativeCmpExpr(lt, left_native, rt, right_native, op_kind);
+                    const auto native_bool = std::format("({}) {} ({})", left_native, cmp_it->second, right_native);
                     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    CVar " << tmp << ";\n";
                     Out() << GenTab() << std::format("SET_BOOL({}, {});\n", tmp, native_bool);
