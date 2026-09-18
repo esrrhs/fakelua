@@ -105,5 +105,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           set -x
+          # INTERP tail recursion walks the C stack; default 8 MiB overflows at n=5000.
+          ulimit -s unlimited 2>/dev/null || ulimit -s 65532
           cd build/bin
           ./bench_mark
