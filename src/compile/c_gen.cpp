@@ -142,17 +142,16 @@ bool CGen::ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo 
         out.repr = exp_node->ExpValue();
         return true;
     }
-    if (exp_node->GetExpKind() == ExpKind::kNumber) {
+    {
         TableKeyKind kind = TableKeyKind::kInt;
         std::string canonical;
         int64_t int_value = 0;
         double float_value = 0;
-        if (!ClassifyLuaNumberKey(exp_node->ExpValue(), kind, canonical, int_value, float_value)) {
-            return false;
+        if (ClassifyConstNumberExp(exp, kind, canonical, int_value, float_value)) {
+            out.kind = kind;
+            out.repr = canonical;
+            return true;
         }
-        out.kind = kind;
-        out.repr = canonical;
-        return true;
     }
     if (exp_node->GetExpKind() == ExpKind::kTrue) {
         out.kind = TableKeyKind::kBool;
@@ -343,9 +342,9 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
         for (const auto &f: meta.fields) {
             if (f.key_kind == TableKeyKind::kFloat) {
                 if (is_get) {
-                    Out() << "        if (__fval == " << f.float_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                    Out() << "        if (__fval == " << FormatCDoubleLiteral(f.float_value) << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
-                    Out() << "        if (__fval == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
+                    Out() << "        if (__fval == " << FormatCDoubleLiteral(f.float_value) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
                           << "] = k; *__finish = true; return; }\n";
                 }
             }
@@ -357,9 +356,9 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
         for (const auto &f: meta.fields) {
             if (f.key_kind == TableKeyKind::kFloat) {
                 if (is_get) {
-                    Out() << "        if ((double)__ival == " << f.float_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                    Out() << "        if ((double)__ival == " << FormatCDoubleLiteral(f.float_value) << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
-                    Out() << "        if ((double)__ival == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
+                    Out() << "        if ((double)__ival == " << FormatCDoubleLiteral(f.float_value) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
                           << "] = k; *__finish = true; return; }\n";
                 }
             }
@@ -1653,17 +1652,23 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         is_constant_step = true;
         step_double_val = 1.0;
         step_int_val = 1;
-    } else if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep()); step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
-        is_constant_step = true;
-        if (loop_type == T_INT) {
-            step_int_val = ToInteger(step_exp->ExpValue());
-            if (step_int_val == 0) {
-                ThrowError("'for' step is zero", for_stmt->ExpStep());
-            }
-        } else {
-            step_double_val = (LookupNodeType(step_exp.get()) == T_INT) ? static_cast<double>(ToInteger(step_exp->ExpValue())) : ToFloat(step_exp->ExpValue());
-            if (step_double_val == 0.0) {
-                ThrowError("'for' step is zero", for_stmt->ExpStep());
+    } else {
+        TableKeyKind step_kind = TableKeyKind::kInt;
+        std::string step_canonical;
+        int64_t step_ival = 0;
+        double step_fval = 0;
+        if (ClassifyConstNumberExp(for_stmt->ExpStep(), step_kind, step_canonical, step_ival, step_fval)) {
+            is_constant_step = true;
+            if (loop_type == T_INT) {
+                step_int_val = (step_kind == TableKeyKind::kInt) ? step_ival : static_cast<int64_t>(step_fval);
+                if (step_int_val == 0) {
+                    ThrowError("'for' step is zero", for_stmt->ExpStep());
+                }
+            } else {
+                step_double_val = (step_kind == TableKeyKind::kInt) ? static_cast<double>(step_ival) : step_fval;
+                if (step_double_val == 0.0) {
+                    ThrowError("'for' step is zero", for_stmt->ExpStep());
+                }
             }
         }
     }
@@ -2059,7 +2064,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
         const auto &exps = explist_ptr->Exps();
         if (exps.size() == 1) {
-            std::string exp0_compiled = CompileExp(exps[0]);
+            std::string exp0_compiled = CompileExp(exps[0], true);
             std::string tmp_exp0 = std::format("flua_fi_exp0_{}", tmp_var_counter_++);
             func_temp_decls_ << "    CVar " << tmp_exp0 << ";\n";
             Out() << GenTab() << tmp_exp0 << " = " << exp0_compiled << ";\n";
@@ -2073,13 +2078,26 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
             Out() << GenTab() << "    " << iter_s << " = kNil;\n";
             Out() << GenTab() << "    " << iter_var << " = kNil;\n";
             Out() << GenTab() << "}\n";
+        } else if (exps.size() == 2) {
+            std::string e0 = CompileExp(exps[0], false);
+            std::string e1 = CompileExp(exps[1], true);
+            std::string tmp_e1 = std::format("flua_fi_e1_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << tmp_e1 << ";\n";
+            Out() << GenTab() << iter_f << " = FlUnboxMulti(" << e0 << ", 0);\n";
+            Out() << GenTab() << tmp_e1 << " = " << e1 << ";\n";
+            Out() << GenTab() << iter_s << " = FlUnboxMulti(" << tmp_e1 << ", 0);\n";
+            Out() << GenTab() << iter_var << " = FlUnboxMulti(" << tmp_e1 << ", 1);\n";
         } else {
-            std::string e0 = CompileExp(exps[0]);
-            std::string e1 = (exps.size() >= 2) ? CompileExp(exps[1]) : "kNil";
-            std::string e2 = (exps.size() >= 3) ? CompileExp(exps[2]) : "kNil";
+            std::string e0 = CompileExp(exps[0], false);
+            std::string e1 = CompileExp(exps[1], false);
+            const bool last_of_three = exps.size() == 3;
+            std::string e2 = CompileExp(exps[2], last_of_three);
             Out() << GenTab() << iter_f << " = FlUnboxMulti(" << e0 << ", 0);\n";
             Out() << GenTab() << iter_s << " = FlUnboxMulti(" << e1 << ", 0);\n";
             Out() << GenTab() << iter_var << " = FlUnboxMulti(" << e2 << ", 0);\n";
+            for (size_t i = 3; i < exps.size(); ++i) {
+                Out() << GenTab() << "(void)(" << CompileExp(exps[i], i + 1 == exps.size()) << ");\n";
+            }
         }
 
         Out() << GenTab() << "while (true) {\n";
@@ -2877,6 +2895,20 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
 
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
 
+    {
+        TableKeyKind kind = TableKeyKind::kInt;
+        std::string canonical;
+        int64_t int_value = 0;
+        double float_value = 0;
+        if (ClassifyConstNumberExp(exp, kind, canonical, int_value, float_value)) {
+            if (ConstNumberExpIsIntValue(kind, exp)) {
+                return std::to_string(int_value);
+            }
+            const double d = (kind == TableKeyKind::kInt) ? static_cast<double>(int_value) : float_value;
+            return FormatCDoubleLiteral(d);
+        }
+    }
+
     if (const auto exp_kind = e->GetExpKind(); exp_kind == ExpKind::kNumber) {
         if (LookupNodeType(e.get()) == T_INT) {
             return std::to_string(ToInteger(e->ExpValue()));
@@ -3114,7 +3146,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     std::string expansion_tmp;
     int expansion_start_idx = 0;
 
-    CompileCallArgs(args_ptr, args_kind, compiled_args, has_expansion, expansion_tmp, expansion_start_idx);
     std::string func_name;
     const SyntaxTreeVar *var_ptr = nullptr;
     ResolveCalleeName(pe_pre_ptr, func_name, var_ptr);
@@ -3122,6 +3153,17 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
         var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
     }
+
+    std::string method_obj_tmp;
+    if (!fc->Name().empty()) {
+        // Lua：先求 prefix（接收者），再求参数。obj():f(arg()) 必须先跑 obj()。
+        std::string obj_expr = var ? CompileVar(var) : CompilePrefixexp(pe_pre_ptr);
+        method_obj_tmp = std::format("flua_obj_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << method_obj_tmp << ";\n";
+        Out() << GenTab() << method_obj_tmp << " = " << obj_expr << ";\n";
+    }
+
+    CompileCallArgs(args_ptr, args_kind, compiled_args, has_expansion, expansion_tmp, expansion_start_idx);
 
     if (!func_name.empty() && func_name == "FAKELUA_SET_TABLE") {
         if (compiled_args.size() != 3) {
@@ -3157,7 +3199,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     if (local_func_names_.contains(func_name) && !is_local_callee) {
         call_expr = BuildLocalFunctionCall(func_name, compiled_args, has_expansion, expansion_tmp, expansion_start_idx);
     } else if (!fc->Name().empty()) {
-        call_expr = BuildMethodCall(fc, pe_pre, pe_pre_ptr, var, compiled_args, has_expansion, expansion_tmp);
+        call_expr = BuildMethodCall(fc, pe_pre_ptr, method_obj_tmp, compiled_args, has_expansion, expansion_tmp);
     } else {
         call_expr = BuildDynamicCall(func_name, pe_pre, pe_pre_ptr, var, compiled_args, has_expansion, expansion_tmp, is_local_callee);
     }
@@ -4525,22 +4567,13 @@ std::string CGen::BuildLocalFunctionCall(const std::string &func_name, const std
     return call_expr;
 }
 
-std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr,
-                                  const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp) {
+std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::string &obj_tmp,
+                                  const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp) {
     auto args = compiled_args;
     if (has_expansion) {
         args.push_back(expansion_tmp);
     }
     const std::string &method_name = fc->Name();
-    std::string obj_expr;
-    if (var) {
-        obj_expr = CompileVar(var);
-    } else {
-        obj_expr = CompilePrefixexp(pe_pre_ptr);
-    }
-    std::string obj_tmp = std::format("flua_obj_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    CVar " << obj_tmp << ";\n";
-    Out() << GenTab() << obj_tmp << " = " << obj_expr << ";\n";
 
     // 构造参数列表（对象本身作为第一个参数）
     std::vector<std::string> final_args;

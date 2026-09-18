@@ -146,6 +146,22 @@ function test_bad_port()
     return 1
 end
 
+function test_timeout_ms_range()
+    local ok = pcall(function()
+        http.request({ url = "http://127.0.0.1:1/", timeout_ms = 3000000000 }, "HttpTest.on_client")
+    end)
+    if ok then return 0 end
+    local ok2 = pcall(function()
+        local cfg = {}
+        cfg["ip"] = "127.0.0.1"
+        cfg["port"] = 0
+        cfg["timeout_ms"] = 3000000000
+        http.server(cfg)
+    end)
+    if ok2 then return 0 end
+    return 1
+end
+
 function test_method_inject()
     local ok = pcall(function()
         http.request({
