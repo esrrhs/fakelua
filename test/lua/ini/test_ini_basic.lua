@@ -58,3 +58,17 @@ function test_roundtrip()
     if t2.db.port ~= 3306 then return 0 end
     return 1
 end
+
+function test_encode_value_newline()
+    local s = ini.encode({ sec = { k = "a\n[pwned]\nx=1" } })
+    if type(s) ~= "string" then return 0 end
+    -- 换行被转义后不能再拆出新 section
+    if s:find("\n%[pwned%]") then return 0 end
+    if s:find("\r") then return 0 end
+    local t2 = ini.decode(s)
+    if t2.pwned ~= nil then return 0 end
+    if type(t2.sec) ~= "table" then return 0 end
+    if type(t2.sec.k) ~= "string" then return 0 end
+    if t2.sec.k:find("\n", 1, true) then return 0 end
+    return 1
+end

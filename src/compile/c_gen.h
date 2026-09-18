@@ -159,8 +159,8 @@ private:
                          int &expansion_start_idx);
     void ResolveCalleeName(const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, std::string &func_name, const SyntaxTreeVar *&var_ptr);
     std::string BuildLocalFunctionCall(const std::string &func_name, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, int expansion_start_idx);
-    std::string BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr,
-                                const std::shared_ptr<SyntaxTreeVar> &var, const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp);
+    std::string BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::string &obj_tmp,
+                                const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp);
     std::string BuildDynamicCall(const std::string &func_name, SyntaxTreeInterfacePtr pe_pre, const std::shared_ptr<SyntaxTreePrefixexp> &pe_pre_ptr, const std::shared_ptr<SyntaxTreeVar> &var,
                                  const std::vector<std::string> &compiled_args, bool has_expansion, const std::string &expansion_tmp, bool is_local_callee);
     // EmitSpecAccessorBody：按 key kind 发射 get/set 的 if-else/switch 条件逻辑

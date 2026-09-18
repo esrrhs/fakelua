@@ -7,6 +7,7 @@
 #include "var/var.h"
 
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -136,7 +137,7 @@ static CVar PoolCreate(State *s, CVar *args, int n) {
 
         CVar timeout_var = table::TableHelper::GetTableStrId(s, a0, "timeout_ms");
         if (timeout_var.type_ != static_cast<int>(VarType::Nil)) {
-            config.connect_timeout_ms = static_cast<int>(inter::CVarToInteger(timeout_var, 5000));
+            config.connect_timeout_ms = CheckInt32Range(inter::CVarToInteger(timeout_var, 5000), "mysql.pool", "timeout_ms");
             config.read_timeout_ms = config.connect_timeout_ms;
         }
 

@@ -306,6 +306,32 @@ TEST(state, vm_function_merge) {
     ASSERT_EQ(f.GetAddr(JIT_GCC), reinterpret_cast<void *>(&VmfB));
 }
 
+TEST(state, vm_function_merge_updates_arity) {
+    VmFunction f("merge_fn", 0, JIT_TCC, reinterpret_cast<void *>(&VmfA), {}, false);
+    ASSERT_EQ(f.GetArgCount(), 0);
+    ASSERT_FALSE(f.IsVararg());
+
+    VmFunction vararg_func("merge_fn", 1, JIT_GCC, reinterpret_cast<void *>(&VmfB), {}, true);
+    f.Merge(vararg_func);
+
+    ASSERT_EQ(f.GetArgCount(), 1);
+    ASSERT_TRUE(f.IsVararg());
+    ASSERT_EQ(f.GetAddr(JIT_TCC), reinterpret_cast<void *>(&VmfA));
+    ASSERT_EQ(f.GetAddr(JIT_GCC), reinterpret_cast<void *>(&VmfB));
+}
+
+TEST(state, recompile_vararg_call) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+    ASSERT_NO_THROW(CompileString(s, "function f() return 0 end", {}));
+    ASSERT_NO_THROW(CompileString(s, "function f(...) return select('#', ...) end", {}));
+    int64_t ret = 0;
+    CallAll(s, "f", ret, 7);
+    ASSERT_EQ(ret, 1);
+    CallAll(s, "f", ret, 1, 2, 3);
+    ASSERT_EQ(ret, 3);
+}
+
 TEST(state, vm_register_and_get_function) {
     State s;
     ASSERT_TRUE(s.GetVM().GetFunction("absent").Empty());
