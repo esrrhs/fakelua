@@ -1,7 +1,6 @@
 #include "native/table/native_table.h"
 #include "compile/c_runtime_header.h"
 #include "native/native_common.h"
-#include "var/lua_num_cmp.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
 #include "state/state.h"
@@ -73,10 +72,10 @@ bool VarKeyEqual(CVar a, CVar b) {
         return KeyToStringView(a) == KeyToStringView(b);
     }
     if (a.type_ == kIntType && b.type_ == kFloatType) {
-        return LuaEqIntFloat(a.data_.i, b.data_.f);
+        return static_cast<double>(a.data_.i) == b.data_.f;
     }
     if (a.type_ == kFloatType && b.type_ == kIntType) {
-        return LuaEqIntFloat(b.data_.i, a.data_.f);
+        return a.data_.f == static_cast<double>(b.data_.i);
     }
     if (a.type_ != b.type_) return false;
     switch (a.type_) {
