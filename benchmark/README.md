@@ -16,8 +16,6 @@ build/bin/bench_mark --benchmark_filter='BM_Lua_|BM_FakeLua_.*_INTERP' \
 build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_only=true
 ```
 
-`BM_FakeLua_TailRecursion_INTERP/5000` is a 5000-deep C++ call chain (the interpreter does not turn tail calls into loops). The default 8 MiB C stack overflows; run with `ulimit -s unlimited` if that case is included.
-
 ---
 
 ## Interpreter vs Lua 5.4 (2026-09-16)
