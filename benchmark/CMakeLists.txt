@@ -97,6 +97,13 @@ ENDIF ()
 
 add_executable(bench_mark ${BENCHMARK_SRC_LIST})
 
+# INTERP TailRecursion/5000 is a 5000-deep C++ call chain (no TCO).
+# Windows default stack is 1–2 MiB and CI compiles with -O0 (large frames).
+# The PE stack size is the actual main-thread limit; Unix uses RLIMIT_STACK (see CI ulimit).
+if (WIN32)
+    target_link_options(bench_mark PRIVATE "-Wl,--stack,134217728")
+endif ()
+
 if (NOT WIN32 AND NOT APPLE)
     target_link_libraries(bench_mark PRIVATE dl)
 endif ()
