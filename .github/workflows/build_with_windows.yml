@@ -178,7 +178,6 @@ jobs:
           ./flua.exe
 
       - name: Run benchmarks
-        if: github.event_name != 'pull_request'
         shell: msys2 {0}
         run: |
           set -eux
