@@ -183,6 +183,8 @@ jobs:
         if: github.event_name != 'pull_request' && matrix.build_type == 'release'
         run: |
           set -x
+          # INTERP tail recursion walks the C stack; keep headroom beyond the default 8 MiB.
+          ulimit -s unlimited 2>/dev/null || ulimit -s 65532
           cd build/bin
           ./bench_mark
 
