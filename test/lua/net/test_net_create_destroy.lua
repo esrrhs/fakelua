@@ -19,3 +19,19 @@ function test_server_stop_restart()
     srv2:close()
     return 1
 end
+
+function test_ws_path_crlf()
+    local ok = pcall(function()
+        net.client({ port = 19996, framer = "websocket", ws_path = "/x\r\nHost: evil" })
+    end)
+    if ok then return 0 end
+    return 1
+end
+
+function test_ip_crlf()
+    local ok = pcall(function()
+        net.client({ ip = "127.0.0.1\r\nX: y", port = 19995, framer = "websocket" })
+    end)
+    if ok then return 0 end
+    return 1
+end

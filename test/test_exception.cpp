@@ -824,6 +824,30 @@ TEST(exception, goto_elseif_nonexistent) {
     EXPECT_THROW(CompileFile(s, "./exception/test_goto_elseif_nonexistent.lua", {}), std::exception);
 }
 
+TEST(exception, goto_nested_skip_local) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, 0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_goto_nested_skip_local.lua", {}), std::exception);
+}
+
+TEST(exception, duplicate_label) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, 0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_duplicate_label.lua", {}), std::exception);
+}
+
+TEST(exception, goto_skip_local_function) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, 0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_goto_skip_local_function.lua", {}), std::exception);
+}
+
 // 文件级只承载声明：local 定义、函数定义，以及可选的首行 package 声明。
 // 其余可执行语句在 SemanticAnalysis::CheckFileLevelStmts 里就应该被拒绝，
 // 不能被悄悄搬进 __fakelua_init。
@@ -1428,7 +1452,7 @@ TEST(exception, spec_assign_nonnumeric_int_throws) {
     // n is a math param: the int specialization must be generated.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     // x is a native int64_t accumulator initialized via native arithmetic.
-    ASSERT_NE(code.find("int64_t x = ((n) + (1))"), std::string::npos);
+    ASSERT_NE(code.find("int64_t x = FL_INT_ADD((n), (1))"), std::string::npos);
     // CVar guard – int branch.
     ASSERT_NE(code.find(".type_ == VAR_INT)"), std::string::npos);
     // CVar guard – float branch casts to int64_t.
@@ -1436,7 +1460,7 @@ TEST(exception, spec_assign_nonnumeric_int_throws) {
     // Error branch for non-numeric CVar.
     ASSERT_NE(code.find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
     // Return uses native addition.
-    ASSERT_NE(code.find("return ((n) + (x))"), std::string::npos);
+    ASSERT_NE(code.find("return FL_INT_ADD((n), (x))"), std::string::npos);
 
     FakeluaStateGuard sg;
     auto s = sg.GetState();

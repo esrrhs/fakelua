@@ -3,6 +3,8 @@
 #include "state/state.h"
 #include "var/var_closure.h"
 #include <cmath>
+#include <cstdint>
+#include <format>
 #include <limits>
 #include <string>
 
@@ -10,6 +12,13 @@ namespace fakelua {
 
 // Shared helpers for native library argument validation and error reporting.
 // Used across native_math, native_table, native_utf8, native_string, native_io.
+
+inline uint16_t CheckPortRange(int64_t port, const char *what, int64_t lo, int64_t hi) {
+    if (port < lo || port > hi) {
+        ThrowFakeluaException(std::format("{}: port {} out of range ({}-{})", what, port, lo, hi));
+    }
+    return static_cast<uint16_t>(port);
+}
 
 // Throw a standardized "bad argument #N to 'fname' (expected)" exception.
 [[noreturn]] inline void ThrowBadArgument(int argno, const char *fname, const char *expected) {
@@ -87,7 +96,7 @@ inline void CheckStringArg(const CVar &a, int argno, const char *fname) {
 // The closure is allocated from the state's non-temp arena and is valid for the
 // current frame. Returns a CVar of type Closure ready to be returned to Lua.
 inline CVar MakeIteratorClosure(State *state, void *func_ptr, void *iter_state) {
-    auto &alloc = state->GetHeap().GetAllocator(false /* temp */);
+    auto &alloc = state->GetValueAllocator();
 
     // upvalue 0: State*
     auto *uv0 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));

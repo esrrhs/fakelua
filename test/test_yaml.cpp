@@ -158,3 +158,16 @@ TEST(test_yaml, roundtrip) {
         FakeluaDeleteState(s);
     }
 }
+
+TEST(test_yaml, decode_cycle) {
+    for (auto jit_type: AllJitTypes()) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./yaml/test_yaml_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "YamlTest.test_decode_cycle", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}

@@ -53,21 +53,15 @@ function test_math_boundary_integer()
     if math.tointeger("notanumber") ~= nil then return 26 end
 
     -- -------------------------------------------------------------------------
-    -- Integer overflow: maxinteger + 1
-    -- In Lua 5.4, this converts to float 9.223372036854776e+18
-    -- fakelua may differ: accept any valid result (must not crash)
+    -- Integer overflow: + - * wrap in two's complement (FL_INT_ADD/SUB/MUL)
     -- -------------------------------------------------------------------------
     local overflow_add = maxi + 1
-    -- Must NOT be nil and must be a number
-    if overflow_add == nil then return 30 end
-    local ovf_type = math.type(overflow_add)
-    if ovf_type == nil then return 31 end
+    if math.type(overflow_add) ~= "integer" then return 30 end
+    if overflow_add ~= mini then return 31 end
 
-    -- mininteger - 1 should also overflow
     local overflow_sub = mini - 1
-    if overflow_sub == nil then return 32 end
-    local ovf_sub_type = math.type(overflow_sub)
-    if ovf_sub_type == nil then return 33 end
+    if math.type(overflow_sub) ~= "integer" then return 32 end
+    if overflow_sub ~= maxi then return 33 end
 
     -- -------------------------------------------------------------------------
     -- math.max / math.min with boundary integers
@@ -110,12 +104,14 @@ function test_math_boundary_integer()
     -- -------------------------------------------------------------------------
     -- Large integer multiplication boundary
     -- -------------------------------------------------------------------------
-    -- maxinteger * 2 (overflow expected)
+    -- maxinteger * 2 wraps to -2
     local overflow_mul = maxi * 2
-    if overflow_mul == nil then return 80 end
-    -- mininteger * -1 (overflow; -(-2^63) = 2^63 > maxinteger)
+    if math.type(overflow_mul) ~= "integer" then return 80 end
+    if overflow_mul ~= -2 then return 81 end
+    -- mininteger * -1 wraps to mininteger
     local overflow_mul2 = mini * (-1)
-    if overflow_mul2 == nil then return 81 end
+    if math.type(overflow_mul2) ~= "integer" then return 82 end
+    if overflow_mul2 ~= mini then return 83 end
 
     -- -------------------------------------------------------------------------
     -- math.random with boundary range

@@ -354,6 +354,10 @@ TEST(test_table, test_table_error_paths) {
     CallThrow(s, "test_table_insert_2pow63", res);
     CallThrow(s, "test_table_remove_2pow63", res);
     CallThrow(s, "test_table_sort_nan", res);
+    CallThrow(s, "test_table_nan_key_set", res);
+    CallThrow(s, "test_table_nan_key_get", res);
+    CallThrow(s, "test_table_concat_nan", res);
+    CallThrow(s, "test_table_concat_frac", res);
 
     FakeluaDeleteState(s);
 }

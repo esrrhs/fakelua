@@ -15,3 +15,7 @@ function test_math_special()
     if math.abs(math.clamp(1.2, 0, 1) - 1) > 1e-12 then return 0 end
     return 1
 end
+
+function test_math_clamp_bad_bounds()
+    math.clamp(1, 10, 5)
+end

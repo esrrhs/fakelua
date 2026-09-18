@@ -41,21 +41,33 @@ std::string RandomWsKey() {
 }
 
 std::string FindHeader(const std::string &raw, const std::string &name) {
-    std::string lower;
-    lower.resize(raw.size());
-    for (size_t i = 0; i < raw.size(); ++i) {
-        lower[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(raw[i])));
-    }
     std::string key = name;
-    for (char &c: key) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (char &c: key) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
     key += ':';
-    auto pos = lower.find(key);
-    if (pos == std::string::npos) return {};
-    auto start = pos + key.size();
-    while (start < raw.size() && (raw[start] == ' ' || raw[start] == '\t')) ++start;
-    auto end = raw.find("\r\n", start);
-    if (end == std::string::npos) end = raw.size();
-    return raw.substr(start, end - start);
+    size_t line = 0;
+    while (line < raw.size()) {
+        const auto nl = raw.find("\r\n", line);
+        const size_t line_end = nl == std::string::npos ? raw.size() : nl;
+        if (line_end - line >= key.size()) {
+            bool match = true;
+            for (size_t i = 0; i < key.size(); ++i) {
+                if (static_cast<char>(std::tolower(static_cast<unsigned char>(raw[line + i]))) != key[i]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                size_t start = line + key.size();
+                while (start < line_end && (raw[start] == ' ' || raw[start] == '\t')) ++start;
+                return raw.substr(start, line_end - start);
+            }
+        }
+        if (nl == std::string::npos) break;
+        line = nl + 2;
+    }
+    return {};
 }
 
 std::string RequestPath(const std::string &headers) {
@@ -275,6 +287,11 @@ private:
         recv_buf_.Peek(chunk.data(), chunk.size());
         hs_buf_ += chunk;
         recv_buf_.Skip(recv_buf_.Size());
+        constexpr size_t kMaxWsHandshakeBytes = 256 * 1024;
+        if (hs_buf_.size() > kMaxWsHandshakeBytes) {
+            Close();
+            return;
+        }
         auto pos = hs_buf_.find("\r\n\r\n");
         if (pos == std::string::npos) return;
         std::string headers = hs_buf_.substr(0, pos + 4);
@@ -282,7 +299,17 @@ private:
         if (!hs_buf_.empty()) recv_buf_.Write(hs_buf_.data(), hs_buf_.size());
         hs_buf_.clear();
         if (from_client_) {
-            if (headers.find("101") == std::string::npos) {
+            auto nl = headers.find("\r\n");
+            std::string status_line = headers.substr(0, nl == std::string::npos ? headers.size() : nl);
+            auto sp1 = status_line.find(' ');
+            auto sp2 = (sp1 == std::string::npos) ? std::string::npos : status_line.find(' ', sp1 + 1);
+            std::string code = (sp1 == std::string::npos) ? std::string{} : status_line.substr(sp1 + 1, (sp2 == std::string::npos ? status_line.size() : sp2) - sp1 - 1);
+            if (code != "101") {
+                Close();
+                return;
+            }
+            std::string accept = FindHeader(headers, "Sec-WebSocket-Accept");
+            if (accept.empty() || accept != WsAcceptKey(ws_key_)) {
                 Close();
                 return;
             }
@@ -347,7 +374,11 @@ static bufferevent *MakeBev(native::IoContext &io, evutil_socket_t fd, SSL_CTX *
         SSL *ssl = SSL_new(ssl_ctx);
         if (!ssl) return nullptr;
         auto *bev = bufferevent_openssl_socket_new(io.Get(), fd, ssl, client ? BUFFEREVENT_SSL_CONNECTING : BUFFEREVENT_SSL_ACCEPTING, BEV_OPT_CLOSE_ON_FREE);
-        if (bev) bufferevent_openssl_set_allow_dirty_shutdown(bev, 1);
+        if (!bev) {
+            SSL_free(ssl);
+            return nullptr;
+        }
+        bufferevent_openssl_set_allow_dirty_shutdown(bev, 1);
         return bev;
     }
     return bufferevent_socket_new(io.Get(), fd, BEV_OPT_CLOSE_ON_FREE);

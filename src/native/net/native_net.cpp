@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstring>
 #include <format>
+#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -551,14 +552,29 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
     {
         int64_t sbs = GetTableField(s, a0, "send_buf_size", 0);
         if (sbs == 0) sbs = GetTableField(s, a0, "sendbuf", 0);
-        if (sbs > 0) cfg.send_buf_size = static_cast<int>(sbs);
+        if (sbs > 0) {
+            if (sbs > static_cast<int64_t>(std::numeric_limits<int>::max())) {
+                ThrowFakeluaException(std::format("net: send_buf_size {} out of range", sbs));
+            }
+            cfg.send_buf_size = static_cast<int>(sbs);
+        }
 
         int64_t rbs = GetTableField(s, a0, "recv_buf_size", 0);
         if (rbs == 0) rbs = GetTableField(s, a0, "recvbuf", 0);
-        if (rbs > 0) cfg.recv_buf_size = static_cast<int>(rbs);
+        if (rbs > 0) {
+            if (rbs > static_cast<int64_t>(std::numeric_limits<int>::max())) {
+                ThrowFakeluaException(std::format("net: recv_buf_size {} out of range", rbs));
+            }
+            cfg.recv_buf_size = static_cast<int>(rbs);
+        }
 
         int64_t mpl = GetTableField(s, a0, "max_packet_len", 0);
-        if (mpl > 0) cfg.max_packet_len = static_cast<int>(mpl);
+        if (mpl > 0) {
+            if (mpl > static_cast<int64_t>(std::numeric_limits<int>::max())) {
+                ThrowFakeluaException(std::format("net: max_packet_len {} out of range", mpl));
+            }
+            cfg.max_packet_len = static_cast<int>(mpl);
+        }
     }
     cfg.fixed_packet_len = static_cast<int>(GetTableField(s, a0, "fixed_len", 0));
     if (cfg.fixed_packet_len == 0) {
@@ -583,6 +599,17 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
     if (cfg.ws_path.empty()) cfg.ws_path = "/";
     cfg.ws_host = GetTableFieldString(s, a0, "ws_host", "");
     cfg.ws_origin = GetTableFieldString(s, a0, "ws_origin", "");
+    auto check_ws_field = [](const std::string &val, const char *what) {
+        for (unsigned char c: val) {
+            if (c < 0x20 || c == 0x7f || c == ' ') {
+                ThrowFakeluaException(std::format("net: invalid {} (contains control or space)", what));
+            }
+        }
+    };
+    check_ws_field(cfg.ws_path, "ws_path");
+    check_ws_field(cfg.ws_host, "ws_host");
+    check_ws_field(cfg.ws_origin, "ws_origin");
+    check_ws_field(cfg.ip, "ip");
 
     CVar tls_var = table::TableHelper::GetTableStrId(s, a0, "tls");
     if (tls_var.type_ == static_cast<int>(VarType::Bool)) {

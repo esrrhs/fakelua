@@ -38,7 +38,7 @@ static FieldType ParseScalarType(const std::string &name) {
     if (name == "sint32") return TYPE_SINT32;
     if (name == "sint64") return TYPE_SINT64;
     if (name == "message") return TYPE_MESSAGE;
-    return TYPE_INT32;// 未知类型，后续 resolver 会处理
+    ThrowFakeluaException("unknown proto scalar type: " + name);
 }
 
 static bool IsScalarType(const std::string &name) {
@@ -239,6 +239,38 @@ private:
             ThrowFakeluaException(std::format("proto parse error at line {}: expected '{}', got '{}'", current_.line, sym, current_.value));
         }
         Advance(lexer);
+    }
+
+    std::string ParseQualifiedName(Lexer &lexer) {
+        if (current_.type != Token::T_IDENT) {
+            ThrowFakeluaException(std::format("proto parse error at line {}: expected type name", current_.line));
+        }
+        std::string name = current_.value;
+        Advance(lexer);
+        while (current_.type == Token::T_SYMBOL && current_.value == ".") {
+            Advance(lexer);
+            if (current_.type != Token::T_IDENT) {
+                ThrowFakeluaException(std::format("proto parse error at line {}: expected identifier after '.'", current_.line));
+            }
+            name += ".";
+            name += current_.value;
+            Advance(lexer);
+        }
+        return name;
+    }
+
+    int ParseFieldNumber(Lexer &lexer) {
+        if (current_.type != Token::T_INT) {
+            ThrowFakeluaException(std::format("proto parse error at line {}: expected field number", current_.line));
+        }
+        int field_number = 0;
+        try {
+            field_number = std::stoi(current_.value, nullptr, 0);
+        } catch (...) {
+            ThrowFakeluaException(std::format("proto parse error at line {}: invalid field number '{}'", current_.line, current_.value));
+        }
+        Advance(lexer);
+        return field_number;
     }
 
     // 顶层语句
@@ -447,17 +479,14 @@ private:
         FieldType type = TYPE_INT32;
 
         if (current_.type == Token::T_IDENT) {
-            type_name = current_.value;
-            Advance(lexer);
-            if (IsScalarType(type_name)) {
+            type_name = ParseQualifiedName(lexer);
+            if (type_name.find('.') == std::string::npos && IsScalarType(type_name)) {
                 type = ParseScalarType(type_name);
                 type_name.clear();
             } else if (GetProtobufState(s_).FindEnum(type_name)) {
-                // 已注册的 enum 类型
                 type = TYPE_ENUM;
                 type_name = ResolveTypeName(type_name, prefix);
             } else {
-                // message 类型
                 type = TYPE_MESSAGE;
                 type_name = ResolveTypeName(type_name, prefix);
             }
@@ -472,11 +501,7 @@ private:
         Advance(lexer);
 
         ExpectSymbol(lexer, "=");
-        if (current_.type != Token::T_INT) {
-            ThrowFakeluaException(std::format("proto parse error at line {}: expected field number", current_.line));
-        }
-        int field_number = std::stoi(current_.value);
-        Advance(lexer);
+        int field_number = ParseFieldNumber(lexer);
 
         // 跳过 inline options [...]
         if (current_.type == Token::T_SYMBOL && current_.value == "[") {
@@ -510,11 +535,7 @@ private:
         std::string key_type_name = current_.value;
         Advance(lexer);
         ExpectSymbol(lexer, ",");
-        if (current_.type != Token::T_IDENT) {
-            ThrowFakeluaException(std::format("proto parse error at line {}: expected map value type", current_.line));
-        }
-        std::string val_type_name = current_.value;
-        Advance(lexer);
+        std::string val_type_name = ParseQualifiedName(lexer);
         ExpectSymbol(lexer, ">");
 
         if (current_.type != Token::T_IDENT) {
@@ -524,11 +545,7 @@ private:
         Advance(lexer);
 
         ExpectSymbol(lexer, "=");
-        if (current_.type != Token::T_INT) {
-            ThrowFakeluaException(std::format("proto parse error at line {}: expected field number", current_.line));
-        }
-        int field_number = std::stoi(current_.value);
-        Advance(lexer);
+        int field_number = ParseFieldNumber(lexer);
 
         // 跳过 inline options
         if (current_.type == Token::T_SYMBOL && current_.value == "[") {
@@ -588,12 +605,8 @@ private:
         std::string type_name;
         FieldType type = TYPE_INT32;
 
-        if (current_.type != Token::T_IDENT) {
-            ThrowFakeluaException(std::format("proto parse error at line {}: expected field type", current_.line));
-        }
-        type_name = current_.value;
-        Advance(lexer);
-        if (IsScalarType(type_name)) {
+        type_name = ParseQualifiedName(lexer);
+        if (type_name.find('.') == std::string::npos && IsScalarType(type_name)) {
             type = ParseScalarType(type_name);
             type_name.clear();
         } else {
@@ -608,11 +621,7 @@ private:
         Advance(lexer);
 
         ExpectSymbol(lexer, "=");
-        if (current_.type != Token::T_INT) {
-            ThrowFakeluaException(std::format("proto parse error at line {}: expected field number", current_.line));
-        }
-        int field_number = std::stoi(current_.value);
-        Advance(lexer);
+        int field_number = ParseFieldNumber(lexer);
 
         // 跳过 inline options
         if (current_.type == Token::T_SYMBOL && current_.value == "[") {
@@ -678,11 +687,7 @@ private:
         std::string name = current_.value;
         Advance(lexer);
         ExpectSymbol(lexer, "=");
-        if (current_.type != Token::T_INT) {
-            ThrowFakeluaException(std::format("proto parse error at line {}: expected enum number", current_.line));
-        }
-        int number = std::stoi(current_.value);
-        Advance(lexer);
+        int number = ParseFieldNumber(lexer);
 
         // 跳过 inline options
         if (current_.type == Token::T_SYMBOL && current_.value == "[") {

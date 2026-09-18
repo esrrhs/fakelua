@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -152,7 +153,7 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
 
         CVar port_var = table::TableHelper::GetTableStrId(s, a0, "port");
         if (port_var.type_ != static_cast<int>(VarType::Nil)) {
-            port = static_cast<uint16_t>(inter::CVarToInteger(port_var, 3306));
+            port = CheckPortRange(inter::CVarToInteger(port_var, 3306), "mysql.connect", 1, 65535);
         }
 
         CVar user_var = table::TableHelper::GetTableStrId(s, a0, "user");
@@ -166,7 +167,11 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
 
         CVar timeout_var = table::TableHelper::GetTableStrId(s, a0, "timeout_ms");
         if (timeout_var.type_ != static_cast<int>(VarType::Nil)) {
-            timeout_ms = static_cast<int>(inter::CVarToInteger(timeout_var, 0));
+            int64_t t = inter::CVarToInteger(timeout_var, 0);
+            if (t < 0 || t > static_cast<int64_t>(std::numeric_limits<int>::max())) {
+                ThrowBadArgument(1, "mysql.connect", "timeout_ms out of range");
+            }
+            timeout_ms = static_cast<int>(t);
         }
 
         CVar ssl_var = table::TableHelper::GetTableStrId(s, a0, "ssl");
@@ -302,6 +307,9 @@ CVar ConnStmtExecute(NativeObject *self, State *s, CVar *args, int n) {
                     len = k.data_.i;
                 }
             });
+        }
+        if (len < 0 || len > 1024) {
+            ThrowBadArgument(2, "conn:stmt_execute", "too many statement parameters");
         }
         for (int64_t i = 1; i <= len; ++i) {
             CVar elem = table::TableHelper::GetTableInt(s, a1, i);

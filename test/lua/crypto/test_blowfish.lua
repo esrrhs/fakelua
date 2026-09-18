@@ -29,5 +29,17 @@ function test_blowfish()
         return 0
     end
 
+    local empty_enc = crypto.blowfish_encrypt(key, "")
+    if empty_enc ~= "" then
+        print("blowfish empty encrypt should be empty")
+        return 0
+    end
+
+    local empty_dec = crypto.blowfish_decrypt(key, "")
+    if empty_dec ~= "" then
+        print("blowfish empty decrypt should be empty")
+        return 0
+    end
+
     return 1
 end

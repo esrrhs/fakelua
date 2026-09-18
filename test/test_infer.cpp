@@ -42,8 +42,8 @@ TEST(infer, test_infer_typed_int_for) {
     // Both the accumulator and the loop variable must be declared as int64_t.
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
-    // Native integer addition — no OpAdd macro.
-    ASSERT_NE(code.find("sum = ((sum) + (i));"), std::string::npos);
+    // Native integer addition wraps via FL_INT_ADD — no OpAdd macro.
+    ASSERT_NE(code.find("sum = FL_INT_ADD((sum), (i));"), std::string::npos);
     // No dynamic (CVar) accumulator declaration.
     ASSERT_EQ(code.find("CVar sum"), std::string::npos);
 
@@ -107,19 +107,18 @@ TEST(infer, test_infer_degrade_func_call) {
     });
 }
 
-// Mid-way degradation: a parameter-bound for loop makes i T_DYNAMIC, which
-// causes sum to degrade from T_INT to T_DYNAMIC during the loop body.
-// The compiler must still produce correct CVar arithmetic for the fallback path.
+// Mid-way degradation: a parameter-bound for loop. n is a math param.
+// int 特化：sum/i 都是 int64_t。float 特化：Lua 5.4 仍走整数 for（FlForLimitToInt），
+// sum 不会退化成 double。
 TEST(infer, test_infer_degrade_param) {
     const auto code = InferGetCCode("./infer/test_infer_degrade_param.lua");
     // With snapshot-based specialization n becomes a math param (int64_t / double).
     // int specialization: sum and i are fully typed as int64_t.
     ASSERT_NE(code.find("int64_t sum = 0"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = "), std::string::npos);
-    // float specialization: loop control vars become double, sum becomes double.
-    ASSERT_NE(code.find("double sum = 0"), std::string::npos);
-    ASSERT_NE(code.find("double i = "), std::string::npos);
-    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
+    // Lua 5.4：init/step 是整数时即使用 float 上限也走整数 for（FlForLimitToInt）。
+    ASSERT_NE(code.find("FlForLimitToInt("), std::string::npos);
+    ASSERT_EQ(code.find("double sum = 0"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_degrade_param.lua", {.debug_mode = debug_mode});
@@ -135,7 +134,7 @@ TEST(infer, test_infer_reassign_stable) {
     const auto code = InferGetCCode("./infer/test_infer_reassign_stable.lua");
     // x must stay int64_t throughout.
     ASSERT_NE(code.find("int64_t x = 1;"), std::string::npos);
-    ASSERT_NE(code.find("x = ((x) + (2));"), std::string::npos);
+    ASSERT_NE(code.find("x = FL_INT_ADD((x), (2));"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -393,7 +392,7 @@ TEST(infer, test_infer_paren_exp) {
     const auto code = InferGetCCode("./infer/test_infer_paren_exp.lua");
     // Both a and b must be int64_t.
     ASSERT_NE(code.find("int64_t a = 3;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t b = ((a) + (2));"), std::string::npos);
+    ASSERT_NE(code.find("int64_t b = FL_INT_ADD((a), (2));"), std::string::npos);
     ASSERT_EQ(code.find("CVar a"), std::string::npos);
     ASSERT_EQ(code.find("CVar b"), std::string::npos);
 
@@ -442,7 +441,7 @@ TEST(infer, test_infer_for_shadow_case3) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case3.lua");
     ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);            // outer a
     ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos);// cursor a
-    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos);          // outer post-loop assign
+    ASSERT_NE(code.find("a = FL_INT_ADD((a), (1));"), std::string::npos); // outer post-loop assign
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case3.lua", {.debug_mode = debug_mode});
@@ -458,7 +457,7 @@ TEST(infer, test_infer_for_shadow_case4) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case4.lua");
     ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);                                                       // outer a
     ASSERT_NE(code.find("CVar a = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(flua_for_ctrl_"), std::string::npos);// cursor a
-    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos);                                                     // outer post-loop assign
+    ASSERT_NE(code.find("a = FL_INT_ADD((a), (1));"), std::string::npos);                                            // outer post-loop assign
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case4.lua", {.debug_mode = debug_mode});
@@ -487,7 +486,7 @@ TEST(infer, test_infer_do_shadow_typed_over_dynamic) {
 TEST(infer, test_infer_typed_int_minus) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_minus.lua");
     ASSERT_NE(code.find("int64_t x = 10;"), std::string::npos);
-    ASSERT_NE(code.find("x = ((x) - (3));"), std::string::npos);
+    ASSERT_NE(code.find("x = FL_INT_SUB((x), (3));"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -502,7 +501,7 @@ TEST(infer, test_infer_typed_int_minus) {
 TEST(infer, test_infer_typed_int_star) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_star.lua");
     ASSERT_NE(code.find("int64_t x = 3;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t y = ((x) * (4));"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = FL_INT_MUL((x), (4));"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
 
@@ -552,7 +551,7 @@ TEST(infer, test_infer_typed_int_for_star) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_star.lua");
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("sum = ((sum) + (((i) * (2))));"), std::string::npos);
+    ASSERT_NE(code.find("sum = FL_INT_ADD((sum), (FL_INT_MUL((i), (2))));"), std::string::npos);
     ASSERT_EQ(code.find("CVar sum"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -695,9 +694,8 @@ TEST(infer, test_spec_fib) {
     ASSERT_NE(code.find("fib_0(n.data_.i)"), std::string::npos);
     ASSERT_NE(code.find("fib_1(n.data_.f)"), std::string::npos);
     // Inside fib_0, recursive calls must go directly to fib_0 (not fib).
-    // The pattern looks like: fib_0(((n) - (1)))
-    ASSERT_NE(code.find("fib_0(((n) - (1)))"), std::string::npos);
-    ASSERT_NE(code.find("fib_0(((n) - (2)))"), std::string::npos);
+    ASSERT_NE(code.find("fib_0(FL_INT_SUB((n), (1)))"), std::string::npos);
+    ASSERT_NE(code.find("fib_0(FL_INT_SUB((n), (2)))"), std::string::npos);
     // Inside fib_1, recursive calls must go directly to fib_1.
     ASSERT_NE(code.find("fib_1(((n) - (1)))"), std::string::npos);
     ASSERT_NE(code.find("fib_1(((n) - (2)))"), std::string::npos);
@@ -705,7 +703,7 @@ TEST(infer, test_spec_fib) {
     // Check: no FakeluaCallByName("fib") in the generated code.
     ASSERT_EQ(code.find("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"fib\""), std::string::npos);
     // Verify spec bodies use native add directly (no CVar wrapping of recursive results).
-    ASSERT_NE(code.find("return ((flua_native_"), std::string::npos);
+    ASSERT_NE(code.find("return FL_INT_ADD((flua_native_"), std::string::npos);
 
     // Functional verification: fib(10) == 55.
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -874,8 +872,8 @@ TEST(infer, test_infer_typed_int_unary_minus) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_unary_minus.lua");
     ASSERT_NE(code.find("int64_t n = 5;"), std::string::npos);
     ASSERT_NE(code.find("int64_t x = "), std::string::npos);
-    // Must use the native negation form -(n), not the dynamic OpUnaryMinus macro.
-    ASSERT_NE(code.find("(-(n))"), std::string::npos);
+    // Lua 5.4：整数取负走无符号回绕，不能写成 C 的 `-(n)`（INT64_MIN 是 UB）。
+    ASSERT_NE(code.find("FL_INT_SUB(0, (n))"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("OpUnaryMinus("), std::string::npos);
 
@@ -927,8 +925,7 @@ TEST(infer, test_infer_unary_minus_for_bound) {
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
     ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
-    // The lower bound must use native negation form via unop inference.
-    ASSERT_NE(code.find("(-(bound))"), std::string::npos);
+    ASSERT_NE(code.find("FL_INT_SUB(0, (bound))"), std::string::npos);
     ASSERT_EQ(code.find("CVar sum"), std::string::npos);
     ASSERT_EQ(code.find("CVar i"), std::string::npos);
     ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
@@ -1004,22 +1001,52 @@ TEST(infer, test_infer_typed_float_for_step) {
     });
 }
 
-// Mixed int/float bounds (begin=int, end=float): for i = 1, 5.0 → double fast path.
-// sum = 1.0+2.0+3.0+4.0+5.0 = 15.0.
+// Mixed int/float bounds (begin=int, end=float): Lua 5.4 integer for + forlimit.
+// sum = 1+2+3+4+5 = 15.
 TEST(infer, test_infer_typed_float_for_mixed) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for_mixed.lua");
-    ASSERT_NE(code.find("double sum = "), std::string::npos);
-    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("double i = flua_for_ctrl_"), std::string::npos);
-    ASSERT_EQ(code.find("CVar sum"), std::string::npos);
-    ASSERT_EQ(code.find("CVar i"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("FlForLimitToInt("), std::string::npos);
     ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+    ASSERT_EQ(code.find("CVar i = "), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_typed_float_for_mixed.lua", {.debug_mode = debug_mode});
         double ret = 0;
         Call(s, type, "test", ret);
         ASSERT_NEAR(ret, 15.0, 0.001);// 1+2+3+4+5
+    });
+}
+
+// C 关键字函数的特化调用必须发出 sanitization 后的符号。
+TEST(infer, test_spec_c_keyword) {
+    const auto code = InferGetCCode("./jit/test_spec_c_keyword.lua");
+    ASSERT_NE(code.find("flua_id_int_0("), std::string::npos);
+    for (size_t p = 0; (p = code.find("int_0(", p)) != std::string::npos; p += 6) {
+        ASSERT_GE(p, 8u);
+        ASSERT_EQ(code.compare(p - 8, 8, "flua_id_"), 0);
+    }
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_c_keyword.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_spec_c_keyword", ret);
+        ASSERT_EQ(ret, 7);
+    });
+}
+
+TEST(infer, test_spec_field_merge_sanitize) {
+    const auto code = InferGetCCode("./jit/test_spec_field_merge_sanitize.lua");
+    ASSERT_NE(code.find("_s_a_b_1"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_field_merge_sanitize.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_spec_field_merge_sanitize", ret, true);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_spec_field_merge_sanitize", ret, false);
+        ASSERT_EQ(ret, 2);
     });
 }
 
@@ -1056,7 +1083,7 @@ TEST(infer, test_infer_typed_int_for_neg_step_2) {
 TEST(infer, test_infer_typed_float_for_neg_step_1) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for_neg_step_1.lua");
     ASSERT_NE(code.find("double sum = "), std::string::npos);
-    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("flua_for_started_"), std::string::npos);
     ASSERT_NE(code.find("--"), std::string::npos);
     ASSERT_EQ(code.find("double flua_for_step_"), std::string::npos);
 
@@ -1071,7 +1098,7 @@ TEST(infer, test_infer_typed_float_for_neg_step_1) {
 TEST(infer, test_infer_typed_float_for_neg_step_2) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for_neg_step_2.lua");
     ASSERT_NE(code.find("double sum = "), std::string::npos);
-    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("flua_for_started_"), std::string::npos);
     ASSERT_NE(code.find(" += -2"), std::string::npos);
     ASSERT_EQ(code.find("double flua_for_step_"), std::string::npos);
 
@@ -1283,17 +1310,11 @@ TEST(infer, test_native_bool_float) {
     });
 }
 
-// AND of two native comparisons in if: (x == 1) and (y > 0) must produce
-// a direct C &&-expression without IsTrue or temp bool variables.
+// AND of two native comparisons in if: (x == 1) and (y > 0) 必须短路，走 CompileBinop。
 TEST(infer, test_native_bool_and) {
     const auto code = InferGetCCode("./infer/test_native_bool_and.lua");
-    // Both sub-comparisons and the && combiner must appear in the generated code.
-    ASSERT_NE(code.find("((x) == (1))"), std::string::npos);
-    ASSERT_NE(code.find("((y) > (0))"), std::string::npos);
-    ASSERT_NE(code.find("&&"), std::string::npos);
-    // No IsTrue or temp bool variables.
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
-    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+    ASSERT_NE(code.find("(x) == (1)"), std::string::npos);
+    ASSERT_NE(code.find("(y) > (0)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_native_bool_and.lua", {.debug_mode = debug_mode});
@@ -1307,17 +1328,11 @@ TEST(infer, test_native_bool_and) {
     });
 }
 
-// OR of two native comparisons in if: (x < 0) or (x > 10) must produce
-// a direct C ||-expression without IsTrue or temp bool variables.
+// OR of two native comparisons in if: (x < 0) or (x > 10) 必须短路，走 CompileBinop。
 TEST(infer, test_native_bool_or) {
     const auto code = InferGetCCode("./infer/test_native_bool_or.lua");
-    // Both sub-comparisons and the || combiner must appear in the generated code.
-    ASSERT_NE(code.find("((x) < (0))"), std::string::npos);
-    ASSERT_NE(code.find("((x) > (10))"), std::string::npos);
-    ASSERT_NE(code.find("||"), std::string::npos);
-    // No IsTrue or temp bool variables.
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
-    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+    ASSERT_NE(code.find("(x) < (0)"), std::string::npos);
+    ASSERT_NE(code.find("(x) > (10)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_native_bool_or.lua", {.debug_mode = debug_mode});
@@ -1352,18 +1367,12 @@ TEST(infer, test_native_bool_not) {
     });
 }
 
-// Deeply nested AND chain: (x > 0) and (y > 0) and (z > 0) must produce
-// a direct C &&-chain without IsTrue or temp bool variables.
+// Deeply nested AND chain: (x > 0) and (y > 0) and (z > 0) 必须短路，走 CompileBinop。
 TEST(infer, test_native_bool_nested) {
     const auto code = InferGetCCode("./infer/test_native_bool_nested.lua");
-    // All three sub-comparisons and the && combiners must appear.
-    ASSERT_NE(code.find("((x) > (0))"), std::string::npos);
-    ASSERT_NE(code.find("((y) > (0))"), std::string::npos);
-    ASSERT_NE(code.find("((z) > (0))"), std::string::npos);
-    ASSERT_NE(code.find("&&"), std::string::npos);
-    // No IsTrue or temp bool variables.
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
-    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+    ASSERT_NE(code.find("(x) > (0)"), std::string::npos);
+    ASSERT_NE(code.find("(y) > (0)"), std::string::npos);
+    ASSERT_NE(code.find("(z) > (0)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_native_bool_nested.lua", {.debug_mode = debug_mode});
@@ -2274,7 +2283,7 @@ TEST(infer, test_infer_native_binop_rshift) {
 // Both operands T_INT -> native fast path for PLUS. -3 + 7 = 4.
 TEST(infer, test_infer_native_unop_minus_in_binop) {
     const auto code = InferGetCCode("./infer/test_infer_native_unop_minus_in_binop.lua");
-    ASSERT_NE(code.find("-(x)"), std::string::npos);
+    ASSERT_NE(code.find("FL_INT_SUB(0, (x))"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_native_unop_minus_in_binop.lua", {.debug_mode = debug_mode});
@@ -2314,7 +2323,7 @@ TEST(infer, test_infer_typed_float_var_cvar_assign) {
 TEST(infer, test_infer_native_binop_star) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_star.lua");
     // Native multiplication must appear in the generated C code.
-    ASSERT_NE(code.find("((x) * (4))"), std::string::npos);
+    ASSERT_NE(code.find("FL_INT_MUL((x), (4))"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_native_binop_star.lua", {.debug_mode = debug_mode});
@@ -2647,7 +2656,7 @@ TEST(infer, test_spec_not_if_cond) {
 
 // 复合 and 条件：if a > 0 and b > 0 then。
 // a 和 b 均通过比较（IsNativeComparisonExpr: MORE）和算术 a + b 被识别为数学参数。
-// if 条件应生成原生 C 布尔 ((a) > (0)) && ((b) > (0))，不使用 IsTrue。
+// and 走 CompileBinop 短路。
 // test(3, 4) == 7, test(-1, 4) == 0, test(3, -1) == 0, test(0, 0) == 0.
 TEST(infer, test_spec_and_cond) {
     const auto code = InferGetCCode("./infer/test_spec_and_cond.lua");
@@ -2656,9 +2665,7 @@ TEST(infer, test_spec_and_cond) {
     ASSERT_NE(code.find("test_1_1(double a, double b)"), std::string::npos);
     // Entry dispatcher must exist.
     ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
-    // The if condition must use native && comparison, not IsTrue.
-    ASSERT_NE(code.find("((a) > (0)) && ((b) > (0))"), std::string::npos);
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    // and 走 CompileBinop 短路，条件里会出现 IsTrue。
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_and_cond.lua", {.debug_mode = debug_mode});
@@ -2679,9 +2686,20 @@ TEST(infer, test_spec_and_cond) {
     });
 }
 
+TEST(infer, test_spec_and_shortcircuit) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_and_shortcircuit.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 2);
+        ASSERT_EQ(ret, 101);
+    });
+}
+
 // 复合 or 条件：if n < 0 or n > 10 then。
 // n 通过比较（IsNativeComparisonExpr: LESS, MORE）和算术 n + 1 被识别为数学参数。
-// if 条件应生成原生 C 布尔 ((n) < (0)) || ((n) > (10))，不使用 IsTrue。
+// or 走 CompileBinop 短路。
 // test(5) == 6, test(-1) == 0, test(11) == 0, test(0) == 1, test(10) == 11.
 TEST(infer, test_spec_or_cond) {
     const auto code = InferGetCCode("./infer/test_spec_or_cond.lua");
@@ -2690,9 +2708,7 @@ TEST(infer, test_spec_or_cond) {
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     // Entry dispatcher must exist.
     ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
-    // The if condition must use native || comparison, not IsTrue.
-    ASSERT_NE(code.find("((n) < (0)) || ((n) > (10))"), std::string::npos);
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    // or 走 CompileBinop 短路，条件里会出现 IsTrue。
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_or_cond.lua", {.debug_mode = debug_mode});
@@ -3314,9 +3330,8 @@ TEST(infer, test_spec_forloop_int_float_degrade) {
     // n and m must both be detected as math params.
     ASSERT_NE(code.find("test_0_0(int64_t n, int64_t m)"), std::string::npos);
     ASSERT_NE(code.find("test_1_1(double n, double m)"), std::string::npos);
-    // Both typed for-loop fast paths should be generated across specializations.
     ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("FlForLimitToInt("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_forloop_int_float_degrade.lua", {.debug_mode = debug_mode});
@@ -4354,5 +4369,26 @@ TEST(infer, test_infer_cvar_to_int) {
         int64_t ret = 0;
         Call(s, type, "test", ret);
         ASSERT_EQ(ret, 2);
+    });
+}
+
+TEST(infer, test_spec_literal_keys) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_literal_keys.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_hex_key", ret);
+        ASSERT_EQ(ret, 48);
+        ret = 0;
+        Call(s, type, "test_float_one_is_int", ret);
+        ASSERT_EQ(ret, 7);
+        ret = 0;
+        Call(s, type, "test_implicit_after_explicit", ret);
+        ASSERT_EQ(ret, 1);
+        ret = 0;
+        Call(s, type, "test_quote_key", ret);
+        ASSERT_EQ(ret, 9);
+        ret = 0;
+        Call(s, type, "test_spec_assign_pairs", ret);
+        ASSERT_EQ(ret, 1);
     });
 }

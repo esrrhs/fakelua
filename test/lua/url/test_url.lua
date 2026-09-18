@@ -44,3 +44,11 @@ function test_encode_decode()
     if t.b ~= "x y" then return 0 end
     return 1
 end
+
+function test_format_bad_port()
+    local ok = pcall(function()
+        url.format({ scheme = "http", host = "127.0.0.1", port = 70000, path = "/" })
+    end)
+    if ok then return 0 end
+    return 1
+end

@@ -50,5 +50,37 @@ function test_string_dump()
     local static_upval_restore = load(dumped4)
     if static_upval_restore == nil then return 130 end
 
+    -- Case 5: string upvalue must be serialized (not just a type byte / null pointer)
+    local msg = "hello-dump-upvalue"
+    local fstr = function()
+        return msg
+    end
+    local dumped5 = string.dump(fstr)
+    local target = "hello-dump-upvalue"
+    local found = false
+    local n = #dumped5
+    local tlen = #target
+    if n >= tlen then
+        for i = 1, n - tlen + 1 do
+            if string.sub(dumped5, i, i + tlen - 1) == target then
+                found = true
+                break
+            end
+        end
+    end
+    if not found then return 150 end
+    local gstr = load(dumped5)
+    if gstr == nil then return 160 end
+
+    -- Case 6: table upvalue cannot be dumped
+    local t = {1}
+    local ft = function()
+        return t
+    end
+    local dump_ok = pcall(function()
+        string.dump(ft)
+    end)
+    if dump_ok then return 170 end
+
     return 700
 end

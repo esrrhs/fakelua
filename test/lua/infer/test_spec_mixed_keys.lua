@@ -4,7 +4,7 @@ function test_mixed_keys()
         x = 20,
         [true] = 30,
         [2.5] = 40,
-        50 -- implicit index 2
+        [2] = 50 -- 不能写成隐式 50：列表下标从 1 起，会和 [1] 撞 key
     }
 
     local a = t[1]

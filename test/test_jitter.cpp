@@ -2881,6 +2881,15 @@ TEST(jitter, goto_in_if_else) {
     });
 }
 
+TEST(jitter, goto_sibling_labels) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_sibling_labels.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_goto_sibling_labels", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
 TEST(jitter, test_table_negative_int_key) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_negative_int_key.lua", {.debug_mode = debug_mode});
@@ -2891,5 +2900,109 @@ TEST(jitter, test_table_negative_int_key) {
         ASSERT_EQ(ret, 1);
         Call(s, type, "test_negative_int_key_mixed", ret);
         ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, c_keyword_func) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_c_keyword_func.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_c_keyword_func", ret);
+        ASSERT_EQ(ret, 8);
+    });
+}
+
+TEST(jitter, c_ident_collision) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_c_ident_collision.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_c_func_name_collision", ret);
+        ASSERT_EQ(ret, 3);
+        Call(s, type, "test_c_global_vs_func_collision", ret);
+        ASSERT_EQ(ret, 107);
+    });
+}
+
+TEST(jitter, spec_field_collide) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_field_collide.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_spec_field_collide", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, captured_typed_add) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_captured_typed_add.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_captured_typed_add", ret);
+        ASSERT_EQ(ret, 11);
+        Call(s, type, "test_captured_mutate", ret);
+        ASSERT_EQ(ret, 11);
+    });
+}
+
+TEST(jitter, nested_vararg) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_nested_vararg.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_nested_vararg", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, nan_for_limit) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_nan_for_limit.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_nan_for_limit", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
+TEST(jitter, unm_mininteger) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_unm_mininteger.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_unm_mininteger", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, spec_c_keyword) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_c_keyword.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_spec_c_keyword", ret);
+        ASSERT_EQ(ret, 7);
+    });
+}
+
+TEST(jitter, nan_float_for) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_nan_float_for.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_nan_float_for", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_nan_float_for_neg", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_nan_dynamic_float", ret, 0.0 / 0.0);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_nan_dynamic_int_neg", ret, 0.0 / 0.0);
+        ASSERT_EQ(ret, 3);
+        Call(s, type, "test_nan_dynamic_int_pos", ret, 0.0 / 0.0);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+TEST(jitter, spec_field_merge_sanitize) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_field_merge_sanitize.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_spec_field_merge_sanitize", ret, true);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_spec_field_merge_sanitize", ret, false);
+        ASSERT_EQ(ret, 2);
     });
 }

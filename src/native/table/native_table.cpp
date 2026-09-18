@@ -4,6 +4,7 @@
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
 #include "state/state.h"
+#include "util/exception.h"
 #include "var/var.h"
 #include "var/var_closure.h"
 #include "var/var_string.h"
@@ -13,6 +14,7 @@
 #include <cstring>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace fakelua::table {
@@ -234,7 +236,7 @@ void TableRehashTo(State *s, VarTable *tbl, uint32_t min_buckets) {
     if (min_buckets > new_bucket_count) new_bucket_count = NextPowerOfTwo(min_buckets);
     if (new_bucket_count < 1) new_bucket_count = 1;
 
-    auto &alloc = s->GetHeap().GetAllocator(false /* temp */);
+    auto &alloc = s->GetValueAllocator();
     while (true) {
         const uint32_t overflow_count = new_bucket_count / 2;
         const uint32_t total_nodes = new_bucket_count + overflow_count;
@@ -508,6 +510,9 @@ CVar TableHelper::GetTable(State *s, CVar tbl, CVar key) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return CVar{static_cast<int>(VarType::Nil)};
     VarTable *t = tbl.data_.t;
     key = NormalizeTableKey(key);
+    if (key.type_ == kFloatType && std::isnan(key.data_.f)) {
+        ThrowFakeluaException("table index is NaN");
+    }
 
     if (t->spec_get) {
         using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
@@ -641,6 +646,9 @@ void TableHelper::SetTable(State *s, CVar tbl, CVar key, CVar val) {
 
     key = NormalizeTableKey(key);
     if (key.type_ == kNilType) return;
+    if (key.type_ == kFloatType && std::isnan(key.data_.f)) {
+        ThrowFakeluaException("table index is NaN");
+    }
 
     if (t->spec_set) {
         using SpecSetFn = void (*)(VarTable *, CVar, CVar, bool *);
@@ -659,7 +667,7 @@ void TableHelper::SetTable(State *s, CVar tbl, CVar key, CVar val) {
     if (key.type_ == kIntType) SeqNoteIntSet(t, key.data_.i, val.type_ == kNilType);
 }
 
-void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val) {
+void TableHelper::SetTableStrId(State *s, CVar tbl, std::string_view str_key, CVar val) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
     VarTable *t = tbl.data_.t;
     const int64_t id = s->GetConstString().Alloc(str_key);
@@ -669,13 +677,15 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
     CVar key{static_cast<int>(VarType::StringId)};
     key.data_.i = id;
 
-    // 此前这里是一套独立的探测逻辑：只比较 hash 而不比较键内容（哈希冲突会串值），
-    // 并且在 quick_data_ 满、桶也满时直接返回，静默丢弃写入。现在统一走带扩容的公共路径。
     if (val.type_ == kNilType) {
         TableDelete(t, key, hash);
     } else {
         TableSetNonNil(s, t, key, val, hash);
     }
+}
+
+void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val) {
+    SetTableStrId(s, tbl, std::string_view(str_key ? str_key : ""), val);
 }
 
 // Use shared CheckNumberArg from native_common.h
@@ -773,14 +783,12 @@ void RegisterTableLibraryApi(State *s) {
         int64_t start_i = 1;
         if (n >= 3) {
             CVar start_var = inter::GetNativeArg(state, args, n, 2);
-            CheckNumberArg(start_var, 3, "table.concat");
-            start_i = inter::CVarToInteger(start_var, 1);
+            start_i = CheckIntegerArg(start_var, 3, "table.concat");
         }
         int64_t end_j = TableHelper::GetTableLen(tbl);
         if (n >= 4) {
             CVar end_var = inter::GetNativeArg(state, args, n, 3);
-            CheckNumberArg(end_var, 4, "table.concat");
-            end_j = inter::CVarToInteger(end_var, end_j);
+            end_j = CheckIntegerArg(end_var, 4, "table.concat");
         }
 
         if (end_j < start_i) {

@@ -5,7 +5,9 @@
 #include "jit/jit_common.h"
 #include "var/var_closure.h"
 #include <cstdint>
+#include <functional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -15,9 +17,19 @@ namespace fakelua {
 struct FuncProto;
 
 // 一次编译单元：持有全部函数原型与文件级全局槽，生命周期绑定到 VmFunction 的 handle。
+struct TransparentStringHash {
+    using is_transparent = void;
+    std::size_t operator()(std::string_view sv) const noexcept {
+        return std::hash<std::string_view>{}(sv);
+    }
+    std::size_t operator()(const std::string &s) const noexcept {
+        return std::hash<std::string_view>{}(s);
+    }
+};
+
 struct InterpUnit final : JITHandle {
     std::vector<std::unique_ptr<FuncProto>> protos;
-    std::unordered_map<std::string, CVar> globals;
+    std::unordered_map<std::string, CVar, TransparentStringHash, std::equal_to<>> globals;
     std::unordered_set<std::string> const_global_names;
     FuncProto *init_proto = nullptr;
     State *state = nullptr;
@@ -29,6 +41,8 @@ struct FuncProto {
     int param_count = 0;
     bool is_vararg = false;
     int max_stack = 0;
+    // 本函数有被捕获的局部（NEWBOX / CLOSURE in_stack）。无捕获时解释器走纯栈寄存器路径。
+    bool uses_boxes = false;
     std::vector<Inst> code;
     std::vector<CVar> constants;
     std::vector<UpvalDesc> upvalues;

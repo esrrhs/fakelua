@@ -414,7 +414,8 @@ ResultsetData MysqlConnection::ConsumeStmtResult(MYSQL_STMT *stmt) {
         binds[i].is_null = &nulls[i];
     }
     mysql_stmt_bind_result(stmt, binds.data());
-    while (mysql_stmt_fetch(stmt) == 0) {
+    int fetch_rc = 0;
+    while ((fetch_rc = mysql_stmt_fetch(stmt)) == 0 || fetch_rc == MYSQL_DATA_TRUNCATED) {
         std::vector<FieldCell> cells;
         cells.reserve(n);
         for (unsigned int i = 0; i < n; ++i) {
@@ -422,7 +423,9 @@ ResultsetData MysqlConnection::ConsumeStmtResult(MYSQL_STMT *stmt) {
             if (nulls[i]) {
                 c.is_null = true;
             } else {
-                c.value.assign(bufs[i].data(), lens[i]);
+                unsigned long ncopy = lens[i];
+                if (ncopy > binds[i].buffer_length) ncopy = binds[i].buffer_length;
+                c.value.assign(bufs[i].data(), ncopy);
             }
             cells.push_back(std::move(c));
         }

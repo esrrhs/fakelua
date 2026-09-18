@@ -100,7 +100,7 @@ public:
         jit_error_boundary_ = boundary;
     }
 
-    // 解释器执行 __fakelua_init 期间为 true：此时分配走常量堆，帧 Reset 后仍然有效。
+    // __fakelua_init（解释器与 JIT）期间为 true：Lua 值分配走常量堆，帧 Reset 后仍然有效。
     void SetInterpConstAlloc(bool v) {
         interp_const_alloc_ = v;
     }
@@ -108,6 +108,26 @@ public:
     [[nodiscard]] bool InterpConstAlloc() const {
         return interp_const_alloc_;
     }
+
+    // 分配会跨帧存活的 Lua 值（表、字符串、闭包等）。init 期间切到常量堆。
+    HeapAllocator &GetValueAllocator() {
+        return heap_.GetAllocator(interp_const_alloc_);
+    }
+
+    struct ConstAllocScope {
+        explicit ConstAllocScope(State *s) : s_(s), prev_(s->InterpConstAlloc()) {
+            s_->SetInterpConstAlloc(true);
+        }
+        ~ConstAllocScope() {
+            s_->SetInterpConstAlloc(prev_);
+        }
+        ConstAllocScope(const ConstAllocScope &) = delete;
+        ConstAllocScope &operator=(const ConstAllocScope &) = delete;
+
+    private:
+        State *s_;
+        bool prev_;
+    };
 
     // 本 State 的日志输出目标。为 nullptr 表示没指定日志文件，只打控制台。
     LogSink *GetLogSink() const {

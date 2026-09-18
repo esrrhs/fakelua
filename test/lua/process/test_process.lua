@@ -24,3 +24,15 @@ function test_missing()
     process.run({"/no/such/fakelua_process_bin_zzz"})
     return 0
 end
+
+function test_output_exact_8mb()
+    local out, err, code = process.run({"head", "-c", "8388608", "/dev/zero"})
+    if code ~= 0 then return 0 end
+    if #out ~= 8388608 then return 0 end
+    return 1
+end
+
+function test_output_over_8mb()
+    process.run({"head", "-c", "8388609", "/dev/zero"})
+    return 0
+end

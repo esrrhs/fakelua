@@ -5,8 +5,12 @@
 #include "syntax_tree.h"
 #include "util/debug.h"
 #include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <format>
+#include <limits>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -14,6 +18,30 @@
 namespace fakelua {
 
 inline constexpr const char *kInitFunctionName = "__fakelua_init";
+
+// Lua 标识符已是 [A-Za-z_][A-Za-z0-9_]*，用作 C 标识符时只需避开关键字和运行时保留名。
+inline std::string SanitizeCIdent(const std::string &lua_name) {
+    static const std::unordered_set<std::string> kReserved = {
+            "auto",       "break",     "case",     "char",      "const",       "continue",     "default",     "do",
+            "double",     "else",      "enum",     "extern",    "float",       "for",          "goto",        "if",
+            "inline",     "int",       "long",     "register",  "restrict",    "return",       "short",       "signed",
+            "sizeof",     "static",    "struct",   "switch",    "typedef",     "union",        "unsigned",    "void",
+            "volatile",   "while",     "_Alignas", "_Alignof",  "_Atomic",     "_Bool",        "_Complex",    "_Generic",
+            "_Imaginary", "_Noreturn", "_Static_assert", "_Thread_local", "bool", "class", "template", "typename",
+            "namespace",  "new",       "delete",   "this",      "operator",    "private",      "public",      "protected",
+            "virtual",    "override",  "final",    "constexpr", "nullptr",     "true",         "false",       "catch",
+            "try",        "throw",     "using",    "friend",    "explicit",    "export",       "mutable",     "wchar_t",
+            "char16_t",   "char32_t",  "char8_t",  "noexcept",  "static_assert", "thread_local", "alignas",    "alignof",
+            "decltype",   "consteval", "constinit", "concept",  "requires",    "co_await",     "co_return",   "co_yield",
+            "and",        "or",        "not",      "xor",       "bitand",      "bitor",        "compl",       "and_eq",
+            "or_eq",      "xor_eq",    "not_eq",   "CVar",      "VarType",     "VarTable",     "VarClosure",  "State",
+            "stdin",      "stdout",    "stderr",   "_S",        "_CL",         "kNil",         "kTrue",       "kFalse",
+    };
+    if (kReserved.contains(lua_name)) {
+        return "flua_id_" + lua_name;
+    }
+    return lua_name;
+}
 
 // AST 节点类型快照：节点原始指针 → 推断类型。
 // 每个特化 bitmask 对应一份快照，由 TypeInferencer::InferTypes 产生，
@@ -275,6 +303,79 @@ struct AnalysisResult {
 
 // ---- 阶段四：类型推断结果 ---------------------------------------------------
 enum class TableKeyKind { kString, kInt, kBool, kFloat };
+
+// 把 Lua 数字字面量（含 0x10 / 1.0 / 0x1p4）分类成 table 键。
+// 能无损落成 int64 的浮点（1.0）按整数键处理，与运行时 NORMALIZE_TABLE_KEY 一致。
+inline bool ClassifyLuaNumberKey(const std::string &num_str, TableKeyKind &kind, std::string &canonical, int64_t &int_value, double &float_value) {
+    if (num_str.empty()) return false;
+    try {
+        size_t pos = 0;
+        const long long parsed = std::stoll(num_str, &pos, 0);
+        if (pos == num_str.size()) {
+            kind = TableKeyKind::kInt;
+            int_value = static_cast<int64_t>(parsed);
+            canonical = std::to_string(int_value);
+            float_value = 0.0;
+            return true;
+        }
+    } catch (...) {
+    }
+    try {
+        size_t pos = 0;
+        const double d = std::stod(num_str, &pos);
+        if (pos != num_str.size() || !std::isfinite(d)) return false;
+        double ip = 0;
+        if (std::modf(d, &ip) == 0.0) {
+            constexpr double kExcl = 9223372036854775808.0;
+            if (ip >= static_cast<double>(INT64_MIN) && ip < kExcl) {
+                kind = TableKeyKind::kInt;
+                int_value = static_cast<int64_t>(ip);
+                canonical = std::to_string(int_value);
+                float_value = 0.0;
+                return true;
+            }
+        }
+        kind = TableKeyKind::kFloat;
+        float_value = d;
+        canonical = num_str;
+        int_value = 0;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+inline std::string EscapeCStringLiteral(const std::string &s) {
+    std::string out;
+    out.reserve(s.size() + 8);
+    for (unsigned char c: s) {
+        switch (c) {
+            case '\\':
+                out += "\\\\";
+                break;
+            case '"':
+                out += "\\\"";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                if (c < 32 || c >= 127) {
+                    out += std::format("\\{:03o}", c);
+                } else {
+                    out += static_cast<char>(c);
+                }
+                break;
+        }
+    }
+    return out;
+}
 
 // table 特化信息：描述一个 table 的字段结构
 struct TableFieldInfo {

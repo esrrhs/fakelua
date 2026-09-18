@@ -1162,9 +1162,12 @@ void RegisterStringLibraryApi(State *s) {
                 int64_t ival = inter::CVarToInteger(curr_arg, 0);
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
-                char buf[128];
-                snprintf(buf, sizeof(buf), llspec.c_str(), ival);
-                res.append(buf);
+                int needed = snprintf(nullptr, 0, llspec.c_str(), static_cast<long long>(ival));
+                if (needed > 0) {
+                    std::vector<char> buf(static_cast<size_t>(needed) + 1);
+                    snprintf(buf.data(), buf.size(), llspec.c_str(), static_cast<long long>(ival));
+                    res.append(buf.data());
+                }
             } else if (spec == 'u' || spec == 'x' || spec == 'X' || spec == 'o') {
                 // 标准 Lua 5.3：无符号整数格式接受 number 或 numeric string
                 if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
@@ -1173,18 +1176,24 @@ void RegisterStringLibraryApi(State *s) {
                 uint64_t uval = static_cast<uint64_t>(inter::CVarToInteger(curr_arg, 0));
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
-                char buf[128];
-                snprintf(buf, sizeof(buf), llspec.c_str(), uval);
-                res.append(buf);
+                int needed = snprintf(nullptr, 0, llspec.c_str(), static_cast<unsigned long long>(uval));
+                if (needed > 0) {
+                    std::vector<char> buf(static_cast<size_t>(needed) + 1);
+                    snprintf(buf.data(), buf.size(), llspec.c_str(), static_cast<unsigned long long>(uval));
+                    res.append(buf.data());
+                }
             } else if (spec == 'f' || spec == 'e' || spec == 'E' || spec == 'g' || spec == 'G') {
                 // 标准 Lua 5.3：浮点格式接受 number 或 numeric string
                 if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
                     ThrowFakeluaException("bad argument to 'format' (number expected)");
                 }
                 double fval = inter::CVarToNumber(curr_arg, 0.0);
-                char buf[128];
-                snprintf(buf, sizeof(buf), spec_str.c_str(), fval);
-                res.append(buf);
+                int needed = snprintf(nullptr, 0, spec_str.c_str(), fval);
+                if (needed > 0) {
+                    std::vector<char> buf(static_cast<size_t>(needed) + 1);
+                    snprintf(buf.data(), buf.size(), spec_str.c_str(), fval);
+                    res.append(buf.data());
+                }
             } else if (spec == 'c') {
                 // 标准 Lua 5.3：%c 接受 number 或 numeric string
                 if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
@@ -1369,14 +1378,13 @@ void RegisterStringLibraryApi(State *s) {
         std::string temp0, temp1;
         std::string text(GetStringArgView(a0, temp0));
         std::string pattern(GetStringArgView(a1, temp1));
-        if (text.empty() || pattern.empty()) return inter::NativeToFakeluaNil(state);
 
         const boost::regex *re = GetCachedRegex(pattern);
         if (!re) return inter::NativeToFakeluaNil(state);
 
         // 使用 arena 分配器分配迭代器状态（re 由全局缓存持有）
-        auto &alloc = state->GetHeap().GetAllocator(false);
-        GMatchState *gs = new (alloc.Alloc(sizeof(GMatchState))) GMatchState{std::move(text), re, 0};
+        auto &alloc = state->GetValueAllocator();
+        GMatchState *gs = alloc.New<GMatchState>(std::move(text), re, 0);
 
         // 使用共享辅助函数创建迭代器闭包
         return MakeIteratorClosure(state, reinterpret_cast<void *>(GMatchIterator), gs);
@@ -1436,7 +1444,8 @@ void RegisterStringLibraryApi(State *s) {
                     if (match.size() > 1) {
                         int call_arg_count = static_cast<int>(match.size()) - 1;
                         if (call_arg_count > static_cast<int>(kMaxFunctionInputParams)) {
-                            call_arg_count = static_cast<int>(kMaxFunctionInputParams);
+                            ThrowFakeluaException(std::format("string.gsub: too many capture arguments ({}), max is {}",
+                                                              call_arg_count, kMaxFunctionInputParams));
                         }
                         std::vector<CVar> call_args(static_cast<size_t>(call_arg_count));
                         for (int i = 0; i < call_arg_count; ++i) {
@@ -1447,14 +1456,22 @@ void RegisterStringLibraryApi(State *s) {
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
-                        replacement = std::string(KeyToStringView(fn_res));
+                        if (fn_res.type_ == static_cast<int>(VarType::Nil)) {
+                            replacement = match[0].str();
+                        } else {
+                            replacement = std::string(KeyToStringView(fn_res));
+                        }
                     } else {
                         CVar call_arg = inter::NativeToFakeluaStringView(state, match[0].str());
                         CVar fn_res = (addr != nullptr) ? inter::DispatchCallClosure(state, cl, &call_arg, 1, JIT_TCC) : FlEvalLoadClosure(state, cl, 1, &call_arg);
                         if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
                             ThrowFakeluaException("invalid replacement value (boolean)");
                         }
-                        replacement = std::string(KeyToStringView(fn_res));
+                        if (fn_res.type_ == static_cast<int>(VarType::Nil)) {
+                            replacement = match[0].str();
+                        } else {
+                            replacement = std::string(KeyToStringView(fn_res));
+                        }
                     }
                 } else if (repl_is_table) {
                     std::string gsub_key = (match.size() > 1) ? match[1].str() : match[0].str();
@@ -1546,6 +1563,14 @@ void RegisterStringLibraryApi(State *s) {
                     payload.append(reinterpret_cast<const char *>(&v), sizeof(v));
                 } else if (uv.type_ == static_cast<int>(VarType::Bool)) {
                     payload.push_back(uv.data_.b ? 1 : 0);
+                } else if (uv.type_ == static_cast<int>(VarType::String) || uv.type_ == static_cast<int>(VarType::StringId)) {
+                    std::string temp;
+                    std::string_view sv = GetStringArgView(uv, temp);
+                    uint32_t len = static_cast<uint32_t>(sv.size());
+                    payload.append(reinterpret_cast<const char *>(&len), sizeof(len));
+                    payload.append(sv.data(), sv.size());
+                } else if (uv.type_ != static_cast<int>(VarType::Nil)) {
+                    ThrowFakeluaException("string.dump: cannot dump upvalue of type " + VarTypeToString(static_cast<VarType>(uv.type_)));
                 }
             } else {
                 payload.push_back(static_cast<char>(VarType::Nil));
@@ -1593,6 +1618,18 @@ void RegisterStringLibraryApi(State *s) {
                         idx += sizeof(double);
                     } else if (type == static_cast<int>(VarType::Bool) && idx < sv.size()) {
                         uv.data_.b = (sv[idx++] != 0);
+                    } else if ((type == static_cast<int>(VarType::String) || type == static_cast<int>(VarType::StringId)) && idx + sizeof(uint32_t) <= sv.size()) {
+                        uint32_t len = 0;
+                        std::memcpy(&len, sv.data() + idx, sizeof(len));
+                        idx += sizeof(uint32_t);
+                        if (len > sv.size() - idx) {
+                            uv.type_ = static_cast<int>(VarType::Nil);
+                        } else {
+                            uv = inter::NativeToFakeluaStringView(state, std::string_view(sv.data() + idx, len));
+                            idx += len;
+                        }
+                    } else if (type != static_cast<int>(VarType::Nil)) {
+                        uv.type_ = static_cast<int>(VarType::Nil);
                     }
                     saved_upvalues.push_back(uv);
                 }
@@ -1613,7 +1650,7 @@ void RegisterStringLibraryApi(State *s) {
                 }
             }
 
-            auto &alloc = state->GetHeap().GetAllocator(false);
+            auto &alloc = state->GetValueAllocator();
             char *saved_code = nullptr;
             if (!wrapper_code.empty()) {
                 saved_code = static_cast<char *>(alloc.Alloc(wrapper_code.size() + 1));

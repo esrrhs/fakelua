@@ -23,8 +23,10 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <format>
 #include <limits>
 #include <stdexcept>
+#include <string_view>
 #if defined(_WIN32)
 #define strcasecmp _stricmp
 #endif
@@ -89,6 +91,64 @@ static std::string HeaderGet(const HeaderList &fields, const std::string &name) 
         if (strcasecmp(f.first.c_str(), name.c_str()) == 0) return f.second;
     }
     return {};
+}
+
+constexpr size_t kMaxHttpHeaderBytes = 256 * 1024;
+constexpr size_t kMaxHttpBodyBytes = 32 * 1024 * 1024;
+
+static bool ContainsCRLF(const std::string &s) {
+    return s.find('\r') != std::string::npos || s.find('\n') != std::string::npos;
+}
+
+static void CheckHttpToken(const std::string &s, const char *what, bool header_name = false) {
+    if (s.empty() || ContainsCRLF(s) || s.find(' ') != std::string::npos || s.find('\t') != std::string::npos) {
+        ThrowFakeluaException(std::format("http: invalid {} (empty or contains CR/LF/space)", what));
+    }
+    if (header_name && s.find(':') != std::string::npos) {
+        ThrowFakeluaException(std::format("http: invalid {} (contains ':')", what));
+    }
+}
+
+static bool TransferEncodingChunked(const HeaderList &hdrs) {
+    std::string te = HeaderGet(hdrs, "Transfer-Encoding");
+    if (te.empty()) return false;
+    for (char &c: te) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return te.find("chunked") != std::string::npos;
+}
+
+// 1 = complete, 0 = need more, -1 = malformed
+static int DecodeChunkedBody(std::string_view data, std::string &out, size_t &consumed) {
+    size_t i = 0;
+    out.clear();
+    while (i < data.size()) {
+        auto nl = data.find("\r\n", i);
+        if (nl == std::string_view::npos) return 0;
+        std::string size_line(data.substr(i, nl - i));
+        auto semi = size_line.find(';');
+        if (semi != std::string::npos) size_line.resize(semi);
+        while (!size_line.empty() && (size_line.back() == ' ' || size_line.back() == '\t')) size_line.pop_back();
+        if (size_line.empty()) return -1;
+        char *end = nullptr;
+        unsigned long long sz = std::strtoull(size_line.c_str(), &end, 16);
+        if (end == size_line.c_str() || *end != '\0') return -1;
+        i = nl + 2;
+        if (sz == 0) {
+            if (i + 2 <= data.size() && data[i] == '\r' && data[i + 1] == '\n') {
+                consumed = i + 2;
+                return 1;
+            }
+            auto trail = data.find("\r\n\r\n", i);
+            if (trail == std::string_view::npos) return 0;
+            consumed = trail + 4;
+            return 1;
+        }
+        if (sz > kMaxHttpBodyBytes || out.size() > kMaxHttpBodyBytes - static_cast<size_t>(sz)) return -1;
+        if (i + static_cast<size_t>(sz) + 2 > data.size()) return 0;
+        if (data[i + static_cast<size_t>(sz)] != '\r' || data[i + static_cast<size_t>(sz) + 1] != '\n') return -1;
+        out.append(data.data() + i, static_cast<size_t>(sz));
+        i += static_cast<size_t>(sz) + 2;
+    }
+    return 0;
 }
 
 static void HeaderSet(HeaderList &fields, const std::string &name, const std::string &value) {
@@ -204,13 +264,26 @@ static bool TryParseHttpMessage(std::string &buf, bool request, HttpRequestData 
         *reason = (sp2 == std::string::npos) ? ReasonPhrase(*status) : line.substr(sp2 + 1);
         if (headers) *headers = hdrs;
     }
+    const size_t body_off = hdr_end + 4;
+    std::string te_body;
+    size_t te_consumed = 0;
+    if (TransferEncodingChunked(hdrs)) {
+        if (body_off > buf.size()) return false;
+        int rc = DecodeChunkedBody(std::string_view(buf).substr(body_off), te_body, te_consumed);
+        if (rc == 0) return false;
+        if (rc < 0) return false;
+        if (body) *body = te_body;
+        if (req) req->body = te_body;
+        buf.erase(0, body_off + te_consumed);
+        return true;
+    }
     std::string cl = HeaderGet(hdrs, "Content-Length");
-    size_t body_off = hdr_end + 4;
     if (!cl.empty()) {
         // Reject non-decimal / overflow so body_off + n cannot wrap.
         char *end = nullptr;
         unsigned long long parsed = std::strtoull(cl.c_str(), &end, 10);
         if (end == cl.c_str() || *end != '\0') return false;
+        if (parsed > kMaxHttpBodyBytes) return false;
         if (parsed > std::numeric_limits<size_t>::max() - body_off) return false;
         size_t n = static_cast<size_t>(parsed);
         if (buf.size() < body_off || buf.size() - body_off < n) return false;
@@ -226,6 +299,8 @@ static bool TryParseHttpMessage(std::string &buf, bool request, HttpRequestData 
         return true;
     }
     if (eof) {
+        if (buf.size() < body_off) return false;
+        if (buf.size() - body_off > kMaxHttpBodyBytes) return false;
         if (body) *body = buf.substr(body_off);
         buf.clear();
         return true;
@@ -234,6 +309,14 @@ static bool TryParseHttpMessage(std::string &buf, bool request, HttpRequestData 
 }
 
 static std::string FormatRequest(const std::string &method, const std::string &target, unsigned version, HeaderList headers, const std::string &body) {
+    CheckHttpToken(method, "method");
+    CheckHttpToken(target, "target");
+    for (auto const &h: headers) {
+        CheckHttpToken(h.first, "header name", true);
+        if (ContainsCRLF(h.second)) {
+            ThrowFakeluaException("http: invalid header value (contains CR/LF)");
+        }
+    }
     HeaderSet(headers, "Content-Length", std::to_string(body.size()));
     std::string out = method + " " + target + (version == 10 ? " HTTP/1.0\r\n" : " HTTP/1.1\r\n");
     for (auto const &h: headers) {
@@ -246,6 +329,15 @@ static std::string FormatRequest(const std::string &method, const std::string &t
 
 static std::string FormatResponse(int status, std::string reason, HeaderList headers, const std::string &body, int version) {
     if (reason.empty()) reason = ReasonPhrase(status);
+    if (ContainsCRLF(reason)) {
+        ThrowFakeluaException("http: invalid reason phrase (contains CR/LF)");
+    }
+    for (auto const &h: headers) {
+        CheckHttpToken(h.first, "header name", true);
+        if (ContainsCRLF(h.second)) {
+            ThrowFakeluaException("http: invalid header value (contains CR/LF)");
+        }
+    }
     HeaderSet(headers, "Content-Length", std::to_string(body.size()));
     std::string out = std::string(version == 10 ? "HTTP/1.0 " : "HTTP/1.1 ") + std::to_string(status) + " " + reason + "\r\n";
     for (auto const &h: headers) {
@@ -292,7 +384,10 @@ public:
             Finish("url missing host");
             return;
         }
-        int port = u.has_port() ? std::atoi(std::string(u.port()).c_str()) : (use_tls_ ? 443 : 80);
+        int64_t port = use_tls_ ? 443 : 80;
+        if (u.has_port()) {
+            port = CheckPortRange(std::atoi(std::string(u.port()).c_str()), "http.request", 1, 65535);
+        }
         std::string target = std::string(u.encoded_path());
         if (target.empty()) target = "/";
         if (u.has_query()) {
@@ -322,7 +417,7 @@ public:
             bufferevent_socket_connect(bev_, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
             return;
         }
-        bufferevent_socket_connect_hostname(bev_, io_.Dns(), AF_UNSPEC, host_.c_str(), port);
+        bufferevent_socket_connect_hostname(bev_, io_.Dns(), AF_UNSPEC, host_.c_str(), static_cast<int>(port));
     }
 
     void Tick() {
@@ -349,11 +444,13 @@ private:
             if (!ssl) return nullptr;
             tls::SetSniHostname(ssl, host_);
             auto *bev = bufferevent_openssl_socket_new(io_.Get(), -1, ssl, BUFFEREVENT_SSL_CONNECTING, BEV_OPT_CLOSE_ON_FREE);
-            if (bev) bufferevent_openssl_set_allow_dirty_shutdown(bev, 1);
-            if (bev) {
-                bufferevent_setcb(bev, &HttpClientOp::ReadCb, nullptr, &HttpClientOp::EventCb, this);
-                bufferevent_enable(bev, EV_READ | EV_WRITE);
+            if (!bev) {
+                SSL_free(ssl);
+                return nullptr;
             }
+            bufferevent_openssl_set_allow_dirty_shutdown(bev, 1);
+            bufferevent_setcb(bev, &HttpClientOp::ReadCb, nullptr, &HttpClientOp::EventCb, this);
+            bufferevent_enable(bev, EV_READ | EV_WRITE);
             return bev;
         }
         auto *bev = bufferevent_socket_new(io_.Get(), -1, BEV_OPT_CLOSE_ON_FREE);
@@ -453,6 +550,15 @@ private:
         size_t n = evbuffer_get_length(in);
         if (n > 0) {
             size_t off = recv_.size();
+            const bool have_hdr = recv_.find("\r\n\r\n") != std::string::npos;
+            if (!have_hdr && off + n > kMaxHttpHeaderBytes) {
+                Finish("headers too large");
+                return;
+            }
+            if (off + n > kMaxHttpHeaderBytes + kMaxHttpBodyBytes) {
+                Finish("body too large");
+                return;
+            }
             recv_.resize(off + n);
             evbuffer_remove(in, recv_.data() + off, n);
         }
@@ -498,10 +604,15 @@ public:
         : io_(io), conn_id_(conn_id), timeout_ms_(timeout_ms) {
         if (ctx) {
             SSL *ssl = SSL_new(ctx);
-            bev_ = bufferevent_openssl_socket_new(io_.Get(), fd, ssl, BUFFEREVENT_SSL_ACCEPTING, BEV_OPT_CLOSE_ON_FREE);
+            if (ssl) {
+                bev_ = bufferevent_openssl_socket_new(io_.Get(), fd, ssl, BUFFEREVENT_SSL_ACCEPTING, BEV_OPT_CLOSE_ON_FREE);
+                if (!bev_) SSL_free(ssl);
+            }
             if (bev_) bufferevent_openssl_set_allow_dirty_shutdown(bev_, 1);
+            else evutil_closesocket(fd);
         } else {
             bev_ = bufferevent_socket_new(io_.Get(), fd, BEV_OPT_CLOSE_ON_FREE);
+            if (!bev_) evutil_closesocket(fd);
         }
         if (bev_) {
             bufferevent_setcb(bev_, &HttpServerConn::ReadCb, nullptr, &HttpServerConn::EventCb, this);
@@ -567,6 +678,15 @@ private:
         size_t n = evbuffer_get_length(in);
         if (n > 0) {
             size_t off = recv_.size();
+            const bool have_hdr = recv_.find("\r\n\r\n") != std::string::npos;
+            if (!have_hdr && off + n > kMaxHttpHeaderBytes) {
+                Close();
+                return;
+            }
+            if (off + n > kMaxHttpHeaderBytes + kMaxHttpBodyBytes) {
+                Close();
+                return;
+            }
             recv_.resize(off + n);
             evbuffer_remove(in, recv_.data() + off, n);
         }
@@ -971,7 +1091,13 @@ static CVar HttpServerFn(State *s, CVar *args, int n) {
             CVar ip_var = table::TableHelper::GetTableStrId(s, a0, "ip");
             if (ip_var.type_ != static_cast<int>(VarType::Nil)) ip = CVarToString(ip_var);
             CVar port_var = table::TableHelper::GetTableStrId(s, a0, "port");
-            if (port_var.type_ != static_cast<int>(VarType::Nil)) port = static_cast<uint16_t>(inter::CVarToInteger(port_var, 0));
+            if (port_var.type_ != static_cast<int>(VarType::Nil)) {
+                int64_t port_val = inter::CVarToInteger(port_var, 0);
+                if (port_val < 0 || port_val > 65535) {
+                    ThrowFakeluaException(std::format("http.server: port {} out of range (0-65535)", port_val));
+                }
+                port = static_cast<uint16_t>(port_val);
+            }
             CVar bl = table::TableHelper::GetTableStrId(s, a0, "backlog");
             if (bl.type_ != static_cast<int>(VarType::Nil)) backlog = static_cast<int>(inter::CVarToInteger(bl, 128));
             CVar t = table::TableHelper::GetTableStrId(s, a0, "timeout_ms");

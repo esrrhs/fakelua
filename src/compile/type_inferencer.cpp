@@ -32,6 +32,19 @@ std::string SpecStringFieldCName(const std::string &key) {
     return out;
 }
 
+void UniquifySpecFieldCNames(std::vector<TableFieldInfo> &fields) {
+    std::unordered_set<std::string> used;
+    for (auto &f: fields) {
+        std::string base = f.c_field_name.empty() ? "_f" : f.c_field_name;
+        std::string cand = base;
+        int n = 0;
+        while (!used.insert(cand).second) {
+            cand = base + "_" + std::to_string(++n);
+        }
+        f.c_field_name = cand;
+    }
+}
+
 }// namespace
 
 TypeInferencer::TypeInferencer(State *s) : s_(s) {
@@ -645,15 +658,16 @@ InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoo
     const InferredType step_type = InferNode(for_loop->ExpStep(), tctx);
 
     // 根据循环边界的推断类型，分类确定循环变量类型：
-    //   T_INT      — 所有边界均为 T_INT（step 缺省或 T_INT）
-    //   T_FLOAT    — 所有边界均为数值但非全 T_INT
+    //   T_INT      — Lua 整数 for：init 与 step 为整数（limit 可以是 float）
+    //   T_FLOAT    — 所有边界均为数值但非整数 for
     //   T_DYNAMIC  — 存在非数值边界
     const bool begin_valid = for_loop->ExpBegin() != nullptr;
     const bool end_valid = for_loop->ExpEnd() != nullptr;
     const bool step_numeric = !for_loop->ExpStep() || step_type == T_INT || step_type == T_FLOAT;
     const bool all_numeric_boundaries = begin_valid && end_valid && (begin_type == T_INT || begin_type == T_FLOAT) && (end_type == T_INT || end_type == T_FLOAT) && step_numeric;
-    const bool all_int = all_numeric_boundaries && begin_type == T_INT && end_type == T_INT && (!for_loop->ExpStep() || step_type == T_INT);
-    const InferredType loop_var_type = all_int ? T_INT : (all_numeric_boundaries ? T_FLOAT : T_DYNAMIC);
+    // Lua 5.4：init 与 step 都是整数时走整数 for（limit 可以是 float）。
+    const bool lua_int_loop = begin_valid && begin_type == T_INT && (!for_loop->ExpStep() || step_type == T_INT) && (end_type == T_INT || end_type == T_FLOAT);
+    const InferredType loop_var_type = lua_int_loop ? T_INT : (all_numeric_boundaries ? T_FLOAT : T_DYNAMIC);
 
     auto &current_map = tctx.current_map;
     tctx.env.EnterScope();
@@ -1638,25 +1652,30 @@ bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vect
                     f.c_field_name = SpecStringFieldCName(f.key);
                     desc = "S_" + f.key;
                 } else if (kind == ExpKind::kNumber) {
-                    std::string num_str = key_exp->ExpValue();
-                    if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                        f.key = num_str;
+                    TableKeyKind nkind = TableKeyKind::kInt;
+                    std::string canonical;
+                    int64_t int_value = 0;
+                    double float_value = 0;
+                    if (!ClassifyLuaNumberKey(key_exp->ExpValue(), nkind, canonical, int_value, float_value)) {
+                        return false;
+                    }
+                    if (nkind == TableKeyKind::kInt) {
+                        f.key = canonical;
                         f.key_kind = TableKeyKind::kInt;
-                        f.int_value = std::stoll(num_str);
+                        f.int_value = int_value;
                         std::string sanitized = f.key;
                         std::replace(sanitized.begin(), sanitized.end(), '-', '_');
                         f.c_field_name = "_int_" + sanitized;
                         desc = "I_" + f.key;
-                        array_idx = std::max(array_idx, static_cast<int>(f.int_value + 1));
                     } else {
-                        f.key = num_str;
+                        f.key = canonical;
                         f.key_kind = TableKeyKind::kFloat;
-                        std::string sanitized = num_str;
+                        std::string sanitized = canonical;
                         std::replace(sanitized.begin(), sanitized.end(), '.', '_');
                         std::replace(sanitized.begin(), sanitized.end(), '-', '_');
                         std::replace(sanitized.begin(), sanitized.end(), '+', '_');
                         f.c_field_name = "_float_" + sanitized;
-                        f.float_value = std::stod(num_str);
+                        f.float_value = float_value;
                         desc = "F_" + f.key;
                     }
                 } else if (kind == ExpKind::kTrue) {
@@ -1689,6 +1708,7 @@ bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vect
     for (const auto &d: order) {
         out.push_back(unique[d].info);
     }
+    UniquifySpecFieldCNames(out);
     return true;
 }
 
@@ -1800,6 +1820,15 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
             auto &frame = *frames[static_cast<size_t>(pending.frame_idx)];
             frame.ctor_target_vars[tc_key] = pending.var_name;
             MergeFieldsInto(frame.var_fields[pending.var_name], ctor_own_fields[tc_key]);
+        }
+    }
+
+    // 并集后同一变量上 ["a-b"] 与 a_b 会落到相同 C 名，必须再 uniquify，
+    // 否则 optional FL_SET_SPEC 会写到错误的 struct 字段。
+    for (const auto &frame_ptr: frames) {
+        for (auto &[name, fields]: frame_ptr->var_fields) {
+            (void)name;
+            UniquifySpecFieldCNames(fields);
         }
     }
 
@@ -2285,7 +2314,8 @@ void TypeInferencer::ComputeSpecTypeMetadata(InferResult &ir) {
         SpecTypeMetadata meta;
         meta.name = spec_type;
         meta.fields = info.fields;
-        for (const auto &f: info.fields) {
+        UniquifySpecFieldCNames(meta.fields);
+        for (const auto &f: meta.fields) {
             switch (f.key_kind) {
                 case TableKeyKind::kString:
                     meta.has_string_keys = true;
@@ -2307,7 +2337,7 @@ void TypeInferencer::ComputeSpecTypeMetadata(InferResult &ir) {
         }
         // 字段索引：按 emit 顺序（fields 已是排序后布局）编号，与 CGen 原行为一致。
         int idx = 0;
-        for (const auto &f: info.fields) {
+        for (const auto &f: meta.fields) {
             meta.field_indices[TableFieldDescriptor(f)] = idx++;
         }
         ir.spec_type_metadata[spec_type] = std::move(meta);

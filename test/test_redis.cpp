@@ -89,3 +89,14 @@ TEST(test_redis, integration_lifecycle) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_redis, bad_port) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./redis/test_redis.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "RedisTest.test_bad_port", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

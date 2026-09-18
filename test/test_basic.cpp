@@ -1078,6 +1078,39 @@ TEST(test_basic, ipairs_non_continuous) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_basic, ipairs_local_shadow) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_basic_pairs_cases.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "BasicPairsCases.test_ipairs_local_shadow", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, file_level_table) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_file_level_table.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "FileLevelTable.test_file_level_table", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, init_load_table) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./basic/test_init_load_table.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "InitLoadTable.test_init_load_table", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
 TEST(test_basic, pairs_empty) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
