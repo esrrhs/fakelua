@@ -59,7 +59,7 @@ TEST(infer, test_infer_typed_int_for) {
 TEST(infer, test_infer_typed_float_local) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_local.lua");
     // Both locals must be typed as double.
-    ASSERT_NE(code.find("double x = 1;"), std::string::npos);
+    ASSERT_NE(code.find("double x = 1.0;"), std::string::npos);
     ASSERT_NE(code.find("double y = ((x) + (0.5));"), std::string::npos);
     // No CVar declarations for x or y.
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
@@ -1294,7 +1294,7 @@ TEST(infer, test_native_bool_elseif) {
 TEST(infer, test_native_bool_float) {
     const auto code = InferGetCCode("./infer/test_native_bool_float.lua");
     // float specialization: direct C comparison with >= and float literal.
-    ASSERT_NE(code.find("((x) >= (0)"), std::string::npos);
+    ASSERT_NE(code.find("((x) >= (0.0)"), std::string::npos);
     // No IsTrue or flua_ibt_ for the if condition.
     ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
 
