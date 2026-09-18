@@ -70,19 +70,6 @@ function bench_closure(n)
 end
 )";
 
-constexpr const char *kTailRecursionScript = R"(
-function bench_tail_sum_acc(x, acc)
-    if x <= 0 then
-        return acc
-    end
-    return bench_tail_sum_acc(x - 1, acc + x)
-end
-
-function bench_tail_sum(n)
-    return bench_tail_sum_acc(n, 0)
-end
-)";
-
 // C++ reference implementations
 
 inline int64_t CppEmpty(int64_t n) {
@@ -129,18 +116,10 @@ int64_t CppClosure(int64_t n) {
     return total;
 }
 
-int64_t CppTailSum(int64_t n) {
-    int64_t acc = 0;
-    for (int64_t x = n; x > 0; --x) {
-        acc += x;
-    }
-    return acc;
-}
-
 // Lua helpers
 
 const char *const kFunctionScripts[] = {
-        kEmptyCallScript, kRecursionScript, kVariadicScript, kMultiReturnScript, kClosureScript, kTailRecursionScript,
+        kEmptyCallScript, kRecursionScript, kVariadicScript, kMultiReturnScript, kClosureScript,
 };
 constexpr size_t kFunctionScriptCount = sizeof(kFunctionScripts) / sizeof(kFunctionScripts[0]);
 
@@ -159,8 +138,6 @@ struct Ctx : RuntimeContext {
         Call(flua, JIT_INTERP, "bench_multi_return", w, 10);
         Call(flua, JIT_TCC, "bench_closure", w, 10);
         Call(flua, JIT_INTERP, "bench_closure", w, 10);
-        Call(flua, JIT_TCC, "bench_tail_sum", w, 10);
-        Call(flua, JIT_INTERP, "bench_tail_sum", w, 10);
     }
 
     ~Ctx() {
@@ -392,51 +369,6 @@ static void BM_FakeLua_Closure_INTERP(benchmark::State &state) {
     }
 }
 
-// Benchmarks: tail recursion
-
-static void BM_CPP_TailRecursion(benchmark::State &state) {
-    const int64_t n = state.range(0);
-    for (auto _: state) {
-        int64_t ret = CppTailSum(n);
-        benchmark::DoNotOptimize(ret);
-    }
-}
-
-static void BM_Lua_TailRecursion(benchmark::State &state) {
-    const int64_t n = state.range(0);
-    for (auto _: state) {
-        int64_t ret = CallLuaInt(g_ctx.lua, "bench_tail_sum", n);
-        benchmark::DoNotOptimize(ret);
-    }
-}
-
-static void BM_FakeLua_TailRecursion_TCC(benchmark::State &state) {
-    const int64_t n = state.range(0);
-    for (auto _: state) {
-        int64_t ret = 0;
-        Call(g_ctx.flua, JIT_TCC, "bench_tail_sum", ret, n);
-        benchmark::DoNotOptimize(ret);
-    }
-}
-
-static void BM_FakeLua_TailRecursion_GCC(benchmark::State &state) {
-    const int64_t n = state.range(0);
-    for (auto _: state) {
-        int64_t ret = 0;
-        Call(g_ctx.flua, JIT_GCC, "bench_tail_sum", ret, n);
-        benchmark::DoNotOptimize(ret);
-    }
-}
-
-static void BM_FakeLua_TailRecursion_INTERP(benchmark::State &state) {
-    const int64_t n = state.range(0);
-    for (auto _: state) {
-        int64_t ret = 0;
-        Call(g_ctx.flua, JIT_INTERP, "bench_tail_sum", ret, n);
-        benchmark::DoNotOptimize(ret);
-    }
-}
-
 }// namespace
 
 // Benchmark registrations
@@ -446,7 +378,6 @@ static void BM_FakeLua_TailRecursion_INTERP(benchmark::State &state) {
 #define VARIADIC_ARGS ->Arg(1)
 #define MULTI_RETURN_ARGS ->Arg(1000)->Arg(10000)
 #define CLOSURE_ARGS ->Arg(100)->Arg(1000)
-#define TAIL_RECURSION_ARGS ->Arg(100)->Arg(1000)->Arg(5000)
 
 BENCHMARK(BM_CPP_EmptyCall) EMPTY_CALL_ARGS;
 BENCHMARK(BM_Lua_EmptyCall) EMPTY_CALL_ARGS;
@@ -473,8 +404,3 @@ BENCHMARK(BM_Lua_Closure) CLOSURE_ARGS;
 BENCHMARK(BM_FakeLua_Closure_TCC) CLOSURE_ARGS;
 BENCHMARK(BM_FakeLua_Closure_GCC) CLOSURE_ARGS;
 BENCHMARK(BM_FakeLua_Closure_INTERP) CLOSURE_ARGS;
-BENCHMARK(BM_CPP_TailRecursion) TAIL_RECURSION_ARGS;
-BENCHMARK(BM_Lua_TailRecursion) TAIL_RECURSION_ARGS;
-BENCHMARK(BM_FakeLua_TailRecursion_TCC) TAIL_RECURSION_ARGS;
-BENCHMARK(BM_FakeLua_TailRecursion_GCC) TAIL_RECURSION_ARGS;
-BENCHMARK(BM_FakeLua_TailRecursion_INTERP) TAIL_RECURSION_ARGS;

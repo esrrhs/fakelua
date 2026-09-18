@@ -3006,3 +3006,24 @@ TEST(jitter, spec_field_merge_sanitize) {
         ASSERT_EQ(ret, 2);
     });
 }
+
+TEST(jitter, tail_call) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_tail_call.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_tail_sum", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_tail_even_odd", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_tail_other_func", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_tail_multi_ret", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_tail_arity", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_tail_vararg", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_tail_closure", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
