@@ -11,9 +11,11 @@
 #include "var/var_string.h"
 #include "var/var_table.h"
 #include <boost/charconv.hpp>
+#include <cerrno>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <string>
@@ -290,6 +292,16 @@ void RegisterBasicLibraryApi(State *s) {
         auto starts_hex = [](std::string_view s) {
             return s.rfind("0x", 0) == 0 || s.rfind("0X", 0) == 0 || s.rfind("-0x", 0) == 0 || s.rfind("-0X", 0) == 0 || s.rfind("+0x", 0) == 0 || s.rfind("+0X", 0) == 0;
         };
+        auto try_lua_float = [&]() -> CVar {
+            const std::string buf(trimmed);
+            char *endptr = nullptr;
+            errno = 0;
+            const double dval = std::strtod(buf.c_str(), &endptr);
+            if (endptr == buf.c_str() + buf.size() && errno != ERANGE && std::isfinite(dval)) {
+                return inter::NativeToFakeluaDouble(state, dval);
+            }
+            return inter::NativeToFakeluaNil(state);
+        };
         if (!has_custom_base && starts_hex(trimmed)) {
             base = 16;
         }
@@ -330,16 +342,24 @@ void RegisterBasicLibraryApi(State *s) {
             uint64_t acc = 0;
             auto ir = boost::charconv::from_chars(str.data() + i, str.data() + str.size(), acc, base);
             if (ir.ec != std::errc{} || ir.ptr != str.data() + str.size()) {
+                // 无自定义进制时 Lua 接受 0x1p1 / 0x1.8 这类十六进制浮点。
+                if (!has_custom_base) return try_lua_float();
                 return inter::NativeToFakeluaNil(state);
             }
             int64_t result = 0;
             if (negative) {
-                if (acc > static_cast<uint64_t>(INT64_MAX) + 1) return inter::NativeToFakeluaNil(state);
+                if (acc > static_cast<uint64_t>(INT64_MAX) + 1) {
+                    if (!has_custom_base) return try_lua_float();
+                    return inter::NativeToFakeluaNil(state);
+                }
                 if (acc == static_cast<uint64_t>(INT64_MAX) + 1) result = INT64_MIN;
                 else
                     result = -static_cast<int64_t>(acc);
             } else {
-                if (acc > static_cast<uint64_t>(INT64_MAX)) return inter::NativeToFakeluaNil(state);
+                if (acc > static_cast<uint64_t>(INT64_MAX)) {
+                    if (!has_custom_base) return try_lua_float();
+                    return inter::NativeToFakeluaNil(state);
+                }
                 result = static_cast<int64_t>(acc);
             }
             return inter::NativeToFakeluaInt(state, result);
@@ -553,7 +573,7 @@ void RegisterBasicLibraryApi(State *s) {
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'pairs' (table expected)");
         }
-        auto &alloc = state->GetHeap().GetAllocator(false);
+        auto &alloc = state->GetValueAllocator();
 
         // 分配迭代器状态
         auto *st = static_cast<PairIterState *>(alloc.Alloc(sizeof(PairIterState)));
@@ -577,7 +597,7 @@ void RegisterBasicLibraryApi(State *s) {
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'ipairs' (table expected)");
         }
-        auto &alloc = state->GetHeap().GetAllocator(false);
+        auto &alloc = state->GetValueAllocator();
 
         auto *st = static_cast<IpairsState *>(alloc.Alloc(sizeof(IpairsState)));
         st->table = tbl;

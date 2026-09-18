@@ -12,8 +12,13 @@
 
 namespace fakelua::xml {
 
+static constexpr int kMaxXmlDepth = 64;
+
 // pugixml node → CVar
-static CVar NodeToLua(State *s, pugi::xml_node node) {
+static CVar NodeToLua(State *s, pugi::xml_node node, int depth) {
+    if (depth > kMaxXmlDepth) {
+        ThrowFakeluaException("xml.decode: nesting too deep");
+    }
     if (node.type() == pugi::node_pcdata || node.type() == pugi::node_cdata) {
         return inter::NativeToFakeluaString(s, std::string(node.value()));
     }
@@ -74,12 +79,12 @@ static CVar NodeToLua(State *s, pugi::xml_node node) {
             for (auto &n: g.nodes) combined += n.value();
             table::TableHelper::SetTableStrId(s, tbl, "_text", inter::NativeToFakeluaString(s, combined));
         } else if (g.nodes.size() == 1) {
-            table::TableHelper::SetTableStrId(s, tbl, g.tag.c_str(), NodeToLua(s, g.nodes[0]));
+            table::TableHelper::SetTableStrId(s, tbl, g.tag.c_str(), NodeToLua(s, g.nodes[0], depth + 1));
         } else {
             // Multiple same-tag siblings → array
             CVar arr = table::TableHelper::CreateTable(s);
             for (size_t i = 0; i < g.nodes.size(); i++) {
-                table::TableHelper::SetTableInt(s, arr, static_cast<int64_t>(i + 1), NodeToLua(s, g.nodes[i]));
+                table::TableHelper::SetTableInt(s, arr, static_cast<int64_t>(i + 1), NodeToLua(s, g.nodes[i], depth + 1));
             }
             table::TableHelper::SetTableStrId(s, tbl, g.tag.c_str(), arr);
         }
@@ -89,8 +94,6 @@ static CVar NodeToLua(State *s, pugi::xml_node node) {
 }
 
 // CVar → pugixml document
-static constexpr int kMaxXmlDepth = 64;
-
 // Serialize a scalar CVar to its text representation.
 static std::string ScalarToText(CVar v) {
     switch (v.type_) {
@@ -205,7 +208,7 @@ static CVar XmlDecode(State *s, CVar *args, int n) {
     if (!root) {
         return table::TableHelper::CreateTable(s);
     }
-    return NodeToLua(s, root);
+    return NodeToLua(s, root, 0);
 }
 
 static CVar XmlEncode(State *s, CVar *args, int n) {

@@ -3,6 +3,7 @@
 #include "fakelua.h"
 
 #include <functional>
+#include <string_view>
 #include <vector>
 
 namespace fakelua::table {
@@ -22,6 +23,7 @@ public:
     static CVar GetTable(State *s, CVar tbl, CVar key);
     static void SetTableInt(State *s, CVar tbl, int64_t idx, CVar val);
     static void SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val);
+    static void SetTableStrId(State *s, CVar tbl, std::string_view str_key, CVar val);
     // 任意类型键的写入。键会先做浮点归一化，再按与 JIT 侧一致的哈希布局落槽。
     static void SetTable(State *s, CVar tbl, CVar key, CVar val);
     // 分配一张空表（temp arena，帧内有效）。

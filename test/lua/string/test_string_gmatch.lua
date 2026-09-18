@@ -31,5 +31,12 @@ function test_string_gmatch()
         if count > 10 then return 10 end -- 安全阀
     end
 
+    -- 空串也必须返回迭代器，不能直接 nil（for-in 会 attempt to call a nil value）
+    local empty_n = 0
+    for _ in string.gmatch("", "[a-z]+") do
+        empty_n = empty_n + 1
+    end
+    if empty_n ~= 0 then return 11 end
+
     return 3000
 end

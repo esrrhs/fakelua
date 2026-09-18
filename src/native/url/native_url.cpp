@@ -110,7 +110,7 @@ static CVar UrlFormat(State *s, CVar *args, int n) {
     CVar port = TableGetStr(s, a0, "port");
     if (port.type_ != static_cast<int>(VarType::Nil)) {
         if (port.type_ == static_cast<int>(VarType::Int) || port.type_ == static_cast<int>(VarType::Float)) {
-            u.set_port_number(static_cast<std::uint16_t>(inter::CVarToInteger(port, 0)));
+            u.set_port_number(CheckPortRange(inter::CVarToInteger(port, 0), "url.format", 1, 65535));
         } else {
             u.set_port(CVarToString(port));
         }

@@ -329,3 +329,20 @@ function test_decode_embedded_nul()
     if string.byte(v, 3) ~= 98 then return 0 end
     return 1
 end
+
+-- JSON object keys may contain embedded NUL; must not truncate at the first 0 byte
+function test_decode_nul_object_key()
+    local t = json.decode('{"a\\u0000b":1}')
+    local n = 0
+    for k, v in pairs(t) do
+        n = n + 1
+        if type(k) ~= "string" then return 0 end
+        if #k ~= 3 then return 0 end
+        if string.byte(k, 1) ~= 97 then return 0 end
+        if string.byte(k, 2) ~= 0 then return 0 end
+        if string.byte(k, 3) ~= 98 then return 0 end
+        if v ~= 1 then return 0 end
+    end
+    if n ~= 1 then return 0 end
+    return 1
+end

@@ -231,7 +231,13 @@ bool TryParsePacket(CircularBuffer &buf, const NetConfig &cfg, const char *&out_
     out_error = false;
 
     if (cfg.custom_parser_fn) {
-        return cfg.custom_parser_fn(buf, out_payload, out_len);
+        const size_t before = buf.Size();
+        const bool ok = cfg.custom_parser_fn(buf, out_payload, out_len);
+        if (ok && buf.Size() >= before) {
+            out_error = true;
+            return false;
+        }
+        return ok;
     }
 
     // 用 buf 自己的暂存区：一个连接只被它所属的 State 单线程访问，所以按缓冲区各存一份

@@ -66,7 +66,8 @@ private:
     // 编译具体的函数体并将其 C 代码输出至给定的流中
     void CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out);
     // 为特定函数生成分发入口（用于处理动态调用到特化强类型调用的转发）
-    void GenerateEntryDispatcher(const std::string &func_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices);
+    // c_name 是 C 符号（unique_c_name），lua_name 用于查 specialization_return_types。
+    void GenerateEntryDispatcher(const std::string &c_name, const std::string &lua_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices);
     // 辅助工具：判断一个基本块（Block）的结尾是否显式包含 return 语句
     [[nodiscard]] static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block);
     // 获取特定特化签名下函数的返回类型
@@ -125,7 +126,7 @@ private:
 
     // 若 explist 是 pairs(tbl) 或 ipairs(tbl) 的单调用，返回对应 kind 并通过
     // out_tbl_arg 输出 tbl 表达式节点；否则返回 kNone，out_tbl_arg 不写入。
-    [[nodiscard]] static PairsIpairsKind TryMatchPairsIpairs(const std::shared_ptr<SyntaxTreeExplist> &explist_ptr, const std::vector<std::string> &names, SyntaxTreeInterfacePtr &out_tbl_arg);
+    [[nodiscard]] PairsIpairsKind TryMatchPairsIpairs(const std::shared_ptr<SyntaxTreeExplist> &explist_ptr, const std::vector<std::string> &names, SyntaxTreeInterfacePtr &out_tbl_arg);
 
     void CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt);
@@ -292,6 +293,8 @@ private:
     std::vector<int> repeat_label_stack_;// 当前活跃的 repeat 标签 id 栈，栈顶即最近外层 repeat
     int for_cont_id_ = 0;                // 动态 numeric for 的 continue 标签计数器
     std::vector<int> for_cont_stack_;    // 动态 numeric for 的 continue 标签栈（while(1)+后置步进）
+    int label_uniq_ = 0;                 // Lua ::label:: 生成的 C 标签后缀，保证兄弟块同名不冲突
+    std::vector<std::unordered_map<std::string, std::string>> label_c_stack_;// Lua 名 → 当前块唯一 C 标签
 
 private:
     struct FuncInfo;
@@ -318,6 +321,9 @@ private:
         bool is_vararg = false;
         std::vector<VarDef *> captured_vars;// upvalues captured
         std::unordered_set<VarDef *> captured_set;
+        // 本函数参数/局部的 Lua 名 → 去重后的 C 标识符（避开关键字和互相碰撞）
+        std::unordered_map<std::string, std::string> c_ident_map;
+        std::unordered_set<std::string> c_ident_used;
     };
 
     std::vector<std::unique_ptr<VarDef>> all_defs_;
@@ -341,6 +347,17 @@ private:
 
     // 需要打 CONST_FLAG 的全局变量集合（初始化为非空表构造器的全局表/闭包）
     std::unordered_set<std::string> global_const_table_vars_;
+
+    // 文件级 C 标识符（全局 static 变量 / 函数符号）去重
+    std::unordered_map<std::string, std::string> file_c_ident_map_;
+    std::unordered_set<std::string> file_c_ident_used_;
+
+    std::string CIdent(const std::string &lua_name);
+    std::vector<std::string> CIdents(const std::vector<std::string> &names);
+    void UniquifyFuncCNames();
+    [[nodiscard]] bool IsFuncLocalName(const std::string &lua_name) const;
+    // Lua 函数名 → 去重后的 C 符号（特化调用必须用这个，不能用 AST 名）。
+    [[nodiscard]] std::string LookupFuncCName(const std::string &lua_name) const;
 
     void ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vector<Scope> &scopes, std::vector<FuncInfo *> &func_stack, FuncInfo *cur_func);
 

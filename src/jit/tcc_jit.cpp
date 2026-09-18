@@ -40,6 +40,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     void *init_ptr = tcc_get_symbol(s, kInitFunctionName);
     if (init_ptr) {
+        State::ConstAllocScope const_alloc(s_);
         inter::DispatchCall(s_, init_ptr, nullptr, 0, JIT_TCC);
     }
 

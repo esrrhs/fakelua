@@ -87,3 +87,27 @@ function test_connect_ssl_require()
     if type(conn.err) ~= "string" or #conn.err == 0 then return 0 end
     return 1
 end
+
+function test_bad_port()
+    local ok = pcall(function()
+        mysql.connect({
+            host = "127.0.0.1",
+            port = 70000,
+            user = "root",
+            password = "x",
+            db = "test"
+        }, "on_connect")
+    end)
+    if ok then return 0 end
+    local ok2 = pcall(function()
+        mysql_pool.create({
+            host = "127.0.0.1",
+            port = -1,
+            user = "root",
+            password = "x",
+            db = "test"
+        })
+    end)
+    if ok2 then return 0 end
+    return 1
+end

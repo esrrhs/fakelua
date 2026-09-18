@@ -704,3 +704,14 @@ TEST(test_json, decode_embedded_nul) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_json, decode_nul_object_key) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_edge.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "JsonTest.test_decode_nul_object_key", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

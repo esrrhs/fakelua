@@ -4,6 +4,7 @@
 #include "native/string/native_string.h"
 #include "var/var.h"
 #include <cstdint>
+#include <new>
 #include <string>
 #include <string_view>
 
@@ -120,18 +121,9 @@ static CVar Utf8Char(State *state, CVar *args, int n) {
     for (int i = 0; i < n; ++i) {
         CVar a = inter::GetNativeArg(state, args, n, i);
         CheckNumberArg(a, i + 1, "utf8.char");
-        int64_t cp = 0;
-        if (a.type_ == static_cast<int>(VarType::Int)) {
-            cp = a.data_.i;
-        } else if (a.type_ == static_cast<int>(VarType::Float)) {
-            if (!DoubleFitsInt64(a.data_.f, &cp)) {
-                return inter::NativeToFakeluaNil(state);
-            }
-        } else {
-            cp = inter::CVarToInteger(a, -1);
-        }
+        int64_t cp = CheckIntegerArg(a, i + 1, "utf8.char");
         if (cp < 0 || !EncodeUtf8(cp, out)) {
-            return inter::NativeToFakeluaNil(state);
+            ThrowFakeluaException("bad argument to 'utf8.char' (value out of range)");
         }
     }
     return inter::NativeToFakeluaString(state, out);
@@ -159,11 +151,12 @@ static CVar Utf8Codepoint(State *state, CVar *args, int n) {
     if (n >= 3) CheckNumberArg(j_var, 3, "utf8.codepoint");
     int64_t j = (n >= 3) ? inter::CVarToInteger(j_var, i) : i;
 
-    // Handle negative indices (relative to end). Lua u_posrelat: negative j
-    // counts from the end (utf8.codepoint(s, 1, -1) == all code points).
-    if (i < 1) i = len + i + 1;
-    if (i < 1) i = 1;
+    // Handle negative indices (relative to end). Index 0 is not from-end.
+    if (i < 0) i = len + i + 1;
     if (j < 0) j = len + j + 1;
+    if (i < 1 || j < 1) {
+        ThrowFakeluaException("bad argument to 'utf8.codepoint' (out of bounds)");
+    }
     if (i > len) return inter::NativeToFakeluaNil(state);
     if (j > len) j = len;
     if (i > j) return inter::NativeToFakeluaNil(state);
@@ -241,18 +234,46 @@ static CVar Utf8Codepoint(State *state, CVar *args, int n) {
 // For now, utf8.codes returns a table {s, pos} that can be iterated.
 // The test will just verify it returns a table.
 
+struct Utf8CodesState {
+    std::string text;
+    size_t pos = 0;
+};
+
+extern "C" CVar Utf8CodesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
+    if (!cl || cl->upvalue_count < 2) {
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+    State *iter_state = reinterpret_cast<State *>(cl->upvalues[0]->data_.i);
+    auto *gs = reinterpret_cast<Utf8CodesState *>(cl->upvalues[1]->data_.i);
+    if (!iter_state || !gs) {
+        return inter::NativeToFakeluaNil(iter_state);
+    }
+    if (gs->pos >= gs->text.size()) {
+        return inter::NativeToFakeluaNil(iter_state);
+    }
+    const size_t start = gs->pos;
+    std::string_view sv = gs->text;
+    int64_t cp = DecodeUtf8(sv, gs->pos);
+    if (cp < 0) {
+        ThrowFakeluaException("invalid UTF-8 code");
+    }
+    CVar multi = inter::AllocMultiCVar(iter_state, 2);
+    inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaLonglong(iter_state, static_cast<int64_t>(start + 1)));
+    inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaLonglong(iter_state, cp));
+    return multi;
+}
+
 static CVar Utf8Codes(State *state, CVar *args, int n) {
     if (n < 1) return inter::NativeToFakeluaNil(state);
 
     CVar a0 = inter::GetNativeArg(state, args, n, 0);
     CheckStringArg(a0, 1, "utf8.codes");
-    std::string_view sv = KeyToStringView(a0);
-    if (sv.empty()) return inter::NativeToFakeluaNil(state);
+    std::string temp;
+    std::string text(GetStringArgView(a0, temp));
 
-    // Return a table with the string and initial position
-    // This is a simplified version - full iterator support would need closure support
-    // For now, return the string itself (user can use utf8.codepoint in a loop)
-    return inter::NativeToFakeluaStringView(state, sv);
+    auto &alloc = state->GetValueAllocator();
+    auto *gs = alloc.New<Utf8CodesState>(std::move(text), 0);
+    return MakeIteratorClosure(state, reinterpret_cast<void *>(Utf8CodesIterator), gs);
 }
 
 // utf8.len(s [, i [, j]])
@@ -278,9 +299,9 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
     if (n >= 3) CheckNumberArg(j_var, 3, "utf8.len");
     int64_t j = (n >= 3) ? inter::CVarToInteger(j_var, -1) : -1;
 
-    // Handle negative indices (relative to end)
-    if (i < 1) i = byte_len + i + 1;
-    if (j < 1) j = byte_len + j + 1;
+    // Handle negative indices (relative to end). Index 0 is not from-end (Lua u_posrelat).
+    if (i < 0) i = byte_len + i + 1;
+    if (j < 0) j = byte_len + j + 1;
 
     if (i < 1 || i > byte_len + 1 || j < 0 || j > byte_len) {
         return inter::NativeToFakeluaNil(state);
@@ -335,10 +356,10 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     if (n >= 3) CheckNumberArg(i_var, 3, "utf8.offset");
     int64_t start_i = (n >= 3) ? inter::CVarToInteger(i_var, 1) : ((target_n >= 0) ? 1 : byte_len + 1);
 
-    // Lua: 1 <= posi <= len+1 (relative negative i counts from the end)
-    if (start_i < 1) start_i = byte_len + start_i + 1;
+    // Lua: 1 <= posi <= len+1 (relative negative i counts from the end; 0 is not from-end)
+    if (start_i < 0) start_i = byte_len + start_i + 1;
     if (start_i < 1 || start_i > byte_len + 1) {
-        return inter::NativeToFakeluaNil(state);
+        ThrowFakeluaException("bad argument #3 to 'utf8.offset' (position out of range)");
     }
 
     int64_t posi = start_i - 1;// 0-based, in [0, len]
@@ -351,9 +372,9 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
         return inter::NativeToFakeluaLonglong(state, posi + 1);
     }
 
-    // n != 0: Lua errors if i points at a continuation byte; we return nil.
+    // n != 0: Lua errors if i points at a continuation byte.
     if (iscont(posi)) {
-        return inter::NativeToFakeluaNil(state);
+        ThrowFakeluaException("initial position is a continuation byte");
     }
 
     if (target_n > 0) {

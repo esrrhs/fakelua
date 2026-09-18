@@ -32,6 +32,15 @@ function test_basic_tonumber()
     if tonumber("0x10") ~= 16 then return 14 end
     if tonumber("0XFF") ~= 255 then return 15 end
     if tonumber("-0x10") ~= -16 then return 16 end
+    -- 无自定义进制时接受十六进制浮点（Lua 5.2+ lua_strx2number）
+    if tonumber("0x1p1") ~= 2.0 then return 16.1 end
+    if tonumber("0x1.8p3") ~= 12.0 then return 16.2 end
+    if math.abs(tonumber("0x1.5") - 1.3125) > 0.001 then return 16.3 end
+    if tonumber("+0x1p1") ~= 2.0 then return 16.4 end
+    -- 自定义进制只接受整数，0x1p1 在 base 16 下为 nil
+    if tonumber("0x1p1", 16) ~= nil then return 16.41 end
+    -- 超出 int64 的十六进制整数回落到 float（比较 2^63，避免源码里写越界整数字面量）
+    if tonumber("0x8000000000000000") ~= 2 ^ 63 then return 16.42 end
 
     -- 超过 32 位的十进制整数
     if tonumber("3000000000") ~= 3000000000 then return 16.5 end
