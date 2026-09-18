@@ -209,6 +209,20 @@ CVar InterpCodegen::LiteralFromExp(const SyntaxTreeInterfacePtr &exp) {
                 return interp_rt::Int(ToInteger(e->ExpValue()));
             }
             return interp_rt::Float(ToFloat(e->ExpValue()));
+        case ExpKind::kUnop: {
+            TableKeyKind kind = TableKeyKind::kInt;
+            std::string canonical;
+            int64_t int_value = 0;
+            double float_value = 0;
+            if (ClassifyConstNumberExp(exp, kind, canonical, int_value, float_value)) {
+                if (ConstNumberExpIsIntValue(kind, exp)) {
+                    return interp_rt::Int(int_value);
+                }
+                const double d = (kind == TableKeyKind::kInt) ? static_cast<double>(int_value) : float_value;
+                return interp_rt::Float(d);
+            }
+            return interp_rt::Nil();
+        }
         case ExpKind::kString: {
             CVar s{};
             s.type_ = static_cast<int>(VarType::StringId);
@@ -791,12 +805,15 @@ void InterpCodegen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
         return;
     }
     const bool last_multi = LastPreservesMulti(exps.back());
-    const int base = stack_top_;
     std::vector<int> regs;
     for (size_t i = 0; i < exps.size(); ++i) {
         const bool pres = (i + 1 == exps.size()) && last_multi;
         regs.push_back(CompileExp(exps[i], pres));
     }
+    // 必须在 CompileExp 之后再取 base：表达式临时槽从当时的 stack_top_ 往上长，
+    // 若先占 [base, base+n) 再 MoveTo，会把已经算好的字面量/临时量冲掉
+    // （return f, t, 0 在 t 是参数时会变成 f, t, t）。
+    const int base = stack_top_;
     EnsureStack(base + static_cast<int>(regs.size()));
     for (size_t i = 0; i < regs.size(); ++i) {
         MoveTo(base + static_cast<int>(i), regs[i]);
@@ -1209,32 +1226,34 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     const auto &exps = explist_ptr->Exps();
-    const int iter_f = AllocReg();
-    const int iter_s = AllocReg();
-    const int iter_var = AllocReg();
+    // 迭代器三元组必须是 local：CALL 的结果槽是 AllocReg 临时量，
+    // 若 f/s/var 也只是 temp，stack_top_ 回落后会和 CALL 帧重叠，
+    // 第一次迭代就把函数冲掉，或 MoveTo 把 state/ctrl 搅乱。
+    const int iter_f = AllocLocal();
+    const int iter_s = AllocLocal();
+    const int iter_var = AllocLocal();
     if (exps.size() == 1) {
         const int e0 = CompileExp(exps[0], true);
-        const int is_m = AllocReg();
         // Always unbox 0,1,2 — UnboxMulti on non-multi returns the value for idx 0 and nil else.
         Emit(Op::UNBOX, iter_f, e0, 0);
         Emit(Op::UNBOX, iter_s, e0, 1);
         Emit(Op::UNBOX, iter_var, e0, 2);
-        (void)is_m;
+    } else if (exps.size() == 2) {
+        MoveTo(iter_f, CompileExp(exps[0], false));
+        const int e1 = CompileExp(exps[1], true);
+        Emit(Op::UNBOX, iter_f, iter_f, 0);
+        Emit(Op::UNBOX, iter_s, e1, 0);
+        Emit(Op::UNBOX, iter_var, e1, 1);
     } else {
         MoveTo(iter_f, CompileExp(exps[0], false));
-        if (exps.size() >= 2) {
-            MoveTo(iter_s, CompileExp(exps[1], false));
-        } else {
-            Emit(Op::LOADNIL, iter_s);
-        }
-        if (exps.size() >= 3) {
-            MoveTo(iter_var, CompileExp(exps[2], false));
-        } else {
-            Emit(Op::LOADNIL, iter_var);
-        }
+        MoveTo(iter_s, CompileExp(exps[1], false));
+        const int e2 = CompileExp(exps[2], exps.size() == 3);
         Emit(Op::UNBOX, iter_f, iter_f, 0);
         Emit(Op::UNBOX, iter_s, iter_s, 0);
-        Emit(Op::UNBOX, iter_var, iter_var, 0);
+        Emit(Op::UNBOX, iter_var, e2, 0);
+        for (size_t i = 3; i < exps.size(); ++i) {
+            (void)CompileExp(exps[i], i + 1 == exps.size());
+        }
     }
 
     LoopInfo loop;
@@ -1303,6 +1322,22 @@ void InterpCodegen::CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt)
 
 int InterpCodegen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_multi, int dest) {
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    if (e->GetExpKind() == ExpKind::kNumber || e->GetExpKind() == ExpKind::kUnop) {
+        TableKeyKind kind = TableKeyKind::kInt;
+        std::string canonical;
+        int64_t int_value = 0;
+        double float_value = 0;
+        if (ClassifyConstNumberExp(exp, kind, canonical, int_value, float_value)) {
+            const int r = dest >= 0 ? dest : AllocReg();
+            if (ConstNumberExpIsIntValue(kind, exp)) {
+                LoadConstTo(r, interp_rt::Int(int_value));
+            } else {
+                const double d = (kind == TableKeyKind::kInt) ? static_cast<double>(int_value) : float_value;
+                LoadConstTo(r, interp_rt::Float(d));
+            }
+            return r;
+        }
+    }
     switch (e->GetExpKind()) {
         case ExpKind::kNil: {
             const int r = dest >= 0 ? dest : AllocReg();
@@ -1512,17 +1547,20 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
         }
     }
 
+    int method_obj = -1;
+    if (!fc->Name().empty()) {
+        if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
+            method_obj = CompileVar(pe_pre_ptr->GetValue());
+        } else {
+            method_obj = CompilePrefixexp(fc->prefixexp(), false);
+        }
+    }
+
     EmitCallArgs(args_ptr, arg_regs, last_expand);
 
     if (!fc->Name().empty()) {
-        int obj;
-        if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
-            obj = CompileVar(pe_pre_ptr->GetValue());
-        } else {
-            obj = CompilePrefixexp(fc->prefixexp(), false);
-        }
         std::vector<int> final_args;
-        final_args.push_back(obj);
+        final_args.push_back(method_obj);
         for (int a: arg_regs) final_args.push_back(a);
         if (kStringLibraryMethods.contains(fc->Name())) {
             return place_callname("string." + fc->Name(), final_args);
@@ -1533,7 +1571,7 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
         key.data_.i = s_->GetConstString().Alloc(fc->Name());
         LoadConstTo(k, key);
         const int method = AllocReg();
-        Emit(Op::GETTABLE, method, obj, k);
+        Emit(Op::GETTABLE, method, method_obj, k);
         return place_call(method, final_args);
     }
 

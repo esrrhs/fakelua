@@ -59,6 +59,17 @@ TEST(test_http, bad_port) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_http, timeout_ms_range) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./http/test_http.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "HttpTest.test_timeout_ms_range", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
 TEST(test_http, method_inject) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);

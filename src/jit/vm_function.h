@@ -44,7 +44,11 @@ public:
     }
 
     void Merge(const VmFunction &func) {
-        is_vararg_ = is_vararg_ || func.is_vararg_;
+        // 热更新以最新一次注册的签名为准。只 OR is_vararg_、不改 arg_count_
+        // 会让 Call() 在 `function f()` 再定义成 `function f(...)` 时算出
+        // fixed_count = -1，写穿 call_cvars[-1]。
+        arg_count_ = func.arg_count_;
+        is_vararg_ = func.is_vararg_;
         for (int i = 0; i < JIT_MAX; ++i) {
             if (!func.func_addr_[i]) {
                 continue;

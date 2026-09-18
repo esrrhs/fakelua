@@ -55,3 +55,19 @@ function test_bad_port()
     if ok then return 0 end
     return 1
 end
+
+function test_bad_timeout_ms()
+    local ok = pcall(function()
+        redis.connect({ host = "127.0.0.1", port = 6379, timeout_ms = 3000000000 }, "RedisTest.on_connect")
+    end)
+    if ok then return 0 end
+    return 1
+end
+
+function test_bad_db()
+    local ok = pcall(function()
+        redis.connect({ host = "127.0.0.1", port = 6379, db = 4294967298 }, "RedisTest.on_connect")
+    end)
+    if ok then return 0 end
+    return 1
+end

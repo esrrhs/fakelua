@@ -117,6 +117,19 @@ static std::string IniEscapeKey(const std::string &key) {
     return out.empty() ? "_" : out;
 }
 
+static std::string IniEscapeValue(const std::string &val) {
+    std::string out;
+    out.reserve(val.size());
+    for (unsigned char c: val) {
+        if (c == '\0' || c == '\n' || c == '\r') {
+            out.push_back('_');
+        } else {
+            out.push_back(static_cast<char>(c));
+        }
+    }
+    return out;
+}
+
 static std::string CVarToIniValue(CVar v) {
     switch (v.type_) {
         case static_cast<int>(VarType::Int):
@@ -131,7 +144,7 @@ static std::string CVarToIniValue(CVar v) {
         case static_cast<int>(VarType::Nil):
             return "";
         default:
-            return inter::FakeluaToNativeString(nullptr, v);
+            return IniEscapeValue(inter::FakeluaToNativeString(nullptr, v));
     }
 }
 

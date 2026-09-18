@@ -3027,3 +3027,45 @@ TEST(jitter, tail_call) {
         ASSERT_EQ(ret, 1);
     });
 }
+
+TEST(jitter, test_binop_no_space) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_no_space.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_sub_no_space", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_unary_minus_still_works", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_for_in_factory) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_in_factory.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_for_in_factory", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_for_in_mypairs", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_for_in_two_returns", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_method_eval_order) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_method_eval_order.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_method_eval_order", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_table_float_key_precise) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_float_key_precise.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_float_key_precise", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}

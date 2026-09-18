@@ -70,6 +70,32 @@ std::string FindHeader(const std::string &raw, const std::string &name) {
     return {};
 }
 
+std::string HeaderContainsToken(const std::string &value, const std::string &token) {
+    auto tolower_copy = [](std::string s) {
+        for (char &c: s) {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+        return s;
+    };
+    const std::string hay = tolower_copy(value);
+    const std::string needle = tolower_copy(token);
+    size_t pos = 0;
+    while (pos < hay.size()) {
+        auto comma = hay.find(',', pos);
+        const size_t end = comma == std::string::npos ? hay.size() : comma;
+        size_t start = pos;
+        while (start < end && (hay[start] == ' ' || hay[start] == '\t')) ++start;
+        size_t stop = end;
+        while (stop > start && (hay[stop - 1] == ' ' || hay[stop - 1] == '\t')) --stop;
+        if (hay.compare(start, stop - start, needle) == 0) {
+            return needle;
+        }
+        if (comma == std::string::npos) break;
+        pos = comma + 1;
+    }
+    return {};
+}
+
 std::string RequestPath(const std::string &headers) {
     auto nl = headers.find("\r\n");
     std::string line = headers.substr(0, nl == std::string::npos ? headers.size() : nl);
@@ -325,6 +351,19 @@ private:
         }
         std::string key = FindHeader(headers, "Sec-WebSocket-Key");
         if (key.empty()) {
+            Close();
+            return;
+        }
+        if (HeaderContainsToken(FindHeader(headers, "Upgrade"), "websocket").empty()) {
+            Close();
+            return;
+        }
+        if (HeaderContainsToken(FindHeader(headers, "Connection"), "Upgrade").empty()) {
+            Close();
+            return;
+        }
+        std::string version = FindHeader(headers, "Sec-WebSocket-Version");
+        if (!version.empty() && version != "13") {
             Close();
             return;
         }
