@@ -177,10 +177,9 @@ jobs:
           (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
           ./bin/flua
 
-      # 单独一步而不是内联 if：这样 PR 里 GitHub 会把它显式标成 skipped，看得出是按策略
-      # 跳过而不是没配。限定 release 是因为这是 matrix 构建，不限定的话一次 push 要跑四遍。
+      # 限定 release：matrix 有 debug/asan/cov，不限定的话一次 push 要跑四遍。
       - name: Run benchmarks
-        if: github.event_name != 'pull_request' && matrix.build_type == 'release'
+        if: matrix.build_type == 'release'
         run: |
           set -x
           cd build/bin
