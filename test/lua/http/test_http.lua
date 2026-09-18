@@ -122,3 +122,56 @@ function test_connect_fail()
     if type(req.err) ~= "string" or #req.err == 0 then return 0 end
     return 1
 end
+
+function test_crlf_reject()
+    local ok = pcall(function()
+        http.request({
+            method = "GET",
+            url = "http://127.0.0.1/",
+            headers = { ["X"] = "a\r\nHost: evil" }
+        }, "HttpTest.on_client")
+    end)
+    if ok then return 0 end
+    return 1
+end
+
+function test_bad_port()
+    local ok = pcall(function()
+        local cfg = {}
+        cfg["ip"] = "127.0.0.1"
+        cfg["port"] = 70000
+        http.server(cfg)
+    end)
+    if ok then return 0 end
+    return 1
+end
+
+function test_method_inject()
+    local ok = pcall(function()
+        http.request({
+            method = "GET /evil",
+            url = "http://127.0.0.1/"
+        }, "HttpTest.on_client")
+    end)
+    if ok then return 0 end
+    local ok2 = pcall(function()
+        http.request({
+            method = "GET",
+            url = "http://127.0.0.1/",
+            headers = { ["X:Y"] = "z" }
+        }, "HttpTest.on_client")
+    end)
+    if ok2 then return 0 end
+    return 1
+end
+
+function test_client_bad_port()
+    local ok = pcall(function()
+        http.request({
+            method = "GET",
+            url = "http://127.0.0.1:70000/"
+        }, "HttpTest.on_client")
+    end)
+    if ok then return 0 end
+    return 1
+end

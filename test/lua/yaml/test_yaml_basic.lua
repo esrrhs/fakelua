@@ -88,3 +88,11 @@ function test_roundtrip()
     if t.tags[1] ~= 1 or t.tags[2] ~= 2 or t.tags[3] ~= 3 then return 0 end
     return 1
 end
+
+function test_decode_cycle()
+    local ok = pcall(function()
+        yaml.decode("&a [*a]")
+    end)
+    if ok then return 0 end
+    return 1
+end

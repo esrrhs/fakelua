@@ -17,7 +17,10 @@ namespace fakelua {
 }
 
 extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const) {
-    return GuardJitEntry(state, [&] { return state->GetHeap().GetAllocator(is_const).Alloc(size); });
+    return GuardJitEntry(state, [&] {
+        // Native 库在 init 里仍传 is_const=false；与 JIT 的 !__fakelua_init_flag__ 对齐，强制走常量堆。
+        return state->GetHeap().GetAllocator(is_const || state->InterpConstAlloc()).Alloc(size);
+    });
 }
 
 extern "C" void FakeluaThrowError(State *state, const char *msg) {
@@ -108,16 +111,26 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
         // 展开 Multi 参数到 flat_args
         CVar flat_args_buf[kMaxFunctionInputParams];
         int flat_count = 0;
-        for (int i = 0; i < arg_num && flat_count < static_cast<int>(kMaxFunctionInputParams); ++i) {
+        for (int i = 0; i < arg_num; ++i) {
             if (i == arg_num - 1 && raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                for (uint32_t j = 0; j < m->GetCount() && flat_count < static_cast<int>(kMaxFunctionInputParams); ++j) {
+                const int extra = m ? static_cast<int>(m->GetCount()) : 0;
+                if (flat_count + extra > static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}), max is {}", flat_count + extra, kMaxFunctionInputParams));
+                }
+                for (uint32_t j = 0; j < m->GetCount(); ++j) {
                     flat_args_buf[flat_count++] = m->GetVars()[j];
                 }
             } else if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
+                if (flat_count >= static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments, max is {}", kMaxFunctionInputParams));
+                }
                 flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar){static_cast<int>(VarType::Nil)};
             } else {
+                if (flat_count >= static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments, max is {}", kMaxFunctionInputParams));
+                }
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
             }
         }
@@ -152,16 +165,26 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
     if (!has_jit) {
         CVar flat_args_buf[kMaxFunctionInputParams];
         int flat_count = 0;
-        for (int i = 0; i < arg_num && flat_count < static_cast<int>(kMaxFunctionInputParams); ++i) {
+        for (int i = 0; i < arg_num; ++i) {
             if (i == arg_num - 1 && raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                for (uint32_t j = 0; j < m->GetCount() && flat_count < static_cast<int>(kMaxFunctionInputParams); ++j) {
+                const int extra = m ? static_cast<int>(m->GetCount()) : 0;
+                if (flat_count + extra > static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}), max is {}", flat_count + extra, kMaxFunctionInputParams));
+                }
+                for (uint32_t j = 0; j < m->GetCount(); ++j) {
                     flat_args_buf[flat_count++] = m->GetVars()[j];
                 }
             } else if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
+                if (flat_count >= static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments, max is {}", kMaxFunctionInputParams));
+                }
                 flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar){static_cast<int>(VarType::Nil)};
             } else {
+                if (flat_count >= static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments, max is {}", kMaxFunctionInputParams));
+                }
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
             }
         }

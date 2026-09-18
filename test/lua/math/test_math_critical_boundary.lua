@@ -19,10 +19,10 @@ function test_math_critical_boundary()
     local ok3 = pcall(function() return string.sub("hello", 2 ^ 63) end)
     if ok3 then return 6 end
 
-    -- ===== #2 math.abs(INT64_MIN) =====
+    -- ===== #2 math.abs(INT64_MIN)：Lua 5.4 无符号回绕，结果仍是 mininteger =====
     local r = math.abs(-9223372036854775808)
-    if r <= 0 then return 7 end
-    if r ~= 9223372036854775808.0 then return 8 end
+    if r ~= math.mininteger then return 7 end
+    if math.type(r) ~= "integer" then return 8 end
 
     -- ===== #3 math.random =====
     math.randomseed(42)

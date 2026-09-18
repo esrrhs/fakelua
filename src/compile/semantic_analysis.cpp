@@ -450,11 +450,66 @@ void SemanticAnalysis::CheckGotoOrLabel(const SyntaxTreeInterfacePtr &node) {
 void SemanticAnalysis::CollectBlockLabels(const SyntaxTreeInterfacePtr &block, std::unordered_map<std::string, SyntaxTreeInterfacePtr> &labels) {
     const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
     if (!blk) return;
+    std::unordered_set<std::string> in_this_block;
     for (const auto &stmt: blk->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::Label) {
             const auto label = std::dynamic_pointer_cast<SyntaxTreeLabel>(stmt);
-            labels[label->GetName()] = stmt;
+            const auto &name = label->GetName();
+            if (!in_this_block.insert(name).second) {
+                ThrowError(std::format("label '{}' already defined", name), stmt);
+            }
+            labels[name] = stmt;
         }
+    }
+}
+
+void SemanticAnalysis::CollectGotosInBlock(const SyntaxTreeInterfacePtr &block, std::vector<std::pair<std::string, SyntaxTreeInterfacePtr>> &out) {
+    const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
+    if (!blk) return;
+    for (const auto &stmt: blk->Stmts()) {
+        CollectGotosInStmt(stmt, out);
+    }
+}
+
+void SemanticAnalysis::CollectGotosInStmt(const SyntaxTreeInterfacePtr &stmt, std::vector<std::pair<std::string, SyntaxTreeInterfacePtr>> &out) {
+    if (!stmt) return;
+    switch (stmt->Type()) {
+        case SyntaxTreeType::Goto: {
+            const auto g = std::dynamic_pointer_cast<SyntaxTreeGoto>(stmt);
+            out.emplace_back(g->GetLabel(), stmt);
+            break;
+        }
+        case SyntaxTreeType::Block:
+            CollectGotosInBlock(stmt, out);
+            break;
+        case SyntaxTreeType::While:
+            CollectGotosInBlock(std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt)->Block(), out);
+            break;
+        case SyntaxTreeType::Repeat:
+            CollectGotosInBlock(std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt)->Block(), out);
+            break;
+        case SyntaxTreeType::If: {
+            const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+            CollectGotosInBlock(if_stmt->Block(), out);
+            if (if_stmt->ElseIfs()) {
+                const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs());
+                if (elseif_list) {
+                    for (const auto &elseif_blk: elseif_list->ElseifBlocks()) {
+                        CollectGotosInBlock(elseif_blk, out);
+                    }
+                }
+            }
+            if (if_stmt->ElseBlock()) CollectGotosInBlock(if_stmt->ElseBlock(), out);
+            break;
+        }
+        case SyntaxTreeType::ForLoop:
+            CollectGotosInBlock(std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt)->Block(), out);
+            break;
+        case SyntaxTreeType::ForIn:
+            CollectGotosInBlock(std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt)->Block(), out);
+            break;
+        default:
+            break;
     }
 }
 
@@ -462,18 +517,33 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
     const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
     if (!blk) return;
 
-    // 收集当前 block 自身的 label 并加入可见集合
     CollectBlockLabels(chunk, visible_labels);
 
-    // 收集当前 block 的局部变量声明位置
+    std::unordered_map<const SyntaxTreeInterface *, size_t> label_index;
+    for (size_t i = 0; i < blk->Stmts().size(); ++i) {
+        if (blk->Stmts()[i]->Type() == SyntaxTreeType::Label) {
+            label_index[blk->Stmts()[i].get()] = i;
+        }
+    }
+
     std::vector<size_t> local_positions;
     for (size_t i = 0; i < blk->Stmts().size(); ++i) {
-        if (blk->Stmts()[i]->Type() == SyntaxTreeType::LocalVar) {
+        const auto st = blk->Stmts()[i]->Type();
+        if (st == SyntaxTreeType::LocalVar || st == SyntaxTreeType::LocalFunction) {
             local_positions.push_back(i);
         }
     }
 
-    // 检查 goto 和 continue
+    auto check_skip_locals = [&](size_t from, size_t label_pos, const std::string &target_name, const SyntaxTreeInterfacePtr &err_node) {
+        if (from < label_pos && label_pos < blk->Stmts().size()) {
+            for (auto lp: local_positions) {
+                if (lp > from && lp <= label_pos) {
+                    ThrowError(std::format("goto '{}' jumps over local variable declaration", target_name), err_node);
+                }
+            }
+        }
+    };
+
     for (size_t i = 0; i < blk->Stmts().size(); ++i) {
         const auto &stmt = blk->Stmts()[i];
         if (stmt->Type() == SyntaxTreeType::Goto) {
@@ -483,36 +553,34 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
             if (it == visible_labels.end()) {
                 ThrowError(std::format("goto target '{}' not found", target_name), stmt);
             }
-            // 检查 label 是否在当前 block 内（若在，则检查是否跳过局部变量）
-            size_t label_pos = blk->Stmts().size();
-            for (size_t j = 0; j < blk->Stmts().size(); ++j) {
-                if (blk->Stmts()[j].get() == it->second.get()) {
-                    label_pos = j;
-                    break;
-                }
-            }
-            if (i < label_pos && label_pos < blk->Stmts().size()) {
-                for (auto lp: local_positions) {
-                    if (lp > i && lp <= label_pos) {
-                        ThrowError(std::format("goto '{}' jumps over local variable declaration", target_name), stmt);
-                    }
-                }
+            auto lit = label_index.find(it->second.get());
+            if (lit != label_index.end()) {
+                check_skip_locals(i, lit->second, target_name, stmt);
             }
         } else if (stmt->Type() == SyntaxTreeType::Continue) {
-            // continue 等价于 goto 到循环体末尾，必须在循环内
             if (loop_depth <= 0) {
                 ThrowError("'continue' statement not inside a loop", stmt);
             }
-            // 检查 continue 是否跳过局部变量声明（与 goto 到 block 末尾等价）
             for (auto lp: local_positions) {
                 if (lp > i) {
                     ThrowError("'continue' jumps over local variable declaration", stmt);
                 }
             }
+        } else if (stmt->Type() == SyntaxTreeType::Block || stmt->Type() == SyntaxTreeType::While || stmt->Type() == SyntaxTreeType::Repeat ||
+                   stmt->Type() == SyntaxTreeType::If || stmt->Type() == SyntaxTreeType::ForLoop || stmt->Type() == SyntaxTreeType::ForIn) {
+            std::vector<std::pair<std::string, SyntaxTreeInterfacePtr>> nested;
+            CollectGotosInStmt(stmt, nested);
+            for (const auto &[target_name, goto_node]: nested) {
+                auto it = visible_labels.find(target_name);
+                if (it == visible_labels.end()) continue;
+                auto lit = label_index.find(it->second.get());
+                if (lit != label_index.end()) {
+                    check_skip_locals(i, lit->second, target_name, goto_node);
+                }
+            }
         }
     }
 
-    // 递归检查嵌套 block，传递可见 label 集合和循环深度
     for (const auto &stmt: blk->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::Block) {
             ValidateGotoInBlock(stmt, visible_labels, loop_depth);

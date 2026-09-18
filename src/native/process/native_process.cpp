@@ -53,6 +53,12 @@ static std::string ReadCappedFile(const boost::filesystem::path &p) {
         const auto room = kMaxOutput - out.size();
         out.append(buf, n < room ? n : room);
     }
+    if (out.size() >= kMaxOutput) {
+        char extra = 0;
+        if (in.read(&extra, 1) && in.gcount() > 0) {
+            ThrowFakeluaException("process.run: output exceeds 8MB limit");
+        }
+    }
     return out;
 }
 
@@ -270,14 +276,35 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     }
 
 #if defined(_WIN32)
+    auto QuoteWinArg = [](const std::wstring &arg) -> std::wstring {
+        std::wstring out = L"\"";
+        int backslashes = 0;
+        for (wchar_t c: arg) {
+            if (c == L'\\') {
+                ++backslashes;
+            } else if (c == L'"') {
+                out.append(static_cast<size_t>(backslashes * 2 + 1), L'\\');
+                out.push_back(L'"');
+                backslashes = 0;
+            } else {
+                if (backslashes) out.append(static_cast<size_t>(backslashes), L'\\');
+                backslashes = 0;
+                out.push_back(c);
+            }
+        }
+        if (backslashes) out.append(static_cast<size_t>(backslashes * 2), L'\\');
+        out.push_back(L'"');
+        return out;
+    };
+
     FileStdio stdio;
     stdio.hin = FileStdio::Open(in_path.empty() ? L"NUL" : in_path.wstring().c_str(), true);
     stdio.hout = FileStdio::Open(out_path.wstring().c_str(), false);
     stdio.herr = FileStdio::Open(err_path.wstring().c_str(), false);
 
-    std::wstring cmd = L"\"" + boost::nowide::widen(exe) + L"\"";
+    std::wstring cmd = QuoteWinArg(boost::nowide::widen(exe));
     for (size_t i = 1; i < argv.size(); ++i) {
-        cmd += L" \"" + boost::nowide::widen(argv[i]) + L"\"";
+        cmd += L" " + QuoteWinArg(boost::nowide::widen(argv[i]));
     }
     std::vector<wchar_t> cmd_buf(cmd.begin(), cmd.end());
     cmd_buf.push_back(0);

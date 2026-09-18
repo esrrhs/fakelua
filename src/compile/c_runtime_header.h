@@ -292,7 +292,7 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
 }
 
 #define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)
-#define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.b = (val); } while(0)
+#define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.i = 0; (v).data_.b = (val); } while(0)
 #define SET_INT(v, val) do { (v).type_ = VAR_INT; (v).data_.i = (val); } while(0)
 #define SET_FLOAT(v, val) do { \
     double __f = (val); \
@@ -395,16 +395,26 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
     } else {
         CVar flat_args_buf[kMaxFunctionInputParams];
         int flat_count = 0;
-        for (int i = 0; i < arg_num && flat_count < (int)kMaxFunctionInputParams; ++i) {
+        for (int i = 0; i < arg_num; ++i) {
             if (i == arg_num - 1 && raw_arg_arr[i].type_ == VAR_MULTI) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                for (uint32_t j = 0; j < m->count && flat_count < (int)kMaxFunctionInputParams; ++j) {
+                const int extra = m ? (int)m->count : 0;
+                if (flat_count + extra > (int)kMaxFunctionInputParams) {
+                    FakeluaThrowError(state, "too many arguments");
+                }
+                for (uint32_t j = 0; j < m->count; ++j) {
                     flat_args_buf[flat_count++] = m->vars[j];
                 }
             } else if (raw_arg_arr[i].type_ == VAR_MULTI) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
+                if (flat_count >= (int)kMaxFunctionInputParams) {
+                    FakeluaThrowError(state, "too many arguments");
+                }
                 flat_args_buf[flat_count++] = m->count > 0 ? m->vars[0] : (CVar){VAR_NIL};
             } else {
+                if (flat_count >= (int)kMaxFunctionInputParams) {
+                    FakeluaThrowError(state, "too many arguments");
+                }
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
             }
         }
@@ -731,6 +741,7 @@ static inline CVar FlGetTable(CVar t, CVar k) {
     k = NORMALIZE_TABLE_KEY(k);
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
+    if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) { FakeluaThrowError(_S, "table index is NaN"); }
     VarTable *tbl = t.data_.t;
     if (tbl->spec_get) {
         bool __finish = false;
@@ -843,6 +854,7 @@ static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
     k = NORMALIZE_TABLE_KEY(k);
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
+    if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) { FakeluaThrowError(_S, "table index is NaN"); }
     VarTable *tbl = t.data_.t;
     if (tbl->spec_set) {
         bool __finish = false;
@@ -1116,15 +1128,31 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 
 #define CVAR_TO_DOUBLE(v) ((v).type_ == VAR_INT ? (double)(v).data_.i : (v).data_.f)
 
+#define FL_INT_ADD(a, b) ((int64_t)((uint64_t)(int64_t)(a) + (uint64_t)(int64_t)(b)))
+#define FL_INT_SUB(a, b) ((int64_t)((uint64_t)(int64_t)(a) - (uint64_t)(int64_t)(b)))
+#define FL_INT_MUL(a, b) ((int64_t)((uint64_t)(int64_t)(a) * (uint64_t)(int64_t)(b)))
+
 #define OP_ARITH_IMPL(a, b, res, op) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, _ra.data_.i op _rb.data_.i); } \
     else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
 
-#define OpAdd(a, b, res) OP_ARITH_IMPL(a, b, res, +)
-#define OpSub(a, b, res) OP_ARITH_IMPL(a, b, res, -)
-#define OpMul(a, b, res) OP_ARITH_IMPL(a, b, res, *)
+#define OpAdd(a, b, res) do { \
+    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_ADD(_ra.data_.i, _rb.data_.i)); } \
+    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) + CVAR_TO_DOUBLE(_rb)); } \
+} while(0)
+#define OpSub(a, b, res) do { \
+    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_SUB(_ra.data_.i, _rb.data_.i)); } \
+    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) - CVAR_TO_DOUBLE(_rb)); } \
+} while(0)
+#define OpMul(a, b, res) do { \
+    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_MUL(_ra.data_.i, _rb.data_.i)); } \
+    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) * CVAR_TO_DOUBLE(_rb)); } \
+} while(0)
 
 #define OpDiv(a, b, res) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
@@ -1195,10 +1223,8 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 
 #define OpUnaryMinus(a, res) do { \
     CVar _ra = (a); CheckNum(_ra); \
-    if (LIKELY(_ra.type_ == VAR_INT)) { \
-        if (UNLIKELY(_ra.data_.i == INT64_MIN)) { SET_FLOAT(res, -(double)_ra.data_.i); } \
-        else { SET_INT(res, -_ra.data_.i); } \
-    } else { SET_FLOAT(res, -_ra.data_.f); } \
+    if (LIKELY(_ra.type_ == VAR_INT)) { SET_INT(res, FL_INT_SUB(0, _ra.data_.i)); } \
+    else { SET_FLOAT(res, -_ra.data_.f); } \
 } while(0)
 
 #define OpBitNot(a, res) do { int64_t _ai; CheckInt(a, _ai); SET_INT(res, ~_ai); } while(0)
@@ -1569,6 +1595,38 @@ static inline int FlForIntAdvance(int64_t *ctrl, int64_t step) {
     if ((cur ^ step) >= 0 && (next ^ cur) < 0) return 0;
     *ctrl = next;
     return 1;
+}
+
+// Lua 5.4 forlimit：无法落入 int64 时按符号裁成 min/max integer；NaN 与负无穷同样处理。
+// 返回 1 表示整段跳过。
+static inline int FlForLimitToInt(double flim, int64_t step, int64_t *out) {
+    int64_t p = 0;
+    if (FlDoubleFitsInt64(flim, &p)) {
+        *out = p;
+        return 0;
+    }
+    if (!isfinite(flim)) {
+        if (flim > 0.0) {
+            if (step < 0) return 1;
+            *out = INT64_MAX;
+            return 0;
+        }
+        if (step > 0) return 1;
+        *out = INT64_MIN;
+        return 0;
+    }
+    if (flim >= FL_INT64_FLOAT_EXCL) {
+        if (step < 0) return 1;
+        *out = INT64_MAX;
+        return 0;
+    }
+    if (flim < (double)INT64_MIN) {
+        if (step > 0) return 1;
+        *out = INT64_MIN;
+        return 0;
+    }
+    *out = step > 0 ? (int64_t)floor(flim) : (int64_t)ceil(flim);
+    return 0;
 }
 
 #define FlToIntChecked(v, result) do { \

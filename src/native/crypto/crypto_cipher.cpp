@@ -12,6 +12,8 @@ namespace fakelua::crypto {
 std::vector<uint8_t> Rc4(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len) {
     if (key_len == 0) ThrowFakeluaException("rc4: empty key");
     if (key_len > static_cast<size_t>(INT_MAX)) ThrowFakeluaException("rc4: key too long");
+    if (data_len == 0) return {};
+    if (data_len > static_cast<size_t>(INT_MAX)) ThrowFakeluaException("rc4: data too long");
 
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) ThrowFakeluaException("rc4: failed to create EVP_CIPHER_CTX");
@@ -31,11 +33,9 @@ std::vector<uint8_t> Rc4(const uint8_t *key, size_t key_len, const uint8_t *data
 
     std::vector<uint8_t> out(data_len);
     int outlen = 0;
-    if (data_len > 0) {
-        if (EVP_EncryptUpdate(ctx, out.data(), &outlen, data, static_cast<int>(data_len)) != 1) {
-            EVP_CIPHER_CTX_free(ctx);
-            ThrowFakeluaException("rc4: EVP_EncryptUpdate failed");
-        }
+    if (EVP_EncryptUpdate(ctx, out.data(), &outlen, data, static_cast<int>(data_len)) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        ThrowFakeluaException("rc4: EVP_EncryptUpdate failed");
     }
     int final_len = 0;
     if (EVP_EncryptFinal_ex(ctx, out.data() + outlen, &final_len) != 1) {
@@ -54,8 +54,8 @@ std::vector<uint8_t> BlowfishEncrypt(const uint8_t *key, size_t key_len, const u
     if (key_len == 0) ThrowFakeluaException("blowfish_encrypt: empty key");
     if (key_len > static_cast<size_t>(INT_MAX)) ThrowFakeluaException("blowfish_encrypt: key too long");
 
+    if (data_len == 0) return {};
     size_t padded = (data_len + 7) & ~size_t(7);
-    if (padded == 0) padded = 8;
     std::vector<uint8_t> padded_data(data, data + data_len);
     padded_data.resize(padded, 0);
 
@@ -99,6 +99,7 @@ std::vector<uint8_t> BlowfishEncrypt(const uint8_t *key, size_t key_len, const u
 std::vector<uint8_t> BlowfishDecrypt(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len) {
     if (key_len == 0) ThrowFakeluaException("blowfish_decrypt: empty key");
     if (key_len > static_cast<size_t>(INT_MAX)) ThrowFakeluaException("blowfish_decrypt: key too long");
+    if (data_len == 0) return {};
     if (data_len % 8 != 0) ThrowFakeluaException("blowfish_decrypt: length must be a multiple of 8");
 
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
@@ -144,8 +145,8 @@ std::vector<uint8_t> BlowfishDecrypt(const uint8_t *key, size_t key_len, const u
 std::vector<uint8_t> DesEncrypt(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len) {
     if (key_len < 8) ThrowFakeluaException("des_encrypt: key must be at least 8 bytes");
 
+    if (data_len == 0) return {};
     size_t padded = (data_len + 7) & ~size_t(7);
-    if (padded == 0) padded = 8;
     std::vector<uint8_t> padded_data(data, data + data_len);
     padded_data.resize(padded, 0);
 
@@ -180,6 +181,7 @@ std::vector<uint8_t> DesEncrypt(const uint8_t *key, size_t key_len, const uint8_
 
 std::vector<uint8_t> DesDecrypt(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len) {
     if (key_len < 8) ThrowFakeluaException("des_decrypt: key must be at least 8 bytes");
+    if (data_len == 0) return {};
     if (data_len % 8 != 0) ThrowFakeluaException("des_decrypt: length must be a multiple of 8");
 
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
@@ -217,8 +219,8 @@ std::vector<uint8_t> DesDecrypt(const uint8_t *key, size_t key_len, const uint8_
 std::vector<uint8_t> TripleDesEncrypt(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len) {
     if (key_len < 24) ThrowFakeluaException("triple_des_encrypt: key must be at least 24 bytes");
 
+    if (data_len == 0) return {};
     size_t padded = (data_len + 7) & ~size_t(7);
-    if (padded == 0) padded = 8;
     std::vector<uint8_t> padded_data(data, data + data_len);
     padded_data.resize(padded, 0);
 
@@ -253,6 +255,7 @@ std::vector<uint8_t> TripleDesEncrypt(const uint8_t *key, size_t key_len, const 
 
 std::vector<uint8_t> TripleDesDecrypt(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len) {
     if (key_len < 24) ThrowFakeluaException("triple_des_decrypt: key must be at least 24 bytes");
+    if (data_len == 0) return {};
     if (data_len % 8 != 0) ThrowFakeluaException("triple_des_decrypt: length must be a multiple of 8");
 
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
