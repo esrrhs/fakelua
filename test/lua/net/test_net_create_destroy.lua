@@ -35,3 +35,19 @@ function test_ip_crlf()
     if ok then return 0 end
     return 1
 end
+
+function test_bad_backlog()
+    local ok = pcall(function()
+        net.server({ port = 19994, backlog = 3000000000 })
+    end)
+    if ok then return 0 end
+    return 1
+end
+
+function test_bad_fixed_len()
+    local ok = pcall(function()
+        net.server({ port = 19993, framer = "fixed", fixed_len = 3000000000 })
+    end)
+    if ok then return 0 end
+    return 1
+end

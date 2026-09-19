@@ -20,6 +20,13 @@ inline uint16_t CheckPortRange(int64_t port, const char *what, int64_t lo, int64
     return static_cast<uint16_t>(port);
 }
 
+inline int CheckInt32Range(int64_t v, const char *what, const char *field, int64_t lo = 0, int64_t hi = std::numeric_limits<int>::max()) {
+    if (v < lo || v > hi) {
+        ThrowFakeluaException(std::format("{}: {} {} out of range", what, field, v));
+    }
+    return static_cast<int>(v);
+}
+
 // Throw a standardized "bad argument #N to 'fname' (expected)" exception.
 [[noreturn]] inline void ThrowBadArgument(int argno, const char *fname, const char *expected) {
     std::string msg = std::string("bad argument #") + std::to_string(argno) + " to '" + fname + "' (" + expected + ")";

@@ -40,10 +40,10 @@ string2  \'((\\'|[^'\n\r])*)\'
 string3  \[\[([^\]]|(\][^\]]))*\]\]
 string   {string1}|{string2}|{string3}
 name     [_a-zA-Z][_a-zA-Z0-9]*
-/* 字面量不带正号：Lua 没有一元加，+1 应该报 unexpected symbol near '+'。
-   去掉 + 后它会退回成 PLUS token，语法里没有对应产生式，于是和 Lua 一样被拒。 */
-num1     -?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
-num2     -?0[xX][0-9a-fA-F]+(\.[0-9a-fA-F]+)?([pP][+-]?[0-9]+)?
+/* 字面量不带符号：Lua 把 +1 / -1 拆成一元运算符 + 无符号数字。
+   若把 - 写进数字 token，x-1、1-1、x -1 都会变成 IDENT/NUMBER NUMBER，无法解析。 */
+num1     [0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
+num2     0[xX][0-9a-fA-F]+(\.[0-9a-fA-F]+)?([pP][+-]?[0-9]+)?
 number   {num1}|{num2}
 
 %{
