@@ -1003,7 +1003,9 @@ static void ParseRequestOpts(State *s, CVar opts, std::string &method, std::stri
     CVar b = table::TableHelper::GetTableStrId(s, opts, "body");
     if (b.type_ != static_cast<int>(VarType::Nil)) body = CVarToString(b);
     CVar t = table::TableHelper::GetTableStrId(s, opts, "timeout_ms");
-    if (t.type_ != static_cast<int>(VarType::Nil)) timeout_ms = static_cast<int>(inter::CVarToInteger(t, 10000));
+    if (t.type_ != static_cast<int>(VarType::Nil)) {
+        timeout_ms = CheckInt32Range(inter::CVarToInteger(t, 10000), "http.request", "timeout_ms");
+    }
     CVar v = table::TableHelper::GetTableStrId(s, opts, "version");
     if (v.type_ != static_cast<int>(VarType::Nil)) {
         int64_t ver = inter::CVarToInteger(v, 11);
@@ -1099,9 +1101,13 @@ static CVar HttpServerFn(State *s, CVar *args, int n) {
                 port = static_cast<uint16_t>(port_val);
             }
             CVar bl = table::TableHelper::GetTableStrId(s, a0, "backlog");
-            if (bl.type_ != static_cast<int>(VarType::Nil)) backlog = static_cast<int>(inter::CVarToInteger(bl, 128));
+            if (bl.type_ != static_cast<int>(VarType::Nil)) {
+                backlog = CheckInt32Range(inter::CVarToInteger(bl, 128), "http.server", "backlog", 1);
+            }
             CVar t = table::TableHelper::GetTableStrId(s, a0, "timeout_ms");
-            if (t.type_ != static_cast<int>(VarType::Nil)) timeout_ms = static_cast<int>(inter::CVarToInteger(t, 10000));
+            if (t.type_ != static_cast<int>(VarType::Nil)) {
+                timeout_ms = CheckInt32Range(inter::CVarToInteger(t, 10000), "http.server", "timeout_ms");
+            }
             CVar tls_var = table::TableHelper::GetTableStrId(s, a0, "tls");
             if (tls_var.type_ != static_cast<int>(VarType::Nil)) tls = CVarToBoolFlag(tls_var, false);
             CVar cert_var = table::TableHelper::GetTableStrId(s, a0, "cert");

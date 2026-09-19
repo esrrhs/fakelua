@@ -43,28 +43,39 @@ static void CallNamed(State *s, const std::string &name, CVar *args, int n) {
     inter::DispatchCall(s, addr, args, n, jit_type);
 }
 
-static CVar ReplyToLua(State *s, const redisReply *r);
+static constexpr int kMaxRedisReplyDepth = 64;
 
-static CVar ArrayToLua(State *s, const redisReply *r) {
+static CVar ReplyToLua(State *s, const redisReply *r, int depth);
+
+static CVar ArrayToLua(State *s, const redisReply *r, int depth) {
+    if (depth > kMaxRedisReplyDepth) {
+        ThrowFakeluaException("redis: nested reply too deep");
+    }
     CVar tbl = table::TableHelper::CreateTable(s);
     for (size_t i = 0; i < r->elements; ++i) {
-        table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(i + 1), ReplyToLua(s, r->element[i]));
+        table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(i + 1), ReplyToLua(s, r->element[i], depth + 1));
     }
     return tbl;
 }
 
-static CVar MapToLua(State *s, const redisReply *r) {
+static CVar MapToLua(State *s, const redisReply *r, int depth) {
+    if (depth > kMaxRedisReplyDepth) {
+        ThrowFakeluaException("redis: nested reply too deep");
+    }
     CVar tbl = table::TableHelper::CreateTable(s);
     for (size_t i = 0; i + 1 < r->elements; i += 2) {
-        CVar key = ReplyToLua(s, r->element[i]);
-        CVar val = ReplyToLua(s, r->element[i + 1]);
+        CVar key = ReplyToLua(s, r->element[i], depth + 1);
+        CVar val = ReplyToLua(s, r->element[i + 1], depth + 1);
         table::TableHelper::SetTable(s, tbl, key, val);
     }
     return tbl;
 }
 
-static CVar ReplyToLua(State *s, const redisReply *r) {
+static CVar ReplyToLua(State *s, const redisReply *r, int depth = 0) {
     if (!r) return inter::NativeToFakeluaNil(s);
+    if (depth > kMaxRedisReplyDepth) {
+        ThrowFakeluaException("redis: nested reply too deep");
+    }
     switch (r->type) {
         case REDIS_REPLY_NIL:
             return inter::NativeToFakeluaNil(s);
@@ -80,10 +91,10 @@ static CVar ReplyToLua(State *s, const redisReply *r) {
         case REDIS_REPLY_ARRAY:
         case REDIS_REPLY_SET:
         case REDIS_REPLY_PUSH:
-            return ArrayToLua(s, r);
+            return ArrayToLua(s, r, depth);
         case REDIS_REPLY_MAP:
         case REDIS_REPLY_ATTR:
-            return MapToLua(s, r);
+            return MapToLua(s, r, depth);
         case REDIS_REPLY_ERROR:
         case REDIS_REPLY_STATUS:
         case REDIS_REPLY_STRING:
@@ -326,22 +337,44 @@ private:
         op->reply = CloneReply(reply);
     }
 
-    static redisReply *CloneReply(const redisReply *r) {
+    static redisReply *CloneReply(const redisReply *r, int depth = 0) {
         if (!r) return nullptr;
+        if (depth > kMaxRedisReplyDepth) {
+            ThrowFakeluaException("redis: nested reply too deep");
+        }
         auto *out = static_cast<redisReply *>(calloc(1, sizeof(redisReply)));
+        if (!out) {
+            ThrowFakeluaException("redis: out of memory");
+        }
         out->type = r->type;
         out->integer = r->integer;
         out->dval = r->dval;
         out->len = r->len;
         if (r->str) {
-            out->str = static_cast<char *>(malloc(r->len + 1));
-            std::memcpy(out->str, r->str, r->len);
+            out->str = static_cast<char *>(malloc(static_cast<size_t>(r->len) + 1));
+            if (!out->str) {
+                freeReplyObject(out);
+                ThrowFakeluaException("redis: out of memory");
+            }
+            std::memcpy(out->str, r->str, static_cast<size_t>(r->len));
             out->str[r->len] = 0;
         }
         if (r->elements && r->element) {
             out->elements = r->elements;
             out->element = static_cast<redisReply **>(calloc(r->elements, sizeof(redisReply *)));
-            for (size_t i = 0; i < r->elements; ++i) out->element[i] = CloneReply(r->element[i]);
+            if (!out->element) {
+                out->elements = 0;
+                freeReplyObject(out);
+                ThrowFakeluaException("redis: out of memory");
+            }
+            for (size_t i = 0; i < r->elements; ++i) {
+                try {
+                    out->element[i] = CloneReply(r->element[i], depth + 1);
+                } catch (...) {
+                    freeReplyObject(out);
+                    throw;
+                }
+            }
         }
         return out;
     }
@@ -547,9 +580,13 @@ static CVar RedisConnect(State *s, CVar *args, int n) {
         v = table::TableHelper::GetTableStrId(s, a0, "password");
         if (v.type_ != static_cast<int>(VarType::Nil)) password = CVarToString(v);
         v = table::TableHelper::GetTableStrId(s, a0, "db");
-        if (v.type_ != static_cast<int>(VarType::Nil)) db = static_cast<int>(inter::CVarToInteger(v, 0));
+        if (v.type_ != static_cast<int>(VarType::Nil)) {
+            db = CheckInt32Range(inter::CVarToInteger(v, 0), "redis.connect", "db");
+        }
         v = table::TableHelper::GetTableStrId(s, a0, "timeout_ms");
-        if (v.type_ != static_cast<int>(VarType::Nil)) timeout_ms = static_cast<int>(inter::CVarToInteger(v, 1000));
+        if (v.type_ != static_cast<int>(VarType::Nil)) {
+            timeout_ms = CheckInt32Range(inter::CVarToInteger(v, 1000), "redis.connect", "timeout_ms");
+        }
     } else {
         ThrowBadArgument(1, "redis.connect", "config must be a table");
     }

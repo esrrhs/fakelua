@@ -80,6 +80,57 @@ static CVar ScalarToLua(State *s, const std::string &str) {
 
 static constexpr int kMaxYamlDepth = 64;
 
+static void CheckYamlTextNesting(const std::string &str) {
+    int depth = 0;
+    bool in_single = false;
+    bool in_double = false;
+    for (size_t i = 0; i < str.size(); ++i) {
+        const char c = str[i];
+        if (in_single) {
+            if (c == '\'') {
+                if (i + 1 < str.size() && str[i + 1] == '\'') {
+                    ++i;
+                } else {
+                    in_single = false;
+                }
+            }
+            continue;
+        }
+        if (in_double) {
+            if (c == '\\' && i + 1 < str.size()) {
+                ++i;
+                continue;
+            }
+            if (c == '"') {
+                in_double = false;
+            }
+            continue;
+        }
+        if (c == '#') {
+            while (i < str.size() && str[i] != '\n') {
+                ++i;
+            }
+            continue;
+        }
+        if (c == '\'') {
+            in_single = true;
+            continue;
+        }
+        if (c == '"') {
+            in_double = true;
+            continue;
+        }
+        if (c == '[' || c == '{') {
+            ++depth;
+            if (depth > kMaxYamlDepth) {
+                ThrowFakeluaException("yaml.decode: nesting too deep");
+            }
+        } else if ((c == ']' || c == '}') && depth > 0) {
+            --depth;
+        }
+    }
+}
+
 // YAML::Node → CVar
 static CVar NodeToLua(State *s, const YAML::Node &node, int depth, std::vector<YAML::Node> &stack) {
     if (depth > kMaxYamlDepth) {
@@ -209,6 +260,7 @@ static CVar YamlDecode(State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     std::string str = inter::FakeluaToNativeString(s, a0);
     try {
+        CheckYamlTextNesting(str);
         YAML::Node root = YAML::Load(str);
         std::vector<YAML::Node> stack;
         return NodeToLua(s, root, 0, stack);

@@ -827,6 +827,13 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
             DEBUG_ASSERT(op);
             switch (const auto op_kind = op->GetOpKind()) {
                 case UnOpKind::kMinus: {
+                    TableKeyKind kind = TableKeyKind::kInt;
+                    std::string canonical;
+                    int64_t int_value = 0;
+                    double float_value = 0;
+                    if (ClassifyConstNumberExp(exp, kind, canonical, int_value, float_value)) {
+                        return RecordType(current_map, exp.get(), ConstNumberExpIsIntValue(kind, exp) ? T_INT : T_FLOAT);
+                    }
                     if (operand_type == T_INT) {
                         return RecordType(current_map, exp.get(), T_INT);
                     }
@@ -1651,13 +1658,25 @@ bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vect
                     f.key_kind = TableKeyKind::kString;
                     f.c_field_name = SpecStringFieldCName(f.key);
                     desc = "S_" + f.key;
-                } else if (kind == ExpKind::kNumber) {
+                } else if (kind == ExpKind::kTrue) {
+                    f.key = "true";
+                    f.key_kind = TableKeyKind::kBool;
+                    f.c_field_name = "_bool_true";
+                    f.bool_value = true;
+                    desc = "B_true";
+                } else if (kind == ExpKind::kFalse) {
+                    f.key = "false";
+                    f.key_kind = TableKeyKind::kBool;
+                    f.c_field_name = "_bool_false";
+                    f.bool_value = false;
+                    desc = "B_false";
+                } else {
                     TableKeyKind nkind = TableKeyKind::kInt;
                     std::string canonical;
                     int64_t int_value = 0;
                     double float_value = 0;
-                    if (!ClassifyLuaNumberKey(key_exp->ExpValue(), nkind, canonical, int_value, float_value)) {
-                        return false;
+                    if (!ClassifyConstNumberExp(key_exp, nkind, canonical, int_value, float_value)) {
+                        return false;// 非静态 key
                     }
                     if (nkind == TableKeyKind::kInt) {
                         f.key = canonical;
@@ -1678,20 +1697,6 @@ bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vect
                         f.float_value = float_value;
                         desc = "F_" + f.key;
                     }
-                } else if (kind == ExpKind::kTrue) {
-                    f.key = "true";
-                    f.key_kind = TableKeyKind::kBool;
-                    f.c_field_name = "_bool_true";
-                    f.bool_value = true;
-                    desc = "B_true";
-                } else if (kind == ExpKind::kFalse) {
-                    f.key = "false";
-                    f.key_kind = TableKeyKind::kBool;
-                    f.c_field_name = "_bool_false";
-                    f.bool_value = false;
-                    desc = "B_false";
-                } else {
-                    return false;// 非静态 key
                 }
             }
         }

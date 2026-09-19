@@ -4,6 +4,7 @@
 #include "jit/vm_function.h"
 #include "syntax_tree.h"
 #include "util/debug.h"
+#include "util/string_util.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -343,6 +344,85 @@ inline bool ClassifyLuaNumberKey(const std::string &num_str, TableKeyKind &kind,
     } catch (...) {
         return false;
     }
+}
+
+// 常量数字表达式：字面量，或一元减号叠在字面量上（lexer 不再把 -1 收成单个 NUMBER）。
+inline bool ClassifyConstNumberExp(const SyntaxTreeInterfacePtr &node, TableKeyKind &kind, std::string &canonical, int64_t &int_value, double &float_value) {
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+    if (!exp) {
+        return false;
+    }
+    if (exp->GetExpKind() == ExpKind::kNumber) {
+        return ClassifyLuaNumberKey(exp->ExpValue(), kind, canonical, int_value, float_value);
+    }
+    if (exp->GetExpKind() != ExpKind::kUnop) {
+        return false;
+    }
+    const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
+    if (!op || op->GetOpKind() != UnOpKind::kMinus) {
+        return false;
+    }
+    if (!ClassifyConstNumberExp(exp->Right(), kind, canonical, int_value, float_value)) {
+        return false;
+    }
+    if (kind == TableKeyKind::kInt) {
+        if (int_value == std::numeric_limits<int64_t>::min()) {
+            kind = TableKeyKind::kFloat;
+            float_value = -static_cast<double>(int_value);
+            canonical = std::format("{:.17g}", float_value);
+            int_value = 0;
+        } else {
+            int_value = -int_value;
+            canonical = std::to_string(int_value);
+        }
+    } else {
+        float_value = -float_value;
+        // lexer 把 -9223372036854775808 拆成 UNMINUS + 2^63；2^63 只能先当 float，
+        // 取负后正好是 mininteger，应对齐 Lua 收成整数。
+        constexpr double kTwo63 = 9223372036854775808.0;
+        if (float_value == -kTwo63) {
+            kind = TableKeyKind::kInt;
+            int_value = std::numeric_limits<int64_t>::min();
+            canonical = std::to_string(int_value);
+            float_value = 0.0;
+        } else if (!canonical.empty() && canonical.front() == '-') {
+            canonical = canonical.substr(1);
+        } else {
+            canonical.insert(canonical.begin(), '-');
+        }
+    }
+    return true;
+}
+
+// 表键可以把 1.0 收成整数；表达式值必须跟 Lua 字面量语法走：1.0 / 1e0 仍是 float。
+inline bool ConstNumberExpHasFloatSyntax(const SyntaxTreeInterfacePtr &node) {
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+    if (!exp) {
+        return false;
+    }
+    if (exp->GetExpKind() == ExpKind::kNumber) {
+        return !IsInteger(exp->ExpValue());
+    }
+    if (exp->GetExpKind() != ExpKind::kUnop) {
+        return false;
+    }
+    const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
+    if (!op || op->GetOpKind() != UnOpKind::kMinus) {
+        return false;
+    }
+    return ConstNumberExpHasFloatSyntax(exp->Right());
+}
+
+inline bool ConstNumberExpIsIntValue(TableKeyKind kind, const SyntaxTreeInterfacePtr &node) {
+    return kind == TableKeyKind::kInt && !ConstNumberExpHasFloatSyntax(node);
+}
+
+inline std::string FormatCDoubleLiteral(double d) {
+    std::string s = std::format("{:.17g}", d);
+    if (s.find('.') == std::string::npos && s.find('e') == std::string::npos && s.find('E') == std::string::npos) {
+        s += ".0";
+    }
+    return s;
 }
 
 inline std::string EscapeCStringLiteral(const std::string &s) {
