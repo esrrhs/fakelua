@@ -100,3 +100,25 @@ TEST(test_redis, bad_port) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_redis, bad_timeout_ms) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./redis/test_redis.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "RedisTest.test_bad_timeout_ms", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_redis, bad_db) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./redis/test_redis.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "RedisTest.test_bad_db", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

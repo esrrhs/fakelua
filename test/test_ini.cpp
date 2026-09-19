@@ -80,3 +80,16 @@ TEST(test_ini, roundtrip) {
         FakeluaDeleteState(s);
     }
 }
+
+TEST(test_ini, encode_value_newline) {
+    for (auto jit_type: AllJitTypes()) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        CompileFile(s, "./ini/test_ini_basic.lua", config);
+        int64_t ret = 0;
+        Call(s, jit_type, "IniTest.test_encode_value_newline", ret);
+        EXPECT_EQ(ret, 1);
+        FakeluaDeleteState(s);
+    }
+}

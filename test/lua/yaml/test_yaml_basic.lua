@@ -96,3 +96,13 @@ function test_decode_cycle()
     if ok then return 0 end
     return 1
 end
+
+function test_decode_too_deep()
+    local n = 80
+    local s = string.rep("[", n) .. string.rep("]", n)
+    local ok = pcall(function()
+        yaml.decode(s)
+    end)
+    if ok then return 0 end
+    return 1
+end

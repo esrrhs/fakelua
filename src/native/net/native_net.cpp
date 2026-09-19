@@ -548,7 +548,7 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
         }
         cfg.max_conn = static_cast<int>(maxc);
     }
-    cfg.backlog = static_cast<int>(GetTableField(s, a0, "backlog", 128));
+    cfg.backlog = CheckInt32Range(GetTableField(s, a0, "backlog", 128), "net", "backlog", 1);
     {
         int64_t sbs = GetTableField(s, a0, "send_buf_size", 0);
         if (sbs == 0) sbs = GetTableField(s, a0, "sendbuf", 0);
@@ -576,9 +576,12 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
             cfg.max_packet_len = static_cast<int>(mpl);
         }
     }
-    cfg.fixed_packet_len = static_cast<int>(GetTableField(s, a0, "fixed_len", 0));
-    if (cfg.fixed_packet_len == 0) {
-        cfg.fixed_packet_len = static_cast<int>(GetTableField(s, a0, "fixed_packet_len", 0));
+    {
+        int64_t flen = GetTableField(s, a0, "fixed_len", 0);
+        if (flen == 0) flen = GetTableField(s, a0, "fixed_packet_len", 0);
+        if (flen != 0) {
+            cfg.fixed_packet_len = CheckInt32Range(flen, "net", "fixed_packet_len", 1);
+        }
     }
     cfg.no_delay = GetTableField(s, a0, "nodelay", 1) != 0;
     cfg.keep_alive = GetTableField(s, a0, "keepalive", 1) != 0;

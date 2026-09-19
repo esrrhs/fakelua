@@ -279,6 +279,34 @@ TEST(test_net, test_ip_crlf) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_net, test_bad_backlog) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_create_destroy.lua", config);
+
+    int64_t ret = 0;
+    CallAll(s, "NetCreate.test_bad_backlog", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_net, test_bad_fixed_len) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_create_destroy.lua", config);
+
+    int64_t ret = 0;
+    CallAll(s, "NetCreate.test_bad_fixed_len", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}
+
 // 测试 12: 反复 connect + close，验证 slot 自动释放并复用（maxconn=2 时成功服务 6 次客户端连接）
 TEST(test_net, test_slot_reuse_repeated_connect) {
     State *s = FakeluaNewState();

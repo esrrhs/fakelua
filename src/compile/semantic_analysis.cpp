@@ -714,16 +714,13 @@ void SemanticAnalysis::CheckBlockReturnPosition(const SyntaxTreeInterfacePtr &no
 void SemanticAnalysis::CheckForLoop(const SyntaxTreeInterfacePtr &node) {
     const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
     if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_loop->ExpStep())) {
-        if (step_exp->GetExpKind() == ExpKind::kNumber) {
-            const auto &val = step_exp->ExpValue();
-            if (IsInteger(val)) {
-                if (ToInteger(val) == 0) {
-                    ThrowError("'for' step is zero", step_exp);
-                }
-            } else {
-                if (ToFloat(val) == 0.0) {
-                    ThrowError("'for' step is zero", step_exp);
-                }
+        TableKeyKind kind = TableKeyKind::kInt;
+        std::string canonical;
+        int64_t int_value = 0;
+        double float_value = 0;
+        if (ClassifyConstNumberExp(step_exp, kind, canonical, int_value, float_value)) {
+            if ((kind == TableKeyKind::kInt && int_value == 0) || (kind == TableKeyKind::kFloat && float_value == 0.0)) {
+                ThrowError("'for' step is zero", step_exp);
             }
         }
     }
