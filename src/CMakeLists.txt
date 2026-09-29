@@ -188,6 +188,7 @@ CPMAddPackage(
     GITHUB_REPOSITORY lz4/lz4
     GIT_TAG v1.9.4
     SOURCE_SUBDIR build/cmake
+    EXCLUDE_FROM_ALL YES
     OPTIONS
         "BUILD_SHARED_LIBS OFF"
         "CMAKE_POSITION_INDEPENDENT_CODE ON"
@@ -204,6 +205,7 @@ CPMAddPackage(
     NAME zlib
     GITHUB_REPOSITORY madler/zlib
     GIT_TAG v1.3.1
+    EXCLUDE_FROM_ALL YES
     OPTIONS
         "BUILD_SHARED_LIBS OFF"
         "CMAKE_POSITION_INDEPENDENT_CODE ON"
@@ -220,6 +222,7 @@ CPMAddPackage(
     GITHUB_REPOSITORY facebook/zstd
     GIT_TAG v1.5.6
     SOURCE_SUBDIR build/cmake
+    EXCLUDE_FROM_ALL YES
     OPTIONS
         "ZSTD_BUILD_SHARED_LIB OFF"
         "ZSTD_BUILD_PROGRAMS OFF"
@@ -241,6 +244,7 @@ CPMAddPackage(
     NAME yaml_cpp
     GITHUB_REPOSITORY jbeder/yaml-cpp
     GIT_TAG 0.8.0
+    EXCLUDE_FROM_ALL YES
     OPTIONS
         "BUILD_SHARED_LIBS OFF"
         "CMAKE_POSITION_INDEPENDENT_CODE ON"
@@ -259,6 +263,7 @@ CPMAddPackage(
     NAME pugixml
     GITHUB_REPOSITORY zeux/pugixml
     GIT_TAG v1.14
+    EXCLUDE_FROM_ALL YES
     OPTIONS
         "BUILD_SHARED_LIBS OFF"
         "CMAKE_POSITION_INDEPENDENT_CODE ON"
@@ -273,6 +278,7 @@ CPMAddPackage(
     NAME tomlplusplus
     GITHUB_REPOSITORY marzer/tomlplusplus
     GIT_TAG v3.4.0
+    EXCLUDE_FROM_ALL YES
     OPTIONS
         "BUILD_SHARED_LIBS OFF"
         "CMAKE_POSITION_INDEPENDENT_CODE ON"
@@ -304,6 +310,7 @@ CPMAddPackage(
     NAME libevent
     GITHUB_REPOSITORY libevent/libevent
     GIT_TAG release-2.1.12-stable
+    EXCLUDE_FROM_ALL YES
     OPTIONS
         "EVENT__LIBRARY_TYPE STATIC"
         "EVENT__DISABLE_BENCHMARK ON"
@@ -332,6 +339,7 @@ CPMAddPackage(
     NAME hiredis
     GITHUB_REPOSITORY redis/hiredis
     GIT_TAG v1.2.0
+    EXCLUDE_FROM_ALL YES
     OPTIONS
         "DISABLE_TESTS ON"
         "ENABLE_SSL OFF"
@@ -362,6 +370,7 @@ CPMAddPackage(
     NAME mariadb_connector_c
     GITHUB_REPOSITORY mariadb-corporation/mariadb-connector-c
     GIT_TAG v3.3.11
+    EXCLUDE_FROM_ALL YES
     OPTIONS
         "WITH_SSL OPENSSL"
         "WITH_UNIT_TESTS OFF"
@@ -412,6 +421,7 @@ CPMAddPackage(
     NAME boost
     GITHUB_REPOSITORY boostorg/boost
     GIT_TAG boost-1.90.0
+    EXCLUDE_FROM_ALL YES
     # 注意分隔符是空格：这个版本的 CPM 用第一个空格切 key/value，写成 KEY=VALUE 会被
     # 当成一个名叫 "KEY=VALUE" 的变量并赋值 ON，也就是彻底的空操作。
     OPTIONS
@@ -488,3 +498,23 @@ if (WIN32)
 endif()
 
 target_link_libraries(fakelua PRIVATE ${TARGET_LIB})
+
+target_include_directories(fakelua PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/fakelua>
+)
+
+set_target_properties(fakelua PROPERTIES
+    VERSION 2.0.0
+    SOVERSION 2
+    INSTALL_NAME_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
+)
+
+install(TARGETS fakelua
+    EXPORT fakeluaTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
