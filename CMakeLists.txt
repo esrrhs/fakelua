@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
-project(fakelua CXX)
+project(fakelua VERSION 2.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -13,6 +13,11 @@ include(GNUInstallDirs)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
+
+# RPATH configuration
+set(CMAKE_MACOSX_RPATH ON)
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 set(ENV{FAKELUA_HOME} "${CMAKE_CURRENT_SOURCE_DIR}/")
 
@@ -79,3 +84,49 @@ option(BUILD_FUZZ "Build fuzz targets (requires clang)" OFF)
 if (BUILD_FUZZ)
     add_subdirectory(fuzz)
 endif ()
+
+# ── Installation & CMake Package Export ──
+install(FILES include/fakelua.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(FILES include/fakelua.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/fakelua
+)
+
+include(CMakePackageConfigHelpers)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/fakeluaConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/fakeluaConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/fakeluaConfig.cmake"
+    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/fakelua"
+    PATH_VARS CMAKE_INSTALL_INCLUDEDIR CMAKE_INSTALL_LIBDIR
+)
+
+install(EXPORT fakeluaTargets
+    FILE fakeluaTargets.cmake
+    NAMESPACE fakelua::
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/fakelua"
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/fakeluaConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/fakeluaConfigVersion.cmake"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/fakelua"
+)
+
+# pkg-config support
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/fakelua.pc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/fakelua.pc"
+    @ONLY
+)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/fakelua.pc"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+)
+
