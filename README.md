@@ -239,6 +239,52 @@ ctest --test-dir build -V
 - `--repeat`: Repeat call count (for performance measurement)
 - `--debug`: Enable debug mode (default `false`; when `true`, outputs generated C source / richer diagnostics)
 
+### Installation & CMake Integration
+
+#### Install to System
+
+```bash
+# Build
+cmake -S . -B build
+cmake --build build --parallel
+
+# Install (default prefix: /usr/local)
+sudo cmake --install build
+# or: cd build && sudo make install
+```
+
+#### Using FakeLua in Other CMake Projects
+
+After installing to your system, other CMake projects can discover and link FakeLua using standard `find_package`:
+
+```cmake
+cmake_minimum_required(VERSION 3.20)
+project(my_project CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Discover FakeLua package
+find_package(fakelua REQUIRED)
+
+add_executable(my_project main.cpp)
+
+# Link against fakelua (automatically sets up include directories and link flags)
+target_link_libraries(my_project PRIVATE fakelua::fakelua)
+# Alternatively, the unqualified alias is also supported:
+# target_link_libraries(my_project PRIVATE fakelua)
+```
+
+In your C++ code:
+
+```cpp
+#include "fakelua.h"
+// or
+#include <fakelua/fakelua.h>
+```
+
+FakeLua also installs `fakelua.pc` for `pkg-config` consumers.
+
 ## Performance Benchmarks
 
 Comparing Lua 5.4, FakeLua TCC, FakeLua GCC across 11 algorithms (Release `-O3` mode):

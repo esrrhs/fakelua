@@ -1,0 +1,10 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/fakeluaTargets.cmake")
+
+# Provide an unqualified alias `fakelua` for compatibility with projects using target_link_libraries(... fakelua)
+if(TARGET fakelua::fakelua AND NOT TARGET fakelua)
+    add_library(fakelua ALIAS fakelua::fakelua)
+endif()
+
+check_required_components(fakelua)
