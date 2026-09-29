@@ -238,6 +238,52 @@ ctest --test-dir build -V
 - `--repeat`：重复调用次数（用于性能测量）
 - `--debug`：是否启用调试模式（默认 `false`，若为 `true` 则输出生成的 C 源码 / 更详细诊断）
 
+### 安装与 CMake 集成
+
+#### 安装到系统
+
+```bash
+# 编译
+cmake -S . -B build
+cmake --build build --parallel
+
+# 安装（默认前缀：/usr/local）
+sudo cmake --install build
+# 或：cd build && sudo make install
+```
+
+#### 在其他 CMake 项目中使用
+
+安装到系统后，其他 CMake 项目可以通过标准的 `find_package` 引入并链接 FakeLua：
+
+```cmake
+cmake_minimum_required(VERSION 3.20)
+project(my_project CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# 查找 FakeLua
+find_package(fakelua REQUIRED)
+
+add_executable(my_project main.cpp)
+
+# 链接 fakelua（自动引入头文件路径和链接参数）
+target_link_libraries(my_project PRIVATE fakelua::fakelua)
+# 同时兼容不带命名空间的别名写法：
+# target_link_libraries(my_project PRIVATE fakelua)
+```
+
+在 C++ 代码中引用头文件：
+
+```cpp
+#include "fakelua.h"
+// 或者使用带目录前缀的形式：
+// #include <fakelua/fakelua.h>
+```
+
+FakeLua 还会同时安装 `fakelua.pc`，支持通过 `pkg-config` 使用。
+
 ## 性能基准
 
 对比 Lua 5.4、FakeLua TCC、FakeLua GCC，覆盖 Fibonacci、GCD、快速幂、线性求和、冒泡排序、筛质数等 11 类算法（Release `-O3` 模式）：

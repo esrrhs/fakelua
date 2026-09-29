@@ -7,12 +7,13 @@ CPMAddPackage(
         NAME gflags
         GITHUB_REPOSITORY gflags/gflags
         GIT_TAG v2.2.2
+        EXCLUDE_FROM_ALL YES
         OPTIONS
         "BUILD_SHARED_LIBS OFF"
-        "INSTALL_HEADERS ON"
-        "INSTALL_SHARED_LIBS ON"
-        "INSTALL_STATIC_LIBS ON"
-        "REGISTER_INSTALL_PREFIX ON"
+        "INSTALL_HEADERS OFF"
+        "INSTALL_SHARED_LIBS OFF"
+        "INSTALL_STATIC_LIBS OFF"
+        "REGISTER_INSTALL_PREFIX OFF"
         "BUILD_TESTING OFF"
 )
 
@@ -31,3 +32,11 @@ ENDIF ()
 add_executable(flua ${LUA_SRC_LIST})
 
 target_link_libraries(flua PRIVATE fakelua gflags::gflags)
+
+set_target_properties(flua PROPERTIES
+    INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
+)
+
+install(TARGETS flua
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
