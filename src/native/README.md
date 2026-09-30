@@ -424,7 +424,7 @@ The flag is an integer depth on the State, so Linux, macOS and Windows behave th
 | Mutating fields of a runtime-created table | ✅ | Attaching a table created inside the callback to a long-lived table is a reliable pattern |
 | IO such as `send` / mysql `query` | ✅ | sends are pumped by the tick after dispatch finishes; queries queue asynchronously |
 | Assigning **fields** of a file-level `local` table | ❌ | file-level tables get CONST_FLAG after init; mutating content throws "attempt to modify a const table" |
-| Rebinding a file-level `local` variable (`x = ...`) | ⚠️ | numeric variables with further assignment points are not emitted const by the JIT and assign fine; numeric variables never reassigned after declaration are optimized to C-level const — assigning them later is a compile error |
+| Rebinding a file-level numeric `local` (`x = ...`) | ❌ | a file-level numeric local with a literal initializer is a constant; assigning it later is a compile error that names the source line. `local x = func()` cannot be a C static initializer: the declaration is lowered to `local x = nil` and `__fakelua_init` assigns it once when the shared library is loaded |
 
 ---
 

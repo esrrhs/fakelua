@@ -3023,25 +3023,37 @@ TEST(infer, test_global_const_float) {
     });
 }
 
-// 回归：文件级数值变量声明后有多个再赋值点（且全部是编译期常量）时，
-// 曾被误标为 static const，JIT 生成的 C 代码编译失败。
-// 修复后：有再赋值点的变量发射为非 const 的 static int64_t；从未再赋值的仍保持 const。
+// 文件级数值字面量是常量。函数里再赋值必须在编译期报错，并带上 Lua 位置。
+// local x = func() 不走这条路径：C 静态初值不能调用函数，预处理改成 local x = nil，
+// 只在 __fakelua_init 里赋值一次。见 test_global_init_multi_names_funcall。
 TEST(infer, test_global_const_reassigned_not_const) {
-    const auto code = InferGetCCode("./infer/test_global_const_reassigned.lua");
-    // 有再赋值点 → 不允许 const。
-    ASSERT_NE(code.find("static int64_t next_bot_id = 0;"), std::string::npos);
-    ASSERT_EQ(code.find("static const int64_t next_bot_id"), std::string::npos);
+    const auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    try {
+        CompileFile(s, "./infer/test_global_const_reassigned.lua", {});
+        FakeluaDeleteState(s);
+        FAIL() << "reassigning a file-level numeric constant should fail at compile time";
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("cannot reassign file-level constant 'next_bot_id'"), std::string::npos);
+        EXPECT_NE(msg.find("test_global_const_reassigned.lua"), std::string::npos);
+        FakeluaDeleteState(s);
+    }
+}
 
-    InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_global_const_reassigned.lua", {.debug_mode = debug_mode});
-        int ret = 0;
-        Call(s, type, "init", ret);
-        Call(s, type, "add", ret);
-        Call(s, type, "add", ret);
-        int64_t v = 0;
-        Call(s, type, "get", v);
-        ASSERT_EQ(v, 800002);
-    });
+TEST(infer, test_global_const_reassign_dynamic) {
+    const auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    try {
+        CompileFile(s, "./infer/test_global_const_reassign_dynamic.lua", {});
+        FakeluaDeleteState(s);
+        FAIL() << "reassigning a file-level numeric constant with a runtime value should fail";
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("cannot reassign file-level constant 'map_width'"), std::string::npos);
+        EXPECT_NE(msg.find("test_global_const_reassign_dynamic.lua"), std::string::npos);
+        FakeluaDeleteState(s);
+    }
 }
 
 // ---------------------------------------------------------------------------

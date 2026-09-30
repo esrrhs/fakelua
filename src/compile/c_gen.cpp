@@ -488,21 +488,18 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                 InferredType global_type = ir().global_const_vars.at(name);
                 const auto cname = CIdent(name);
                 const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-                // 声明后仍有再赋值点的变量不能 const：const + 赋值 = C 编译错误。
-                // （此前只看推断类型，多赋值点全为编译期常量时会被误标 const。）
-                const bool reassigned = ir().global_reassigned_vars.contains(name);
-                const std::string qualifier = reassigned ? "static " : "static const ";
+                // 文件级数值 local 是常量。再赋值在类型推断阶段就已经报错，这里一律 static const。
                 if (global_type == T_INT) {
                     if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
-                        Out() << qualifier << "int64_t " << cname << " = 0;\n";
+                        Out() << "static const int64_t " << cname << " = 0;\n";
                     } else {
-                        Out() << qualifier << "int64_t " << cname << " = " << CompileNumericExp(exp) << ";\n";
+                        Out() << "static const int64_t " << cname << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else if (global_type == T_FLOAT) {
                     if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
-                        Out() << qualifier << "double " << cname << " = 0.0;\n";
+                        Out() << "static const double " << cname << " = 0.0;\n";
                     } else {
-                        Out() << qualifier << "double " << cname << " = " << CompileNumericExp(exp) << ";\n";
+                        Out() << "static const double " << cname << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else {
                     // 非数值字面量：保留 static CVar 形式。

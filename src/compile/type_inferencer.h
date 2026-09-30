@@ -95,8 +95,6 @@ private:
         const TrialInferenceContext *ctx = nullptr;
         std::unordered_map<const SyntaxTreeInterface *, const SyntaxTreeInterface *> &var_define_nodes;
         std::set<std::pair<const SyntaxTreeInterface *, std::string>> &shadowed_decls;
-        // 文件级 local 再赋值收集（主推断传 ir.global_reassigned_vars，试推断传 dummy）。
-        std::unordered_set<std::string> &global_reassigned_vars;
 
         [[nodiscard]] bool IsTrialInference() const {
             return ctx != nullptr;
@@ -279,9 +277,12 @@ private:
 
 private:
     State *s_ = nullptr;
+    std::string file_name_;
+    // 正在推断 __fakelua_init。它里面的 x = func() 是文件级复杂初值的唯一赋值点，不是再赋值。
+    bool in_init_function_ = false;
     std::unordered_map<std::string, InferredType> file_level_types_;
-    // 文件级 local 声明的 initializer 表达式节点。InferAssign 据此判断被赋值变量
-    // 是否解析到文件级绑定（含遮蔽场景），进而收集"声明后再被赋值"的变量名。
+    // 文件级数值字面量 local 的 initializer 节点。InferAssign 用它判断赋值目标是不是
+    // 这条常量绑定（对函数内同名遮蔽免疫）。__fakelua_init 里的赋值不查这张表。
     std::unordered_set<const SyntaxTreeInterface *> file_level_init_exps_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。

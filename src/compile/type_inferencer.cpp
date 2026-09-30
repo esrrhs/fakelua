@@ -32,6 +32,24 @@ std::string SpecStringFieldCName(const std::string &key) {
     return out;
 }
 
+// 预处理生成的文件级初始化函数。它的函数体里对 local x = func() 降级出来的
+// 绑定做一次赋值，不能当成用户再赋值。
+bool IsFakeluaInitFunction(const std::shared_ptr<SyntaxTreeFunction> &func) {
+    if (!func) {
+        return false;
+    }
+    const auto fn = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+    if (!fn) {
+        return false;
+    }
+    const auto fnl = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(fn->FuncNameList());
+    if (!fnl) {
+        return false;
+    }
+    const auto &names = fnl->Funcnames();
+    return names.size() == 1 && names[0] == kInitFunctionName;
+}
+
 void UniquifySpecFieldCNames(std::vector<TableFieldInfo> &fields) {
     std::unordered_set<std::string> used;
     for (auto &f: fields) {
@@ -383,12 +401,13 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 
 InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfig &cfg) {
     LOG_DEBUG(s_, "engine", "InferTypes: start for {}", pr.file_name);
+    file_name_ = pr.file_name;
     file_level_types_.clear();
     file_level_init_exps_.clear();
     InferResult ir;
     EvalTypeSnapshot current_map;
     TypeEnvironment env;
-    TraversalContext tctx{current_map, env, nullptr, ir.var_define_nodes, ir.shadowed_decls, ir.global_reassigned_vars};
+    TraversalContext tctx{current_map, env, nullptr, ir.var_define_nodes, ir.shadowed_decls};
 
     LOG_DEBUG(s_, "engine", "InferTypes: step 1 - InferNode");
     InferNode(pr.chunk, tctx);
@@ -468,7 +487,12 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
         }
         case SyntaxTreeType::Function: {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+            const bool prev_init = in_init_function_;
+            if (IsFakeluaInitFunction(func)) {
+                in_init_function_ = true;
+            }
             InferNode(func->Funcbody(), tctx);
+            in_init_function_ = prev_init;
             return RecordType(current_map, node.get(), T_UNKNOWN);
         }
         case SyntaxTreeType::LocalFunction: {
@@ -611,8 +635,8 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
         // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
         if (!tctx.IsTrialInference() && tctx.env.IsAtFileScope() && IsNumericInferredType(type)) {
             file_level_types_[names[i]] = type;
-            // 同时记录 initializer 节点：InferAssign 判断赋值目标是否解析到
-            // 文件级绑定时以此集合为准（对遮蔽免疫）。
+            // 同时记录 initializer 节点：文件级数值字面量是常量。
+            // local x = func() 在预处理里已经改成 local x = nil，不会进这张表。
             if (init_node) {
                 file_level_init_exps_.insert(init_node);
             }
@@ -652,11 +676,11 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
 
     if (const auto *init = tctx.env.LookupInitNode(name)) {
         tctx.var_define_nodes[var.get()] = init;
-        // 赋值目标解析到文件级 local 的 initializer → 这是一个再赋值点。
-        // 有再赋值点的数值变量不能被 CGen 发射成 const（否则 C 编译报错，
-        // 见 global_reassigned_vars 的说明）。
-        if (file_level_init_exps_.contains(init)) {
-            tctx.global_reassigned_vars.insert(name);
+        // 文件级数值字面量是 static const，用户函数里再赋值直接报编译期错误。
+        // __fakelua_init 除外：local x = func() 不能做 C 静态初值，预处理把它改成
+        // local x = nil，并只在 __fakelua_init 里写一次 x = func()。那是初始化，不是再赋值。
+        if (!in_init_function_ && file_level_init_exps_.contains(init)) {
+            ThrowFakeluaException(std::format("cannot reassign file-level constant '{}' at {}", name, SyntaxTreeLocationStr(file_name_, assign)));
         }
     }
 
@@ -1104,11 +1128,9 @@ EvalTypeSnapshot TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr 
 
         // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
         // Trial 推断不消费 shadow 信息（shadow 只与 AST 结构相关，主推断已覆盖），
-        // 也不收集再赋值信息（主推断已覆盖），但 TraversalContext 需要引用，
-        // 因此用丢弃式的容器占位。
+        // 但 TraversalContext 需要一个引用，因此用丢弃式的容器占位。
         std::set<std::pair<const SyntaxTreeInterface *, std::string>> dummy_shadowed_decls;
-        std::unordered_set<std::string> dummy_reassigned_vars;
-        TraversalContext tctx{current_map, env, &ctx, var_define_nodes, dummy_shadowed_decls, dummy_reassigned_vars};
+        TraversalContext tctx{current_map, env, &ctx, var_define_nodes, dummy_shadowed_decls};
         InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, tctx);
 
         // 快照本轮推断结果：为未被推断触及的节点补 T_UNKNOWN，

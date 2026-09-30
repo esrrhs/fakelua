@@ -144,11 +144,9 @@ end
 -- 回归（P1-6）：在 on_event 回调里直接调用 obj:send()（不走返回 "echo" 的路径）。
 -- 派发上下文中的 send 会先入队，由本轮 tick 派发完后统一泵出；客户端随后收到数据。
 local send_in_cb_server = nil
-local send_in_cb_hits = 0
 
 function on_send_in_cb(type, connid, data, len, reason)
     if type == "recv" then
-        send_in_cb_hits = send_in_cb_hits + 1
         if send_in_cb_server then
             send_in_cb_server:send(connid, "direct:" .. data)
         end
@@ -156,7 +154,6 @@ function on_send_in_cb(type, connid, data, len, reason)
 end
 
 function test_send_in_callback()
-    send_in_cb_hits = 0
     local server = net.server({ port = 19987, maxconn = 4 })
     server:dispatch("NetTest.on_send_in_cb")
     send_in_cb_server = server

@@ -1125,18 +1125,20 @@ TEST(exception, const_no_init) {
     EXPECT_THROW(CompileFile(s, "./exception/test_const_no_init.lua", {}), std::exception);
 }
 
-// 回归：文件级数值变量声明后再赋值曾是编译错误（被误标为 C const）。
-// 修复后（pitfalls P1-3）：有再赋值点的变量不做 const 优化，赋值语义与 Lua 一致。
-// 从未再赋值的文件级常量仍保持 const，见 infer.test_global_const_int。
+// 文件级数值字面量是常量，函数里再赋值是编译期错误。
 TEST(exception, const_reassign) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
     SetDebugLogLevel(s, 0);
-    EXPECT_NO_THROW(CompileFile(s, "./exception/test_const_reassign.lua", {}));
-    int ret = 0;
-    Call(s, JIT_TCC, "test", ret);
-    EXPECT_EQ(ret, 4);
+    try {
+        CompileFile(s, "./exception/test_const_reassign.lua", {});
+        FAIL() << "reassigning file-level constant a should fail";
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("cannot reassign file-level constant 'a'"), std::string::npos);
+        EXPECT_NE(msg.find("test_const_reassign.lua"), std::string::npos);
+    }
 }
 
 TEST(exception, top_level_bare_local) {
