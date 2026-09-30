@@ -413,7 +413,11 @@ redis. Each module dispatches its Lua callbacks synchronously inside the tick, t
 
 **Callback context (C++ → Lua) — allowed / forbidden operations:**
 
-net's on_event and the mysql/http/redis result callbacks all run in a restricted dispatch context:
+net's on_event and the mysql/http/redis result callbacks all run in a restricted dispatch context.
+Each entry wraps the call in `IoContext::DispatchScope`, which increments `InDispatch()`
+(net `DrainEventsWith`, mysql connect/result dispatch, http `CallNamed`, redis result dispatch).
+The flag is an integer depth on the State, so Linux, macOS and Windows behave the same way.
+`send` queues while a dispatch is active and the tick pumps the queue after the scope ends.
 
 | Operation | Supported | Notes |
 |------|---------|------|
@@ -568,6 +572,10 @@ Boost.Container-backed structures stored on a NativeObject (C++ heap). They surv
 > **Empty-table ambiguity:** Lua cannot distinguish an "empty array" from an "empty object".
 > `json.encode` applies the pure-array heuristic and encodes empty tables as `[]`; use
 > `json.encode_array` when the client protocol must be strict (array-shaped or error).
+>
+> **Breaking change:** `json.encode({})` used to produce `{}` and now produces `[]`. Callers that
+> need an empty object should encode a table with a string key, or accept both shapes on the client.
+> Use `json.encode_array` when the value must be an array.
 
 ---
 
@@ -583,7 +591,10 @@ Boost.Container-backed structures stored on a NativeObject (C++ heap). They surv
 
 **Callback arguments:** every `cb` accepts either an in-package global function name (string, e.g.
 `"DB.on_result"`) or an **inline closure** (`function(conn, err, result) ... end`). Closures can
-capture context and are recommended; passing anything else raises a "bad argument" error instead of
+capture context. FakeLua has no GC: runtime values live on the temporary arena, and a top-level
+`Call` resets that arena. Registering a callback copies the closure and the tables/strings it
+captures onto the const arena, which is not reset and lives as long as the State, so the callback
+survives the next frame. Passing anything else raises a "bad argument" error instead of
 silently dropping the callback.
 
 **Callback contract:** once `conn:query` is called its callback fires **exactly once** — when the
@@ -618,6 +629,11 @@ position (1-based).
 return numbers, float/decimal columns (FLOAT/DOUBLE/DECIMAL/NEWDECIMAL) return numbers, all other
 columns (strings/dates/BLOBs) return strings, NULL returns nil. Boolean-style `TINYINT(1)` returns a
 number (0/1); convert as needed.
+
+> **DECIMAL / NEWDECIMAL precision:** these columns become IEEE 754 doubles, about 15–16 significant
+> decimal digits. A `DECIMAL(18,6)` (and similar high-precision definitions) can lose the last digit
+> or two, so it is a poor sole representation of money. Cast to a string in SQL
+> (`CAST(price AS CHAR)`) and keep it as a string in Lua when the value must be exact.
 
 ---
 

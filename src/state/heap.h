@@ -29,6 +29,9 @@ public:
     // 当前临时内存使用
     [[nodiscard]] size_t Size() const;
 
+    // p 是否落在本分配器已经切出的块里。const arena 不 Reset，用来识别已经钉住的对象。
+    [[nodiscard]] bool Contains(const void *p) const;
+
 private:
     struct DestructorInfo {
         void (*destroyer)(void *);
@@ -56,6 +59,10 @@ public:
     void Reset() {
         temp_allocator_.Reset();
         // const_allocator_ 不重置，常量内存一直保留
+    }
+
+    [[nodiscard]] bool OwnsConst(const void *p) const {
+        return const_allocator_.Contains(p);
     }
 
 private:

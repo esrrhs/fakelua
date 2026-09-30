@@ -1,3 +1,4 @@
+#include "native/arena_pin.h"
 #include "native/mysql/native_mysql.h"
 #include "native/mysql/mysql_connection.h"
 #include "native/mysql/mysql_connection_pool.h"
@@ -40,7 +41,11 @@ static std::string CVarToString(CVar v) {
 // 其他类型直接抛错——历史上闭包会被静默转成空串、回调永不触发（P0-1），宁可响亮报错。
 static ResultCallback CVarToCallback(State *s, CVar v, int argno, const char *fname) {
     if (v.type_ == static_cast<int>(VarType::Closure) && v.data_.cl) {
-        return ResultCallback{{}, v.data_.cl};
+        // 闭包本体在临时 arena 上，下一次顶层 Call 的 Reset() 会回收。
+        // 异步回调要跨 tick，复制到 const arena（无 GC，和 State 同寿）。
+        VarClosure *pinned = PinClosureForAsync(s, v.data_.cl);
+        if (!pinned) ThrowBadArgument(argno, fname, "non-empty function expected");
+        return ResultCallback{{}, pinned};
     }
     std::string name = CVarToString(v);
     if (!name.empty()) return ResultCallback{std::move(name), nullptr};

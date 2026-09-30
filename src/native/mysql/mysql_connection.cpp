@@ -37,8 +37,11 @@ int WaitReady(short what) {
     return ready ? ready : (MYSQL_WAIT_READ | MYSQL_WAIT_WRITE);
 }
 
+}// namespace
+
 // 按列类型把行值转成 Lua 值：整数列 → int、浮点/小数列 → float，其余（字符串/日期/BLOB 等）
 // 保持 string，NULL 一律 nil。解析失败（理论上不该发生）回退为字符串，不丢数据。
+// 暴露给测试，声明在 mysql_connection.h。
 CVar FieldCellToCVar(::fakelua::State *s, const FieldCell &fv, int mysql_type) {
     if (fv.is_null) return inter::NativeToFakeluaNil(s);
     switch (mysql_type) {
@@ -71,8 +74,6 @@ CVar FieldCellToCVar(::fakelua::State *s, const FieldCell &fv, int mysql_type) {
     }
     return inter::NativeToFakeluaString(s, fv.value);
 }
-
-}// namespace
 
 MysqlConnection::MysqlConnection(::fakelua::State *state) : io_(state->GetIoContext()) {
     lua_state_ = state;
@@ -769,6 +770,11 @@ void MysqlConnection::SetResultCallback(const ResultCallback &cb) { result_cb_ =
 void MysqlConnection::SetState(::fakelua::State *state) { lua_state_ = state; }
 void MysqlConnection::SetNativeObject(::fakelua::NativeObject *obj) { native_obj_ = obj; }
 bool MysqlConnection::Connected() const { return ready_; }
+void MysqlConnection::MarkConnectedForTest() {
+    state_ = ConnState::Ready;
+    ready_ = true;
+    close_pending_ = false;
+}
 bool MysqlConnection::Connecting() const { return state_ == ConnState::Connecting || state_ == ConnState::Handshaking; }
 int MysqlConnection::TickDepth() const { return tick_depth_; }
 bool MysqlConnection::ClosePending() const { return close_pending_; }
@@ -784,7 +790,8 @@ void MysqlConnection::SetError(MysqlErrorType type, uint16_t code, const std::st
 void MysqlConnection::InvokeCallback(const ResultCallback &cb, CVar *args, int n) {
     // 闭包：DispatchCallClosure 内部处理 func_ptr / load() 源码闭包两种形态。
     if (cb.closure) {
-        inter::DispatchCallClosure(lua_state_, cb.closure, args, n, JIT_TCC);
+        // kNativeCallbackJit 只决定异常边界，函数地址用闭包自己的 func_ptr。
+        inter::DispatchCallClosure(lua_state_, cb.closure, args, n, kNativeCallbackJit);
         return;
     }
     // 全局函数名：查 VM 注册表。

@@ -95,3 +95,46 @@ function test_pool_with()
     pool:close()
     return 1
 end
+
+-- 给 C++ 单测用：返回一个会 error() 的闭包，用来验证 pool:with 抛错后仍归还连接。
+function make_thrower()
+    return function(c)
+        error("intentional failure")
+    end
+end
+
+-- 跨帧闭包（P0-1）：闭包和它捕获的表必须活过下一次顶层 Call 的 arena Reset。
+-- arm 在一次 Call 里登记回调后返回；pump 是下一次 Call（开头会 Reset 临时 arena），
+-- 再 tick 到回调。若裸指针悬空，读 ctx.n 会坏掉或回调根本跑不起来。
+local cross_hits = nil
+
+function arm_cross_frame()
+    local ctx = { n = 7, tag = "ok" }
+    local conn = mysql.connect({
+        host = "127.0.0.1",
+        port = 1,
+        user = "root",
+        password = "x",
+        db = "test",
+        timeout_ms = 500
+    }, function(c, err, success) end)
+
+    conn:query("SELECT 1", function(c, err, result)
+        if ctx.tag == "ok" and ctx.n == 7 and type(err) == "string" then
+            cross_hits = ctx.n
+        else
+            cross_hits = -1
+        end
+    end)
+    return 1
+end
+
+function pump_cross_frame()
+    for i = 1, 2000 do
+        runtime.tick()
+        if cross_hits ~= nil then break end
+        os.sleep(1)
+    end
+    if cross_hits == nil then return 0 end
+    return cross_hits
+end

@@ -407,7 +407,10 @@ per-State 对象列表，所以 server/client、连接和连接池都不再有�
 
 **回调上下文（C++ → Lua）允许/禁止的操作：**
 
-net 的 on_event、mysql/http/redis 的结果回调都运行在受限的派发上下文中，规则如下：
+net 的 on_event、mysql/http/redis 的结果回调都运行在受限的派发上下文中。派发入口用
+`IoContext::DispatchScope` 把 `InDispatch()` 加一（net 的 DrainEventsWith、mysql 的结果/连接回调、
+http 的 `CallNamed`、redis 的结果回调）。这是 State 上的一个整数深度，Linux / macOS / Windows
+行为相同。`send` 看到仍在派发中就入队，本轮 tick 在 scope 结束后统一泵出。规则如下：
 
 | 操作 | 是否支持 | 说明 |
 |------|---------|------|
@@ -561,6 +564,9 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 
 > **空 table 的歧义：** Lua 无法区分"空数组"与"空对象"。`json.encode` 按纯数组启发式把空
 > table 编码为 `[]`；需要与客户端协议严格对齐时用 `json.encode_array`（要求数组形，否则报错）。
+>
+> **破坏性变更：** `json.encode({})` 从产出 `{}` 改为产出 `[]`。依赖空对象的调用方要改成带字符串键的表，
+> 或在客户端同时接受空数组和空对象。明确要数组时用 `json.encode_array`。
 
 ---
 
@@ -636,8 +642,10 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 `ssl`：省略/`false`/`"disable"` 保持明文（默认）。`true`/`"require"` 强制 TLS。`"enable"` 在服务器支持时使用 TLS。可选 `ssl_ca` PEM 会校验证书。
 
 **回调参数：** 所有 `cb` 既支持包内全局函数名（字符串，如 `"DB.on_result"`），也支持**内联闭包**
-（`function(conn, err, result) ... end`）。闭包可以捕获上下文，推荐使用；传其他类型会直接报
-"bad argument" 错误（不会静默丢弃回调）。
+（`function(conn, err, result) ... end`）。闭包可以捕获上下文。fakelua 没有 GC：运行期值在临时
+arena 上，顶层 `Call` 会 `Reset` 这块内存。登记回调时闭包及其捕获的表/字符串会被复制到不参与
+Reset 的 const arena（与 State 同寿），所以回调可以跨帧存活。传其他类型会直接报 "bad argument"
+错误（不会静默丢弃回调）。
 
 **回调契约：** `conn:query` 一旦被调用，其回调**恰好被调用一次**——连接未就绪（握手中/重连中/
 上一条 query 仍在飞行）时 query 排队，连接可用后自动执行；连接已关闭或进入错误终态时，回调会
@@ -667,6 +675,10 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 **行值类型：** 按列类型转换——整数列（TINY/SHORT/LONG/LONGLONG/INT24/YEAR）返回 number（整数），
 浮点/小数列（FLOAT/DOUBLE/DECIMAL/NEWDECIMAL）返回 number（浮点），其余列（字符串/日期/BLOB 等）
 返回 string，NULL 返回 nil。布尔语义的 `TINYINT(1)` 返回数字（0/1），需要自行换算。
+
+> **DECIMAL / NEWDECIMAL 精度：** 这两类列转成 IEEE 754 `double`，大约 15–16 位有效十进制数字。
+> `DECIMAL(18,6)` 这类高精度定义可能丢掉末尾 1–2 位，不适合作为金额的唯一表示。
+> 需要精确小数时在 SQL 里 `CAST(price AS CHAR)`，在 Lua 里按字符串处理。
 
 ```lua
 -- 租约式用法：fn 返回后连接自动归还，即使中途抛错也不会泄漏

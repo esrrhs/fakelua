@@ -38,6 +38,14 @@ public:
 
     std::size_t Poll();
 
+    // C++→Lua 回调嵌套深度。DispatchScope 在各派发入口 +1，析构时 -1。
+    // 纯计数器，不依赖平台：Linux / macOS / Windows 行为一致。
+    // 当前包住回调的位置：
+    //   net    TcpServer / TcpClient / UdpSocket::DrainEventsWith
+    //   mysql  MysqlConnection::DispatchConnect / DispatchCallbackWithResult
+    //   http   CallNamed
+    //   redis  CallNamed，以及连接/命令结果派发
+    // net 的 send 看到 InDispatch() 为真时改为入队，由本轮 tick 在 scope 结束后泵出。
     bool InDispatch() const {
         return dispatch_depth_ > 0;
     }

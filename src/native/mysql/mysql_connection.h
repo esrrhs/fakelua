@@ -29,6 +29,10 @@ class NativeObject;
 class VarClosure;
 }// namespace fakelua
 
+// FieldCell 和 FieldCellToCVar 声明在独立的轻量头文件中（不依赖 mysql.h/libevent），
+// 可直接在测试代码里 include。
+#include "native/mysql/mysql_field_convert.h"
+
 namespace fakelua::mysql {
 
 struct StmtParam {
@@ -36,8 +40,11 @@ struct StmtParam {
     std::string value;
 };
 
+
 // C++ → Lua 回调：支持全局函数名（字符串）或闭包（VarClosure*）。
-// 闭包由 arena 分配，生命周期覆盖整个 State，裸指针持有是安全的。
+// fakelua 没有 GC。运行期闭包默认在临时 arena 上，顶层 Call 的 State::Reset()
+// 会回收它。登记回调时 PinClosureForAsync 把闭包复制到 const arena（不参与 Reset，
+// 与 State 同寿），因此这里持有裸指针是安全的，不需要引用计数。
 struct ResultCallback {
     std::string name;
     VarClosure *closure = nullptr;
@@ -69,12 +76,8 @@ struct MysqlError {
     std::string sql_state;
 };
 
-struct FieldCell {
-    bool is_null = false;
-    std::string value;
-};
-
 struct ResultsetData {
+
     bool is_resultset = false;
     std::vector<std::pair<std::string, int>> columns;
     std::vector<std::vector<FieldCell>> rows;
@@ -111,6 +114,9 @@ public:
 
     bool Connected() const;
     bool Connecting() const;
+
+    // 单测：跳过握手，把连接标成可被池 Acquire。生产路径不会调用。
+    void MarkConnectedForTest();
 
     int TickDepth() const;
     bool ClosePending() const;

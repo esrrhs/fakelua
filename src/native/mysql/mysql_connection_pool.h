@@ -68,6 +68,9 @@ public:
     size_t TotalCount() const;
     size_t HealthyCount() const;
 
+    // 单测：把已创建的连接标成 healthy + Connected，使 Acquire 不必等真实握手。
+    void MarkConnectedForTest();
+
 private:
     PoolConfig config_;
     ::fakelua::State *state_ = nullptr;

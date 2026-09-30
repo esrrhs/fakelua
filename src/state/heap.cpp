@@ -70,4 +70,14 @@ size_t HeapAllocator::Size() const {
     return current_block_index_ * BLOCK_SIZE + current_block_offset_;
 }
 
+bool HeapAllocator::Contains(const void *p) const {
+    if (!p) return false;
+    const auto *addr = static_cast<const char *>(p);
+    for (const void *block: blocks_) {
+        const auto *base = static_cast<const char *>(block);
+        if (addr >= base && addr < base + BLOCK_SIZE) return true;
+    }
+    return false;
+}
+
 }// namespace fakelua

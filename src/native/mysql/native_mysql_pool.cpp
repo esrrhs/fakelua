@@ -266,17 +266,62 @@ static CVar PoolWith(NativeObject *self, State *s, CVar *args, int n) {
     if (!nat) return inter::NativeToFakeluaNil(s);
 
     CVar conn_arg = inter::NativeToFakeluaNativeObject(s, nat);
-    CVar result{static_cast<int>(VarType::Nil)};
+    // 析构时归还：fn 正常返回和抛错都走这里，避免 catch 漏掉某条路径。
+    struct LeaseGuard {
+        NativeObject *nat;
+        ~LeaseGuard() { DetachAcquiredWrapper(nat); }
+    } lease{nat};
+    // kNativeCallbackJit 只选择异常边界。fn 的地址在闭包的 func_ptr 里，
+    // GCC / 解释器闭包同样会走到自己的代码，不会因为标记是 TCC 而静默失败。
+    return inter::DispatchCallClosure(s, a0.data_.cl, &conn_arg, 1, kNativeCallbackJit);
+}
+
+int TestPoolWithFnThrowReturnsConnection(State *s, CVar fn) {
+    PoolConfig config;
+    config.host = "127.0.0.1";
+    config.port = 1;
+    config.user = "root";
+    config.password = "x";
+    config.database = "test";
+    config.pool_size = 1;
+    config.connect_timeout_ms = 200;
+    config.read_timeout_ms = 200;
+    config.heartbeat_interval_ms = 0;
+    config.max_retries = 0;
+
+    auto *pool_obj = new PoolObject();
+    pool_obj->config = config;
+    pool_obj->pool = std::make_unique<MysqlConnectionPool>(config, s);
+    pool_obj->pool->Initialize();
+    pool_obj->pool->MarkConnectedForTest();
+
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(gid, "mysql_pool");
+    nat->SetInt("__mysql_pool__", reinterpret_cast<int64_t>(pool_obj));
+    RegisterMysqlNativeWrapper(s, nat, true);
+    nat->SetFinalizer([](NativeObject *self) {
+        UnregisterMysqlNativeWrapper(self);
+        auto *p = UnwrapPool(self);
+        if (p) {
+            InvalidateAcquiredWrappers(p);
+            delete p;
+            self->SetInt("__mysql_pool__", 0);
+        }
+    });
+
+    bool threw = false;
     try {
-        result = inter::DispatchCallClosure(s, a0.data_.cl, &conn_arg, 1, JIT_TCC);
+        CVar args[1] = {fn};
+        PoolWith(nat, s, args, 1);
     } catch (...) {
-        // 无论 fn 是否抛错，连接都必须归还，否则池照样泄漏。
-        DetachAcquiredWrapper(nat);
-        throw;
+        threw = true;
     }
-    DetachAcquiredWrapper(nat);
-    // fn 的多返回值以 Multi 形式返回；单个返回值原样透传。
-    return result;
+    if (!threw) return -1;
+    // 归还成功则能再次取到同一条连接；仍被占用则 Acquire 返回空。
+    MysqlConnection *again = pool_obj->pool->Acquire();
+    if (!again) return 0;
+    pool_obj->pool->Release(again);
+    return 1;
 }
 
 // pool:release(conn)
