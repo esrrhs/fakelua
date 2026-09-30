@@ -183,3 +183,39 @@ TEST(test_mysql, bad_port) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+// 回归（P0-1/P0-2/P1-4）：连接未就绪时用闭包发起 query，
+// 连接失败后回调应恰好收到一次错误（曾被静默吞掉或报错丢失）。
+TEST(test_mysql, query_closure_callback_exactly_once) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_contract.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "MysqlContractTest.test_query_closure_exactly_once", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 回归（P0-1）：回调参数传非法类型必须响亮报错，而不是静默丢弃回调。
+TEST(test_mysql, bad_callback_type_throws) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_contract.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "MysqlContractTest.test_bad_callback_type", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// 回归（P1-4）：pool:with 基础行为 —— 无可用连接返回 nil，非函数参数报错。
+TEST(test_mysql, pool_with_lease_api) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_contract.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "MysqlContractTest.test_pool_with", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

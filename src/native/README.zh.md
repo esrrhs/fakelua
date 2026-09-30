@@ -312,7 +312,7 @@ Windows 上 `io.open` / `loadfile` / `dofile` / `os.getenv` / `os.tmpname` 以�
 | `net.udp_server(config)` | 绑定 UDP（`ip`、`port`；`port=0` 为临时端口）。`send(data, ip, port)` |
 | `net.udp_client(config)` | 已连接 UDP 客户端（`ip`/`port` 为对端）。`send(data)` |
 | `obj:dispatch(func_name)` | 注册 Lua 回调函数名 |
-| `obj:send(connid, data)` | 发送数据（服务端需指定 connid；客户端省略） |
+| `obj:send(connid, data)` | 发送数据（服务端需指定 connid；客户端省略）。在回调上下文中调用时先入队，由本轮 tick 派发完后统一泵出；发送失败记 WARN 日志 |
 | `obj:close()` | 关闭连接/服务端 |
 | `obj:close_connection(connid)` | 关闭单个连接（仅服务端） |
 | `obj:get_events()` | 事件历史 |
@@ -396,6 +396,25 @@ per-State 对象列表，所以 server/client、连接和连接池都不再有�
 
 定时器放最前，让本轮到期的回调能赶上后面的 IO 派发。mysql 内部先池后连接，这样脚本这一轮
 取连接之前，心跳和重连已经推进过了。
+
+**泵序与回调时序（重要）：** 顺序固定为 timer → net → http → mysql → redis。各模块的 Lua 回调
+都在 tick 内同步执行，因此：
+
+- **回调里发起的 IO 最早在下一轮 tick 才有结果**。net 回调里发起的 mysql query，最早要等下一帧
+  才可能派发结果；不要写"回调里发查询并同步等结果"的代码。
+- mysql 同一连接上飞行中再次 `conn:query` 会**排队**（而不是报错），连接回到 Ready 后由后续
+  tick 自动启动；每轮 tick 至多启动一条排队的 query。
+
+**回调上下文（C++ → Lua）允许/禁止的操作：**
+
+net 的 on_event、mysql/http/redis 的结果回调都运行在受限的派发上下文中，规则如下：
+
+| 操作 | 是否支持 | 说明 |
+|------|---------|------|
+| 改"运行时创建的 table"的字段 | ✅ | 回调里新建的 table 挂到长生命周期 table 上是可靠模式 |
+| `send` / mysql `query` 等 IO | ✅ | send 会在派发结束后由 tick 统一泵出；query 异步排队 |
+| 给文件级 `local` 表的**字段**赋值 | ❌ | 文件级表初始化后打 CONST_FLAG，改内容会抛 "attempt to modify a const table" |
+| 重绑定文件级 `local` 变量（`x = ...`） | ⚠️ | 数值型变量如声明后有再赋值点，JIT 不会标 const，可正常赋值；声明后从未再赋值的数值变量被优化为 C 级 const，运行时再赋值是编译错误 |
 
 ---
 
@@ -536,8 +555,12 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 
 | 函数 | 参数 | 说明 |
 |------|------|------|
-| `json.encode(value)` | 1 | Lua 值 → JSON 字符串；连续整数键 1..N → 数组；浮点数用 `%.17g` |
+| `json.encode(value)` | 1 | Lua 值 → JSON 字符串；连续整数键 1..N → 数组，**空 table 编码为 `[]`**；浮点数用 `%.17g` |
+| `json.encode_array(value)` | 1 | 严格数组编码：顶层必须是数组形 table（空 table → `[]`；非空要求 key 为从 1 起的连续整数），否则抛错 |
 | `json.decode(str)` | 1 | JSON 字符串 → Lua 值；`null` → `nil` |
+
+> **空 table 的歧义：** Lua 无法区分"空数组"与"空对象"。`json.encode` 按纯数组启发式把空
+> table 编码为 `[]`；需要与客户端协议严格对齐时用 `json.encode_array`（要求数组形，否则报错）。
 
 ---
 
@@ -612,19 +635,49 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 
 `ssl`：省略/`false`/`"disable"` 保持明文（默认）。`true`/`"require"` 强制 TLS。`"enable"` 在服务器支持时使用 TLS。可选 `ssl_ca` PEM 会校验证书。
 
+**回调参数：** 所有 `cb` 既支持包内全局函数名（字符串，如 `"DB.on_result"`），也支持**内联闭包**
+（`function(conn, err, result) ... end`）。闭包可以捕获上下文，推荐使用；传其他类型会直接报
+"bad argument" 错误（不会静默丢弃回调）。
+
+**回调契约：** `conn:query` 一旦被调用，其回调**恰好被调用一次**——连接未就绪（握手中/重连中/
+上一条 query 仍在飞行）时 query 排队，连接可用后自动执行；连接已关闭或进入错误终态时，回调会
+收到错误字符串。所有回调由 `runtime.tick()` 驱动。
+
 | 函数/方法 | 说明 |
 |------|------|
-| `mysql.connect(config, cb)` | 异步连接；回调 `function cb(err, conn)` |
+| `mysql.connect(config, cb)` | 异步连接；回调 `function cb(conn, err, success)` |
 | `mysql_pool.create(config)` | 创建连接池 |
-| `conn:query(sql, cb)` | 异步查询；回调 `function cb(err, result)` |
+| `conn:query(sql, cb)` | 异步查询；回调 `function cb(conn, err, result)` |
 | `conn:stmt_prepare(sql, cb)` | 预处理语句 |
 | `conn:stmt_execute(id, params, cb)` | 执行预处理语句 |
 | `conn:stmt_close(id)` | 关闭预处理语句 |
 | `conn:close()` | 关闭连接 |
-| `pool:acquire()` | 从池获取连接 |
+| `pool:acquire()` | 从池获取连接（无可用连接返回 nil） |
 | `pool:release(conn)` | 归还连接到池 |
+| `pool:with(fn)` | 租约式用法：取一条连接传给 `fn(conn)`，fn 返回（或抛错）后自动归还，返回 fn 的返回值。避免"忘 release / 回调不触发导致连接永不归还" |
 | `pool:close()` | 关闭连接池 |
 | `pool:stats()` | 返回 `{total, healthy}` |
+
+**结果表布局（SELECT）：** `result[1] = true`；`result[2]` 为列信息表（每项 `{[1]=列名, [2]=MySQL 类型码}`）；
+`result[3]` 为行表，每行按列位置（1 起）索引。
+
+**结果表布局（INSERT/UPDATE/DELETE/DDL）：** `result[1] = false`；`result[4] = affected_rows`；
+`result[5] = last_insert_id`；`result[6] = info`。
+
+**行值类型：** 按列类型转换——整数列（TINY/SHORT/LONG/LONGLONG/INT24/YEAR）返回 number（整数），
+浮点/小数列（FLOAT/DOUBLE/DECIMAL/NEWDECIMAL）返回 number（浮点），其余列（字符串/日期/BLOB 等）
+返回 string，NULL 返回 nil。布尔语义的 `TINYINT(1)` 返回数字（0/1），需要自行换算。
+
+```lua
+-- 租约式用法：fn 返回后连接自动归还，即使中途抛错也不会泄漏
+local ok = pool:with(function(c)
+    -- query 是异步的：结果在之后的 runtime.tick() 里通过回调到达
+    c:query("UPDATE user SET online = 0 WHERE last_login < 100", function(conn, err, result)
+        if err then print("query failed:", err) end
+    end)
+    return true
+end)
+```
 
 ---
 

@@ -384,10 +384,11 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfig &cfg) {
     LOG_DEBUG(s_, "engine", "InferTypes: start for {}", pr.file_name);
     file_level_types_.clear();
+    file_level_init_exps_.clear();
     InferResult ir;
     EvalTypeSnapshot current_map;
     TypeEnvironment env;
-    TraversalContext tctx{current_map, env, nullptr, ir.var_define_nodes, ir.shadowed_decls};
+    TraversalContext tctx{current_map, env, nullptr, ir.var_define_nodes, ir.shadowed_decls, ir.global_reassigned_vars};
 
     LOG_DEBUG(s_, "engine", "InferTypes: step 1 - InferNode");
     InferNode(pr.chunk, tctx);
@@ -610,6 +611,11 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
         // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
         if (!tctx.IsTrialInference() && tctx.env.IsAtFileScope() && IsNumericInferredType(type)) {
             file_level_types_[names[i]] = type;
+            // 同时记录 initializer 节点：InferAssign 判断赋值目标是否解析到
+            // 文件级绑定时以此集合为准（对遮蔽免疫）。
+            if (init_node) {
+                file_level_init_exps_.insert(init_node);
+            }
         }
     }
 
@@ -646,6 +652,12 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
 
     if (const auto *init = tctx.env.LookupInitNode(name)) {
         tctx.var_define_nodes[var.get()] = init;
+        // 赋值目标解析到文件级 local 的 initializer → 这是一个再赋值点。
+        // 有再赋值点的数值变量不能被 CGen 发射成 const（否则 C 编译报错，
+        // 见 global_reassigned_vars 的说明）。
+        if (file_level_init_exps_.contains(init)) {
+            tctx.global_reassigned_vars.insert(name);
+        }
     }
 
     current_map[var.get()] = current;
@@ -1092,9 +1104,11 @@ EvalTypeSnapshot TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr 
 
         // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
         // Trial 推断不消费 shadow 信息（shadow 只与 AST 结构相关，主推断已覆盖），
-        // 但 TraversalContext 需要一个引用，因此用一个丢弃式的 set 占位。
+        // 也不收集再赋值信息（主推断已覆盖），但 TraversalContext 需要引用，
+        // 因此用丢弃式的容器占位。
         std::set<std::pair<const SyntaxTreeInterface *, std::string>> dummy_shadowed_decls;
-        TraversalContext tctx{current_map, env, &ctx, var_define_nodes, dummy_shadowed_decls};
+        std::unordered_set<std::string> dummy_reassigned_vars;
+        TraversalContext tctx{current_map, env, &ctx, var_define_nodes, dummy_shadowed_decls, dummy_reassigned_vars};
         InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, tctx);
 
         // 快照本轮推断结果：为未被推断触及的节点补 T_UNKNOWN，

@@ -95,6 +95,8 @@ private:
         const TrialInferenceContext *ctx = nullptr;
         std::unordered_map<const SyntaxTreeInterface *, const SyntaxTreeInterface *> &var_define_nodes;
         std::set<std::pair<const SyntaxTreeInterface *, std::string>> &shadowed_decls;
+        // 文件级 local 再赋值收集（主推断传 ir.global_reassigned_vars，试推断传 dummy）。
+        std::unordered_set<std::string> &global_reassigned_vars;
 
         [[nodiscard]] bool IsTrialInference() const {
             return ctx != nullptr;
@@ -278,6 +280,9 @@ private:
 private:
     State *s_ = nullptr;
     std::unordered_map<std::string, InferredType> file_level_types_;
+    // 文件级 local 声明的 initializer 表达式节点。InferAssign 据此判断被赋值变量
+    // 是否解析到文件级绑定（含遮蔽场景），进而收集"声明后再被赋值"的变量名。
+    std::unordered_set<const SyntaxTreeInterface *> file_level_init_exps_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;

@@ -26,6 +26,7 @@ namespace fakelua {
 struct CVar;
 class State;
 class NativeObject;
+class VarClosure;
 }// namespace fakelua
 
 namespace fakelua::mysql {
@@ -33,6 +34,15 @@ namespace fakelua::mysql {
 struct StmtParam {
     bool is_null = false;
     std::string value;
+};
+
+// C++ → Lua 回调：支持全局函数名（字符串）或闭包（VarClosure*）。
+// 闭包由 arena 分配，生命周期覆盖整个 State，裸指针持有是安全的。
+struct ResultCallback {
+    std::string name;
+    VarClosure *closure = nullptr;
+
+    [[nodiscard]] bool Empty() const { return name.empty() && closure == nullptr; }
 };
 
 enum class SslMode {
@@ -94,8 +104,8 @@ public:
     MysqlError LastError() const;
     static bool IsRetryable(MysqlErrorType type);
 
-    void SetConnectCallback(const std::string &name);
-    void SetResultCallback(const std::string &name);
+    void SetConnectCallback(const ResultCallback &cb);
+    void SetResultCallback(const ResultCallback &cb);
     void SetState(::fakelua::State *state);
     void SetNativeObject(::fakelua::NativeObject *obj);
 
@@ -116,9 +126,17 @@ private:
     ::fakelua::State *lua_state_ = nullptr;
     ::fakelua::NativeObject *native_obj_ = nullptr;
 
-    std::string connect_cb_;
-    std::string result_cb_;
+    ResultCallback connect_cb_;
+    ResultCallback result_cb_;
     std::string last_sql_;
+
+    // 同连接飞行中再次发起的 query：排队而不是报 "connection not ready"，
+    // 由 Tick() 在上一条结果派发完毕、连接回到 Ready 后依次启动。
+    struct QueuedQuery {
+        std::string sql;
+        ResultCallback cb;
+    };
+    std::vector<QueuedQuery> queued_queries_;
 
     enum class QueryType { None, Query, StmtPrepare, StmtExecute, Ping };
     QueryType query_type_ = QueryType::None;
@@ -164,7 +182,15 @@ private:
 
     void DispatchConnect(const char *err_msg);
     void DispatchResult(const char *err_msg);
+    void DispatchCallbackWithResult(const ResultCallback &cb, const char *err_msg);
     void SetError(MysqlErrorType type, uint16_t code, const std::string &msg, const std::string &sql_state);
+
+    // 统一的回调调用入口：闭包走 DispatchCallClosure，函数名走 VM 查表。
+    // 回调缺失或不可调用时返回空 CVar（调用方无需关心返回值）。
+    void InvokeCallback(const ResultCallback &cb, CVar *args, int n);
+    // 连接可用时启动下一条排队 query；连接进入终态（Error/Idle）时
+    // 逐条给排队的 query 回调派发错误，保证"每条 query 恰好一次回调"。
+    void DrainQueryQueue();
 
     void Teardown();
     void ApplySsl();

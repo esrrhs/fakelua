@@ -36,6 +36,21 @@ static std::string CVarToString(CVar v) {
     return {};
 }
 
+// 解析回调参数：支持全局函数名（字符串）或闭包（内联 function 字面量）。
+// 其他类型直接抛错——历史上闭包会被静默转成空串、回调永不触发（P0-1），宁可响亮报错。
+static ResultCallback CVarToCallback(State *s, CVar v, int argno, const char *fname) {
+    if (v.type_ == static_cast<int>(VarType::Closure) && v.data_.cl) {
+        return ResultCallback{{}, v.data_.cl};
+    }
+    std::string name = CVarToString(v);
+    if (!name.empty()) return ResultCallback{std::move(name), nullptr};
+    // Closure 类型的 data_.cl 为空同样无法调用。
+    if (v.type_ == static_cast<int>(VarType::Closure)) {
+        ThrowBadArgument(argno, fname, "non-empty function expected");
+    }
+    ThrowBadArgument(argno, fname, "function or global function name expected");
+}
+
 // Retrieve MysqlConnection* from NativeObject
 MysqlConnection *UnwrapConnNative(NativeObject *self) {
     if (!self) return nullptr;
@@ -193,9 +208,8 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
 
     if (user.empty()) ThrowBadArgument(1, "mysql.connect", "user required");
 
-    // Read callback function name
-    std::string cb_name = CVarToString(a1);
-    if (cb_name.empty()) ThrowBadArgument(1, "mysql.connect", "callback function expected");
+    // Read callback: global function name or closure
+    ResultCallback cb = CVarToCallback(s, a1, 2, "mysql.connect");
 
     // Create NativeObject wrapper first (so callbacks can dispatch)
     int64_t gid = s->GetNativeObjectManager().CreateGroup();
@@ -223,7 +237,7 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
 
     // Create connection (async)
     auto *conn = new MysqlConnection(s);
-    conn->SetConnectCallback(cb_name);
+    conn->SetConnectCallback(cb);
     conn->SetNativeObject(nat);
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
 
@@ -248,13 +262,15 @@ CVar ConnQuery(NativeObject *self, State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     std::string sql = CVarToString(a0);
-    std::string cb_name = CVarToString(a1);
+    ResultCallback cb = CVarToCallback(s, a1, 2, "conn:query");
 
     auto *conn = UnwrapConnNative(self);
-    if (!conn || !conn->Connected()) error("conn:query: connection is closed");
+    if (!conn) error("conn:query: connection is closed");
 
+    // 连接未就绪（握手中/重连中/上一条 query 仍在飞行）不再抛错：
+    // 回调随 query 入队，由连接的 tick 在可用时自动启动（见 MysqlConnection::Query）。
     conn->SetState(s);
-    conn->SetResultCallback(cb_name);
+    conn->SetResultCallback(cb);
     conn->Query(sql);
     MaybeReleaseOwnedConn(self);
 
@@ -269,13 +285,13 @@ CVar ConnStmtPrepare(NativeObject *self, State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     std::string sql = CVarToString(a0);
-    std::string cb_name = CVarToString(a1);
+    ResultCallback cb = CVarToCallback(s, a1, 2, "conn:stmt_prepare");
 
     auto *conn = UnwrapConnNative(self);
     if (!conn || !conn->Connected()) error("conn:stmt_prepare: connection is closed");
 
     conn->SetState(s);
-    conn->SetResultCallback(cb_name);
+    conn->SetResultCallback(cb);
     conn->StmtPrepare(sql);
     MaybeReleaseOwnedConn(self);
 
@@ -292,7 +308,7 @@ CVar ConnStmtExecute(NativeObject *self, State *s, CVar *args, int n) {
     CVar a2 = inter::GetNativeArg(s, args, n, 2);
 
     uint32_t stmt_id = static_cast<uint32_t>(inter::CVarToInteger(a0, 0));
-    std::string cb_name = CVarToString(a2);
+    ResultCallback cb = CVarToCallback(s, a2, 3, "conn:stmt_execute");
 
     std::vector<StmtParam> params;
     if (a1.type_ == static_cast<int>(VarType::Table) && a1.data_.t) {
@@ -333,7 +349,7 @@ CVar ConnStmtExecute(NativeObject *self, State *s, CVar *args, int n) {
     if (!conn || !conn->Connected()) error("conn:stmt_execute: connection is closed");
 
     conn->SetState(s);
-    conn->SetResultCallback(cb_name);
+    conn->SetResultCallback(cb);
     conn->StmtExecute(stmt_id, params);
     MaybeReleaseOwnedConn(self);
 

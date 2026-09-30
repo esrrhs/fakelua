@@ -112,7 +112,9 @@ static bj::value LuaToJsonValue(CVar v, int depth, std::unordered_set<VarTable *
             }
 
             auto kvs = table::TableHelper::CollectKVPairs(v);
-            bool is_array = !kvs.empty();
+            // 纯数组 table 启发式：空 table 一律编码为 []（历史上空 table 产出 {}，
+            // 客户端按数组解析时直接崩）；非空时要求 key 全部是从 1 起的连续整数。
+            bool is_array = true;
             int64_t max_idx = 0;
             for (auto &kv: kvs) {
                 if (kv.key.type_ != static_cast<int>(VarType::Int)) {
@@ -126,7 +128,7 @@ static bj::value LuaToJsonValue(CVar v, int depth, std::unordered_set<VarTable *
                 }
                 if (key > max_idx) max_idx = key;
             }
-            if (is_array && (max_idx <= 0 || static_cast<size_t>(max_idx) != kvs.size())) {
+            if (is_array && !kvs.empty() && static_cast<size_t>(max_idx) != kvs.size()) {
                 is_array = false;
             }
 
@@ -181,10 +183,40 @@ static CVar JsonEncode(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaString(s, out);
 }
 
+// 判断 table 是否为数组形（空 table 视为数组；非空要求 key 为从 1 起的连续整数）。
+static bool IsArrayLikeTable(CVar v) {
+    if (v.type_ != static_cast<int>(VarType::Table) || !v.data_.t) return false;
+    auto kvs = table::TableHelper::CollectKVPairs(v);
+    int64_t max_idx = 0;
+    for (auto &kv: kvs) {
+        if (kv.key.type_ != static_cast<int>(VarType::Int)) return false;
+        int64_t key = kv.key.data_.i;
+        if (key < 1 || key > 1000000) return false;
+        if (key > max_idx) max_idx = key;
+    }
+    return kvs.empty() || static_cast<size_t>(max_idx) == kvs.size();
+}
+
+// json.encode_array(value) → JSON string
+// 严格数组编码通道：顶层必须是数组形 table（空 table → []），否则报错。
+// 用于协议字段必须为数组的场景，避免 encode 的对象/数组启发式歧义。
+static CVar JsonEncodeArray(State *s, CVar *args, int n) {
+    if (n < 1) ThrowBadArgument(1, "json.encode_array", "value expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    if (!IsArrayLikeTable(a0)) {
+        ThrowFakeluaException("json.encode_array: value is not an array-like table");
+    }
+    std::unordered_set<VarTable *> visited;
+    bj::value jv = LuaToJsonValue(a0, 0, visited);
+    std::string out = bj::serialize(jv);
+    return inter::NativeToFakeluaString(s, out);
+}
+
 void RegisterJsonLibraryApi(State *s) {
     if (!s) return;
     RegisterNativeFunction(s, "json.decode", 1, false, JsonDecode);
     RegisterNativeFunction(s, "json.encode", 1, false, JsonEncode);
+    RegisterNativeFunction(s, "json.encode_array", 1, false, JsonEncodeArray);
 }
 
 }// namespace fakelua::json

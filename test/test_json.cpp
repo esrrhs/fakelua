@@ -628,6 +628,32 @@ TEST(test_json, encode_empty_object) {
     FakeluaDeleteState(s);
 }
 
+// 空 list 字段在对象里应编码为 "list":[]（回归：曾产出 "list":{} 导致客户端按数组解析崩溃）
+TEST(test_json, encode_empty_array_field) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_edge.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "JsonTest.test_encode_empty_array_field", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+// json.encode_array：数组形 table 正常编码，非数组形报错
+TEST(test_json, encode_array_strict) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_edge.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "JsonTest.test_encode_array_ok", ret);
+    EXPECT_EQ(ret, 1);
+    CallAll(s, "JsonTest.test_encode_array_reject", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
 TEST(test_json, encode_nested_too_deep) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);

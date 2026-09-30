@@ -584,6 +584,9 @@ struct InferResult {
     EvalTypeSnapshot main_eval_types;
     // 文件级/全局数值常量及其推断类型映射
     std::unordered_map<std::string, InferredType> global_const_vars;
+    // 声明后仍被再赋值过的文件级 local 变量名。这些变量即使推断为数值类型也不能
+    // 发射成 C 的 const 声明（const + 后续赋值 = C 编译错误），CGen 据此去掉 const。
+    std::unordered_set<std::string> global_reassigned_vars;
     // table 特化信息：table constructor 节点 → 特化信息
     std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
     // 流敏感 table 特化标注：Var 引用节点（kDot/kSquare 的 prefixexp 所指 Var 节点）→ 该程序点该变量的 spec 类型名。

@@ -23,6 +23,7 @@ static CVar PoolAcquire(NativeObject *self, State *s, CVar *args, int n);
 static CVar PoolRelease(NativeObject *self, State *s, CVar *args, int n);
 static CVar PoolClose(NativeObject *self, State *s, CVar *args, int n);
 static CVar PoolStats(NativeObject *self, State *s, CVar *args, int n);
+static CVar PoolWith(NativeObject *self, State *s, CVar *args, int n);
 static CVar ConnPoolRelease(NativeObject *self, State *s, CVar *args, int n);
 static CVar ConnErrorInfo(NativeObject *self, State *s, CVar *args, int n);
 static MysqlConnection *UnwrapConn(CVar v);
@@ -199,20 +200,18 @@ static CVar PoolCreate(State *s, CVar *args, int n) {
     });
     nat->RegisterMethod("acquire", PoolAcquire);
     nat->RegisterMethod("release", PoolRelease);
+    nat->RegisterMethod("with", PoolWith);
     nat->RegisterMethod("close", PoolClose);
     nat->RegisterMethod("stats", PoolStats);
 
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
 
-// pool:acquire() → connection
-
-static CVar PoolAcquire(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *pool_obj = UnwrapPool(self);
-    if (!pool_obj || !pool_obj->pool) return inter::NativeToFakeluaNil(s);
-
+// 从池里取一条连接并包成 NativeObject（pool:acquire / pool:with 共用）。
+// 池满/无健康连接时返回 nil。
+static NativeObject *AcquireConnObject(State *s, PoolObject *pool_obj) {
     auto *conn = pool_obj->pool->Acquire();
-    if (!conn) return inter::NativeToFakeluaNil(s);
+    if (!conn) return nullptr;
 
     // Wrap connection in NativeObject for Lua (use a new group for each connection)
     int64_t conn_gid = s->GetNativeObjectManager().CreateGroup();
@@ -236,8 +235,48 @@ static CVar PoolAcquire(NativeObject *self, State *s, CVar * /*args*/, int /*n*/
 
     conn->SetState(s);
     conn->SetNativeObject(nat);
+    return nat;
+}
 
+// pool:acquire() → connection
+
+static CVar PoolAcquire(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    auto *pool_obj = UnwrapPool(self);
+    if (!pool_obj || !pool_obj->pool) return inter::NativeToFakeluaNil(s);
+
+    auto *nat = AcquireConnObject(s, pool_obj);
+    if (!nat) return inter::NativeToFakeluaNil(s);
     return inter::NativeToFakeluaNativeObject(s, nat);
+}
+
+// pool:with(fn) → fn 的返回值
+// 租约式用法：从池里取一条连接传给 fn，fn 返回（或抛错）后自动归还连接。
+// 彻底避免"忘了 release / 回调不触发导致连接永不归还"的泄漏模式。
+
+static CVar PoolWith(NativeObject *self, State *s, CVar *args, int n) {
+    auto *pool_obj = UnwrapPool(self);
+    if (!pool_obj || !pool_obj->pool) return inter::NativeToFakeluaNil(s);
+    if (n < 1) ThrowBadArgument(1, "pool:with", "function expected");
+    CVar a0 = inter::GetNativeArg(s, args, n, 0);
+    if (a0.type_ != static_cast<int>(VarType::Closure) || !a0.data_.cl) {
+        ThrowBadArgument(1, "pool:with", "function expected");
+    }
+
+    auto *nat = AcquireConnObject(s, pool_obj);
+    if (!nat) return inter::NativeToFakeluaNil(s);
+
+    CVar conn_arg = inter::NativeToFakeluaNativeObject(s, nat);
+    CVar result{static_cast<int>(VarType::Nil)};
+    try {
+        result = inter::DispatchCallClosure(s, a0.data_.cl, &conn_arg, 1, JIT_TCC);
+    } catch (...) {
+        // 无论 fn 是否抛错，连接都必须归还，否则池照样泄漏。
+        DetachAcquiredWrapper(nat);
+        throw;
+    }
+    DetachAcquiredWrapper(nat);
+    // fn 的多返回值以 Multi 形式返回；单个返回值原样透传。
+    return result;
 }
 
 // pool:release(conn)
