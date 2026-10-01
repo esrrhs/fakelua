@@ -1,9 +1,9 @@
-#include "native/arena_pin.h"
 #include "native/mysql/native_mysql.h"
 #include "native/mysql/mysql_connection.h"
 #include "native/mysql/mysql_connection_pool.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
+#include "native/serialize/wire_codec.h"
 #include "native/table/native_table.h"
 #include "var/var.h"
 
@@ -37,23 +37,25 @@ static std::string CVarToString(CVar v) {
     return {};
 }
 
-// 解析回调参数：支持全局函数名（字符串）或闭包（内联 function 字面量）。
-// 其他类型直接抛错——历史上闭包会被静默转成空串、回调永不触发（P0-1），宁可响亮报错。
-static ResultCallback CVarToCallback(State *s, CVar v, int argno, const char *fname) {
-    if (v.type_ == static_cast<int>(VarType::Closure) && v.data_.cl) {
-        // 闭包本体在临时 arena 上，下一次顶层 Call 的 Reset() 会回收。
-        // 异步回调要跨 tick，复制到 const arena（无 GC，和 State 同寿）。
-        VarClosure *pinned = PinClosureForAsync(s, v.data_.cl);
-        if (!pinned) ThrowBadArgument(argno, fname, "non-empty function expected");
-        return ResultCallback{{}, pinned};
+// 解析异步回调：只接受全局函数名（字符串）。
+// fakelua 没有 GC，内联闭包活在临时 arena 上，无法安全地跨多次 tick/Reset 保存，
+// 因此异步回调不支持闭包；需要上下文时在函数名后追加纯数据绑定参数：
+//   conn:query(sql, "on_result", tag, ctx_table)
+// 绑定参数在登记当下序列化成自有字节串随回调暂存，派发时 decode 追加在固定参数后。
+// 名称参数非法（闭包/数字/空串等）直接抛错——历史上坏回调会被静默转成空串、永不触发。
+static ResultCallback BuildCallback(State *s, CVar name_v, int name_argno, CVar *args, int bound_first, int n,
+                                    const char *fname) {
+    if (name_v.type_ == static_cast<int>(VarType::Closure)) {
+        ThrowBadArgument(name_argno, fname,
+                         "global callback function name expected; inline closures are not supported for async callbacks, pass a name string plus data args");
     }
-    std::string name = CVarToString(v);
-    if (!name.empty()) return ResultCallback{std::move(name), nullptr};
-    // Closure 类型的 data_.cl 为空同样无法调用。
-    if (v.type_ == static_cast<int>(VarType::Closure)) {
-        ThrowBadArgument(argno, fname, "non-empty function expected");
+    std::string name = CVarToString(name_v);
+    if (name.empty()) {
+        ThrowBadArgument(name_argno, fname, "callback function name expected");
     }
-    ThrowBadArgument(argno, fname, "function or global function name expected");
+    // 绑定参数严格校验 + 序列化（含闭包/native 对象等直接抛 bad argument）。
+    std::string bound = serialize::WireEncodeCallbackArgs(s, args, bound_first, n, fname, bound_first + 1);
+    return ResultCallback{std::move(name), std::move(bound)};
 }
 
 // Retrieve MysqlConnection* from NativeObject
@@ -213,8 +215,8 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
 
     if (user.empty()) ThrowBadArgument(1, "mysql.connect", "user required");
 
-    // Read callback: global function name or closure
-    ResultCallback cb = CVarToCallback(s, a1, 2, "mysql.connect");
+    // Read callback: global function name; args after it are serialized bound params
+    ResultCallback cb = BuildCallback(s, a1, 2, args, 2, n, "mysql.connect");
 
     // Create NativeObject wrapper first (so callbacks can dispatch)
     int64_t gid = s->GetNativeObjectManager().CreateGroup();
@@ -267,7 +269,7 @@ CVar ConnQuery(NativeObject *self, State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     std::string sql = CVarToString(a0);
-    ResultCallback cb = CVarToCallback(s, a1, 2, "conn:query");
+    ResultCallback cb = BuildCallback(s, a1, 2, args, 2, n, "conn:query");
 
     auto *conn = UnwrapConnNative(self);
     if (!conn) error("conn:query: connection is closed");
@@ -290,7 +292,7 @@ CVar ConnStmtPrepare(NativeObject *self, State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
     std::string sql = CVarToString(a0);
-    ResultCallback cb = CVarToCallback(s, a1, 2, "conn:stmt_prepare");
+    ResultCallback cb = BuildCallback(s, a1, 2, args, 2, n, "conn:stmt_prepare");
 
     auto *conn = UnwrapConnNative(self);
     if (!conn || !conn->Connected()) error("conn:stmt_prepare: connection is closed");
@@ -313,7 +315,7 @@ CVar ConnStmtExecute(NativeObject *self, State *s, CVar *args, int n) {
     CVar a2 = inter::GetNativeArg(s, args, n, 2);
 
     uint32_t stmt_id = static_cast<uint32_t>(inter::CVarToInteger(a0, 0));
-    ResultCallback cb = CVarToCallback(s, a2, 3, "conn:stmt_execute");
+    ResultCallback cb = BuildCallback(s, a2, 3, args, 3, n, "conn:stmt_execute");
 
     std::vector<StmtParam> params;
     if (a1.type_ == static_cast<int>(VarType::Table) && a1.data_.t) {
@@ -417,7 +419,8 @@ CVar ConnPing(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
 
 void RegisterMysqlLibraryApi(State *s) {
     if (!s) return;
-    RegisterNativeFunction(s, "mysql.connect", 2, false, MysqlConnect);
+    // 可变参数：config、回调函数名之后可跟任意个纯数据绑定参数。
+    RegisterNativeFunction(s, "mysql.connect", 2, true, MysqlConnect);
 }
 
 }// namespace fakelua::mysql

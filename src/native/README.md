@@ -589,13 +589,25 @@ Boost.Container-backed structures stored on a NativeObject (C++ heap). They surv
 
 `ssl`: omit/`false`/`"disable"` keeps plaintext (default). `true`/`"require"` demands TLS. `"enable"` uses TLS when the server offers it. Optional `ssl_ca` PEM enables certificate verification.
 
-**Callback arguments:** every `cb` accepts either an in-package global function name (string, e.g.
-`"DB.on_result"`) or an **inline closure** (`function(conn, err, result) ... end`). Closures can
-capture context. FakeLua has no GC: runtime values live on the temporary arena, and a top-level
-`Call` resets that arena. Registering a callback copies the closure and the tables/strings it
-captures onto the const arena, which is not reset and lives as long as the State, so the callback
-survives the next frame. Passing anything else raises a "bad argument" error instead of
-silently dropping the callback.
+**Callback arguments:** every async `cb` accepts only an in-package global function name
+(string, e.g. `"on_result"` or `"DB.on_result"`); **inline closures are not supported**. FakeLua
+has no GC: runtime values live on the temporary arena, and a top-level `Call` resets that arena, so
+a raw closure pointer cannot be held safely across ticks. To pass context, append **bound
+arguments** (pure data) after the function name: `conn:query(sql, "on_result", tag, ctx_table)`.
+Bound arguments are serialized into a self-owned byte blob at registration time (same wire format
+as `serialize.encode`), survive any number of `Reset`s, and are deserialized in the dispatch frame
+and appended after the fixed callback arguments. The blob is released when the query completes or
+the connection is destroyed, so memory usage tracks in-flight queries only; the const arena is not
+used.
+
+- Bound arguments may be nil/boolean/number/string and nested tables thereof (no cycles);
+  non-serializable values (closures, native objects, ...) anywhere in the nesting raise a
+  "bad argument" error — fields are never silently dropped.
+- Bound arguments are a **registration-time snapshot** (copy by value): mutating the original
+  table after registration is not visible to the callback. Put mutable cross-frame state on the
+  connection object itself (e.g. `conn.query_done`).
+- `pool:with(fn)` invokes fn **synchronously in the same frame** and never stores it across
+  ticks, so inline closures remain supported there.
 
 **Callback contract:** once `conn:query` is called its callback fires **exactly once** — when the
 connection is not ready (handshaking / reconnecting / a previous query still in flight) the query is
@@ -605,11 +617,11 @@ terminal error state, the callback receives an error string. All callbacks are d
 
 | Function/Method | Description |
 |----------|-------------|
-| `mysql.connect(config, cb)` | Async connect; callback `function cb(conn, err, success)` |
+| `mysql.connect(config, cb, ...)` | Async connect; callback `cb(conn, err, success, ...)`; `...` are bound args appended after the fixed args |
 | `mysql_pool.create(config)` | Create connection pool |
-| `conn:query(sql, cb)` | Async query; callback `function cb(conn, err, result)` |
-| `conn:stmt_prepare(sql, cb)` | Prepare statement |
-| `conn:stmt_execute(id, params, cb)` | Execute prepared statement |
+| `conn:query(sql, cb, ...)` | Async query; callback `cb(conn, err, result, ...)`; `...` are bound args |
+| `conn:stmt_prepare(sql, cb, ...)` | Prepare statement; callback `cb(conn, err, stmt_id, ...)` |
+| `conn:stmt_execute(id, params, cb, ...)` | Execute prepared statement; bound args start at the 4th argument |
 | `conn:stmt_close(id)` | Close prepared statement |
 | `conn:close()` | Close connection |
 | `pool:acquire()` | Get connection from pool (nil when none available) |

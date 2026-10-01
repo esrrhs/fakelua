@@ -245,7 +245,11 @@ TEST(test_mysql, pool_with_fn_throw_returns_connection) {
     FakeluaDeleteState(s);
 }
 
-// 回归（P0-1）：闭包回调跨过下一次顶层 Call 的临时 arena Reset 后仍然能读到捕获的表。
+// 回归（P0-1）：异步回调的绑定参数（序列化字节串）跨过下一次顶层 Call 的临时
+// arena Reset 后仍然能被反序列化并原样送达回调。
+// 只在 TCC 单引擎下驱动：具名回调派发固定解析到 TCC 编译产物，而文件级 local 是各
+// 引擎动态库各自的 static；CallAll 混跑时 GCC/解释器会读到自己那份未写入的变量。
+// 序列化字节串本身是引擎无关的 C++ 逻辑，单引擎走通即完整覆盖跨 Reset 存活语义。
 TEST(test_mysql, closure_callback_survives_frame_reset) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -253,13 +257,13 @@ TEST(test_mysql, closure_callback_survives_frame_reset) {
     CompileFile(s, "./mysql/test_mysql_contract.lua", config);
 
     int64_t armed = 0;
-    CallAll(s, "MysqlContractTest.arm_cross_frame", armed);
+    Call(s, JIT_TCC, "MysqlContractTest.arm_cross_frame", armed);
     EXPECT_EQ(armed, 1);
     // 顶层 Call 返回后显式再 Reset 一次，模拟宿主在帧末回收临时 arena。
     inter::Reset(s);
 
     int64_t hits = 0;
-    CallAll(s, "MysqlContractTest.pump_cross_frame", hits);
+    Call(s, JIT_TCC, "MysqlContractTest.pump_cross_frame", hits);
     EXPECT_EQ(hits, 7);
     FakeluaDeleteState(s);
 }

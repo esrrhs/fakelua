@@ -26,7 +26,6 @@ namespace fakelua {
 struct CVar;
 class State;
 class NativeObject;
-class VarClosure;
 }// namespace fakelua
 
 // FieldCell 和 FieldCellToCVar 声明在独立的轻量头文件中（不依赖 mysql.h/libevent），
@@ -41,15 +40,19 @@ struct StmtParam {
 };
 
 
-// C++ → Lua 回调：支持全局函数名（字符串）或闭包（VarClosure*）。
-// fakelua 没有 GC。运行期闭包默认在临时 arena 上，顶层 Call 的 State::Reset()
-// 会回收它。登记回调时 PinClosureForAsync 把闭包复制到 const arena（不参与 Reset，
-// 与 State 同寿），因此这里持有裸指针是安全的，不需要引用计数。
+// C++ → Lua 异步回调：全局函数名 + 绑定参数。
+// fakelua 没有 GC，运行期闭包活在临时 arena 上，顶层 Call 的 State::Reset() 会回收，
+// 无法安全地跨 tick 持有闭包裸指针。因此异步回调只接受【全局函数名】；脚本需要上下文时
+// 用绑定参数（mysql.connect / conn:query 等名字后面的多余实参）：
+// 登记当下把纯数据参数序列化成自有的字节串 bound（nil/bool/number/string/table），
+// 跨任意次 Reset 暂存；结果派发时在当前 tick 帧内 decode 到临时 arena，追加在固定参数
+// （conn, err, result, ...）之后调用函数。bound 随 query 完成/连接销毁释放，
+// 内存只与在途 query 数相关，不占用 const arena。
 struct ResultCallback {
     std::string name;
-    VarClosure *closure = nullptr;
+    std::string bound;// wire 编码的绑定参数元组；空串表示无绑定参数
 
-    [[nodiscard]] bool Empty() const { return name.empty() && closure == nullptr; }
+    [[nodiscard]] bool Empty() const { return name.empty(); }
 };
 
 enum class SslMode {
@@ -191,7 +194,8 @@ private:
     void DispatchCallbackWithResult(const ResultCallback &cb, const char *err_msg);
     void SetError(MysqlErrorType type, uint16_t code, const std::string &msg, const std::string &sql_state);
 
-    // 统一的回调调用入口：闭包走 DispatchCallClosure，函数名走 VM 查表。
+    // 统一的回调调用入口：按函数名查 VM 注册表并派发。
+    // 调用方需已把固定参数和 decode 后的绑定参数拼进 args。
     // 回调缺失或不可调用时返回空 CVar（调用方无需关心返回值）。
     void InvokeCallback(const ResultCallback &cb, CVar *args, int n);
     // 连接可用时启动下一条排队 query；连接进入终态（Error/Idle）时

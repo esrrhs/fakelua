@@ -1,5 +1,6 @@
 #include "native/mysql/mysql_connection.h"
 #include "native/native_common.h"
+#include "native/serialize/wire_codec.h"
 #include "native/table/native_table.h"
 #include "util/logging.h"
 #include "var/var.h"
@@ -788,12 +789,6 @@ void MysqlConnection::SetError(MysqlErrorType type, uint16_t code, const std::st
 }
 
 void MysqlConnection::InvokeCallback(const ResultCallback &cb, CVar *args, int n) {
-    // 闭包：DispatchCallClosure 内部处理 func_ptr / load() 源码闭包两种形态。
-    if (cb.closure) {
-        // kNativeCallbackJit 只决定异常边界，函数地址用闭包自己的 func_ptr。
-        inter::DispatchCallClosure(lua_state_, cb.closure, args, n, kNativeCallbackJit);
-        return;
-    }
     // 全局函数名：查 VM 注册表。
     auto func = lua_state_->GetVM().GetFunction(cb.name);
     if (func.Empty()) return;
@@ -807,21 +802,43 @@ void MysqlConnection::InvokeCallback(const ResultCallback &cb, CVar *args, int n
     inter::DispatchCall(lua_state_, addr, args, n, jit_type);
 }
 
+namespace {
+
+// 把 3 个固定参数和登记时暂存的绑定参数拼成完整回调参数：
+// 固定参数在前，绑定参数（登记时刻的值快照）追加在后。
+// DecodedArgs 持有解码字符串的后备内存，必须活到回调调用结束。
+std::vector<CVar> BuildCallbackArgs(CVar a0, CVar a1, CVar a2, serialize::DecodedArgs &decoded) {
+    std::vector<CVar> all;
+    all.reserve(3 + decoded.vars.size());
+    all.push_back(a0);
+    all.push_back(a1);
+    all.push_back(a2);
+    for (CVar v: decoded.vars) all.push_back(v);
+    return all;
+}
+
+}// namespace
+
 void MysqlConnection::DispatchConnect(const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
     native::IoContext::DispatchScope dispatch_scope(io_);
     if (!lua_state_ || connect_cb_.Empty()) return;
 
-    CVar args[3];
-    args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
+    // 在派发帧内 decode 绑定参数到临时 arena；decoded 生命周期覆盖整个函数。
+    serialize::DecodedArgs decoded = serialize::WireDecodeCallbackArgs(lua_state_, connect_cb_.bound);
+
+    CVar a0 = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
+    CVar a1;
+    CVar a2;
     if (err_msg && err_msg[0]) {
-        args[1] = inter::NativeToFakeluaString(lua_state_, err_msg);
-        args[2] = inter::NativeToFakeluaInt(lua_state_, 0);
+        a1 = inter::NativeToFakeluaString(lua_state_, err_msg);
+        a2 = inter::NativeToFakeluaInt(lua_state_, 0);
     } else {
-        args[1] = inter::NativeToFakeluaNil(lua_state_);
-        args[2] = inter::NativeToFakeluaInt(lua_state_, 1);
+        a1 = inter::NativeToFakeluaNil(lua_state_);
+        a2 = inter::NativeToFakeluaInt(lua_state_, 1);
     }
-    InvokeCallback(connect_cb_, args, 3);
+    std::vector<CVar> args = BuildCallbackArgs(a0, a1, a2, decoded);
+    InvokeCallback(connect_cb_, args.data(), static_cast<int>(args.size()));
 }
 
 void MysqlConnection::DispatchCallbackWithResult(const ResultCallback &cb, const char *err_msg) {
@@ -829,34 +846,29 @@ void MysqlConnection::DispatchCallbackWithResult(const ResultCallback &cb, const
     native::IoContext::DispatchScope dispatch_scope(io_);
     if (!lua_state_ || cb.Empty()) return;
 
+    // 多结果集可能在本函数内多次调用同一回调；绑定参数只 decode 一次，各次调用复用。
+    // decoded 必须活到最后一次 InvokeCallback 返回。
+    serialize::DecodedArgs decoded = serialize::WireDecodeCallbackArgs(lua_state_, cb.bound);
+
     const char *msg = err_msg && err_msg[0] ? err_msg : "query failed";
-    CVar args[3];
-    args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
+    CVar a0 = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
+    CVar nil{};
+    nil.type_ = static_cast<int>(VarType::Nil);
+
     if (err_msg) {
-        args[1] = inter::NativeToFakeluaString(lua_state_, msg);
-        CVar nil{};
-        nil.type_ = static_cast<int>(VarType::Nil);
-        args[2] = nil;
-        InvokeCallback(cb, args, 3);
+        std::vector<CVar> args = BuildCallbackArgs(a0, inter::NativeToFakeluaString(lua_state_, msg), nil, decoded);
+        InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
     } else if (dispatch_stmt_id_ != 0) {
-        CVar nil{};
-        nil.type_ = static_cast<int>(VarType::Nil);
-        args[1] = nil;
-        args[2] = inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(dispatch_stmt_id_));
-        InvokeCallback(cb, args, 3);
+        std::vector<CVar> args = BuildCallbackArgs(a0, nil,
+                                                   inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(dispatch_stmt_id_)), decoded);
+        InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
     } else if (pending_results_.empty()) {
-        CVar nil{};
-        nil.type_ = static_cast<int>(VarType::Nil);
-        args[1] = nil;
-        args[2] = table::TableHelper::CreateTable(lua_state_);
-        InvokeCallback(cb, args, 3);
+        std::vector<CVar> args = BuildCallbackArgs(a0, nil, table::TableHelper::CreateTable(lua_state_), decoded);
+        InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
     } else {
         for (const auto &rs: pending_results_) {
-            CVar nil{};
-            nil.type_ = static_cast<int>(VarType::Nil);
-            args[1] = nil;
-            args[2] = ResultsetToLua(lua_state_, rs);
-            InvokeCallback(cb, args, 3);
+            std::vector<CVar> args = BuildCallbackArgs(a0, nil, ResultsetToLua(lua_state_, rs), decoded);
+            InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
             if (close_pending_) break;
         }
     }

@@ -641,11 +641,19 @@ PCG-32 算法：64-bit 状态，32-bit 输出，周期 2^64。每个 `random.new
 
 `ssl`：省略/`false`/`"disable"` 保持明文（默认）。`true`/`"require"` 强制 TLS。`"enable"` 在服务器支持时使用 TLS。可选 `ssl_ca` PEM 会校验证书。
 
-**回调参数：** 所有 `cb` 既支持包内全局函数名（字符串，如 `"DB.on_result"`），也支持**内联闭包**
-（`function(conn, err, result) ... end`）。闭包可以捕获上下文。fakelua 没有 GC：运行期值在临时
-arena 上，顶层 `Call` 会 `Reset` 这块内存。登记回调时闭包及其捕获的表/字符串会被复制到不参与
-Reset 的 const arena（与 State 同寿），所以回调可以跨帧存活。传其他类型会直接报 "bad argument"
-错误（不会静默丢弃回调）。
+**回调参数：** 所有异步回调 `cb` 只接受**包内全局函数名**（字符串，如 `"on_result"` 或
+`"DB.on_result"`），**不支持内联闭包**。fakelua 没有 GC：运行期值在临时 arena 上，顶层
+`Call` 会 `Reset` 这块内存，无法安全地跨 tick 持有闭包裸指针。需要上下文时在函数名后面追加
+**绑定参数**（纯数据）：`conn:query(sql, "on_result", tag, ctx_table)`。绑定参数在登记当下被
+序列化成独立字节串暂存（与 `serialize.encode` 同一 wire 格式），跨任意次 `Reset` 不丢；
+结果回来时在派发帧内反序列化，追加在固定参数之后调用。字节串随 query 完成/连接销毁释放，
+内存只与在途 query 数相关，不占用 const arena。
+
+- 绑定参数支持 nil/boolean/number/string 及其嵌套表（不可有环）；闭包、native 对象等
+  不可序列化类型出现在任意嵌套位置都会直接报 "bad argument"，不会静默丢字段。
+- 绑定参数是**登记时刻的值快照**（按值复制），登记之后调用方再改原表，回调看不到；
+  需要跨帧共享的可变状态请挂在连接对象字段上（如 `conn.query_done`）。
+- `pool:with(fn)` 的 fn 是**同帧同步调用**、不跨 tick 暂存，因此仍然支持内联闭包。
 
 **回调契约：** `conn:query` 一旦被调用，其回调**恰好被调用一次**——连接未就绪（握手中/重连中/
 上一条 query 仍在飞行）时 query 排队，连接可用后自动执行；连接已关闭或进入错误终态时，回调会
@@ -653,11 +661,11 @@ Reset 的 const arena（与 State 同寿），所以回调可以跨帧存活。�
 
 | 函数/方法 | 说明 |
 |------|------|
-| `mysql.connect(config, cb)` | 异步连接；回调 `function cb(conn, err, success)` |
+| `mysql.connect(config, cb, ...)` | 异步连接；回调 `cb(conn, err, success, ...)`；`...` 为绑定参数，追加在固定参数后 |
 | `mysql_pool.create(config)` | 创建连接池 |
-| `conn:query(sql, cb)` | 异步查询；回调 `function cb(conn, err, result)` |
-| `conn:stmt_prepare(sql, cb)` | 预处理语句 |
-| `conn:stmt_execute(id, params, cb)` | 执行预处理语句 |
+| `conn:query(sql, cb, ...)` | 异步查询；回调 `cb(conn, err, result, ...)`；`...` 为绑定参数 |
+| `conn:stmt_prepare(sql, cb, ...)` | 预处理语句；回调 `cb(conn, err, stmt_id, ...)` |
+| `conn:stmt_execute(id, params, cb, ...)` | 执行预处理语句；绑定参数从第 4 个参数起 |
 | `conn:stmt_close(id)` | 关闭预处理语句 |
 | `conn:close()` | 关闭连接 |
 | `pool:acquire()` | 从池获取连接（无可用连接返回 nil） |
@@ -681,14 +689,18 @@ Reset 的 const arena（与 State 同寿），所以回调可以跨帧存活。�
 > 需要精确小数时在 SQL 里 `CAST(price AS CHAR)`，在 Lua 里按字符串处理。
 
 ```lua
--- 租约式用法：fn 返回后连接自动归还，即使中途抛错也不会泄漏
+-- 租约式用法：fn 是同帧同步调用，仍可用内联闭包；fn 返回后连接自动归还，抛错也不泄漏
 local ok = pool:with(function(c)
-    -- query 是异步的：结果在之后的 runtime.tick() 里通过回调到达
-    c:query("UPDATE user SET online = 0 WHERE last_login < 100", function(conn, err, result)
-        if err then print("query failed:", err) end
-    end)
+    -- query 是异步的：结果在之后的 runtime.tick() 里通过【具名回调】到达。
+    -- 绑定参数（这里的 "kick"）登记时序列化暂存，派发时追加在 result 之后。
+    c:query("UPDATE user SET online = 0 WHERE last_login < 100", "on_user_offline", "kick")
     return true
 end)
+
+function on_user_offline(conn, err, result, tag)
+    -- tag == "kick"，是登记 query 时传入的绑定参数快照
+    if err then print("query failed:", err, tag) end
+end
 ```
 
 ---
