@@ -245,6 +245,26 @@ TEST(test_mysql, pool_with_fn_throw_returns_connection) {
     FakeluaDeleteState(s);
 }
 
+// 回归（P1-4）：pool:with 内部发起异步 query 时，连接不能在 fn 返回瞬间立即归还，
+// 必须在 query 结果派发完毕后才自动释放回池。
+TEST(test_mysql, pool_with_async_query_auto_release) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./mysql/test_mysql_contract.lua", config);
+
+    int arg_count = 0;
+    bool is_vararg = false;
+    void *addr = inter::GetFuncAddr(s, JIT_TCC, "MysqlContractTest.make_query_runner", arg_count, is_vararg);
+    ASSERT_NE(addr, nullptr);
+    CVar fn = inter::DispatchCall(s, addr, nullptr, arg_count, JIT_TCC);
+    ASSERT_EQ(fn.type_, static_cast<int>(VarType::Closure));
+
+    const int ok = mysql::TestPoolWithAsyncQueryAutoRelease(s, fn);
+    EXPECT_EQ(ok, 1);
+    FakeluaDeleteState(s);
+}
+
 // 回归（P0-1）：异步回调的绑定参数（序列化字节串）跨过下一次顶层 Call 的临时
 // arena Reset 后仍然能被反序列化并原样送达回调。
 // 回调派回【登记时的引擎】：CallAll 三引擎各自 arm 出自己的连接，pump 帧 tick

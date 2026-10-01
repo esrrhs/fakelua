@@ -85,6 +85,23 @@ static CVar JsonValueToLua(State *s, const bj::value &v) {
     return inter::NativeToFakeluaNil(s);
 }
 
+// 纯数组 table 启发式：空 table 一律编码为 []（历史上空 table 产出 {}，
+// 客户端按数组解析时直接崩）；非空时要求 key 全部是从 1 起的连续整数。
+static bool CheckIsArray(const std::vector<table::TableKV> &kvs) {
+    int64_t max_idx = 0;
+    for (const auto &kv: kvs) {
+        if (kv.key.type_ != static_cast<int>(VarType::Int)) {
+            return false;
+        }
+        int64_t key = kv.key.data_.i;
+        if (key < 1 || key > 1000000) {
+            return false;
+        }
+        if (key > max_idx) max_idx = key;
+    }
+    return kvs.empty() || static_cast<size_t>(max_idx) == kvs.size();
+}
+
 // Convert Lua CVar to boost::json::value
 static bj::value LuaToJsonValue(CVar v, int depth, std::unordered_set<VarTable *> &visited) {
     if (depth > kMaxJsonDepth) {
@@ -112,25 +129,7 @@ static bj::value LuaToJsonValue(CVar v, int depth, std::unordered_set<VarTable *
             }
 
             auto kvs = table::TableHelper::CollectKVPairs(v);
-            // 纯数组 table 启发式：空 table 一律编码为 []（历史上空 table 产出 {}，
-            // 客户端按数组解析时直接崩）；非空时要求 key 全部是从 1 起的连续整数。
-            bool is_array = true;
-            int64_t max_idx = 0;
-            for (auto &kv: kvs) {
-                if (kv.key.type_ != static_cast<int>(VarType::Int)) {
-                    is_array = false;
-                    break;
-                }
-                int64_t key = kv.key.data_.i;
-                if (key < 1 || key > 1000000) {
-                    is_array = false;
-                    break;
-                }
-                if (key > max_idx) max_idx = key;
-            }
-            if (is_array && !kvs.empty() && static_cast<size_t>(max_idx) != kvs.size()) {
-                is_array = false;
-            }
+            bool is_array = CheckIsArray(kvs);
 
             if (is_array) {
                 std::sort(kvs.begin(), kvs.end(), [](const table::TableKV &a, const table::TableKV &b) { return a.key.data_.i < b.key.data_.i; });
@@ -187,14 +186,7 @@ static CVar JsonEncode(State *s, CVar *args, int n) {
 static bool IsArrayLikeTable(CVar v) {
     if (v.type_ != static_cast<int>(VarType::Table) || !v.data_.t) return false;
     auto kvs = table::TableHelper::CollectKVPairs(v);
-    int64_t max_idx = 0;
-    for (auto &kv: kvs) {
-        if (kv.key.type_ != static_cast<int>(VarType::Int)) return false;
-        int64_t key = kv.key.data_.i;
-        if (key < 1 || key > 1000000) return false;
-        if (key > max_idx) max_idx = key;
-    }
-    return kvs.empty() || static_cast<size_t>(max_idx) == kvs.size();
+    return CheckIsArray(kvs);
 }
 
 // json.encode_array(value) → JSON string

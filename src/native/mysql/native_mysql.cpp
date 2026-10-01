@@ -390,6 +390,7 @@ void TickMysqlConnection(NativeObject *self, State *s) {
     conn->SetState(s);
     conn->Tick();
     MaybeReleaseOwnedConn(self);
+    MaybeReleasePooledConn(self);
     MaybeReapPool(self);
 }
 

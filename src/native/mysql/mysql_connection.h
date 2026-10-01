@@ -128,6 +128,7 @@ public:
     int TickDepth() const;
     bool ClosePending() const;
     void RequestClose();
+    bool HasPendingWork() const;
 
 private:
     native::IoContext &io_;

@@ -31,6 +31,8 @@ MysqlConnection *UnwrapConnNative(NativeObject *self);
 // Per-State NativeObject registry so FakeluaDeleteState can close sockets.
 void RegisterMysqlNativeWrapper(State *s, NativeObject *nat, bool is_pool);
 void UnregisterMysqlNativeWrapper(NativeObject *nat);
+void DetachAcquiredWrapper(NativeObject *nat);
+void MaybeReleasePooledConn(NativeObject *self);
 void OnStateDeleted(State *s);
 
 // 驱动本 State 上所有连接池和连接。由 runtime.tick() 调用。
@@ -39,5 +41,6 @@ void TickAll(State *s);
 // 单测：pool:with 的 fn 抛错后连接必须回到可再次 Acquire 的状态。
 // 归还成功返回 1；fn 没有抛错返回 -1；归还失败（仍被占用）返回 0。
 int TestPoolWithFnThrowReturnsConnection(State *s, CVar fn);
+int TestPoolWithAsyncQueryAutoRelease(State *s, CVar fn);
 
 }// namespace fakelua::mysql

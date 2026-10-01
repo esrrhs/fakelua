@@ -492,8 +492,6 @@ CVar NativeObject::Wrap(State *s) const {
     vtbl->spec = spec;
     vtbl->spec_get = reinterpret_cast<void *>(NativeSpecGet);
     vtbl->spec_set = reinterpret_cast<void *>(NativeSpecSet);
-    vtbl->spec_bytes = static_cast<uint32_t>(sizeof(NativeObjectSpec));
-    vtbl->spec_cvars = 0;
 
     // 填充 spec_keys / spec_vals（供 pairs() 迭代）
     RefreshSpecKeys(vtbl, this, s);

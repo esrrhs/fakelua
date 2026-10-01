@@ -40,11 +40,6 @@ struct VarTable {
     // 需要重算——因此把 VarTable 整体清零的分配路径天然落在安全的重算分支上。
     uint32_t seq_len_valid_;
     int64_t seq_len_;
-    // spec 块字节数。0 表示没有需要搬迁的 spec（spec 指针为空）。
-    // 与 c_runtime_header.h 的 VarTable 保持同布局。
-    uint32_t spec_bytes;
-    // >0 时 spec 块是连续 spec_cvars 个 CVar（JIT 表特化）。0 表示不透明块（如 NativeObjectSpec）。
-    uint32_t spec_cvars;
 };
 
 }// namespace fakelua

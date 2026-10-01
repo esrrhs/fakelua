@@ -138,6 +138,16 @@ function make_thrower()
     end
 end
 
+-- 给 C++ 单测用：返回一个调用 c:query 的闭包，用于验证 pool:with 异步查询未完成时不提前归还连接
+function make_query_runner()
+    return function(c)
+        c:query("SELECT 1", "MysqlContractTest.on_dummy_result")
+    end
+end
+
+function on_dummy_result(conn, err, result)
+end
+
 -- 跨帧绑定参数（P0-1 的新形态）：绑定参数序列化后必须活过下一次顶层 Call 的
 -- arena Reset。arm 在一次 Call 里登记回调后返回；宿主显式 Reset 临时 arena；
 -- pump 是下一次 Call，再 tick 到回调。若字节串暂存失效，ctx 字段会坏掉或回调跑不起来。

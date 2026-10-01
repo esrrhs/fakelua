@@ -83,7 +83,7 @@ static void InvalidateAcquiredWrappers(PoolObject *po) {
     }
 }
 
-static void DetachAcquiredWrapper(NativeObject *nat) {
+void DetachAcquiredWrapper(NativeObject *nat) {
     if (!nat) return;
     auto *po = reinterpret_cast<PoolObject *>(nat->GetInt("__mysql_pool_obj__", 0));
     auto *c = UnwrapConnNative(nat);
@@ -97,6 +97,15 @@ static void DetachAcquiredWrapper(NativeObject *nat) {
     nat->SetInt("__mysql_conn__", 0);
     nat->SetInt("__mysql_pool_ptr__", 0);
     nat->SetInt("__mysql_pool_obj__", 0);
+    nat->SetInt("__mysql_auto_release__", 0);
+}
+
+void MaybeReleasePooledConn(NativeObject *self) {
+    if (!self) return;
+    if (self->GetInt("__mysql_auto_release__", 0) == 0) return;
+    auto *conn = UnwrapConnNative(self);
+    if (!conn || conn->TickDepth() > 0 || conn->HasPendingWork()) return;
+    DetachAcquiredWrapper(self);
 }
 
 // mysql_pool.create(config) → pool object
@@ -266,11 +275,22 @@ static CVar PoolWith(NativeObject *self, State *s, CVar *args, int n) {
     if (!nat) return inter::NativeToFakeluaNil(s);
 
     CVar conn_arg = inter::NativeToFakeluaNativeObject(s, nat);
-    // 析构时归还：fn 正常返回和抛错都走这里，避免 catch 漏掉某条路径。
+    auto *conn = UnwrapConnNative(nat);
+    // 租约保护：离开作用域时检查。
+    // 若无在途/排队的异步工作（如同步抛错或未发起 query），立刻归还连接；
+    // 若已有 query 在飞行或排队中，打上 auto_release 标记，由 Tick 在全部 query 结果派发完毕后自动归还。
     struct LeaseGuard {
         NativeObject *nat;
-        ~LeaseGuard() { DetachAcquiredWrapper(nat); }
-    } lease{nat};
+        MysqlConnection *conn;
+        ~LeaseGuard() {
+            if (!nat) return;
+            if (!conn || !conn->HasPendingWork()) {
+                DetachAcquiredWrapper(nat);
+            } else {
+                nat->SetInt("__mysql_auto_release__", 1);
+            }
+        }
+    } lease{nat, conn};
     // fn 是同帧同步调用，直接沿用当前 Lua 调用方的引擎（异常边界随之正确），
     // 不固定 TCC 标记。
     return inter::DispatchCallClosure(s, a0.data_.cl, &conn_arg, 1, s->CurrentJit());
@@ -318,6 +338,59 @@ int TestPoolWithFnThrowReturnsConnection(State *s, CVar fn) {
     }
     if (!threw) return -1;
     // 归还成功则能再次取到同一条连接；仍被占用则 Acquire 返回空。
+    MysqlConnection *again = pool_obj->pool->Acquire();
+    if (!again) return 0;
+    pool_obj->pool->Release(again);
+    return 1;
+}
+
+int TestPoolWithAsyncQueryAutoRelease(State *s, CVar fn) {
+    PoolConfig config;
+    config.host = "127.0.0.1";
+    config.port = 1;
+    config.user = "root";
+    config.password = "x";
+    config.database = "test";
+    config.pool_size = 1;
+    config.connect_timeout_ms = 200;
+    config.read_timeout_ms = 200;
+    config.heartbeat_interval_ms = 0;
+    config.max_retries = 0;
+
+    auto *pool_obj = new PoolObject();
+    pool_obj->config = config;
+    pool_obj->pool = std::make_unique<MysqlConnectionPool>(config, s);
+    pool_obj->pool->Initialize();
+    pool_obj->pool->MarkConnectedForTest();
+
+    int64_t gid = s->GetNativeObjectManager().CreateGroup();
+    auto *nat = s->GetNativeObjectManager().Create(gid, "mysql_pool");
+    nat->SetInt("__mysql_pool__", reinterpret_cast<int64_t>(pool_obj));
+    RegisterMysqlNativeWrapper(s, nat, true);
+    nat->SetFinalizer([](NativeObject *self) {
+        UnregisterMysqlNativeWrapper(self);
+        auto *p = UnwrapPool(self);
+        if (p) {
+            InvalidateAcquiredWrappers(p);
+            delete p;
+            self->SetInt("__mysql_pool__", 0);
+        }
+    });
+
+    CVar args[1] = {fn};
+    PoolWith(nat, s, args, 1);
+
+    // fn 返回后，异步 query 仍在等待/飞行，连接不应被立刻归还
+    MysqlConnection *in_use = pool_obj->pool->Acquire();
+    if (in_use) {
+        pool_obj->pool->Release(in_use);
+        return 0;
+    }
+
+    // 驱动 Tick：派发查询结果或错误回调
+    TickAll(s);
+
+    // 查询处理完毕后，连接应当被自动归还
     MysqlConnection *again = pool_obj->pool->Acquire();
     if (!again) return 0;
     pool_obj->pool->Release(again);

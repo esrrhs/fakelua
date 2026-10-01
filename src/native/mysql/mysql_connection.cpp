@@ -525,6 +525,7 @@ void MysqlConnection::Close() {
     pending_result_ = false;
     pending_results_.clear();
     next_stmt_id_ = 1;
+    DrainQueryQueue();
 }
 
 void MysqlConnection::Continue(int ready) {
@@ -772,6 +773,10 @@ void MysqlConnection::SetState(::fakelua::State *state) { lua_state_ = state; }
 void MysqlConnection::SetNativeObject(::fakelua::NativeObject *obj) { native_obj_ = obj; }
 bool MysqlConnection::Connected() const { return ready_; }
 void MysqlConnection::MarkConnectedForTest() {
+    ClearWait();
+    wait_op_ = WaitOp::None;
+    pending_connect_ = false;
+    pending_connect_err_.clear();
     state_ = ConnState::Ready;
     ready_ = true;
     close_pending_ = false;
@@ -780,6 +785,15 @@ bool MysqlConnection::Connecting() const { return state_ == ConnState::Connectin
 int MysqlConnection::TickDepth() const { return tick_depth_; }
 bool MysqlConnection::ClosePending() const { return close_pending_; }
 void MysqlConnection::RequestClose() { close_pending_ = true; }
+bool MysqlConnection::HasPendingWork() const {
+    return state_ == ConnState::Querying ||
+           state_ == ConnState::Connecting ||
+           state_ == ConnState::Handshaking ||
+           wait_op_ != WaitOp::None ||
+           pending_result_ ||
+           pending_connect_ ||
+           !queued_queries_.empty();
+}
 
 void MysqlConnection::SetError(MysqlErrorType type, uint16_t code, const std::string &msg, const std::string &sql_state) {
     last_error_.type = type;

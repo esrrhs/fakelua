@@ -82,10 +82,6 @@ struct VarTable {
        需要重算——因此把 VarTable 整体清零的分配路径天然落在安全的重算分支上。 */
     uint32_t seq_len_valid_;
     int64_t seq_len_;
-    /* spec 块字节数。0 = 无 spec。与 src/var/var_table.h 同布局。 */
-    uint32_t spec_bytes;
-    /* >0：spec 是连续 CVar（表特化）。0：不透明块，按 spec_bytes 整体搬迁。 */
-    uint32_t spec_cvars;
 };
 
 typedef struct State State;
@@ -660,8 +656,6 @@ static inline uint32_t FlHashString(const char *str, int len) {
     __t->spec_count = 0; \
     __t->seq_len_valid_ = 1; \
     __t->seq_len_ = 0; \
-    __t->spec_bytes = 0; \
-    __t->spec_cvars = 0; \
     assert(sizeof(__t->quick_data_) == 8 * sizeof(VarEntry)); \
     { int __i; for (__i = 0; __i < 8; ++__i) { \
         __t->quick_data_[__i].key.type_ = VAR_NIL; \
@@ -682,8 +676,6 @@ static inline uint32_t FlHashString(const char *str, int len) {
     (v).data_.t->spec_keys = (CVar *)FakeluaAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
     (v).data_.t->spec_vals = (CVar *)FakeluaAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
     (v).data_.t->spec_count = (field_count); \
-    (v).data_.t->spec_bytes = (uint32_t)sizeof(SpecType); \
-    (v).data_.t->spec_cvars = (uint32_t)(field_count); \
     assert(sizeof(SpecType) == (field_count) * sizeof(CVar)); \
 } while(0)
 
