@@ -3,6 +3,7 @@
 // mysql_connection.h — async MySQL client using libmysqlclient (MariaDB Connector/C)
 // MYSQL_OPT_NONBLOCK + libevent wait on mysql_get_socket().
 
+#include "fakelua.h"
 #include "native/native_io_context.h"
 
 #ifdef __cplusplus
@@ -51,6 +52,9 @@ struct StmtParam {
 struct ResultCallback {
     std::string name;
     std::string bound;// wire 编码的绑定参数元组；空串表示无绑定参数
+    // 登记回调时所在的脚本引擎。结果回来后派回【同一引擎】：在哪个引擎发起的 IO，
+    // 回调就执行哪个引擎的编译产物，与内联闭包自带 func_ptr 的语义一致。
+    JITType jit = JIT_TCC;
 
     [[nodiscard]] bool Empty() const { return name.empty(); }
 };

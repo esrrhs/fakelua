@@ -141,8 +141,7 @@ end
 -- 跨帧绑定参数（P0-1 的新形态）：绑定参数序列化后必须活过下一次顶层 Call 的
 -- arena Reset。arm 在一次 Call 里登记回调后返回；宿主显式 Reset 临时 arena；
 -- pump 是下一次 Call，再 tick 到回调。若字节串暂存失效，ctx 字段会坏掉或回调跑不起来。
--- 本用例由 C++ 单引擎（TCC）驱动：具名回调固定派发到 TCC 编译产物，文件级 local
--- 是各引擎动态库各自的 static，不能像其他用例那样用 CallAll 三引擎混跑。
+-- 回调派回登记时的引擎：三引擎各自 arm/pump 闭环，文件级 local 各自独立也没问题。
 -- cross_hits 只承载动态值（表字段 / nil），不会被推断成文件级数值常量。
 local cross_hits = nil
 

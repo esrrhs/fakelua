@@ -789,14 +789,23 @@ void MysqlConnection::SetError(MysqlErrorType type, uint16_t code, const std::st
 }
 
 void MysqlConnection::InvokeCallback(const ResultCallback &cb, CVar *args, int n) {
-    // 全局函数名：查 VM 注册表。
+    // 派回【登记回调时的引擎】（与旧内联闭包自带 func_ptr 的语义一致）。
     auto func = lua_state_->GetVM().GetFunction(cb.name);
     if (func.Empty()) return;
-    void *addr = func.GetAddr(JIT_TCC);
-    JITType jit_type = JIT_TCC;
+    JITType jit_type = cb.jit;
+    void *addr = func.GetAddr(jit_type);
     if (!addr) {
-        addr = func.GetAddr(JIT_GCC);
-        jit_type = JIT_GCC;
+        // 兜底：登记引擎没有该函数的编译产物（正常不应发生——同一份脚本三引擎都会编译）。
+        // 按其余引擎依次找，避免回调静默丢失。
+        static constexpr JITType kFallbacks[] = {JIT_TCC, JIT_GCC, JIT_INTERP};
+        for (JITType t: kFallbacks) {
+            if (t == jit_type) continue;
+            addr = func.GetAddr(t);
+            if (addr) {
+                jit_type = t;
+                break;
+            }
+        }
     }
     if (!addr) return;
     inter::DispatchCall(lua_state_, addr, args, n, jit_type);

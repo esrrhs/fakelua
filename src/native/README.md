@@ -606,6 +606,8 @@ used.
 - Bound arguments are a **registration-time snapshot** (copy by value): mutating the original
   table after registration is not visible to the callback. Put mutable cross-frame state on the
   connection object itself (e.g. `conn.query_done`).
+- The callback runs in the **same engine that issued the call** (TCC/GCC/interpreter each close
+  the loop themselves); dispatch is not pinned to TCC.
 - `pool:with(fn)` invokes fn **synchronously in the same frame** and never stores it across
   ticks, so inline closures remain supported there.
 

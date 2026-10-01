@@ -55,7 +55,8 @@ static ResultCallback BuildCallback(State *s, CVar name_v, int name_argno, CVar 
     }
     // 绑定参数严格校验 + 序列化（含闭包/native 对象等直接抛 bad argument）。
     std::string bound = serialize::WireEncodeCallbackArgs(s, args, bound_first, n, fname, bound_first + 1);
-    return ResultCallback{std::move(name), std::move(bound)};
+    // 记住登记时的引擎：回调派发时派回同一引擎，而不是固定 TCC。
+    return ResultCallback{std::move(name), std::move(bound), s->CurrentJit()};
 }
 
 // Retrieve MysqlConnection* from NativeObject

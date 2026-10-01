@@ -40,6 +40,18 @@ extern "C" __attribute__((used)) void FakeluaSetMultiCVarElement(CVar *multi, in
     inter::SetMultiCVarElement(*multi, idx, val);
 }
 
+// JIT 生成的 C 代码（TCC 是 C 编译器，用不了 C++ 的 State::JitContextScope）调用闭包
+// 前后经这对接口维护"当前执行引擎"。返回旧值供 Pop 恢复，单线程无需原子操作。
+extern "C" int FakeluaJitContextPush(State *s, int jit) {
+    const int prev = static_cast<int>(s->CurrentJit());
+    s->SetCurrentJit(static_cast<JITType>(jit));
+    return prev;
+}
+
+extern "C" void FakeluaJitContextPop(State *s, int prev) {
+    s->SetCurrentJit(static_cast<JITType>(prev));
+}
+
 static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr);
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
@@ -70,6 +82,9 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 }
 
 static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr) {
+    // 记录"当前 Lua 调用方引擎"：native 函数内登记的异步回调据此派回同一引擎。
+    // 作用域覆盖整个函数（含嵌套的 Lua 回调），退出时恢复外层引擎。
+    State::JitContextScope jit_scope(state, static_cast<JITType>(jit_type));
     // 查找函数：优先 JIT，其次 C++ 原生
     // 用 string_view 查表，避免每次调用都堆分配 std::string
     const std::string_view func_name(name);

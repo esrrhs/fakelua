@@ -271,9 +271,9 @@ static CVar PoolWith(NativeObject *self, State *s, CVar *args, int n) {
         NativeObject *nat;
         ~LeaseGuard() { DetachAcquiredWrapper(nat); }
     } lease{nat};
-    // kNativeCallbackJit 只选择异常边界。fn 的地址在闭包的 func_ptr 里，
-    // GCC / 解释器闭包同样会走到自己的代码，不会因为标记是 TCC 而静默失败。
-    return inter::DispatchCallClosure(s, a0.data_.cl, &conn_arg, 1, kNativeCallbackJit);
+    // fn 是同帧同步调用，直接沿用当前 Lua 调用方的引擎（异常边界随之正确），
+    // 不固定 TCC 标记。
+    return inter::DispatchCallClosure(s, a0.data_.cl, &conn_arg, 1, s->CurrentJit());
 }
 
 int TestPoolWithFnThrowReturnsConnection(State *s, CVar fn) {
