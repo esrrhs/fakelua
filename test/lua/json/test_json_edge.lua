@@ -249,11 +249,38 @@ function test_encode_control_chars()
     return 1
 end
 
--- 测试 JSON 编码：空对象
+-- 测试 JSON 编码：空 table
 function test_encode_empty_object()
     local s = json.encode({})
-    -- 空表应编码为空对象
-    if s ~= "{}" then return 0 end
+    -- 空 table 按纯数组启发式编码为 []（客户端按数组解析协议字段）
+    if s ~= "[]" then return 0 end
+    return 1
+end
+
+-- 测试 JSON 编码：空数组字段嵌在对象里
+function test_encode_empty_array_field()
+    local s = json.encode({ type = "rank", list = {} })
+    -- 空 list 字段应为 "list":[] 而不是 "list":{}（string.find 为 ECMAScript 正则，[ 需转义）
+    if not string.find(s, '"list":\\[\\]') then return 0 end
+    return 1
+end
+
+-- 测试 json.encode_array：数组形 table 正常编码
+function test_encode_array_ok()
+    if json.encode_array({}) ~= "[]" then return 0 end
+    if json.encode_array({ 1, 2, 3 }) ~= "[1,2,3]" then return 0 end
+    if json.encode_array({ [1] = "a", [2] = "b" }) ~= '["a","b"]' then return 0 end
+    return 1
+end
+
+-- 测试 json.encode_array：非数组形 table 报错
+function test_encode_array_reject()
+    local ok1 = pcall(function() json.encode_array({ a = 1 }) end)
+    if ok1 then return 0 end
+    local ok2 = pcall(function() json.encode_array({ [1] = "a", [3] = "c" }) end)
+    if ok2 then return 0 end
+    local ok3 = pcall(function() json.encode_array("not a table") end)
+    if ok3 then return 0 end
     return 1
 end
 

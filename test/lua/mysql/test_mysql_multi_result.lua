@@ -90,9 +90,9 @@ function test_multi_result()
             conn:close()
             return 0
         end
-        local expected = tostring(i)
-        if result[3][1][1] ~= expected then
-            print("result", i, "value mismatch:", result[3][1][1], "expected:", expected)
+        -- SELECT 字面整数按列类型返回 number（整数）
+        if result[3][1][1] ~= i then
+            print("result", i, "value mismatch:", result[3][1][1], "expected:", i)
             conn:close()
             return 0
         end

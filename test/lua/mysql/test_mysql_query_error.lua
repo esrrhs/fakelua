@@ -108,7 +108,7 @@ function test_query_error()
     end
 
     local res = conn.query_result
-    if not res or res[1] ~= true or res[3][1][1] ~= "42" then
+    if not res or res[1] ~= true or res[3][1][1] ~= 42 then
         print("recovery query result mismatch")
         conn:close()
         return 0

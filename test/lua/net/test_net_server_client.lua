@@ -140,3 +140,45 @@ function test_send_buffer_full()
     cli:close()
     return ok and 0 or 1
 end
+
+-- 回归（P1-6）：在 on_event 回调里直接调用 obj:send()（不走返回 "echo" 的路径）。
+-- 派发上下文中的 send 会先入队，由本轮 tick 派发完后统一泵出；客户端随后收到数据。
+local send_in_cb_server = nil
+
+function on_send_in_cb(type, connid, data, len, reason)
+    if type == "recv" then
+        if send_in_cb_server then
+            send_in_cb_server:send(connid, "direct:" .. data)
+        end
+    end
+end
+
+function test_send_in_callback()
+    local server = net.server({ port = 19987, maxconn = 4 })
+    server:dispatch("NetTest.on_send_in_cb")
+    send_in_cb_server = server
+
+    local client = net.client({ port = 19987 })
+    client:dispatch("NetTest.on_client_event")
+
+    for i = 1, 50 do
+        runtime.tick()
+        if server:get_conn_count() >= 1 then break end
+        os.sleep(1)
+    end
+
+    client:send("ping")
+
+    -- 回调里直接 send 的数据应经入队泵出后到达客户端
+    for i = 1, 50 do
+        runtime.tick()
+        if client:get_last_data() == "direct:ping" then break end
+        os.sleep(1)
+    end
+
+    local ok = client:get_last_data() == "direct:ping"
+    send_in_cb_server = nil
+    server:close()
+    client:close()
+    return ok and 1 or 0
+end

@@ -503,6 +503,9 @@ void ThrowIfMultiCVar(const CVar &v) {
 static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count, VarClosure *cl);
 
 CVar DispatchCall(State *s, void *addr, const CVar *arg_arr, int arg_count, JITType type, VarClosure *cl) {
+    // 进入目标引擎代码：切换当前引擎上下文，使本次执行过程中调起的 native 函数
+    // （含 native 对象方法桥接）能登记派回本引擎的异步回调。嵌套调用逐层保存恢复。
+    State::JitContextScope jit_scope(s, type);
     // 解释器闭包用 code_str magic 识别，不能看函数指针最低位：GCC 的函数指针可以是奇数。
     // type==JIT_INTERP 且 cl 为空：Call()/CallByName 直接调注册的解释器原型。
     // cl 是 TCC/GCC 闭包时即使 type 是 JIT_INTERP 也必须走 C 函数指针（解释器回调 JIT 闭包）。

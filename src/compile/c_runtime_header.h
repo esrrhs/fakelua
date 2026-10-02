@@ -335,6 +335,10 @@ extern CVar FakeluaAllocMultiCVar(State *s, int count);
 extern void FakeluaSetMultiCVarElement(CVar *multi, int idx, CVar val);
 extern CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
 extern CVar FakeluaInterpCall(State *state, VarClosure *cl, int arg_num, const CVar *args);
+// 当前执行引擎上下文（供 JIT C 代码调用闭包前后维护）：push 切到 jit 并返回上一个引擎，
+// pop 恢复。native 对象方法等在闭包内执行时据此登记派回本引擎的异步回调。
+extern int FakeluaJitContextPush(State *s, int jit);
+extern void FakeluaJitContextPop(State *s, int prev);
 #ifdef __cplusplus
 }
 #endif
@@ -522,8 +526,13 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
 #define FCARG_31 FCARG_30, arg_arr[30]
 #define FCARG_32 FCARG_31, arg_arr[31]
 
-#define FCCASE(N) \
-    case N: return ((CVar (*)(VarClosure * FCCVAR_##N))(addr))(cl FCARG_##N);
+#define FCCASE(N)                                                                                                                                                                                       \
+    case N: {                                                                                                                                                                                          \
+        int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);                                                                                                                           \
+        CVar __fl_ret = ((CVar (*)(VarClosure * FCCVAR_##N))(addr))(cl FCARG_##N);                                                                                                                     \
+        FakeluaJitContextPop(state, __fl_prev_jit);                                                                                                                                                    \
+        return __fl_ret;                                                                                                                                                                               \
+    }
 
     switch (expected_arg_count) {
         FCCASE(0) FCCASE(1) FCCASE(2) FCCASE(3) FCCASE(4) FCCASE(5)
@@ -670,6 +679,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
     (v).data_.t->spec_keys = (CVar *)FakeluaAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
     (v).data_.t->spec_vals = (CVar *)FakeluaAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
     (v).data_.t->spec_count = (field_count); \
+    assert(sizeof(SpecType) == (field_count) * sizeof(CVar)); \
 } while(0)
 
 #define FL_SPEC(SpecType, v, field) (((SpecType *)(v).data_.t->spec)->field)

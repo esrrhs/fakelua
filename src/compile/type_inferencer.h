@@ -284,7 +284,13 @@ private:
 
 private:
     State *s_ = nullptr;
+    std::string file_name_;
+    // 正在推断 __fakelua_init。它里面的 x = func() 是文件级复杂初值的唯一赋值点，不是再赋值。
+    bool in_init_function_ = false;
     std::unordered_map<std::string, InferredType> file_level_types_;
+    // 文件级数值字面量 local 的 initializer 节点。InferAssign 用它判断赋值目标是不是
+    // 这条常量绑定（对函数内同名遮蔽免疫）。__fakelua_init 里的赋值不查这张表。
+    std::unordered_set<const SyntaxTreeInterface *> file_level_init_exps_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;

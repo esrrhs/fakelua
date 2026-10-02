@@ -186,7 +186,8 @@ function test_stmt()
     end
 
     local row = result[3][1]
-    if row[1] ~= "1" or row[2] ~= "alice" then
+    -- INT 列按列类型返回 number（整数），VARCHAR 列返回 string
+    if row[1] ~= 1 or row[2] ~= "alice" then
         print("row mismatch:", row[1], row[2])
         conn:stmt_close(conn.stmt_id)
         conn:close()

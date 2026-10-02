@@ -500,6 +500,7 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                 InferredType global_type = ir().global_const_vars.at(name);
                 const auto cname = CIdent(name);
                 const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+                // 文件级数值 local 是常量。再赋值在类型推断阶段就已经报错，这里一律 static const。
                 if (global_type == T_INT) {
                     if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
                         Out() << "static const int64_t " << cname << " = 0;\n";

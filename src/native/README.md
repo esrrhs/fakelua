@@ -316,7 +316,7 @@ On Windows, `io.open` / `loadfile` / `dofile` / `os.getenv` / `os.tmpname` / Boo
 | `net.udp_server(config)` | Bind a UDP socket (`ip`, `port`; `port=0` is ephemeral). `send(data, ip, port)` |
 | `net.udp_client(config)` | Connected UDP client (`ip`/`port` are the peer). `send(data)` |
 | `obj:dispatch(func_name)` | Register Lua callback function name |
-| `obj:send(connid, data)` | Send data (server: specify connid; client: omit) |
+| `obj:send(connid, data)` | Send data (server: specify connid; client: omit). From a callback context the send is queued and pumped by the tick after dispatch finishes; failures are logged as WARN |
 | `obj:close()` | Close connection/server |
 | `obj:close_connection(connid)` | Close single connection (server only) |
 | `obj:get_events()` | Event history |
@@ -401,6 +401,30 @@ from your main loop instead.
 Timers go first so callbacks that come due can be picked up by the I/O dispatch behind
 them. Within MySQL, pools are driven before connections so heartbeat and reconnect have
 run before a script acquires a connection this round.
+
+**Pump order and callback timing (important):** the order is fixed: timer → net → http → mysql →
+redis. Each module dispatches its Lua callbacks synchronously inside the tick, therefore:
+
+- **IO issued from inside a callback produces results at the earliest in the next tick.** A mysql
+  query issued from a net callback cannot have its result dispatched until the next frame; do not
+  write code that issues a query from a callback and expects the result synchronously.
+- A second `conn:query` on the same connection while one is in flight is **queued** (no error) and
+  starts automatically once the connection is Ready again; at most one queued query starts per tick.
+
+**Callback context (C++ → Lua) — allowed / forbidden operations:**
+
+net's on_event and the mysql/http/redis result callbacks all run in a restricted dispatch context.
+Each entry wraps the call in `IoContext::DispatchScope`, which increments `InDispatch()`
+(net `DrainEventsWith`, mysql connect/result dispatch, http `CallNamed`, redis result dispatch).
+The flag is an integer depth on the State, so Linux, macOS and Windows behave the same way.
+`send` queues while a dispatch is active and the tick pumps the queue after the scope ends.
+
+| Operation | Supported | Notes |
+|------|---------|------|
+| Mutating fields of a runtime-created table | ✅ | Attaching a table created inside the callback to a long-lived table is a reliable pattern |
+| IO such as `send` / mysql `query` | ✅ | sends are pumped by the tick after dispatch finishes; queries queue asynchronously |
+| Assigning **fields** of a file-level `local` table | ❌ | file-level tables get CONST_FLAG after init; mutating content throws "attempt to modify a const table" |
+| Rebinding a file-level numeric `local` (`x = ...`) | ❌ | a file-level numeric local with a literal initializer is a constant; assigning it later is a compile error that names the source line. `local x = func()` cannot be a C static initializer: the declaration is lowered to `local x = nil` and `__fakelua_init` assigns it once when the shared library is loaded |
 
 ---
 
@@ -541,8 +565,17 @@ Boost.Container-backed structures stored on a NativeObject (C++ heap). They surv
 
 | Function | Args | Description |
 |----------|------|-------------|
-| `json.encode(value)` | 1 | Lua value → JSON string; consecutive int keys 1..N → array; floats use `%.17g` |
+| `json.encode(value)` | 1 | Lua value → JSON string; consecutive int keys 1..N → array; **an empty table encodes as `[]`**; floats use `%.17g` |
+| `json.encode_array(value)` | 1 | Strict array encoding: the top level must be an array-like table (empty table → `[]`; non-empty requires consecutive int keys from 1), otherwise throws |
 | `json.decode(str)` | 1 | JSON string → Lua value; `null` → `nil` |
+
+> **Empty-table ambiguity:** Lua cannot distinguish an "empty array" from an "empty object".
+> `json.encode` applies the pure-array heuristic and encodes empty tables as `[]`; use
+> `json.encode_array` when the client protocol must be strict (array-shaped or error).
+>
+> **Breaking change:** `json.encode({})` used to produce `{}` and now produces `[]`. Callers that
+> need an empty object should encode a table with a string key, or accept both shapes on the client.
+> Use `json.encode_array` when the value must be an array.
 
 ---
 
@@ -556,19 +589,65 @@ Boost.Container-backed structures stored on a NativeObject (C++ heap). They surv
 
 `ssl`: omit/`false`/`"disable"` keeps plaintext (default). `true`/`"require"` demands TLS. `"enable"` uses TLS when the server offers it. Optional `ssl_ca` PEM enables certificate verification.
 
+**Callback arguments:** every async `cb` accepts only an in-package global function name
+(string, e.g. `"on_result"` or `"DB.on_result"`); **inline closures are not supported**. FakeLua
+has no GC: runtime values live on the temporary arena, and a top-level `Call` resets that arena, so
+a raw closure pointer cannot be held safely across ticks. To pass context, append **bound
+arguments** (pure data) after the function name: `conn:query(sql, "on_result", tag, ctx_table)`.
+Bound arguments are serialized into a self-owned byte blob at registration time (same wire format
+as `serialize.encode`), survive any number of `Reset`s, and are deserialized in the dispatch frame
+and appended after the fixed callback arguments. The blob is released when the query completes or
+the connection is destroyed, so memory usage tracks in-flight queries only; the const arena is not
+used.
+
+- Bound arguments may be nil/boolean/number/string and nested tables thereof (no cycles);
+  non-serializable values (closures, native objects, ...) anywhere in the nesting raise a
+  "bad argument" error — fields are never silently dropped.
+- Bound arguments are a **registration-time snapshot** (copy by value): mutating the original
+  table after registration is not visible to the callback. Put mutable cross-frame state on the
+  connection object itself (e.g. `conn.query_done`).
+- The callback runs in the **same engine that issued the call** (TCC/GCC/interpreter each close
+  the loop themselves); dispatch is not pinned to TCC.
+- `pool:with(fn)` invokes fn **synchronously in the same frame** and never stores it across
+  ticks, so inline closures remain supported there.
+
+**Callback contract:** once `conn:query` is called its callback fires **exactly once** — when the
+connection is not ready (handshaking / reconnecting / a previous query still in flight) the query is
+queued and starts automatically once the connection is usable; if the connection is closed or in a
+terminal error state, the callback receives an error string. All callbacks are driven by
+`runtime.tick()`.
+
 | Function/Method | Description |
 |----------|-------------|
-| `mysql.connect(config, cb)` | Async connect; callback `function cb(err, conn)` |
+| `mysql.connect(config, cb, ...)` | Async connect; callback `cb(conn, err, success, ...)`; `...` are bound args appended after the fixed args |
 | `mysql_pool.create(config)` | Create connection pool |
-| `conn:query(sql, cb)` | Async query; callback `function cb(err, result)` |
-| `conn:stmt_prepare(sql, cb)` | Prepare statement |
-| `conn:stmt_execute(id, params, cb)` | Execute prepared statement |
+| `conn:query(sql, cb, ...)` | Async query; callback `cb(conn, err, result, ...)`; `...` are bound args |
+| `conn:stmt_prepare(sql, cb, ...)` | Prepare statement; callback `cb(conn, err, stmt_id, ...)` |
+| `conn:stmt_execute(id, params, cb, ...)` | Execute prepared statement; bound args start at the 4th argument |
 | `conn:stmt_close(id)` | Close prepared statement |
 | `conn:close()` | Close connection |
-| `pool:acquire()` | Get connection from pool |
+| `pool:acquire()` | Get connection from pool (nil when none available) |
 | `pool:release(conn)` | Return connection to pool |
+| `pool:with(fn)` | Lease-style usage: acquires a connection and passes it to `fn(conn)`, returning it automatically when fn returns or throws; returns fn's return value. Prevents the "forgot to release / callback never fired so the connection is never returned" leak pattern |
 | `pool:close()` | Close pool |
 | `pool:stats()` | Returns `{total, healthy}` |
+
+**Result table layout (SELECT):** `result[1] = true`; `result[2]` is the column info table (each item
+`{[1]=column name, [2]=MySQL type code}`); `result[3]` is the rows table, each row indexed by column
+position (1-based).
+
+**Result table layout (INSERT/UPDATE/DELETE/DDL):** `result[1] = false`; `result[4] = affected_rows`;
+`result[5] = last_insert_id`; `result[6] = info`.
+
+**Row value types:** converted by column type — integer columns (TINY/SHORT/LONG/LONGLONG/INT24/YEAR)
+return numbers, float/decimal columns (FLOAT/DOUBLE/DECIMAL/NEWDECIMAL) return numbers, all other
+columns (strings/dates/BLOBs) return strings, NULL returns nil. Boolean-style `TINYINT(1)` returns a
+number (0/1); convert as needed.
+
+> **DECIMAL / NEWDECIMAL precision:** these columns become IEEE 754 doubles, about 15–16 significant
+> decimal digits. A `DECIMAL(18,6)` (and similar high-precision definitions) can lose the last digit
+> or two, so it is a poor sole representation of money. Cast to a string in SQL
+> (`CAST(price AS CHAR)`) and keep it as a string in Lua when the value must be exact.
 
 ---
 

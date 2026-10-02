@@ -10,6 +10,13 @@
 
 namespace fakelua {
 
+// C++ 调用 Lua 闭包时传给 DispatchCall / DispatchCallClosure 的后端标记。
+// 这个值不选择函数地址：闭包的机器码在 VarClosure::func_ptr 里，具名函数由调用方
+// 按 VM 注册表取地址（TCC 没有再回退 GCC）。它只决定异常能否穿过代码页——
+// TCC 没有展开表，必须走错误边界；GCC 多包一层边界同样安全。解释器闭包由
+// IsInterpClosure 识别，与这里的标记无关，因此不会在 GCC/解释器后端静默失败。
+inline constexpr JITType kNativeCallbackJit = JIT_TCC;
+
 // Shared helpers for native library argument validation and error reporting.
 // Used across native_math, native_table, native_utf8, native_string, native_io.
 
