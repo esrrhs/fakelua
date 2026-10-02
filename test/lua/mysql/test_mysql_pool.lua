@@ -65,7 +65,7 @@ function test_pool()
         pool:close()
         return 0
     end
-    if result[3][1][1] ~= "1" then
+    if result[3][1][1] ~= 1 then
         print("pool query result mismatch:", result[3][1][1])
         pool:release(conn)
         pool:close()

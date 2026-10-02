@@ -183,6 +183,16 @@ size_t MysqlConnectionPool::HealthyCount() const {
     return count;
 }
 
+void MysqlConnectionPool::MarkConnectedForTest() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto &entry: pool_) {
+        if (!entry.conn) continue;
+        entry.conn->MarkConnectedForTest();
+        entry.healthy = true;
+        entry.in_use = false;
+    }
+}
+
 // Private helpers
 void MysqlConnectionPool::SendHeartbeat(PoolEntry &entry) {
     if (!entry.conn || !entry.healthy) return;

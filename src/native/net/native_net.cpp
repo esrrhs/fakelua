@@ -3,6 +3,7 @@
 #include "native/net/net_event.h"
 #include "native/object/native_object.h"
 #include "native/table/native_table.h"
+#include "state/state.h"
 #include "util/logging.h"
 #include "var/var.h"
 
@@ -45,7 +46,19 @@ struct NetObject {
     int tick_depth = 0;
     bool close_pending = false;
 
+    // 回调上下文（native dispatch 期间）里的 send 先入队，由本轮 tick 派发完后统一
+    // 泵出——消除"回调里 send 是否生效"的平台相关行为（事件驱动改轮询驱动）。
+    struct PendingSend {
+        enum class Kind { Server, Client, UdpPeer, UdpTo } kind;
+        int connid = -1;        // Server: 目标连接
+        std::string data;
+        std::string ip;         // UdpTo: 目标地址
+        uint16_t port = 0;      // UdpTo: 目标端口
+    };
+    std::vector<PendingSend> pending_sends;
+
     static constexpr size_t kMaxEvents = 1024;
+    static constexpr size_t kMaxPendingSends = 4096;
 };
 
 // 辅助：从 CVar 提取字符串
@@ -126,6 +139,8 @@ static CVar CallLuaEvent(State *state, const std::string &func_name, const char 
 //   "echo", data → 将 data 发回来源连接
 //   "close"      → 延后关闭本对象（tick 回调内安全）
 
+static bool SendOrQueue(NetObject *obj, NetObject::PendingSend ps);
+
 static void HandleCallbackReturn(NetObject *obj, const CVar &ret, int connid) {
     if (!obj || obj->close_pending) return;
     // 检查是否为 Multi（多返回值）
@@ -143,14 +158,66 @@ static void HandleCallbackReturn(NetObject *obj, const CVar &ret, int connid) {
         std::string echo_data = CVarToString(data_var);
         if (obj->udp) {
             if (obj->udp->Connected()) {
-                obj->udp->Send(echo_data.data(), echo_data.size());
+                SendOrQueue(obj, {NetObject::PendingSend::Kind::UdpPeer, -1, std::move(echo_data)});
             } else {
-                obj->udp->SendTo(echo_data.data(), echo_data.size(), obj->last_peer_ip, obj->last_peer_port);
+                SendOrQueue(obj, {NetObject::PendingSend::Kind::UdpTo, -1, std::move(echo_data), obj->last_peer_ip, obj->last_peer_port});
             }
         } else if (obj->is_server) {
-            obj->server->Send(connid, echo_data.data(), echo_data.size());
+            SendOrQueue(obj, {NetObject::PendingSend::Kind::Server, connid, std::move(echo_data)});
         } else {
-            obj->client->Send(echo_data.data(), echo_data.size());
+            SendOrQueue(obj, {NetObject::PendingSend::Kind::Client, -1, std::move(echo_data)});
+        }
+    }
+}
+
+// send 的统一实现：按 PendingSend 的 kind 写 socket。返回 false 表示引擎侧
+// 拒绝（连接未就绪/已关闭），调用方记日志，不再静默。
+static bool DoSend(NetObject *obj, const NetObject::PendingSend &ps) {
+    using Kind = NetObject::PendingSend::Kind;
+    switch (ps.kind) {
+        case Kind::Server:
+            if (obj->server) return obj->server->Send(ps.connid, ps.data.data(), ps.data.size());
+            return false;
+        case Kind::Client:
+            if (obj->client) return obj->client->Send(ps.data.data(), ps.data.size());
+            return false;
+        case Kind::UdpPeer:
+            if (obj->udp && obj->udp->Connected()) return obj->udp->Send(ps.data.data(), ps.data.size());
+            return false;
+        case Kind::UdpTo:
+            if (obj->udp) return obj->udp->SendTo(ps.data.data(), ps.data.size(), ps.ip, ps.port);
+            return false;
+    }
+    return false;
+}
+
+// 判断是否处于 C++→Lua 回调派发上下文（on_event / mysql/http 回调等）。
+static bool InDispatchContext(NetObject *obj) {
+    return obj && obj->state && obj->state->GetIoContext().InDispatch();
+}
+
+// send 的统一入口：回调上下文里不直接写 socket，而是入队，由本轮 tick 派发完后
+// 统一泵出——消除"回调里 send 偶尔静默丢失"的平台相关行为；非派发上下文立即发送。
+static bool SendOrQueue(NetObject *obj, NetObject::PendingSend ps) {
+    if (InDispatchContext(obj)) {
+        if (obj->pending_sends.size() >= NetObject::kMaxPendingSends) {
+            LOG_WARN(obj->state, "net", "pending send queue full ({}), dropping {} bytes", obj->pending_sends.size(), ps.data.size());
+            return false;
+        }
+        obj->pending_sends.push_back(std::move(ps));
+        return true;
+    }
+    return DoSend(obj, ps);
+}
+
+// 派发完成后统一泵出积压的 send。此时已脱离 DispatchScope，直接写 socket 是安全的。
+static void FlushPendingSends(NetObject *obj) {
+    if (!obj || obj->pending_sends.empty()) return;
+    auto sends = std::move(obj->pending_sends);
+    obj->pending_sends.clear();
+    for (const auto &ps: sends) {
+        if (!DoSend(obj, ps)) {
+            LOG_WARN(obj->state, "net", "deferred send failed (kind={} connid={} len={})", static_cast<int>(ps.kind), ps.connid, ps.data.size());
         }
     }
 }
@@ -294,10 +361,13 @@ static void TickNetObject(NativeObject *self) {
         }
     } catch (...) {
         obj->tick_depth--;
+        FlushPendingSends(obj);
         finish_tick();
         throw;
     }
     obj->tick_depth--;
+    // 回调期间积压的 send 在这里统一泵出（socket 写在派发上下文之外执行）。
+    FlushPendingSends(obj);
     finish_tick();
 }
 
@@ -314,6 +384,7 @@ void TickAll(State *s) {
 }
 
 // server:send(connid, data) / client:send(data)
+// 返回 true 表示已被引擎接受（直接写出，或回调上下文中入队待泵出）。
 static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
     auto *obj = Unwrap(self);
     if (!obj) return inter::NativeToFakeluaBool(s, false);
@@ -322,7 +393,7 @@ static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
         if (obj->udp->Connected()) {
             if (n < 1) ThrowBadArgument(1, "send", "data expected");
             std::string data = CVarToString(inter::GetNativeArg(s, args, n, 0));
-            bool ok = obj->udp->Send(data.data(), data.size());
+            bool ok = SendOrQueue(obj, {NetObject::PendingSend::Kind::UdpPeer, -1, std::move(data)});
             return inter::NativeToFakeluaBool(s, ok);
         }
         if (n < 3) ThrowBadArgument(1, "send", "data, ip and port expected");
@@ -332,7 +403,7 @@ static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
         if (port_val <= 0 || port_val > 65535) {
             ThrowFakeluaException(std::format("net: port {} out of range (1-65535)", port_val));
         }
-        bool ok = obj->udp->SendTo(data.data(), data.size(), ip, static_cast<uint16_t>(port_val));
+        bool ok = SendOrQueue(obj, {NetObject::PendingSend::Kind::UdpTo, -1, std::move(data), std::move(ip), static_cast<uint16_t>(port_val)});
         return inter::NativeToFakeluaBool(s, ok);
     }
 
@@ -351,7 +422,7 @@ static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
             }
             return std::string();
         }();
-        bool ok = obj->server->Send(connid, data.data(), data.size());
+        bool ok = SendOrQueue(obj, {NetObject::PendingSend::Kind::Server, connid, std::move(data)});
         return inter::NativeToFakeluaBool(s, ok);
     } else if (!obj->is_server && obj->client) {
         // client: send(data)
@@ -367,7 +438,7 @@ static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
             }
             return std::string();
         }();
-        bool ok = obj->client->Send(data.data(), data.size());
+        bool ok = SendOrQueue(obj, {NetObject::PendingSend::Kind::Client, -1, std::move(data)});
         return inter::NativeToFakeluaBool(s, ok);
     }
 

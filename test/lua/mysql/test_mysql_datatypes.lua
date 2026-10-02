@@ -113,9 +113,9 @@ function test_datatypes()
 
     local row = result[3][1]
 
-    -- 验证 id 为 "1"
-    if row[1] ~= "1" then
-        print("id mismatch, expected '1', got:", tostring(row[1]))
+    -- 验证 id 为整数 1（INT 列按列类型返回 number）
+    if row[1] ~= 1 then
+        print("id mismatch, expected 1, got:", tostring(row[1]))
         conn:close()
         return 0
     end

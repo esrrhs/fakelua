@@ -97,6 +97,14 @@ extern "C" CVar FakeluaCallByName(State *state, int jit_type, const char *name, 
 
 extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
 
+extern "C" CVar FakeluaAllocMultiCVar(State *state, int count);
+
+extern "C" void FakeluaSetMultiCVarElement(CVar *multi, int idx, CVar val);
+
+extern "C" int FakeluaJitContextPush(State *s, int jit);
+
+extern "C" void FakeluaJitContextPop(State *s, int prev);
+
 // 数组版 FakeluaCallByName，供解释器使用
 CVar CallByNameArgs(State *state, int jit_type, const char *name, int arg_num, const CVar *args);
 

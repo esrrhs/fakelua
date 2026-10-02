@@ -167,8 +167,8 @@ function test_stmt_params()
     end
 
     local r1 = res1[3][1]
-    if r1[1] ~= "1" then
-        print("r1 id expected '1', got:", tostring(r1[1]))
+    if r1[1] ~= 1 then
+        print("r1 id expected 1, got:", tostring(r1[1]))
         conn:stmt_close(select_stmt_id)
         conn:close()
         return 0
@@ -205,7 +205,7 @@ function test_stmt_params()
     end
 
     local r2 = res2[3][1]
-    if r2[1] ~= "2" or r2[2] ~= "bob" then
+    if r2[1] ~= 2 or r2[2] ~= "bob" then
         print("r2 values mismatch:", tostring(r2[1]), tostring(r2[2]))
         conn:stmt_close(select_stmt_id)
         conn:close()
