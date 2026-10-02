@@ -558,19 +558,22 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
             gr.function_names[pkg_func_name] = JitFunctionInfo{static_cast<int>(func->params.size()), is_vararg, name};
         }
 
-        // 如果原始函数含有数学参数，声明其特化变体
-        if (const auto math_it = ir().math_param_positions.find(func->name); math_it != ir().math_param_positions.end()) {
-            const auto &math_params = math_it->second;
-            const int num_specs = 1 << static_cast<int>(math_params.size());
-            for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
-                const auto spec_name = SpecFuncName(name, math_params, bitmask);
-                const auto spec_ret = GetSpecReturnType(func->name, bitmask);
-                Out() << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
-                EmitSpecParamList(cparams, math_params, bitmask);
-                Out() << ");\n";
-                // 注册特化函数名，使 CompileFunctioncall 能将其识别为
-                // 本地调用（同文件直接调用）。
-                gr.function_names[spec_name] = JitFunctionInfo{static_cast<int>(func->params.size()), is_vararg, spec_name};
+        // 数学特化只挂在文件级函数上。嵌套函数与文件级函数同名时不能套用那份特化，
+        // 否则多返回值的嵌套函数会生成 int64_t __fl_func_N_0() { return FlMakeMulti(...); }。
+        if (func->parent == nullptr) {
+            if (const auto math_it = ir().math_param_positions.find(func->name); math_it != ir().math_param_positions.end()) {
+                const auto &math_params = math_it->second;
+                const int num_specs = 1 << static_cast<int>(math_params.size());
+                for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+                    const auto spec_name = SpecFuncName(name, math_params, bitmask);
+                    const auto spec_ret = GetSpecReturnType(func->name, bitmask);
+                    Out() << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
+                    EmitSpecParamList(cparams, math_params, bitmask);
+                    Out() << ");\n";
+                    // 注册特化函数名，使 CompileFunctioncall 能将其识别为
+                    // 本地调用（同文件直接调用）。
+                    gr.function_names[spec_name] = JitFunctionInfo{static_cast<int>(func->params.size()), is_vararg, spec_name};
+                }
             }
         }
     }
@@ -661,7 +664,9 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
 
         const auto func_block = funcbody_ptr->Block();
         const auto c_func_params = CIdents(func_params);
-        if (const auto math_it = ir().math_param_positions.find(func->name); math_it != ir().math_param_positions.end()) {
+        // 数学特化只挂在文件级函数上。嵌套函数即使与文件级函数同名也不套用那份特化。
+        const auto math_it = func->parent == nullptr ? ir().math_param_positions.find(func->name) : ir().math_param_positions.end();
+        if (math_it != ir().math_param_positions.end()) {
             const auto &math_params = math_it->second;
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
@@ -2748,26 +2753,26 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto &name = v_ptr->GetName();
         DEBUG_ASSERT(cur_section_ != Section::Globals);
 
-        // 1. Check if captured (local variable, parameter, or loop variable)
+        // 1. 被闭包捕获的局部变量 / 形参 / 嵌套 local function。
         if (const auto it = var_to_def_map_.find(v_ptr.get()); it != var_to_def_map_.end()) {
             VarDef *def = it->second;
             if (def->is_captured) {
                 if (def->defining_func == cur_func_info_) {
                     return "(*__box_" + CIdent(name) + ")";
-                } else {
-                    if (cur_func_info_) {
-                        const auto vit = std::ranges::find(cur_func_info_->captured_vars, def);
-                        if (vit != cur_func_info_->captured_vars.end()) {
-                            int idx = static_cast<int>(vit - cur_func_info_->captured_vars.begin());
-                            return std::format("(*_CL->upvalues[{}])", idx);
-                        }
+                }
+                if (cur_func_info_) {
+                    const auto vit = std::ranges::find(cur_func_info_->captured_vars, def);
+                    if (vit != cur_func_info_->captured_vars.end()) {
+                        int idx = static_cast<int>(vit - cur_func_info_->captured_vars.begin());
+                        return std::format("(*_CL->upvalues[{}])", idx);
                     }
                 }
             }
         }
 
-        // 2. Check if function referenced as value (non-direct call)
-        if (local_func_names_.contains(name)) {
+        // 2. 没有遮蔽它的局部值时，裸函数名引用文件级函数。
+        //    形参、局部变量、嵌套 local function 即使与文件级函数同名，也走下面的局部变量。
+        if (!BindsLocalValue(v_ptr.get()) && local_func_names_.contains(name)) {
             const auto &info = local_func_names_.at(name);
             const std::string &csym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
             return std::format("FlMakeClosure(_S, (void*){}, 0, {}, {})", csym, info.params_count, info.is_vararg ? "true" : "false");
@@ -3059,6 +3064,9 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
     DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
     DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
+    if (BindsLocalValue(callee_var.get())) {
+        return {};
+    }
     const auto &callee_name = callee_var->GetName();
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
     DEBUG_ASSERT(explist_ptr);
@@ -3196,7 +3204,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         }
     }
 
-    if (local_func_names_.contains(func_name)) {
+    if (!is_local_callee && local_func_names_.contains(func_name)) {
         const auto &info = local_func_names_.at(func_name);
         if (!info.is_vararg && !has_expansion) {
             if (static_cast<int>(compiled_args.size()) != info.params_count) {
@@ -3940,6 +3948,10 @@ std::string CGen::TryCompileSpecDirectCall(const std::shared_ptr<SyntaxTreeFunct
     if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && args_ptr->GetArgsKind() == ArgsKind::kExpList) {
         if (const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue()); callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
             const auto &callee_name = callee_var->GetName();
+            // 形参、局部变量、嵌套 local function 不能按文件级函数名做特化直调。
+            if (BindsLocalValue(callee_var.get())) {
+                return "";
+            }
             if (const auto math_it = ir().math_param_positions.find(callee_name); math_it != ir().math_param_positions.end()) {
                 const auto &math_params = math_it->second;
                 const auto explist_arg = args_ptr->Explist();
@@ -4935,6 +4947,20 @@ std::string CGen::CompileUpvaluePointer(VarDef *def) {
         }
     }
     return "NULL";
+}
+
+bool CGen::BindsLocalValue(const SyntaxTreeVar *var) const {
+    if (!var) {
+        return false;
+    }
+    const auto it = var_to_def_map_.find(var);
+    if (it == var_to_def_map_.end()) {
+        return false;
+    }
+    const VarDef *def = it->second;
+    // 文件级 local function 登记在 chunk 作用域，但对应的 CVar 只在 init 里。
+    // 其它函数引用它时必须走文件级符号，不能当成局部变量名。
+    return !(def->defining_func == nullptr && def->def_node && def->def_node->Type() == SyntaxTreeType::LocalFunction);
 }
 
 bool CGen::IsCapturedInStmt(const SyntaxTreeInterface *stmt_ptr, const std::string &name) const {

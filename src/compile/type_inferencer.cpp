@@ -1035,20 +1035,15 @@ bool TypeInferencer::IsEligibleForMathSpec(const SyntaxTreeInterfacePtr &block_n
                 }
                 // 唯一返回值是尾位置 vararg 展开（return ...）：实际元数随调用者变化，排除。
                 // 唯一返回值是尾位置函数调用（return f()）：特化体经 CompileNumericExp
-                // 直发被调的标量特化，故仅当 f 的有效返回数静态可知恰好为 1 时才安全
-                // （见 SemanticAnalysis 的 function_effective_returns 定点求解，
-                // 可穿透多层尾调用与带单值基线的递归）。
+                // 直发被调的标量特化，故仅当 f 的有效返回数静态可知恰好为 1 时才安全。
+                // 被调按词法作用域解析：形参/局部变量，或与文件级函数同名的嵌套函数，不算 1。
                 const auto &only = ret_exps[0];
                 if (IsVarargExp(only)) {
                     return false;
                 }
                 if (IsFunctionCallExp(only)) {
-                    const auto callee_it = ar.callee_names.find(only.get());
-                    const std::string callee = (callee_it != ar.callee_names.end()) ? callee_it->second : "";
-                    // 用跨函数定点求解后的有效返回数：return f() 仅当 f 链静态可知恰好
-                    // 返回 1 个值时才安全（递归自调用带单值基线也算 1）。
-                    const auto eff_it = ar.function_effective_returns.find(callee);
-                    if (eff_it == ar.function_effective_returns.end() || eff_it->second != 1) {
+                    const auto eff_it = ar.return_call_effective_returns.find(only.get());
+                    if (eff_it == ar.return_call_effective_returns.end() || eff_it->second != 1) {
                         return false;
                     }
                 }

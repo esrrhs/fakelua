@@ -292,13 +292,18 @@ struct ParseResult {
 // SemanticAnalysis 的输出。
 // 由 SemanticAnalysis::Analyze 填充，供 CGen 使用。
 struct AnalysisResult {
-    // 函数名 -> 最大返回值数量（-1 代表动态，例如以函数调用结尾）
+    // 函数名 -> 最大返回值数量（-1 代表动态：以函数调用或 ... 结尾）。
+    // return ... 与 return x, ... 都是 -1，调用点会展开多返回值。
     std::unordered_map<std::string, int> function_max_returns;
-    // 函数名 -> 有效返回值数量：在 function_max_returns 基础上把「return f()」尾调用
-    // 沿被调函数链做定点求解（含递归自调用锚点），例如 f()=return g()、g()=return 1
-    // 会解析为 1。-1 表示无法静态确定（未知被调/vararg/无锚点递归环）。
-    // 仅供数学参数特化的资格判定使用，不影响既有代码生成路径。
+    // 函数名 -> 有效返回值数量。所有路径返回数一致时为该精确值，例如
+    // return a, f() 计为 1 + f 的返回数（不是 max(表达式个数, f 的返回数)）；
+    // return ... / return x, ...、路径之间数量不一致、未知被调、无锚点递归环为 -1。
+    // 仅供数学参数特化的资格判定使用。
     std::unordered_map<std::string, int> function_effective_returns;
+    // 「return <单个调用>」表达式节点 -> 按词法作用域解析后的被调有效返回数。
+    // 形参、局部变量、以及与文件级函数同名的嵌套 local function 记为 -1，
+    // 避免用文件级简单名把多返回值调用放进标量特化。
+    std::unordered_map<const SyntaxTreeInterface *, int> return_call_effective_returns;
     // 语法分析出的所有函数调用表达式节点集合，供 CGen 直接查询
     std::unordered_set<const SyntaxTreeInterface *> function_call_exps;
     // 语法分析出的所有函数调用到其被调用者名字的映射，供 CGen 直接查询
