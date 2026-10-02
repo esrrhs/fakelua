@@ -3197,12 +3197,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     }
 
     std::string call_expr;
-    bool is_local_callee = false;
-    if (var_ptr) {
-        if (const auto it = var_to_def_map_.find(var_ptr); it != var_to_def_map_.end()) {
-            is_local_callee = true;
-        }
-    }
+    bool is_local_callee = BindsLocalValue(var_ptr);
 
     if (!is_local_callee && local_func_names_.contains(func_name)) {
         const auto &info = local_func_names_.at(func_name);
