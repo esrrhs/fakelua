@@ -367,6 +367,10 @@ private:
     // 查询 name 在 stmt_ptr 对应语句节点上是否被标记为 captured
     [[nodiscard]] bool IsCapturedInStmt(const SyntaxTreeInterface *stmt_ptr, const std::string &name) const;
 
+    // 变量引用的是形参、局部变量或嵌套 local function。
+    // 文件级 local function 不算：它的 C 变量只存在于 init，其它函数仍按文件级符号调用。
+    [[nodiscard]] bool BindsLocalValue(const SyntaxTreeVar *var) const;
+
     // 发射 heap-boxed captured var 声明：
     //   CVar *__box_<name> = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);
     //   *__box_<name> = <init_expr>;

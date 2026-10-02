@@ -4407,7 +4407,7 @@ TEST(infer, test_infer_cvar_to_int) {
 
 // 多返回值 / vararg 展开 / 尾位置透传多返回值的函数即使命中数学参数，也不得生成
 // 标量特化（特化函数 return FlMakeMulti 会产生非法 C）。
-// test(10)=115, test(10.5)=120。
+// test(10)=235，test(10.5)=240，其中 factacc(5,1)=120。
 TEST(infer, test_jitbug_multi_return_no_spec) {
     const auto code = InferGetCCode("./infer/test_jitbug_multi_return_spec.lua");
     // 通用 CVar 变体必须存在。
@@ -4440,14 +4440,63 @@ TEST(infer, test_jitbug_multi_return_no_spec) {
 // 表达式位置；generic-for 超过 3 个表达式时丢弃位同理。test()=60。
 TEST(infer, test_jitbug_tail_expand_stmt) {
     const auto code = InferGetCCode("./infer/test_jitbug_tail_expand_stmt.lua");
-    // generic-for 第 4 个（丢弃）表达式以独立语句形式求值。
+    // 语句宏必须先写成独立语句，不能拼进赋值或 (void)() 的表达式位置。
+    ASSERT_NE(code.find("flua_call_res_"), std::string::npos);
     ASSERT_NE(code.find("(void)("), std::string::npos);
+    ASSERT_EQ(code.find("= do"), std::string::npos);
+    ASSERT_EQ(code.find("(void)(do"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_jitbug_tail_expand_stmt.lua", {.debug_mode = debug_mode});
         int64_t ret = -1;
         Call(s, type, "test", ret);
         ASSERT_EQ(ret, 60);
+    });
+}
+
+// 只有 return ... 的函数，调用点要展开全部返回值。test(10)=21，test(10.5)=22。
+TEST(infer, test_jitbug_vararg_passthrough) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_jitbug_vararg_passthrough.lua", {.debug_mode = debug_mode});
+        int64_t ri = 0;
+        Call(s, type, "test", ri, 10);
+        ASSERT_EQ(ri, 21);
+        double rf = 0;
+        Call(s, type, "test", rf, 10.5);
+        ASSERT_NEAR(rf, 22.0, 0.001);
+    });
+}
+
+// return a, f() 在 f 返回 0 个值时精确返回数是 1；路径 1 与路径 0 不一致时不可特化。
+// test(10)=21（caller_one=11，caller_mixed=10）。
+TEST(infer, test_jitbug_return_exact) {
+    const auto code = InferGetCCode("./infer/test_jitbug_return_exact.lua");
+    ASSERT_NE(code.find("flua_fn_caller_one_0("), std::string::npos);
+    ASSERT_EQ(code.find("flua_fn_caller_mixed_0("), std::string::npos);
+    ASSERT_EQ(code.find("flua_fn_exactly_one_0("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_jitbug_return_exact.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 21);
+    });
+}
+
+// 嵌套 local function / 形参遮蔽文件级同名函数时，不得按文件级返回数做标量特化。
+// 无同名文件级函数、且嵌套函数精确返回 1 个值时，外层仍特化。test(10)=62。
+TEST(infer, test_jitbug_return_scope) {
+    const auto code = InferGetCCode("./infer/test_jitbug_return_scope.lua");
+    ASSERT_EQ(code.find("flua_fn_shadowed_0("), std::string::npos);
+    ASSERT_EQ(code.find("flua_fn_apply_0("), std::string::npos);
+    ASSERT_NE(code.find("flua_fn_use_nested_0("), std::string::npos);
+    ASSERT_NE(code.find("flua_fn_g_0("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_jitbug_return_scope.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 62);
     });
 }
 

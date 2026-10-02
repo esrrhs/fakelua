@@ -3,6 +3,7 @@
 #include "util/common.h"
 #include "util/exception.h"
 #include <algorithm>
+#include <functional>
 
 namespace fakelua {
 
@@ -86,161 +87,422 @@ void SemanticAnalysis::AnalyzeGlobalConstNames(const SyntaxTreeInterfacePtr &chu
     }
 }
 
-void SemanticAnalysis::AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar) {
-    DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
-    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+namespace {
 
-    // 每个文件级函数的返回值明细，用于在 function_max_returns 之上做
-    // 「尾调用链有效返回数」定点求解（仅供数学参数特化资格判定）。
-    struct FuncReturnInfo {
-        // 是否存在不以尾调用/vararg 结尾的 return（含裸 return），其最大显式返回数
-        bool has_concrete = false;
-        int concrete_max = 0;
-        // 存在 return ...（vararg 尾展开）
-        bool has_vararg_tail = false;
-        // 存在尾调用指向无法解析的被调（原生函数/方法/外部符号）：返回数不可知
-        bool has_unknown_tail = false;
-        // 尾调用指向的本文件级函数名
-        std::vector<std::string> tail_callees;
+// 按词法作用域收集每个函数的返回路径，再定点求出「所有路径都相同的精确返回数」。
+// return a, f() 的返回数是 1 + f 的返回数；任一路径是 ...、未知被调，或路径之间数量不一致，则为不可知。
+struct ReturnCountGraph {
+    struct Binding {
+        bool is_func = false;
+        bool file_level = false;
+        const SyntaxTreeInterface *func = nullptr;
     };
-    std::unordered_map<std::string, FuncReturnInfo> infos;
-
-    for (const auto &stmt: block->Stmts()) {
+    struct Tail {
+        int prefix = 0;
+        const SyntaxTreeInterface *callee = nullptr;
+        bool unknown = false;
+    };
+    struct Info {
+        bool has_exact = false;
+        int exact = 0;
+        bool conflict = false;
+        bool force_taint = false;
+        bool dynamic_max = false;
+        int max_concrete = 0;
+        std::vector<Tail> tails;
+        std::vector<std::pair<const SyntaxTreeInterface *, Tail>> sole_calls;
+    };
+    struct FileFunc {
         std::string name;
-        SyntaxTreeInterfacePtr funcbody;
+        const SyntaxTreeInterface *node = nullptr;
+        int max_returns = 0;
+    };
+
+    std::function<std::string(const SyntaxTreeInterfacePtr &)> callee_name;
+    std::unordered_map<const SyntaxTreeInterface *, Info> funcs;
+    std::unordered_map<std::string, const SyntaxTreeInterface *> globals;
+    std::unordered_map<std::string, int> file_level_count;
+    std::unordered_set<std::string> file_level_names;
+    std::vector<std::unordered_map<std::string, Binding>> scopes;
+    std::vector<FileFunc> file_funcs;
+    const SyntaxTreeInterface *current = nullptr;
+    size_t func_base = 0;
+
+    static bool ReadDecl(const SyntaxTreeInterfacePtr &stmt, std::string &name, SyntaxTreeInterfacePtr &body, bool &is_local) {
         if (stmt->Type() == SyntaxTreeType::Function) {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
             const auto funcname_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
             const auto funcnamelist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname_ptr->FuncNameList());
+            if (!funcnamelist || funcnamelist->Funcnames().empty()) {
+                return false;
+            }
             name = funcnamelist->Funcnames()[0];
-            funcbody = func->Funcbody();
-        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
+            body = func->Funcbody();
+            is_local = false;
+            return true;
+        }
+        if (stmt->Type() == SyntaxTreeType::LocalFunction) {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
             name = func->Name();
-            funcbody = func->Funcbody();
+            body = func->Funcbody();
+            is_local = true;
+            return true;
         }
-        if (!funcbody) {
-            continue;
-        }
-
-        const auto funcbody_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
-        const auto func_block = funcbody_ptr->Block();
-
-        std::vector<SyntaxTreeInterfacePtr> returns;
-        CollectReturnsForBlock(func_block, returns);
-
-        int max_returns = 0;
-        auto &info = infos[name];
-        for (const auto &ret_node: returns) {
-            const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(ret_node);
-            const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist());
-            if (!el || el->Exps().empty()) {
-                // return count is 0
-                info.has_concrete = true;
-                continue;
-            }
-            const auto &ret_exps = el->Exps();
-            int count = static_cast<int>(ret_exps.size());
-            if (IsFunctionCallExp(ret_exps.back())) {
-                max_returns = -1;// dynamic
-                if (count == 1) {
-                    // 唯一返回表达式是尾调用：记录被调函数名用于定点求解
-                    const std::string callee = GetCalleeName(ret_exps.back());
-                    if (callee.empty()) {
-                        info.has_unknown_tail = true;
-                    } else {
-                        info.tail_callees.push_back(callee);
-                    }
-                } else {
-                    // 多返回值 return 且末位是调用：显式部分贡献确定数量，
-                    // 尾调用部分另按被调链传播
-                    info.has_concrete = true;
-                    info.concrete_max = std::max(info.concrete_max, count);
-                    const std::string callee = GetCalleeName(ret_exps.back());
-                    if (callee.empty()) {
-                        info.has_unknown_tail = true;
-                    } else {
-                        info.tail_callees.push_back(callee);
-                    }
-                }
-            } else {
-                if (IsVarargExp(ret_exps.back()) && count == 1) {
-                    // return ...：尾 vararg 展开，返回数随调用者变化
-                    info.has_vararg_tail = true;
-                    max_returns = -1;
-                } else if (max_returns >= 0) {
-                    max_returns = std::max(max_returns, count);
-                }
-                info.has_concrete = true;
-                info.concrete_max = std::max(info.concrete_max, count);
-            }
-        }
-        ar.function_max_returns[name] = max_returns;
+        return false;
     }
 
-    // 尾调用被调若不是本文件级函数（外部 chunk 符号），返回数同样不可知，按 tainted 处理。
-    for (auto &[name, info]: infos) {
-        for (const auto &callee: info.tail_callees) {
-            if (!infos.contains(callee)) {
-                info.has_unknown_tail = true;
+    void Prescan(const std::shared_ptr<SyntaxTreeBlock> &chunk) {
+        for (const auto &stmt: chunk->Stmts()) {
+            std::string name;
+            SyntaxTreeInterfacePtr body;
+            bool is_local = false;
+            if (!ReadDecl(stmt, name, body, is_local) || name.empty()) {
+                continue;
+            }
+            file_level_names.insert(name);
+            file_level_count[name] += 1;
+            if (!is_local) {
+                globals[name] = stmt.get();
+            }
+        }
+    }
+
+    void AddExact(Info &info, int count) {
+        if (!info.has_exact) {
+            info.has_exact = true;
+            info.exact = count;
+        } else if (info.exact != count) {
+            info.conflict = true;
+        }
+        if (!info.dynamic_max) {
+            info.max_concrete = std::max(info.max_concrete, count);
+        }
+    }
+
+    [[nodiscard]] int FileCount(const std::string &name) const {
+        const auto it = file_level_count.find(name);
+        return it == file_level_count.end() ? 0 : it->second;
+    }
+
+    Tail ResolveCall(const SyntaxTreeInterfacePtr &call_exp, int prefix) const {
+        Tail tail;
+        tail.prefix = prefix;
+        const std::string name = callee_name(call_exp);
+        if (name.empty() || FileCount(name) > 1) {
+            tail.unknown = true;
+            return tail;
+        }
+        for (int i = static_cast<int>(scopes.size()) - 1; i >= 0; --i) {
+            const auto it = scopes[static_cast<size_t>(i)].find(name);
+            if (it == scopes[static_cast<size_t>(i)].end()) {
+                continue;
+            }
+            const bool inside = current != nullptr && static_cast<size_t>(i) >= func_base;
+            if (!it->second.is_func || (inside && !it->second.file_level && file_level_names.contains(name))) {
+                // 形参/局部变量，或与文件级函数同名的嵌套 local function：不能用文件级简单名。
+                tail.unknown = true;
+                return tail;
+            }
+            tail.callee = it->second.func;
+            return tail;
+        }
+        const auto git = globals.find(name);
+        if (git == globals.end()) {
+            tail.unknown = true;
+            return tail;
+        }
+        tail.callee = git->second;
+        return tail;
+    }
+
+    void NoteReturn(const SyntaxTreeInterfacePtr &stmt) {
+        if (!current || !funcs.contains(current)) {
+            return;
+        }
+        auto &info = funcs.at(current);
+        const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
+        const auto el = ret->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist()) : nullptr;
+        if (!el || el->Exps().empty()) {
+            AddExact(info, 0);
+            return;
+        }
+        const auto &ret_exps = el->Exps();
+        const int count = static_cast<int>(ret_exps.size());
+        if (IsVarargExp(ret_exps.back())) {
+            // return ... 与 return x, ... 的返回数都随调用者变化。
+            info.dynamic_max = true;
+            info.force_taint = true;
+            return;
+        }
+        if (IsFunctionCallExp(ret_exps.back())) {
+            info.dynamic_max = true;
+            Tail tail = ResolveCall(ret_exps.back(), count - 1);
+            if (tail.unknown) {
+                info.force_taint = true;
+            } else {
+                info.tails.push_back(tail);
+            }
+            if (count == 1) {
+                info.sole_calls.emplace_back(ret_exps[0].get(), tail);
+            }
+            return;
+        }
+        AddExact(info, count);
+    }
+
+    void AddParams(const SyntaxTreeInterfacePtr &funcbody) {
+        const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+        if (!fb || !fb->Parlist()) {
+            return;
+        }
+        const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(fb->Parlist());
+        if (!parlist || !parlist->Namelist()) {
+            return;
+        }
+        const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist());
+        if (!namelist) {
+            return;
+        }
+        for (const auto &pname: namelist->Names()) {
+            scopes.back()[pname] = Binding{};
+        }
+    }
+
+    void AddFunc(const SyntaxTreeInterface *node, const std::string &name, const SyntaxTreeInterfacePtr &funcbody, bool file_level) {
+        funcs.emplace(node, Info{});
+        const SyntaxTreeInterface *saved = current;
+        const size_t saved_base = func_base;
+        current = node;
+        scopes.emplace_back();
+        func_base = scopes.size() - 1;
+        AddParams(funcbody);
+        if (funcbody) {
+            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+            if (fb && fb->Block()) {
+                WalkBlock(fb->Block());
+            }
+        }
+        scopes.pop_back();
+        current = saved;
+        func_base = saved_base;
+
+        if (!file_level || name.empty()) {
+            return;
+        }
+        const auto &info = funcs.at(node);
+        file_funcs.push_back(FileFunc{name, node, info.dynamic_max ? -1 : info.max_concrete});
+    }
+
+    void WalkBlock(const SyntaxTreeInterfacePtr &node) {
+        if (!node) {
+            return;
+        }
+        const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+        DEBUG_ASSERT(block);
+        scopes.emplace_back();
+        for (const auto &stmt: block->Stmts()) {
+            WalkStmt(stmt);
+        }
+        scopes.pop_back();
+    }
+
+    void BindLocalFunc(const SyntaxTreeInterfacePtr &stmt, const std::string &name) {
+        Binding binding;
+        binding.is_func = true;
+        binding.file_level = current == nullptr;
+        binding.func = stmt.get();
+        scopes.back()[name] = binding;
+    }
+
+    void WalkStmt(const SyntaxTreeInterfacePtr &stmt) {
+        switch (stmt->Type()) {
+            case SyntaxTreeType::Return:
+                NoteReturn(stmt);
+                break;
+            case SyntaxTreeType::Block:
+                WalkBlock(stmt);
+                break;
+            case SyntaxTreeType::If: {
+                const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+                WalkBlock(if_node->Block());
+                if (const auto elseifs = if_node->ElseIfs()) {
+                    const auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseifs);
+                    for (const auto &blk: el->ElseifBlocks()) {
+                        WalkBlock(blk);
+                    }
+                }
+                WalkBlock(if_node->ElseBlock());
+                break;
+            }
+            case SyntaxTreeType::While: {
+                const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
+                WalkBlock(while_node->Block());
+                break;
+            }
+            case SyntaxTreeType::Repeat: {
+                const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
+                WalkBlock(rep->Block());
+                break;
+            }
+            case SyntaxTreeType::ForLoop: {
+                const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
+                scopes.emplace_back();
+                scopes.back()[for_loop->Name()] = Binding{};
+                WalkBlock(for_loop->Block());
+                scopes.pop_back();
+                break;
+            }
+            case SyntaxTreeType::ForIn: {
+                const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
+                scopes.emplace_back();
+                if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(for_in->Namelist())) {
+                    for (const auto &name: nl->Names()) {
+                        scopes.back()[name] = Binding{};
+                    }
+                }
+                WalkBlock(for_in->Block());
+                scopes.pop_back();
+                break;
+            }
+            case SyntaxTreeType::LocalVar: {
+                const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+                if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist())) {
+                    for (const auto &name: nl->Names()) {
+                        scopes.back()[name] = Binding{};
+                    }
+                }
+                break;
+            }
+            case SyntaxTreeType::LocalFunction: {
+                std::string name;
+                SyntaxTreeInterfacePtr body;
+                bool is_local = false;
+                if (!ReadDecl(stmt, name, body, is_local)) {
+                    break;
+                }
+                // 先绑定再进函数体，递归 local function 能解析到自己。
+                BindLocalFunc(stmt, name);
+                AddFunc(stmt.get(), name, body, current == nullptr);
+                break;
+            }
+            case SyntaxTreeType::Function: {
+                std::string name;
+                SyntaxTreeInterfacePtr body;
+                bool is_local = false;
+                if (!ReadDecl(stmt, name, body, is_local)) {
+                    break;
+                }
+                if (current != nullptr && !name.empty()) {
+                    file_level_names.insert(name);
+                    file_level_count[name] += 1;
+                    globals[name] = stmt.get();
+                }
+                AddFunc(stmt.get(), name, body, current == nullptr);
+                break;
+            }
+            case SyntaxTreeType::Assign:
+            case SyntaxTreeType::FunctionCall:
+            case SyntaxTreeType::Break:
+            case SyntaxTreeType::Continue:
+            case SyntaxTreeType::Goto:
+            case SyntaxTreeType::Label:
+            case SyntaxTreeType::Empty:
+                break;
+            default:
+                ThrowFakeluaException(std::format("ReturnCountGraph: unexpected statement type {}", SyntaxTreeTypeToString(stmt->Type())));
+        }
+    }
+
+    void Solve(AnalysisResult &ar) const {
+        constexpr int kUnknown = -1;
+        constexpr int kTainted = -2;
+        std::unordered_map<const SyntaxTreeInterface *, int> eff;
+        for (const auto &[node, info]: funcs) {
+            if (info.force_taint || info.conflict) {
+                eff[node] = kTainted;
+            } else if (info.has_exact) {
+                eff[node] = info.exact;
+            } else if (info.tails.empty()) {
+                eff[node] = 0;
+            } else {
+                eff[node] = kUnknown;
+            }
+        }
+        for (size_t round = 0; round < funcs.size() + 1; ++round) {
+            bool changed = false;
+            for (const auto &[node, info]: funcs) {
+                int &cur = eff.at(node);
+                if (cur == kTainted) {
+                    continue;
+                }
+                for (const auto &tail: info.tails) {
+                    if (!tail.callee || !eff.contains(tail.callee)) {
+                        cur = kTainted;
+                        changed = true;
+                        break;
+                    }
+                    const int cv = eff.at(tail.callee);
+                    if (cv == kTainted) {
+                        cur = kTainted;
+                        changed = true;
+                        break;
+                    }
+                    if (cv == kUnknown) {
+                        continue;
+                    }
+                    const int total = tail.prefix + cv;
+                    if (cur == kUnknown || (cur >= 0 && cur != total)) {
+                        cur = (cur == kUnknown) ? total : kTainted;
+                        changed = true;
+                        if (cur == kTainted) {
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!changed) {
                 break;
             }
         }
+
+        for (const auto &ff: file_funcs) {
+            int value = eff.contains(ff.node) ? eff.at(ff.node) : kTainted;
+            if (value < 0) {
+                value = -1;
+            }
+            ar.function_effective_returns[ff.name] = value;
+            ar.function_max_returns[ff.name] = ff.max_returns;
+        }
+        for (const auto &[node, info]: funcs) {
+            (void) node;
+            for (const auto &[exp, tail]: info.sole_calls) {
+                int value = -1;
+                if (!tail.unknown && tail.callee && eff.contains(tail.callee)) {
+                    value = eff.at(tail.callee);
+                    if (value < 0) {
+                        value = -1;
+                    }
+                }
+                ar.return_call_effective_returns[exp] = value;
+            }
+        }
     }
 
-    // 定点求解有效返回数，内部使用双状态：
-    //   kTainted(-2)：永久不可知（vararg 尾展开 / 未知或外部被调 / 被调链污染）；
-    //   kUnknown(-1)：暂未解析（被调链尚未收敛，无 concrete 锚点的递归环停留于此）；
-    //   >=0：当前确定的最大返回数。
-    // 初值：直接 tainted 标记者 → kTainted；存在确定 return（含裸 return）→ concrete_max；
-    //       仅有尾调用 return → kUnknown 等待被调链解析。
-    // 迭代：边到 kTainted → 自身 kTainted（动态返回路径会污染所有上游）；
-    //       边到 >=0 → 取 max；边到 kUnknown → 本轮等待。
-    // 递归自调用（如 fact 有 return 1 基线）由 concrete 锚点稳定为 1。
-    constexpr int kUnknown = -1;
-    constexpr int kTainted = -2;
-    for (const auto &[name, info]: infos) {
-        if (info.has_vararg_tail || info.has_unknown_tail) {
-            ar.function_effective_returns[name] = kTainted;
-        } else if (info.has_concrete) {
-            ar.function_effective_returns[name] = info.concrete_max;
-        } else {
-            ar.function_effective_returns[name] = kUnknown;
-        }
+    void Run(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar) {
+        DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
+        const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+        Prescan(block);
+        WalkBlock(chunk);
+        Solve(ar);
     }
-    for (size_t round = 0; round < infos.size() + 1; ++round) {
-        bool changed = false;
-        for (const auto &[name, info]: infos) {
-            int &cur = ar.function_effective_returns[name];
-            if (cur == kTainted) {
-                continue;
-            }
-            for (const auto &callee: info.tail_callees) {
-                const int cv = ar.function_effective_returns.at(callee);
-                if (cv == kTainted) {
-                    cur = kTainted;
-                    changed = true;
-                    break;
-                }
-                if (cv == kUnknown) {
-                    continue;
-                }
-                if (cur == kUnknown || cv > cur) {
-                    cur = cv;
-                    changed = true;
-                }
-            }
-        }
-        if (!changed) {
-            break;
-        }
-    }
-    // 对外统一输出：kTainted 与仍未解析的 kUnknown 都记为 -1（不可特化）。
-    for (auto &[name, v]: ar.function_effective_returns) {
-        if (v < 0) {
-            v = -1;
-        }
-    }
+};
+
+}// namespace
+
+void SemanticAnalysis::AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar) {
+    ReturnCountGraph graph;
+    graph.callee_name = [this](const SyntaxTreeInterfacePtr &exp) { return GetCalleeName(exp); };
+    graph.Run(chunk, ar);
 }
 
 void SemanticAnalysis::CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node, std::vector<SyntaxTreeInterfacePtr> &returns) {
