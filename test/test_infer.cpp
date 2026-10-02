@@ -3023,6 +3023,39 @@ TEST(infer, test_global_const_float) {
     });
 }
 
+// 文件级数值字面量是常量。函数里再赋值必须在编译期报错，并带上 Lua 位置。
+// local x = func() 不走这条路径：C 静态初值不能调用函数，预处理改成 local x = nil，
+// 只在 __fakelua_init 里赋值一次。见 test_global_init_multi_names_funcall。
+TEST(infer, test_global_const_reassigned_not_const) {
+    const auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    try {
+        CompileFile(s, "./infer/test_global_const_reassigned.lua", {});
+        FakeluaDeleteState(s);
+        FAIL() << "reassigning a file-level numeric constant should fail at compile time";
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("cannot reassign file-level constant 'next_bot_id'"), std::string::npos);
+        EXPECT_NE(msg.find("test_global_const_reassigned.lua"), std::string::npos);
+        FakeluaDeleteState(s);
+    }
+}
+
+TEST(infer, test_global_const_reassign_dynamic) {
+    const auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    try {
+        CompileFile(s, "./infer/test_global_const_reassign_dynamic.lua", {});
+        FakeluaDeleteState(s);
+        FAIL() << "reassigning a file-level numeric constant with a runtime value should fail";
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("cannot reassign file-level constant 'map_width'"), std::string::npos);
+        EXPECT_NE(msg.find("test_global_const_reassign_dynamic.lua"), std::string::npos);
+        FakeluaDeleteState(s);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // func() + func() and func(func()) — return expression contains function-call
 // results used in arithmetic or as arguments to another call.  These patterns

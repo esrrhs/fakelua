@@ -1,5 +1,6 @@
 #include "native/mysql/mysql_connection.h"
 #include "native/native_common.h"
+#include "native/serialize/wire_codec.h"
 #include "native/table/native_table.h"
 #include "util/logging.h"
 #include "var/var.h"
@@ -38,6 +39,42 @@ int WaitReady(short what) {
 }
 
 }// namespace
+
+// 按列类型把行值转成 Lua 值：整数列 → int、浮点/小数列 → float，其余（字符串/日期/BLOB 等）
+// 保持 string，NULL 一律 nil。解析失败（理论上不该发生）回退为字符串，不丢数据。
+// 暴露给测试，声明在 mysql_connection.h。
+CVar FieldCellToCVar(::fakelua::State *s, const FieldCell &fv, int mysql_type) {
+    if (fv.is_null) return inter::NativeToFakeluaNil(s);
+    switch (mysql_type) {
+        case MYSQL_TYPE_TINY:
+        case MYSQL_TYPE_SHORT:
+        case MYSQL_TYPE_LONG:
+        case MYSQL_TYPE_LONGLONG:
+        case MYSQL_TYPE_INT24:
+        case MYSQL_TYPE_YEAR: {
+            char *end = nullptr;
+            long long v = std::strtoll(fv.value.c_str(), &end, 10);
+            if (end && !fv.value.empty() && *end == '\0') {
+                return inter::NativeToFakeluaLonglong(s, static_cast<int64_t>(v));
+            }
+            break;
+        }
+        case MYSQL_TYPE_DECIMAL:
+        case MYSQL_TYPE_FLOAT:
+        case MYSQL_TYPE_DOUBLE:
+        case MYSQL_TYPE_NEWDECIMAL: {
+            char *end = nullptr;
+            double v = std::strtod(fv.value.c_str(), &end);
+            if (end && !fv.value.empty() && *end == '\0') {
+                return inter::NativeToFakeluaDouble(s, v);
+            }
+            break;
+        }
+        default:
+            break;
+    }
+    return inter::NativeToFakeluaString(s, fv.value);
+}
 
 MysqlConnection::MysqlConnection(::fakelua::State *state) : io_(state->GetIoContext()) {
     lua_state_ = state;
@@ -174,10 +211,21 @@ void MysqlConnection::FinishConnect(MYSQL *ret) {
 }
 
 void MysqlConnection::Query(const std::string &sql) {
-    if (close_pending_ || !mysql_) return;
-    if (state_ != ConnState::Ready || !ready_) {
-        pending_result_err_ = "connection not ready";
+    // 契约：conn:query 一旦被调用，回调恰好被调用一次。
+    //  - 连接已死（mysql_ 释放 / 已请求关闭）：下一轮 tick 给回调派发错误；
+    //  - 连接未就绪或上一条 query 仍在飞行：排队，等 Ready 后自动启动。
+    if (!mysql_) {
+        pending_result_err_ = "connection closed";
         pending_result_ = true;
+        return;
+    }
+    if (close_pending_) {
+        pending_result_err_ = "connection closing";
+        pending_result_ = true;
+        return;
+    }
+    if (state_ != ConnState::Ready || !ready_) {
+        queued_queries_.push_back(QueuedQuery{sql, result_cb_});
         return;
     }
     last_sql_ = sql;
@@ -283,7 +331,11 @@ ResultsetData MysqlConnection::ConsumeResult(MYSQL_RES *res, bool is_resultset) 
 }
 
 void MysqlConnection::StmtPrepare(const std::string &sql) {
-    if (close_pending_ || !mysql_) return;
+    if (!mysql_ || close_pending_) {
+        pending_result_err_ = !mysql_ ? "connection closed" : "connection closing";
+        pending_result_ = true;
+        return;
+    }
     if (state_ != ConnState::Ready || !ready_) {
         pending_result_err_ = "connection not ready for prepare";
         pending_result_ = true;
@@ -327,7 +379,11 @@ void MysqlConnection::StmtPrepare(const std::string &sql) {
 }
 
 void MysqlConnection::StmtExecute(uint32_t stmt_id, const std::vector<StmtParam> &params) {
-    if (close_pending_ || !mysql_) return;
+    if (!mysql_ || close_pending_) {
+        pending_result_err_ = !mysql_ ? "connection closed" : "connection closing";
+        pending_result_ = true;
+        return;
+    }
     if (state_ != ConnState::Ready || !ready_) {
         pending_result_err_ = "connection not ready for execute";
         pending_result_ = true;
@@ -469,6 +525,7 @@ void MysqlConnection::Close() {
     pending_result_ = false;
     pending_results_.clear();
     next_stmt_id_ = 1;
+    DrainQueryQueue();
 }
 
 void MysqlConnection::Continue(int ready) {
@@ -669,6 +726,31 @@ void MysqlConnection::Tick() {
         pending_result_err_.clear();
         pending_results_.clear();
     }
+
+    if (!queued_queries_.empty()) {
+        DrainQueryQueue();
+    }
+}
+
+void MysqlConnection::DrainQueryQueue() {
+    // 连接进入终态（Error/Idle）：再也不会 Ready，逐条给排队的 query 派发错误回调，
+    // 保证"每条 query 恰好一次回调"，而不是静默吞掉。
+    if (state_ == ConnState::Error || state_ == ConnState::Idle) {
+        while (!queued_queries_.empty()) {
+            QueuedQuery q = std::move(queued_queries_.front());
+            queued_queries_.erase(queued_queries_.begin());
+            DispatchCallbackWithResult(q.cb, "connection not available");
+        }
+        return;
+    }
+    // 连接可用：启动下一条排队的 query。每轮 tick 至多启动一条——
+    // 若它同步出错（pending_result_ 被占用），剩下的留到下一轮，避免覆盖未派发的结果。
+    if (state_ == ConnState::Ready && ready_) {
+        QueuedQuery q = std::move(queued_queries_.front());
+        queued_queries_.erase(queued_queries_.begin());
+        result_cb_ = q.cb;
+        Query(q.sql);
+    }
 }
 
 MysqlError MysqlConnection::LastError() const {
@@ -685,15 +767,33 @@ bool MysqlConnection::IsRetryable(MysqlErrorType type) {
     }
 }
 
-void MysqlConnection::SetConnectCallback(const std::string &name) { connect_cb_ = name; }
-void MysqlConnection::SetResultCallback(const std::string &name) { result_cb_ = name; }
+void MysqlConnection::SetConnectCallback(const ResultCallback &cb) { connect_cb_ = cb; }
+void MysqlConnection::SetResultCallback(const ResultCallback &cb) { result_cb_ = cb; }
 void MysqlConnection::SetState(::fakelua::State *state) { lua_state_ = state; }
 void MysqlConnection::SetNativeObject(::fakelua::NativeObject *obj) { native_obj_ = obj; }
 bool MysqlConnection::Connected() const { return ready_; }
+void MysqlConnection::MarkConnectedForTest() {
+    ClearWait();
+    wait_op_ = WaitOp::None;
+    pending_connect_ = false;
+    pending_connect_err_.clear();
+    state_ = ConnState::Ready;
+    ready_ = true;
+    close_pending_ = false;
+}
 bool MysqlConnection::Connecting() const { return state_ == ConnState::Connecting || state_ == ConnState::Handshaking; }
 int MysqlConnection::TickDepth() const { return tick_depth_; }
 bool MysqlConnection::ClosePending() const { return close_pending_; }
 void MysqlConnection::RequestClose() { close_pending_ = true; }
+bool MysqlConnection::HasPendingWork() const {
+    return state_ == ConnState::Querying ||
+           state_ == ConnState::Connecting ||
+           state_ == ConnState::Handshaking ||
+           wait_op_ != WaitOp::None ||
+           pending_result_ ||
+           pending_connect_ ||
+           !queued_queries_.empty();
+}
 
 void MysqlConnection::SetError(MysqlErrorType type, uint16_t code, const std::string &msg, const std::string &sql_state) {
     last_error_.type = type;
@@ -702,78 +802,103 @@ void MysqlConnection::SetError(MysqlErrorType type, uint16_t code, const std::st
     last_error_.sql_state = sql_state;
 }
 
+void MysqlConnection::InvokeCallback(const ResultCallback &cb, CVar *args, int n) {
+    // 派回【登记回调时的引擎】（与旧内联闭包自带 func_ptr 的语义一致）。
+    auto func = lua_state_->GetVM().GetFunction(cb.name);
+    if (func.Empty()) return;
+    JITType jit_type = cb.jit;
+    void *addr = func.GetAddr(jit_type);
+    if (!addr) {
+        // 兜底：登记引擎没有该函数的编译产物（正常不应发生——同一份脚本三引擎都会编译）。
+        // 按其余引擎依次找，避免回调静默丢失。
+        static constexpr JITType kFallbacks[] = {JIT_TCC, JIT_GCC, JIT_INTERP};
+        for (JITType t: kFallbacks) {
+            if (t == jit_type) continue;
+            addr = func.GetAddr(t);
+            if (addr) {
+                jit_type = t;
+                break;
+            }
+        }
+    }
+    if (!addr) return;
+    inter::DispatchCall(lua_state_, addr, args, n, jit_type);
+}
+
+namespace {
+
+// 把 3 个固定参数和登记时暂存的绑定参数拼成完整回调参数：
+// 固定参数在前，绑定参数（登记时刻的值快照）追加在后。
+// DecodedArgs 持有解码字符串的后备内存，必须活到回调调用结束。
+std::vector<CVar> BuildCallbackArgs(CVar a0, CVar a1, CVar a2, serialize::DecodedArgs &decoded) {
+    std::vector<CVar> all;
+    all.reserve(3 + decoded.vars.size());
+    all.push_back(a0);
+    all.push_back(a1);
+    all.push_back(a2);
+    for (CVar v: decoded.vars) all.push_back(v);
+    return all;
+}
+
+}// namespace
+
 void MysqlConnection::DispatchConnect(const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
     native::IoContext::DispatchScope dispatch_scope(io_);
-    if (close_pending_) return;
-    if (!lua_state_ || connect_cb_.empty()) return;
-    auto func = lua_state_->GetVM().GetFunction(connect_cb_);
-    if (func.Empty()) return;
-    void *addr = func.GetAddr(JIT_TCC);
-    JITType jit_type = JIT_TCC;
-    if (!addr) {
-        addr = func.GetAddr(JIT_GCC);
-        jit_type = JIT_GCC;
-    }
-    if (!addr) return;
-    CVar args[3];
-    args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
+    if (!lua_state_ || connect_cb_.Empty()) return;
+
+    // 在派发帧内 decode 绑定参数到临时 arena；decoded 生命周期覆盖整个函数。
+    serialize::DecodedArgs decoded = serialize::WireDecodeCallbackArgs(lua_state_, connect_cb_.bound);
+
+    CVar a0 = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
+    CVar a1;
+    CVar a2;
     if (err_msg && err_msg[0]) {
-        args[1] = inter::NativeToFakeluaString(lua_state_, err_msg);
-        args[2] = inter::NativeToFakeluaInt(lua_state_, 0);
+        a1 = inter::NativeToFakeluaString(lua_state_, err_msg);
+        a2 = inter::NativeToFakeluaInt(lua_state_, 0);
     } else {
-        args[1] = inter::NativeToFakeluaNil(lua_state_);
-        args[2] = inter::NativeToFakeluaInt(lua_state_, 1);
+        a1 = inter::NativeToFakeluaNil(lua_state_);
+        a2 = inter::NativeToFakeluaInt(lua_state_, 1);
     }
-    inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
+    std::vector<CVar> args = BuildCallbackArgs(a0, a1, a2, decoded);
+    InvokeCallback(connect_cb_, args.data(), static_cast<int>(args.size()));
 }
 
-void MysqlConnection::DispatchResult(const char *err_msg) {
+void MysqlConnection::DispatchCallbackWithResult(const ResultCallback &cb, const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
     native::IoContext::DispatchScope dispatch_scope(io_);
-    if (close_pending_) return;
-    if (!lua_state_ || result_cb_.empty()) return;
-    auto func = lua_state_->GetVM().GetFunction(result_cb_);
-    if (func.Empty()) return;
-    void *addr = func.GetAddr(JIT_TCC);
-    JITType jit_type = JIT_TCC;
-    if (!addr) {
-        addr = func.GetAddr(JIT_GCC);
-        jit_type = JIT_GCC;
-    }
-    if (!addr) return;
+    if (!lua_state_ || cb.Empty()) return;
+
+    // 多结果集可能在本函数内多次调用同一回调；绑定参数只 decode 一次，各次调用复用。
+    // decoded 必须活到最后一次 InvokeCallback 返回。
+    serialize::DecodedArgs decoded = serialize::WireDecodeCallbackArgs(lua_state_, cb.bound);
 
     const char *msg = err_msg && err_msg[0] ? err_msg : "query failed";
-    CVar args[3];
-    args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
+    CVar a0 = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
+    CVar nil{};
+    nil.type_ = static_cast<int>(VarType::Nil);
+
     if (err_msg) {
-        args[1] = inter::NativeToFakeluaString(lua_state_, msg);
-        CVar nil{};
-        nil.type_ = static_cast<int>(VarType::Nil);
-        args[2] = nil;
-        inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
+        std::vector<CVar> args = BuildCallbackArgs(a0, inter::NativeToFakeluaString(lua_state_, msg), nil, decoded);
+        InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
     } else if (dispatch_stmt_id_ != 0) {
-        CVar nil{};
-        nil.type_ = static_cast<int>(VarType::Nil);
-        args[1] = nil;
-        args[2] = inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(dispatch_stmt_id_));
-        inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
+        std::vector<CVar> args = BuildCallbackArgs(a0, nil,
+                                                   inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(dispatch_stmt_id_)), decoded);
+        InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
     } else if (pending_results_.empty()) {
-        CVar nil{};
-        nil.type_ = static_cast<int>(VarType::Nil);
-        args[1] = nil;
-        args[2] = table::TableHelper::CreateTable(lua_state_);
-        inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
+        std::vector<CVar> args = BuildCallbackArgs(a0, nil, table::TableHelper::CreateTable(lua_state_), decoded);
+        InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
     } else {
         for (const auto &rs: pending_results_) {
-            CVar nil{};
-            nil.type_ = static_cast<int>(VarType::Nil);
-            args[1] = nil;
-            args[2] = ResultsetToLua(lua_state_, rs);
-            inter::DispatchCall(lua_state_, addr, args, 3, jit_type);
+            std::vector<CVar> args = BuildCallbackArgs(a0, nil, ResultsetToLua(lua_state_, rs), decoded);
+            InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
             if (close_pending_) break;
         }
     }
+}
+
+void MysqlConnection::DispatchResult(const char *err_msg) {
+    DispatchCallbackWithResult(result_cb_, err_msg);
 }
 
 CVar MysqlConnection::ResultsetToLua(::fakelua::State *s, const ResultsetData &result) {
@@ -795,8 +920,8 @@ CVar MysqlConnection::ResultsetToLua(::fakelua::State *s, const ResultsetData &r
             CVar row_tbl = table::TableHelper::CreateTable(s);
             int64_t col_pos = 1;
             for (const auto &fv: row) {
-                if (fv.is_null) table::TableHelper::SetTableInt(s, row_tbl, col_pos, inter::NativeToFakeluaNil(s));
-                else table::TableHelper::SetTableInt(s, row_tbl, col_pos, inter::NativeToFakeluaString(s, fv.value));
+                const int col_type = col_pos <= static_cast<int64_t>(result.columns.size()) ? result.columns[static_cast<size_t>(col_pos - 1)].second : 0;
+                table::TableHelper::SetTableInt(s, row_tbl, col_pos, FieldCellToCVar(s, fv, col_type));
                 ++col_pos;
             }
             table::TableHelper::SetTableInt(s, rows_tbl, row_idx++, row_tbl);

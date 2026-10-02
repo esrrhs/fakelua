@@ -67,18 +67,32 @@ function test_lifecycle()
     conn:close()
     conn:close()
 
-    -- 3. 验证对已关闭连接调用 query 能够受控捕获错误
-    local ok, err_msg = pcall(function()
+    -- 3. 验证对已关闭连接调用 query：不抛错，而是在后续 tick 由回调收到 "closed" 错误
+    --    （契约：conn:query 的回调恰好触发一次，连接已关闭时回调收到错误字符串）
+    conn.query_done = false
+    conn.query_err = nil
+    local ok, call_err = pcall(function()
         conn:query("SELECT 1", "on_result")
     end)
 
-    if ok then
-        print("expected error when querying closed connection, but pcall succeeded")
+    if not ok then
+        print("query on closed connection should notify via callback, not throw:", tostring(call_err))
         return 0
     end
 
-    if not string.find(tostring(err_msg), "closed") then
-        print("error message should mention 'closed', got:", tostring(err_msg))
+    for i = 1, 100 do
+        runtime.tick()
+        if conn.query_done then break end
+        os.sleep(1)
+    end
+
+    if not conn.query_done then
+        print("closed-connection query callback never fired")
+        return 0
+    end
+
+    if conn.query_err == nil or not string.find(tostring(conn.query_err), "closed") then
+        print("error message should mention 'closed', got:", tostring(conn.query_err))
         return 0
     end
 

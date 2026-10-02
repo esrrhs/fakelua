@@ -384,3 +384,21 @@ TEST(test_net, test_udp_echo_lua) {
 
     FakeluaDeleteState(s);
 }
+
+// 回归（P1-6）：在 on_event 回调里直接 obj:send() 必须可靠送达。
+// 派发上下文中的 send 入队，由本轮 tick 派发完后统一泵出。
+// 注意：C++ → Lua 回调按 VM 查表固定派发 TCC 编译的函数，文件级可变状态在各后端
+// 有独立副本，驱动端必须与回调同后端（TCC），因此这里不走 CallAll。
+TEST(test_net, test_send_in_callback) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    CompileConfig config;
+    CompileFile(s, "./net/test_net_server_client.lua", config);
+
+    int64_t ret = 0;
+    Call(s, JIT_TCC, "NetTest.test_send_in_callback", ret);
+    EXPECT_EQ(ret, 1);
+
+    FakeluaDeleteState(s);
+}

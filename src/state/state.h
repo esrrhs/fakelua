@@ -129,6 +129,37 @@ public:
         bool prev_;
     };
 
+    // 当前正在执行的脚本引擎（TCC/GCC/解释器）。
+    // 每次 C++ 原生函数被 Lua 调起（FakeluaCallByName/CallByNameArgs 的汇聚点）都会压入
+    // 调用方引擎，嵌套调用（JIT → native → Lua 回调 → native）逐层保存恢复。
+    // 用途：异步回调（mysql 等）在登记时记住"是从哪个引擎发起的"，结果回来后派回同一引擎，
+    // 与旧的内联闭包自带 func_ptr 的语义一致；不能固定派发到 TCC。
+    // 栈空（C++ 宿主不经 Lua 直接调原生内部 API）时返回 JIT_TCC，与历史行为一致。
+    [[nodiscard]] JITType CurrentJit() const {
+        return current_jit_;
+    }
+
+    // C 编译单元（TCC 生成的 C 代码）不能用 C++ 的 JitContextScope，由 extern "C"
+    // 的 FakeluaJitContextPush/Pop 经这对 getter/setter 维护当前引擎。
+    void SetCurrentJit(JITType jit) {
+        current_jit_ = jit;
+    }
+
+    struct JitContextScope {
+        explicit JitContextScope(State *s, JITType jit) : s_(s), prev_(s->current_jit_) {
+            s_->current_jit_ = jit;
+        }
+        ~JitContextScope() {
+            s_->current_jit_ = prev_;
+        }
+        JitContextScope(const JitContextScope &) = delete;
+        JitContextScope &operator=(const JitContextScope &) = delete;
+
+    private:
+        State *s_;
+        JITType prev_;
+    };
+
     // 本 State 的日志输出目标。为 nullptr 表示没指定日志文件，只打控制台。
     LogSink *GetLogSink() const {
         return log_sink_.get();
@@ -184,6 +215,8 @@ private:
     std::function<VarInterface *()> var_interface_new_func_;
     JitErrorBoundary *jit_error_boundary_ = nullptr;
     bool interp_const_alloc_ = false;
+    // 当前执行引擎，初值 TCC（无 Lua 调用栈的边界场景，与 kNativeCallbackJit 一致）。
+    JITType current_jit_ = JIT_TCC;
     int reentrant_count_ = 0;
     StateConfig config_;
     Compiler compiler_;
