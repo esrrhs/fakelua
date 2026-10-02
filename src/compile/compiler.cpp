@@ -82,7 +82,7 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     // 5. 类型推导（同时识别数学参数）
     LOG_DEBUG(s_, "engine", "step 5: type inference");
     TypeInferencer inferencer(s_);
-    InferResult ir = inferencer.InferTypes(pr, cfg);
+    InferResult ir = inferencer.InferTypes(pr, ar, cfg);
 
     // 6. 转译为C（TCC/GCC 需要；仅解释器时跳过）
     const bool need_c = !cfg.disable_jit[JIT_TCC] || !cfg.disable_jit[JIT_GCC] || cfg.record_c_code;
