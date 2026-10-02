@@ -89,6 +89,22 @@ void SemanticAnalysis::AnalyzeGlobalConstNames(const SyntaxTreeInterfacePtr &chu
 void SemanticAnalysis::AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar) {
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
     const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+
+    // 每个文件级函数的返回值明细，用于在 function_max_returns 之上做
+    // 「尾调用链有效返回数」定点求解（仅供数学参数特化资格判定）。
+    struct FuncReturnInfo {
+        // 是否存在不以尾调用/vararg 结尾的 return（含裸 return），其最大显式返回数
+        bool has_concrete = false;
+        int concrete_max = 0;
+        // 存在 return ...（vararg 尾展开）
+        bool has_vararg_tail = false;
+        // 存在尾调用指向无法解析的被调（原生函数/方法/外部符号）：返回数不可知
+        bool has_unknown_tail = false;
+        // 尾调用指向的本文件级函数名
+        std::vector<std::string> tail_callees;
+    };
+    std::unordered_map<std::string, FuncReturnInfo> infos;
+
     for (const auto &stmt: block->Stmts()) {
         std::string name;
         SyntaxTreeInterfacePtr funcbody;
@@ -114,21 +130,116 @@ void SemanticAnalysis::AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr 
         CollectReturnsForBlock(func_block, returns);
 
         int max_returns = 0;
+        auto &info = infos[name];
         for (const auto &ret_node: returns) {
             const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(ret_node);
             const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist());
             if (!el || el->Exps().empty()) {
                 // return count is 0
+                info.has_concrete = true;
+                continue;
+            }
+            const auto &ret_exps = el->Exps();
+            int count = static_cast<int>(ret_exps.size());
+            if (IsFunctionCallExp(ret_exps.back())) {
+                max_returns = -1;// dynamic
+                if (count == 1) {
+                    // 唯一返回表达式是尾调用：记录被调函数名用于定点求解
+                    const std::string callee = GetCalleeName(ret_exps.back());
+                    if (callee.empty()) {
+                        info.has_unknown_tail = true;
+                    } else {
+                        info.tail_callees.push_back(callee);
+                    }
+                } else {
+                    // 多返回值 return 且末位是调用：显式部分贡献确定数量，
+                    // 尾调用部分另按被调链传播
+                    info.has_concrete = true;
+                    info.concrete_max = std::max(info.concrete_max, count);
+                    const std::string callee = GetCalleeName(ret_exps.back());
+                    if (callee.empty()) {
+                        info.has_unknown_tail = true;
+                    } else {
+                        info.tail_callees.push_back(callee);
+                    }
+                }
             } else {
-                int count = static_cast<int>(el->Exps().size());
-                if (IsFunctionCallExp(el->Exps().back())) {
-                    max_returns = -1;// dynamic
+                if (IsVarargExp(ret_exps.back()) && count == 1) {
+                    // return ...：尾 vararg 展开，返回数随调用者变化
+                    info.has_vararg_tail = true;
+                    max_returns = -1;
                 } else if (max_returns >= 0) {
                     max_returns = std::max(max_returns, count);
                 }
+                info.has_concrete = true;
+                info.concrete_max = std::max(info.concrete_max, count);
             }
         }
         ar.function_max_returns[name] = max_returns;
+    }
+
+    // 尾调用被调若不是本文件级函数（外部 chunk 符号），返回数同样不可知，按 tainted 处理。
+    for (auto &[name, info]: infos) {
+        for (const auto &callee: info.tail_callees) {
+            if (!infos.contains(callee)) {
+                info.has_unknown_tail = true;
+                break;
+            }
+        }
+    }
+
+    // 定点求解有效返回数，内部使用双状态：
+    //   kTainted(-2)：永久不可知（vararg 尾展开 / 未知或外部被调 / 被调链污染）；
+    //   kUnknown(-1)：暂未解析（被调链尚未收敛，无 concrete 锚点的递归环停留于此）；
+    //   >=0：当前确定的最大返回数。
+    // 初值：直接 tainted 标记者 → kTainted；存在确定 return（含裸 return）→ concrete_max；
+    //       仅有尾调用 return → kUnknown 等待被调链解析。
+    // 迭代：边到 kTainted → 自身 kTainted（动态返回路径会污染所有上游）；
+    //       边到 >=0 → 取 max；边到 kUnknown → 本轮等待。
+    // 递归自调用（如 fact 有 return 1 基线）由 concrete 锚点稳定为 1。
+    constexpr int kUnknown = -1;
+    constexpr int kTainted = -2;
+    for (const auto &[name, info]: infos) {
+        if (info.has_vararg_tail || info.has_unknown_tail) {
+            ar.function_effective_returns[name] = kTainted;
+        } else if (info.has_concrete) {
+            ar.function_effective_returns[name] = info.concrete_max;
+        } else {
+            ar.function_effective_returns[name] = kUnknown;
+        }
+    }
+    for (size_t round = 0; round < infos.size() + 1; ++round) {
+        bool changed = false;
+        for (const auto &[name, info]: infos) {
+            int &cur = ar.function_effective_returns[name];
+            if (cur == kTainted) {
+                continue;
+            }
+            for (const auto &callee: info.tail_callees) {
+                const int cv = ar.function_effective_returns.at(callee);
+                if (cv == kTainted) {
+                    cur = kTainted;
+                    changed = true;
+                    break;
+                }
+                if (cv == kUnknown) {
+                    continue;
+                }
+                if (cur == kUnknown || cv > cur) {
+                    cur = cv;
+                    changed = true;
+                }
+            }
+        }
+        if (!changed) {
+            break;
+        }
+    }
+    // 对外统一输出：kTainted 与仍未解析的 kUnknown 都记为 -1（不可特化）。
+    for (auto &[name, v]: ar.function_effective_returns) {
+        if (v < 0) {
+            v = -1;
+        }
     }
 }
 

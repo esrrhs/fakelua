@@ -93,7 +93,19 @@ void CGen::UniquifyFuncCNames() {
         if (func.get() == real_init) {
             continue;
         }
-        std::string base = func->unique_c_name.empty() ? "flua_fn" : func->unique_c_name;
+        std::string base;
+        if (func->unique_c_name.empty()) {
+            base = "flua_fn";
+        } else if (func->parent == nullptr) {
+            // 顶层用户函数统一加 flua_fn_ 前缀：
+            // 1) 规避 C 宿主对 main 的入口签名校验（Clang 报 first parameter of 'main'）；
+            // 2) 规避与 libc/头文件同名符号（sin/printf/...）的重定义冲突；
+            // 3) 顺带规避其余 C 保留/外部标识符。
+            // 嵌套函数在 ResolveScopes 中已取得 __fl_func_N 形式的唯一名，无需再加前缀。
+            base = std::string("flua_fn_") + func->unique_c_name;
+        } else {
+            base = func->unique_c_name;
+        }
         if (base == kInitFunctionName) {
             base = std::string("flua_id_") + kInitFunctionName;
         }
@@ -2096,7 +2108,9 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
             Out() << GenTab() << iter_s << " = FlUnboxMulti(" << e1 << ", 0);\n";
             Out() << GenTab() << iter_var << " = FlUnboxMulti(" << e2 << ", 0);\n";
             for (size_t i = 3; i < exps.size(); ++i) {
-                Out() << GenTab() << "(void)(" << CompileExp(exps[i], i + 1 == exps.size()) << ");\n";
+                // 同 CompileCallArgs：CompileExp 可能先发语句宏，必须先求值再拼接输出。
+                const std::string discarded_exp = CompileExp(exps[i], i + 1 == exps.size());
+                Out() << GenTab() << "(void)(" << discarded_exp << ");\n";
             }
         }
 
@@ -4464,10 +4478,14 @@ void CGen::CompileCallArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr, Args
             for (size_t i = 0; i < raw_args.size() - 1; ++i) {
                 compiled_args.push_back(CompileExp(raw_args[i]));
             }
-            // Compile the last function call/vararg into a temporary variable
+            // Compile the last function call/vararg into a temporary variable.
+            // 注意：必须先求值 CompileExp（它会把慢路径语句宏/if-else 直接写入输出流），
+            // 再输出赋值语句，否则「左值前缀」与「结果表达式」会被中途发出的语句撕开，
+            // 生成 x = do{...}while(0); 这类非法 C（见 FAKELUA_JIT_BUG_REPORT 缺陷 2）。
             expansion_tmp = std::format("flua_call_res_{}", tmp_var_counter_++);
             func_temp_decls_ << "    CVar " << expansion_tmp << ";\n";
-            Out() << GenTab() << expansion_tmp << " = " << CompileExp(raw_args.back(), true) << ";\n";
+            const std::string last_expansion_arg = CompileExp(raw_args.back(), true);
+            Out() << GenTab() << expansion_tmp << " = " << last_expansion_arg << ";\n";
             expansion_start_idx = raw_args.size() - 1;
         } else {
             for (const auto &exp: raw_args) {
