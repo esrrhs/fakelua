@@ -1602,7 +1602,9 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
         }
     }
 
-    if (!func_name.empty() && (!is_local_callee || file_level_func || named_protos_.contains(func_name))) {
+    // 形参、局部变量、嵌套 local function 即使与文件级函数同名，也必须调用这个绑定。
+    // named_protos_ 只登记文件级函数，不能拿来覆盖局部值。
+    if (!func_name.empty() && (!is_local_callee || file_level_func)) {
         return place_callname(func_name, arg_regs);
     }
 

@@ -136,8 +136,8 @@ private:
 
     // 数学参数特化资格检查：函数的每条 return 都必须与标量/CVar 特化调用约定兼容。
     // 多值返回（return a, b, ...）、尾位置 vararg 展开（return ...）、以及尾位置
-    // 调用无法静态确定为单返回值函数（return f() 且 f 可能返回多个值）的函数不参与
-    // 特化——这些形态只有通用 CVar 变体才能正确处理。
+    // 调用无法静态确定为恰好 1 个返回值（return f()，含被局部绑定遮蔽的同名函数）
+    // 的函数不参与特化——这些形态只有通用 CVar 变体才能正确处理。
     // 不递归进入嵌套函数定义；裸 return（0 值）会使特化返回类型退化为 CVar，是安全的。
     [[nodiscard]] bool IsEligibleForMathSpec(const SyntaxTreeInterfacePtr &block_node, const AnalysisResult &ar) const;
 
