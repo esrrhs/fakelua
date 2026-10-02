@@ -12,7 +12,7 @@ public:
     explicit TypeInferencer(State *s);
 
     // 运行全局类型推断，并在返回的 InferResult 中填充数学参数特化信息。
-    InferResult InferTypes(const ParseResult &pr, const CompileConfig &cfg);
+    InferResult InferTypes(const ParseResult &pr, const AnalysisResult &ar, const CompileConfig &cfg);
 
 private:
     struct TraversalContext;
@@ -132,7 +132,14 @@ private:
 
     // 多轮迭代识别数学参数，记录到 ir.math_param_positions，
     // 同时返回数学函数信息。
-    MathFuncInfoMap IdentifyMathParams(const ParseResult &pr, InferResult &ir);
+    MathFuncInfoMap IdentifyMathParams(const ParseResult &pr, InferResult &ir, const AnalysisResult &ar);
+
+    // 数学参数特化资格检查：函数的每条 return 都必须与标量/CVar 特化调用约定兼容。
+    // 多值返回（return a, b, ...）、尾位置 vararg 展开（return ...）、以及尾位置
+    // 调用无法静态确定为单返回值函数（return f() 且 f 可能返回多个值）的函数不参与
+    // 特化——这些形态只有通用 CVar 变体才能正确处理。
+    // 不递归进入嵌套函数定义；裸 return（0 值）会使特化返回类型退化为 CVar，是安全的。
+    [[nodiscard]] bool IsEligibleForMathSpec(const SyntaxTreeInterfacePtr &block_node, const AnalysisResult &ar) const;
 
     // 为所有数学函数生成初始特化快照，写入 ir.specialization_snapshots。
     // 每个函数生成 2^k 个快照（k = 数学参数个数）。
