@@ -218,7 +218,7 @@ TEST(infer, test_infer_if_scope_degrade) {
     // Both specializations must exist.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
     // In the int specialization (test_0), x = n with n=T_INT keeps x as T_INT.
     ASSERT_NE(code.find("int64_t x"), std::string::npos);
     // In the float specialization (test_1), MergeType(T_INT, T_FLOAT) = T_FLOAT
@@ -686,10 +686,10 @@ TEST(infer, test_infer_typed_int_negative_mod) {
 TEST(infer, test_spec_fib) {
     const auto code = InferGetCCode("./infer/test_spec_fib.lua");
     // Entry dispatcher must exist (original CVar signature).
-    ASSERT_NE(code.find("CVar fib(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_fib(VarClosure *_CL, CVar n)"), std::string::npos);
     // Two specialization declarations — now return native types directly.
-    ASSERT_NE(code.find("int64_t fib_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("double fib_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_fib_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double flua_fn_fib_1(double n)"), std::string::npos);
     // Dispatcher boxes the native result back into CVar.
     ASSERT_NE(code.find("fib_0(n.data_.i)"), std::string::npos);
     ASSERT_NE(code.find("fib_1(n.data_.f)"), std::string::npos);
@@ -724,7 +724,7 @@ TEST(infer, test_spec_multi_param) {
     ASSERT_NE(code.find("test_0_1"), std::string::npos);
     ASSERT_NE(code.find("test_1_1"), std::string::npos);
     // Entry function with CVar params.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar a, CVar b, CVar c, CVar d, CVar e)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar a, CVar b, CVar c, CVar d, CVar e)"), std::string::npos);
     // int/int case: both b and e are int64_t in test_0_0.
     ASSERT_NE(code.find("test_0_0(CVar a, int64_t b"), std::string::npos);
     ASSERT_NE(code.find("test_1_1(CVar a, double b"), std::string::npos);
@@ -747,7 +747,7 @@ TEST(infer, test_spec_wrapper_var) {
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     // Entry dispatcher must check type.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
 
     // Functional verification: test(5) == 25.
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -782,7 +782,7 @@ TEST(infer, test_infer_bitand_integer_repr_float) {
     const auto code = InferGetCCode("./infer/test_infer_bitand_integer_repr_float.lua");
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     ASSERT_NE(code.find("FlToIntChecked("), std::string::npos);
-    ASSERT_NE(code.find("CVar test_err(VarClosure *_CL)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test_err(VarClosure *_CL)"), std::string::npos);
     ASSERT_NE(code.find("test_1(1.5)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -1155,7 +1155,7 @@ TEST(infer, test_spec_reassign_gcd) {
     ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
     ASSERT_NE(code.find("test_1_1(double a, double b)"), std::string::npos);
     // Entry dispatcher must check type and route.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
     // In the all-int specialization, the reassignment of b must use native int64_t modulo.
     ASSERT_NE(code.find("FlModInt("), std::string::npos);
     // In the all-int specialization, while condition b != 0 must be a direct C comparison.
@@ -1182,7 +1182,7 @@ TEST(infer, test_spec_reassign_powmod) {
     // With three math params the all-int suffix is _0_0_0.
     ASSERT_NE(code.find("test_0_0_0(int64_t base, int64_t exp, int64_t mod)"), std::string::npos);
     // Entry dispatcher must exist with CVar params.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar base, CVar exp, CVar mod)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar base, CVar exp, CVar mod)"), std::string::npos);
     // In the int specialization, loop body arithmetic must use native int64_t.
     ASSERT_NE(code.find("FlModInt("), std::string::npos);
     ASSERT_NE(code.find("FlFloorDivInt("), std::string::npos);
@@ -1448,7 +1448,7 @@ TEST(infer, test_spec_len_param) {
     ASSERT_EQ(code.find("OpLen("), std::string::npos);
     // Fix: NUMBER_SIGN in EvalReturnExpType now returns T_INT, so n+#s yields
     // a T_INT return and the int specialization returns int64_t natively.
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_len_param.lua", {.debug_mode = debug_mode});
@@ -1474,7 +1474,7 @@ TEST(infer, test_spec_for_bound_param) {
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     // Entry dispatcher must exist.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
     // In the int specialization: native int64_t for-loop control variables.
     ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
@@ -1506,8 +1506,8 @@ TEST(infer, test_spec_for_bound_param) {
 TEST(infer, test_spec_compare_func_result) {
     const auto code = InferGetCCode("./infer/test_spec_compare_func_result.lua");
     // Both f and test must be specialized and now return native int64_t directly.
-    ASSERT_NE(code.find("int64_t f_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_f_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
     // The if condition must use a direct C comparison: f_0(n) is called natively.
     ASSERT_NE(code.find("f_0(n)"), std::string::npos);
     // With native returns, there is no .data_.i extraction for the spec call result.
@@ -1535,8 +1535,8 @@ TEST(infer, test_spec_compare_func_result) {
 // specialised bodies, and the == condition uses OpEq + IsTrue.
 TEST(infer, test_spec_compare_equal) {
     const auto code = InferGetCCode("./infer/test_spec_compare_equal.lua");
-    ASSERT_NE(code.find("int64_t test_0(int64_t n, CVar m)"), std::string::npos);
-    ASSERT_NE(code.find("double test_1(double n, CVar m)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n, CVar m)"), std::string::npos);
+    ASSERT_NE(code.find("double flua_fn_test_1(double n, CVar m)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_compare_equal.lua", {.debug_mode = debug_mode});
@@ -1565,7 +1565,7 @@ TEST(infer, test_spec_no_arith_compare_only) {
     ASSERT_EQ(code.find("test_0"), std::string::npos);
     ASSERT_EQ(code.find("test_1"), std::string::npos);
     // The generic CVar entry point must exist.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n, CVar m)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n, CVar m)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_no_arith_compare_only.lua", {.debug_mode = debug_mode});
@@ -1625,8 +1625,8 @@ TEST(infer, test_spec_unary_minus_param) {
     ASSERT_NE(code.find("(-(n))"), std::string::npos);
     ASSERT_EQ(code.find("OpUnaryMinus("), std::string::npos);
     // Both specializations must return natively (int64_t / double).
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("double test_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double flua_fn_test_1(double n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_unary_minus_param.lua", {.debug_mode = debug_mode});
@@ -1655,7 +1655,7 @@ TEST(infer, test_spec_bitnot_standalone_param) {
     // Int specialization: native BITNOT (~((int64_t)(n))).
     ASSERT_NE(code.find("(~((int64_t)(n)))"), std::string::npos);
     // Int specialization must return int64_t natively.
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_bitnot_standalone_param.lua", {.debug_mode = debug_mode});
@@ -1679,7 +1679,7 @@ TEST(infer, test_spec_do_return) {
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     // Fix: return inside do...end is now detected, so int spec returns int64_t.
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_do_return.lua", {.debug_mode = debug_mode});
@@ -1732,17 +1732,17 @@ TEST(infer, test_spec_nested_call) {
     ASSERT_NE(code.find("func1_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     // All three specialisations must return native int64_t (not CVar).
-    ASSERT_NE(code.find("int64_t func2_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("int64_t func1_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_func2_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_func1_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
     // func1_0 must call func2_0 directly (native spec call, no boxing).
     ASSERT_NE(code.find("func2_0(n)"), std::string::npos);
     // test_0 must call func1_0 directly.
     ASSERT_NE(code.find("func1_0(n)"), std::string::npos);
     // CVar entry dispatchers must still exist for runtime polymorphism.
-    ASSERT_NE(code.find("CVar func2(VarClosure *_CL, CVar n)"), std::string::npos);
-    ASSERT_NE(code.find("CVar func1(VarClosure *_CL, CVar n)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_func2(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_func1(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_nested_call.lua", {.debug_mode = debug_mode});
@@ -1762,10 +1762,10 @@ TEST(infer, test_spec_nested_call) {
 // without missing the normal explist-based specialisation path.
 TEST(infer, test_spec_args_syntax_mix) {
     const auto code = InferGetCCode("./infer/test_spec_args_syntax_mix.lua");
-    ASSERT_NE(code.find("int64_t callee_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("double callee_1(double n)"), std::string::npos);
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("double test_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_callee_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double flua_fn_callee_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double flua_fn_test_1(double n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_args_syntax_mix.lua", {.debug_mode = debug_mode});
@@ -1781,9 +1781,9 @@ TEST(infer, test_spec_args_syntax_mix) {
 TEST(infer, test_spec_local_from_func_call) {
     const auto code = InferGetCCode("./infer/test_spec_local_from_func_call.lua");
     // func must be specialised (has direct arithmetic n+1).
-    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_func_0(int64_t n)"), std::string::npos);
     // wrapper must also be specialised because it passes n to func's math param.
-    ASSERT_NE(code.find("int64_t wrapper_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_wrapper_0(int64_t n)"), std::string::npos);
     // local x should be declared as int64_t (not CVar) inside wrapper_0.
     ASSERT_NE(code.find("int64_t x ="), std::string::npos);
 
@@ -1801,9 +1801,9 @@ TEST(infer, test_spec_local_from_func_call) {
 TEST(infer, test_spec_local_chain_from_func_call) {
     const auto code = InferGetCCode("./infer/test_spec_local_chain_from_func_call.lua");
     // func must be specialised (direct arithmetic n*2).
-    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_func_0(int64_t n)"), std::string::npos);
     // chain must also be specialised.
-    ASSERT_NE(code.find("int64_t chain_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_chain_0(int64_t n)"), std::string::npos);
     // Both x and y should be int64_t inside chain_0.
     ASSERT_NE(code.find("int64_t x ="), std::string::npos);
     ASSERT_NE(code.find("int64_t y ="), std::string::npos);
@@ -1831,13 +1831,13 @@ TEST(infer, test_spec_local_chain_from_func_call) {
 TEST(infer, test_spec_local_func) {
     const auto code = InferGetCCode("./infer/test_spec_local_func.lua");
     // local function square must be specialised.
-    ASSERT_NE(code.find("int64_t square_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("double square_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_square_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double flua_fn_square_1(double n)"), std::string::npos);
     // Entry dispatcher must exist for square.
-    ASSERT_NE(code.find("CVar square(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_square(VarClosure *_CL, CVar n)"), std::string::npos);
     // test must also be specialised via the nested-call improvement.
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_local_func.lua", {.debug_mode = debug_mode});
@@ -1935,8 +1935,8 @@ TEST(infer, test_spec_for_break) {
 TEST(infer, test_spec_arith_chain) {
     const auto code = InferGetCCode("./infer/test_spec_arith_chain.lua");
     // Both int and float specializations must be declared.
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("double test_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double flua_fn_test_1(double n)"), std::string::npos);
     // x and y must be declared as native types (int64_t) in the int spec.
     ASSERT_NE(code.find("int64_t x ="), std::string::npos);
     ASSERT_NE(code.find("int64_t y ="), std::string::npos);
@@ -1966,7 +1966,7 @@ TEST(infer, test_spec_repeat_arith) {
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     // Entry dispatcher must exist.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
     // The do...while loop must be emitted.
     ASSERT_NE(code.find("do {"), std::string::npos);
 
@@ -2000,8 +2000,8 @@ TEST(infer, test_spec_min_param) {
     ASSERT_NE(code.find("min_0_0(int64_t a, int64_t b)"), std::string::npos);
     ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
     // Entry dispatchers must exist.
-    ASSERT_NE(code.find("CVar min(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_min(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
     // The int specialization must use a native C comparison, not IsTrue.
     ASSERT_NE(code.find("(a) < (b)"), std::string::npos);
     ASSERT_EQ(code.find("IsTrue"), std::string::npos);
@@ -2033,8 +2033,8 @@ TEST(infer, test_spec_max_param) {
     ASSERT_NE(code.find("max_0_0(int64_t a, int64_t b)"), std::string::npos);
     ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
     // Entry dispatchers must exist.
-    ASSERT_NE(code.find("CVar max(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_max(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
     // The int specialization must use a native C comparison, not IsTrue.
     ASSERT_NE(code.find("(a) > (b)"), std::string::npos);
     ASSERT_EQ(code.find("IsTrue"), std::string::npos);
@@ -2067,8 +2067,8 @@ TEST(infer, test_spec_clamp_param) {
     ASSERT_NE(code.find("clamp_0_0_0(int64_t x, int64_t lo, int64_t hi)"), std::string::npos);
     ASSERT_NE(code.find("test_0_0_0(int64_t x, int64_t lo, int64_t hi)"), std::string::npos);
     // Entry dispatchers must exist.
-    ASSERT_NE(code.find("CVar clamp(VarClosure *_CL, CVar x, CVar lo, CVar hi)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar x, CVar lo, CVar hi)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_clamp(VarClosure *_CL, CVar x, CVar lo, CVar hi)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar x, CVar lo, CVar hi)"), std::string::npos);
     // Both if conditions must be emitted as native C comparisons.
     ASSERT_NE(code.find("(x) < (lo)"), std::string::npos);
     ASSERT_NE(code.find("(x) > (hi)"), std::string::npos);
@@ -2133,7 +2133,7 @@ TEST(infer, test_spec_and_param) {
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     // Entry dispatcher must exist.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_and_param.lua", {.debug_mode = debug_mode});
@@ -2429,7 +2429,7 @@ TEST(infer, test_infer_native_binop_mod_float) {
 // test(10) = 1+2+3 + 10 = 16.
 TEST(infer, test_spec_for_in_body) {
     const auto code = InferGetCCode("./infer/test_spec_for_in_body.lua");
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
     ASSERT_NE(code.find("CVar sum = "), std::string::npos);
     ASSERT_NE(code.find("OpAdd((sum), (n),"), std::string::npos);
 
@@ -2451,7 +2451,7 @@ TEST(infer, test_spec_elseif_no_all_return) {
     const auto code = InferGetCCode("./infer/test_spec_elseif_no_all_return.lua");
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_elseif_no_all_return.lua", {.debug_mode = debug_mode});
@@ -2473,7 +2473,7 @@ TEST(infer, test_spec_bare_return) {
     const auto code = InferGetCCode("./infer/test_spec_bare_return.lua");
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
     ASSERT_NE(code.find("((n) * (2))"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -2560,8 +2560,8 @@ TEST(infer, test_spec_clamp_le) {
     ASSERT_NE(code.find("clamp_le_0_0_0(int64_t x, int64_t lo, int64_t hi)"), std::string::npos);
     ASSERT_NE(code.find("test_0_0_0(int64_t x, int64_t lo, int64_t hi)"), std::string::npos);
     // Entry dispatchers must exist.
-    ASSERT_NE(code.find("CVar clamp_le(VarClosure *_CL, CVar x, CVar lo, CVar hi)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar x, CVar lo, CVar hi)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_clamp_le(VarClosure *_CL, CVar x, CVar lo, CVar hi)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar x, CVar lo, CVar hi)"), std::string::npos);
     // Both if conditions must use native C comparisons.
     ASSERT_NE(code.find("(x) <= (lo)"), std::string::npos);
     ASSERT_NE(code.find("(x) >= (hi)"), std::string::npos);
@@ -2602,8 +2602,8 @@ TEST(infer, test_spec_funcdef_assignment) {
     // test must be specialised too (math call improvement via square).
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     // Entry dispatchers must exist.
-    ASSERT_NE(code.find("CVar square(VarClosure *_CL, CVar n)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_square(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_funcdef_assignment.lua", {.debug_mode = debug_mode});
@@ -2664,7 +2664,7 @@ TEST(infer, test_spec_and_cond) {
     ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
     ASSERT_NE(code.find("test_1_1(double a, double b)"), std::string::npos);
     // Entry dispatcher must exist.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
     // and 走 CompileBinop 短路，条件里会出现 IsTrue。
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -2707,7 +2707,7 @@ TEST(infer, test_spec_or_cond) {
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     // Entry dispatcher must exist.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
     // or 走 CompileBinop 短路，条件里会出现 IsTrue。
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -2771,7 +2771,7 @@ TEST(infer, test_spec_concat_no_interfere) {
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     // Entry dispatcher must exist.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
     // The arithmetic n + 1 must use the native int fast path.
     ASSERT_NE(code.find("((n) + (1))"), std::string::npos);
 
@@ -2801,7 +2801,7 @@ TEST(infer, test_spec_and_or_only_no_spec) {
     ASSERT_EQ(code.find("test_0("), std::string::npos);
     ASSERT_EQ(code.find("test_1("), std::string::npos);
     // Only the generic CVar entry function should exist.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_and_or_only_no_spec.lua", {.debug_mode = debug_mode});
@@ -3039,11 +3039,11 @@ TEST(infer, test_global_const_float) {
 TEST(infer, test_spec_return_arith_of_calls) {
     const auto code = InferGetCCode("./infer/test_spec_return_arith_of_calls.lua");
     // func must be specialized.
-    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_func_0(int64_t n)"), std::string::npos);
     // caller must be specialized too (func(n) arg n improves in all_int).
-    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_caller_0(int64_t n)"), std::string::npos);
     // The CVar dispatcher for caller must also exist for runtime polymorphism.
-    ASSERT_NE(code.find("CVar caller(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_caller(VarClosure *_CL, CVar n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_return_arith_of_calls.lua", {.debug_mode = debug_mode});
@@ -3066,9 +3066,9 @@ TEST(infer, test_spec_return_arith_of_calls) {
 TEST(infer, test_spec_return_call_arg_is_call) {
     const auto code = InferGetCCode("./infer/test_spec_return_call_arg_is_call.lua");
     // f must be specialized.
-    ASSERT_NE(code.find("int64_t f_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_f_0(int64_t n)"), std::string::npos);
     // caller must be specialized.
-    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_caller_0(int64_t n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_return_call_arg_is_call.lua", {.debug_mode = debug_mode});
@@ -3091,10 +3091,10 @@ TEST(infer, test_spec_return_call_arg_is_call) {
 TEST(infer, test_spec_return_call_arg_is_other_call) {
     const auto code = InferGetCCode("./infer/test_spec_return_call_arg_is_other_call.lua");
     // Both func1 and func2 must be specialized.
-    ASSERT_NE(code.find("int64_t func2_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("int64_t func1_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_func2_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_func1_0(int64_t n)"), std::string::npos);
     // caller must be specialized.
-    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_caller_0(int64_t n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_return_call_arg_is_other_call.lua", {.debug_mode = debug_mode});
@@ -3117,10 +3117,10 @@ TEST(infer, test_spec_return_call_arg_is_other_call) {
 TEST(infer, test_spec_local_var_in_if) {
     const auto code = InferGetCCode("./infer/test_spec_local_var_in_if.lua");
     // func must be specialized (has direct arithmetic n*2).
-    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_func_0(int64_t n)"), std::string::npos);
     // outer must also be specialized with int64_t return, not CVar.
     // Without the fix this assertion would fail (outer_0 returns CVar).
-    ASSERT_NE(code.find("int64_t outer_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_outer_0(int64_t n)"), std::string::npos);
     // The local x inside the if block must be declared as int64_t.
     ASSERT_NE(code.find("int64_t x ="), std::string::npos);
 
@@ -3146,13 +3146,13 @@ TEST(infer, test_spec_local_var_in_if) {
 TEST(infer, test_spec_callee_return_propagates_in_local) {
     const auto code = InferGetCCode("./infer/test_spec_callee_return_propagates_in_local.lua");
     // inner 因直接算术而特化。
-    ASSERT_NE(code.find("int64_t inner_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_inner_0(int64_t n)"), std::string::npos);
     // middle 的返回类型因快照注入 inner 返回类型而得到 T_INT，生成原生整数返回。
-    ASSERT_NE(code.find("int64_t middle_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_middle_0(int64_t n)"), std::string::npos);
     // middle 中的 local r 应是 int64_t（由 inner_0 的 T_INT 返回值注入）。
     ASSERT_NE(code.find("int64_t r ="), std::string::npos);
     // outer 因 middle 返回 T_INT 而也生成原生整数返回。
-    ASSERT_NE(code.find("int64_t outer_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_outer_0(int64_t n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_callee_return_propagates_in_local.lua", {.debug_mode = debug_mode});
@@ -3204,7 +3204,7 @@ TEST(infer, test_table_field_expr) {
     const auto code = InferGetCCode("./infer/test_table_field_expr.lua");
     // Table subscript is dynamic, so test is not specialized.
     ASSERT_EQ(code.find("test_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_table_field_expr.lua", {.debug_mode = debug_mode});
@@ -3300,9 +3300,9 @@ TEST(infer, test_forloop_dynamic) {
 TEST(infer, test_spec_for_dynamic_bound) {
     const auto code = InferGetCCode("./infer/test_spec_for_dynamic_bound.lua");
     // mul2, iter, and test must all be specialised.
-    ASSERT_NE(code.find("int64_t mul2_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("int64_t iter_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_mul2_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_iter_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
     // With return-type hints, the for loop in iter_0 becomes native int.
     ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
     // sum must be declared as int64_t in the int specialisation.
@@ -3572,7 +3572,7 @@ TEST(infer, test_spec_compare_arg_dynamic) {
     ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
     // test should NOT pass specialized args to add since a < b is T_DYNAMIC.
     // The entry function test should exist.
-    ASSERT_NE(code.find("CVar test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test(VarClosure *_CL, CVar a, CVar b)"), std::string::npos);
 }
 
 // 除法表达式（a / b）中操作数为数学参数时，InferNumericBinopResultType 返回 T_FLOAT。
@@ -3658,7 +3658,7 @@ TEST(infer, test_spec_direct_access) {
 TEST(infer, test_spec_ternary) {
     const auto code = InferGetCCode("./infer/test_spec_ternary.lua");
     // test_0 必须被生成，且内部使用原生三元条件运算符 (n) > (0) ? 1 : 2
-    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("? 1 : 2"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -3676,7 +3676,7 @@ TEST(infer, test_math_spec_9params) {
     // Should NOT have specialized variants.
     ASSERT_EQ(code.find("test_math_spec_9params_0"), std::string::npos);
     // Entry function with CVar params.
-    ASSERT_NE(code.find("CVar test_math_spec_9params(VarClosure *_CL, CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test_math_spec_9params(VarClosure *_CL, CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_math_spec_9params.lua", {.debug_mode = debug_mode});
@@ -3692,13 +3692,13 @@ TEST(infer, test_math_spec_mixed) {
     // The name pattern suffix starts with _0_0_0_0_0_0_0_0 for 8 parameters.
     ASSERT_NE(code.find("test_math_spec_mixed_0_0_0_0_0_0_0_0("), std::string::npos);
     // The entry function should take all 10 CVar parameters.
-    ASSERT_NE(code.find("CVar test_math_spec_mixed(VarClosure *_CL, CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9, CVar p10)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_test_math_spec_mixed(VarClosure *_CL, CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9, CVar p10)"), std::string::npos);
     // Verify that specialized functions have correct parameter types:
     // p1 and p10 are CVar, while p2..p9 are int64_t/double depending on the specialization.
-    ASSERT_NE(code.find("int64_t test_math_spec_mixed_0_0_0_0_0_0_0_0(CVar p1, int64_t p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, "
+    ASSERT_NE(code.find("int64_t flua_fn_test_math_spec_mixed_0_0_0_0_0_0_0_0(CVar p1, int64_t p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, "
                         "int64_t p7, int64_t p8, int64_t p9, CVar p10)"),
               std::string::npos);
-    ASSERT_NE(code.find("double test_math_spec_mixed_1_0_0_0_0_0_0_0(CVar p1, double p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, "
+    ASSERT_NE(code.find("double flua_fn_test_math_spec_mixed_1_0_0_0_0_0_0_0(CVar p1, double p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, "
                         "int64_t p7, int64_t p8, int64_t p9, CVar p10)"),
               std::string::npos);
 
@@ -3733,7 +3733,7 @@ TEST(infer, test_global_table_spec) {
 TEST(infer, test_global_init_multi_names_funcall) {
     const auto code = InferGetCCode("./infer/test_global_init_multi_names_funcall.lua");
     // The init function must actually call func() rather than assigning nil to both.
-    ASSERT_NE(code.find("= func(NULL);"), std::string::npos);
+    ASSERT_NE(code.find("= flua_fn_func(NULL);"), std::string::npos);
     ASSERT_EQ(code.find("a = kNil;"), std::string::npos);
     ASSERT_EQ(code.find("b = kNil;"), std::string::npos);
 
@@ -4369,6 +4369,73 @@ TEST(infer, test_infer_cvar_to_int) {
         int64_t ret = 0;
         Call(s, type, "test", ret);
         ASSERT_EQ(ret, 2);
+    });
+}
+
+// 多返回值 / vararg 展开 / 尾位置透传多返回值的函数即使命中数学参数，也不得生成
+// 标量特化（特化函数 return FlMakeMulti 会产生非法 C）。
+// test(10)=115, test(10.5)=120。
+TEST(infer, test_jitbug_multi_return_no_spec) {
+    const auto code = InferGetCCode("./infer/test_jitbug_multi_return_spec.lua");
+    // 通用 CVar 变体必须存在。
+    ASSERT_NE(code.find("CVar flua_fn_mr(VarClosure *_CL, CVar x)"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_tailmr(VarClosure *_CL, CVar x)"), std::string::npos);
+    // 多返回值函数不得有任何标量特化。
+    ASSERT_EQ(code.find("flua_fn_mr_0("), std::string::npos);
+    ASSERT_EQ(code.find("flua_fn_mr_1("), std::string::npos);
+    // 尾表达式为 vararg 展开，返回元数不确定。
+    ASSERT_EQ(code.find("flua_fn_va_0("), std::string::npos);
+    ASSERT_EQ(code.find("flua_fn_va_1("), std::string::npos);
+    // 尾位置透传多返回值被调函数（mr2 返回 2 个值），同样不得特化。
+    ASSERT_EQ(code.find("flua_fn_tailmr_0("), std::string::npos);
+    ASSERT_EQ(code.find("flua_fn_tailmr_1("), std::string::npos);
+    // 反向锁定：带单值基线的尾递归必须仍能特化（有效返回数经锚点解析为 1）。
+    ASSERT_NE(code.find("flua_fn_factacc_0_0("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_jitbug_multi_return_spec.lua", {.debug_mode = debug_mode});
+        int64_t ri = 0;
+        Call(s, type, "test", ri, 10);
+        ASSERT_EQ(ri, 235);
+        double rf = 0;
+        Call(s, type, "test", rf, 10.5);
+        ASSERT_NEAR(rf, 240.0, 0.001);
+    });
+}
+
+// 尾参数展开（调用末参为需展开的调用，且含动态类型算术语句宏）不得把语句拼进
+// 表达式位置；generic-for 超过 3 个表达式时丢弃位同理。test()=60。
+TEST(infer, test_jitbug_tail_expand_stmt) {
+    const auto code = InferGetCCode("./infer/test_jitbug_tail_expand_stmt.lua");
+    // generic-for 第 4 个（丢弃）表达式以独立语句形式求值。
+    ASSERT_NE(code.find("(void)("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_jitbug_tail_expand_stmt.lua", {.debug_mode = debug_mode});
+        int64_t ret = -1;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 60);
+    });
+}
+
+// 顶层函数名为 C 保留入口名（main）或 libc 符号（sin）时，C 符号统一加 flua_fn_
+// 前缀；Lua 侧仍按原名调用。
+TEST(infer, test_jitbug_reserved_func_name) {
+    const auto code = InferGetCCode("./infer/test_jitbug_reserved_func_name.lua");
+    ASSERT_NE(code.find("CVar flua_fn_main("), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_sin("), std::string::npos);
+    ASSERT_EQ(code.find("CVar main("), std::string::npos);
+    ASSERT_EQ(code.find("CVar sin("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_jitbug_reserved_func_name.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "main", ret, 41);
+        ASSERT_EQ(ret, 42);
+        Call(s, type, "sin", ret, 21);
+        ASSERT_EQ(ret, 42);
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 0);
     });
 }
 

@@ -341,7 +341,10 @@ extern CVar FakeluaInterpCall(State *state, VarClosure *cl, int arg_num, const C
 
 #define kMaxFunctionInputParams 32
 
-static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count, int expected_arg_count, bool is_vararg, ...) {
+// 注意：is_vararg 必须声明为 int 而非 bool。C17 7.16.1.4 规定 va_start 的最后一个
+// 具名形参若类型会受默认实参提升影响（bool/_Bool 会被提升为 int），行为未定义。
+// 调用处传入的 true/false 会隐式转换为 int。
+static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count, int expected_arg_count, int is_vararg, ...) {
     VarClosure *cl = (VarClosure *)FakeluaAlloc(state, sizeof(VarClosure) + upvalue_count * sizeof(CVar *), !__fakelua_init_flag__);
     cl->func_ptr = func_ptr;
     cl->upvalue_count = upvalue_count;

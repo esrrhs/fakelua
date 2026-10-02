@@ -294,6 +294,11 @@ struct ParseResult {
 struct AnalysisResult {
     // 函数名 -> 最大返回值数量（-1 代表动态，例如以函数调用结尾）
     std::unordered_map<std::string, int> function_max_returns;
+    // 函数名 -> 有效返回值数量：在 function_max_returns 基础上把「return f()」尾调用
+    // 沿被调函数链做定点求解（含递归自调用锚点），例如 f()=return g()、g()=return 1
+    // 会解析为 1。-1 表示无法静态确定（未知被调/vararg/无锚点递归环）。
+    // 仅供数学参数特化的资格判定使用，不影响既有代码生成路径。
+    std::unordered_map<std::string, int> function_effective_returns;
     // 语法分析出的所有函数调用表达式节点集合，供 CGen 直接查询
     std::unordered_set<const SyntaxTreeInterface *> function_call_exps;
     // 语法分析出的所有函数调用到其被调用者名字的映射，供 CGen 直接查询

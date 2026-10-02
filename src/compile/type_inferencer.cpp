@@ -381,7 +381,7 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 // 第二部分：核心 AST 类型推断引擎
 // ===========================================================================
 
-InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfig &cfg) {
+InferResult TypeInferencer::InferTypes(const ParseResult &pr, const AnalysisResult &ar, const CompileConfig &cfg) {
     LOG_DEBUG(s_, "engine", "InferTypes: start for {}", pr.file_name);
     file_level_types_.clear();
     InferResult ir;
@@ -401,7 +401,7 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     // 在正常推断之后，通过三个阶段发现数学参数并生成特化信息：
     // IdentifyMathParams：多轮迭代识别数学参数
     LOG_DEBUG(s_, "engine", "InferTypes: step 3 - IdentifyMathParams");
-    const auto math_func_info = IdentifyMathParams(pr, ir);
+    const auto math_func_info = IdentifyMathParams(pr, ir, ar);
     if (!math_func_info.empty()) {
         LOG_DEBUG(s_, "engine", "InferTypes: found {} math-param functions", math_func_info.size());
         // GenerateInitialSnapshots：生成各特化版本的初始类型快照
@@ -975,7 +975,121 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
 // 第三部分：特化与数学参数识别逻辑
 // ===========================================================================
 
-TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
+bool TypeInferencer::IsEligibleForMathSpec(const SyntaxTreeInterfacePtr &block_node, const AnalysisResult &ar) const {
+    if (!block_node) {
+        return true;
+    }
+    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(block_node);
+    DEBUG_ASSERT(block);
+    for (const auto &stmt: block->Stmts()) {
+        switch (stmt->Type()) {
+            case SyntaxTreeType::Return: {
+                const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
+                const auto el = ret->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist()) : nullptr;
+                // 裸 return（0 个返回值）：特化返回类型会退化为 CVar，通用返回路径可正确处理。
+                if (!el || el->Exps().empty()) {
+                    break;
+                }
+                const auto &ret_exps = el->Exps();
+                // 多值返回：标量特化体只返回一个 int64_t/double，额外返回值在调用约定层
+                // 无法承载（特化体内会生成 return FlMakeMulti(...) 导致 C 编译失败，
+                // 即使编译通过 dispatcher/调用点也会丢值）。
+                if (ret_exps.size() > 1) {
+                    return false;
+                }
+                // 唯一返回值是尾位置 vararg 展开（return ...）：实际元数随调用者变化，排除。
+                // 唯一返回值是尾位置函数调用（return f()）：特化体经 CompileNumericExp
+                // 直发被调的标量特化，故仅当 f 的有效返回数静态可知恰好为 1 时才安全
+                // （见 SemanticAnalysis 的 function_effective_returns 定点求解，
+                // 可穿透多层尾调用与带单值基线的递归）。
+                const auto &only = ret_exps[0];
+                if (IsVarargExp(only)) {
+                    return false;
+                }
+                if (IsFunctionCallExp(only)) {
+                    const auto callee_it = ar.callee_names.find(only.get());
+                    const std::string callee = (callee_it != ar.callee_names.end()) ? callee_it->second : "";
+                    // 用跨函数定点求解后的有效返回数：return f() 仅当 f 链静态可知恰好
+                    // 返回 1 个值时才安全（递归自调用带单值基线也算 1）。
+                    const auto eff_it = ar.function_effective_returns.find(callee);
+                    if (eff_it == ar.function_effective_returns.end() || eff_it->second != 1) {
+                        return false;
+                    }
+                }
+                break;
+            }
+            case SyntaxTreeType::If: {
+                const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+                if (!IsEligibleForMathSpec(if_node->Block(), ar)) {
+                    return false;
+                }
+                if (const auto elseifs = if_node->ElseIfs()) {
+                    const auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseifs);
+                    for (const auto &blk: el->ElseifBlocks()) {
+                        if (!IsEligibleForMathSpec(blk, ar)) {
+                            return false;
+                        }
+                    }
+                }
+                if (if_node->ElseBlock() && !IsEligibleForMathSpec(if_node->ElseBlock(), ar)) {
+                    return false;
+                }
+                break;
+            }
+            case SyntaxTreeType::While: {
+                const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
+                if (!IsEligibleForMathSpec(while_node->Block(), ar)) {
+                    return false;
+                }
+                break;
+            }
+            case SyntaxTreeType::Repeat: {
+                const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
+                if (!IsEligibleForMathSpec(rep->Block(), ar)) {
+                    return false;
+                }
+                break;
+            }
+            case SyntaxTreeType::ForLoop: {
+                const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
+                if (!IsEligibleForMathSpec(for_loop->Block(), ar)) {
+                    return false;
+                }
+                break;
+            }
+            case SyntaxTreeType::ForIn: {
+                const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
+                if (!IsEligibleForMathSpec(for_in->Block(), ar)) {
+                    return false;
+                }
+                break;
+            }
+            case SyntaxTreeType::Block:
+                // do...end 块：递归检查其内部的 return。
+                if (!IsEligibleForMathSpec(stmt, ar)) {
+                    return false;
+                }
+                break;
+            case SyntaxTreeType::Assign:
+            case SyntaxTreeType::LocalVar:
+            case SyntaxTreeType::LocalFunction:
+            case SyntaxTreeType::Function:
+            case SyntaxTreeType::FunctionCall:
+            case SyntaxTreeType::Break:
+            case SyntaxTreeType::Continue:
+            case SyntaxTreeType::Goto:
+            case SyntaxTreeType::Label:
+            case SyntaxTreeType::Empty:
+                // 不含外层函数的 return（嵌套函数定义不递归进入）。
+                break;
+            default:
+                ThrowFakeluaException(std::format("IsEligibleForMathSpec: unexpected statement type {}", SyntaxTreeTypeToString(stmt->Type())));
+        }
+    }
+    return true;
+}
+
+TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir, const AnalysisResult &ar) {
     MathFuncInfoMap math_func_info;
     const auto function_infos = CollectFunctionSpecInfos(pr);
 
@@ -987,6 +1101,11 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
         for (const auto &info: function_infos) {
             // 已知数学函数，跳过重复发现。
             if (ir.math_param_positions.contains(info.name)) {
+                continue;
+            }
+            // 返回形态资格检查：多返回值/尾位置展开的函数只能走通用 CVar 变体，
+            // 标量特化体会生成 return FlMakeMulti(...) 这类非法 C（见 FAKELUA_JIT_BUG_REPORT 缺陷 1）。
+            if (!IsEligibleForMathSpec(info.block, ar)) {
                 continue;
             }
             // baseline：所有参数均假设为 T_DYNAMIC；all_int：所有参数均假设为 T_INT。
