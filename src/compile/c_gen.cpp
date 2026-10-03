@@ -999,7 +999,7 @@ std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
 static const std::unordered_map<BinOpKind, std::string_view> kCmpOpMap = {{BinOpKind::kLess, "<"},       {BinOpKind::kLessEqual, "<="}, {BinOpKind::kMore, ">"},
                                                                           {BinOpKind::kMoreEqual, ">="}, {BinOpKind::kEqual, "=="},     {BinOpKind::kNotEqual, "!="}};
 
-std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
+std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp, bool require_pure) {
     // 只处理 Exp 节点。
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
@@ -1010,7 +1010,7 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
         if (!pexp || pexp->GetPrefixKind() != PrefixExpKind::kExp) {
             return {};
         }
-        return TryCompileNativeBoolExpr(pexp->GetValue());
+        return TryCompileNativeBoolExpr(pexp->GetValue(), require_pure);
     }
 
     // 处理 not 一元逻辑取反：将 not <bool_expr> 编译为 !(<bool_expr>)。
@@ -1018,7 +1018,7 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
         if (const auto unop = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op()); !unop || unop->GetOpKind() != UnOpKind::kNot) {
             return {};
         }
-        const auto inner = TryCompileNativeBoolExpr(e->Right());
+        const auto inner = TryCompileNativeBoolExpr(e->Right(), require_pure);
         if (inner.empty()) {
             return {};
         }
@@ -1044,12 +1044,129 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
         if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
             return {};
         }
+        // while 条件：含「语句 + 临时变量」形态的操作数（#t、函数调用、表索引、
+        // 整数整除/取模/移位等）会被提升到 while 之外只求值一次，必须回退通用路径，
+        // 由生成的 while(1) 每轮重新 CompileExp 整个条件。
+        if (require_pure && (!IsPureNativeNumericExp(e->Left()) || !IsPureNativeNumericExp(e->Right()))) {
+            return {};
+        }
         const auto left_native = TryCompileNativeExpr(e->Left());
         const auto right_native = TryCompileNativeExpr(e->Right());
         DEBUG_ASSERT(!left_native.empty() && !right_native.empty());
         return std::format("({}) {} ({})", left_native, op_it->second, right_native);
     }
     return {};
+}
+
+// 判定数值表达式能否编译为「不输出任何语句」的纯 C 表达式。
+// 口径必须与 CompileNumericExp / CompileRawNativeArithBinop / CompileRawNativeUnop
+// 中每一处向 Out() 写语句（FlLenInt / FlFloorDivInt / FlModInt / FlLShiftInt /
+// FlToIntChecked / 特化函数调用 …）的分支保持一致：这里判纯的表达式，那边只能
+// 返回一个随 C 变量读取自然重新求值的表达式子串，否则就是漏判。
+bool CGen::IsPureNativeNumericExp(const SyntaxTreeInterfacePtr &exp) const {
+    if (!exp || exp->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+
+    // 数值常量（字面量、文件级只读常量折叠）→ C 字面量。
+    TableKeyKind const_kind = TableKeyKind::kInt;
+    std::string canonical;
+    int64_t int_value = 0;
+    double float_value = 0;
+    if (ClassifyConstNumberExp(exp, const_kind, canonical, int_value, float_value)) {
+        return true;
+    }
+
+    switch (e->GetExpKind()) {
+        case ExpKind::kNumber:
+            // 数值字面量；非数值的情形在比较分支类型检查处已被拒绝，走不到这里。
+            return true;
+        case ExpKind::kPrefixExp: {
+            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
+            if (!pe) return false;
+            switch (pe->GetPrefixKind()) {
+                case PrefixExpKind::kExp:
+                    // 括号表达式：看内层。
+                    return IsPureNativeNumericExp(pe->GetValue());
+                case PrefixExpKind::kVar: {
+                    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+                    // 简单 local / 参数 / 文件级常量读的是 C 变量，嵌在 while 条件里
+                    // 每轮重新读，语义正确。表索引 t[i] / t.x 在 CompileNumericExp 中
+                    // 不支持（会抛异常回退），统一判不纯。
+                    return var && var->GetVarKind() == VarKind::kSimple;
+                }
+                case PrefixExpKind::kFunctionCall:
+                    // TryCompileNativeSpecCallExpr：先输出调用语句再读临时变量。
+                    return false;
+            }
+            return false;
+        }
+        case ExpKind::kBinop: {
+            const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
+            if (!op) return false;
+            const auto op_kind = op->GetOpKind();
+            // 数值路径下 and/or 会编译「丢弃左值副作用语句 / 三元」，且本身是短路语义，
+            // 保守判不纯。
+            if (op_kind == BinOpKind::kAnd || op_kind == BinOpKind::kOr) {
+                return false;
+            }
+            const auto result_type = LookupNodeType(e.get());
+            switch (op_kind) {
+                // 只产生表达式（含 FL_INT_* 宏与强转），递归要求两侧纯。
+                case BinOpKind::kPlus:
+                case BinOpKind::kMinus:
+                case BinOpKind::kStar:
+                case BinOpKind::kSlash:
+                case BinOpKind::kPow:
+                    return IsPureNativeNumericExp(e->Left()) && IsPureNativeNumericExp(e->Right());
+                // 浮点整除是 floor(a/b) 表达式；整数整除发 FlFloorDivInt 语句。
+                case BinOpKind::kDoubleSlash:
+                    return result_type != T_INT && IsPureNativeNumericExp(e->Left()) && IsPureNativeNumericExp(e->Right());
+                // 整数/浮点取模都发 FlModInt / FlModFloat 语句。
+                case BinOpKind::kMod:
+                    return false;
+                // 位运算：T_INT 操作数只有强转表达式；T_FLOAT 操作数发 FlToIntChecked
+                // 语句。结果与操作数都为整型时才纯。
+                case BinOpKind::kBitAnd:
+                case BinOpKind::kXor:
+                case BinOpKind::kBitOr: {
+                    const auto lt = e->Left() ? GetType(e->Left()) : T_DYNAMIC;
+                    const auto rt = e->Right() ? GetType(e->Right()) : T_DYNAMIC;
+                    return lt == T_INT && rt == T_INT && IsPureNativeNumericExp(e->Left()) && IsPureNativeNumericExp(e->Right());
+                }
+                // 左/右移位固定发 FlLShiftInt / FlRShiftInt 语句。
+                case BinOpKind::kLeftShift:
+                case BinOpKind::kRightShift:
+                    return false;
+                default:
+                    // 比较/连接等不出现在 CompileNumericExp 成功路径中。
+                    return false;
+            }
+        }
+        case ExpKind::kUnop: {
+            const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
+            if (!op) return false;
+            const auto op_kind = op->GetOpKind();
+            switch (op_kind) {
+                case UnOpKind::kMinus:
+                    // FL_INT_SUB(0, x) / (-(x))，纯表达式。
+                    return IsPureNativeNumericExp(e->Right());
+                case UnOpKind::kBitNot: {
+                    // 整型操作数是 ~(int64_t)x；浮点操作数先发 FlToIntChecked 语句。
+                    const auto rt = e->Right() ? GetType(e->Right()) : T_DYNAMIC;
+                    return rt == T_INT && IsPureNativeNumericExp(e->Right());
+                }
+                case UnOpKind::kNumberSign:
+                    // #x：FlLenInt 语句 + 临时变量，while 条件陈旧问题的头号来源。
+                    return false;
+                default:
+                    return false;
+            }
+        }
+        default:
+            return false;
+    }
 }
 
 void CGen::EmitSpecParamList(const std::vector<std::string> &params, const std::vector<int> &math_params, int bitmask) {
@@ -1471,7 +1588,10 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     auto saved_for_cont = for_cont_stack_;
     for_cont_stack_.clear();
 
-    if (const auto native_cond = TryCompileNativeBoolExpr(while_stmt->Exp()); !native_cond.empty()) {
+    // require_pure：原生 while 条件是生成代码里的一个 C 表达式，每轮只重新读取 C
+    // 变量；条件编译过程中输出的语句位于 while 之外、只执行一次。因此只接受纯表达式
+    // 操作数，#t / 函数调用 / 表索引 / 整数整除取模等一律走下方每轮重新求值的通用路径。
+    if (const auto native_cond = TryCompileNativeBoolExpr(while_stmt->Exp(), true); !native_cond.empty()) {
         Out() << GenTab() << "while (" << native_cond << ") {\n";
         cur_tab_++;
         CompileStmtBlock(while_stmt->Block());
@@ -2869,14 +2989,43 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                     // 拦截 string 静态库常量访问 (string.charpattern)
                     if (base_var->GetName() == "string") {
                         if (name == "charpattern") {
-                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc("[^%z]"));
+                            // Lua 5.4：[\0-\255]，匹配任意单字节（pattern 长度按字节算）。
+                            static const std::string kCharPattern = [] {
+                                std::string p = "[";
+                                p.push_back('\0');
+                                p.push_back('-');
+                                p.push_back(static_cast<char>(0xFF));
+                                p.push_back(']');
+                                return p;
+                            }();
+                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc(kCharPattern));
                         }
                     }
                     // 拦截 utf8 静态库常量访问 (utf8.charpattern)
                     if (base_var->GetName() == "utf8") {
                         if (name == "charpattern") {
-                            // Lua utf8.charpattern: [\0-\x7F\xC2-\xF4][\x80-\xBF]*
-                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc("[\\x00-\\x7F\\xC2-\\xF4][\\x80-\\xBF]*"));
+                            // Lua 5.4 utf8.charpattern：由原始字节构成的 Lua 模式
+                            // [\0-\x7F\xC2-\xF4][\x80-\xBF]*（不能是字面 \xHH，
+                            // 那是 ECMAScript 写法，Lua 模式下无效）。
+                            static const std::string kUtf8Pattern = [] {
+                                std::string p = "[";
+                                p.push_back('\0');
+                                p.push_back('-');
+                                p.push_back(static_cast<char>(0x7F));
+                                p.push_back(static_cast<char>(0xC2));
+                                p.push_back('-');
+                                p.push_back(static_cast<char>(0xF4));
+                                p.push_back(']');
+                                p.push_back('[');
+                                p.push_back(static_cast<char>(0x80));
+                                p.push_back('-');
+                                p.push_back(static_cast<char>(0xBF));
+                                p.push_back(']');
+                                p.push_back('*');
+                                return p;
+                            }();
+                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}",
+                                               s_->GetConstString().Alloc(kUtf8Pattern));
                         }
                     }
                 }

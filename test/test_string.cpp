@@ -110,6 +110,25 @@ TEST(test_string, test_string_dump) {
     FakeluaDeleteState(s);
 }
 
+// P1-5b：find/match/gmatch/gsub 使用 Lua 5.4 模式而非 ECMAScript 正则。
+TEST(test_string, test_string_lua_pattern) {
+    // 用例内含 pcall 捕获 native 异常；异常后各引擎用独立 state，避免跨引擎状态污染。
+    for (auto jit_type: AllJitTypes()) {
+        SCOPED_TRACE(::testing::Message() << "lua-pattern jit=" << JitTypeName(jit_type));
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr);
+        CompileConfig config;
+        // 用例用 pcall 捕获 native 抛错；debug 模式下 C++ 异常穿过调试调用帧不被
+        // Lua pcall 捕获（既有引擎限制），release 模式三后端行为一致。
+        config.debug_mode = false;
+        CompileFile(s, "./string/test_string_lua_pattern.lua", config);
+        int64_t res = -1;
+        Call(s, jit_type, "test", res);
+        EXPECT_EQ(res, 0);
+        FakeluaDeleteState(s);
+    }
+}
+
 TEST(test_string, test_string_find) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -386,12 +405,13 @@ TEST(test_string, test_gsub_bad_table_value_bool) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     CompileConfig config;
-
     CompileFile(s, "./string/test_gsub_bad_table_value_bool.lua", config);
 
-    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
-    double res = 0;
-    CallThrow(s, "test_gsub_bad_table_value_bool", res);
+    // Lua 5.4：表值 false/nil 保留原匹配；true 仍是非法替换值（脚本内 pcall 校验）。
+    // 三后端都跑：pcall 包 Lua 闭包可以捕获 native 异常。
+    int64_t ret = 0;
+    CallAll(s, "test_gsub_bad_table_value_bool", ret);
+    EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
 }
@@ -400,12 +420,12 @@ TEST(test_string, test_gsub_bad_func_return_bool) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     CompileConfig config;
-
     CompileFile(s, "./string/test_gsub_bad_func_return_bool.lua", config);
 
-    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
-    double res = 0;
-    CallThrow(s, "test_gsub_bad_func_return_bool", res);
+    // Lua 5.4：替换函数返回 false/nil 保留原匹配；返回 true 仍报错。
+    int64_t ret = 0;
+    CallAll(s, "test_gsub_bad_func_return_bool", ret);
+    EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
 }

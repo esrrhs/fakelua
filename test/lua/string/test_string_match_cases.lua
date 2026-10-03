@@ -1,9 +1,9 @@
 package "StringMatchCases"
 
--- 测试 string.match 捕获
+-- 测试 string.match 捕获（Lua 模式 %d 数字类）
 function test_match_capture()
     local s = "date: 2024-01-15"
-    local y, m, d = string.match(s, "(\\d+)-(\\d+)-(\\d+)")
+    local y, m, d = string.match(s, "(%d+)-(%d+)-(%d+)")
     if y ~= "2024" then return 0 end
     if m ~= "01" then return 0 end
     if d ~= "15" then return 0 end
