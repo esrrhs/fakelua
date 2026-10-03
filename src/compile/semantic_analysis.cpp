@@ -45,6 +45,7 @@ AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileCon
     AnalysisResult ar;
     AnalyzeGlobalConstNames(pr.chunk, ar);
     CheckUnsupportedSyntax(pr.chunk, ar);
+    CheckUndeclaredVars(pr.chunk, ar);
     AnalyzeFunctionReturnCounts(pr.chunk, ar);
 
     WalkSyntaxTree(pr.chunk, [&](const SyntaxTreeInterfacePtr &node) {
@@ -1145,6 +1146,353 @@ void SemanticAnalysis::CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp) {
 
 [[noreturn]] void SemanticAnalysis::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
     ThrowFakeluaException(std::format("SemanticAnalysis check failed, {} at {}", msg, SyntaxTreeLocationStr(file_name_, ptr)));
+}
+
+void SemanticAnalysis::CheckUndeclaredVars(const SyntaxTreeInterfacePtr &chunk, const AnalysisResult &ar) {
+    DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
+    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+
+    // 文件级声明名：预处理后文件级 local 仍留在顶层（复杂初始化被搬进 __fakelua_init
+    // 的赋值语句，右侧名字也都来自这些声明），文件级 function/local function 同样在顶层
+    // （含编译器合成的 __fakelua_init）。函数体内对这些名字的引用是合法的文件级符号。
+    std::unordered_set<std::string> file_level_names = ar.global_const_names;
+    for (const auto &stmt: block->Stmts()) {
+        if (stmt->Type() == SyntaxTreeType::LocalFunction) {
+            file_level_names.insert(std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt)->Name());
+        } else if (stmt->Type() == SyntaxTreeType::Function) {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+            const auto fname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+            if (fname && fname->ColonName().empty()) {
+                if (const auto fnl = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(fname->FuncNameList());
+                    fnl && fnl->Funcnames().size() == 1) {
+                    file_level_names.insert(fnl->Funcnames()[0]);
+                }
+            }
+        }
+    }
+
+    // 沿 Var 的 kVar 前缀取上一级变量（a.b / a.b.c 的基变量），前缀不是 kVar 时返回空。
+    auto base_var_of = [](const std::shared_ptr<SyntaxTreeVar> &v) -> std::shared_ptr<SyntaxTreeVar> {
+        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(v->GetPrefixexp());
+        if (!pe || pe->GetPrefixKind() != PrefixExpKind::kVar) {
+            return nullptr;
+        }
+        return std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+    };
+
+    // 豁免变量集合（不按"必须声明"检查），来源有两类：
+    //   1. 直接调用位 f(...) / a.b.f(...) 的整条点号调用链——不含冒号方法调用 a:m()，
+    //      其接收者 a 仍是普通变量引用。同文件函数已在 file_level_names；宿主原生函数
+    //      允许编译后再注册；其余未知名字维持运行时 FakeluaCallByName 的 "not found" 报错。
+    //      链上遇到 kSquare 即停止：a[1].f() 里的 a 是必须声明的表变量。
+    //   2. 点号原生库模块根名（math/string/utf8 ...），覆盖非调用位的模块常量访问
+    //      （math.pi、string.charpattern）；模块名由已注册的 "math.xxx" 原生函数前缀识别，
+    //      它本身不是脚本变量。
+    std::unordered_set<const SyntaxTreeInterface *> exempt_vars;
+    // 赋值左值集合，用于给出「先 local 再赋值」的定向提示。
+    std::unordered_set<const SyntaxTreeInterface *> lvalue_vars;
+    WalkSyntaxTree(chunk, [&](const SyntaxTreeInterfacePtr &n) {
+        if (n->Type() == SyntaxTreeType::FunctionCall) {
+            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(n);
+            if (!fc->Name().empty()) {
+                return;
+            }
+            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+            if (!pe || pe->GetPrefixKind() != PrefixExpKind::kVar) {
+                return;
+            }
+            for (auto cur = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue()); cur;) {
+                exempt_vars.insert(cur.get());
+                if (cur->GetVarKind() != VarKind::kDot) {
+                    break;
+                }
+                cur = base_var_of(cur);
+            }
+        } else if (n->Type() == SyntaxTreeType::Assign) {
+            // package = "X" 形式的 package 声明（CheckFileLevelStmts 已限定其只能出现在
+            // 文件首行；预处理会把它搬进 __fakelua_init）：左值 package 是语法关键字位，
+            // 不是脚本变量。package("X") 调用形式已由上面的调用链豁免覆盖。
+            if (std::string pkg_name; ExtractPackageName(n, pkg_name)) {
+                if (const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(
+                        std::dynamic_pointer_cast<SyntaxTreeAssign>(n)->Varlist())) {
+                    for (const auto &var_node: vl->Vars()) {
+                        exempt_vars.insert(var_node.get());
+                    }
+                }
+                return;
+            }
+            const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(n);
+            const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+            if (!vl) {
+                return;
+            }
+            for (const auto &var_node: vl->Vars()) {
+                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(var_node);
+                if (v && v->GetVarKind() == VarKind::kSimple) {
+                    lvalue_vars.insert(v.get());
+                }
+            }
+        }
+    });
+    WalkSyntaxTree(chunk, [&](const SyntaxTreeInterfacePtr &n) {
+        if (n->Type() != SyntaxTreeType::Var) {
+            return;
+        }
+        auto cur = std::dynamic_pointer_cast<SyntaxTreeVar>(n);
+        if (!cur || cur->GetVarKind() != VarKind::kDot) {
+            return;
+        }
+        // 只沿点号链下行到根；链中夹 kSquare（a[1].b）时根 a 仍是普通表变量引用。
+        while (cur && cur->GetVarKind() == VarKind::kDot) {
+            cur = base_var_of(cur);
+        }
+        if (cur && cur->GetVarKind() == VarKind::kSimple &&
+            s_->GetVM().HasNativeFunctionWithPrefix(std::string(cur->GetName()) + ".")) {
+            exempt_vars.insert(cur.get());
+        }
+    });
+
+    std::vector<std::unordered_set<std::string>> scopes;
+    CheckVarScopes(chunk, scopes, file_level_names, exempt_vars, lvalue_vars);
+}
+
+bool SemanticAnalysis::IsDeclaredSimpleName(const std::string &name, const std::vector<std::unordered_set<std::string>> &scopes,
+                                           const std::unordered_set<std::string> &file_level_names) const {
+    if (name == "_VERSION") {
+        return true;
+    }
+    for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) {
+        if (it->contains(name)) {
+            return true;
+        }
+    }
+    if (file_level_names.contains(name)) {
+        return true;
+    }
+    // 宿主用 RegisterNativeFunction 声明的全局原生函数（print/type/pairs 及用户回调名）。
+    if (s_->GetVM().FindNativeFunction(name) != nullptr) {
+        return true;
+    }
+    return false;
+}
+
+void SemanticAnalysis::CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::vector<std::unordered_set<std::string>> &scopes,
+                                      const std::unordered_set<std::string> &file_level_names,
+                                      const std::unordered_set<const SyntaxTreeInterface *> &exempt_vars,
+                                      const std::unordered_set<const SyntaxTreeInterface *> &lvalue_vars) {
+    if (!node) {
+        return;
+    }
+
+    // 检查 kSimple 变量引用。kDot/kSquare 的基表达式随递归继续检查。
+    auto check_simple_var = [&](const SyntaxTreeInterfacePtr &vnode) {
+        const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(vnode);
+        if (!var || var->GetVarKind() != VarKind::kSimple || exempt_vars.contains(var.get())) {
+            return;
+        }
+        const std::string &name = var->GetName();
+        if (IsDeclaredSimpleName(name, scopes, file_level_names)) {
+            return;
+        }
+        if (lvalue_vars.contains(var.get())) {
+            ThrowError(std::format("undeclared variable '{}' on the left side of assignment; fakelua has no implicit "
+                                   "globals, declare it with 'local' before assigning",
+                                   name),
+                       vnode);
+        }
+        ThrowError(std::format("unknown variable '{}'; fakelua has no implicit globals, declare it with 'local' first", name), vnode);
+    };
+
+    switch (node->Type()) {
+        case SyntaxTreeType::Block: {
+            const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+            scopes.emplace_back();
+            for (const auto &stmt: block->Stmts()) {
+                CheckVarScopes(stmt, scopes, file_level_names, exempt_vars, lvalue_vars);
+            }
+            scopes.pop_back();
+            break;
+        }
+        case SyntaxTreeType::LocalVar: {
+            const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
+            // 先用外层作用域解析初始化表达式（local x = x 右边的 x 是外层同名变量）
+            CheckVarScopes(lv->Explist(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist())) {
+                for (const auto &name: nl->Names()) {
+                    scopes.back().insert(name);
+                }
+            }
+            break;
+        }
+        case SyntaxTreeType::ForLoop: {
+            const auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+            CheckVarScopes(fl->ExpBegin(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(fl->ExpEnd(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(fl->ExpStep(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            scopes.emplace_back();
+            scopes.back().insert(fl->Name());
+            CheckVarScopes(fl->Block(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            scopes.pop_back();
+            break;
+        }
+        case SyntaxTreeType::ForIn: {
+            const auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+            CheckVarScopes(fi->Explist(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            scopes.emplace_back();
+            if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(fi->Namelist())) {
+                for (const auto &name: nl->Names()) {
+                    scopes.back().insert(name);
+                }
+            }
+            CheckVarScopes(fi->Block(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            scopes.pop_back();
+            break;
+        }
+        case SyntaxTreeType::Function:
+        case SyntaxTreeType::LocalFunction:
+        case SyntaxTreeType::FunctionDef: {
+            // local function f 对自身函数体可见（支持递归），在开新作用域前登记。
+            if (node->Type() == SyntaxTreeType::LocalFunction) {
+                scopes.back().insert(std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node)->Name());
+            }
+            SyntaxTreeInterfacePtr funcbody;
+            if (node->Type() == SyntaxTreeType::Function) {
+                funcbody = std::dynamic_pointer_cast<SyntaxTreeFunction>(node)->Funcbody();
+            } else if (node->Type() == SyntaxTreeType::LocalFunction) {
+                funcbody = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node)->Funcbody();
+            } else {
+                funcbody = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node)->Funcbody();
+            }
+            scopes.emplace_back();
+            if (funcbody) {
+                const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+                if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(fb->Parlist())) {
+                    if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
+                        for (const auto &pname: namelist->Names()) {
+                            scopes.back().insert(pname);
+                        }
+                    }
+                }
+                CheckVarScopes(fb->Block(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            }
+            scopes.pop_back();
+            break;
+        }
+        case SyntaxTreeType::Var: {
+            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+            check_simple_var(node);
+            CheckVarScopes(var->GetPrefixexp(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(var->GetExp(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            break;
+        }
+        case SyntaxTreeType::Return: {
+            CheckVarScopes(std::dynamic_pointer_cast<SyntaxTreeReturn>(node)->Explist(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            break;
+        }
+        case SyntaxTreeType::VarList: {
+            const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
+            for (const auto &v: vl->Vars()) {
+                CheckVarScopes(v, scopes, file_level_names, exempt_vars, lvalue_vars);
+            }
+            break;
+        }
+        case SyntaxTreeType::ExpList: {
+            const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
+            for (const auto &exp: el->Exps()) {
+                CheckVarScopes(exp, scopes, file_level_names, exempt_vars, lvalue_vars);
+            }
+            break;
+        }
+        case SyntaxTreeType::Assign: {
+            const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+            CheckVarScopes(assign->Varlist(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(assign->Explist(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            break;
+        }
+        case SyntaxTreeType::FunctionCall: {
+            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+            CheckVarScopes(fc->prefixexp(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(fc->Args(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            break;
+        }
+        case SyntaxTreeType::Args: {
+            const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
+            CheckVarScopes(args->Explist(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(args->Tableconstructor(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(args->String(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            break;
+        }
+        case SyntaxTreeType::TableConstructor: {
+            CheckVarScopes(std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node)->Fieldlist(), scopes, file_level_names, exempt_vars,
+                           lvalue_vars);
+            break;
+        }
+        case SyntaxTreeType::FieldList: {
+            const auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+            for (const auto &field: fl->Fields()) {
+                CheckVarScopes(field, scopes, file_level_names, exempt_vars, lvalue_vars);
+            }
+            break;
+        }
+        case SyntaxTreeType::Field: {
+            const auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+            CheckVarScopes(field->Key(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(field->Value(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            break;
+        }
+        case SyntaxTreeType::While: {
+            const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+            CheckVarScopes(while_node->Exp(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(while_node->Block(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            break;
+        }
+        case SyntaxTreeType::Repeat: {
+            // Lua 语义（与 CGen::CompileStmtRepeat 一致）：until 条件在 repeat body 的
+            // 作用域内解析，可以引用 body 中声明的 local（repeat local x ... until x > 0）。
+            const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+            const auto rep_body = std::dynamic_pointer_cast<SyntaxTreeBlock>(rep->Block());
+            scopes.emplace_back();
+            if (rep_body) {
+                for (const auto &stmt: rep_body->Stmts()) {
+                    CheckVarScopes(stmt, scopes, file_level_names, exempt_vars, lvalue_vars);
+                }
+            }
+            CheckVarScopes(rep->Exp(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            scopes.pop_back();
+            break;
+        }
+        case SyntaxTreeType::If: {
+            const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+            CheckVarScopes(if_node->Exp(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(if_node->Block(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(if_node->ElseIfs(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(if_node->ElseBlock(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            break;
+        }
+        case SyntaxTreeType::ElseIfList: {
+            const auto eil = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(node);
+            for (size_t i = 0; i < eil->ElseifSize(); ++i) {
+                CheckVarScopes(eil->ElseifExp(i), scopes, file_level_names, exempt_vars, lvalue_vars);
+                CheckVarScopes(eil->ElseifBlock(i), scopes, file_level_names, exempt_vars, lvalue_vars);
+            }
+            break;
+        }
+        case SyntaxTreeType::Exp: {
+            const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+            CheckVarScopes(exp->Left(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            CheckVarScopes(exp->Right(), scopes, file_level_names, exempt_vars, lvalue_vars);
+            break;
+        }
+        case SyntaxTreeType::PrefixExp: {
+            CheckVarScopes(std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node)->GetValue(), scopes, file_level_names, exempt_vars,
+                           lvalue_vars);
+            break;
+        }
+        default: {
+            // 其余节点（break/continue/goto/label/空语句/名字列表等）不含变量引用。
+            break;
+        }
+    }
 }
 
 }// namespace fakelua
