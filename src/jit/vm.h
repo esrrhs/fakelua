@@ -51,10 +51,21 @@ public:
         native_functions_[name] = NativeFuncEntry{arg_count, is_vararg, std::move(callback)};
     }
 
-    // 查找原生函数条目（供 FakeluaCallByName 使用）
+    // 查找原生函数条目（供 FakeluaCallByName 分发用）
     [[nodiscard]] const NativeFuncEntry *FindNativeFunction(std::string_view name) const {
         const auto it = native_functions_.find(name);
         return it != native_functions_.end() ? &it->second : nullptr;
+    }
+
+    // 是否存在以 prefix 开头的注册原生函数名（语义分析用它识别 math.xxx / string.xxx
+    // 这类点号原生库的模块根名，模块名本身不是脚本变量）
+    [[nodiscard]] bool HasNativeFunctionWithPrefix(std::string_view prefix) const {
+        for (const auto &[name, entry]: native_functions_) {
+            if (name.starts_with(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // 分配一个唯一的全局变量名

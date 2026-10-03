@@ -587,8 +587,8 @@ TEST(test_string, test_string_sub_undeclared_var) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    // fmod 与 C 标准库 math.h 中的 fmod 同名；未在 Lua 中声明时应求值为 nil，
-    // 传给 string.sub 必须抛出异常（与 Lua 5.4 行为一致），不得被当成 C 函数指针调用。
+    // fmod 与 C 标准库 math.h 中的 fmod 同名。fakelua 不支持隐式全局：未声明的简单名
+    // 在编译期直接报错——既不会静默求值为 nil，更不可能被当成 C 函数指针传给 string.sub。
     const std::string script = R"(
         function test_fmod_sub()
             local suA_ub = string.sub(fmod, 3)
@@ -596,10 +596,13 @@ TEST(test_string, test_string_sub_undeclared_var) {
         end
     )";
 
-    for (auto jit_type: AllJitTypes()) {
+    try {
         CompileString(s, script, config);
-        int64_t res = 0;
-        EXPECT_THROW(Call(s, jit_type, "test_fmod_sub", res), std::exception);
+        FAIL() << "expected CompileString to throw for undeclared variable fmod";
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("unknown variable 'fmod'"), std::string::npos) << msg;
+        EXPECT_NE(msg.find("no implicit globals"), std::string::npos) << msg;
     }
 
     FakeluaDeleteState(s);
