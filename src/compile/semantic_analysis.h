@@ -4,6 +4,7 @@
 #include "compile/syntax_tree.h"
 #include "fakelua.h"
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace fakelua {
@@ -41,6 +42,21 @@ private:
     void CheckForIn(const SyntaxTreeInterfacePtr &node);
     void CheckExp(const SyntaxTreeInterfacePtr &node);
     void CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp);
+    // fakelua 刻意不支持 Lua 的隐式全局：每个简单名必须能解析到 local/形参/upvalue、
+    // 文件级 local 或文件级函数，或宿主注册的原生函数。未声明名字在编译期直接报错
+    // （读返回 nil、写改写 const kNil 的旧行为都是隐患）。豁免：直接调用位 f(...) 的
+    // 整条点号调用链（未知名维持运行时 FakeluaCallByName 的 "not found" 报错，且原生
+    // 函数允许编译后注册）、math/string 等点号原生库的模块根名，以及文件首行 package
+    // 声明（package "X" / package = "X"）的名字。
+    void CheckUndeclaredVars(const SyntaxTreeInterfacePtr &chunk, const AnalysisResult &ar);
+    // CheckUndeclaredVars 的词法作用域递归，作用域栈语义与 CGen::ResolveScopes 对齐。
+    void CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::vector<std::unordered_set<std::string>> &scopes,
+                        const std::unordered_set<std::string> &file_level_names,
+                        const std::unordered_set<const SyntaxTreeInterface *> &exempt_vars,
+                        const std::unordered_set<const SyntaxTreeInterface *> &lvalue_vars);
+    [[nodiscard]] bool IsDeclaredSimpleName(const std::string &name,
+                                            const std::vector<std::unordered_set<std::string>> &scopes,
+                                            const std::unordered_set<std::string> &file_level_names) const;
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 
     void AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);
