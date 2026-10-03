@@ -1030,6 +1030,64 @@ TEST(exception, no_define_lvalue_error) {
     }
 }
 
+// fakelua 刻意不支持 Lua 隐式全局：函数体内未声明的简单名（读 / 写 / 先写后读 /
+// 点号字段的未声明根名）必须在语义分析阶段直接报错，并带上文件名、行、列，
+// 而不是把读编成 kNil、把写编成对 const kNil 的赋值。
+TEST(exception, undeclared_var_error) {
+    struct Case {
+        const char *file;
+        const char *name;
+        int line;
+    };
+    const Case cases[] = {
+        {"./exception/test_undeclared_var_read_error.lua", "unknown_global", 2},
+        {"./exception/test_undeclared_var_write_read_error.lua", "flag", 2},
+        {"./exception/test_undeclared_field_base_error.lua", "unknown_object", 2},
+        {"./exception/test_no_define_lvalue_error.lua", "b", 2},
+    };
+    for (const auto &c: cases) {
+        SCOPED_TRACE(c.file);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(s, 0);
+
+        try {
+            CompileFile(s, c.file, {});
+            FAIL() << "expected CompileFile to throw for " << c.file;
+        } catch (const std::exception &e) {
+            const std::string msg = e.what();
+            EXPECT_NE(msg.find("no implicit globals"), std::string::npos) << msg;
+            EXPECT_NE(msg.find(c.name), std::string::npos) << msg;
+            EXPECT_NE(msg.find(std::string(c.file) + ":" + std::to_string(c.line) + ":"), std::string::npos) << msg;
+        }
+    }
+}
+
+// 模块名不是脚本变量：点号原生库调用与模块常量必须正常编译，
+// 点号链 / 调用链上的模块根名不应被误判成未声明变量。
+TEST(exception, undeclared_var_check_allows_module_names) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, 0);
+
+    const std::string script = R"(
+function f(x)
+    local t = {}
+    table.insert(t, math.floor(x))
+    local p = math.pi
+    local c = string.charpattern
+    local s = tostring(math.maxinteger)
+    if t[1] == 3 and p > 3.0 and #c == 1 and #s > 0 then
+        return s
+    end
+    return "bad"
+end
+)";
+    ASSERT_NO_THROW(CompileString(s, script, {}));
+}
+
 TEST(exception, global_duplicate_lvalue_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
