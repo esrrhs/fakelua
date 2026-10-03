@@ -1,7 +1,7 @@
 function test_string_gmatch()
     local s = "hello world from fakelua"
     local words = {}
-    for w in string.gmatch(s, "[a-zA-Z]+") do
+    for w in string.gmatch(s, "%a+") do
         words[#words + 1] = w
     end
     if #words ~= 4 then return 1 end
@@ -10,11 +10,11 @@ function test_string_gmatch()
     if words[3] ~= "from" then return 4 end
     if words[4] ~= "fakelua" then return 5 end
 
-    -- 捕获组迭代 (ECMAScript 语法)
+    -- 捕获组迭代（Lua 模式 %a/%d）
     local s2 = "a=1 b=2 c=3"
     local keys = {}
     local vals = {}
-    for k, v in string.gmatch(s2, "([a-z])=(\\d)") do
+    for k, v in string.gmatch(s2, "(%a)=(%d)") do
         keys[#keys + 1] = k
         vals[#vals + 1] = v
     end
@@ -33,7 +33,7 @@ function test_string_gmatch()
 
     -- 空串也必须返回迭代器，不能直接 nil（for-in 会 attempt to call a nil value）
     local empty_n = 0
-    for _ in string.gmatch("", "[a-z]+") do
+    for _ in string.gmatch("", "%a+") do
         empty_n = empty_n + 1
     end
     if empty_n ~= 0 then return 11 end

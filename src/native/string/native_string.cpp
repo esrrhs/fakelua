@@ -3,6 +3,7 @@
 #include "jit/jit_error_boundary.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
+#include "native/string/lua_pattern.h"
 #include "native/table/native_table.h"
 #include "state/state.h"
 #include "util/utf8_io.h"
@@ -12,7 +13,6 @@
 #include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <boost/endian/conversion.hpp>
-#include <boost/regex.hpp>
 #include <cctype>
 #include <cinttypes>
 #include <climits>
@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <limits>
 #include <locale>
 #include <memory>
 #include <mutex>
@@ -39,40 +40,55 @@ static inline int64_t NormalizePos(int64_t pos, int64_t len) {
     return len + pos + 1;
 }
 
-// ECMAScript 正则编译缓存
-// Boost.Regex 构造仍有成本；find/match/gmatch/gsub 的热点是重复编译同一 pattern。
-// 进程级缓存：key=pattern 原文，value=编译结果（含 optimize）。
-// 返回的指针由缓存永久持有（不淘汰，避免 gmatch 状态中的裸指针悬空）。
+// Lua 模式（pattern matching，见 lua_pattern.h）辅助。
+// find/match/gmatch/gsub 使用的是 Lua 5.4 语义的模式，不是正则。
 namespace {
 
-std::shared_mutex g_regex_cache_mu;
-std::unordered_map<std::string, std::unique_ptr<boost::regex>> g_regex_cache;
+namespace lp = lua_pattern;
 
-// 成功返回非空指针；pattern 非法返回 nullptr（与原先 catch regex_error → nil 一致）。
-const boost::regex *GetCachedRegex(std::string_view pattern) {
-    std::string key(pattern);
-    {
-        std::shared_lock lock(g_regex_cache_mu);
-        auto it = g_regex_cache.find(key);
-        if (it != g_regex_cache.end()) {
-            return it->second.get();
+// 把一个捕获值转成 Lua 值：位置捕获返回整数，其余返回（可能为空的）字符串。
+CVar CaptureToCVar(State *state, const char *src_base, const lp::MatchResult &m, int i) {
+    const auto &cap = m.caps[i];
+    if (cap.len == lp::kCapPosition) {
+        return inter::NativeToFakeluaInt(state, static_cast<int64_t>(cap.init - src_base) + 1);
+    }
+    return inter::NativeToFakeluaStringView(state, std::string_view(cap.init, static_cast<size_t>(cap.len)));
+}
+
+// gsub 字符串替换中 %1-%9 引用捕获：位置捕获转成十进制数字串，其余为捕获切片。
+static std::string CaptureToLuaString(const char *src_base, const lp::MatchResult &m, int i) {
+    const auto &cap = m.caps[i];
+    if (cap.len == lp::kCapPosition) {
+        return std::to_string(static_cast<int64_t>(cap.init - src_base) + 1);
+    }
+    if (cap.len == lp::kCapUnfinished) {
+        ThrowFakeluaException("unfinished capture");
+    }
+    return std::string(cap.init, static_cast<size_t>(cap.len));
+}
+
+// 组装 find 的返回：start, end（1-based，零宽匹配允许 end == start-1），后接捕获。
+// 匹配成功但存在未闭合捕获时与 Lua 一样报 "unfinished capture"。
+static void CheckCapturesFinished(const lp::MatchResult &m) {
+    for (int i = 0; i < m.level; ++i) {
+        if (m.caps[i].len == lp::kCapUnfinished) {
+            ThrowFakeluaException("unfinished capture");
         }
     }
+}
 
-    std::unique_ptr<boost::regex> compiled;
-    try {
-        compiled = std::make_unique<boost::regex>(key, boost::regex::ECMAScript | boost::regex::optimize);
-    } catch (const boost::regex_error &) {
-        return nullptr;
+CVar BuildFindResult(State *state, const char *src_base, const lp::MatchResult &m) {
+    CheckCapturesFinished(m);
+    const int64_t start = m.begin - src_base + 1;
+    const int64_t finish = m.end - src_base;// 1-based 闭区间尾（零宽时为 start-1）
+    const int total = 2 + m.level;
+    CVar multi = inter::AllocMultiCVar(state, total);
+    inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaInt(state, start));
+    inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, finish));
+    for (int i = 0; i < m.level; ++i) {
+        inter::SetMultiCVarElement(multi, i + 2, CaptureToCVar(state, src_base, m, i));
     }
-
-    std::unique_lock lock(g_regex_cache_mu);
-    auto it = g_regex_cache.find(key);
-    if (it != g_regex_cache.end()) {
-        return it->second.get();
-    }
-    auto [ins, _] = g_regex_cache.emplace(std::move(key), std::move(compiled));
-    return ins->second.get();
+    return multi;
 }
 
 // Lua integer widths are 1..16; we pack through uint64 so cap at 8.
@@ -133,12 +149,14 @@ static void CheckFormatItemSize(std::string_view spec) {
 
 }// namespace
 
-// gmatch 迭代器状态（存储在闭包 upvalue 中）
-// re 指向全局缓存中的编译结果，不在此处持有所有权（arena 不跑析构也安全）。
+// gmatch 迭代器状态（存储在闭包 upvalue 中，arena 分配，无需手动释放）。
+// text/pattern 自有副本，跨 tick / arena reset 都安全。
+// prev 是上一次产出匹配的【尾后位置】；首轮标记为 SIZE_MAX，使位置 0 的零宽
+// 匹配也能产出（与 PUC-Rio gmatch_iter 一致）。
 struct GMatchState {
     std::string text;
-    const boost::regex *re = nullptr;
-    size_t pos = 0;
+    std::string pattern;
+    size_t prev = std::numeric_limits<size_t>::max();
 };
 
 // string.pack / packsize / unpack 二进制序列化辅助
@@ -584,38 +602,34 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         return inter::NativeToFakeluaNil(iter_state);
     }
 
-    if (!gs->re || gs->pos >= gs->text.size()) {
-        return inter::NativeToFakeluaNil(iter_state);
-    }
-
-    try {
-        // 在原串上从 pos 起搜，避免每次 substr 拷贝
-        auto first = gs->text.cbegin() + static_cast<std::ptrdiff_t>(gs->pos);
-        auto last = gs->text.cend();
-        boost::smatch match;
-        if (!boost::regex_search(first, last, match, *gs->re)) {
-            gs->pos = gs->text.size();
-            return inter::NativeToFakeluaNil(iter_state);
-        }
-
-        gs->pos += static_cast<size_t>(match.position() + match.length());
-        if (match.length() == 0) {
-            // 零宽匹配：前进一位避免死循环
-            gs->pos += 1;
-        }
-
-        if (match.size() > 1) {
-            int groups = static_cast<int>(match.size()) - 1;
-            CVar multi = inter::AllocMultiCVar(iter_state, groups);
-            for (int i = 0; i < groups; ++i) {
-                inter::SetMultiCVarElement(multi, i, inter::NativeToFakeluaStringView(iter_state, match[i + 1].str()));
+    const size_t slen = gs->text.size();
+    size_t pos = (gs->prev == std::numeric_limits<size_t>::max()) ? 0 : gs->prev;
+    // gmatch 不像 gsub/find 有锚定概念：模式里的 '^' 是普通字符。
+    const char *src = gs->text.data();
+    const char *pat = gs->pattern.c_str();
+    while (pos <= slen) {
+        lua_pattern::MatchResult m;
+        if (lua_pattern::MatchAt(src, slen, pat, gs->pattern.size(), pos, m, /*leading_caret_is_anchor=*/false)) {
+            const size_t mend = static_cast<size_t>(m.end - src);
+            // 零宽匹配只在「不是紧跟上一个产出位置」时产出，否则跳过一位，
+            // 避免重复空匹配（PUC-Rio gmatch_iter 语义）。
+            if (mend != pos || pos != gs->prev) {
+                gs->prev = mend;
+                CheckCapturesFinished(m);
+                if (m.level > 0) {
+                    CVar multi = inter::AllocMultiCVar(iter_state, m.level);
+                    for (int i = 0; i < m.level; ++i) {
+                        inter::SetMultiCVarElement(multi, i, CaptureToCVar(iter_state, src, m, i));
+                    }
+                    return multi;
+                }
+                return inter::NativeToFakeluaStringView(iter_state, std::string_view(m.begin, static_cast<size_t>(m.end - m.begin)));
             }
-            return multi;
         }
-        return inter::NativeToFakeluaStringView(iter_state, match[0].str());
-    } catch (const boost::regex_error &) {
-        return inter::NativeToFakeluaNil(iter_state);
+        ++pos;
     }
+    gs->prev = std::numeric_limits<size_t>::max();// 标记迭代结束
+    return inter::NativeToFakeluaNil(iter_state);
 }
 
 std::string_view GetStringArgView(CVar a, std::string &temp) {
@@ -1247,9 +1261,9 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     // string.find(s, pattern [, init [, plain]])
-    // 在 s 中查找 pattern（ECMAScript 正则），返回起始位置与结束位置（1-based）。
-    // 若 pattern 含捕获组，则后续返回值依次为各捕获。
-    // 若 plain 为 true，则退化为纯子串查找（忽略正则元字符）。
+    // 在 s 中查找 Lua 模式 pattern，返回起始位置与结束位置（1-based）。
+    // 若 pattern 含捕获，则后续返回值依次为各捕获。
+    // 若 plain 为 true，则退化为纯子串查找（忽略模式元字符）。
     // 找不到时返回 nil。
     RegisterNativeFunction(s, "string.find", 2, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaNil(state);
@@ -1294,31 +1308,19 @@ void RegisterStringLibraryApi(State *s) {
             return multi;
         }
 
-        const boost::regex *re = GetCachedRegex(pat_view);
-        if (!re) return inter::NativeToFakeluaNil(state);
-
-        try {
-            boost::smatch match;
-            if (!boost::regex_search(sub, match, *re)) return inter::NativeToFakeluaNil(state);
-
-            int64_t start = init_pos + static_cast<int64_t>(match.position());
-            int64_t end = start + static_cast<int64_t>(match.length()) - 1;
-            int captures = static_cast<int>(match.size()) - 1;// 捕获组数
-            int total = 2 + captures;                         // start, end, + 捕获
-            CVar multi = inter::AllocMultiCVar(state, total);
-            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaInt(state, start));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, end));
-            for (int i = 0; i < captures; ++i) {
-                inter::SetMultiCVarElement(multi, i + 2, inter::NativeToFakeluaStringView(state, match[i + 1].str()));
-            }
-            return multi;
-        } catch (const boost::regex_error &) {
+        // Lua 模式匹配：在原串上从 init_pos-1 起扫描（位置 1-based 由 BuildFindResult 处理）。
+        // 非法模式直接抛错（与 Lua 的 malformed pattern 一致）。
+        lua_pattern::MatchResult m;
+        if (!lua_pattern::Search(sv.data(), static_cast<size_t>(len), pat_view.data(), pat_view.size(),
+                                 static_cast<size_t>(init_pos - 1), m)) {
             return inter::NativeToFakeluaNil(state);
         }
+        return BuildFindResult(state, sv.data(), m);
     });
 
     // string.match(s, pattern [, init])
-    // 与 string.find 相似，但不返回位置；仅返回捕获（或整个匹配，若无捕获组）。
+    // 与 find 一样从 init 起搜索，只是不返回位置；前导 '^' 锚定到 init 点。
+    // 有捕获返回所有捕获（位置捕获为整数），无捕获返回整个匹配。
     RegisterNativeFunction(s, "string.match", 2, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
@@ -1342,33 +1344,27 @@ void RegisterStringLibraryApi(State *s) {
         if (init_pos > len + 1) {
             return inter::NativeToFakeluaNil(state);
         }
-        std::string sub = std::string(sv.substr(static_cast<size_t>(init_pos - 1)));
 
-        const boost::regex *re = GetCachedRegex(pat_view);
-        if (!re) return inter::NativeToFakeluaNil(state);
-
-        try {
-            boost::smatch match;
-            if (!boost::regex_search(sub, match, *re)) return inter::NativeToFakeluaNil(state);
-
-            if (match.size() > 1) {
-                // 有捕获组：返回所有捕获
-                int groups = static_cast<int>(match.size()) - 1;
-                CVar multi = inter::AllocMultiCVar(state, groups);
-                for (int i = 0; i < groups; ++i) {
-                    inter::SetMultiCVarElement(multi, i, inter::NativeToFakeluaStringView(state, match[i + 1].str()));
-                }
-                return multi;
-            }
-            // 无捕获组：返回整个匹配
-            return inter::NativeToFakeluaStringView(state, match[0].str());
-        } catch (const boost::regex_error &) {
+        lua_pattern::MatchResult m;
+        // Search 内部会处理前导 '^' 的锚定；无 '^' 时从 init 起逐位搜索。
+        if (!lua_pattern::Search(sv.data(), static_cast<size_t>(len), pat_view.data(), pat_view.size(),
+                                 static_cast<size_t>(init_pos - 1), m)) {
             return inter::NativeToFakeluaNil(state);
         }
+        if (m.level > 0) {
+            CheckCapturesFinished(m);
+            CVar multi = inter::AllocMultiCVar(state, m.level);
+            for (int i = 0; i < m.level; ++i) {
+                inter::SetMultiCVarElement(multi, i, CaptureToCVar(state, sv.data(), m, i));
+            }
+            return multi;
+        }
+        return inter::NativeToFakeluaStringView(state, std::string_view(m.begin, static_cast<size_t>(m.end - m.begin)));
     });
 
     // string.gmatch(s, pattern)
-    // 返回一个迭代器闭包；每次调用返回下一个匹配（或捕获）。
+    // 返回一个迭代器闭包；每次调用返回下一个匹配（有捕获时返回捕获值）。
+    // 模式惰性解析，非法模式在首次迭代时抛错（与 Lua 一致）。
     RegisterNativeFunction(s, "string.gmatch", 2, false, [](State *state, CVar *args, int n) -> CVar {
         if (n < 2) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
@@ -1379,18 +1375,21 @@ void RegisterStringLibraryApi(State *s) {
         std::string text(GetStringArgView(a0, temp0));
         std::string pattern(GetStringArgView(a1, temp1));
 
-        const boost::regex *re = GetCachedRegex(pattern);
-        if (!re) return inter::NativeToFakeluaNil(state);
-
-        // 使用 arena 分配器分配迭代器状态（re 由全局缓存持有）
+        // 模式语法惰性校验（与 Lua 一致：迭代时才解析），这里只持有副本。
+        // arena 分配迭代器状态（text/pattern 自有副本）。
         auto &alloc = state->GetValueAllocator();
-        GMatchState *gs = alloc.New<GMatchState>(std::move(text), re, 0);
+        GMatchState *gs = alloc.New<GMatchState>();
+        gs->text = std::move(text);
+        gs->pattern = std::move(pattern);
 
         // 使用共享辅助函数创建迭代器闭包
         return MakeIteratorClosure(state, reinterpret_cast<void *>(GMatchIterator), gs);
     });
 
     // string.gsub(s, pattern, repl [, n])
+    // Lua 模式替换。repl 为 string（%0-%9/%% 引用捕获）/ function（收到捕获或整个
+    // 匹配；返回 nil/false 保留原文）/ table（以首个捕获或整个匹配为键查询，nil/false
+    // 保留原文）。前导 '^' 表示只在起点尝试一次。
     RegisterNativeFunction(s, "string.gsub", 3, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 3) return inter::NativeToFakeluaNil(state);
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
@@ -1402,6 +1401,7 @@ void RegisterStringLibraryApi(State *s) {
         std::string temp0, temp1;
         std::string_view sv = GetStringArgView(a0, temp0);
         std::string_view pat_view = GetStringArgView(a1, temp1);
+        const size_t slen = sv.size();
 
         int64_t max_replace = -1;
         if (n >= 4) {
@@ -1416,123 +1416,161 @@ void RegisterStringLibraryApi(State *s) {
         if (repl_var.type_ == static_cast<int>(VarType::Bool)) {
             ThrowFakeluaException("bad argument #3 to 'string.gsub' (string/function/table expected, got boolean)");
         }
-        bool repl_is_table = (repl_var.type_ == static_cast<int>(VarType::Table) && repl_var.data_.t);
-        bool repl_is_closure = (repl_var.type_ == static_cast<int>(VarType::Closure) && repl_var.data_.cl);
+        const bool repl_is_table = (repl_var.type_ == static_cast<int>(VarType::Table) && repl_var.data_.t);
+        const bool repl_is_closure = (repl_var.type_ == static_cast<int>(VarType::Closure) && repl_var.data_.cl);
+        const std::string repl_str = (repl_is_table || repl_is_closure) ? std::string() : std::string(KeyToStringView(repl_var));
 
-        const boost::regex *re = GetCachedRegex(pat_view);
-        if (!re) return inter::NativeToFakeluaNil(state);
+        const bool anchored = !pat_view.empty() && pat_view[0] == '^';
+        const char *eff_pat = pat_view.data() + (anchored ? 1 : 0);
+        const size_t eff_len = pat_view.size() - (anchored ? 1 : 0);
 
-        try {
-            std::string input(sv);
-            std::string result;
-            result.reserve(input.size());
-            int64_t count = 0;
+        std::string result;
+        result.reserve(slen);
+        size_t copied = 0;    // 已拷进 result 的原文位置
+        size_t src = 0;       // 下一次搜索起点
+        size_t prev_end = std::numeric_limits<size_t>::max();// 上一次产出匹配的尾后位置
+        int64_t count = 0;
 
-            auto it = boost::sregex_iterator(input.begin(), input.end(), *re);
-            auto end = boost::sregex_iterator();
-            size_t last_pos = 0;
+        while ((max_replace < 0 || count < max_replace) && src <= slen) {
+            // 从 src 起逐位尝试；与 gmatch 相同的零宽规则：起点处的零宽匹配若紧跟上
+            // 一次产出匹配的尾后位置，则跳过该位继续找（避免相邻空匹配）。
+            lua_pattern::MatchResult m;
+            bool found = false;
+            size_t trial = src;
+            const size_t trial_end = anchored ? src : slen;
+            for (; trial <= trial_end; ++trial) {
+                if (!lua_pattern::MatchAt(sv.data(), slen, eff_pat, eff_len, trial, m)) {
+                    if (anchored) break;
+                    continue;
+                }
+                const size_t mst = static_cast<size_t>(m.begin - sv.data());
+                const size_t men = static_cast<size_t>(m.end - sv.data());
+                if (men == mst && mst == prev_end) {
+                    if (anchored) break;
+                    continue;
+                }
+                found = true;
+                break;
+            }
+            if (!found) break;
+            CheckCapturesFinished(m);
+            const size_t st = static_cast<size_t>(m.begin - sv.data());
+            const size_t en = static_cast<size_t>(m.end - sv.data());
+            src = st;
 
-            for (; it != end; ++it) {
-                if (max_replace >= 0 && count >= max_replace) break;
-                const boost::smatch &match = *it;
-                result.append(input, last_pos, match.position() - last_pos);
+            result.append(sv.data() + copied, st - copied);
 
-                std::string replacement;
-                if (repl_is_closure) {
-                    VarClosure *cl = repl_var.data_.cl;
-                    void *addr = cl->func_ptr;
-                    if (match.size() > 1) {
-                        int call_arg_count = static_cast<int>(match.size()) - 1;
-                        if (call_arg_count > static_cast<int>(kMaxFunctionInputParams)) {
-                            ThrowFakeluaException(std::format("string.gsub: too many capture arguments ({}), max is {}",
-                                                              call_arg_count, kMaxFunctionInputParams));
-                        }
-                        std::vector<CVar> call_args(static_cast<size_t>(call_arg_count));
-                        for (int i = 0; i < call_arg_count; ++i) {
-                            call_args[static_cast<size_t>(i)] = inter::NativeToFakeluaStringView(state, match[i + 1].str());
-                        }
-                        CVar fn_res =
-                                (addr != nullptr) ? inter::DispatchCallClosure(state, cl, call_args.data(), call_arg_count, JIT_TCC) : FlEvalLoadClosure(state, cl, call_arg_count, call_args.data());
-                        if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
-                            ThrowFakeluaException("invalid replacement value (boolean)");
-                        }
-                        if (fn_res.type_ == static_cast<int>(VarType::Nil)) {
-                            replacement = match[0].str();
-                        } else {
-                            replacement = std::string(KeyToStringView(fn_res));
-                        }
-                    } else {
-                        CVar call_arg = inter::NativeToFakeluaStringView(state, match[0].str());
-                        CVar fn_res = (addr != nullptr) ? inter::DispatchCallClosure(state, cl, &call_arg, 1, JIT_TCC) : FlEvalLoadClosure(state, cl, 1, &call_arg);
-                        if (fn_res.type_ == static_cast<int>(VarType::Bool) || fn_res.type_ == static_cast<int>(VarType::Table)) {
-                            ThrowFakeluaException("invalid replacement value (boolean)");
-                        }
-                        if (fn_res.type_ == static_cast<int>(VarType::Nil)) {
-                            replacement = match[0].str();
-                        } else {
-                            replacement = std::string(KeyToStringView(fn_res));
-                        }
-                    }
-                } else if (repl_is_table) {
-                    std::string gsub_key = (match.size() > 1) ? match[1].str() : match[0].str();
-                    // 必须走完整表查找（spec + quick XOR buckets）。只扫 quick_data_
-                    // 会在 rehash 后漏掉第 9 个及之后的键，整段匹配原样留下。
-                    CVar val = table::TableHelper::GetTableStrId(state, repl_var, gsub_key.c_str());
+            const std::string_view whole(m.begin, en - st);
+            std::string replacement;
+            bool keep_original = false;
 
-                    if (val.type_ == static_cast<int>(VarType::Nil)) {
-                        replacement = match[0].str();
-                    } else if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                        ThrowFakeluaException("invalid replacement value (boolean)");
-                    } else {
-                        replacement = std::string(KeyToStringView(val));
+            if (repl_is_closure) {
+                VarClosure *cl = repl_var.data_.cl;
+                const int call_arg_count = (m.level > 0) ? m.level : 1;
+                if (call_arg_count > static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("string.gsub: too many capture arguments ({}), max is {}",
+                                                      call_arg_count, kMaxFunctionInputParams));
+                }
+                std::vector<CVar> call_args(static_cast<size_t>(call_arg_count));
+                if (m.level > 0) {
+                    for (int i = 0; i < call_arg_count; ++i) {
+                        call_args[static_cast<size_t>(i)] = CaptureToCVar(state, sv.data(), m, i);
                     }
                 } else {
-                    // 字符串替换：支持 $1 $2 ... $& $` $' $$
-                    std::string repl_str(KeyToStringView(repl_var));
-                    replacement.clear();
-                    for (size_t i = 0; i < repl_str.size(); ++i) {
-                        if (repl_str[i] == '$' && i + 1 < repl_str.size()) {
-                            char next = repl_str[i + 1];
-                            if (next == '$') {
-                                replacement.push_back('$');
-                                i++;
-                            } else if (next == '&') {
-                                replacement += match[0].str();
-                                i++;
-                            } else if (next == '`') {
-                                replacement += match.prefix().str();
-                                i++;
-                            } else if (next == '\'') {
-                                replacement += match.suffix().str();
-                                i++;
-                            } else if (next >= '1' && next <= '9') {
-                                int idx = next - '1' + 1;
-                                if (idx < static_cast<int>(match.size())) {
-                                    replacement += match[idx].str();
-                                }
-                                i++;
-                            } else {
-                                replacement.push_back(repl_str[i]);
-                            }
-                        } else {
-                            replacement.push_back(repl_str[i]);
+                    call_args[0] = inter::NativeToFakeluaStringView(state, whole);
+                }
+                // 在发起 gsub 的引擎里同步调用替换函数（与 pool:with 同理）。
+                CVar fn_res = (cl->func_ptr != nullptr)
+                                      ? inter::DispatchCallClosure(state, cl, call_args.data(), call_arg_count, state->CurrentJit())
+                                      : FlEvalLoadClosure(state, cl, call_arg_count, call_args.data());
+                if (fn_res.type_ == static_cast<int>(VarType::Nil) ||
+                    (fn_res.type_ == static_cast<int>(VarType::Bool) && !fn_res.data_.b)) {
+                    keep_original = true;
+                } else if (fn_res.type_ == static_cast<int>(VarType::Bool)) {
+                    ThrowFakeluaException("invalid replacement value (a boolean)");
+                } else if (fn_res.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("invalid replacement value (a table)");
+                } else {
+                    replacement = std::string(KeyToStringView(fn_res));
+                }
+            } else if (repl_is_table) {
+                CVar val;
+                if (m.level > 0) {
+                    const auto &cap0 = m.caps[0];
+                    if (cap0.len == lua_pattern::kCapPosition) {
+                        val = table::TableHelper::GetTableInt(state, repl_var, static_cast<int64_t>(cap0.init - sv.data()) + 1);
+                    } else {
+                        std::string key(cap0.init, static_cast<size_t>(cap0.len));
+                        val = table::TableHelper::GetTableStrId(state, repl_var, key.c_str());
+                    }
+                } else {
+                    std::string key(whole);
+                    val = table::TableHelper::GetTableStrId(state, repl_var, key.c_str());
+                }
+                if (val.type_ == static_cast<int>(VarType::Nil) ||
+                    (val.type_ == static_cast<int>(VarType::Bool) && !val.data_.b)) {
+                    keep_original = true;
+                } else if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("invalid replacement value (a boolean)");
+                } else {
+                    replacement = std::string(KeyToStringView(val));
+                }
+            } else {
+                // 字符串替换：%0=整个匹配，%1-%9=捕获，%%=百分号，其余 %x 报错。
+                for (size_t i = 0; i < repl_str.size(); ++i) {
+                    if (repl_str[i] != '%') {
+                        replacement.push_back(repl_str[i]);
+                        continue;
+                    }
+                    if (i + 1 >= repl_str.size()) {
+                        ThrowFakeluaException("invalid use of '%' in replacement string");
+                    }
+                    const char next = repl_str[++i];
+                    if (next == '%') {
+                        replacement.push_back('%');
+                    } else if (next == '0') {
+                        replacement.append(whole.data(), whole.size());
+                    } else if (next >= '1' && next <= '9') {
+                        const int idx = next - '1';
+                        if (idx >= m.level) {
+                            ThrowFakeluaException(std::format("invalid capture index %{}", idx + 1));
                         }
+                        replacement.append(CaptureToLuaString(sv.data(), m, idx));
+                    } else {
+                        ThrowFakeluaException(std::format("invalid use of '%{}' in a replacement string", next));
                     }
                 }
-
-                result += replacement;
-                last_pos = match.position() + match.length();
-                count++;
             }
-            result.append(input, last_pos, std::string::npos);
 
-            CVar multi = inter::AllocMultiCVar(state, 2);
-            inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaStringView(state, result));
-            inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, count));
-            return multi;
-        } catch (const boost::regex_error &) {
-            return inter::NativeToFakeluaNil(state);
+            if (keep_original) {
+                result.append(whole.data(), whole.size());
+            } else {
+                result += replacement;
+            }
+            ++count;
+            prev_end = en;
+
+            if (en == st) {
+                // 零宽匹配：保留当前字节（若有），下一轮从后一位置继续，避免死循环。
+                if (st < slen) {
+                    result.push_back(sv[st]);
+                    copied = st + 1;
+                } else {
+                    copied = en;
+                }
+                src = en + 1;
+            } else {
+                copied = en;
+                src = en;
+            }
+            if (anchored) break;
         }
+        result.append(sv.data() + copied, slen - copied);
+
+        CVar multi = inter::AllocMultiCVar(state, 2);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaStringView(state, result));
+        inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(state, count));
+        return multi;
     });
 
     RegisterNativeFunction(s, "string.dump", 1, true, [](State *state, CVar *args, int n) -> CVar {

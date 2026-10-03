@@ -1,9 +1,9 @@
 package "StringGsubCases"
 
--- 测试 string.gsub 函数替换
+-- 测试 string.gsub 函数替换（Lua 模式 %w+ 字母数字序列）
 function test_gsub_function()
     local s = "hello world"
-    local r = string.gsub(s, "\\w+", function(w)
+    local r = string.gsub(s, "%w+", function(w)
         return string.upper(w)
     end)
     if r ~= "HELLO WORLD" then return 0 end
@@ -14,7 +14,7 @@ end
 function test_gsub_table()
     local s = "a b"
     local t = { a = "x", b = "y" }
-    local r = string.gsub(s, "(\\w+)", t)
+    local r = string.gsub(s, "(%w+)", t)
     if r ~= "x y" then return 0 end
     return 1
 end

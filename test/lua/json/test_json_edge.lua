@@ -260,8 +260,8 @@ end
 -- 测试 JSON 编码：空数组字段嵌在对象里
 function test_encode_empty_array_field()
     local s = json.encode({ type = "rank", list = {} })
-    -- 空 list 字段应为 "list":[] 而不是 "list":{}（string.find 为 ECMAScript 正则，[ 需转义）
-    if not string.find(s, '"list":\\[\\]') then return 0 end
+    -- 空 list 字段应为 "list":[] 而不是 "list":{}（Lua 模式下 [ ] 用 % 转义）
+    if not string.find(s, '"list":%[%]') then return 0 end
     return 1
 end
 

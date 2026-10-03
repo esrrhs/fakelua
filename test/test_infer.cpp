@@ -4521,6 +4521,25 @@ TEST(infer, test_jitbug_reserved_func_name) {
     });
 }
 
+// P1-9：while 条件里的 #t / 函数调用 / 表索引 / 整数整除取模必须每轮重新求值。
+// 这些操作数经 CompileNumericExp 会输出「while 之外只求值一次的语句 + 临时变量」，
+// 必须回退到每轮重新 CompileExp 条件的通用 while(1) 路径；纯简单变量条件则仍保留
+// 原生 while 快速路径（检查生成 C 代码）。
+TEST(infer, test_jitbug_while_cond_reval) {
+    const auto code = InferGetCCode("./infer/test_jitbug_while_cond_reval.lua");
+    // 不纯条件走通用路径。
+    ASSERT_NE(code.find("while (1) {"), std::string::npos);
+    // 纯简单变量条件仍是原生 while 比较（无 IsTrue 临时 bool）。
+    ASSERT_NE(code.find("while ((x) < (10)) {"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_jitbug_while_cond_reval.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
 TEST(infer, test_spec_literal_keys) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_literal_keys.lua", {.debug_mode = debug_mode});
