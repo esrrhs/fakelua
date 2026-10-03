@@ -20,12 +20,12 @@ function test_string_find()
     local h, i = string.find(s, "o", 1, true)
     if h ~= 5 or i ~= 5 then return 3 end
 
-    -- 正则捕获组 (ECMAScript 语法)
-    local j, k, cap = string.find(s, "([a-zA-Z]+) ([a-zA-Z]+)")
+    -- Lua 模式捕获组
+    local j, k, cap = string.find(s, "(%a+) (%a+)")
     if j ~= 1 or k ~= 11 or cap ~= "hello" then return 4 end
 
     -- 多个捕获组
-    local l, m, c1, c2 = string.find(s, "([a-zA-Z]+) ([a-zA-Z]+)")
+    local l, m, c1, c2 = string.find(s, "(%a+) (%a+)")
     if l ~= 1 or m ~= 11 or c1 ~= "hello" or c2 ~= "world" then return 5 end
 
     -- 数字参数隐式转换 (Lua 标准规范)

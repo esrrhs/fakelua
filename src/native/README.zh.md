@@ -11,7 +11,7 @@
 | basic | `basic/` | 全局函数：`print`、`type`、`tostring`、`tonumber`、`select`、`error`、`assert`、`pcall`、`xpcall`、`next`、`pairs`、`ipairs`、`collectgarbage` |
 | math | `math/` | 数学函数：算术、三角、指数/对数、随机数、常量、特殊函数 |
 | table | `table/` | 表操作：`insert`、`remove`、`concat`、`sort`、`pack`、`unpack`、`move`、`create` |
-| string | `string/` | 字符串操作：子串、大小写、trim/split/join/replace、模式匹配（ECMAScript 正则）、格式化、二进制 pack/unpack、序列化 |
+| string | `string/` | 字符串操作：子串、大小写、trim/split/join/replace、Lua 模式匹配、格式化、二进制 pack/unpack、序列化 |
 | os | `os/` | 系统接口：时间、日期、环境变量、文件操作、进程执行（Windows 上路径走 Boost.Nowide UTF-8） |
 | utf8 | `utf8/` | UTF-8 编解码：`char`、`codepoint`、`codes`、`len`、`offset` |
 | io | `io/` | 文件 IO：open、close、read、write、seek、popen、标准流 |
@@ -180,10 +180,10 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `string.byte(s, [i, [j]])` | vararg | 范围内的字节值 |
 | `string.char(...)` | vararg | 编码点 0-255 转字符 |
 | `string.format(fmt, ...)` | vararg | 格式化输出（支持 `%s %d %i %u %x %X %o %f %e %E %g %G %c %q %p`） |
-| `string.find(s, pattern, [init, [plain]])` | vararg | 正则或纯子串查找；返回位置 + 捕获 |
-| `string.match(s, pattern, [init])` | vararg | 正则匹配；返回捕获或完整匹配 |
-| `string.gmatch(s, pattern)` | 2 | 正则匹配迭代器 |
-| `string.gsub(s, pattern, repl, [n])` | vararg | 正则替换；支持字符串/函数/表替换 |
+| `string.find(s, pattern, [init, [plain]])` | vararg | Lua 模式或纯子串查找；返回位置 + 捕获 |
+| `string.match(s, pattern, [init])` | vararg | Lua 模式匹配；返回捕获或完整匹配 |
+| `string.gmatch(s, pattern)` | 2 | Lua 模式匹配迭代器 |
+| `string.gsub(s, pattern, repl, [n])` | vararg | Lua 模式替换；支持字符串（`%0`-`%9`、`%%`）/函数/表替换 |
 | `string.dump(f, [strip])` | vararg | 将闭包序列化为二进制字符串 |
 | `load(source, ...)` | vararg | 编译 Lua 源码为闭包 |
 | `loadstring(s, ...)` | vararg | `load` 别名 |
@@ -192,7 +192,7 @@ JIT 的错误边界链（`jit_error_boundary.h`）也挂在 `State` 上：链顶
 | `string.packsize(fmt)` | 1 | 计算格式打包后大小 |
 | `string.unpack(fmt, s, [pos])` | vararg | 二进制解包（Lua 5.3 格式；`<`/`>`/`=` 由 Boost.Endian 处理） |
 
-> ⚠️ `string.find`/`match`/`gmatch`/`gsub` 底层使用 **ECMAScript 正则**（`boost::regex::ECMAScript`），而非 Lua pattern。参见主 README 的[正则匹配](../README.md#regex-matching-uses-ecmascript-syntax-not-lua-patterns)章节。
+> `string.find`/`match`/`gmatch`/`gsub` 遵循 **Lua 5.4 模式**（自包含匹配器在 `string/lua_pattern.*`）：`%` 转义（`%.`、`%d`、`%w` 等）、字符类、自定义集合、`* + - ?` 量词、`^`/`$` 锚点、嵌套/位置捕获与反向引用、前沿模式 `%f[set]`、平衡匹配 `%bxy`，gsub 替换串支持 `%0`-`%9` / `%%`。函数/表替换返回 `nil`/`false` 时保留原匹配；非法模式直接报错（可被 `pcall` 捕获），而不是静默返回不匹配。它**不是** POSIX/ECMAScript 正则：没有分支交替，转义用 `%` 而非 `\`。
 
 ---
 

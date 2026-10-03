@@ -1,9 +1,9 @@
 package "StringFindCases"
 
--- 测试 string.find 正则捕获（fakelua 使用 ECMAScript 正则语法）
+-- 测试 string.find Lua 模式捕获
 function test_find_capture()
     local s = "hello world 123"
-    local start, finish, cap = string.find(s, "(\\d+)")
+    local start, finish, cap = string.find(s, "(%d+)")
     if start == nil then return 0 end
     if cap ~= "123" then return 0 end
     return 1

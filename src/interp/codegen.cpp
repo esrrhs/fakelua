@@ -1445,18 +1445,46 @@ int InterpCodegen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                     }
                 }
                 if (base_var->GetName() == "string" && name == "charpattern") {
+                    // Lua 5.4：[\0-\255]，匹配任意单字节。
+                    static const std::string kCharPattern = [] {
+                        std::string p = "[";
+                        p.push_back('\0');
+                        p.push_back('-');
+                        p.push_back(static_cast<char>(0xFF));
+                        p.push_back(']');
+                        return p;
+                    }();
                     const int r = AllocReg();
                     CVar s{};
                     s.type_ = static_cast<int>(VarType::StringId);
-                    s.data_.i = s_->GetConstString().Alloc("[^%z]");
+                    s.data_.i = s_->GetConstString().Alloc(kCharPattern);
                     LoadConstTo(r, s);
                     return r;
                 }
                 if (base_var->GetName() == "utf8" && name == "charpattern") {
+                    // Lua 5.4 utf8.charpattern：由原始字节构成的 Lua 模式
+                    // [\0-\x7F\xC2-\xF4][\x80-\xBF]*（非字面 \xHH）。
+                    static const std::string kUtf8Pattern = [] {
+                        std::string p = "[";
+                        p.push_back('\0');
+                        p.push_back('-');
+                        p.push_back(static_cast<char>(0x7F));
+                        p.push_back(static_cast<char>(0xC2));
+                        p.push_back('-');
+                        p.push_back(static_cast<char>(0xF4));
+                        p.push_back(']');
+                        p.push_back('[');
+                        p.push_back(static_cast<char>(0x80));
+                        p.push_back('-');
+                        p.push_back(static_cast<char>(0xBF));
+                        p.push_back(']');
+                        p.push_back('*');
+                        return p;
+                    }();
                     const int r = AllocReg();
                     CVar s{};
                     s.type_ = static_cast<int>(VarType::StringId);
-                    s.data_.i = s_->GetConstString().Alloc("[\\x00-\\x7F\\xC2-\\xF4][\\x80-\\xBF]*");
+                    s.data_.i = s_->GetConstString().Alloc(kUtf8Pattern);
                     LoadConstTo(r, s);
                     return r;
                 }

@@ -127,7 +127,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **Package 包管理**：`package "Name"` 命名空间隔离，零 `require` 跨模块互调。
 - **全局变量复杂初始化**：文件级变量支持任意复杂表达式初始化器，在生成的 `__fakelua_init()` 中执行。
 - **NativeObject 与 C++ 互操作**：支持组粒度 Arena 批量释放、C++ 成员方法 `RegisterMethod` 绑定、冒号语法调用。
-- **ECMAScript 正则**：`string.find`/`match`/`gmatch`/`gsub` 底层使用 Boost.Regex（支持前瞻、交替、非贪婪等能力，强于 Lua pattern）。
+- **Lua 5.4 模式匹配**：`string.find`/`match`/`gmatch`/`gsub` 使用自包含的 Lua 模式引擎（`%d`/`%w` 字符类、自定义集合、惰性 `-`、捕获、前沿 `%f[set]`、平衡 `%bxy`），与标准 Lua 完全兼容。
 - **字符串算法**：`string.trim`/`trim_left`/`trim_right`/`split`/`join`/`replace`/`starts_with`/`ends_with`/`contains`/`iequals`/`icontains`/`istarts_with`/`iends_with` 底层使用 Boost.Algorithm。
 
 ### 未支持
@@ -157,29 +157,29 @@ FakeLua 在 `src/native/` 下提供 30+ 个独立 C++ 原生模块（每个 `Sta
 | 日志 | `log`（级别、分类标签输出、文件滚动） |
 | 对象 | `object`（NativeObject Lua 侧 API） |
 
-> ⚠️ `string.find`/`match`/`gmatch`/`gsub` 底层使用 **ECMAScript 正则**（`boost::regex::ECMAScript`），而非 Lua pattern。从标准 Lua 迁移时需改写模式串。
+> `string.find`/`match`/`gmatch`/`gsub` 使用 **Lua 5.4 模式**（自包含字节模式引擎，位于 `src/native/string/lua_pattern.*`），不是 ECMAScript/POSIX 正则。
 
-### 正则匹配：ECMAScript 语法
+### Lua 模式匹配
 
-| 用途 | Lua pattern | FakeLua（ECMAScript 正则） |
-|---|---|---|
-| 数字 | `%d` | `\\d` |
-| 字母 | `%a` | `[A-Za-z]` |
-| 字母或数字 | `%w` | `[A-Za-z0-9]`（注意 `\\w` 额外包含 `_`） |
-| 空白 | `%s` | `\\s` |
-| 惰性重复 | `-`（如 `.-`） | `?`（如 `.*?`） |
-| 替换串捕获引用 | `%1`、`%0` | `$1`、`$&` |
+`string.find`/`match`/`gmatch`/`gsub` 严格遵循 PUC-Rio Lua 5.4 语义，包括：
 
-> Lua 字符串中 `\d` 不是合法转义，正则里的反斜杠需写成 `"\\d+"`。FakeLua 不支持 `[[...]]` 长字符串。
->
-> 兼容写法：用 `[0-9]+` 代替 `%d+`，`[A-Za-z]+` 代替 `%a+`，两种引擎语义一致。
+- **转义**：标点用 `%.` `%(` `%)` `%%` `%+` 等；`.` 匹配任意单字节。
+- **字符类**：`%a %c %d %g %l %p %s %u %w %x`，大写取反；`%z` 匹配零字节。
+- **集合/区间**：`[set]`、`[^set]`、`[a-z]`、集合内嵌字符类（`[%d_]`）、开头的 `]`/`-` 按字面量处理。
+- **量词**：`* + - ?`，含 Lua 独有的惰性 `-`（`a.-b`）。
+- **锚点**：模式开头的 `^` 与末尾的 `$`。
+- **捕获**：嵌套 `(...)`、位置捕获 `()`、模式内反向引用 `%1`…，gsub 替换串 `%0`…`%9` 与 `%%`。
+- **前沿模式** `%f[set]` 与**平衡匹配** `%bxy`。
+- **gsub**：替换值可为字符串/函数/表；函数或表返回 `nil`/`false` 时保留原匹配；`find` 的 `plain=true` 跳过模式引擎。
+- **非法模式直接报错**（可被 `pcall` 捕获），而不是静默返回不匹配。
 
-主要差异：
+```lua
+string.match("limit=15", "%d+")                          --> "15"
+string.gsub("hello world", "(%w+) (%w+)", "%2 %1")      --> "world hello", 1
+string.match("a(b(c)d)e", "%b()")                       --> "(b(c)d)"
+```
 
-- **`gsub` 替换串**使用 JS 风格：`$1`…`$9`、`$&`、`` $` ``、`$'`、`$$`
-- **非法模式串不抛异常**：`boost::regex_error` 被捕获后返回 `nil`
-- **`plain` 参数**：传 `true` 退化为纯子串查找，绕过正则引擎，是最快路径
-- **性能**：正则路径慢于 Lua 原生 pattern，热路径建议优先用 `plain` 查找
+> Lua 模式**不是**正则：没有分支交替（`a|b`），转义前缀是 `%` 而非 `\`。为旧 ECMAScript 行为写的脚本（如 `"\\d+"`、`$1` 替换）需改写为 Lua 写法（`"%d+"`、`"%1"`）。
 
 ## 快速上手
 

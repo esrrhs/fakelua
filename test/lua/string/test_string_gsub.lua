@@ -15,17 +15,17 @@ function test_string_gsub()
     local s4, cnt4 = string.gsub("hello", "xyz", "abc")
     if s4 ~= "hello" or cnt4 ~= 0 then return 0 end
 
-    -- 正则捕获 + $1 引用 (ECMAScript 语法)
-    local s5 = string.gsub("hello world", "([a-zA-Z]+) ([a-zA-Z]+)", "$2 $1")
+    -- Lua 模式捕获 + %1/%2 引用
+    local s5 = string.gsub("hello world", "(%a+) (%a+)", "%2 %1")
     if s5 ~= "world hello" then return 0 end
 
-    -- 表替换 (ECMAScript 语法)
+    -- 表替换（Lua 模式 %a）
     local t = { a = "A", b = "B" }
-    local s6 = string.gsub("a b c", "[a-z]", t)
+    local s6 = string.gsub("a b c", "%a", t)
     if s6 ~= "A B c" then return 0 end
 
     -- 函数替换 + 捕获组正确传递测试
-    local s7 = string.gsub("hello 123 world", "(\\d+)", function(cap1)
+    local s7 = string.gsub("hello 123 world", "(%d+)", function(cap1)
         return "[" .. cap1 .. "]"
     end)
     if s7 ~= "hello [123] world" then return 0 end
@@ -37,7 +37,7 @@ function test_string_gsub()
         gsub_big["k" .. gsub_i] = "v" .. gsub_i
         gsub_i = gsub_i + 1
     end
-    local s8 = string.gsub("k1 k9 k15 kx", "k\\d+", gsub_big)
+    local s8 = string.gsub("k1 k9 k15 kx", "k%d+", gsub_big)
     if s8 ~= "v1 v9 v15 kx" then return 0 end
 
     -- 捕获组超过旧的 16 槽上限时，第 17 个参数会被丢掉
