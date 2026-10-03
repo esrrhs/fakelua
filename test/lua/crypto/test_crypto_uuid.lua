@@ -12,11 +12,18 @@ function test_uuid()
         print("uuid not unique:", a)
         return 0
     end
-    if not string.find(a, "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$") then
+    -- Lua 模式没有 {n} 量词，按 RFC 段长重复字符类；段间连字符是元字符 '-'
+    -- （惰性量词），字面连字符必须写 %-。
+    local hex8 = "%x%x%x%x%x%x%x%x"
+    local hex4 = "%x%x%x%x"
+    local hex3 = "%x%x%x"
+    local hex12 = "%x%x%x%x%x%x%x%x%x%x%x%x"
+    local uuid_pat = "^" .. hex8 .. "%-" .. hex4 .. "%-4" .. hex3 .. "%-[89ab]" .. hex3 .. "%-" .. hex12 .. "$"
+    if not string.find(a, uuid_pat) then
         print("uuid format:", a)
         return 0
     end
-    if not string.find(b, "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$") then
+    if not string.find(b, uuid_pat) then
         print("uuid format:", b)
         return 0
     end

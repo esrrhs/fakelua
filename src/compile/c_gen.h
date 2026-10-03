@@ -178,8 +178,17 @@ private:
     std::string CompileNumericExp(const SyntaxTreeInterfacePtr &exp);
     // 尝试将指定表达式编译为高效的 C 原生运算符直接计算（如直接输出 `a + b`，规避动态重载）
     std::string TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp);
-    // 尝试将表达式直接编译为原生的布尔值比较/运算
-    std::string TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp);
+    // 尝试将表达式直接编译为原生的布尔值比较/运算。
+    // require_pure=true 用于 while 循环条件：两侧操作数必须能编译为不输出任何语句的
+    // 纯 C 表达式。#t、函数调用、整数整除/取模等会被 CompileNumericExp 编译成
+    // 「语句 + 临时变量」，而这些语句落在生成的 while 之外、只求值一次，导致条件
+    // 读取陈旧值（违反 Lua 每轮重新求值条件的语义）；此时返回空，由调用方回退到
+    // while(1){ 重新 CompileExp 条件 } 的通用路径。
+    std::string TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp, bool require_pure = false);
+    // 判定表达式能否被 CompileNumericExp 编译为不输出语句、可直接嵌入循环条件的纯 C
+    // 表达式（每轮读取 C 变量/字面量即重新求值）。判定口径必须与 CompileNumericExp、
+    // CompileRawNativeArithBinop、CompileRawNativeUnop 的语句发射点严格一致。
+    [[nodiscard]] bool IsPureNativeNumericExp(const SyntaxTreeInterfacePtr &exp) const;
     // 尝试对强类型数学特化库调用（如 math.sin, math.cos）进行原生直接映射优化
     std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
 

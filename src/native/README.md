@@ -13,7 +13,7 @@ Detailed API reference for all built-in native libraries. Each module lives in i
 | basic | `basic/` | Global functions: `print`, `type`, `tostring`, `tonumber`, `select`, `error`, `assert`, `pcall`, `xpcall`, `next`, `pairs`, `ipairs`, `collectgarbage` |
 | math | `math/` | Math functions: arithmetic, trigonometry, exponential/logarithm, random, constants, special functions |
 | table | `table/` | Table operations: `insert`, `remove`, `concat`, `sort`, `pack`, `unpack`, `move`, `create` |
-| string | `string/` | String operations: substring, case, trim/split/join/replace, pattern matching (ECMAScript regex), formatting, binary pack/unpack, serialization |
+| string | `string/` | String operations: substring, case, trim/split/join/replace, Lua pattern matching, formatting, binary pack/unpack, serialization |
 | os | `os/` | OS interface: time, date, environment, file operations, process execution (UTF-8 paths via Boost.Nowide on Windows) |
 | utf8 | `utf8/` | UTF-8 encoding/decoding: `char`, `codepoint`, `codes`, `len`, `offset` |
 | io | `io/` | File I/O: open, close, read, write, seek, popen, standard streams |
@@ -184,10 +184,10 @@ There are no `thread_local` variables left.
 | `string.byte(s, [i, [j]])` | vararg | Byte values in range |
 | `string.char(...)` | vararg | Characters from code points 0-255 |
 | `string.format(fmt, ...)` | vararg | Formatted output (supports `%s %d %i %u %x %X %o %f %e %E %g %G %c %q %p`) |
-| `string.find(s, pattern, [init, [plain]])` | vararg | Regex or plain substring search; returns positions + captures |
-| `string.match(s, pattern, [init])` | vararg | Regex match; returns captures or full match |
-| `string.gmatch(s, pattern)` | 2 | Iterator for regex matches |
-| `string.gsub(s, pattern, repl, [n])` | vararg | Regex substitution; supports string/function/table replacements |
+| `string.find(s, pattern, [init, [plain]])` | vararg | Lua pattern or plain substring search; returns positions + captures |
+| `string.match(s, pattern, [init])` | vararg | Lua pattern match; returns captures or full match |
+| `string.gmatch(s, pattern)` | 2 | Iterator for Lua pattern matches |
+| `string.gsub(s, pattern, repl, [n])` | vararg | Lua pattern substitution; supports string (`%0`-`%9`, `%%`)/function/table replacements |
 | `string.dump(f, [strip])` | vararg | Serialize closure to binary string |
 | `load(source, ...)` | vararg | Compile Lua source string into closure |
 | `loadstring(s, ...)` | vararg | Alias for `load` |
@@ -196,7 +196,7 @@ There are no `thread_local` variables left.
 | `string.packsize(fmt)` | 1 | Compute packed size for format |
 | `string.unpack(fmt, s, [pos])` | vararg | Binary unpack (Lua 5.3 format; `<`/`>`/`=` via Boost.Endian) |
 
-> ⚠️ `string.find`/`match`/`gmatch`/`gsub` use **ECMAScript regex** (`boost::regex::ECMAScript`), not Lua patterns. See [Regex Matching](../README.md#regex-matching-uses-ecmascript-syntax-not-lua-patterns) in the main README.
+> `string.find`/`match`/`gmatch`/`gsub` follow **Lua 5.4 patterns** (self-contained matcher in `string/lua_pattern.*`): escapes with `%` (`%.`, `%d`, `%w`, ...), classes, custom sets, `* + - ?` quantifiers, `^`/`$` anchors, nested/position captures with back-references, frontier `%f[set]`, balanced match `%bxy`, and `gsub` replacement strings with `%0`-`%9` / `%%`. A `function`/`table` replacement returning `nil`/`false` keeps the original match. Malformed patterns raise an error (caught by `pcall`) instead of silently returning no match. These are *not* POSIX/ECMAScript regexes: there is no alternation and escapes use `%`, not `\`.
 
 ---
 

@@ -127,7 +127,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **Package modules**: `package "Name"` for namespace isolation, zero-`require` cross-module calls.
 - **Complex global initialization**: Arbitrary expressions as file-level variable initializers, executed in generated `__fakelua_init()`.
 - **NativeObject & C++ interop**: Host-side object mapping with group arena batch release, C++ member method binding via `RegisterMethod`, colon-syntax calls from Lua.
-- **ECMAScript regex**: `string.find`/`match`/`gmatch`/`gsub` via Boost.Regex (supports lookahead, alternation, non-greedy quantifiers — more powerful than Lua patterns).
+- **Lua 5.4 pattern matching**: `string.find`/`match`/`gmatch`/`gsub` use a self-contained Lua-pattern engine (`%d`/`%w` classes, custom sets, lazy `-`, captures, frontier `%f[set]`, balanced `%bxy`), fully compatible with standard Lua.
 - **String algorithms**: `string.trim`/`trim_left`/`trim_right`/`split`/`join`/`replace`/`starts_with`/`ends_with`/`contains`/`iequals`/`icontains`/`istarts_with`/`iends_with` via Boost.Algorithm.
 
 ### Not Supported
@@ -157,30 +157,29 @@ FakeLua provides 30+ independent C++ native modules under `src/native/` (registe
 | Logging | `log` (levels, tagged output, file rotation) |
 | Object | `object` (NativeObject Lua-side API) |
 
-**Regex note:** `string.find`/`match`/`gmatch`/`gsub` use **ECMAScript regex** (`boost::regex::ECMAScript`), not Lua patterns. See [Regex Guide](#regex-matching-ecmascript-syntax-not-lua-patterns) below for migration tips.
+**Pattern note:** `string.find`/`match`/`gmatch`/`gsub` use **Lua 5.4 patterns** (a self-contained byte-pattern engine in `src/native/string/lua_pattern.*`), not ECMAScript/POSIX regex. See [Lua Pattern Matching](#lua-pattern-matching) below.
 
-### Regex Matching: ECMAScript Syntax, Not Lua Patterns
+### Lua Pattern Matching
 
-| Purpose | Lua Pattern | FakeLua (ECMAScript Regex) |
-|---|---|---|
-| Digits | `%d` | `\\d` |
-| Letters | `%a` | `[A-Za-z]` |
-| Alphanumeric | `%w` | `[A-Za-z0-9]` (note `\\w` additionally includes `_`) |
-| Whitespace | `%s` | `\\s` |
-| Escape literal | `%.`, `%%` | `\\.`、`%` |
-| Lazy repeat | `-` (e.g. `.-`) | `?` (e.g. `.*?`) |
-| Backreference in replacement | `%1`, `%0` | `$1`, `$&` |
+`string.find`/`match`/`gmatch`/`gsub` follow PUC-Rio Lua 5.4 semantics exactly, including:
 
-> Since `\d` is not a valid escape in Lua string literals, backslashes in regex patterns must be written as `"\\d+"`. FakeLua does not support `[[...]]` long strings as a workaround.
->
-> For scripts that need to be compatible with both standard Lua and FakeLua, use syntax that has the same semantics in both engines, e.g. `[0-9]+` instead of `%d+`.
+- **Escapes**: `%.` `%(` `%)` `%%` `%+` ... for punctuation; `.` matches any byte.
+- **Classes**: `%a %c %d %g %l %p %s %u %w %x` and their uppercase complements; `%z` matches the zero byte.
+- **Sets/ranges**: `[set]`, `[^set]`, `[a-z]`, classes inside sets (`[%d_]`), leading `]`/`-` as literals.
+- **Quantifiers**: `* + - ?` — including Lua's lazy `-` (`a.-b`).
+- **Anchors**: `^` at pattern start, `$` at pattern end.
+- **Captures**: nested `(...)`, position captures `()`, back-references `%1`… in patterns and `%0`…`%9` + `%%` in `gsub` replacement strings.
+- **Frontier** `%f[set]` and **balanced match** `%bxy`.
+- **`gsub`**: string/function/table replacements; a function/table result of `nil`/`false` keeps the original match; `plain=true` on `find` bypasses the pattern engine.
+- **Malformed patterns raise an error** (caught by `pcall`) instead of silently returning no match.
 
-Key differences:
+```lua
+string.match("limit=15", "%d+")                 --> "15"
+string.gsub("hello world", "(%w+) (%w+)", "%2 %1")  --> "world hello", 1
+string.match("a(b(c)d)e", "%b()")              --> "(b(c)d)"
+```
 
-- **`gsub` replacement strings** use JS-style notation: `$1`…`$9` (capture groups), `$&` (entire match), `` $` `` (text before match), `$'` (text after match), `$$` (literal `$`). Lua's `%1` / `%0` are treated as literal characters here.
-- **Invalid patterns don't throw**: `boost::regex_error` is caught and returns `nil`, so the script doesn't interrupt.
-- **`string.find`'s `plain` parameter** has the same semantics as Lua: passing `true` degrades to pure substring search, completely bypassing the regex engine — also the fastest path.
-- **Performance**: The regex path is significantly slower than Lua's native pattern engine; prefer `plain` search or `string.sub` / `string.byte` basic operations on hot paths.
+> Lua patterns are *not* regular expressions: there is no alternation (`a|b`), and the escape prefix is `%`, not `\`. Scripts written for the old ECMAScript behavior (e.g. `"\\d+"`, `$1` replacements) must be updated to Lua form (`"%d+"`, `"%1"`).
 
 ## Quick Start
 
