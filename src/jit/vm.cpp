@@ -52,6 +52,22 @@ extern "C" void FakeluaJitContextPop(State *s, int prev) {
     s->SetCurrentJit(static_cast<JITType>(prev));
 }
 
+// JIT 生成的 C 代码用它把字符串注册进当前 State 的常量池，返回该 State 内的 ID。
+//
+// 为什么需要：生成代码里若直接内联常量字符串 ID，该 ID 来自进程级递增计数器，
+// 同一份 Lua 每次编译得到的数字都不同。这会让构建不可复现，也让按内容缓存
+// 编译产物永远无法命中。改为在 __fakelua_init 阶段调用本接口取回 ID 并存入
+// 产物里的静态变量，代码其他地方引用该变量即可。
+extern "C" __attribute__((used)) int64_t FakeluaConstStrAlloc(State *s, const char *str) {
+    return s->GetConstString().Alloc(std::string_view(str));
+}
+
+// 含非文本字节的版本（如 string.charpattern 里有 \0 与 0xFF），不能用 C 字符串
+// 字面量传递 —— \0 会截断。显式给长度。
+extern "C" __attribute__((used)) int64_t FakeluaConstStrAllocN(State *s, const char *str, size_t len) {
+    return s->GetConstString().Alloc(std::string_view(str, len));
+}
+
 static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr);
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {

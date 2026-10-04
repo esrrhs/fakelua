@@ -339,6 +339,10 @@ extern CVar FakeluaInterpCall(State *state, VarClosure *cl, int arg_num, const C
 // pop 恢复。native 对象方法等在闭包内执行时据此登记派回本引擎的异步回调。
 extern int FakeluaJitContextPush(State *s, int jit);
 extern void FakeluaJitContextPop(State *s, int prev);
+// 把字符串注册进当前 State 的常量池并返回其 ID。生成代码用它替代内联常量 ID，
+// 使同一份输入编译出相同字节（可复现构建 + 可缓存）。
+extern int64_t FakeluaConstStrAlloc(State *s, const char *str);
+extern int64_t FakeluaConstStrAllocN(State *s, const char *str, size_t len);
 #ifdef __cplusplus
 }
 #endif

@@ -388,6 +388,17 @@ struct StateGCCConfig {
     std::vector<std::string> include_paths;
     std::vector<std::string> library_paths;
     std::vector<std::string> libraries;
+    // 编译产物磁盘缓存（仅 macOS 上有实际收益，详见下方说明）。
+    //
+    // 在 macOS 上，首次 dlopen 某个新路径的 dylib 需要约 4.5~5.4 秒走代码签名验证，
+    // 而同一路径后续加载只要约 0.2 毫秒。当测试或业务反复编译同一份 C 代码时
+    // （例如 6 次 JIT 类型 × debug 模式组合），这笔开销会成倍累积。
+    //
+    // 开启后按「生成的 C 代码 + 编译参数」的摘要缓存 .so，命中时复用同一路径，
+    // 从而命中 dyld 的路径缓存。缓存文件不会自动删除，可手动清理缓存目录。
+    //
+    // 设为 false 可完全关闭（此时行为与之前一致）。
+    bool enable_compile_cache = true;
 };
 
 struct StateConfig {

@@ -38,6 +38,18 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         LOG_DEBUG(s_, "engine", "Registered function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
 
+    // 生成代码里 _S 初值为 nullptr，必须在 init（以及任何函数调用）之前注入。
+    void *set_state_ptr = tcc_get_symbol(s, kSetStateFunctionName);
+    if (!set_state_ptr) {
+        ThrowFakeluaException(std::format("TCC compile failed, tcc_get_symbol failed for symbol {} in {}", kSetStateFunctionName, pr.file_name));
+    }
+    reinterpret_cast<void (*)(void *)>(set_state_ptr)(s_);
+
+    // 注册常量字符串 ID（只有用到字符串表键时才会生成该函数）。
+    if (void *const_init_ptr = tcc_get_symbol(s, kConstInitFunctionName)) {
+        reinterpret_cast<void (*)()>(const_init_ptr)();
+    }
+
     void *init_ptr = tcc_get_symbol(s, kInitFunctionName);
     if (init_ptr) {
         State::ConstAllocScope const_alloc(s_);

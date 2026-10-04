@@ -179,6 +179,76 @@ bool CGen::ClassifyLiteralKey(const SyntaxTreeInterfacePtr &exp, LiteralKeyInfo 
 }
 
 // 核心编译入口函数：为输入的 AST、推断结果及配置生成 C 代码
+// 返回一个「常量字符串 ID 的静态变量名」，并登记注册语句。
+// 见头文件处注释：直接内联 ID 会破坏可复现构建。
+const char *CGen::ConstStrRef(const std::string_view &str) {
+    if (const auto it = const_str_var_of_.find(std::string(str)); it != const_str_var_of_.end()) {
+        return it->second.c_str();
+    }
+
+    // 含 \0 或其他非文本字节时不能用 C 字符串字面量（\0 会截断），自动走字节数组形式。
+    // Lua pattern 字面量里出现 \0 很常见（如 "[\0-\xff]"），所以这个判断不能省。
+    for (const char c: str) {
+        const auto uc = static_cast<unsigned char>(c);
+        if (uc == 0 || uc >= 0x80) {
+            return ConstStrRefBinary(str);
+        }
+    }
+
+    const auto var = "__fl_cstr_" + std::to_string(const_str_var_of_.size());
+    const_str_var_of_.emplace(std::string(str), var);
+    // 必须转义：字符串里可能含引号或反斜杠，直接拼进 C 字面量会导致编译失败。
+    const_str_regs_.push_back(std::format("    {} = FakeluaConstStrAlloc(_S, \"{}\");\n", var, EscapeCStringLiteral(std::string(str))));
+    // 声明文本先攒起来，等 Build 收尾时统一插到头段最前面 ——
+    // 直接就地输出会插到正在生成的字符串字面量中间。
+    const_str_decls_.push_back(std::format("static int64_t {} = 0;\n", var));
+    return const_str_var_of_.find(std::string(str))->second.c_str();
+}
+
+const char *CGen::ConstStrRefBinary(const std::string_view &str) {
+    if (const auto it = const_str_var_of_.find(std::string(str)); it != const_str_var_of_.end()) {
+        return it->second.c_str();
+    }
+
+    const auto var = "__fl_cstr_" + std::to_string(const_str_var_of_.size());
+    const_str_var_of_.emplace(std::string(str), var);
+
+    // 字节数组形式：显式给长度，避免 \0 截断；用长度构造 std::string_view 传给运行时。
+    std::string bytes;
+    bytes.reserve(str.size() * 4 + 32);
+    bytes += "    static const char " + var + "_data[] = {";
+    for (size_t i = 0; i < str.size(); ++i) {
+        if (i) {
+            bytes += ",";
+        }
+        bytes += std::format("{}", static_cast<int>(static_cast<unsigned char>(str[i])));
+    }
+    bytes += ",0};\n";
+    bytes += std::format("    static const size_t {}_len = {};\n", var, str.size());
+    bytes += std::format("    {} = FakeluaConstStrAllocN(_S, {}_data, {}_len);\n", var, var, var);
+    const_str_binary_.push_back(bytes);
+
+    const_str_decls_.push_back(std::format("static int64_t {} = 0;\n", var));
+    return const_str_var_of_.find(std::string(str))->second.c_str();
+}
+
+void CGen::EmitConstInit() {
+    SectionGuard g(*this, Section::Impls);
+    Out() << "void __fakelua_const_init(void) {\n";
+    for (const auto &reg: const_str_regs_) {
+        Out() << reg;
+    }
+    for (const auto &bin: const_str_binary_) {
+        Out() << bin;
+    }
+    // 依赖常量字符串 ID 的全局变量：静态初始化器里不能用非编译期常量，
+    // 放到这里赋值（此时 ID 已注册完毕）。
+    for (const auto &d: const_str_deferred_inits_) {
+        Out() << d;
+    }
+    Out() << "}\n\n";
+}
+
 GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const AnalysisResult &ar, const CompileConfig &cfg) {
     LOG_DEBUG(s_, "engine", "start CGen::Generate {}", pr.file_name);
 
@@ -262,7 +332,30 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     // 4. 遍历生成所有函数特化与通用的具体 C 代码实现
     GenerateImpl(pr.chunk, gr);
 
-    // 5. 根据配置记录生成的 C 核心区代码，或组合全部代码块输出最终结果
+    // 5. 发射常量字符串 ID 的静态变量声明与注册函数。
+    // 声明要早于全部使用点，但不能插到 #include 之前 —— 插到运行时头之后、
+    // 其余代码之前。
+    if (!const_str_var_of_.empty()) {
+        std::string decls;
+        for (const auto &d: const_str_decls_) {
+            decls += d;
+        }
+        decls += "\n";
+        auto &headers = sections_[static_cast<size_t>(Section::Headers)];
+        std::string header_text = headers.str();
+        constexpr const char *kAnchor = "// __fakelua_const_str_decls__";
+        const auto pos = header_text.find(kAnchor);
+        if (pos != std::string::npos) {
+            header_text.insert(pos + std::strlen(kAnchor), "\n" + decls);
+        } else {
+            // 锚点缺失说明 GenerateHeader 未跑，属于内部不一致；前置到头段最前。
+            header_text = decls + header_text;
+        }
+        headers.str(header_text);
+        EmitConstInit();
+    }
+
+    // 6. 根据配置记录生成的 C 核心区代码，或组合全部代码块输出最终结果
     if (cfg.record_c_code) {
         gr.recorded_c_code = GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls);
     }
@@ -276,22 +369,23 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
 void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
     // ---- string keys ----
     if (meta.has_string_keys) {
+        // 用 if 链而非 switch：常量字符串 ID 存在静态变量里（见 ConstStrRef），
+        // 不是编译期常量表达式，不能作为 case 标签。字段数很少，if 链完全够用。
         Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
-        Out() << "        switch (k.data_.i) {\n";
         int f_idx = 0;
         for (const auto &f: meta.fields) {
             if (f.key_kind == TableKeyKind::kString) {
+                const auto id = ConstStrRef(f.key);
                 if (is_get) {
-                    Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": *__finish = true; return s->" << f.c_field_name << ";\n";
+                    Out() << "        if (k.data_.i == " << id << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
-                    Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
-                          << "] = k; *__finish = true; return;\n";
+                    Out() << "        if (k.data_.i == " << id
+                          << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
+                          << "] = k; *__finish = true; return; }\n";
                 }
             }
             f_idx++;
         }
-        Out() << "            default: break;\n";
-        Out() << "        }\n";
         Out() << "    } else if (k.type_ == VAR_STRING) {\n";
         Out() << "        VarString *__vs = k.data_.s;\n";
         f_idx = 0;
@@ -301,7 +395,7 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
                     Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << EscapeCStringLiteral(f.key) << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->"
                           << f.c_field_name << "; }\n";
                 } else {
-                    const auto id = s_->GetConstString().Alloc(f.key);
+                    const auto id = ConstStrRef(f.key);
                     Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << EscapeCStringLiteral(f.key) << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name
                           << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
                 }
@@ -442,17 +536,39 @@ void CGen::GenerateHeader() {
 
 )";
 
-    // 硬编码 state 指针到生成的 C 代码中。
-    // 生命周期保证：生成的代码最终由 TCCState/GCC 产物承载，这些产物通过 TCCHandle/JITHandle
-    // 被 VmFunction 以 shared_ptr 持有，而 VmFunction 注册在本 State 的 Vm 中（见
-    // src/jit/tcc_jit.cpp 与 src/jit/vm_function.h）。因此生成代码里的 _S 永远不会
-    // 比其宿主 State 活得更久——State 析构即销毁 Vm，进而释放 handle 和代码页。
-    // 同一份代码也不会被跨 State 复用（每次编译都会重新生成）。
-    Out() << "static void * _S = (void *) " << s_ << ";\n";
+    // State 指针不在此硬编码。
+    //
+    // 早期实现直接把 State 地址写死进生成代码（`static void * _S = (void *) <addr>;`），
+    // 但这会让同一份输入编译出不同字节：地址受 ASLR 影响，每次都不同。后果有二：
+    //   1. 构建不可复现，产物无法按内容缓存（编译缓存永远无法命中）；
+    //   2. 一旦产物被跨 State 复用，_S 会指向别的 State，造成内存越界。
+    //
+    // 改为初值 nullptr，由宿主在加载产物后、调用 __fakelua_init 之前通过
+    // __fakelua_set_state 注入。这样生成代码对同一输入始终产生相同字节，
+    // 既可复现构建，也可安全地被缓存复用。
+    //
+    // 生命周期保证：注入的 State 由 Vm 持有 handle 与代码页，State 析构即销毁 Vm，
+    // 因此 _S 不会比宿主 State 活得更久（见 src/jit/vm_function.h）。
+    // 注意：TCC 以 C89 模式编译，不能用 nullptr / 声明混用等 C++ 写法。
+    Out() << "static void * _S = 0;\n";
+    Out() << "void __fakelua_set_state(void * s) { _S = s; }\n";
     Out() << "static bool __fakelua_init_flag__ = false;\n";
+
+    // 常量字符串 ID 不内联进代码，改为在 __fakelua_const_init 里注册后存入静态变量。
+    //
+    // 内联 ID 来自进程级递增计数器，同一份 Lua 每次编译得到的数字都不同 ——
+    // 这会让构建不可复现，也让按内容缓存编译产物永远无法命中。
+    //
+    // 宿主在注入 State 之后、调用 __fakelua_init 之前调用本函数完成注册，
+    // 因此这些静态变量在任何业务代码执行前就已就绪。
+    Out() << "void __fakelua_const_init(void);\n";
 
     // C 运行时类型定义、宏 and 函数（从 c_runtime_header.h 提取，便于独立维护）
     Out() << kCRuntimeHeader;
+
+    // 常量字符串 ID 静态变量的插入锚点。Build 收尾时会把声明插到这行之后 ——
+    // 那时变量名已齐全，且此处保证晚于 #include、早于所有使用点。
+    Out() << "\n// __fakelua_const_str_decls__\n";
 
     // 前置发射所有 spec 类型的 typedef + 特化 get/set 函数（读取 TypeInferencer 预计算的
     // ir.spec_type_metadata）。CGen 不再在 CompileTableconstructor 里懒发射这些样板代码。
@@ -518,7 +634,15 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                     // 注意：这里不能加 const，因为 init 函数里需要赋值。
                     // CONST_FLAG 会在 init 函数赋值后由 CompileStmtAssign 注入。
                     const std::string cvar_init = exp ? CompileExp(exp) : "(CVar){.type_ = VAR_NIL}";
-                    Out() << "static CVar " << cname << " = " << cvar_init << ";\n";
+                    // 常量字符串 ID 存在静态变量里，而静态变量不是编译期常量，
+                    // 不能出现在静态初始化器中。这种情况下改为零初始化 +
+                    // 在 __fakelua_const_init 里赋值。
+                    if (cvar_init.find("__fl_cstr_") != std::string::npos) {
+                        const_str_deferred_inits_.push_back(std::format("    {} = {};\n", cname, cvar_init));
+                        Out() << "static CVar " << cname << " = (CVar){.type_ = VAR_NIL};\n";
+                    } else {
+                        Out() << "static CVar " << cname << " = " << cvar_init << ";\n";
+                    }
                     // 全局非数值变量（表/闭包）记录到集合，后续在 init 函数赋值后注入 CONST_FLAG。
                     global_const_table_vars_.insert(cname);
                 }
@@ -2305,7 +2429,7 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_mu
                 return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}", ToFloat(value));
             }
         case ExpKind::kString:
-            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc(value));
+            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", ConstStrRef(value));
         case ExpKind::kPrefixExp:
             return CompilePrefixexp(e->Right(), preserve_multi);
         case ExpKind::kTableConstructor:
@@ -2404,7 +2528,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
                 if (fp->GetFieldKind() == FieldKind::kObject) {
                     const auto key_name = fp->Name();
-                    const auto id = s_->GetConstString().Alloc(key_name);
+                    const auto id = ConstStrRef(key_name);
                     Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
                 } else {
                     if (fp->Key() == nullptr) {
@@ -2417,7 +2541,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                             if (ClassifyLiteralKey(fp->Key(), key_info)) {
                                 switch (key_info.kind) {
                                     case TableKeyKind::kString: {
-                                        const auto id = s_->GetConstString().Alloc(key_info.repr);
+                                        const auto id = ConstStrRef(key_info.repr);
                                         Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
                                         break;
                                     }
@@ -2483,13 +2607,13 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
             if (fkind == FieldKind::kObject) {
                 const auto name = field_ptr->Name();
-                const auto id = s_->GetConstString().Alloc(name);
+                const auto id = ConstStrRef(name);
                 Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
             } else {
                 DEBUG_ASSERT(fkind == FieldKind::kArray);
                 if (const auto key = field_ptr->Key()) {
                     if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
-                        const auto id = s_->GetConstString().Alloc(key_exp->ExpValue());
+                        const auto id = ConstStrRef(key_exp->ExpValue());
                         Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
                     } else {
                         if (const auto key_type = GetType(key); key_type == T_INT) {
@@ -2911,7 +3035,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         // 拦截 _VERSION 全局常量（编译期替换为 "Fakelua x.y.z"）
         if (name == "_VERSION") {
             std::string ver = std::string("Fakelua ") + FAKELUA_VERSION_STRING;
-            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc(ver));
+            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", ConstStrRef(ver));
         }
 
         // 未声明/未定义的简单变量：Lua 语义中未定义变量求值为 nil。
@@ -2940,7 +3064,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                 }
                 switch (info.kind) {
                     case TableKeyKind::kString: {
-                        const auto id = s_->GetConstString().Alloc(info.repr);
+                        const auto id = ConstStrRef(info.repr);
                         return std::format("FlGetTableStrId({}, {})", pe_ret, id);
                     }
                     case TableKeyKind::kInt:
@@ -2998,7 +3122,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                                 p.push_back(']');
                                 return p;
                             }();
-                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc(kCharPattern));
+                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", ConstStrRefBinary(kCharPattern));
                         }
                     }
                     // 拦截 utf8 静态库常量访问 (utf8.charpattern)
@@ -3025,7 +3149,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                                 return p;
                             }();
                             return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}",
-                                               s_->GetConstString().Alloc(kUtf8Pattern));
+                                               ConstStrRefBinary(kUtf8Pattern));
                         }
                     }
                 }
@@ -3041,7 +3165,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         }
 
         // String constant key fast path: use FlGetTableStrId directly.
-        const auto id = s_->GetConstString().Alloc(name);
+        const auto id = ConstStrRef(name);
         return std::format("FlGetTableStrId({}, {})", pe_ret, id);
     }
 }
@@ -3618,8 +3742,8 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     }
     if (method_name == "type" && raw_args.size() == 1) {
         std::string arg = CompileExp(raw_args[0]);
-        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = (CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("integer") << "}; } ";
-        Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("float") << "}; } ";
+        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = (CVar){.type_ = VAR_STRINGID, .data_.i = " << ConstStrRef("integer") << "}; } ";
+        Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_STRINGID, .data_.i = " << ConstStrRef("float") << "}; } ";
         Out() << "else { " << tmp << " = kNil; }\n";
         return tmp;
     }
@@ -4244,7 +4368,7 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
             Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT)) {\n";
             Out() << GenTab() << "    " << tmp << " = FlFormatInt(" << arg_tmp << ".data_.i);\n";
             Out() << GenTab() << "} else {\n";
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.format\", 2, " << "(CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("%d")
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.format\", 2, " << "(CVar){.type_ = VAR_STRINGID, .data_.i = " << ConstStrRef("%d")
                   << "}, " << arg_tmp << ");\n";
             Out() << GenTab() << "}\n";
             return tmp;
@@ -4557,7 +4681,7 @@ std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctio
                         Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
                         switch (info.kind) {
                             case TableKeyKind::kString: {
-                                const auto id = s_->GetConstString().Alloc(info.repr);
+                                const auto id = ConstStrRef(info.repr);
                                 Out() << GenTab() << std::format("{}.data_.t->spec_keys[{}] = (CVar){{.type_ = VAR_STRINGID, .data_.i = {}}};\n", tbl_str, index, id);
                                 break;
                             }
@@ -4574,7 +4698,7 @@ std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctio
                     } else {
                         switch (info.kind) {
                             case TableKeyKind::kString: {
-                                const auto id = s_->GetConstString().Alloc(info.repr);
+                                const auto id = ConstStrRef(info.repr);
                                 Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
                                 break;
                             }
@@ -4767,7 +4891,7 @@ std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> 
         // 避免 FlGetTableStrId 对非表值（如 string）触发 "attempt to index a non-table value"。
         return forwarded;
     } else {
-        const auto id = s_->GetConstString().Alloc(method_name);
+        const auto id = ConstStrRef(method_name);
         callee_expr = std::format("FlGetTableStrId({}, {})", obj_tmp, id);
     }
 

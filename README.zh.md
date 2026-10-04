@@ -218,7 +218,8 @@ ctest --test-dir build -V
 ```bash
 cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 cmake --build build --parallel
-ctest --test-dir build -V
+# 需要在 test/lua 下运行，让相对路径的 Lua 文件能解析
+(cd test/lua && ../build/bin/unit_tests)
 ./build/bin/bench_mark
 ```
 

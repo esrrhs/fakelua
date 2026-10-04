@@ -20,6 +20,14 @@ namespace fakelua {
 
 inline constexpr const char *kInitFunctionName = "__fakelua_init";
 
+// 宿主在加载产物后、调用 kInitFunctionName 之前调用它注入 State 指针。
+// 生成代码不再硬编码 State 地址，从而保证同一输入产生相同字节（可复现构建 + 可缓存）。
+inline constexpr const char *kSetStateFunctionName = "__fakelua_set_state";
+
+// 注册生成代码里用到的常量字符串 ID。必须在注入 State 之后、init 之前调用：
+// 生成代码把这些 ID 存在静态变量里，业务代码直接引用变量。
+inline constexpr const char *kConstInitFunctionName = "__fakelua_const_init";
+
 // Lua 标识符已是 [A-Za-z_][A-Za-z0-9_]*，用作 C 标识符时只需避开关键字和运行时保留名。
 inline std::string SanitizeCIdent(const std::string &lua_name) {
     static const std::unordered_set<std::string> kReserved = {

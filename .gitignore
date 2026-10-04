@@ -65,3 +65,4 @@ test_results.log
 .cache/
 base_cov/
 new_cov/
+.workbuddy/

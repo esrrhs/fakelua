@@ -218,7 +218,8 @@ ctest --test-dir build -V
 ```bash
 cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 cmake --build build --parallel
-ctest --test-dir build -V
+# Run from test/lua so relative Lua file paths resolve correctly
+(cd test/lua && ../build/bin/unit_tests)
 ./build/bin/bench_mark
 ```
 
@@ -226,6 +227,8 @@ ctest --test-dir build -V
 > - Linux: `sudo apt-get install liblua5.4-dev` or `liblua5.3-dev`
 > - macOS: `brew install lua`
 > - Windows MSYS2: `pacman -S mingw-w64-x86_64-lua`
+
+> Tests must be enabled explicitly: `cmake -S . -B build -DFAKELUA_BUILD_TESTS=ON`.
 
 ### CLI Tool `flua`
 

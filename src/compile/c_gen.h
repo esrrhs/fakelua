@@ -265,6 +265,21 @@ private:
     // 根据当前缩进深度生成 C 代码缩进空白字符
     [[nodiscard]] std::string GenTab() const;
 
+    // 返回一个「常量字符串 ID 的静态变量名」，并登记一条 __fakelua_const_init 注册语句。
+    //
+    // 不能把 ConstString::Alloc 的返回值直接内联进代码：那是进程级递增 ID，
+    // 同一份输入每次编译得到的数字都不同，构建既不可复现也无法按内容缓存。
+    // 改为在 __fakelua_const_init 里注册后写入静态变量，代码其他地方引用变量名。
+    // 相同的字符串会复用同一个变量。
+    [[nodiscard]] const char *ConstStrRef(const std::string_view &str);
+
+    // 与 ConstStrRef 相同，但用于含非文本字节（如 string.charpattern 里的 \0 与 0xFF）
+    // 的字符串。这类字节无法用 C 字符串字面量表达（\0 会截断），改成长度 + 字节数组常量。
+    [[nodiscard]] const char *ConstStrRefBinary(const std::string_view &str);
+
+    // 发射 __fakelua_const_init 的定义（含此前登记的全部注册语句）。
+    void EmitConstInit();
+
     // 返回当前 active 代码段（section）的输出流引用
     std::ostream &Out() {
         return sections_[static_cast<size_t>(cur_section_)];
@@ -292,6 +307,11 @@ private:
     Section cur_section_ = Section::Headers;// 当前输出对应的 CGen 逻辑代码段
 
     std::array<std::stringstream, static_cast<size_t>(Section::Count)> sections_;// C 代码分区输出流数组
+    std::unordered_map<std::string, std::string> const_str_var_of_;// 字符串 -> 生成的静态变量名（去重）
+    std::vector<std::string> const_str_regs_;// __fakelua_const_init 的注册语句
+    std::vector<std::string> const_str_decls_;// 常量字符串 ID 的静态变量声明（Build 收尾时前置到头段）
+    std::vector<std::string> const_str_binary_;// 二进制常量（长度 + 字节数组）定义
+    std::vector<std::string> const_str_deferred_inits_;// 依赖常量字符串 ID 的全局变量，改为在 const_init 里赋值
 
     const struct SpecFuncContext *cur_spec_ctx_ = nullptr;// 当前特化版本的上下文（func_name/bitmask/snapshot）
 
