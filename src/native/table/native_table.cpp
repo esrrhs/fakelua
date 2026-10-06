@@ -5,6 +5,7 @@
 #include "native/string/native_string.h"
 #include "state/state.h"
 #include "util/exception.h"
+#include "util/number_util.h"
 #include "var/var.h"
 #include "var/var_closure.h"
 #include "var/var_string.h"
@@ -821,7 +822,7 @@ void RegisterTableLibraryApi(State *s) {
                 parts.push_back(owned.back());
                 total += owned.back().size();
             } else if (item.type_ == static_cast<int>(VarType::Float)) {
-                owned.push_back(std::format("{}", item.data_.f));
+                owned.push_back(FormatLuaFloat(item.data_.f));
                 parts.push_back(owned.back());
                 total += owned.back().size();
             } else if (item.type_ == static_cast<int>(VarType::String) || item.type_ == static_cast<int>(VarType::StringId)) {

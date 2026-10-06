@@ -4,6 +4,7 @@
 #include "state/const_string.h"
 #include "state/state.h"
 #include "util/exception.h"
+#include "util/number_util.h"
 #include "var/var.h"
 #include "var/var_closure.h"
 #include "var/var_multi.h"
@@ -42,9 +43,7 @@ CVar BinConcat(State *s, const CVar &a, const CVar &b) {
         }
         if (v.type_ == kInt) buf = std::to_string(v.data_.i);
         else {
-            char tmp[256];
-            std::snprintf(tmp, sizeof(tmp), "%.17g", v.data_.f);
-            buf = tmp;
+            buf = FormatLuaFloat(v.data_.f);
         }
         p = buf.c_str();
         len = static_cast<int>(buf.size());

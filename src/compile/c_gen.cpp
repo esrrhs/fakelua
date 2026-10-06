@@ -3073,8 +3073,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             if (ConstNumberExpIsIntValue(kind, exp)) {
                 return std::to_string(int_value);
             }
-            const double d = (kind == TableKeyKind::kInt) ? static_cast<double>(int_value) : float_value;
-            return FormatCDoubleLiteral(d);
+            return FormatCDoubleLiteral(ConstNumberExpToDouble(kind, int_value, float_value, exp));
         }
     }
 

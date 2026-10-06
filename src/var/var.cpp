@@ -3,6 +3,7 @@
 #include "state/const_string.h"
 #include "state/state.h"
 #include "util/common.h"
+#include "util/number_util.h"
 #include "var_multi.h"
 #include "var_string.h"
 
@@ -56,7 +57,7 @@ std::string Var::ToString(bool has_quote, bool has_postfix) const {
             ret = std::to_string(data_.i);
             break;
         case VarType::Float: {
-            ret = std::format("{}", data_.f);
+            ret = FormatLuaFloat(data_.f);
             break;
         }
         case VarType::String:

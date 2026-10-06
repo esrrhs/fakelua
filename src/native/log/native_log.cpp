@@ -1,6 +1,7 @@
 #include "native/log/native_log.h"
 #include "native/native_common.h"
 #include "util/logging.h"
+#include "util/number_util.h"
 
 #include <string>
 #include <string_view>
@@ -27,12 +28,9 @@ static std::string FormatArgs(State *s, CVar *args, int n) {
             case static_cast<int>(VarType::Int):
                 result += std::to_string(arg.data_.i);
                 break;
-            case static_cast<int>(VarType::Float): {
-                char buf[64];
-                std::snprintf(buf, sizeof(buf), "%.17g", arg.data_.f);
-                result += buf;
+            case static_cast<int>(VarType::Float):
+                result += FormatLuaFloat(arg.data_.f);
                 break;
-            }
             case static_cast<int>(VarType::String):
             case static_cast<int>(VarType::StringId):
                 result += inter::FakeluaToNativeString(s, arg);
