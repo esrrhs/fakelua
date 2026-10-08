@@ -24,6 +24,37 @@
 
 namespace fakelua::basic {
 
+// Lua 5.4 l_str2d 规则：
+// 1) 含 n/N 的串（inf/nan/infinity 等）一律拒绝——strtod/from_chars 本来
+//    会接受它们，但 Lua 只接受显式构造的 math.huge/0/0，不接受字面量；
+// 2) ERANGE 不算失败：1e999 解析成 inf、1e-999 解析成 0，与 Lua 一致。
+static bool LuaStrToFloat(std::string_view s, double &out) {
+    for (char c: s) {
+        if (c == 'n' || c == 'N') {
+            return false;
+        }
+    }
+    double dval = 0.0;
+    auto r = boost::charconv::from_chars(s.data(), s.data() + s.size(), dval);
+    if (r.ptr != s.data() + s.size()) {
+        return false;
+    }
+    if (r.ec == std::errc::result_out_of_range) {
+        // boost 溢出时不保证写回饱和值；strtod 按 C 标准写 ±inf/0.0
+        std::string buf(s);
+        char *endptr = nullptr;
+        errno = 0;
+        dval = std::strtod(buf.c_str(), &endptr);
+        if (endptr != buf.c_str() + buf.size()) {
+            return false;
+        }
+    } else if (r.ec != std::errc{}) {
+        return false;
+    }
+    out = dval;
+    return true;
+}
+
 using string::GetStringArgView;
 using table::TableHelper;
 
@@ -295,10 +326,16 @@ void RegisterBasicLibraryApi(State *s) {
         };
         auto try_lua_float = [&]() -> CVar {
             const std::string buf(trimmed);
+            // 与十进制路径同一规则：拒绝 inf/nan，接受 ERANGE 溢出（±inf）
+            for (char c: buf) {
+                if (c == 'n' || c == 'N') {
+                    return inter::NativeToFakeluaNil(state);
+                }
+            }
             char *endptr = nullptr;
             errno = 0;
             const double dval = std::strtod(buf.c_str(), &endptr);
-            if (endptr == buf.c_str() + buf.size() && errno != ERANGE && std::isfinite(dval)) {
+            if (endptr == buf.c_str() + buf.size()) {
                 return inter::NativeToFakeluaDouble(state, dval);
             }
             return inter::NativeToFakeluaNil(state);
@@ -319,8 +356,7 @@ void RegisterBasicLibraryApi(State *s) {
                 return inter::NativeToFakeluaInt(state, ival);
             }
             double dval = 0;
-            auto fr = boost::charconv::from_chars(s_view.data(), s_view.data() + s_view.size(), dval);
-            if (fr.ec == std::errc{} && fr.ptr == s_view.data() + s_view.size()) {
+            if (LuaStrToFloat(s_view, dval)) {
                 return inter::NativeToFakeluaDouble(state, dval);
             }
             return inter::NativeToFakeluaNil(state);
