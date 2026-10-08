@@ -120,7 +120,7 @@ TEST(var, ToString) {
     ASSERT_EQ(v.ToString(), "12345");
 
     v.SetFloat(12345.0);
-    ASSERT_EQ(v.ToString(), "12345");
+    ASSERT_EQ(v.ToString(), "12345.0");
 
     v.SetFloat(12345.1);
     ASSERT_EQ(v.ToString(), "12345.1");

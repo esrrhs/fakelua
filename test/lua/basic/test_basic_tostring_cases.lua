@@ -83,5 +83,28 @@ function test_basic_tostring_edge()
     local round4 = tonumber(tostring(orig4))
     if round4 ~= orig4 then return 54 end
 
+    -- -------------------------------------------------------------------------
+    -- Lua 5.4 float formatting: %.14g, integer-valued floats keep a trailing .0
+    -- -------------------------------------------------------------------------
+    if tostring(1.0) ~= "1.0" then return 60 end
+    if tostring(100.0) ~= "100.0" then return 61 end
+    if tostring(-0.0) ~= "-0.0" then return 62 end
+    if tostring(0.1) ~= "0.1" then return 63 end
+    if tostring(1e20) ~= "1e+20" then return 64 end
+    if tostring(1 / 0) ~= "inf" then return 65 end
+    -- sign of NaN is platform-dependent in Lua too
+    local nan_str = tostring(0 / 0)
+    if nan_str ~= "nan" and nan_str ~= "-nan" then return 66 end
+
+    -- String concatenation uses the same formatting
+    if ("x" .. 1.0) ~= "x1.0" then return 67 end
+    if (1.0 .. "") ~= "1.0" then return 68 end
+
+    -- Round-trip must preserve the float subtype
+    if math.type(tonumber(tostring(1.0))) ~= "float" then return 69 end
+
+    -- table.concat numbers follows the same rule
+    if table.concat({ 1.0, 2.5, 3 }, ",") ~= "1.0,2.5,3" then return 70 end
+
     return 5000
 end

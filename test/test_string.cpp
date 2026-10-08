@@ -430,16 +430,30 @@ TEST(test_string, test_gsub_bad_func_return_bool) {
     FakeluaDeleteState(s);
 }
 
-TEST(test_string, test_format_s_bad_arg) {
+TEST(test_string, test_format_s_types) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    CompileFile(s, "./string/test_format_s_bad_arg.lua", config);
+    CompileFile(s, "./string/test_format_s_types.lua", config);
 
-    // TCC 是 C 编译器，不支持 C++ 异常传播，只测试 GCC 后端
-    double res = 0;
-    CallThrow(s, "test_format_s_bad_arg", res);
+    int64_t res = 0;
+    CallAll(s, "test_format_s_types", res);
+    EXPECT_EQ(res, 5000);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_gsub_negative_n) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./string/test_gsub_negative_n.lua", config);
+
+    int64_t res = 0;
+    CallAll(s, "test_gsub_negative_n", res);
+    EXPECT_EQ(res, 5000);
 
     FakeluaDeleteState(s);
 }

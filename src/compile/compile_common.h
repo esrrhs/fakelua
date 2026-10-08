@@ -427,6 +427,31 @@ inline bool ConstNumberExpIsIntValue(TableKeyKind kind, const SyntaxTreeInterfac
     return kind == TableKeyKind::kInt && !ConstNumberExpHasFloatSyntax(node);
 }
 
+// 值语境（区别于表键归一化）下，把 ClassifyConstNumberExp 的结果还原成 double。
+// 0.0 会被表键归一化成 int 零，但 Lua 值语义里 0.0 是 float；一元负号作用于
+// 浮点零还必须保留负零：奇数次负号 -> -0.0，偶数次 -> +0.0。
+inline double ConstNumberExpToDouble(TableKeyKind kind, int64_t int_value, double float_value, const SyntaxTreeInterfacePtr &node) {
+    double d = (kind == TableKeyKind::kInt) ? static_cast<double>(int_value) : float_value;
+    if (d == 0.0 && ConstNumberExpHasFloatSyntax(node)) {
+        int minuses = 0;
+        SyntaxTreeInterfacePtr cur = node;
+        for (;;) {
+            const auto un = std::dynamic_pointer_cast<SyntaxTreeExp>(cur);
+            if (!un || un->GetExpKind() != ExpKind::kUnop) {
+                break;
+            }
+            const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(un->Op());
+            if (!op || op->GetOpKind() != UnOpKind::kMinus) {
+                break;
+            }
+            ++minuses;
+            cur = un->Right();
+        }
+        d = (minuses % 2 != 0) ? -0.0 : 0.0;
+    }
+    return d;
+}
+
 inline std::string FormatCDoubleLiteral(double d) {
     std::string s = std::format("{:.17g}", d);
     if (s.find('.') == std::string::npos && s.find('e') == std::string::npos && s.find('E') == std::string::npos) {
