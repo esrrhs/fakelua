@@ -1144,17 +1144,14 @@ void RegisterStringLibraryApi(State *s) {
                 }
                 res.push_back('"');
             } else if (spec == 's') {
-                // 标准 Lua：%s 的参数必须是 string/number，Bool/Table 不合法
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table)) {
+                // Lua 5.4：%s 等价于对参数调 tostring（luaL_tolstring）：
+                // string/number/bool/nil 都合法；table 没有 __tostring 元方法才报错
+                if (curr_arg.type_ == static_cast<int>(VarType::Table)) {
                     ThrowFakeluaException("bad argument to 'format' (string expected)");
                 }
                 std::string sval;
                 if (curr_arg.type_ == static_cast<int>(VarType::String) || curr_arg.type_ == static_cast<int>(VarType::StringId)) {
                     sval = std::string(KeyToStringView(curr_arg));
-                } else if (curr_arg.type_ == static_cast<int>(VarType::Int)) {
-                    sval = std::to_string(curr_arg.data_.i);
-                } else if (curr_arg.type_ == static_cast<int>(VarType::Float)) {
-                    sval = std::to_string(curr_arg.data_.f);
                 } else {
                     sval = AsVar(curr_arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
                 }
@@ -1403,13 +1400,17 @@ void RegisterStringLibraryApi(State *s) {
         std::string_view pat_view = GetStringArgView(a1, temp1);
         const size_t slen = sv.size();
 
-        int64_t max_replace = -1;
+        // Lua 5.4：第四参缺省/nil 时默认 srcl+1（即不限次数）；显式传入的值
+        // 原样使用，负数或 0 意味着一次都不替换（while (n < max_s)）。
+        int64_t max_replace = static_cast<int64_t>(slen) + 1;
         if (n >= 4) {
             CVar a3 = inter::GetNativeArg(state, args, n, 3);
-            if (a3.type_ == static_cast<int>(VarType::Bool) || a3.type_ == static_cast<int>(VarType::Table)) {
-                ThrowFakeluaException("bad argument #4 to 'string.gsub' (number expected)");
+            if (a3.type_ != static_cast<int>(VarType::Nil)) {
+                if (a3.type_ == static_cast<int>(VarType::Bool) || a3.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("bad argument #4 to 'string.gsub' (number expected)");
+                }
+                max_replace = inter::CVarToInteger(a3, max_replace);
             }
-            max_replace = inter::CVarToInteger(a3, -1);
         }
 
         // 标准 Lua：gsub 的替换参数必须是 string/function/table，Bool 不合法
@@ -1431,7 +1432,7 @@ void RegisterStringLibraryApi(State *s) {
         size_t prev_end = std::numeric_limits<size_t>::max();// 上一次产出匹配的尾后位置
         int64_t count = 0;
 
-        while ((max_replace < 0 || count < max_replace) && src <= slen) {
+        while (count < max_replace && src <= slen) {
             // 从 src 起逐位尝试；与 gmatch 相同的零宽规则：起点处的零宽匹配若紧跟上
             // 一次产出匹配的尾后位置，则跳过该位继续找（避免相邻空匹配）。
             lua_pattern::MatchResult m;
