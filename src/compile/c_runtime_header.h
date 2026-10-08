@@ -1257,7 +1257,23 @@ static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
         case VAR_NIL: memcpy(buf, "nil", 3); buf[3] = '\0'; return 3;
         case VAR_BOOL: if (v.data_.b) { memcpy(buf, "true", 4); buf[4] = '\0'; return 4; } else { memcpy(buf, "false", 5); buf[5] = '\0'; return 5; }
         case VAR_INT: return snprintf(buf, buf_size, "%lld", (long long)v.data_.i);
-        case VAR_FLOAT: return snprintf(buf, buf_size, "%.17g", v.data_.f);
+        case VAR_FLOAT: {
+            /* Lua 5.4 tostringbuff: %.14g，结果只含数字和符号时补 .0 */
+            int flen = snprintf(buf, buf_size, "%.14g", v.data_.f);
+            int fi = 0;
+            if (flen > 0 && flen < buf_size) {
+                if (buf[fi] == '-') fi++;
+                for (; fi < flen; fi++) {
+                    if (buf[fi] < '0' || buf[fi] > '9') break;
+                }
+                if (fi == flen && flen + 2 < buf_size) {
+                    buf[flen] = '.';
+                    buf[flen + 1] = '0';
+                    flen += 2;
+                }
+            }
+            return flen;
+        }
         case VAR_STRING:
         case VAR_STRINGID: FakeluaThrowError(_S, "FlVarToStr: string type should be handled by caller"); return 0;
         case VAR_TABLE: { int __n = snprintf(buf, buf_size - 1, "table(0x%llx", (unsigned long long)(uintptr_t)v.data_.t); if (__n > 0 && __n < buf_size - 1) { buf[__n] = ')'; buf[__n + 1] = '\0'; return __n + 1; } return __n; }

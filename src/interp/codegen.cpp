@@ -218,8 +218,7 @@ CVar InterpCodegen::LiteralFromExp(const SyntaxTreeInterfacePtr &exp) {
                 if (ConstNumberExpIsIntValue(kind, exp)) {
                     return interp_rt::Int(int_value);
                 }
-                const double d = (kind == TableKeyKind::kInt) ? static_cast<double>(int_value) : float_value;
-                return interp_rt::Float(d);
+                return interp_rt::Float(ConstNumberExpToDouble(kind, int_value, float_value, exp));
             }
             return interp_rt::Nil();
         }
@@ -1332,8 +1331,7 @@ int InterpCodegen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_m
             if (ConstNumberExpIsIntValue(kind, exp)) {
                 LoadConstTo(r, interp_rt::Int(int_value));
             } else {
-                const double d = (kind == TableKeyKind::kInt) ? static_cast<double>(int_value) : float_value;
-                LoadConstTo(r, interp_rt::Float(d));
+                LoadConstTo(r, interp_rt::Float(ConstNumberExpToDouble(kind, int_value, float_value, exp)));
             }
             return r;
         }

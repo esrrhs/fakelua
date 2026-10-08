@@ -197,7 +197,8 @@ void RegisterBasicLibraryApi(State *s) {
         for (int i = 0; i < n; ++i) {
             if (i > 0) std::printf("\t");
             CVar arg = inter::GetNativeArg(state, args, n, i);
-            std::string str = AsVar(arg).ToString();
+            // Lua 的 print 对每个参数走 tostring，字符串不带引号
+            std::string str = AsVar(arg).ToString(/*has_quote=*/false, /*has_postfix=*/false);
             std::printf("%s", str.c_str());
         }
         std::printf("\n");
