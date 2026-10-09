@@ -371,6 +371,22 @@ TEST(test_basic, test_basic_tostring_edge) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_basic, test_basic_tonumber_lua54) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        SCOPED_TRACE(::testing::Message() << "jit=" << JitTypeName(jit_type));
+        CompileFile(s, "./basic/test_basic_tonumber_lua54.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_basic_tonumber_lua54", res);
+        EXPECT_EQ(res, 5000);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_basic, test_basic_boundary_error) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);

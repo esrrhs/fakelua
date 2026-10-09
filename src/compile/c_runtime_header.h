@@ -1616,6 +1616,72 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
     (result) = __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
 } while(0)
 
+// Lua 5.4 pushnumint：d 能无损落进 int64 时返回 integer，否则保留 float
+// （inf/-inf/nan/超出 [-2^63, 2^63) 均不报错，仍是 float）。
+static inline CVar FlPushNumInt(double d) {
+    CVar r;
+    if (isfinite(d) && d >= -9223372036854775808.0 && d < 9223372036854775808.0) {
+        r.type_ = VAR_INT;
+        r.data_.i = (int64_t)d;
+    } else {
+        r.type_ = VAR_FLOAT;
+        r.data_.f = d;
+    }
+    return r;
+}
+
+static inline CVar FlMathFloor(CVar v) {
+    if (v.type_ == VAR_INT) return v;
+    return FlPushNumInt(floor((double)v.data_.f));
+}
+
+static inline CVar FlMathCeil(CVar v) {
+    if (v.type_ == VAR_INT) return v;
+    return FlPushNumInt(ceil((double)v.data_.f));
+}
+
+// Lua 5.4 math.fmod：两整数走整数取模（0 报错、-1 特判为 0 避开溢出），
+// 任一浮点恒返回 float（浮点除零是 NaN，不报错）。
+static inline CVar FlMathFmod(CVar a, CVar b) {
+    CVar r;
+    if (a.type_ == VAR_INT && b.type_ == VAR_INT) {
+        int64_t d = b.data_.i;
+        if (d == 0) {
+            // 错误串结尾不能紧贴右圆括号：本头文件整体以 R 圆括号原始串内嵌进 c_gen，
+            // 右圆括号紧跟双引号会提前终止原始串。
+            FakeluaThrowError(_S, "bad argument #2 to 'fmod': zero divisor");
+        }
+        r.type_ = VAR_INT;
+        r.data_.i = (d == -1) ? 0 : a.data_.i % d;
+        return r;
+    }
+    r.type_ = VAR_FLOAT;
+    r.data_.f = fmod(CVAR_TO_DOUBLE(a), CVAR_TO_DOUBLE(b));
+    return r;
+}
+
+// Lua 5.4 math.modf：整数部分向零取整并按 pushnumint 决定 int/float，
+// 无小数部分（整数值或 inf）时小数部分为 +0.0。
+static inline CVar FlMathModf(CVar v) {
+    double n;
+    double ip;
+    double fp;
+    CVar r;
+    r = FlAllocMulti(_S, 2);
+    if (v.type_ == VAR_INT) {
+        r.data_.m->vars[0] = v;
+        r.data_.m->vars[1] = (CVar){.type_ = VAR_FLOAT, .data_.f = 0.0};
+        return r;
+    }
+    n = (double)v.data_.f;
+    ip = (n < 0) ? ceil(n) : floor(n);
+    fp = (n == ip) ? 0.0 : n - ip;
+    r.data_.m->vars[0] = FlPushNumInt(ip);
+    r.data_.m->vars[1] = (CVar){.type_ = VAR_FLOAT, .data_.f = fp};
+    return r;
+}
+
+
 // 整数 for 步进：用无符号加法探测有符号溢出。溢出返回 0 且不改 *ctrl
 //（避免 maxinteger++ 变成 mininteger 后死循环）。continue 仍走 for 的 incr 子句。
 static inline int FlForIntAdvance(int64_t *ctrl, int64_t step) {

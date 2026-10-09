@@ -1064,12 +1064,13 @@ void RegisterStringLibraryApi(State *s) {
         std::string temp_fmt;
         std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
 
-        // 热路径：string.format("%d", int) —— bench 与常见用法，跳过通用解析器
+        // 热路径：string.format("%d", int) —— bench 与常见用法，跳过通用解析器。
+        // 与通用路径同一套 luaL_checkinteger 规则：float 必须能精确表示为整数。
         if (fmt == "%d" && n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
             if (a1.type_ == static_cast<int>(VarType::Int) || a1.type_ == static_cast<int>(VarType::Float) || a1.type_ == static_cast<int>(VarType::String) ||
                 a1.type_ == static_cast<int>(VarType::StringId)) {
-                int64_t ival = inter::CVarToInteger(a1, 0);
+                int64_t ival = CheckIntegerArg(a1, 2, "format");
                 char buf[32];
                 int len = snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(ival));
                 if (len < 0) len = 0;
@@ -1095,8 +1096,8 @@ void RegisterStringLibraryApi(State *s) {
 
             i++;
             if (i >= len) {
-                res.push_back('%');
-                break;
+                // Lua：孤立的 % 是非法转换（invalid conversion '%'）
+                ThrowFakeluaException("invalid conversion '%' to 'format'");
             }
 
             if (fmt[i] == '%') {
@@ -1111,15 +1112,12 @@ void RegisterStringLibraryApi(State *s) {
             }
 
             if (i >= len) {
-                res.append(fmt.substr(spec_start));
-                break;
+                // 修饰符后缺转换符，如 "%1"：Lua 把串尾当转换符，报非法转换
+                ThrowFakeluaException(std::format("invalid conversion '{}' to 'format'", fmt.substr(spec_start)));
             }
 
             char spec = fmt[i++];
             std::string spec_str(fmt.substr(spec_start, i - spec_start));
-            if (spec == 'n') {
-                ThrowFakeluaException("invalid option '%n' to 'format'");
-            }
             CheckFormatItemSize(spec_str);
 
             CVar curr_arg = (arg_idx < n) ? inter::GetNativeArg(state, args, n, arg_idx++) : CVar{static_cast<int>(VarType::Nil)};
@@ -1166,11 +1164,9 @@ void RegisterStringLibraryApi(State *s) {
                     }
                 }
             } else if (spec == 'd' || spec == 'i') {
-                // 标准 Lua 5.3：整数格式接受 number 或 numeric string
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
-                    ThrowFakeluaException("bad argument to 'format' (number expected)");
-                }
-                int64_t ival = inter::CVarToInteger(curr_arg, 0);
+                // Lua 5.4 luaL_checkinteger：float 必须有精确整数表示
+                // （3.9 / 1e20 / inf 报 "number has no integer representation"）
+                int64_t ival = CheckIntegerArg(curr_arg, arg_idx + 1, "format");
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
                 int needed = snprintf(nullptr, 0, llspec.c_str(), static_cast<long long>(ival));
@@ -1180,11 +1176,8 @@ void RegisterStringLibraryApi(State *s) {
                     res.append(buf.data());
                 }
             } else if (spec == 'u' || spec == 'x' || spec == 'X' || spec == 'o') {
-                // 标准 Lua 5.3：无符号整数格式接受 number 或 numeric string
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
-                    ThrowFakeluaException("bad argument to 'format' (number expected)");
-                }
-                uint64_t uval = static_cast<uint64_t>(inter::CVarToInteger(curr_arg, 0));
+                // 同 %d：无符号格式同样要求精确整数表示（Lua 共用 intcase）
+                uint64_t uval = static_cast<uint64_t>(CheckIntegerArg(curr_arg, arg_idx + 1, "format"));
                 std::string llspec = spec_str;
                 llspec.insert(llspec.size() - 1, "ll");
                 int needed = snprintf(nullptr, 0, llspec.c_str(), static_cast<unsigned long long>(uval));
@@ -1206,11 +1199,8 @@ void RegisterStringLibraryApi(State *s) {
                     res.append(buf.data());
                 }
             } else if (spec == 'c') {
-                // 标准 Lua 5.3：%c 接受 number 或 numeric string
-                if (curr_arg.type_ == static_cast<int>(VarType::Bool) || curr_arg.type_ == static_cast<int>(VarType::Table) || curr_arg.type_ == static_cast<int>(VarType::Nil)) {
-                    ThrowFakeluaException("bad argument to 'format' (number expected)");
-                }
-                int64_t cval = inter::CVarToInteger(curr_arg, 0);
+                // Lua 5.4 %c 同样走 luaL_checkinteger：float 必须有精确整数表示
+                int64_t cval = CheckIntegerArg(curr_arg, arg_idx + 1, "format");
                 res.push_back(static_cast<char>(cval));
             } else if (spec == 'p') {
                 // fakelua 扩展：%p 接受 number 或 nil（输出指针地址），Bool/Table/String 不合法
@@ -1251,7 +1241,8 @@ void RegisterStringLibraryApi(State *s) {
                     res.append(buf);
                 }
             } else {
-                res.append(spec_str);
+                // Lua：未识别的转换符（含 %n、%z、%*）一律报错，绝不原样输出
+                ThrowFakeluaException(std::format("invalid conversion '{}' to 'format'", spec_str));
             }
         }
         return inter::NativeToFakeluaStringView(state, res);
