@@ -1,5 +1,6 @@
 #include "native/math/native_math.h"
 #include "native/native_common.h"
+#include "util/number_util.h"
 #include "var/var.h"
 #include <algorithm>
 #include <cmath>
@@ -7,6 +8,15 @@
 #include <ctime>
 
 namespace fakelua::math {
+
+// Lua 5.4 pushnumint：floor/ceil/modf 的整数部分若能无损落进 int64 就返回
+// integer，否则保留 float（inf/-inf/nan/超出 2^63 时不报错，仍是 float）。
+static CVar PushNumInt(State *state, double d) {
+    if (TryConvertDoubleToInt64(d).has_value()) {
+        return inter::NativeToFakeluaInt(state, static_cast<int64_t>(d));
+    }
+    return inter::NativeToFakeluaFloat(state, d);
+}
 
 // Use shared CheckNumberArg from native_common.h
 
@@ -38,20 +48,16 @@ void RegisterMathLibraryApi(State *s) {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckNumberArg(a0, 1, "math.floor");
         if (a0.type_ == static_cast<int>(VarType::Int)) return a0;
-        if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::floor(a0.data_.f));
         double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
-        if (!std::isnan(f)) return inter::NativeToFakeluaFloat(state, std::floor(f));
-        return inter::NativeToFakeluaNil(state);
+        return PushNumInt(state, std::floor(f));
     });
 
     RegisterNativeFunction(s, "math.ceil", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckNumberArg(a0, 1, "math.ceil");
         if (a0.type_ == static_cast<int>(VarType::Int)) return a0;
-        if (a0.type_ == static_cast<int>(VarType::Float)) return inter::NativeToFakeluaFloat(state, std::ceil(a0.data_.f));
         double f = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
-        if (!std::isnan(f)) return inter::NativeToFakeluaFloat(state, std::ceil(f));
-        return inter::NativeToFakeluaNil(state);
+        return PushNumInt(state, std::ceil(f));
     });
 
     RegisterNativeFunction(s, "math.max", 1, true, [](State *state, CVar *args, int n) -> CVar {
@@ -240,11 +246,21 @@ void RegisterMathLibraryApi(State *s) {
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
         CheckNumberArg(a0, 1, "math.fmod");
         CheckNumberArg(a1, 2, "math.fmod");
+        // Lua 5.4：两个参数都是 integer 时走整数取模（C 的截断向零语义）
+        if (a0.type_ == static_cast<int>(VarType::Int) && a1.type_ == static_cast<int>(VarType::Int)) {
+            const int64_t b = a1.data_.i;
+            if (b == 0) {
+                ThrowFakeluaException("bad argument #2 to 'fmod' (zero)");
+            }
+            // mininteger % -1 在 C 里是 UB（结果溢出），Lua 直接规定为 0
+            if (b == -1) {
+                return inter::NativeToFakeluaInt(state, 0);
+            }
+            return inter::NativeToFakeluaInt(state, a0.data_.i % b);
+        }
+        // 任一参数是 float：结果恒为 float；浮点除零得到 NaN（不报错）
         double v0 = inter::CVarToNumber(a0, 0.0);
         double v1 = inter::CVarToNumber(a1, 0.0);
-        if (v1 == 0.0) {
-            return inter::NativeToFakeluaFloat(state, std::numeric_limits<double>::quiet_NaN());
-        }
         return inter::NativeToFakeluaFloat(state, std::fmod(v0, v1));
     });
 
@@ -391,10 +407,12 @@ void RegisterMathLibraryApi(State *s) {
             return multi;
         }
         double val = inter::CVarToNumber(a0, 0.0);
-        double iptr;
-        double frac = std::modf(val, &iptr);
+        // 整数部分向零取整（负数用 ceil），再按 pushnumint 决定 int/float
+        double iptr = (val < 0) ? std::ceil(val) : std::floor(val);
+        // 无小数部分（整数值或 inf）时小数部分是 +0.0
+        double frac = (val == iptr) ? 0.0 : val - iptr;
         CVar multi = inter::AllocMultiCVar(state, 2);
-        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaFloat(state, iptr));
+        inter::SetMultiCVarElement(multi, 0, PushNumInt(state, iptr));
         inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaFloat(state, frac));
         return multi;
     });

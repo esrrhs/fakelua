@@ -478,6 +478,22 @@ TEST(test_math, test_math_fmod_zero) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_math, test_math_lua54_types) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        SCOPED_TRACE(::testing::Message() << "jit=" << JitTypeName(jit_type));
+        CompileFile(s, "./math/test_math_lua54_types.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_lua54_types", res);
+        EXPECT_EQ(res, 5000);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_math, test_math_boundary_nan_inf) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);

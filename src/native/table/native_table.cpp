@@ -731,8 +731,11 @@ void RegisterTableLibraryApi(State *s) {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
             CVar val = inter::GetNativeArg(state, args, n, 2);
             // 2^63 / NaN 经 CVarToInteger 会落到默认 pos=1，插错位置。
-            int64_t pos = CheckIntegerArg(pos_var, 2, "table.insert");
-            if (pos < 1 || pos > len + 1) return inter::NativeToFakeluaNil(state);
+            int64_t pos = CheckIntegerArg(pos_var, 2, "insert");
+            // Lua：pos 必须落在 [1, #t+1]，否则报 position out of bounds
+            if (pos < 1 || pos > len + 1) {
+                ThrowFakeluaException("bad argument #2 to 'insert' (position out of bounds)");
+            }
             for (int64_t i = len; i >= pos; --i) {
                 CVar item = TableHelper::GetTableInt(state, tbl, i);
                 TableHelper::SetTableInt(state, tbl, i + 1, item);
@@ -750,19 +753,31 @@ void RegisterTableLibraryApi(State *s) {
         }
         int64_t len = TableHelper::GetTableLen(tbl);
         int64_t pos = len;
+        bool has_explicit_pos = false;
         if (n >= 2) {
             CVar pos_var = inter::GetNativeArg(state, args, n, 1);
-            // 2^63 经 CVarToInteger 会落到默认 #t，误删最后一个元素。
-            pos = CheckIntegerArg(pos_var, 2, "table.remove");
+            if (pos_var.type_ != static_cast<int>(VarType::Nil)) {
+                // 2^63 经 CVarToInteger 会落到默认 #t，误删最后一个元素。
+                pos = CheckIntegerArg(pos_var, 2, "table.remove");
+                has_explicit_pos = true;
+            }
         }
-        if (pos < 1 || pos > len) return inter::NativeToFakeluaNil(state);
+        // Lua 只对显式位置做边界校验（且区间是 [1, #t+1]）：
+        // 默认位置（省略/nil，即 #t）不校验，空表 remove 因此合法返回 nil。
+        // pos==#t+1 时取不到元素（返回 nil）；超出区间或非正数才报错。
+        if (has_explicit_pos && (pos < 1 || pos > len + 1)) {
+            ThrowFakeluaException("bad argument #2 to 'remove' (position out of bounds)");
+        }
 
         CVar removed = TableHelper::GetTableInt(state, tbl, pos);
-        for (int64_t i = pos; i < len; ++i) {
+        int64_t i = pos;
+        for (; i < len; ++i) {
             CVar next_val = TableHelper::GetTableInt(state, tbl, i + 1);
             TableHelper::SetTableInt(state, tbl, i, next_val);
         }
-        TableHelper::SetTableInt(state, tbl, len, inter::NativeToFakeluaNil(state));
+        // 循环结束位置：pos<=len 时 i==len（删掉真正的末位）；
+        // pos==len+1 时 i==len+1（边界位，本就是 nil，不影响 t[len]）
+        TableHelper::SetTableInt(state, tbl, i, inter::NativeToFakeluaNil(state));
         return removed;
     });
 
