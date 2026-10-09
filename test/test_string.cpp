@@ -458,6 +458,20 @@ TEST(test_string, test_gsub_negative_n) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_string, test_format_lua54_strict) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./string/test_format_lua54_strict.lua", config);
+
+    int64_t res = 0;
+    CallAll(s, "test_format_lua54_strict", res);
+    EXPECT_EQ(res, 5000);
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_string, test_format_s_bad_arg_table) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
