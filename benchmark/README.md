@@ -4,6 +4,8 @@
 
 This file records results of running `bench_mark` compiled in **Release mode** (`-O3 -DNDEBUG`) locally. It covers **51 Lua performance scenarios across 6 categories**, each with C++ / Lua 5.4 / FakeLua TCC / FakeLua GCC / FakeLua INTERP (bytecode interpreter). Analysis below splits into **interpreter vs Lua 5.4** (this machine, 2026-09-16) and **GCC JIT vs Lua / C++** (previous machine, 2026-08-14).
 
+These benchmark results predate the table array-part implementation; table-performance figures and notes below are historical baselines, not measurements of the current code.
+
 ## Running
 
 ```bash
@@ -125,7 +127,7 @@ Largest parameter per scenario:
 
 3. **Tail recursion is the outlier (34×)**: Lua 5.4 turns `return f(...)` into a loop. INTERP does not; n=5000 is 5000 nested C frames (and overflows the default 8 MiB stack).
 
-4. **Table loops without an array part are ~3–4× slower** (BubbleSort, Vector3, TableInsert, NestedTable). Hash-only `VarTable` vs Lua's array part.
+4. **In these pre-array-part measurements, table loops were ~3–4× slower** (BubbleSort, Vector3, TableInsert, NestedTable). At the time, `VarTable` used hash-only storage while Lua used an array part.
 
 5. **C stdlib work can beat Lua**: `string.lower`/`upper` **6.2×**, `string.len` 2.3×, `table.sort` 1.9×, TableChurn 2.2× (arena). When the opcode loop is not the bottleneck, native helpers plus no-GC allocation win.
 

@@ -82,6 +82,12 @@ struct VarTable {
        需要重算——因此把 VarTable 整体清零的分配路径天然落在安全的重算分支上。 */
     uint32_t seq_len_valid_;
     int64_t seq_len_;
+    /* 数组部分：整数键 1..arr_size_ 只存放在 arr_ 中（允许 nil 空洞），哈希部分不含 [1, arr_size_+1]
+       范围内的整数键。arr_size_ 只增不减，遍历时偏移保持稳定。spec 表不使用数组部分。
+       哈希部分写满时按 Lua 的规则（整数键占用率 > 50%）把整数键迁入数组，见 FlArrTryResize。 */
+    CVar *arr_;
+    uint32_t arr_size_;
+    uint32_t arr_cap_;
 };
 
 typedef struct State State;
@@ -117,6 +123,7 @@ static inline bool FlTableHasIntKey(VarTable *t, int64_t k) {
         CVar __r = t->spec_get(t, key_cvar, &__finish);
         if (__finish) return __r.type_ != VAR_NIL;
     }
+    if ((uint64_t)k - 1 < (uint64_t)t->arr_size_) { return t->arr_[k - 1].type_ != VAR_NIL; }
     if (t->spec_count > 0 && t->spec_keys && t->spec_vals) {
         uint32_t i;
         for (i = 0; i < t->spec_count; ++i) {
@@ -187,7 +194,7 @@ static inline void FlSeqNoteIntSet(VarTable *t, int64_t k, bool is_nil) {
     if (t->seq_len_ < INT64_MAX && k == t->seq_len_ + 1) { t->seq_len_ = FlSeqScanFrom(t, k); }
 }
 
-#define TABLE_SIZE(t) ((t)->count_ + (t)->spec_count)
+#define TABLE_SIZE(t) ((t)->count_ + (t)->spec_count + (t)->arr_size_)
 
 typedef struct VarMulti {
     uint32_t count;
@@ -659,6 +666,9 @@ static inline uint32_t FlHashString(const char *str, int len) {
     __t->spec_count = 0; \
     __t->seq_len_valid_ = 1; \
     __t->seq_len_ = 0; \
+    __t->arr_ = NULL; \
+    __t->arr_size_ = 0; \
+    __t->arr_cap_ = 0; \
     assert(sizeof(__t->quick_data_) == 8 * sizeof(VarEntry)); \
     { int __i; for (__i = 0; __i < 8; ++__i) { \
         __t->quick_data_[__i].key.type_ = VAR_NIL; \
@@ -761,6 +771,7 @@ static inline CVar FlGetTable(CVar t, CVar k) {
         CVar __r = tbl->spec_get(tbl, k, &__finish);
         if (__finish) return __r;
     }
+    if (k.type_ == VAR_INT && (uint64_t)k.data_.i - 1 < (uint64_t)tbl->arr_size_) { return tbl->arr_[k.data_.i - 1]; }
     if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
     uint32_t h; VarHash(k, h);
     if (LIKELY(tbl->bucket_count_ == 0)) {
@@ -863,17 +874,9 @@ static inline void FlTableRehash(VarTable *tbl) {
     }
 }
 
-static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
-    k = NORMALIZE_TABLE_KEY(k);
-    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
-    if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
-    if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) { FakeluaThrowError(_S, "table index is NaN"); }
-    VarTable *tbl = t.data_.t;
-    if (tbl->spec_set) {
-        bool __finish = false;
-        tbl->spec_set(tbl, k, v, &__finish);
-        if (__finish) return;
-    }
+static inline bool FlArrResizeInsert(VarTable *tbl, CVar k, CVar v);
+
+static inline void FlHashSet(VarTable *tbl, CVar k, CVar v) {
     uint32_t h; VarHash(k, h);
     if (UNLIKELY(v.type_ == VAR_NIL)) {
         if (UNLIKELY(tbl->count_ == 0)) { return; }
@@ -927,29 +930,17 @@ static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
         if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h) { VarEqual(tbl->quick_data_[6].key, k, __eq); if (__eq) { tbl->quick_data_[6].val = v; return; } }
         if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) { VarEqual(tbl->quick_data_[7].key, k, __eq); if (__eq) { tbl->quick_data_[7].val = v; return; } }
         if (tbl->count_ < 8) { tbl->quick_data_[tbl->count_].key = k; tbl->quick_data_[tbl->count_].val = v; tbl->quick_data_[tbl->count_].hash = h; tbl->count_++; return; }
+        if (k.type_ == VAR_INT && FlArrResizeInsert(tbl, k, v)) { return; }
         FlTableRehash(tbl);
     }
-    if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) { FlTableRehash(tbl); }
+    if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) {
+        if (k.type_ == VAR_INT && FlArrResizeInsert(tbl, k, v)) { return; }
+        FlTableRehash(tbl);
+    }
     FlTableInsertRaw(tbl, k, v, h);
 }
 
-static inline void FlSetTable(CVar t, CVar k, CVar v) {
-    FlSetTableImpl(t, k, v);
-    if (LIKELY(t.type_ == VAR_TABLE)) {
-        CVar __nk = NORMALIZE_TABLE_KEY(k);
-        if (__nk.type_ == VAR_INT) { FlSeqNoteIntSet(t.data_.t, __nk.data_.i, v.type_ == VAR_NIL); }
-    }
-}
-
-static inline CVar FlGetTableInt(CVar t, int64_t k) {
-    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
-    VarTable *tbl = t.data_.t;
-    if (tbl->spec_get) {
-        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
-        bool __finish = false;
-        CVar __r = tbl->spec_get(tbl, key_cvar, &__finish);
-        if (__finish) return __r;
-    }
+static inline CVar FlHashGetInt(VarTable *tbl, int64_t k) {
     if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
     uint32_t h = (uint32_t)(k ^ (k >> 32));
     if (LIKELY(tbl->bucket_count_ == 0)) {
@@ -975,6 +966,136 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
     return (CVar){VAR_NIL};
 }
 
+__attribute__((noinline)) static void FlArrGrow(VarTable *tbl) {
+    uint32_t cap = tbl->arr_cap_ ? tbl->arr_cap_ * 2 : 4;
+    CVar *na = (CVar *)FakeluaAlloc(_S, (size_t)cap * sizeof(CVar), !__fakelua_init_flag__);
+    if (tbl->arr_size_ > 0) { memcpy(na, tbl->arr_, (size_t)tbl->arr_size_ * sizeof(CVar)); }
+    tbl->arr_ = na;
+    tbl->arr_cap_ = cap;
+}
+
+/* 数组末尾追加后，把哈希部分中紧随其后的整数键迁入数组，维持「哈希不含 [1, arr_size_+1]」。*/
+__attribute__((noinline)) static void FlArrMigrate(VarTable *tbl) {
+    while (tbl->count_ != 0) {
+        int64_t nk = (int64_t)tbl->arr_size_ + 1;
+        CVar hv = FlHashGetInt(tbl, nk);
+        if (hv.type_ == VAR_NIL) { break; }
+        CVar key; key.type_ = VAR_INT; key.flag_ = 0; key.data_.i = nk;
+        FlHashSet(tbl, key, (CVar){VAR_NIL});
+        if (UNLIKELY(tbl->arr_size_ == tbl->arr_cap_)) { FlArrGrow(tbl); }
+        tbl->arr_[tbl->arr_size_++] = hv;
+    }
+}
+
+/* 整数键写入的数组部分快路径。返回 true 表示已处理。*/
+static inline bool FlArrSetInt(VarTable *tbl, int64_t k, CVar v) {
+    uint64_t idx = (uint64_t)k - 1;
+    if (LIKELY(idx < (uint64_t)tbl->arr_size_)) { tbl->arr_[idx] = v; return true; }
+    if (idx == (uint64_t)tbl->arr_size_ && v.type_ != VAR_NIL && !tbl->spec_set) {
+        if (UNLIKELY(tbl->arr_size_ == tbl->arr_cap_)) { FlArrGrow(tbl); }
+        tbl->arr_[tbl->arr_size_++] = v;
+        if (UNLIKELY(tbl->count_ != 0)) { FlArrMigrate(tbl); }
+        return true;
+    }
+    return false;
+}
+
+/* 哈希部分写满、即将为整数键 nk 扩容前，按 Lua 的 computesizes 规则判断是否应把整数键迁入数组：
+   选取最大的 2^i，使 1..2^i 内的整数键数量超过 2^i 的一半。返回 true 表示数组已扩大。 */
+__attribute__((noinline)) static bool FlArrTryResize(VarTable *tbl, int64_t nk) {
+    uint32_t nums[32];
+    uint64_t total = 0;
+    uint32_t i;
+    memset(nums, 0, sizeof(nums));
+#define FL_COUNT_INT_KEY(kk) do { \
+    int64_t __ck = (kk); \
+    if (__ck >= 1 && __ck <= (1LL << 30)) { nums[__ck == 1 ? 0 : 64 - __builtin_clzll((uint64_t)__ck - 1)]++; total++; } \
+} while(0)
+    for (i = 0; i < tbl->arr_size_; ++i) { if (tbl->arr_[i].type_ != VAR_NIL) { FL_COUNT_INT_KEY((int64_t)i + 1); } }
+    if (tbl->bucket_count_ == 0) {
+        for (i = 0; i < tbl->count_; ++i) {
+            if (tbl->quick_data_[i].key.type_ == VAR_INT) { FL_COUNT_INT_KEY(tbl->quick_data_[i].key.data_.i); }
+        }
+    } else {
+        for (i = 0; i < tbl->count_; ++i) {
+            VarEntry *e = &tbl->nodes_[tbl->active_list_[i]].entry;
+            if (e->key.type_ == VAR_INT) { FL_COUNT_INT_KEY(e->key.data_.i); }
+        }
+    }
+    FL_COUNT_INT_KEY(nk);
+#undef FL_COUNT_INT_KEY
+    uint64_t a = 0, optimal = 0, two = 1;
+    for (i = 0; i < 31 && total > two / 2; ++i, two <<= 1) {
+        a += nums[i];
+        if (a > two / 2) { optimal = two; }
+    }
+    if (optimal <= (uint64_t)tbl->arr_size_) { return false; }
+    {
+        uint32_t old_size = tbl->arr_size_;
+        CVar *na = (CVar *)FakeluaAlloc(_S, (size_t)optimal * sizeof(CVar), !__fakelua_init_flag__);
+        if (old_size > 0) { memcpy(na, tbl->arr_, (size_t)old_size * sizeof(CVar)); }
+        memset(na + old_size, 0, (size_t)(optimal - old_size) * sizeof(CVar));
+        tbl->arr_ = na;
+        tbl->arr_cap_ = (uint32_t)optimal;
+        tbl->arr_size_ = (uint32_t)optimal;
+        if (tbl->count_ != 0) {
+            uint64_t j;
+            for (j = old_size + 1; j <= optimal && tbl->count_ != 0; ++j) {
+                CVar hv = FlHashGetInt(tbl, (int64_t)j);
+                if (hv.type_ == VAR_NIL) { continue; }
+                CVar key; key.type_ = VAR_INT; key.flag_ = 0; key.data_.i = (int64_t)j;
+                FlHashSet(tbl, key, (CVar){VAR_NIL});
+                tbl->arr_[j - 1] = hv;
+            }
+            FlArrMigrate(tbl);
+        }
+    }
+    return true;
+}
+
+/* 整数键 k 要插入已写满的哈希部分前调用；返回 true 表示 k 已写入数组，调用方直接返回。*/
+static inline bool FlArrResizeInsert(VarTable *tbl, CVar k, CVar v) {
+    if (k.type_ != VAR_INT || tbl->spec_set) { return false; }
+    if (!FlArrTryResize(tbl, k.data_.i)) { return false; }
+    return FlArrSetInt(tbl, k.data_.i, v);
+}
+
+static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
+    k = NORMALIZE_TABLE_KEY(k);
+    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
+    if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) { FakeluaThrowError(_S, "table index is NaN"); }
+    VarTable *tbl = t.data_.t;
+    if (tbl->spec_set) {
+        bool __finish = false;
+        tbl->spec_set(tbl, k, v, &__finish);
+        if (__finish) return;
+    }
+    if (k.type_ == VAR_INT && FlArrSetInt(tbl, k.data_.i, v)) { return; }
+    FlHashSet(tbl, k, v);
+}
+
+static inline void FlSetTable(CVar t, CVar k, CVar v) {
+    FlSetTableImpl(t, k, v);
+    if (LIKELY(t.type_ == VAR_TABLE)) {
+        CVar __nk = NORMALIZE_TABLE_KEY(k);
+        if (__nk.type_ == VAR_INT) { FlSeqNoteIntSet(t.data_.t, __nk.data_.i, v.type_ == VAR_NIL); }
+    }
+}
+
+static inline CVar FlGetTableInt(CVar t, int64_t k) {
+    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    VarTable *tbl = t.data_.t;
+    if (LIKELY((uint64_t)k - 1 < (uint64_t)tbl->arr_size_)) { return tbl->arr_[k - 1]; }
+    if (tbl->spec_get) {
+        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+        bool __finish = false;
+        CVar __r = tbl->spec_get(tbl, key_cvar, &__finish);
+        if (__finish) return __r;
+    }
+    return FlHashGetInt(tbl, k);
+}
+
 static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(t.flag_ & CONST_FLAG)) { FakeluaThrowError(_S, "attempt to modify a const table"); }
@@ -985,10 +1106,11 @@ static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
         tbl->spec_set(tbl, key_cvar, v, &__finish);
         if (__finish) return;
     }
+    if (FlArrSetInt(tbl, k, v)) { return; }
     uint32_t h = (uint32_t)(k ^ (k >> 32));
     CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
     if (UNLIKELY(v.type_ == VAR_NIL)) {
-        FlSetTable(t, key_cvar, v);
+        FlHashSet(tbl, key_cvar, v);
         return;
     }
     if (LIKELY(tbl->bucket_count_ == 0)) {
@@ -1003,13 +1125,26 @@ static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
             tbl->quick_data_[tbl->count_].hash = h;
             tbl->count_++; return;
         }
+        if (FlArrResizeInsert(tbl, key_cvar, v)) { return; }
         FlTableRehash(tbl);
     }
-    if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) { FlTableRehash(tbl); }
+    if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) {
+        if (FlArrResizeInsert(tbl, key_cvar, v)) { return; }
+        FlTableRehash(tbl);
+    }
     FlTableInsertRaw(tbl, key_cvar, v, h);
 }
 
 static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
+    if (LIKELY(t.type_ == VAR_TABLE && !(t.flag_ & CONST_FLAG))) {
+        VarTable *tbl = t.data_.t;
+        uint64_t idx = (uint64_t)k - 1;
+        /* 新旧值都非 nil 时序列长度不变，可跳过缓存维护。*/
+        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && v.type_ != VAR_NIL && tbl->arr_[idx].type_ != VAR_NIL)) {
+            tbl->arr_[idx] = v;
+            return;
+        }
+    }
     FlSetTableIntImpl(t, k, v);
     if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, v.type_ == VAR_NIL); }
 }
@@ -1558,7 +1693,7 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
             (CVar){.type_ = VAR_INT, .data_.i = t},
             dst);
     }
-    if (!same && dst.data_.t->count_ == 0 && icount > 8) {
+    if (!same && dst.data_.t->count_ == 0 && icount > 8 && t != (int64_t)dst.data_.t->arr_size_ + 1) {
         FlEnsureTableBuckets(dst.data_.t, (uint32_t)icount);
     }
     { int64_t i; for (i = 0; i < icount; ++i) {
@@ -1569,17 +1704,30 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
 }
 
 #define GET_TABLE_ENTRY(tbl, idx, k, v) do { \
-    uint32_t __spec_cnt = (tbl).data_.t->spec_count; \
-    if (LIKELY((idx) < __spec_cnt)) { \
-        (k) = (tbl).data_.t->spec_keys[(idx)]; \
-        (v) = (tbl).data_.t->spec_vals[(idx)]; \
-    } else if (LIKELY((tbl).data_.t->bucket_count_ == 0)) { \
-        (k) = (tbl).data_.t->quick_data_[(idx) - __spec_cnt].key; \
-        (v) = (tbl).data_.t->quick_data_[(idx) - __spec_cnt].val; \
+    VarTable *__gt = (tbl).data_.t; \
+    uint32_t __gi = (idx); \
+    uint32_t __spec_cnt = __gt->spec_count; \
+    if (LIKELY(__gi < __spec_cnt)) { \
+        (k) = __gt->spec_keys[__gi]; \
+        (v) = __gt->spec_vals[__gi]; \
     } else { \
-        uint32_t __gti_node_idx = (tbl).data_.t->active_list_[(idx) - __spec_cnt]; \
-        (k) = (tbl).data_.t->nodes_[__gti_node_idx].entry.key; \
-        (v) = (tbl).data_.t->nodes_[__gti_node_idx].entry.val; \
+        __gi -= __spec_cnt; \
+        if (__gi < __gt->arr_size_) { \
+            (k).type_ = VAR_INT; (k).flag_ = 0; (k).data_.i = (int64_t)__gi + 1; \
+            (v) = __gt->arr_[__gi]; \
+        } else { \
+            __gi -= __gt->arr_size_; \
+            if (UNLIKELY(__gi >= __gt->count_)) { \
+                (k).type_ = VAR_NIL; (v).type_ = VAR_NIL; \
+            } else if (LIKELY(__gt->bucket_count_ == 0)) { \
+                (k) = __gt->quick_data_[__gi].key; \
+                (v) = __gt->quick_data_[__gi].val; \
+            } else { \
+                uint32_t __gti_node_idx = __gt->active_list_[__gi]; \
+                (k) = __gt->nodes_[__gti_node_idx].entry.key; \
+                (v) = __gt->nodes_[__gti_node_idx].entry.val; \
+            } \
+        } \
     } \
 } while(0)
 

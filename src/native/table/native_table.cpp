@@ -109,6 +109,7 @@ bool TableHasIntKey(const VarTable *t, int64_t k) {
         CVar r = get_fn(const_cast<VarTable *>(t), key_cvar, &finish);
         if (finish) return r.type_ != kNilType;
     }
+    if (static_cast<uint64_t>(k) - 1 < t->arr_size_) return t->arr_[k - 1].type_ != kNilType;
     if (t->spec_count > 0 && t->spec_keys && t->spec_vals) {
         for (uint32_t i = 0; i < t->spec_count; ++i) {
             if (TableHelper::VarKeyEqualInt(t->spec_keys[i], k) && t->spec_vals[i].type_ != kNilType) return true;
@@ -306,6 +307,8 @@ void TableRehashTo(State *s, VarTable *tbl, uint32_t min_buckets) {
     }
 }
 
+bool TableArrResizeInsert(State *s, VarTable *tbl, int64_t k, CVar v);
+
 // 通用的键写入，与 FlSetTableImpl 的插入路径对应（不含 nil 删除）。
 void TableSetNonNil(State *s, VarTable *tbl, CVar key, CVar val, uint32_t hash) {
     if (tbl->bucket_count_ == 0) {
@@ -324,9 +327,11 @@ void TableSetNonNil(State *s, VarTable *tbl, CVar key, CVar val, uint32_t hash) 
             tbl->count_++;
             return;
         }
+        if (key.type_ == kIntType && TableArrResizeInsert(s, tbl, key.data_.i, val)) return;
         TableRehash(s, tbl);
     }
     if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == VarTable::INVALID_INDEX) {
+        if (key.type_ == kIntType && TableArrResizeInsert(s, tbl, key.data_.i, val)) return;
         TableRehash(s, tbl);
     }
     TableInsertRaw(tbl, key, val, hash);
@@ -398,6 +403,119 @@ void TableDelete(VarTable *tbl, CVar key, uint32_t hash) {
     }
 }
 
+// 仅查哈希部分的整数键（不含 spec 与数组部分）。
+CVar TableHashGetInt(const VarTable *t, int64_t k) {
+    const CVar nil{kNilType};
+    if (t->count_ == 0) return nil;
+    const uint32_t hash = IntKeyHash(k);
+    if (t->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < t->count_; ++i) {
+            const auto &qd = t->quick_data_[i];
+            if (qd.hash == hash && qd.key.type_ == kIntType && qd.key.data_.i == k) return qd.val;
+        }
+        return nil;
+    }
+    const auto *curr = &t->nodes_[hash & (t->bucket_count_ - 1)];
+    while (true) {
+        if (curr->entry.hash == hash && curr->entry.key.type_ == kIntType && curr->entry.key.data_.i == k) return curr->entry.val;
+        if (curr->next == VarTable::INVALID_INDEX) return nil;
+        curr = &t->nodes_[curr->next];
+    }
+}
+
+void TableArrGrow(State *s, VarTable *tbl) {
+    const uint32_t cap = tbl->arr_cap_ ? tbl->arr_cap_ * 2 : 4;
+    auto *na = static_cast<CVar *>(s->GetValueAllocator().Alloc(static_cast<size_t>(cap) * sizeof(CVar)));
+    if (tbl->arr_size_ > 0) std::memcpy(na, tbl->arr_, static_cast<size_t>(tbl->arr_size_) * sizeof(CVar));
+    tbl->arr_ = na;
+    tbl->arr_cap_ = cap;
+}
+
+// 与 c_runtime_header.h 的 FlArrSetInt 对应：数组末尾追加后把哈希部分紧随其后的整数键迁入数组。
+bool TableArrSetInt(State *s, VarTable *tbl, int64_t k, CVar v) {
+    const uint64_t idx = static_cast<uint64_t>(k) - 1;
+    if (idx < tbl->arr_size_) {
+        tbl->arr_[idx] = v;
+        return true;
+    }
+    if (idx != tbl->arr_size_ || v.type_ == kNilType || tbl->spec_set) return false;
+    if (tbl->arr_size_ == tbl->arr_cap_) TableArrGrow(s, tbl);
+    tbl->arr_[tbl->arr_size_++] = v;
+    while (tbl->count_ != 0) {
+        const int64_t nk = static_cast<int64_t>(tbl->arr_size_) + 1;
+        const CVar hv = TableHashGetInt(tbl, nk);
+        if (hv.type_ == kNilType) break;
+        CVar key{kIntType};
+        key.data_.i = nk;
+        TableDelete(tbl, key, IntKeyHash(nk));
+        if (tbl->arr_size_ == tbl->arr_cap_) TableArrGrow(s, tbl);
+        tbl->arr_[tbl->arr_size_++] = hv;
+    }
+    return true;
+}
+
+// 与 c_runtime_header.h 的 FlArrTryResize 对应（Lua computesizes 规则）。
+bool TableArrTryResize(State *s, VarTable *tbl, int64_t nk) {
+    uint32_t nums[32] = {};
+    uint64_t total = 0;
+    const auto count_key = [&](int64_t kk) {
+        if (kk >= 1 && kk <= (int64_t{1} << 30)) {
+            nums[kk == 1 ? 0 : 64 - __builtin_clzll(static_cast<uint64_t>(kk) - 1)]++;
+            total++;
+        }
+    };
+    for (uint32_t i = 0; i < tbl->arr_size_; ++i) {
+        if (tbl->arr_[i].type_ != kNilType) count_key(static_cast<int64_t>(i) + 1);
+    }
+    for (uint32_t i = 0; i < tbl->count_; ++i) {
+        const auto &e = tbl->bucket_count_ == 0 ? tbl->quick_data_[i] : tbl->nodes_[tbl->active_list_[i]].entry;
+        if (e.key.type_ == kIntType) count_key(e.key.data_.i);
+    }
+    count_key(nk);
+    uint64_t a = 0, optimal = 0, two = 1;
+    for (uint32_t i = 0; i < 31 && total > two / 2; ++i, two <<= 1) {
+        a += nums[i];
+        if (a > two / 2) optimal = two;
+    }
+    if (optimal <= tbl->arr_size_) return false;
+
+    const uint32_t old_size = tbl->arr_size_;
+    auto *na = static_cast<CVar *>(s->GetValueAllocator().Alloc(static_cast<size_t>(optimal) * sizeof(CVar)));
+    if (old_size > 0) std::memcpy(na, tbl->arr_, static_cast<size_t>(old_size) * sizeof(CVar));
+    std::memset(static_cast<void *>(na + old_size), 0, static_cast<size_t>(optimal - old_size) * sizeof(CVar));
+    tbl->arr_ = na;
+    tbl->arr_cap_ = static_cast<uint32_t>(optimal);
+    tbl->arr_size_ = static_cast<uint32_t>(optimal);
+    for (uint64_t j = old_size + 1; j <= optimal && tbl->count_ != 0; ++j) {
+        const CVar hv = TableHashGetInt(tbl, static_cast<int64_t>(j));
+        if (hv.type_ == kNilType) continue;
+        CVar key{kIntType};
+        key.data_.i = static_cast<int64_t>(j);
+        TableDelete(tbl, key, IntKeyHash(static_cast<int64_t>(j)));
+        tbl->arr_[j - 1] = hv;
+    }
+    while (tbl->count_ != 0) {
+        const int64_t nk2 = static_cast<int64_t>(tbl->arr_size_) + 1;
+        const CVar hv = TableHashGetInt(tbl, nk2);
+        if (hv.type_ == kNilType) break;
+        CVar key{kIntType};
+        key.data_.i = nk2;
+        TableDelete(tbl, key, IntKeyHash(nk2));
+        if (tbl->arr_size_ == tbl->arr_cap_) TableArrGrow(s, tbl);
+        tbl->arr_[tbl->arr_size_++] = hv;
+    }
+    return true;
+}
+
+// 整数键 k 要插入已写满的哈希部分前调用；返回 true 表示 k 已写入数组。
+bool TableArrResizeInsert(State *s, VarTable *tbl, int64_t k, CVar v) {
+    if (tbl->spec_set) return false;
+    const bool full = tbl->bucket_count_ == 0 ? tbl->count_ >= VarTable::QUICK_DATA_SIZE : (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == VarTable::INVALID_INDEX);
+    if (!full) return false;
+    if (!TableArrTryResize(s, tbl, k)) return false;
+    return TableArrSetInt(s, tbl, k, v);
+}
+
 }// namespace
 
 bool TableHelper::VarKeyEqualInt(CVar k, int64_t idx) {
@@ -423,6 +541,13 @@ void TableHelper::ForEachKV(CVar tbl, const std::function<void(CVar key, CVar va
             if (t->spec_vals[i].type_ == static_cast<int>(VarType::Nil)) continue;
             fn(t->spec_keys[i], t->spec_vals[i]);
         }
+    }
+
+    for (uint32_t i = 0; i < t->arr_size_; ++i) {
+        if (t->arr_[i].type_ == static_cast<int>(VarType::Nil)) continue;
+        CVar key{static_cast<int>(VarType::Int)};
+        key.data_.i = static_cast<int64_t>(i) + 1;
+        fn(key, t->arr_[i]);
     }
 
     if (t->bucket_count_ == 0) {
@@ -466,6 +591,7 @@ int64_t TableHelper::GetTableLen(CVar tbl) {
 CVar TableHelper::GetTableInt(State *s, CVar tbl, int64_t idx) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return CVar{static_cast<int>(VarType::Nil)};
     VarTable *t = tbl.data_.t;
+    if (static_cast<uint64_t>(idx) - 1 < t->arr_size_) return t->arr_[idx - 1];
 
     if (t->spec_get) {
         using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
@@ -522,6 +648,8 @@ CVar TableHelper::GetTable(State *s, CVar tbl, CVar key) {
         CVar r = get_fn(t, key, &finish);
         if (finish) return r;
     }
+
+    if (key.type_ == kIntType && static_cast<uint64_t>(key.data_.i) - 1 < t->arr_size_) return t->arr_[key.data_.i - 1];
 
     if (t->spec_count > 0 && t->spec_vals && t->spec_keys) {
         for (uint32_t i = 0; i < t->spec_count; ++i) {
@@ -630,6 +758,10 @@ void TableHelper::SetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
     // 走与 JIT 侧 FlSetTableInt 相同的哈希插入与扩容路径。此前 quick_data_ 的 8 个槽用满后
     // 会把整数键 std::to_string 成十进制字符串再按 StringId 存入：JIT 侧按 VAR_INT 键查找
     // 时永远匹配不上，于是 table.move 等原生函数写入的第 9 个及之后的元素全部丢失。
+    if (TableArrSetInt(s, t, idx, val)) {
+        SeqNoteIntSet(t, idx, val.type_ == kNilType);
+        return;
+    }
     CVar key{static_cast<int>(VarType::Int)};
     key.data_.i = idx;
     const uint32_t hash = IntKeyHash(idx);
@@ -659,6 +791,10 @@ void TableHelper::SetTable(State *s, CVar tbl, CVar key, CVar val) {
         if (finish) return;
     }
 
+    if (key.type_ == kIntType && TableArrSetInt(s, t, key.data_.i, val)) {
+        SeqNoteIntSet(t, key.data_.i, val.type_ == kNilType);
+        return;
+    }
     const uint32_t hash = VarKeyHash(key);
     if (val.type_ == kNilType) {
         TableDelete(t, key, hash);
@@ -925,7 +1061,7 @@ void RegisterTableLibraryApi(State *s) {
             int64_t icount = static_cast<int64_t>(count);
             bool same_table = (a1.type_ == static_cast<int>(VarType::Table) && a2.type_ == static_cast<int>(VarType::Table) && a1.data_.t == a2.data_.t);
             // 空目标表预扩容：避免 1→2→4→… 反复 rehash（大 n 时常数项明显）
-            if (!same_table && a2.data_.t->count_ == 0 && icount > 8) {
+            if (!same_table && a2.data_.t->count_ == 0 && icount > 8 && t != static_cast<int64_t>(a2.data_.t->arr_size_) + 1) {
                 TableRehashTo(state, a2.data_.t, static_cast<uint32_t>(icount));
             }
             if (!same_table || t <= f || t > e) {
