@@ -238,6 +238,9 @@ TEST(test_math, test_math_jit_guard) {
     CallThrow(s, "test_math_fmod_bad_arg", res);
     CallThrow(s, "test_math_randomseed_bad_table", res);
     CallThrow(s, "test_math_modf_bad_arg", res);
+    CallThrow(s, "test_math_sqrt_bad_string", res);
+    CallThrow(s, "test_math_randomseed_out_of_range", res);
+    CallThrow(s, "test_math_randomseed_fractional", res);
 
     FakeluaDeleteState(s);
 }
@@ -247,12 +250,10 @@ TEST(test_math, test_math_randomseed_nan) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
 
-    for (auto jit_type: AllJitTypes()) {
-        CompileFile(s, "./math/test_math_jit_guard.lua", config);
-        double res = 0;
-        Call(s, jit_type, "test_math_randomseed_nan", res);
-        EXPECT_NEAR(res, 5000, 0.5);
-    }
+    CompileFile(s, "./math/test_math_jit_guard.lua", config);
+    double res = 0;
+    CallThrow(s, "test_math_randomseed_nan", res);
+    CallThrow(s, "test_math_randomseed_2pow63", res);
 
     FakeluaDeleteState(s);
 }
@@ -402,6 +403,27 @@ TEST(test_math, test_math_max_min) {
         Call(s, jit_type, "test_math_max_min", res);
         EXPECT_NEAR(res, 5000, 0.5);
     }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_math, test_math_max_min_precision) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_max_min_precision.lua", config);
+    for (auto jit_type: AllJitTypes()) {
+        SCOPED_TRACE(::testing::Message() << "jit=" << JitTypeName(jit_type));
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_max_min_precision", res);
+        EXPECT_EQ(res, 5000);
+        Call(s, jit_type, "test_math_other_edge_cases", res);
+        EXPECT_EQ(res, 5000);
+    }
+    int64_t res = 0;
+    CallThrow(s, "test_math_max_invalid_string", res);
+    CallThrow(s, "test_math_min_invalid_string", res);
 
     FakeluaDeleteState(s);
 }
