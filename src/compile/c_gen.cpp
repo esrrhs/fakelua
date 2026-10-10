@@ -3603,7 +3603,7 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp << ".data_.i : " << a1_tmp << ".data_.f);\n";
         Out() << GenTab() << "    if (" << a2_tmp << ".type_ == VAR_INT) { " << exp_tmp << " = " << a2_tmp << ".data_.i; } ";
         Out() << "else { FlToIntChecked(" << a2_tmp << ".data_.f, " << exp_tmp << "); }\n";
-        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = ldexp(" << val1_tmp << ", (int)" << exp_tmp << ")};\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = FlMathLdexp(" << val1_tmp << ", " << exp_tmp << ")};\n";
         Out() << GenTab() << "} else {\n";
         Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ldexp\", 2, " << a1_tmp << ", " << a2_tmp << ");\n";
         Out() << GenTab() << "}\n";
@@ -3683,9 +3683,10 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             func_temp_decls_ << "    CVar " << a_tmp << ";\n";
             func_temp_decls_ << "    int64_t " << val_tmp << ";\n";
             Out() << GenTab() << a_tmp << " = " << arg << ";\n";
+            Out() << GenTab() << "if (" << a_tmp << ".type_ == VAR_INT || " << a_tmp << ".type_ == VAR_FLOAT) {\n";
             Out() << GenTab() << "if (" << a_tmp << ".type_ == VAR_INT) { " << val_tmp << " = " << a_tmp << ".data_.i; } ";
             Out() << "else if (" << a_tmp << ".type_ == VAR_FLOAT) { FlToIntChecked(" << a_tmp << ".data_.f, " << val_tmp << "); } ";
-            Out() << "else { FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (number expected)\"); " << val_tmp << " = 0; }\n";
+            Out() << "\n";
             // 与 Lua 5.4 对齐：
             //   random(0)  -> 全范围随机整数（拼 4 个 rand 填满 64 位，跨平台一致）
             //   random(<0) -> 抛异常 "interval is empty"
@@ -3693,11 +3694,12 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             const auto rv_tmp = std::format("flua_rv_{}", tmp_var_counter_++);
             func_temp_decls_ << "    uint64_t " << rv_tmp << ";\n";
             Out() << GenTab() << "if (" << val_tmp << " == 0) { ";
-            Out() << rv_tmp << " = ((uint64_t)rand() << 48) | ((uint64_t)rand() << 32) | ((uint64_t)rand() << 16) | (uint64_t)rand(); ";
+            Out() << rv_tmp << " = (uint64_t)FlRandomInt64(); ";
             Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)" << rv_tmp << "}; }\n";
             Out() << GenTab() << "else if (" << val_tmp << " < 0) { ";
             Out() << "FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (interval is empty)\"); }\n";
             Out() << GenTab() << "else { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = 1 + (rand() % " << val_tmp << ")}; }\n";
+            Out() << GenTab() << "} else { " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.random\", 1, " << a_tmp << "); }\n";
         } else {
             std::string arg1 = CompileExp(raw_args[0]);
             std::string arg2 = CompileExp(raw_args[1]);
@@ -3711,12 +3713,12 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             func_temp_decls_ << "    int64_t " << val2_tmp << ";\n";
             Out() << GenTab() << a1_tmp << " = " << arg1 << ";\n";
             Out() << GenTab() << a2_tmp << " = " << arg2 << ";\n";
+            Out() << GenTab() << "if ((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && (" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp << ".type_ == VAR_FLOAT)) {\n";
             Out() << GenTab() << "if (" << a1_tmp << ".type_ == VAR_INT) { " << val1_tmp << " = " << a1_tmp << ".data_.i; } ";
             Out() << "else if (" << a1_tmp << ".type_ == VAR_FLOAT) { FlToIntChecked(" << a1_tmp << ".data_.f, " << val1_tmp << "); } ";
-            Out() << "else { FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (number expected)\"); " << val1_tmp << " = 0; }\n";
             Out() << GenTab() << "if (" << a2_tmp << ".type_ == VAR_INT) { " << val2_tmp << " = " << a2_tmp << ".data_.i; } ";
             Out() << "else if (" << a2_tmp << ".type_ == VAR_FLOAT) { FlToIntChecked(" << a2_tmp << ".data_.f, " << val2_tmp << "); } ";
-            Out() << "else { FakeluaThrowError(_S, \"bad argument #2 to 'math.random' (number expected)\"); " << val2_tmp << " = 0; }\n";
+            Out() << "\n";
             // 与 Lua 5.4 对齐：
             //   l > u -> 抛异常 "interval is empty"
             //   l == u -> 返回 l
@@ -3731,9 +3733,10 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << "}; }\n";
             Out() << GenTab() << "else { ";
             Out() << range_tmp << " = (uint64_t)" << val2_tmp << " - (uint64_t)" << val1_tmp << " + 1; ";
-            Out() << "if (" << range_tmp << " == 0) { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << "}; } ";
+            Out() << "if (" << range_tmp << " == 0) { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = FlRandomInt64()}; } ";
             Out() << "else { " << rv_tmp << " = ((uint64_t)rand() << 32) | (uint64_t)rand(); ";
             Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << " + (int64_t)(" << rv_tmp << " % " << range_tmp << ")}; } }\n";
+            Out() << GenTab() << "} else { " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.random\", 2, " << a1_tmp << ", " << a2_tmp << "); }\n";
         }
         return tmp;
     }
