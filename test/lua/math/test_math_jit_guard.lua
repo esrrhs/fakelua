@@ -18,10 +18,23 @@ function test_math_modf_bad_arg()
     math.modf({})
 end
 
--- NaN / 2^63 以前 JIT 会 (unsigned)float，属 UB。现在走 native，不得崩。
+function test_math_sqrt_bad_string()
+    math.sqrt("not a number")
+end
+
+function test_math_randomseed_out_of_range()
+    math.randomseed(1e308)
+end
+
+function test_math_randomseed_fractional()
+    math.randomseed(1.5)
+end
+
+-- Invalid floating-point seeds must be rejected without an invalid conversion.
 function test_math_randomseed_nan()
     math.randomseed(0 / 0)
+end
+
+function test_math_randomseed_2pow63()
     math.randomseed(2 ^ 63)
-    local _ = math.random()
-    return 5000
 end
