@@ -1687,6 +1687,14 @@ static inline double FlMathLdexp(double value, int64_t exponent) {
     return ldexp(value, (int)exponent);
 }
 
+static inline int64_t FlRandomInt64(void) {
+    uint64_t value = 0;
+    for (int i = 0; i < 5; ++i) {
+        value = (value << 15) | (uint64_t)(rand() & 0x7fff);
+    }
+    return (int64_t)value;
+}
+
 // 整数 for 步进：用无符号加法探测有符号溢出。溢出返回 0 且不改 *ctrl
 //（避免 maxinteger++ 变成 mininteger 后死循环）。continue 仍走 for 的 incr 子句。
 static inline int FlForIntAdvance(int64_t *ctrl, int64_t step) {

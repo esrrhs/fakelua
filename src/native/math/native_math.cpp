@@ -59,6 +59,14 @@ static double CheckMathNumberArg(const CVar &arg, int argno, const char *fname) 
     return value;
 }
 
+static int64_t RandomInt64() {
+    uint64_t value = 0;
+    for (int i = 0; i < 5; ++i) {
+        value = (value << 15) | (static_cast<uint64_t>(std::rand()) & 0x7fff);
+    }
+    return std::bit_cast<int64_t>(value);
+}
+
 // Use shared CheckNumberArg from native_common.h
 
 void RegisterMathLibraryApi(State *s) {
@@ -364,9 +372,7 @@ void RegisterMathLibraryApi(State *s) {
             const int64_t u = CheckIntegerArg(a0, 1, "math.random");
             if (u == 0) {
                 // Lua 5.4：math.random(0) 特殊情况，返回全范围随机整数。
-                // 拼 4 个 rand 填满 64 位，避免 Windows 上 RAND_MAX=32767 导致位数不足。
-                uint64_t rv = (static_cast<uint64_t>(std::rand()) << 48) | (static_cast<uint64_t>(std::rand()) << 32) | (static_cast<uint64_t>(std::rand()) << 16) | static_cast<uint64_t>(std::rand());
-                return inter::NativeToFakeluaInt(state, static_cast<int64_t>(rv));
+                return inter::NativeToFakeluaInt(state, RandomInt64());
             }
             if (u < 0) {
                 // Lua 5.4：math.random(负数) 报 "interval is empty"
@@ -390,8 +396,7 @@ void RegisterMathLibraryApi(State *s) {
             // 回绕仅发生在 l=INT64_MIN, u=INT64_MAX 的极端情况，此时直接返回 l。
             uint64_t range = static_cast<uint64_t>(u) - static_cast<uint64_t>(l) + 1;
             if (range == 0) {
-                const uint64_t rv = (static_cast<uint64_t>(std::rand()) << 32) | static_cast<uint64_t>(std::rand());
-                return inter::NativeToFakeluaInt(state, std::bit_cast<int64_t>(rv));
+                return inter::NativeToFakeluaInt(state, RandomInt64());
             }
             uint64_t rv = (static_cast<uint64_t>(std::rand()) << 32) | static_cast<uint64_t>(std::rand());
             int64_t r = static_cast<int64_t>(static_cast<uint64_t>(l) + (rv % range));
