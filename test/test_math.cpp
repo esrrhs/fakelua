@@ -406,6 +406,26 @@ TEST(test_math, test_math_max_min) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_math, test_math_max_min_precision) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    CompileFile(s, "./math/test_math_max_min_precision.lua", config);
+    for (auto jit_type: AllJitTypes()) {
+        SCOPED_TRACE(::testing::Message() << "jit=" << JitTypeName(jit_type));
+        int64_t res = 0;
+        Call(s, jit_type, "test_math_max_min_precision", res);
+        EXPECT_EQ(res, 5000);
+        Call(s, jit_type, "test_math_max_invalid_string", res);
+        EXPECT_EQ(res, 5000);
+        Call(s, jit_type, "test_math_min_invalid_string", res);
+        EXPECT_EQ(res, 5000);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_math, test_math_constants_full) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);

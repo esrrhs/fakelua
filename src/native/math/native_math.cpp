@@ -18,6 +18,46 @@ static CVar PushNumInt(State *state, double d) {
     return inter::NativeToFakeluaFloat(state, d);
 }
 
+static int CompareIntDouble(int64_t integer, double floating) {
+    constexpr double kInt64LowerBound = -9223372036854775808.0;
+    constexpr double kInt64UpperBound = 9223372036854775808.0;
+    if (std::isnan(floating)) return 0;
+    if (floating >= kInt64UpperBound) return -1;
+    if (floating < kInt64LowerBound) return 1;
+
+    const int64_t truncated = static_cast<int64_t>(floating);
+    if (integer < truncated) return -1;
+    if (integer > truncated) return 1;
+    const double truncated_as_double = static_cast<double>(truncated);
+    if (floating > truncated_as_double) return -1;
+    if (floating < truncated_as_double) return 1;
+    return 0;
+}
+
+static int CompareNumbers(CVar lhs, double lhs_value, CVar rhs, double rhs_value) {
+    const int int_type = static_cast<int>(VarType::Int);
+    if (lhs.type_ == int_type && rhs.type_ == int_type) {
+        if (lhs.data_.i < rhs.data_.i) return -1;
+        if (lhs.data_.i > rhs.data_.i) return 1;
+        return 0;
+    }
+    if (lhs.type_ == int_type) return CompareIntDouble(lhs.data_.i, rhs_value);
+    if (rhs.type_ == int_type) return -CompareIntDouble(rhs.data_.i, lhs_value);
+    if (lhs_value < rhs_value) return -1;
+    if (lhs_value > rhs_value) return 1;
+    return 0;
+}
+
+static double CheckMathNumberArg(const CVar &arg, int argno, const char *fname) {
+    CheckNumberArg(arg, argno, fname);
+    const double value = inter::CVarToNumber(arg, std::numeric_limits<double>::quiet_NaN());
+    if ((arg.type_ == static_cast<int>(VarType::String) || arg.type_ == static_cast<int>(VarType::StringId)) &&
+        std::isnan(value)) {
+        ThrowBadArgument(argno, fname, "number expected");
+    }
+    return value;
+}
+
 // Use shared CheckNumberArg from native_common.h
 
 void RegisterMathLibraryApi(State *s) {
@@ -63,13 +103,11 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.max", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar max_cvar = inter::GetNativeArg(state, args, n, 0);
-        CheckNumberArg(max_cvar, 1, "math.max");
-        double max_v = inter::CVarToNumber(max_cvar, -std::numeric_limits<double>::infinity());
+        double max_v = CheckMathNumberArg(max_cvar, 1, "math.max");
         for (int i = 1; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
-            CheckNumberArg(arg_i, i + 1, "math.max");
-            double v_i = inter::CVarToNumber(arg_i, -std::numeric_limits<double>::infinity());
-            if (v_i > max_v) {
+            double v_i = CheckMathNumberArg(arg_i, i + 1, "math.max");
+            if (CompareNumbers(max_cvar, max_v, arg_i, v_i) < 0) {
                 max_v = v_i;
                 max_cvar = arg_i;
             }
@@ -87,13 +125,11 @@ void RegisterMathLibraryApi(State *s) {
     RegisterNativeFunction(s, "math.min", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) return inter::NativeToFakeluaNil(state);
         CVar min_cvar = inter::GetNativeArg(state, args, n, 0);
-        CheckNumberArg(min_cvar, 1, "math.min");
-        double min_v = inter::CVarToNumber(min_cvar, std::numeric_limits<double>::infinity());
+        double min_v = CheckMathNumberArg(min_cvar, 1, "math.min");
         for (int i = 1; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
-            CheckNumberArg(arg_i, i + 1, "math.min");
-            double v_i = inter::CVarToNumber(arg_i, std::numeric_limits<double>::infinity());
-            if (v_i < min_v) {
+            double v_i = CheckMathNumberArg(arg_i, i + 1, "math.min");
+            if (CompareNumbers(min_cvar, min_v, arg_i, v_i) > 0) {
                 min_v = v_i;
                 min_cvar = arg_i;
             }
