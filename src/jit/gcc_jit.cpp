@@ -122,6 +122,15 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     args.emplace_back("dynamic_lookup");
 #endif
     args.emplace_back(cfg.debug_mode ? "-O0" : "-O3");
+    if (!cfg.debug_mode) {
+        args.emplace_back("-fno-math-errno");
+        args.emplace_back("-fno-trapping-math");
+        args.emplace_back("-fomit-frame-pointer");
+#if !defined(_WIN32) && !defined(__APPLE__)
+        args.emplace_back("-fno-semantic-interposition");
+        args.emplace_back("-fno-plt");
+#endif
+    }
     args.emplace_back("-DFAKELUA_JIT_TYPE=" + std::to_string(static_cast<int>(JIT_GCC)));
     for (const auto &path: s_->GetStateConfig().gcc_config.include_paths) {
         args.emplace_back("-I" + path);
