@@ -3513,7 +3513,6 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         func_temp_decls_ << "    double " << val2_tmp << ";\n";
         Out() << GenTab() << a1_tmp << " = " << arg1 << ";\n";
         Out() << GenTab() << a2_tmp << " = " << arg2 << ";\n";
-        Out() << GenTab() << "if ((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && (" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp << ".type_ == VAR_FLOAT)) {\n";
         Out() << GenTab() << "if (LIKELY((" << a1_tmp << ".type_ == VAR_INT || " << a1_tmp << ".type_ == VAR_FLOAT) && " << "(" << a2_tmp << ".type_ == VAR_INT || " << a2_tmp
               << ".type_ == VAR_FLOAT))) {\n";
         Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp << ".data_.i : " << a1_tmp << ".data_.f);\n";
