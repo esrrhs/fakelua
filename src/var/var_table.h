@@ -40,6 +40,11 @@ struct VarTable {
     // 需要重算——因此把 VarTable 整体清零的分配路径天然落在安全的重算分支上。
     uint32_t seq_len_valid_;
     int64_t seq_len_;
+    // 数组部分：整数键 1..arr_size_ 只存放在 arr_ 中（允许 nil 空洞），哈希部分不含
+    // [1, arr_size_+1] 内的整数键。arr_size_ 只增不减。必须与 c_runtime_header.h 一致。
+    CVar *arr_;
+    uint32_t arr_size_;
+    uint32_t arr_cap_;
 };
 
 }// namespace fakelua

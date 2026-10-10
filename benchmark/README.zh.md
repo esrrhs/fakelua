@@ -2,6 +2,8 @@
 
 本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的结果。覆盖 **6 大类共 51 个 Lua 性能场景**，每个场景均实现 C++ / Lua 5.4 / FakeLua TCC / FakeLua GCC / FakeLua INTERP（字节码解释器）横向对比。下面分析分成两块：**解释器 vs Lua 5.4**（本机，2026-09-16）和 **GCC JIT vs Lua / C++**（上一台机器，2026-08-14）。
 
+以下基准结果早于表数组部分的实现；表性能数据和说明是历史基线，不代表当前代码的测量结果。
+
 ## 运行命令
 
 ```bash
@@ -123,7 +125,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 3. **尾递归是离群点（34 倍）**：Lua 5.4 把 `return f(...)` 收成循环。INTERP 没有；n=5000 是 5000 层 C 栈（默认 8 MiB 会溢出）。
 
-4. **没有 array part 的表循环大约慢 3–4 倍**（BubbleSort、Vector3、TableInsert、NestedTable）。哈希-only 的 `VarTable` 对上 Lua 的数组部分。
+4. **在这些实现数组部分之前的测量中，表循环大约慢 3–4 倍**（BubbleSort、Vector3、TableInsert、NestedTable）。当时 `VarTable` 只有哈希存储，而 Lua 使用数组部分。
 
 5. **落到 C 标准库的工作可以快过 Lua**：`string.lower`/`upper` **6.2 倍**、`string.len` 2.3 倍、`table.sort` 1.9 倍、TableChurn 2.2 倍（arena）。操作码循环不是瓶颈时，原生辅助函数加上无 GC 分配会赢。
 

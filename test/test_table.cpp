@@ -20,6 +20,21 @@ TEST(test_table, test_table_insert_remove) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_table, test_table_array_part) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./table/test_table_array_part.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_table_array_part", res);
+        EXPECT_EQ(res, 32535312104LL);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_table, test_table_concat) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
