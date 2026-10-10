@@ -421,6 +421,8 @@ TEST(test_math, test_math_max_min_precision) {
         EXPECT_EQ(res, 5000);
         Call(s, jit_type, "test_math_min_invalid_string", res);
         EXPECT_EQ(res, 5000);
+        Call(s, jit_type, "test_math_other_edge_cases", res);
+        EXPECT_EQ(res, 5000);
     }
 
     FakeluaDeleteState(s);

@@ -3603,7 +3603,7 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         Out() << GenTab() << "    " << val1_tmp << " = (" << a1_tmp << ".type_ == VAR_INT ? (double)" << a1_tmp << ".data_.i : " << a1_tmp << ".data_.f);\n";
         Out() << GenTab() << "    if (" << a2_tmp << ".type_ == VAR_INT) { " << exp_tmp << " = " << a2_tmp << ".data_.i; } ";
         Out() << "else { FlToIntChecked(" << a2_tmp << ".data_.f, " << exp_tmp << "); }\n";
-        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = ldexp(" << val1_tmp << ", (int)" << exp_tmp << ")};\n";
+        Out() << GenTab() << "    " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = FlMathLdexp(" << val1_tmp << ", " << exp_tmp << ")};\n";
         Out() << GenTab() << "} else {\n";
         Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ldexp\", 2, " << a1_tmp << ", " << a2_tmp << ");\n";
         Out() << GenTab() << "}\n";

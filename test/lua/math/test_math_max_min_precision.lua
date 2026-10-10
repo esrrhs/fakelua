@@ -25,3 +25,26 @@ function test_math_min_invalid_string()
     local ok = pcall(math.min, 1, "not a number")
     return ok and 0 or 5000
 end
+
+function test_math_other_edge_cases()
+    local ok = pcall(function() return math.sqrt("not a number") end)
+    if ok then return 11 end
+
+    ok = pcall(function() math.randomseed(1e308) end)
+    if ok then return 12 end
+    ok = pcall(function() math.randomseed(1.5) end)
+    if ok then return 13 end
+    if not pcall(function() math.randomseed("2") end) then return 14 end
+    if not pcall(function() math.random("2") end) then return 15 end
+
+    if math.ldexp(1.0, 2147483648) ~= math.huge then return 16 end
+    if math.ldexp(1.0, -2147483649) ~= 0.0 then return 17 end
+
+    math.randomseed(42)
+    for _ = 1, 8 do
+        if math.random(math.mininteger, math.maxinteger) ~= math.mininteger then
+            return 5000
+        end
+    end
+    return 18
+end
