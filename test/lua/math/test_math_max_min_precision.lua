@@ -42,9 +42,9 @@ function test_math_other_edge_cases()
 
     math.randomseed(42)
     for _ = 1, 8 do
-        if math.random(math.mininteger, math.maxinteger) ~= math.mininteger then
-            return 5000
+        if math.random(math.mininteger, math.maxinteger) == math.mininteger then
+            return 18
         end
     end
-    return 18
+    return 5000
 end
