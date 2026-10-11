@@ -142,7 +142,13 @@ bool TableEntry(CVar t, uint32_t idx, CVar &k, CVar &v) {
         v = tbl->spec_vals[idx];
         return true;
     }
-    const uint32_t hidx = idx - spec_cnt;
+    uint32_t hidx = idx - spec_cnt;
+    if (hidx < tbl->arr_size_) {
+        k = Int(static_cast<int64_t>(hidx) + 1);
+        v = tbl->arr_[hidx];
+        return true;
+    }
+    hidx -= tbl->arr_size_;
     if (tbl->bucket_count_ == 0) {
         if (hidx >= tbl->count_) return false;
         k = tbl->quick_data_[hidx].key;
@@ -160,7 +166,7 @@ uint32_t TableEntryCount(CVar t) {
     if (t.type_ != kTable || !t.data_.t) {
         ThrowFakeluaException("for in: not a table");
     }
-    return t.data_.t->count_ + t.data_.t->spec_count;
+    return t.data_.t->count_ + t.data_.t->spec_count + t.data_.t->arr_size_;
 }
 
 CVar CombineMulti(State *s, const CVar *prefix, uint32_t prefix_count, CVar last) {

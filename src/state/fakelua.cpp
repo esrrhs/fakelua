@@ -293,7 +293,7 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
             const auto table = var_val.GetTable();
             const uint32_t count = table->count_;
             std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
-            kvs.reserve(table->spec_count + count);
+            kvs.reserve(table->spec_count + table->arr_size_ + count);
             const auto &new_func = GetVarInterfaceNewFunc(state);
             auto alloc_vi = [&new_func]() -> VarInterface * { return new_func ? new_func() : new SimpleVarImpl(); };
 
@@ -307,6 +307,17 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
                     VarToVi(state, sv[i], val_item);
                     kvs.emplace_back(key_item, val_item);
                 }
+            }
+            for (uint32_t i = 0; i < table->arr_size_; ++i) {
+                const auto &av = AsVar(table->arr_[i]);
+                if (av.Type() == VarType::Nil) {
+                    continue;
+                }
+                auto key_item = alloc_vi();
+                auto val_item = alloc_vi();
+                key_item->ViSetInt(static_cast<int64_t>(i) + 1);
+                VarToVi(state, table->arr_[i], val_item);
+                kvs.emplace_back(key_item, val_item);
             }
             if (const uint32_t *al = table->active_list_; al == nullptr) {
                 for (uint32_t i = 0; i < count; ++i) {

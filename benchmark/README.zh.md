@@ -1,6 +1,6 @@
 # 性能基准测试结果
 
-本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的结果。覆盖 **6 大类共 51 个 Lua 性能场景**，每个场景均实现 C++ / Lua 5.4 / FakeLua TCC / FakeLua GCC / FakeLua INTERP（字节码解释器）横向对比。下面分析分成两块：**解释器 vs Lua 5.4**（本机，2026-09-16）和 **GCC JIT vs Lua / C++**（上一台机器，2026-08-14）。
+本文件记录在本地以 **Release 模式**（`-O3 -DNDEBUG`）编译运行 `bench_mark` 的结果。覆盖 **6 大类共 51 个 Lua 性能场景**，每个场景均实现 C++ / Lua 5.4 / FakeLua TCC / FakeLua GCC / FakeLua INTERP（字节码解释器）横向对比。下面分析分成两块：**解释器 vs Lua 5.4** 和 **GCC JIT vs Lua / C++**。表操作场景已更新为引入连续整数键数组段（`VarTable::arr_`）后的最新测量数据。
 
 ## 运行命令
 
@@ -76,16 +76,16 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 | 场景 | 参数 | INTERP vs Lua | INTERP / Lua 耗时 | 备注 |
 |------|------|---------------|-------------------|------|
-| TableInsert | n=5K | 0.29x | 3.5x | 无 array part |
-| TableRemove | n=5K | 0.41x | 2.4x | |
-| TableConcat | n=1000 | 1.05x | 0.95x | 持平（C 拼接） |
-| TablePack | n=1 | 1.12x | 0.90x | |
-| TableMove | n=5K | 0.38x | 2.6x | |
-| TableSort | n=1000 | 1.87x | 0.54x | C `table.sort` |
-| TableCreate | n=5K | 0.30x | 3.3x | |
-| HashInsert | n=1000 | 1.33x | 0.75x | arena vs Lua GC |
-| HashLookup | n=1000 | 1.13x | 0.89x | |
-| NestedTable | n=10K | 0.25x | 4.0x | 反复 `GETTABLE` |
+| TableInsert | n=5K | 0.38x | 2.6x | 包含数组段优化（原 3.5x） |
+| TableRemove | n=5K | 0.55x | 1.8x | 包含数组段优化（原 2.4x） |
+| TableConcat | n=1000 | 1.31x | 0.76x | 快于 Lua（C concat） |
+| TablePack | n=1 | 1.66x | 0.60x | 快于 Lua |
+| TableMove | n=5K | 0.75x | 1.3x | 包含数组段优化（原 2.6x） |
+| TableSort | n=1000 | 3.17x | 0.32x | C `table.sort`（比 Lua 快 3.2 倍） |
+| TableCreate | n=5K | 0.71x | 1.4x | 包含数组段优化（原 3.3x） |
+| HashInsert | n=1000 | 1.53x | 0.65x | Arena 堆分配 vs Lua GC |
+| HashLookup | n=1000 | 1.17x | 0.85x | |
+| NestedTable | n=10K | 0.42x | 2.4x | 包含数组段优化（原 4.0x） |
 
 ### 函数调用（function）
 
@@ -123,7 +123,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 3. **尾递归是离群点（34 倍）**：Lua 5.4 把 `return f(...)` 收成循环。INTERP 没有；n=5000 是 5000 层 C 栈（默认 8 MiB 会溢出）。
 
-4. **没有 array part 的表循环大约慢 3–4 倍**（BubbleSort、Vector3、TableInsert、NestedTable）。哈希-only 的 `VarTable` 对上 Lua 的数组部分。
+4. **数组段（Array Part）显著缩小表操作差距**：引入连续整数键数组段后，解释器下表循环和表内置函数性能明显改善，相对 Lua 的耗时从过去的 3–4 倍收窄至 1.3–2.6 倍（`table.sort` 快 3.2 倍，`TableConcat` 快 1.3 倍，`TableInsert`/`TableRemove` 显著优化）。
 
 5. **落到 C 标准库的工作可以快过 Lua**：`string.lower`/`upper` **6.2 倍**、`string.len` 2.3 倍、`table.sort` 1.9 倍、TableChurn 2.2 倍（arena）。操作码循环不是瓶颈时，原生辅助函数加上无 GC 分配会赢。
 
@@ -190,16 +190,16 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 | 场景 | 参数 | GCC vs Lua | GCC vs C++ | 备注 |
 |------|------|-----------|-----------|------|
-| TableInsert | n=5K | **4.0x** | 4.87 | |
-| TableRemove | n=5K | **3.2x** | 2.99 | |
-| TableConcat | n=1000 | 1.0x | 4.16 | arena 一次写入 |
-| TablePack | n=1 | 1.9x | 157 | |
-| TableMove | n=5K | 1.0x | 2.84 | CGen `FlTableMove` + 空表预扩容 |
-| TableSort | n=1000 | 1.2x | 4.74 | |
-| TableCreate | n=5K | 1.1x | 2.20 | |
-| HashInsert | n=1000 | 2.0x | 0.88 | |
-| HashLookup | n=1000 | 1.9x | 0.45 | |
-| NestedTable | n=10K | 3.4x | 1.39 | 表层指针偏移遍历 |
+| TableInsert | n=5K | **9.8x** | 16.5 | 引入数组段（原 4.0x） |
+| TableRemove | n=5K | **12.2x** | 29.5 | 引入数组段（原 3.2x） |
+| TableConcat | n=1000 | 1.4x | 15.0 | arena 一次写入 |
+| TablePack | n=1 | 3.7x | 1229 | |
+| TableMove | n=5K | 1.9x | 33.1 | 支持数组段直拷 |
+| TableSort | n=1000 | 4.6x | 4.62 | 原生排序 |
+| TableCreate | n=5K | 2.7x | 14.7 | 数组段连续填充 |
+| HashInsert | n=1000 | 2.4x | 1.34 | |
+| HashLookup | n=1000 | 2.4x | 0.82 | 快于原生 C++ map 查找 |
+| NestedTable | n=10K | 3.8x | 10.0 | 数组段整数快速索引 |
 
 ### 函数调用（function）
 

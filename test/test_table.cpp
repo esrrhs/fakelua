@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "native/table/native_table.h"
 #include "test_jit.h"
+#include "var/var.h"
 
 using namespace fakelua;
 
@@ -16,6 +18,61 @@ TEST(test_table, test_table_insert_remove) {
         Call(s, jit_type, "test_table_insert_remove", res);
         EXPECT_NEAR(res, 77.0, 1e-4);
     }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_array_part) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./table/test_table_array_part.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_table_array_part", res);
+        EXPECT_EQ(res, 36864326318LL);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_native_array_part) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+
+    // 1. 测试直接调用 TableHelper::SetTableInt，逆序写入触发 TableArrResizeInsert -> TableArrTryResize
+    CVar tbl = table::TableHelper::CreateTable(s);
+    for (int64_t i = 8; i >= 2; --i) {
+        table::TableHelper::SetTableInt(s, tbl, i, Var(static_cast<int64_t>(i * 10)));
+    }
+    table::TableHelper::SetTableInt(s, tbl, 100, Var(int64_t{1000}));
+    table::TableHelper::SetTableInt(s, tbl, 1, Var(int64_t{10}));
+
+    EXPECT_EQ(table::TableHelper::GetTableInt(s, tbl, 1).data_.i, 10);
+    EXPECT_EQ(table::TableHelper::GetTableInt(s, tbl, 2).data_.i, 20);
+    EXPECT_EQ(table::TableHelper::GetTableInt(s, tbl, 8).data_.i, 80);
+    EXPECT_EQ(table::TableHelper::GetTableInt(s, tbl, 100).data_.i, 1000);
+    EXPECT_EQ(table::TableHelper::GetTableLen(tbl), 8);
+
+    // 2. 桶模式下的 TableArrResizeInsert
+    CVar tbl2 = table::TableHelper::CreateTable(s);
+    for (int64_t i = 30; i >= 2; --i) {
+        table::TableHelper::SetTableInt(s, tbl2, i, Var(static_cast<int64_t>(i)));
+    }
+    table::TableHelper::SetTableInt(s, tbl2, 1, Var(int64_t{1}));
+    EXPECT_EQ(table::TableHelper::GetTableLen(tbl2), 30);
+    EXPECT_EQ(table::TableHelper::GetTableInt(s, tbl2, 1).data_.i, 1);
+    EXPECT_EQ(table::TableHelper::GetTableInt(s, tbl2, 30).data_.i, 30);
+
+    // 3. 带数组空洞的表导出到 VarInterface（覆盖 fakelua.cpp 中 av.Type() == VarType::Nil）
+    CVar tbl3 = table::TableHelper::CreateTable(s);
+    table::TableHelper::SetTableInt(s, tbl3, 1, Var(int64_t{100}));
+    table::TableHelper::SetTableInt(s, tbl3, 2, Var(int64_t{200}));
+    table::TableHelper::SetTableInt(s, tbl3, 2, Var());
+    VarInterface *vi = inter::FakeluaToNativeObj(s, tbl3);
+    ASSERT_NE(vi, nullptr);
+    delete vi;
 
     FakeluaDeleteState(s);
 }
