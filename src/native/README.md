@@ -667,6 +667,8 @@ Async client on Boost.Redis. Reconnect and health-checks are off so a failed con
 
 Connect does not send `HELLO 3`, so Redis 4+ works; AUTH/SELECT are issued when `password` / `db` are set. Arrays become Lua arrays; RESP3 maps become tables; bulk/simple strings stay strings. After an optional `HELLO 3`, `HGETALL` is a map.
 
+> **Pub/Sub is not supported**: `command()` is a one-shot RPC channel (one callback per command) and cannot deliver the continuous pushes a subscription produces; `SUBSCRIBE`/`PSUBSCRIBE`/`UNSUBSCRIBE`/`PUNSUBSCRIBE`/`SSUBSCRIBE`/`SUNSUBSCRIBE` raise an error. For message delivery use polling (e.g. `LPUSH`+`LRANGE`, `ZADD`+`ZREVRANGE`).
+
 ---
 
 ## SQLite

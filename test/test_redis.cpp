@@ -122,3 +122,15 @@ TEST(test_redis, bad_db) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+// Pub/Sub 订阅族命令被拒绝（防 use-after-free，无需真实服务器）
+TEST(test_redis, subscribe_rejected) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./redis/test_redis.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "RedisTest.test_subscribe_rejected", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}

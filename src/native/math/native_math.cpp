@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <random>
 
 namespace fakelua::math {
 
@@ -67,10 +69,29 @@ static int64_t RandomInt64() {
     return std::bit_cast<int64_t>(value);
 }
 
+// Lua 5.4 在状态初始化时自动播种 PRNG。底层 std::rand 全局唯一且默认种子恒为 1，
+// 不显式 math.randomseed 时每次进程启动的随机序列完全相同（FakeLua Phase16 Bug 3）。
+// 进程内只播一次；显式 math.randomseed(x) 之后仍以用户种子为准。
+static void AutoSeedRandomOnce() {
+    static const bool seeded = [] {
+        uint64_t seed = static_cast<uint64_t>(std::time(nullptr));
+        std::random_device rd;
+        seed ^= (static_cast<uint64_t>(rd()) << 32) | static_cast<uint64_t>(rd());
+        // 栈地址熵：同一秒内启动的进程也不易撞种子。
+        int stack_anchor = 0;
+        seed ^= static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&stack_anchor));
+        std::srand(static_cast<unsigned int>(seed));
+        return true;
+    }();
+    (void) seeded;
+}
+
 // Use shared CheckNumberArg from native_common.h
 
 void RegisterMathLibraryApi(State *s) {
     if (!s) return;
+
+    AutoSeedRandomOnce();
 
     RegisterNativeFunction(s, "math.abs", 1, false, [](State *state, CVar *args, int n) -> CVar {
         CVar a0 = inter::GetNativeArg(state, args, n, 0);

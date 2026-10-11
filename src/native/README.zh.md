@@ -722,6 +722,8 @@ end
 
 连接时不发送 `HELLO 3`，因此 Redis 4+ 可用；配置了 `password` / `db` 时会发 AUTH/SELECT。数组变成 Lua 数组，RESP3 map 变成表，字符串保持字符串。可选执行 `HELLO 3` 后，`HGETALL` 为 map。
 
+> **不支持 Pub/Sub**：`command()` 是一次性 RPC 通道（每条命令对应一次回调），无法承接订阅后的持续推送；`SUBSCRIBE`/`PSUBSCRIBE`/`UNSUBSCRIBE`/`PUNSUBSCRIBE`/`SSUBSCRIBE`/`SUNSUBSCRIBE` 会直接报错。需要消息推送请用拉模式（如 `LPUSH`+`LRANGE`、`ZADD`+`ZREVRANGE`）。
+
 ---
 
 ## SQLite
