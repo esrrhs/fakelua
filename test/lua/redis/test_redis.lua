@@ -71,3 +71,25 @@ function test_bad_db()
     if ok then return 0 end
     return 1
 end
+
+-- SUBSCRIBE/PSUBSCRIBE/UNSUBSCRIBE/PUNSUBSCRIBE 必须被响亮拒绝：一次性 RPC 命令
+-- 通道无法承接 Pub/Sub 推送，放行会导致第二条推送写已释放的 CmdOp（UAF）。
+-- 无需真实服务器：参数校验先于连接就绪检查，错误可被 pcall 捕获。
+function test_subscribe_rejected()
+    local config = {}
+    config["host"] = "127.0.0.1"
+    config["port"] = 1
+    config["timeout_ms"] = 500
+    local conn = redis.connect(config, "RedisTest.on_connect")
+    local cmds = { "SUBSCRIBE", "PSUBSCRIBE", "UNSUBSCRIBE", "PUNSUBSCRIBE", "subscribe", "SSUBSCRIBE", "SUNSUBSCRIBE", "ssubscribe" }
+    for i = 1, #cmds do
+        local cmd = cmds[i]
+        local ok, err = pcall(function()
+            conn:command({ cmd, "ch" }, "RedisTest.on_connect")
+        end)
+        if ok then conn:close(); return 0 end
+        if not string.find(tostring(err), "not supported") then conn:close(); return 0 end
+    end
+    conn:close()
+    return 1
+end

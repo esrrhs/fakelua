@@ -23,15 +23,23 @@ int main(int argc, char **argv) {
 
     const FakeluaStateGuard guard;
     const auto s = guard.GetState();
-    CompileConfig cfg;
-    cfg.debug_mode = FLAGS_debug;
-    CompileFile(s, argv[1], cfg);
 
-    int code = 0;
-    for (int i = 0; i < FLAGS_repeat; i++) {
-        Call(s, static_cast<JITType>(FLAGS_jit_type), FLAGS_entry, code);
+    // Lua 惯例：未捕获的运行时错误打印消息后以退出码 1 结束，而不是让 C++
+    // 异常穿透到 libc++abi 触发 SIGABRT（退出码 134，FakeLua Phase16 Bug 4）。
+    try {
+        CompileConfig cfg;
+        cfg.debug_mode = FLAGS_debug;
+        CompileFile(s, argv[1], cfg);
+
+        int code = 0;
+        for (int i = 0; i < FLAGS_repeat; i++) {
+            Call(s, static_cast<JITType>(FLAGS_jit_type), FLAGS_entry, code);
+        }
+        std::cout << "code: " << code << std::endl;
+
+        return code;
+    } catch (const std::exception &e) {
+        std::cerr << "flua: " << e.what() << std::endl;
+        return 1;
     }
-    std::cout << "code: " << code << std::endl;
-
-    return code;
 }

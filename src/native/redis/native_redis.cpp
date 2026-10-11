@@ -13,6 +13,7 @@
 #include <adapters/libevent.h>
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstring>
 #include <cstdlib>
@@ -174,10 +175,23 @@ public:
     }
 
     void Command(std::vector<std::string> parts, std::string cb) {
+        if (parts.empty()) ThrowFakeluaException("redis command: empty argv");
+        // Pub/Sub 订阅族命令不能走一次性 RPC 通道：订阅成功后 hiredis 会对每条推送
+        // 都以同一个 privdata 回调 OnCommand，而该 CmdOp 在首条 ack 派发后即被弹出
+        // 销毁，第二条推送起就是悬垂指针写（use-after-free）。完整支持需要独立的长
+        // 生命周期订阅上下文；在此之前响亮拒绝，避免堆破坏（FakeLua Phase16 Bug 2）。
+        // 参数校验先于连接状态检查，未就绪的连接上也能拿到明确报错。
+        std::string verb = parts.front();
+        std::transform(verb.begin(), verb.end(), verb.begin(), [](unsigned char ch) {
+            return static_cast<char>(std::tolower(ch));
+        });
+        if (verb == "subscribe" || verb == "psubscribe" || verb == "unsubscribe" || verb == "punsubscribe" ||
+            verb == "ssubscribe" || verb == "sunsubscribe") {
+            ThrowFakeluaException("redis: '" + verb + "' is not supported, command() is one-shot RPC and cannot deliver pub/sub pushes");
+        }
         if (closed_ || close_pending_ || !ac_ || !ready_) {
             ThrowFakeluaException("redis: connection is closed");
         }
-        if (parts.empty()) ThrowFakeluaException("redis command: empty argv");
         auto op = std::make_unique<CmdOp>();
         op->cb = std::move(cb);
         auto *raw = op.get();
