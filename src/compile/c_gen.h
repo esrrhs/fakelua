@@ -67,7 +67,9 @@ private:
     void CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out);
     // 为特定函数生成分发入口（用于处理动态调用到特化强类型调用的转发）
     // c_name 是 C 符号（unique_c_name），lua_name 用于查 specialization_return_types。
-    void GenerateEntryDispatcher(const std::string &c_name, const std::string &lua_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices);
+    // dyn_name 是动态去优化变体的 C 符号：数学参数非数值时分派到它而非抛错。
+    void GenerateEntryDispatcher(const std::string &c_name, const std::string &lua_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices,
+                                 const std::string &dyn_name);
     // 辅助工具：判断一个基本块（Block）的结尾是否显式包含 return 语句
     [[nodiscard]] static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block);
     // 获取特定特化签名下函数的返回类型
@@ -262,6 +264,8 @@ private:
     // ==========================================
     // 代码生成阶段抛出带有上下文树节点的异常错误
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
+    // 试探性原生数值编译失败的静默信号（不打 ERROR 日志），供回退路径捕获
+    [[noreturn]] void ThrowSpecMiss(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
     // 根据当前缩进深度生成 C 代码缩进空白字符
     [[nodiscard]] std::string GenTab() const;
 

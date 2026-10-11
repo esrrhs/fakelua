@@ -16,11 +16,52 @@ static void InferRunHelper(const std::function<void(State *, JITType, bool)> &f)
     FakeluaDeleteState(s);
 }
 
+// Every math-specialized function is emitted together with a dynamic
+// deoptimization variant named `<fn>__dyn` (compiled with full CVar dynamics).
+// Shape assertions target the specialized/regular variants ("no IsTrue",
+// "no CVar local"), while the __dyn body legitimately contains that dynamic
+// machinery; strip the whole __dyn definition before scanning. Forward
+// declarations (lines ending with ';') are kept.  Top-level function closing
+// braces start at column 0 in generated code.
+static std::string StripDynVariantBodies(const std::string &code) {
+    std::string out;
+    size_t pos = 0;
+    while (pos < code.size()) {
+        const size_t line_end = code.find('\n', pos);
+        const size_t stop = (line_end == std::string::npos) ? code.size() : line_end;
+        const std::string line = code.substr(pos, stop - pos);
+        if (line.find("__dyn(VarClosure") != std::string::npos && line.find('{') != std::string::npos) {
+            size_t p = (line_end == std::string::npos) ? code.size() : line_end + 1;
+            while (p < code.size()) {
+                const size_t e = code.find('\n', p);
+                const size_t estop = (e == std::string::npos) ? code.size() : e;
+                const std::string body_line = code.substr(p, estop - p);
+                const size_t first = body_line.find_first_not_of(" \t");
+                p = (e == std::string::npos) ? code.size() : e + 1;
+                if (first == 0 && !body_line.empty() && body_line[0] == '}') {
+                    break;
+                }
+            }
+            pos = p;
+            continue;
+        }
+        out += line;
+        out.push_back('\n');
+        pos = (line_end == std::string::npos) ? code.size() : line_end + 1;
+    }
+    return out;
+}
+
 // Compile a Lua file with record_c_code=true (both JIT backends disabled so the
 // step is cheap) and return the recorded globals+decls+impls portion.  The
 // returned string is also printed to stdout so that CI logs show the actual C
 // output for every infer test case.
-static std::string InferGetCCode(const std::string &lua_file) {
+//
+// By default the emitted <fn>__dyn deoptimization bodies are stripped: shape
+// assertions almost always target the specialized/regular variants, while the
+// fully-dynamic __dyn bodies legitimately contain IsTrue/CVar locals etc.
+// Pass keep_dyn_variants=true when asserting on the deopt machinery itself.
+static std::string InferGetCCode(const std::string &lua_file, bool keep_dyn_variants = false) {
     const auto s = FakeluaNewState();
     EXPECT_NE(s, nullptr);
     CompileConfig cfg;
@@ -28,11 +69,11 @@ static std::string InferGetCCode(const std::string &lua_file) {
     cfg.record_c_code = true;
     DisableAllJit(cfg);
     CompileFile(s, lua_file, cfg);
-    const auto code = GetLastRecordedCCode(s);
+    const auto raw_code = GetLastRecordedCCode(s);
     FakeluaDeleteState(s);
     // Print so CI logs can be inspected even without a debugger.
-    std::cout << "\n=== C code for " << lua_file << " ===\n" << code << "=== end ===\n";
-    return code;
+    std::cout << "\n=== C code for " << lua_file << " ===\n" << raw_code << "=== end ===\n";
+    return keep_dyn_variants ? raw_code : StripDynVariantBodies(raw_code);
 }
 
 // Full inference success: all ints, constant for-loop bounds give T_INT loop var.
@@ -2876,7 +2917,8 @@ TEST(infer, test_spec_repeat_local_until) {
 // test(5) == 6 (n+1 path), test(-1) == 0.5 (0.5 path).
 TEST(infer, test_spec_local_degraded_binop) {
     const auto code = InferGetCCode("./infer/test_spec_local_degraded_binop.lua");
-    // x becomes double.
+    // x becomes double in the specialized variants (CVar x only exists in the
+    // dynamic deopt variant, which is stripped before scanning).
     ASSERT_NE(code.find("double x = "), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
 
@@ -4559,4 +4601,86 @@ TEST(infer, test_spec_literal_keys) {
         Call(s, type, "test_spec_assign_pairs", ret);
         ASSERT_EQ(ret, 1);
     });
+}
+
+// A math-specialized function must deoptimize to a dynamic variant when a math
+// parameter is non-numeric, matching the INTERP backend instead of hard-failing
+// at the entry dispatcher (previously TCC/GCC aborted the process here).
+TEST(infer, test_spec_deopt) {
+    const auto code = InferGetCCode("./infer/test_spec_deopt.lua", true);
+    // A dynamic (__dyn) variant is declared and defined for each specialized
+    // function, with the same CVar signature as the entry dispatcher.
+    ASSERT_NE(code.find("CVar flua_fn_deopt_guard__dyn(VarClosure *_CL, CVar x);"), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_fn_deopt_multi__dyn(VarClosure *_CL, CVar a, CVar b);"), std::string::npos);
+    // Dispatcher routes non-numeric math arguments to the dynamic variant.
+    ASSERT_NE(code.find(".type_ != VAR_INT"), std::string::npos);
+    ASSERT_NE(code.find("flua_fn_deopt_guard__dyn(_CL"), std::string::npos);
+    // The dynamic body itself is emitted (not only forward-declared).
+    ASSERT_NE(code.find("CVar flua_fn_deopt_guard__dyn(VarClosure *_CL, CVar x) {"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_deopt.lua", {.debug_mode = debug_mode});
+
+        int64_t ret = 0;
+        Call(s, type, "test_deopt", ret);
+        ASSERT_EQ(ret, 0);
+
+        // Numeric path still goes through specialized variants.
+        Call(s, type, "deopt_guard", ret, 10);
+        ASSERT_EQ(ret, 11);
+        Call(s, type, "deopt_multi", ret, 1, 2);
+        ASSERT_EQ(ret, 4);
+
+        // Non-numeric path deoptimizes into the function body (type() guards).
+        Call(s, type, "deopt_guard", ret, "abc");
+        ASSERT_EQ(ret, -1);
+        Call(s, type, "deopt_guard", ret, true);
+        ASSERT_EQ(ret, -1);
+        Call(s, type, "deopt_multi", ret, "x", 2);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "deopt_multi", ret, 2, "y");
+        ASSERT_EQ(ret, 0);
+
+        // Dynamic variant may return a different kind of value (string).
+        ret = 0;
+        Call(s, type, "deopt_kind", ret, 5);
+        ASSERT_EQ(ret, 105);
+        std::string sret;
+        Call(s, type, "deopt_kind", sret, "z");
+        ASSERT_EQ(sret, "kind");
+
+        // Real arithmetic errors stay pcall-catchable Lua errors instead of
+        // aborting the process (test_deopt already asserts pcall() == false
+        // in Lua; here verify the C++ boundary catches the same failure).
+        try {
+            int64_t bad = 0;
+            Call(s, type, "deopt_arith", bad, "abc");
+            FAIL() << "expected arithmetic error for non-numeric argument";
+        } catch (const std::exception &) {
+            // expected
+        }
+        Call(s, type, "deopt_arith", ret, 41);
+        ASSERT_EQ(ret, 42);
+
+        // Fallback for unsupported operations inside trial numeric expressions
+        Call(s, type, "deopt_unsupported_ops", ret, 5);
+        ASSERT_EQ(ret, 10);
+        Call(s, type, "deopt_unsupported_ops", ret, "z");
+        ASSERT_EQ(ret, -1);
+
+        // Specialized function with no explicit return at block end
+        CVar nil_ret;
+        Call(s, type, "deopt_noreturn", nil_ret, 10);
+        ASSERT_EQ(nil_ret.type_, static_cast<int>(VarType::Nil));
+        Call(s, type, "deopt_noreturn", nil_ret, "abc");
+        ASSERT_EQ(nil_ret.type_, static_cast<int>(VarType::Nil));
+    });
+}
+
+TEST(infer, test_spec_miss_exception) {
+    try {
+        throw FakeluaSpecMissException("test spec miss signal");
+    } catch (const FakeluaSpecMissException &e) {
+        ASSERT_TRUE(std::string(e.what()).find("test spec miss signal") != std::string::npos);
+    }
 }
