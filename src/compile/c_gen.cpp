@@ -2157,7 +2157,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
         Out() << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
         Out() << GenTab() << "if (UNLIKELY(" << tbl_var << ".type_ != VAR_TABLE)) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
-        Out() << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_ + " << tbl_var << ".data_.t->spec_count;\n";
+        Out() << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_ + " << tbl_var << ".data_.t->spec_count + " << tbl_var << ".data_.t->arr_size_;\n";
 
         Out() << GenTab() << "for (" << idx_var << " = 0; " << idx_var << " < " << sz_var << "; " << idx_var << "++) {\n";
         cur_tab_++;

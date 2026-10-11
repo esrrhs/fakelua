@@ -2,7 +2,7 @@
 
 # Benchmark Results
 
-This file records results of running `bench_mark` compiled in **Release mode** (`-O3 -DNDEBUG`) locally. It covers **51 Lua performance scenarios across 6 categories**, each with C++ / Lua 5.4 / FakeLua TCC / FakeLua GCC / FakeLua INTERP (bytecode interpreter). Analysis below splits into **interpreter vs Lua 5.4** (this machine, 2026-09-16) and **GCC JIT vs Lua / C++** (previous machine, 2026-08-14).
+This file records results of running `bench_mark` compiled in **Release mode** (`-O3 -DNDEBUG`) locally. It covers **51 Lua performance scenarios across 6 categories**, each with C++ / Lua 5.4 / FakeLua TCC / FakeLua GCC / FakeLua INTERP (bytecode interpreter). Analysis below splits into **interpreter vs Lua 5.4** and **GCC JIT vs Lua / C++**. Table benchmarks include latest measurements reflecting the Lua-style contiguous array part (`VarTable::arr_`).
 
 ## Running
 
@@ -78,16 +78,16 @@ Largest parameter per scenario:
 
 | Scenario | Param | INTERP vs Lua | INTERP / Lua time | Notes |
 |----------|-------|---------------|-------------------|-------|
-| TableInsert | n=5K | 0.29x | 3.5x | No array part |
-| TableRemove | n=5K | 0.41x | 2.4x | |
-| TableConcat | n=1000 | 1.05x | 0.95x | On par (C concat) |
-| TablePack | n=1 | 1.12x | 0.90x | |
-| TableMove | n=5K | 0.38x | 2.6x | |
-| TableSort | n=1000 | 1.87x | 0.54x | C `table.sort` |
-| TableCreate | n=5K | 0.30x | 3.3x | |
-| HashInsert | n=1000 | 1.33x | 0.75x | Arena vs Lua GC |
-| HashLookup | n=1000 | 1.13x | 0.89x | |
-| NestedTable | n=10K | 0.25x | 4.0x | Repeated `GETTABLE` |
+| TableInsert | n=5K | 0.38x | 2.6x | With array part (improved from 3.5x) |
+| TableRemove | n=5K | 0.55x | 1.8x | With array part (improved from 2.4x) |
+| TableConcat | n=1000 | 1.31x | 0.76x | Faster than Lua (C concat) |
+| TablePack | n=1 | 1.66x | 0.60x | Faster than Lua |
+| TableMove | n=5K | 0.75x | 1.3x | With array part (improved from 2.6x) |
+| TableSort | n=1000 | 3.17x | 0.32x | C `table.sort` (3.2x faster than Lua) |
+| TableCreate | n=5K | 0.71x | 1.4x | With array part (improved from 3.3x) |
+| HashInsert | n=1000 | 1.53x | 0.65x | Arena vs Lua GC |
+| HashLookup | n=1000 | 1.17x | 0.85x | |
+| NestedTable | n=10K | 0.42x | 2.4x | With array part (improved from 4.0x) |
 
 ### Function Calls (function)
 
@@ -125,7 +125,7 @@ Largest parameter per scenario:
 
 3. **Tail recursion is the outlier (34×)**: Lua 5.4 turns `return f(...)` into a loop. INTERP does not; n=5000 is 5000 nested C frames (and overflows the default 8 MiB stack).
 
-4. **Table loops without an array part are ~3–4× slower** (BubbleSort, Vector3, TableInsert, NestedTable). Hash-only `VarTable` vs Lua's array part.
+4. **Table loops and operations with array part**: With the contiguous array-part implementation, table loops and operations are significantly faster. In the bytecode interpreter, table loop slowdown vs Lua dropped from ~3–4× to ~1.3–2.6× (`table.sort` is 3.2× faster than Lua, `TableConcat` is 1.3× faster, and `TableInsert`/`TableRemove` are substantially improved).
 
 5. **C stdlib work can beat Lua**: `string.lower`/`upper` **6.2×**, `string.len` 2.3×, `table.sort` 1.9×, TableChurn 2.2× (arena). When the opcode loop is not the bottleneck, native helpers plus no-GC allocation win.
 
@@ -192,16 +192,16 @@ The tables below are from a **previous** run on a different machine (AMD EPYC 7K
 
 | Scenario | Param | GCC vs Lua | GCC vs C++ | Notes |
 |----------|-------|-----------|-----------|-------|
-| TableInsert | n=5K | **4.0x** | 4.87 | |
-| TableRemove | n=5K | **3.2x** | 2.99 | |
-| TableConcat | n=1000 | 1.0x | 4.16 | Arena single write |
-| TablePack | n=1 | 1.9x | 157 | |
-| TableMove | n=5K | 1.0x | 2.84 | CGen `FlTableMove` + empty table pre-grow |
-| TableSort | n=1000 | 1.2x | 4.74 | |
-| TableCreate | n=5K | 1.1x | 2.20 | |
-| HashInsert | n=1000 | 2.0x | 0.88 | |
-| HashLookup | n=1000 | 1.9x | 0.45 | |
-| NestedTable | n=10K | 3.4x | 1.39 | Outer table pointer offset traversal |
+| TableInsert | n=5K | **9.8x** | 16.5 | With array part (up from 4.0x) |
+| TableRemove | n=5K | **12.2x** | 29.5 | With array part (up from 3.2x) |
+| TableConcat | n=1000 | 1.4x | 15.0 | Arena single write |
+| TablePack | n=1 | 3.7x | 1229 | |
+| TableMove | n=5K | 1.9x | 33.1 | Array-aware move |
+| TableSort | n=1000 | 4.6x | 4.62 | C `table.sort` |
+| TableCreate | n=5K | 2.7x | 14.7 | Pre-allocated array part |
+| HashInsert | n=1000 | 2.4x | 1.34 | |
+| HashLookup | n=1000 | 2.4x | 0.82 | Faster than handwritten C++ map |
+| NestedTable | n=10K | 3.8x | 10.0 | Array part integer indexing |
 
 ### Function Calls (function)
 
