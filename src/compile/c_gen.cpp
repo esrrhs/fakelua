@@ -186,8 +186,14 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Ana
     ir_ = ir;
     ar_ = ar;
 
-    // 运行构建主流程
-    GenResult gr = Build(pr, cfg);
+    // 运行构建主流程。逃逸出 Build 的 spec-miss 说明该处数值特化无可回退路径，
+    // 仍是与历史一致的硬编译错误（含同样的 ERROR 日志与报错文本）。
+    GenResult gr;
+    try {
+        gr = Build(pr, cfg);
+    } catch (const FakeluaSpecMissException &e) {
+        ThrowFakeluaException(std::format("Code generate failed, {}", e.what()));
+    }
 
     LOG_DEBUG(s_, "engine", "CGen::Build complete: {} functions, {} bytes of C code", gr.function_names.size(), gr.c_code.size());
 
@@ -574,6 +580,12 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                     // 本地调用（同文件直接调用）。
                     gr.function_names[spec_name] = JitFunctionInfo{static_cast<int>(func->params.size()), is_vararg, spec_name};
                 }
+                // 动态去优化变体（签名与入口分发器一致），前向声明与定义保持同步。
+                Out() << "CVar " << name << "__dyn(VarClosure *_CL";
+                for (size_t i = 0; i < cparams.size(); ++i) {
+                    Out() << ", CVar " << cparams[i];
+                }
+                Out() << ");\n";
             }
         }
     }
@@ -600,6 +612,12 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
 
 [[noreturn]] void CGen::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
     ThrowFakeluaException(std::format("Code generate failed, {} at {}", msg, SyntaxTreeLocationStr(file_name_, ptr)));
+}
+
+[[noreturn]] void CGen::ThrowSpecMiss(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
+    // 与 ThrowError 文本保持一致，仅省去 BuildFakeluaErrorMessage 的 ERROR 日志：
+    // 这是「试不了原生就回退动态」的常规信号，每个多态函数都可能触发，不应刷错误日志。
+    throw FakeluaSpecMissException(std::format("{} at {}", msg, SyntaxTreeLocationStr(file_name_, ptr)));
 }
 
 bool CGen::BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
@@ -687,7 +705,22 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 }
                 Out() << "}\n";
             }
-            GenerateEntryDispatcher(name, func->name, c_func_params, math_params);
+            // 动态去优化变体：与未特化函数同样按 CVar 动态编译。入口分发器在
+            // 数学参数为非数值（string/bool/nil 等）时分派到这里，由函数体内的
+            // Lua 层 type() 守卫/动态运算决定语义（与 INTERP 后端行为一致），
+            // 而不是在函数入口直接抛错导致整个进程 abort。
+            const auto dyn_name = name + "__dyn";
+            Out() << "CVar " << dyn_name << "(VarClosure *_CL";
+            for (size_t i = 0; i < c_func_params.size(); ++i) {
+                Out() << ", CVar " << c_func_params[i];
+            }
+            Out() << ") {\n";
+            CompileFuncBody(func->name, func_block, -1, sections_[static_cast<size_t>(Section::Impls)]);
+            if (!BlockEndsWithReturn(func_block)) {
+                Out() << "    return kNil;\n";
+            }
+            Out() << "}\n";
+            GenerateEntryDispatcher(name, func->name, c_func_params, math_params, dyn_name);
         } else {
             Out() << "CVar " << name << "(VarClosure *_CL";
             for (size_t i = 0; i < c_func_params.size(); ++i) {
@@ -720,7 +753,8 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     }
 }
 
-void CGen::GenerateEntryDispatcher(const std::string &c_name, const std::string &lua_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices) {
+void CGen::GenerateEntryDispatcher(const std::string &c_name, const std::string &lua_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices,
+                                  const std::string &dyn_name) {
     const int k = static_cast<int>(math_param_indices.size());
     const int num_specs = 1 << k;
 
@@ -730,13 +764,22 @@ void CGen::GenerateEntryDispatcher(const std::string &c_name, const std::string 
     }
     Out() << ") {\n";
 
+    // 任一数学参数不是数值时（string/bool/nil/table 等），spec miss → 去优化到
+    // 动态变体执行，对齐 INTERP 后端：函数体内可能存在 type() 守卫提前 return，
+    // 或 tonumber() 转换等合法 Lua 语义，入口无权直接判错。
+    Out() << "    if (UNLIKELY(";
     for (int i = 0; i < k; ++i) {
-        const int param_idx = math_param_indices[i];
-        const auto &mp_name = func_params[static_cast<size_t>(param_idx)];
-        Out() << std::format("    if (UNLIKELY({0}.type_ != VAR_INT && {0}.type_ != VAR_FLOAT)) {{ FakeluaThrowError(_S, \"bad argument #{1} ({2}): "
-                             "attempt to perform arithmetic on non-numeric value\"); }}\n",
-                             mp_name, param_idx + 1, mp_name);
+        if (i > 0) {
+            Out() << " || ";
+        }
+        const auto &mp_name = func_params[static_cast<size_t>(math_param_indices[i])];
+        Out() << std::format("({0}.type_ != VAR_INT && {0}.type_ != VAR_FLOAT)", mp_name);
     }
+    Out() << ")) { return " << dyn_name << "(_CL";
+    for (size_t i = 0; i < func_params.size(); ++i) {
+        Out() << ", " << func_params[i];
+    }
+    Out() << "); }\n";
 
     Out() << "    int flua_spec_idx = ";
     for (int i = 0; i < k; ++i) {
@@ -927,7 +970,7 @@ bool CGen::TryInferMathCallBitmask(const std::string &callee_name, const std::ve
         for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
             const int param_pos = math_params[i];
             if (param_pos >= static_cast<int>(raw_args.size())) {
-                return false;// fewer args than math params: let slow-path ThrowError handle it
+                return false;// fewer args than math params: let slow-path deopt handle it
             }
             const auto &arg = raw_args[static_cast<size_t>(param_pos)];
             DEBUG_ASSERT(arg && arg->Type() == SyntaxTreeType::Exp);
@@ -2716,7 +2759,7 @@ std::string CGen::CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left,
             Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
             return itmp;
         }
-        ThrowError("bitwise operand is not numeric", operand_node);
+        ThrowSpecMiss("bitwise operand is not numeric", operand_node);
         return {};
     };
 
@@ -3084,7 +3127,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         if (LookupNodeType(e.get()) == T_FLOAT) {
             return std::format("{}", ToFloat(e->ExpValue()));
         }
-        ThrowError("number node is not inferred as numeric", exp);
+        ThrowSpecMiss("number node is not inferred as numeric", exp);
     } else if (exp_kind == ExpKind::kPrefixExp) {
         const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
         DEBUG_ASSERT(pe);
@@ -3116,12 +3159,12 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
             const auto inferred = GetType(exp);
             if (inferred == T_DYNAMIC) {
-                ThrowError("function call cannot be specialized as numeric", exp);
+                ThrowSpecMiss("function call cannot be specialized as numeric", exp);
             }
             if (const auto native_result = TryCompileNativeSpecCallExpr(pe->GetValue()); !native_result.empty()) {
                 return native_result;
             }
-            ThrowError("function call cannot be specialized as numeric", exp);
+            ThrowSpecMiss("function call cannot be specialized as numeric", exp);
         }
     } else if (exp_kind == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
@@ -3161,7 +3204,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         if (!res.empty()) {
             return res;
         }
-        ThrowError("operator is not supported in numeric specialization", exp);
+        ThrowSpecMiss("operator is not supported in numeric specialization", exp);
     } else if (exp_kind == ExpKind::kUnop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
         DEBUG_ASSERT(op);
@@ -3179,12 +3222,12 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return res;
         }
         if (op_kind == UnOpKind::kBitNot) {
-            ThrowError("bitwise operand is not numeric", e->Right());
+            ThrowSpecMiss("bitwise operand is not numeric", e->Right());
         }
-        ThrowError("unary operator is not supported in numeric specialization", exp);
+        ThrowSpecMiss("unary operator is not supported in numeric specialization", exp);
     }
 
-    ThrowError("unsupported numeric-specialized expression", exp);
+    ThrowSpecMiss("unsupported numeric-specialized expression", exp);
 }
 
 // TryCompileNativeSpecCallExpr —— 将调用特化函数的结果编译为原生数值临时变量

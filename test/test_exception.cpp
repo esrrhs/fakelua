@@ -1156,6 +1156,9 @@ TEST(exception, function_too_many_params) {
     }
 }
 
+// 非数值参数传入数学特化函数：入口不再直接硬失败，而是去优化到 __dyn 动态
+// 变体执行函数体；函数体内的算术仍抛错（可 pcall），三后端消息一致，
+// 对齐 INTERP 后端历来行为。
 TEST(exception, math_param_non_numeric_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
@@ -1163,14 +1166,14 @@ TEST(exception, math_param_non_numeric_error) {
     SetDebugLogLevel(s, 0);
     CompileFile(s, "./exception/test_math_param_non_numeric_error.lua", {});
 
-    for (auto jit_type: CCodeJitTypes()) {
+    for (auto jit_type: AllJitTypes()) {
         try {
             CVar ret;
             Call(s, jit_type, "test", ret, "hello", 1);
             ASSERT_TRUE(false);
         } catch (const std::exception &e) {
             std::cout << e.what() << std::endl;
-            ASSERT_TRUE(std::string(e.what()).find("bad argument #1 (a): attempt to perform arithmetic on non-numeric value") != std::string::npos);
+            ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic on non-numeric value") != std::string::npos);
         }
     }
 }
