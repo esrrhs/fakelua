@@ -4131,12 +4131,22 @@ std::string CGen::TryCompileSpecDirectCall(const std::shared_ptr<SyntaxTreeFunct
             if (BindsLocalValue(callee_var.get())) {
                 return "";
             }
+            // 特化直调按原函数的精确形参个数发射 C 调用。若实参个数与形参不一致，
+            // 回退普通直接调用路径，由 CompileFunctioncall 给出明确的编译期
+            // wrong number of arguments 报错，避免向底层 C 编译器发射参数不符的调用。
+            const auto fn_it = local_func_names_.find(callee_name);
+            if (fn_it == local_func_names_.end()) {
+                return "";
+            }
             if (const auto math_it = ir().math_param_positions.find(callee_name); math_it != ir().math_param_positions.end()) {
                 const auto &math_params = math_it->second;
                 const auto explist_arg = args_ptr->Explist();
                 DEBUG_ASSERT(explist_arg->Type() == SyntaxTreeType::ExpList);
                 const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
                 const auto &raw_args = explist_arg_ptr->Exps();
+                if (static_cast<int>(raw_args.size()) != fn_it->second.params_count) {
+                    return "";
+                }
 
                 if (int bitmask = 0; TryInferMathCallBitmask(callee_name, raw_args, bitmask)) {
                     std::unordered_map<int, std::string> native_exprs;

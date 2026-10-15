@@ -646,7 +646,7 @@ void RegisterStringLibraryApi(State *s) {
     if (!s) return;
 
     RegisterNativeFunction(s, "string.len", 1, false, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaInt(state, 0);
+        if (n < 1) ThrowBadArgument(1, "string.len", "string expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "string.len");
         std::string temp;
@@ -665,9 +665,14 @@ void RegisterStringLibraryApi(State *s) {
         int64_t len = static_cast<int64_t>(sv.size());
 
         int64_t start_pos = CheckIntegerArg(inter::GetNativeArg(state, args, n, 1), 2, "string.sub");
+        // Lua 5.4：j 是 luaL_optinteger（getendpos），显式 nil 与省略等价，默认 -1（末尾）。
+        // i 是 luaL_checkinteger，nil 必须报错——与上面 n<2 的缺参报错一致。
         int64_t end_pos = len;
         if (n >= 3) {
-            end_pos = CheckIntegerArg(inter::GetNativeArg(state, args, n, 2), 3, "string.sub");
+            CVar j_var = inter::GetNativeArg(state, args, n, 2);
+            if (j_var.type_ != static_cast<int>(VarType::Nil)) {
+                end_pos = CheckIntegerArg(j_var, 3, "string.sub");
+            }
         }
 
         start_pos = NormalizePos(start_pos, len);
@@ -685,7 +690,9 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "string.rep", 2, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 2) return inter::NativeToFakeluaStringView(state, "");
+        // Lua 5.4：实参缺失与显式 nil 不同，缺失必报 bad argument（rep 的 s/n 都必填）。
+        if (n < 1) ThrowBadArgument(1, "string.rep", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.rep", "number expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "string.rep");
         std::string temp;
@@ -696,12 +703,15 @@ void RegisterStringLibraryApi(State *s) {
         int64_t rep_cnt = CheckIntegerArg(rep_var, 2, "string.rep");
         if (rep_cnt <= 0) return inter::NativeToFakeluaStringView(state, "");
 
+        // Lua 5.4：sep 是 luaL_optlstring，显式 nil 与省略等价，默认 ""。
         std::string sep = "";
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            CheckStringArg(a2, 3, "string.rep");
-            std::string temp_sep;
-            sep = std::string(GetStringArgView(a2, temp_sep));
+            if (a2.type_ != static_cast<int>(VarType::Nil)) {
+                CheckStringArg(a2, 3, "string.rep");
+                std::string temp_sep;
+                sep = std::string(GetStringArgView(a2, temp_sep));
+            }
         }
 
         if (sv.empty() && sep.empty()) {
@@ -723,7 +733,7 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "string.reverse", 1, false, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaStringView(state, "");
+        if (n < 1) ThrowBadArgument(1, "string.reverse", "string expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "string.reverse");
         std::string temp;
@@ -733,7 +743,7 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "string.lower", 1, false, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaStringView(state, "");
+        if (n < 1) ThrowBadArgument(1, "string.lower", "string expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "string.lower");
         std::string temp;
@@ -751,7 +761,7 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "string.upper", 1, false, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaStringView(state, "");
+        if (n < 1) ThrowBadArgument(1, "string.upper", "string expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "string.upper");
         std::string temp;
@@ -969,7 +979,7 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "string.byte", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "string.byte", "string expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(a0, 1, "string.byte");
         std::string temp;
@@ -977,17 +987,23 @@ void RegisterStringLibraryApi(State *s) {
         int64_t len = static_cast<int64_t>(sv.size());
         if (len == 0) return inter::NativeToFakeluaNil(state);
 
+        // Lua 5.4 str_byte 的 i/j 是 luaL_optinteger：显式 nil 与省略等价（i 默认 1，
+        // j 默认 i）。包装函数转发的显式 nil 不能误报 number expected。
         int64_t start_pos = 1;
         if (n >= 2) {
             CVar a1 = inter::GetNativeArg(state, args, n, 1);
-            // 与 Lua 5.4 对齐：超大 float 报 "number has no integer representation"
-            start_pos = CheckIntegerArg(a1, 2, "string.byte");
+            if (a1.type_ != static_cast<int>(VarType::Nil)) {
+                // 与 Lua 5.4 对齐：超大 float 报 "number has no integer representation"
+                start_pos = CheckIntegerArg(a1, 2, "string.byte");
+            }
         }
 
         int64_t end_pos = start_pos;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            end_pos = CheckIntegerArg(a2, 3, "string.byte");
+            if (a2.type_ != static_cast<int>(VarType::Nil)) {
+                end_pos = CheckIntegerArg(a2, 3, "string.byte");
+            }
         }
 
         start_pos = NormalizePos(start_pos, len);
@@ -1059,7 +1075,7 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "string.format", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaStringView(state, "");
+        if (n < 1) ThrowBadArgument(1, "string.format", "string expected");
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
         std::string temp_fmt;
         std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
@@ -1254,7 +1270,9 @@ void RegisterStringLibraryApi(State *s) {
     // 若 plain 为 true，则退化为纯子串查找（忽略模式元字符）。
     // 找不到时返回 nil。
     RegisterNativeFunction(s, "string.find", 2, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 2) return inter::NativeToFakeluaNil(state);
+        // s 与 pattern 都必填：实参缺失报 bad argument（与显式 nil 区分）。
+        if (n < 1) ThrowBadArgument(1, "string.find", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.find", "string expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
         CheckStringArg(a0, 1, "string.find");
@@ -1267,8 +1285,11 @@ void RegisterStringLibraryApi(State *s) {
         int64_t init_pos = 1;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            CheckNumberArg(a2, 3, "string.find");
-            init_pos = inter::CVarToInteger(a2, 1);
+            // Lua 5.4：init 是 luaL_optinteger，显式 nil 与省略等价，默认 1。
+            if (a2.type_ != static_cast<int>(VarType::Nil)) {
+                CheckNumberArg(a2, 3, "string.find");
+                init_pos = inter::CVarToInteger(a2, 1);
+            }
         }
         init_pos = NormalizePos(init_pos, len);
         if (init_pos < 1) init_pos = 1;
@@ -1310,7 +1331,8 @@ void RegisterStringLibraryApi(State *s) {
     // 与 find 一样从 init 起搜索，只是不返回位置；前导 '^' 锚定到 init 点。
     // 有捕获返回所有捕获（位置捕获为整数），无捕获返回整个匹配。
     RegisterNativeFunction(s, "string.match", 2, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 2) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "string.match", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.match", "string expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
         CheckStringArg(a0, 1, "string.match");
@@ -1324,8 +1346,11 @@ void RegisterStringLibraryApi(State *s) {
         int64_t init_pos = 1;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            CheckNumberArg(a2, 3, "string.match");
-            init_pos = inter::CVarToInteger(a2, 1);
+            // Lua 5.4：init 是 luaL_optinteger，显式 nil 与省略等价，默认 1。
+            if (a2.type_ != static_cast<int>(VarType::Nil)) {
+                CheckNumberArg(a2, 3, "string.match");
+                init_pos = inter::CVarToInteger(a2, 1);
+            }
         }
         init_pos = NormalizePos(init_pos, len);
         if (init_pos < 1) init_pos = 1;
@@ -1354,7 +1379,8 @@ void RegisterStringLibraryApi(State *s) {
     // 返回一个迭代器闭包；每次调用返回下一个匹配（有捕获时返回捕获值）。
     // 模式惰性解析，非法模式在首次迭代时抛错（与 Lua 一致）。
     RegisterNativeFunction(s, "string.gmatch", 2, false, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 2) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "string.gmatch", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.gmatch", "string expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
         CheckStringArg(a0, 1, "string.gmatch");
@@ -1379,7 +1405,10 @@ void RegisterStringLibraryApi(State *s) {
     // 匹配；返回 nil/false 保留原文）/ table（以首个捕获或整个匹配为键查询，nil/false
     // 保留原文）。前导 '^' 表示只在起点尝试一次。
     RegisterNativeFunction(s, "string.gsub", 3, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 3) return inter::NativeToFakeluaNil(state);
+        // s / pattern / repl 三个都必填
+        if (n < 1) ThrowBadArgument(1, "string.gsub", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.gsub", "string expected");
+        if (n < 3) ThrowBadArgument(3, "string.gsub", "string/function/table expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         CVar a1 = inter::GetNativeArg(state, args, n, 1);
         CheckStringArg(a0, 1, "string.gsub");
@@ -1566,7 +1595,7 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "string.dump", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "string.dump", "function expected");
         CVar fn_var = inter::GetNativeArg(state, args, n, 0);
         if (fn_var.type_ != static_cast<int>(VarType::Closure) || !fn_var.data_.cl) {
             ThrowFakeluaException("bad argument #1 to 'string.dump' (function expected)");
@@ -1612,7 +1641,7 @@ void RegisterStringLibraryApi(State *s) {
     });
 
     auto load_impl = [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "load", "string expected");
         CVar code_var = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(code_var, 1, "load");
         if (code_var.type_ != static_cast<int>(VarType::String) && code_var.type_ != static_cast<int>(VarType::StringId) && code_var.type_ != static_cast<int>(VarType::Int) &&
@@ -1768,7 +1797,7 @@ void RegisterStringLibraryApi(State *s) {
     // 注册的签名是 (fmt, ...) 即 arg_count=1, is_vararg=true
     // 调用时：args[0]=fmt, args[1]=Multi(剩余参数)
     RegisterNativeFunction(s, "string.pack", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaStringView(state, "");
+        if (n < 1) ThrowBadArgument(1, "string.pack", "string expected");
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(fmt_var, 1, "string.pack");
         std::string temp_fmt;
@@ -1993,7 +2022,7 @@ void RegisterStringLibraryApi(State *s) {
     // string.packsize
     // 签名: (fmt, ...) packsize 主要需要 fmt，但 z 格式需要字符串长度
     RegisterNativeFunction(s, "string.packsize", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaInt(state, 0);
+        if (n < 1) ThrowBadArgument(1, "string.packsize", "string expected");
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
         CheckStringArg(fmt_var, 1, "string.packsize");
         std::string temp_fmt;
@@ -2123,7 +2152,9 @@ void RegisterStringLibraryApi(State *s) {
 
     // string.unpack
     RegisterNativeFunction(s, "string.unpack", 2, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 2) return inter::NativeToFakeluaNil(state);
+        // fmt 与 s 都必填
+        if (n < 1) ThrowBadArgument(1, "string.unpack", "string expected");
+        if (n < 2) ThrowBadArgument(2, "string.unpack", "string expected");
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
         CVar str_var = inter::GetNativeArg(state, args, n, 1);
         CheckStringArg(fmt_var, 1, "string.unpack");

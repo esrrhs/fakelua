@@ -37,6 +37,24 @@ TEST(test_table, test_table_array_part) {
     FakeluaDeleteState(s);
 }
 
+// 可选参数显式传 nil 与省略等价（Lua 5.4 luaL_optinteger 语义）：
+// table.concat 的 i/j、table.unpack 的 i/j、table.remove 的 pos。
+// 期望值由 Lua 5.4.9 参考实现校准。
+TEST(test_table, test_table_optnil) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./table/test_table_optnil.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_table_optnil", res);
+        EXPECT_EQ(res, 83LL);
+    }
+
+    FakeluaDeleteState(s);
+}
+
 TEST(test_table, test_table_native_array_part) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);

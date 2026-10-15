@@ -238,7 +238,10 @@ void RegisterBasicLibraryApi(State *s) {
     });
 
     // type(v)
+    // 与 Lua 5.4 的 luaL_checkany 对齐：实参缺失必须与显式传 nil 区分，
+    // type() 报 "bad argument #1 to 'type' (value expected)"。
     RegisterNativeFunction(s, "type", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "type", "value expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         switch (static_cast<VarType>(a0.type_)) {
             case VarType::Nil:
@@ -262,6 +265,7 @@ void RegisterBasicLibraryApi(State *s) {
 
     // tostring(v)
     RegisterNativeFunction(s, "tostring", 1, false, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "tostring", "value expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         const auto &v = AsVar(a0);
         if (v.Type() == VarType::String || v.Type() == VarType::StringId) {
@@ -272,7 +276,9 @@ void RegisterBasicLibraryApi(State *s) {
     });
 
     // tonumber(e [, base])
+    // e 必填：tonumber() 与 tonumber(nil) 语义不同（前者报错，后者返回 nil）。
     RegisterNativeFunction(s, "tonumber", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "tonumber", "value expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
         const auto &v = AsVar(a0);
 

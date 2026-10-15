@@ -131,7 +131,7 @@ void RegisterMathLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "math.max", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "math.max", "number expected");
         CVar max_cvar = inter::GetNativeArg(state, args, n, 0);
         double max_v = CheckMathNumberArg(max_cvar, 1, "math.max");
         for (int i = 1; i < n; ++i) {
@@ -153,7 +153,7 @@ void RegisterMathLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "math.min", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "math.min", "number expected");
         CVar min_cvar = inter::GetNativeArg(state, args, n, 0);
         double min_v = CheckMathNumberArg(min_cvar, 1, "math.min");
         for (int i = 1; i < n; ++i) {

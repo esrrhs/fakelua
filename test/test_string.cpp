@@ -817,3 +817,18 @@ TEST(test_string, replace_empty_from) {
     CallThrow(s, "test_replace_empty_from", ret);
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, test_string_optnil) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./string/test_string_optnil.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_string_optnil", res);
+        EXPECT_EQ(res, 1146LL);
+    }
+
+    FakeluaDeleteState(s);
+}

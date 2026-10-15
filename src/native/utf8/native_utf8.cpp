@@ -132,7 +132,7 @@ static CVar Utf8Char(State *state, CVar *args, int n) {
 // utf8.codepoint(s [, i [, j]])
 // Returns code points for all characters between positions i and j (inclusive).
 static CVar Utf8Codepoint(State *state, CVar *args, int n) {
-    if (n < 1) return inter::NativeToFakeluaNil(state);
+    if (n < 1) ThrowBadArgument(1, "utf8.codepoint", "string expected");
 
     CVar a0 = inter::GetNativeArg(state, args, n, 0);
     CheckStringArg(a0, 1, "utf8.codepoint");
@@ -142,14 +142,14 @@ static CVar Utf8Codepoint(State *state, CVar *args, int n) {
 
     int64_t len = static_cast<int64_t>(sv.size());
 
-    // Parse i (default 1)
+    // Parse i (default 1)。Lua 5.4 codepoint 的 i/j 是 luaL_optinteger：显式 nil 与省略等价。
     CVar i_var = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
-    if (n >= 2) CheckNumberArg(i_var, 2, "utf8.codepoint");
-    int64_t i = (n >= 2) ? inter::CVarToInteger(i_var, 1) : 1;
+    if (n >= 2 && i_var.type_ != static_cast<int>(VarType::Nil)) CheckNumberArg(i_var, 2, "utf8.codepoint");
+    int64_t i = (n >= 2 && i_var.type_ != static_cast<int>(VarType::Nil)) ? inter::CVarToInteger(i_var, 1) : 1;
     // Parse j (default i)
     CVar j_var = (n >= 3) ? inter::GetNativeArg(state, args, n, 2) : CVar{static_cast<int>(VarType::Nil)};
-    if (n >= 3) CheckNumberArg(j_var, 3, "utf8.codepoint");
-    int64_t j = (n >= 3) ? inter::CVarToInteger(j_var, i) : i;
+    if (n >= 3 && j_var.type_ != static_cast<int>(VarType::Nil)) CheckNumberArg(j_var, 3, "utf8.codepoint");
+    int64_t j = (n >= 3 && j_var.type_ != static_cast<int>(VarType::Nil)) ? inter::CVarToInteger(j_var, i) : i;
 
     // Handle negative indices (relative to end). Index 0 is not from-end.
     if (i < 0) i = len + i + 1;
@@ -264,7 +264,7 @@ extern "C" CVar Utf8CodesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
 }
 
 static CVar Utf8Codes(State *state, CVar *args, int n) {
-    if (n < 1) return inter::NativeToFakeluaNil(state);
+    if (n < 1) ThrowBadArgument(1, "utf8.codes", "string expected");
 
     CVar a0 = inter::GetNativeArg(state, args, n, 0);
     CheckStringArg(a0, 1, "utf8.codes");
@@ -280,7 +280,7 @@ static CVar Utf8Codes(State *state, CVar *args, int n) {
 // Returns the number of UTF-8 characters in s between positions i and j.
 // If it finds an invalid byte, returns nil + position of the invalid byte.
 static CVar Utf8Len(State *state, CVar *args, int n) {
-    if (n < 1) return inter::NativeToFakeluaNil(state);
+    if (n < 1) ThrowBadArgument(1, "utf8.len", "string expected");
 
     CVar a0 = inter::GetNativeArg(state, args, n, 0);
     CheckStringArg(a0, 1, "utf8.len");
@@ -290,14 +290,14 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
 
     int64_t byte_len = static_cast<int64_t>(sv.size());
 
-    // Parse i (default 1)
+    // Parse i (default 1)。Lua 5.4 utflen 的 i/j 是 luaL_optinteger：显式 nil 与省略等价。
     CVar i_var = (n >= 2) ? inter::GetNativeArg(state, args, n, 1) : CVar{static_cast<int>(VarType::Nil)};
-    if (n >= 2) CheckNumberArg(i_var, 2, "utf8.len");
-    int64_t i = (n >= 2) ? inter::CVarToInteger(i_var, 1) : 1;
+    if (n >= 2 && i_var.type_ != static_cast<int>(VarType::Nil)) CheckNumberArg(i_var, 2, "utf8.len");
+    int64_t i = (n >= 2 && i_var.type_ != static_cast<int>(VarType::Nil)) ? inter::CVarToInteger(i_var, 1) : 1;
     // Parse j (default -1, meaning end of string)
     CVar j_var = (n >= 3) ? inter::GetNativeArg(state, args, n, 2) : CVar{static_cast<int>(VarType::Nil)};
-    if (n >= 3) CheckNumberArg(j_var, 3, "utf8.len");
-    int64_t j = (n >= 3) ? inter::CVarToInteger(j_var, -1) : -1;
+    if (n >= 3 && j_var.type_ != static_cast<int>(VarType::Nil)) CheckNumberArg(j_var, 3, "utf8.len");
+    int64_t j = (n >= 3 && j_var.type_ != static_cast<int>(VarType::Nil)) ? inter::CVarToInteger(j_var, -1) : -1;
 
     // Handle negative indices (relative to end). Index 0 is not from-end (Lua u_posrelat).
     if (i < 0) i = byte_len + i + 1;
@@ -337,7 +337,9 @@ static CVar Utf8Len(State *state, CVar *args, int n) {
 // Returns the byte position of the n-th character in s, starting at position i.
 // n can be negative (count backward from i, matching Lua 5.4).
 static CVar Utf8Offset(State *state, CVar *args, int n) {
-    if (n < 2) return inter::NativeToFakeluaNil(state);
+    // s 与 n 都必填（i 可选，默认 1）
+    if (n < 1) ThrowBadArgument(1, "utf8.offset", "string expected");
+    if (n < 2) ThrowBadArgument(2, "utf8.offset", "number expected");
 
     CVar a0 = inter::GetNativeArg(state, args, n, 0);
     CheckStringArg(a0, 1, "utf8.offset");
@@ -351,10 +353,13 @@ static CVar Utf8Offset(State *state, CVar *args, int n) {
     CheckNumberArg(target_n_var, 2, "utf8.offset");
     int64_t target_n = inter::CVarToInteger(target_n_var, 0);
 
-    // Parse i (starting byte position, default 1 if n>=0, len+1 if n<0)
+    // Parse i (starting byte position, default 1 if n>=0, len+1 if n<0)。
+    // Lua 5.4 byteoffset 的 i 是 luaL_optinteger：显式 nil 与省略等价；n 是 checkinteger。
     CVar i_var = (n >= 3) ? inter::GetNativeArg(state, args, n, 2) : CVar{static_cast<int>(VarType::Nil)};
-    if (n >= 3) CheckNumberArg(i_var, 3, "utf8.offset");
-    int64_t start_i = (n >= 3) ? inter::CVarToInteger(i_var, 1) : ((target_n >= 0) ? 1 : byte_len + 1);
+    if (n >= 3 && i_var.type_ != static_cast<int>(VarType::Nil)) CheckNumberArg(i_var, 3, "utf8.offset");
+    int64_t start_i = (n >= 3 && i_var.type_ != static_cast<int>(VarType::Nil))
+                           ? inter::CVarToInteger(i_var, 1)
+                           : ((target_n >= 0) ? 1 : byte_len + 1);
 
     // Lua: 1 <= posi <= len+1 (relative negative i counts from the end; 0 is not from-end)
     if (start_i < 0) start_i = byte_len + start_i + 1;
