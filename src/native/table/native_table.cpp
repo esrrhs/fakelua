@@ -871,7 +871,7 @@ void RegisterTableLibraryApi(State *s) {
     if (!s) return;
 
     RegisterNativeFunction(s, "table.insert", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "table.insert", "table expected");
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'table.insert' (table expected)");
@@ -901,7 +901,7 @@ void RegisterTableLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "table.remove", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "table.remove", "table expected");
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'table.remove' (table expected)");
@@ -937,7 +937,7 @@ void RegisterTableLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "table.concat", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaStringView(state, "");
+        if (n < 1) ThrowBadArgument(1, "table.concat", "table expected");
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         // 标准 Lua：table.concat 第一个参数必须是 table，否则抛出异常
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
@@ -946,20 +946,30 @@ void RegisterTableLibraryApi(State *s) {
         std::string sep = "";
         if (n >= 2) {
             CVar sep_var = inter::GetNativeArg(state, args, n, 1);
-            // 标准 Lua：table.concat 的 sep 必须是 string（数字会被转换为字符串，这是标准行为）
-            CheckStringArg(sep_var, 2, "table.concat");
-            std::string temp_sep;
-            sep = std::string(GetStringArgView(sep_var, temp_sep));
+            // Lua 5.4 tconcat：sep 是 luaL_optlstring，显式 nil 与省略等价，默认 ""
+            if (sep_var.type_ != static_cast<int>(VarType::Nil)) {
+                // 标准 Lua：table.concat 的 sep 必须是 string（数字会被转换为字符串，这是标准行为）
+                CheckStringArg(sep_var, 2, "table.concat");
+                std::string temp_sep;
+                sep = std::string(GetStringArgView(sep_var, temp_sep));
+            }
         }
+        // Lua 5.4 tconcat 的 i/j 是 luaL_optinteger：显式 nil 与省略等价，取默认值
+        // （i 默认 1，j 默认 #t）。包装函数转发（f(t, sep, i, j) 少传实参）会传入显式
+        // nil，此处必须与 table.remove 的 pos 同等对待，否则误报 number expected。
         int64_t start_i = 1;
         if (n >= 3) {
             CVar start_var = inter::GetNativeArg(state, args, n, 2);
-            start_i = CheckIntegerArg(start_var, 3, "table.concat");
+            if (start_var.type_ != static_cast<int>(VarType::Nil)) {
+                start_i = CheckIntegerArg(start_var, 3, "table.concat");
+            }
         }
         int64_t end_j = TableHelper::GetTableLen(tbl);
         if (n >= 4) {
             CVar end_var = inter::GetNativeArg(state, args, n, 3);
-            end_j = CheckIntegerArg(end_var, 4, "table.concat");
+            if (end_var.type_ != static_cast<int>(VarType::Nil)) {
+                end_j = CheckIntegerArg(end_var, 4, "table.concat");
+            }
         }
 
         if (end_j < start_i) {
@@ -1017,20 +1027,26 @@ void RegisterTableLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "table.unpack", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "table.unpack", "table expected");
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'unpack' (table expected)");
         }
+        // Lua 5.4 tunpack 的 i/j 是 luaL_optinteger：显式 nil 与省略等价，取默认值
+        // （i 默认 1，j 默认 #t）。与 table.concat / table.remove 的 nil 处理一致。
         int64_t start_i = 1;
         if (n >= 2) {
             CVar start_var = inter::GetNativeArg(state, args, n, 1);
-            start_i = CheckIntegerArg(start_var, 2, "table.unpack");
+            if (start_var.type_ != static_cast<int>(VarType::Nil)) {
+                start_i = CheckIntegerArg(start_var, 2, "table.unpack");
+            }
         }
         int64_t end_j = TableHelper::GetTableLen(tbl);
         if (n >= 3) {
             CVar end_var = inter::GetNativeArg(state, args, n, 2);
-            end_j = CheckIntegerArg(end_var, 3, "table.unpack");
+            if (end_var.type_ != static_cast<int>(VarType::Nil)) {
+                end_j = CheckIntegerArg(end_var, 3, "table.unpack");
+            }
         }
 
         if (start_i > end_j) return inter::AllocMultiCVar(state, 0);
@@ -1058,7 +1074,11 @@ void RegisterTableLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "table.move", 4, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 4) return inter::NativeToFakeluaNil(state);
+        // a1/f/e/t 四个都必填
+        if (n < 1) ThrowBadArgument(1, "table.move", "table expected");
+        if (n < 2) ThrowBadArgument(2, "table.move", "number expected");
+        if (n < 3) ThrowBadArgument(3, "table.move", "number expected");
+        if (n < 4) ThrowBadArgument(4, "table.move", "number expected");
         CVar a1 = inter::GetNativeArg(state, args, n, 0);
         CVar f_var = inter::GetNativeArg(state, args, n, 1);
         CVar e_var = inter::GetNativeArg(state, args, n, 2);
@@ -1099,7 +1119,7 @@ void RegisterTableLibraryApi(State *s) {
     });
 
     RegisterNativeFunction(s, "table.sort", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        if (n < 1) return inter::NativeToFakeluaNil(state);
+        if (n < 1) ThrowBadArgument(1, "table.sort", "table expected");
         CVar tbl = inter::GetNativeArg(state, args, n, 0);
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'table.sort' (table expected)");

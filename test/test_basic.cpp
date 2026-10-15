@@ -1347,3 +1347,4 @@ TEST(test_basic, xpcall_coverage) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+

@@ -26,6 +26,18 @@ To support this positioning, FakeLua **does not implement a complex dynamic garb
 
 This design allows FakeLua to fully eliminate GC pause impact on frame rates while maintaining JIT native execution speed, keeping memory overhead at a completely predictable, extremely low level.
 
+### 3. Engineering & Language Philosophy: Deliberate Trade-offs, Not Blind Cloning
+FakeLua is not a blind clone of standard Lua's overly permissive dynamic features. Instead, it makes conscious, intentional trade-offs for **execution performance**, **large-scale engineering collaboration**, and **long-term maintainability**:
+
+*   **Strict Function Arity Enforcement**:
+    In standard Lua, calling a fixed-parameter function with too few arguments silently pads `nil`, and extra arguments are silently discarded. In large-scale, multi-developer projects, this looseness easily conceals bugs caused by signature changes, omitted arguments, or parameter mismatches. FakeLua deliberately tightens this rule:
+    - Direct calls are strictly validated at **compile time**, rejecting mismatched argument counts with a compile error;
+    - Dynamic / named calls are strictly intercepted at **runtime**, throwing an exception if argument count differs;
+    - Functions legitimately expecting variable arguments must explicitly declare varargs (`...`). Strict arity keeps interfaces explicit, prevents silent runtime nil pollution, and enables the JIT compiler to emit direct, zero-overhead native C calls without redundant runtime nil padding or truncation boilerplate.
+*   **No Implicit Globals**: Variables must be explicitly declared with `local`; undeclared assignments trigger compile errors, preventing accidental global pollution from typos.
+*   **No Implicit Type Coercion**: Arithmetic operators do not implicitly convert strings to numbers (`"10" + 1` errors), keeping types predictable and enabling aggressive native numeric specialization.
+*   **Static Native Dispatch**: Built-in C++ functions are statically dispatched by name at compile time rather than wrapped as first-class closure values, maximizing call performance.
+
 ## Core Features
 
 ### Three Execution Backends
@@ -130,14 +142,16 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **Lua 5.4 pattern matching**: `string.find`/`match`/`gmatch`/`gsub` use a self-contained Lua-pattern engine (`%d`/`%w` classes, custom sets, lazy `-`, captures, frontier `%f[set]`, balanced `%bxy`), fully compatible with standard Lua.
 - **String algorithms**: `string.trim`/`trim_left`/`trim_right`/`split`/`join`/`replace`/`starts_with`/`ends_with`/`contains`/`iequals`/`icontains`/`istarts_with`/`iends_with` via Boost.Algorithm.
 
-### Not Supported
+### Not Supported / Differences from Standard Lua
 
+- **Strict function arity**: Fixed-parameter functions require exact argument-to-parameter count matching. Calling with too few or too many arguments triggers compile-time or runtime errors instead of silently padding nil or discarding extras (use `...` for variadic arguments).
 - **Coroutines**: No `coroutine.create`/`resume`/`yield` support.
 - **Metatables**: No `__index`, `__newindex`, metamethods, or operator overloading.
 - **`require`/`module`**: No standard module system (replaced by `package "Name"` mechanism).
 - **`rawequal`/`rawget`/`rawset`/`rawlen`**: Meaningless without metatables.
 - **Debug library**: No `debug.*` standard library.
 - **Implicit type coercion**: No string→number conversion in arithmetic (`"10" + 1` errors).
+- **Implicit globals**: Local variables must be declared with `local`; implicit global declarations are rejected.
 
 ## Built-in Standard Libraries
 

@@ -1612,7 +1612,12 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
             var_ptr = var.get();
             if (const auto it = var_to_def_map_.find(var_ptr); it != var_to_def_map_.end()) {
                 is_local_callee = true;
-                file_level_func = it->second->defining_func == nullptr;
+                // 只有文件级 local function 才能走 CALLNAME：named_protos_ 只登记
+                // 函数定义。文件级 local 变量（如 local gv = f）即使 defining_func
+                // 为 nullptr 也不在 named_protos_ 里，必须按闭包调用，否则运行时报
+                // "function 'gv' not found"（C 后端此处按闭包处理，行为一致）。
+                file_level_func = it->second->defining_func == nullptr && it->second->def_node != nullptr &&
+                                  it->second->def_node->Type() == SyntaxTreeType::LocalFunction;
             }
         } else if (var && var->GetVarKind() == VarKind::kDot) {
             const auto base_pe = var->GetPrefixexp();

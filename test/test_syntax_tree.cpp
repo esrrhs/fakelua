@@ -1907,6 +1907,73 @@ TEST(syntax_tree, preprocess_multipart_funcname_unsupported) {
     EXPECT_THROW(c.CompileString("function a.b.c() end", {}), std::exception);
 }
 
+// 原生函数出现在值位置（非直接调用位）必须在编译期明确报错。
+// fakelua 按名字派发原生调用，原生函数不是一等值；此前这类代码放行到运行时才以
+// "attempt to call/index a non-function/table value" 失败，位置与原因都有误导性。
+namespace {
+
+void ExpectNativeValueError(Compiler &c, const std::string &script, const std::string &expect_substr) {
+    try {
+        c.CompileString(script, {});
+        FAIL() << "expected CompileString to throw for: " << script;
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find(expect_substr), std::string::npos) << msg;
+        EXPECT_NE(msg.find("cannot be used as a value"), std::string::npos) << msg;
+    }
+}
+
+}// namespace
+
+TEST(syntax_tree, semantic_native_function_as_value_simple_name) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    // 裸原生名（type/print/pairs/next ...）
+    ExpectNativeValueError(c, "function f()\n    local t = type\n    return t(1)\nend\n", "native function 'type'");
+    ExpectNativeValueError(c, "function f()\n    return next\nend\n", "native function 'next'");
+    // 传给 pcall 的常见写法
+    ExpectNativeValueError(c, "function f()\n    return pcall(print, \"x\")\nend\n", "native function 'print'");
+}
+
+TEST(syntax_tree, semantic_native_function_as_value_dotted) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    // 点号原生库函数：local f = table.concat / pcall(table.concat, t) / { cb = string.format }
+    ExpectNativeValueError(c, "function f()\n    local g = table.concat\n    return g\nend\n", "native function 'table.concat'");
+    ExpectNativeValueError(c, "function f()\n    local t = { 1, 2 }\n    return pcall(table.concat, t, \"-\")\nend\n",
+                           "native function 'table.concat'");
+    ExpectNativeValueError(c, "function f()\n    return { cb = string.format }\nend\n", "native function 'string.format'");
+    ExpectNativeValueError(c, "function f()\n    return math.floor\nend\n", "native function 'math.floor'");
+}
+
+// 值位置检查不能误伤合法写法：局部表字段、局部遮蔽原生名、模块常量、直接调用、冒号调用。
+TEST(syntax_tree, semantic_native_function_value_position_allows_legit_uses) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    // 局部表的字段函数（根名是局部变量，走普通字段访问）
+    EXPECT_NO_THROW(c.CompileString("function f()\n    local t = {}\n    t.concat = function(a, b) return a .. b end\n"
+                                    "    local g = t.concat\n    return g(\"x\", \"y\")\nend\n",
+                                    {}));
+    // local 遮蔽原生函数名
+    EXPECT_NO_THROW(c.CompileString("function f()\n    local type = 5\n    return type + 1\nend\n", {}));
+    // 模块常量（math.pi / string.charpattern 等不在原生函数注册表里）
+    EXPECT_NO_THROW(c.CompileString("function f()\n    return math.pi\nend\n", {}));
+    EXPECT_NO_THROW(c.CompileString("function f()\n    return string.charpattern\nend\n", {}));
+    // 直接调用位（含点号链与字符串冒号方法）
+    EXPECT_NO_THROW(c.CompileString("function f()\n    return table.concat({ 1, 2 }, \"-\")\nend\n", {}));
+    EXPECT_NO_THROW(c.CompileString("function f()\n    local s = \"hi\"\n    return s:upper()\nend\n", {}));
+    EXPECT_NO_THROW(c.CompileString("function f()\n    print(\"x\")\n    return 0\nend\n", {}));
+}
+
 // Covers SyntaxTreeTypeToString for all enum values (syntax_tree.h lines 55-128).
 TEST(syntax_tree, SyntaxTreeTypeToString) {
     ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::None), "None");

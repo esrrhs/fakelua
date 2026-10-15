@@ -392,6 +392,11 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
     const bool is_vararg = cl->is_vararg;
     const int expected_arg_count = cl->expected_arg_count;
     const int fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
+    // 形参个数也要限：下面按 expected_arg_count 往 temp_arg_arr（定长 32）里写，
+    // 声明了超过上限的形参会栈缓冲溢出（与 vm.cpp 的 CallByNameImpl 一致）。
+    if (UNLIKELY(expected_arg_count < 0 || expected_arg_count > (int)kMaxFunctionInputParams)) {
+        FakeluaThrowError(state, "too many arguments");
+    }
 
     CVar raw_arg_arr[kMaxFunctionInputParams];
     va_list args_list;

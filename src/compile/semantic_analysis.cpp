@@ -1269,10 +1269,10 @@ bool SemanticAnalysis::IsDeclaredSimpleName(const std::string &name, const std::
     if (file_level_names.contains(name)) {
         return true;
     }
-    // 宿主用 RegisterNativeFunction 声明的全局原生函数（print/type/pairs 及用户回调名）。
-    if (s_->GetVM().FindNativeFunction(name) != nullptr) {
-        return true;
-    }
+    // 宿主用 RegisterNativeFunction 注册的全局原生函数不在此列：裸原生名只有出现在
+    // 直接调用位（f(...) / a.b.f(...)，整条链已在 exempt_vars 豁免）才合法；出现在
+    // 值位置由 check_simple_var 给出「native function cannot be used as a value」
+    // 的明确编译期报错（fakelua 按名字派发原生调用，原生函数不是一等值）。
     return false;
 }
 
@@ -1293,6 +1293,16 @@ void SemanticAnalysis::CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::v
         const std::string &name = var->GetName();
         if (IsDeclaredSimpleName(name, scopes, file_level_names)) {
             return;
+        }
+        // 原生函数出现在值位置（local t = type、pcall(print, ...)、return next 等）：
+        // fakelua 在编译期按名字派发原生调用，原生函数不是一等值。此前这里放行，
+        // 到运行时才以 "attempt to call/index a non-function/table value" 失败，
+        // 报错位置与原因都有误导性；改为编译期明确报错。调用位已在 exempt_vars 豁免。
+        if (s_->GetVM().FindNativeFunction(name) != nullptr) {
+            ThrowError(std::format("native function '{}' cannot be used as a value; fakelua dispatches native calls "
+                                   "by name at compile time, call it directly or wrap it in a Lua function",
+                                   name),
+                       vnode);
         }
         if (lvalue_vars.contains(var.get())) {
             ThrowError(std::format("undeclared variable '{}' on the left side of assignment; fakelua has no implicit "
@@ -1380,6 +1390,36 @@ void SemanticAnalysis::CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::v
         }
         case SyntaxTreeType::Var: {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+            // 点号原生库函数出现在值位置（local f = table.concat、pcall(table.concat, t)、
+            // { cb = string.format } 等）：调用位的整条点号链已在 exempt_vars 豁免，能走到
+            // 这里的 kDot 链都是值位置。全名命中原生函数注册表时给出与裸原生名一致的明确
+            // 编译期报错。常量访问（math.pi、string.charpattern）不在注册表里；根名是局部
+            // 变量时（local t = {} 之后的 t.concat）是普通字段访问，两者都不报错。
+            if (var->GetVarKind() == VarKind::kDot && !exempt_vars.contains(var.get())) {
+                std::string full;
+                std::shared_ptr<SyntaxTreeVar> root;
+                for (auto cur = var; cur && cur->GetVarKind() == VarKind::kDot;) {
+                    full = cur->GetName() + (full.empty() ? "" : "." + full);
+                    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(cur->GetPrefixexp());
+                    root = (pe && pe->GetPrefixKind() == PrefixExpKind::kVar)
+                               ? std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue())
+                               : nullptr;
+                    cur = root;
+                }
+                if (root && root->GetVarKind() == VarKind::kSimple && !full.empty()) {
+                    const std::string full_name = root->GetName() + "." + full;
+                    bool root_declared = file_level_names.contains(root->GetName());
+                    for (auto it = scopes.rbegin(); it != scopes.rend() && !root_declared; ++it) {
+                        root_declared = it->contains(root->GetName());
+                    }
+                    if (!root_declared && s_->GetVM().FindNativeFunction(full_name) != nullptr) {
+                        ThrowError(std::format("native function '{}' cannot be used as a value; fakelua dispatches native "
+                                               "calls by name at compile time, call it directly or wrap it in a Lua function",
+                                               full_name),
+                                   node);
+                    }
+                }
+            }
             check_simple_var(node);
             CheckVarScopes(var->GetPrefixexp(), scopes, file_level_names, exempt_vars, lvalue_vars);
             CheckVarScopes(var->GetExp(), scopes, file_level_names, exempt_vars, lvalue_vars);

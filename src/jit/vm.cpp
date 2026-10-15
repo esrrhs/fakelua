@@ -115,6 +115,12 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
         ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) passed for function '{}', max is {}", arg_num, name, kMaxFunctionInputParams));
     }
 
+    // 形参个数也要限：下面按 expected_arg_count 往 temp_arg_arr（定长 32）里写，
+    // 声明了超过上限的形参会越界（FlCallClosure 里同样有这层保护）。
+    if (UNLIKELY(expected_arg_count < 0 || expected_arg_count > static_cast<int>(kMaxFunctionInputParams))) {
+        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' declares too many parameters ({}), max is {}", name, expected_arg_count, kMaxFunctionInputParams));
+    }
+
     // 展开 Multi / 补齐参数
     const CVar *arg_arr = nullptr;
     const bool last_is_multi = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == static_cast<int>(VarType::Multi));

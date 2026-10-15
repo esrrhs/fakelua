@@ -186,3 +186,18 @@ TEST(test_utf8, test_utf8_boundary_error) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_utf8, test_utf8_optnil) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./utf8/test_utf8_optnil.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_utf8_optnil", res);
+        EXPECT_NEAR(res, 691, 0.5);
+    }
+
+    FakeluaDeleteState(s);
+}
