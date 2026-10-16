@@ -1699,6 +1699,23 @@ tableconstructor:
         $$ = tableconstructor;
     }
     |
+    LCURLY fieldlist fieldsep RCURLY
+    {
+        // Lua 5.4 allows a single trailing field separator: {1, 2, 3, } == {1, 2, 3}.
+        // Note the separator belongs to this rule rather than to a `fieldlist: fieldlist fieldsep`
+        // production: in that form bison's default reduction fires on an invalid lookahead, so
+        // `{1,,2}` would be silently accepted (Lua 5.4 rejects it).
+        LOG_DEBUG(l->GetState(), "engine", "[bison]: tableconstructor: LCURLY fieldlist fieldsep RCURLY");
+        auto tableconstructor = std::make_shared<fakelua::SyntaxTreeTableconstructor>(@1);
+        auto fieldlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFieldlist>($2);
+        if (fieldlist == nullptr) {
+            LOG_ERROR(l->GetState(), "engine", "[bison]: tableconstructor: fieldlist is not a fieldlist");
+            fakelua::ThrowFakeluaException("fieldlist is not a fieldlist");
+        }
+        tableconstructor->SetFieldlist(fieldlist);
+        $$ = tableconstructor;
+    }
+    |
     LCURLY RCURLY
     {
         LOG_DEBUG(l->GetState(), "engine", "[bison]: tableconstructor: LCURLY RCURLY");

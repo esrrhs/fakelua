@@ -1399,6 +1399,119 @@ TEST(syntax_tree, constructor) {
     ASSERT_EQ(dumpstr, wantstr);
 }
 
+TEST(syntax_tree, constructor_trailing_separator) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    const auto chunk = c.CompileFile("./syntax/test_constructor_trailing_sep.lua", {true}).chunk;
+    ASSERT_NE(chunk, nullptr);
+
+    auto dumpstr = chunk->Dump(0);
+    LOG_INFO(s, "test", "{}", dumpstr);
+
+    // A trailing separator contributes no extra field, exactly like Lua 5.4.
+    const auto wantstr = ""
+                         "(block)[1:1]\n"
+                         "  (assign)[1:3]\n"
+                         "    (varlist)[1:1]\n"
+                         "      (var)[1:1]\n"
+                         "        type: simple\n"
+                         "        name: a\n"
+                         "    (explist)[1:5]\n"
+                         "      (exp)[1:5]\n"
+                         "        type: tableconstructor\n"
+                         "        value: \n"
+                         "        (tableconstructor)[1:5]\n"
+                         "          (fieldlist)[1:6]\n"
+                         "            (field)[1:6]\n"
+                         "              type: array\n"
+                         "              (exp)[1:6]\n"
+                         "                type: number\n"
+                         "                value: 1\n"
+                         "            (field)[1:9]\n"
+                         "              type: array\n"
+                         "              (exp)[1:9]\n"
+                         "                type: number\n"
+                         "                value: 2\n"
+                         "            (field)[1:12]\n"
+                         "              type: array\n"
+                         "              (exp)[1:12]\n"
+                         "                type: number\n"
+                         "                value: 3\n"
+                         "  (assign)[2:3]\n"
+                         "    (varlist)[2:1]\n"
+                         "      (var)[2:1]\n"
+                         "        type: simple\n"
+                         "        name: b\n"
+                         "    (explist)[2:5]\n"
+                         "      (exp)[2:5]\n"
+                         "        type: tableconstructor\n"
+                         "        value: \n"
+                         "        (tableconstructor)[2:5]\n"
+                         "          (fieldlist)[2:6]\n"
+                         "            (field)[2:6]\n"
+                         "              type: array\n"
+                         "              (exp)[2:6]\n"
+                         "                type: number\n"
+                         "                value: 1\n"
+                         "            (field)[2:9]\n"
+                         "              type: array\n"
+                         "              (exp)[2:9]\n"
+                         "                type: number\n"
+                         "                value: 2\n"
+                         "            (field)[2:12]\n"
+                         "              type: array\n"
+                         "              (exp)[2:12]\n"
+                         "                type: number\n"
+                         "                value: 3\n"
+                         "  (assign)[3:3]\n"
+                         "    (varlist)[3:1]\n"
+                         "      (var)[3:1]\n"
+                         "        type: simple\n"
+                         "        name: c\n"
+                         "    (explist)[3:5]\n"
+                         "      (exp)[3:5]\n"
+                         "        type: tableconstructor\n"
+                         "        value: \n"
+                         "        (tableconstructor)[3:5]\n"
+                         "          (fieldlist)[3:6]\n"
+                         "            (field)[3:6]\n"
+                         "              type: object\n"
+                         "              name: x\n"
+                         "              (exp)[3:10]\n"
+                         "                type: number\n"
+                         "                value: 1\n"
+                         "            (field)[3:13]\n"
+                         "              type: object\n"
+                         "              name: y\n"
+                         "              (exp)[3:17]\n"
+                         "                type: number\n"
+                         "                value: 2\n"
+                         "  (assign)[4:3]\n"
+                         "    (varlist)[4:1]\n"
+                         "      (var)[4:1]\n"
+                         "        type: simple\n"
+                         "        name: d\n"
+                         "    (explist)[4:5]\n"
+                         "      (exp)[4:5]\n"
+                         "        type: tableconstructor\n"
+                         "        value: \n"
+                         "        (tableconstructor)[4:5]\n"
+                         "          (fieldlist)[4:6]\n"
+                         "            (field)[4:6]\n"
+                         "              type: array\n"
+                         "              (exp)[4:7]\n"
+                         "                type: number\n"
+                         "                value: 1\n"
+                         "              (exp)[4:12]\n"
+                         "                type: number\n"
+                         "                value: 1\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
 TEST(syntax_tree, function_exp) {
     const FakeluaStateGuard guard;
     const auto s = guard.GetState();
@@ -1975,6 +2088,56 @@ TEST(syntax_tree, semantic_native_function_value_position_allows_legit_uses) {
 }
 
 // Covers SyntaxTreeTypeToString for all enum values (syntax_tree.h lines 55-128).
+// Only ONE trailing field separator is allowed, and only inside a table constructor.
+// Repeating a separator must stay a syntax error, same as Lua 5.4.
+TEST(syntax_tree, constructor_repeated_separator_rejected) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    {
+        Compiler c(s);
+        EXPECT_THROW(c.CompileString("a = {1,,2}", {}), std::exception);
+    }
+    {
+        Compiler c(s);
+        EXPECT_THROW(c.CompileString("a = {,}", {}), std::exception);
+    }
+    {
+        Compiler c(s);
+        EXPECT_THROW(c.CompileString("a = {,1}", {}), std::exception);
+    }
+    {
+        Compiler c(s);
+        EXPECT_THROW(c.CompileString("a = {1;,}", {}), std::exception);
+    }
+    {
+        Compiler c(s);
+        EXPECT_THROW(c.CompileString("a = {1;,,2;}", {}), std::exception);
+    }
+}
+
+// A trailing separator is legal ONLY in a table constructor: call arguments,
+// parameter lists and return lists must still reject it.
+TEST(syntax_tree, trailing_separator_outside_constructor_rejected) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    {
+        Compiler c(s);
+        EXPECT_THROW(c.CompileString("a = f(1,2,)", {}), std::exception);
+    }
+    {
+        Compiler c(s);
+        EXPECT_THROW(c.CompileString("function g(a,b,) end", {}), std::exception);
+    }
+    {
+        Compiler c(s);
+        EXPECT_THROW(c.CompileString("function g() return 1,2, end", {}), std::exception);
+    }
+}
+
 TEST(syntax_tree, SyntaxTreeTypeToString) {
     ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::None), "None");
     ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Empty), "Empty");
