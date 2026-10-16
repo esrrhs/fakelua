@@ -841,6 +841,25 @@ private:
     friend CVar inter::NativeToFakeluaNativeObject(State *s, const NativeObject *obj);
 };
 
+// ---------------------------------------------------------------------------
+// Host-side helpers for writing native callbacks and probing script entries.
+//
+// The kernel does all three through inter::, but that is an implementation detail
+// of the interpreter and the JIT: hosts (flua, embedders) should not depend on it.
+// ---------------------------------------------------------------------------
+
+// Argument idx read as an integer: int/float/bool/numeric string all work; nil or
+// a non-convertible value yields default_val.
+int64_t GetNativeIntArg(State *s, CVar *args, int n, int idx, int64_t default_val = 0);
+
+// The nil result to return from a native callback.
+CVar NativeNil(State *s);
+
+// Whether the script defines an entry function called name: GetFuncAddr returns
+// nullptr when it is missing (only Call turns that into an error), so this is a
+// plain yes/no probe a host can run before invoking.
+[[nodiscard]] bool HasEntryFunction(State *s, JITType type, const std::string_view &name);
+
 // RegisterNativeFunction — 注册 C++ 函数供 lua 脚本调用
 using NativeFuncCallback = std::function<CVar(State *, CVar *, int)>;
 using NativeVarFuncCallback = std::function<VarInterface *(State *, const std::vector<VarInterface *> &)>;

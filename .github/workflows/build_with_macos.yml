@@ -97,7 +97,10 @@ jobs:
           ccache -s
           # Run all tests (including MySQL / Redis integration tests)
           (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
-          ./bin/flua
+          # Lifecycle contract: init/update/fini call counts and order,
+          # flua.set_exit semantics, exit code. Entry points are fixed to
+          # package "main", so no flags are needed.
+          ./bin/flua "$GITHUB_WORKSPACE/cmd/test.lua"
 
       - name: Run benchmarks
         run: |

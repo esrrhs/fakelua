@@ -244,13 +244,34 @@ ctest --test-dir build -V
 ### 命令行工具 `flua`
 
 ```bash
-./build/bin/flua <script.lua> --entry=<func> --jit_type=<0|1|2> --repeat=<N>
+./build/bin/flua <script.lua | dir/> [--once] [--jit_type=<0|1|2>]
 ```
 
-- `--entry`：入口函数名（默认 `main`）
+入口名固定为 package `main` 下的三个函数，不提供改名参数，所有应用写法一致：
+
+```lua
+package "main"
+
+function init() ... end      -- 启动时调用一次
+function update() ... end    -- 每帧调用一次
+function fini() ... end      -- 退出前调用一次
+```
+
+- `<script.lua | dir/>`：单个脚本，或一个目录（把目录下所有 `.lua` 按文件名排序编译）
+- `--once`：只跑 `init` + `fini`，不进 `update` 循环（一次性脚本 / 自检）
 - `--jit_type`：`0`=TCC，`1`=GCC，`2`=INTERP（字节码虚拟机）
-- `--repeat`：重复调用次数（用于性能测量）
 - `--debug`：是否启用调试模式（默认 `false`，若为 `true` 则输出生成的 C 源码 / 更详细诊断）
+
+`update` 返回后宿主立刻再调一次；需要固定节奏的脚本自己在 `update` 末尾 `os.sleep(毫秒)`
+（fakelua 的 `os.sleep` 单位是毫秒）。
+
+优雅退出（两种都会先执行 `fini`）：`update` 返回非 0，或 Lua 侧调 `flua.set_exit(code)`。
+注意 `os.exit` 仍是立即退出、跳过 `fini`。信号不由 flua 处理——要不要接管
+SIGINT / SIGTERM 是应用自己的决定。
+
+三个阶段各自是一次独立的顶层 Call。这一点很关键：fakelua 没有 GC，帧 arena 只在顶层 Call
+入口（reentrant 计数回到 0）重置，若把 `while true` 写在一个 Lua Call 里，arena 会无限增长。
+`update` 里只做一帧的活（泵 IO/定时器、分发请求）。
 
 ### 安装与 CMake 集成
 

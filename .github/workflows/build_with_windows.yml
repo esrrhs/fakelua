@@ -175,7 +175,10 @@ jobs:
         run: |
           set -eux
           cd build/bin
-          ./flua.exe
+          # Lifecycle contract: init/update/fini call counts and order,
+          # flua.set_exit semantics, exit code. Entry points are fixed to
+          # package "main", so no flags are needed.
+          ./flua.exe "$GITHUB_WORKSPACE/cmd/test.lua"
 
       - name: Run benchmarks
         shell: msys2 {0}

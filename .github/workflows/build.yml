@@ -176,7 +176,10 @@ jobs:
           # Run all tests (including MySQL / Redis integration tests)
           # Must run from test/lua so relative Lua file paths resolve correctly
           (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
-          ./bin/flua
+          # Lifecycle contract: init/update/fini call counts and order,
+          # flua.set_exit semantics, exit code. Entry points are fixed to
+          # package "main", so no flags are needed.
+          ./bin/flua "$GITHUB_WORKSPACE/cmd/test.lua"
 
       # 限定 release：matrix 有 debug/asan/cov，不限定的话一次 push 要跑四遍。
       - name: Run benchmarks
@@ -194,8 +197,9 @@ jobs:
         run: |
           set -eux
           cd build
-          echo "function main() return 0 end" > test.lua
-          ./bin/flua --repeat=2 test.lua
+          # Fixed paradigm: package "main" with init/fini; --once runs just those
+          printf 'package "main"\nfunction init() return 0 end\nfunction fini() return 0 end\n' > test.lua
+          ./bin/flua test.lua --once
           cd "$GITHUB_WORKSPACE"
           # Only this repo's sources. Uploading Boost/CPM/usr headers makes Codecov
           # drop file-level reports because paths cannot be matched to GitHub.

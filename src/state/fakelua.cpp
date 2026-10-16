@@ -665,4 +665,18 @@ CVar GetNativeArg(State *s, CVar *args, int n, int idx) {
 
 }// namespace inter
 
+int64_t GetNativeIntArg(State *s, CVar *args, int n, int idx, int64_t default_val) {
+    return inter::CVarToInteger(inter::GetNativeArg(s, args, n, idx), default_val);
+}
+
+CVar NativeNil(State *s) {
+    return inter::NativeToFakeluaNil(s);
+}
+
+bool HasEntryFunction(State *s, JITType type, const std::string_view &name) {
+    int argc = 0;
+    bool is_vararg = false;
+    return inter::GetFuncAddr(s, type, name, argc, is_vararg) != nullptr;
+}
+
 }// namespace fakelua
