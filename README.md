@@ -244,13 +244,37 @@ ctest --test-dir build -V
 ### CLI Tool `flua`
 
 ```bash
-./build/bin/flua <script.lua> --entry=<func> --jit_type=<0|1|2> --repeat=<N>
+./build/bin/flua <script.lua | dir/> [--once] [--jit_type=<0|1|2>]
 ```
 
-- `--entry`: Entry function name (default `main`)
+Entry points are fixed and always live in package `main` — there are no flags to rename
+them, so every app looks the same:
+
+```lua
+package "main"
+
+function init() ... end      -- called once at startup
+function update() ... end    -- called every frame
+function fini() ... end      -- called once before exit
+```
+
+- `<script.lua | dir/>`: a single script, or a directory whose `.lua` files are all compiled (sorted by name)
+- `--once`: run `init` + `fini` only, without the `update` loop (one-shot script / self-check)
 - `--jit_type`: `0`=TCC, `1`=GCC, `2`=INTERP (bytecode VM)
-- `--repeat`: Repeat call count (for performance measurement)
 - `--debug`: Enable debug mode (default `false`; when `true`, outputs generated C source / richer diagnostics)
+
+`update` is called back-to-back; a script that wants a fixed cadence paces itself, e.g.
+`os.sleep(1000)` at the end of `update` (`os.sleep` takes milliseconds).
+
+Graceful shutdown (both run `fini` first): return a non-zero code from `update`, or call
+`flua.set_exit(code)` from Lua. Note that `os.exit` still exits immediately and skips
+`fini`. Signals are not handled by flua -- installing a handler for SIGINT / SIGTERM is
+the application's own decision.
+
+Each lifecycle phase is a separate top-level Call. That matters because fakelua has no GC:
+its frame arena is only reset when a top-level Call starts (reentrant count back to zero),
+so a `while true` loop inside a single Lua Call would make the arena grow without bound.
+Keep `update` to one frame of work (pump IO/timers, dispatch requests).
 
 ### Installation & CMake Integration
 
