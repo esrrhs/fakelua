@@ -148,6 +148,25 @@ TEST(infer, test_infer_degrade_func_call) {
     });
 }
 
+// Regression (issue #36): a method call on a call result (`make():get(k)`)
+// inside a parameterised function used to SIGSEGV during math-parameter
+// discovery. It must now compile, and still evaluate like the two-step form.
+TEST(infer, test_infer_method_call_on_call) {
+    const auto code = InferGetCCode("./infer/test_infer_method_call_on_call.lua");
+    ASSERT_NE(code.find("FlCallClosure("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_method_call_on_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 1);
+        ASSERT_EQ(ret, 43);
+        Call(s, type, "test_arith", ret, 2);
+        ASSERT_EQ(ret, 85);
+        Call(s, type, "test_var", ret, 3);
+        ASSERT_EQ(ret, 45);
+    });
+}
+
 // Mid-way degradation: a parameter-bound for loop. n is a math param.
 // int 特化：sum/i 都是 int64_t。float 特化：Lua 5.4 仍走整数 for（FlForLimitToInt），
 // sum 不会退化成 double。
