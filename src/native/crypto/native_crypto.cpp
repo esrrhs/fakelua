@@ -532,13 +532,20 @@ void RegisterCryptoLibraryApi(State *s) {
 
     // On OpenSSL 3.x, RC4 / Blowfish / DES are in the "legacy" provider which
     // is not loaded by default. Load it once here so callers don't have to
-    // configure openssl.cnf manually. Failure is silently ignored: if the
-    // legacy provider is already loaded (via config), or if this OpenSSL build
-    // doesn't have it, the rest of the API still works.
+    // configure openssl.cnf manually. Failure only degrades the legacy ciphers:
+    // the rest of the API still works, so warn instead of throwing.
     static std::once_flag legacy_provider_init;
-    std::call_once(legacy_provider_init, []() {
+    std::call_once(legacy_provider_init, [s]() {
 #if OPENSSL_VERSION_MAJOR >= 3
-        OSSL_PROVIDER_load(nullptr, "legacy");
+        if (OSSL_PROVIDER_load(nullptr, "legacy") == nullptr) {
+            // Most common cause: libcrypto cannot find its provider modules
+            // (ossl-modules/legacy), e.g. a static OpenSSL whose MODULESDIR is wrong.
+            LOG_WARN(s,
+                     "crypto",
+                     "failed to load the OpenSSL \"legacy\" provider: crypto.rc4 / blowfish / des "
+                     "and the matching crypto.encrypt/decrypt algorithms will fail. "
+                     "check OPENSSL_MODULES or the OpenSSL modules directory");
+        }
         OSSL_PROVIDER_load(nullptr, "default");
 #endif
     });
