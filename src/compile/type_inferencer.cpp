@@ -1429,11 +1429,24 @@ bool TypeInferencer::CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, con
         return false;
     }
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-    DEBUG_ASSERT(fc);
+    if (!fc) {
+        return false;
+    }
+    // 只处理 callee(args) 这种简单直接调用。方法调用 obj:m(args)、对调用结果再调用
+    // f():m(args)、成员调用 a.b(args) 的被调者都不是简单变量名，必须提前返回：
+    // 否则下面的 dynamic_pointer_cast 得到空指针，Release 下 DEBUG_ASSERT 被编译掉，
+    // 会在空指针上取名字而崩溃（issue #36）。
+    if (!fc->Name().empty()) {
+        return false;
+    }
     const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-    DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
+    if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+        return false;
+    }
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-    DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+        return false;
+    }
     const auto &callee_name = callee_var->GetName();
     if (const auto math_it = math_param_positions.find(callee_name); math_it != math_param_positions.end()) {
         const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
@@ -1645,10 +1658,19 @@ InferredType TypeInferencer::ResolveCallReturnType(const std::shared_ptr<SyntaxT
         return T_DYNAMIC;
     }
     // 提取被调函数名（仅支持简单形式 callee(...)，方法调用形式不处理）。
+    // 这里必须真判断而不能只靠 DEBUG_ASSERT：f():m() 的被调者是一个函数调用节点，
+    // dynamic_pointer_cast 会得到空指针，Release 下会在空指针上取名字而崩溃。
+    if (!fc->Name().empty()) {
+        return T_DYNAMIC;
+    }
     const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-    DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
+    if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+        return T_DYNAMIC;
+    }
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-    DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+        return T_DYNAMIC;
+    }
     const auto &callee_name = callee_var->GetName();
 
     const auto math_it = tctx.ctx->math_positions->find(callee_name);

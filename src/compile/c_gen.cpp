@@ -3243,22 +3243,37 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
 //     可直接参与后续原生算术运算。
 std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node) {
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall_node);
-    DEBUG_ASSERT(fc);
+    if (!fc) {
+        return {};
+    }
     const auto args_node = fc->Args();
-    DEBUG_ASSERT(args_node);
+    if (!args_node) {
+        return {};
+    }
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-    DEBUG_ASSERT(args_ptr);
-    if (args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+    if (!args_ptr || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+        return {};
+    }
+    // 同样只支持 callee(args)：方法调用/对调用结果再调用/成员调用的被调者不是简单变量名，
+    // 必须提前返回，否则会在空指针上取名字（Release 下 DEBUG_ASSERT 被编译掉）。
+    if (!fc->Name().empty()) {
         return {};
     }
     const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-    DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
+    if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+        return {};
+    }
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-    DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+        return {};
+    }
     if (BindsLocalValue(callee_var.get())) {
         return {};
     }
     const auto &callee_name = callee_var->GetName();
+    if (!ir().math_param_positions.contains(callee_name)) {
+        return {};
+    }
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
     DEBUG_ASSERT(explist_ptr);
     const auto &raw_args = explist_ptr->Exps();
