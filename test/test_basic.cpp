@@ -1348,3 +1348,18 @@ TEST(test_basic, xpcall_coverage) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_basic, test_basic_select_range) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./basic/test_basic_select_range.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_basic_select_range", res);
+        EXPECT_EQ(res, 5000LL);
+    }
+
+    FakeluaDeleteState(s);
+}
+

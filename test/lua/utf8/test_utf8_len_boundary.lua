@@ -3,9 +3,9 @@ function test_utf8_len_boundary()
     local r2 = utf8.len("ABC", 3, 1)
     if r2 ~= 0 then return 1 end
 
-    -- 2. 空字符串返回 0
-    local r3 = utf8.len("", 1, 1)
-    if r3 ~= 0 then return 2 end
+    -- 2. 空串上 j=1 越出末尾：Lua 5.4 报 final position out of bounds
+    local ok_empty, err_empty = pcall(function() utf8.len("", 1, 1) end)
+    if ok_empty or not string.find(tostring(err_empty), "out of bounds", 1, true) then return 2 end
 
     -- 3. 完整字符串长度
     local r5 = utf8.len("Hello")

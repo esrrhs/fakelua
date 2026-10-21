@@ -201,3 +201,18 @@ TEST(test_utf8, test_utf8_optnil) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_utf8, test_utf8_bounds) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./utf8/test_utf8_bounds.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_utf8_bounds", res);
+        EXPECT_EQ(res, 5000LL);
+    }
+
+    FakeluaDeleteState(s);
+}

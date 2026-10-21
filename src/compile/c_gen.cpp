@@ -3984,7 +3984,12 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
             Out() << GenTab() << "FlSetTableInt(" << tbl_arg << ", " << len_tmp << " + 1, " << val_arg << ");\n";
             Out() << GenTab() << tmp << " = kNil;\n";
             return tmp;
-        } else if (raw_args.size() >= 3) {
+        } else if (raw_args.size() > 3) {
+            // 热路径只有 2 参和 3 参。多出来的参数在编译期直接报错，不展开多返回值，也不进原生调用。
+            Out() << GenTab() << "FakeluaThrowError(_S, \"wrong number of arguments to 'insert'\");\n";
+            Out() << GenTab() << tmp << " = kNil;\n";
+            return tmp;
+        } else if (raw_args.size() == 3) {
             std::string tbl_arg = CompileExp(raw_args[0]);
             std::string pos_arg = CompileExp(raw_args[1]);
             std::string val_arg = CompileExp(raw_args[2]);

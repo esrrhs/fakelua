@@ -411,26 +411,35 @@ void RegisterBasicLibraryApi(State *s) {
 
     // select(n, ...)
     RegisterNativeFunction(s, "select", 1, true, [](State *state, CVar *args, int n) -> CVar {
+        if (n < 1) ThrowBadArgument(1, "select", "number expected");
         CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        // 支持 select("#", ...) 返回总数
-        std::string temp;
-        std::string_view sv = GetStringArgView(a0, temp);
-        if (sv == "#") {
-            return inter::NativeToFakeluaInt(state, n - 1);
+        // 支持 select("#", ...) 返回总数。只认字符串 "#"，数字不能先转成字符串再比较。
+        if (a0.type_ == static_cast<int>(VarType::String) || a0.type_ == static_cast<int>(VarType::StringId)) {
+            std::string temp;
+            if (GetStringArgView(a0, temp) == "#") {
+                return inter::NativeToFakeluaInt(state, n - 1);
+            }
         }
-        // 标准 Lua：select 的参数必须是 number，Bool/Table/String/Nil 不合法
-        CheckNumberArg(a0, 1, "select");
-        int64_t idx = inter::CVarToInteger(a0, 1);
+        // Lua 5.4 luaL_checkinteger：1.5 / NaN 报错，不能截成整数。
+        int64_t idx = CheckIntegerArg(a0, 1, "select");
         int var_count = n - 1;
         if (idx < 0) {
-            idx = var_count + idx + 1;
+            // idx == INT64_MIN 时直接相加会溢出。小于 -var_count 的下标必然越界。
+            if (idx < -static_cast<int64_t>(var_count) - 1) {
+                ThrowBadArgument(1, "select", "index out of range");
+            }
+            idx = static_cast<int64_t>(var_count) + idx + 1;
         }
-        if (idx < 1 || idx > var_count) {
-            return inter::NativeToFakeluaNil(state);
+        if (idx < 1) {
+            ThrowBadArgument(1, "select", "index out of range");
+        }
+        // 下标超过实参个数：Lua 返回 0 个值，不是一个 nil。
+        if (idx > var_count) {
+            return inter::AllocMultiCVar(state, 0);
         }
         int start = static_cast<int>(idx);
         int count = var_count - start + 1;
-        if (count <= 0) return inter::NativeToFakeluaNil(state);
+        if (count <= 0) return inter::AllocMultiCVar(state, 0);
         if (count == 1) {
             return inter::GetNativeArg(state, args, n, start);
         }

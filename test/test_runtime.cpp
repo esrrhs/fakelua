@@ -647,4 +647,19 @@ TEST(runtime, fakelua_call_by_name_vararg_path) {
     CVar r2 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 1, inter::NativeToFakeluaInt(&s, 42));
     ASSERT_EQ(r2.type_, static_cast<int>(VarType::Int));
     ASSERT_EQ(r2.data_.i, 42);
+
+    // Multi 指针为空时按“没有值”处理，不能解引用崩溃。
+    CVar multi_null;
+    multi_null.type_ = static_cast<int>(VarType::Multi);
+    multi_null.flag_ = 0;
+    multi_null.data_.m = nullptr;
+    CVar r3 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 2, inter::NativeToFakeluaInt(&s, 7), multi_null);
+    ASSERT_EQ(r3.type_, static_cast<int>(VarType::Int));
+    ASSERT_EQ(r3.data_.i, 7);
+
+    // 非末尾的空 Multi 取成 nil，同样不能解引用。
+    s.GetVM().RegisterFunction(VmFunction("echo2_null", 2, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoArg2), {}));
+    CVar r4 = FakeluaCallByName(&s, TEST_JIT_TYPE, "echo2_null", 2, multi_null, inter::NativeToFakeluaInt(&s, 100));
+    ASSERT_EQ(r4.type_, static_cast<int>(VarType::Int));
+    ASSERT_EQ(r4.data_.i, 100);
 }

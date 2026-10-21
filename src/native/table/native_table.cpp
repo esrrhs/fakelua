@@ -878,7 +878,10 @@ void RegisterTableLibraryApi(State *s) {
         }
         int64_t len = TableHelper::GetTableLen(tbl);
 
-        if (n == 1) return inter::NativeToFakeluaNil(state);
+        // Lua 5.4 tinsert：恰好 2 个参数（追加）或 3 个参数（按位置插入）。
+        if (n != 2 && n != 3) {
+            ThrowFakeluaException("wrong number of arguments to 'insert'");
+        }
         if (n == 2) {
             CVar val = inter::GetNativeArg(state, args, n, 1);
             TableHelper::SetTableInt(state, tbl, len + 1, val);
