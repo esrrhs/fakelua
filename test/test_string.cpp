@@ -832,3 +832,18 @@ TEST(test_string, test_string_optnil) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, test_string_optint) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./string/test_string_optint.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_string_optint", res);
+        EXPECT_EQ(res, 5000LL);
+    }
+
+    FakeluaDeleteState(s);
+}

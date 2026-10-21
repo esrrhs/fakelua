@@ -66,18 +66,28 @@ constexpr const char *kFiniEntry = "main.fini";
 std::atomic<bool> g_exit_requested{false};
 std::atomic<int> g_exit_code{0};
 bool ExitRequested() {
-    return g_exit_requested.load(std::memory_order_relaxed);
+    return g_exit_requested.load(std::memory_order_acquire);
 }
 
 // Lua-side exit hook: flua.set_exit([code]). It only flags the request and
-// returns; the current update frame runs to completion.
+// returns; the current update frame runs to completion. The stored code is the
+// process exit code when update itself returns 0.
 void RegisterExitApi(State *s) {
     RegisterNativeFunction(s, "flua.set_exit", 0, true, [](State *state, CVar *args, int n) -> CVar {
         const int code = static_cast<int>(GetNativeIntArg(state, args, n, 0, 0));
         g_exit_code.store(code, std::memory_order_relaxed);
-        g_exit_requested.store(true, std::memory_order_relaxed);
+        g_exit_requested.store(true, std::memory_order_release);
         return NativeNil(state);
     });
+}
+
+// init/update/fini must return an integer. Call converts the result with
+// FakeluaToNative<int>, so a missing return (nil) or any other type fails the
+// process instead of being treated as 0.
+int ReadEntryCode(State *s, JITType jit, const char *name) {
+    int code = 0;
+    Call(s, jit, name, code);
+    return code;
 }
 
 // The argument is either a single .lua file or a directory (every .lua inside
@@ -95,8 +105,13 @@ std::vector<std::string> CollectLuaFiles(const std::string &path) {
         // Cross-file references resolve at runtime, so the order does not
         // change semantics; sorting is only for reproducible builds.
         std::sort(files.begin(), files.end());
+        if (ec) {
+            std::cerr << "flua: cannot read " << path << ": " << ec.message() << "\n";
+            std::exit(1);
+        }
         if (files.empty()) {
             std::cerr << "flua: no .lua file under " << path << "\n";
+            std::exit(1);
         }
         return files;
     }
@@ -133,8 +148,7 @@ int RunLifecycle(State *s, JITType jit) {
 
     bool init_ok = false;
     try {
-        int init_code = 0;
-        Call(s, jit, kInitEntry, init_code);
+        const int init_code = ReadEntryCode(s, jit, kInitEntry);
         if (init_code != 0) {
             exit_code = init_code;
             std::cerr << "flua: init returned " << init_code << ", exit\n";
@@ -150,7 +164,7 @@ int RunLifecycle(State *s, JITType jit) {
         while (!ExitRequested()) {
             int update_code = 0;
             try {
-                Call(s, jit, kUpdateEntry, update_code);
+                update_code = ReadEntryCode(s, jit, kUpdateEntry);
             } catch (const std::exception &e) {
                 std::cerr << "flua: update failed: " << e.what() << "\n";
                 exit_code = 1;
@@ -162,13 +176,19 @@ int RunLifecycle(State *s, JITType jit) {
             }
         }
     }
+    // set_exit(code) supplies the exit code when the frame itself returned 0.
+    // A non-zero return from update wins over set_exit.
+    if (init_ok && exit_code == 0 && ExitRequested()) {
+        exit_code = g_exit_code.load(std::memory_order_relaxed);
+    }
 
     // init succeeded -> run fini: cleanup is needed on update errors and on
-    // requested exits alike.
+    // requested exits alike. fini must still return an integer, but that value
+    // is not the process exit code. A missing return or any other exception
+    // fails the process.
     if (init_ok) {
         try {
-            int fini_code = 0;
-            Call(s, jit, kFiniEntry, fini_code);
+            (void) ReadEntryCode(s, jit, kFiniEntry);
         } catch (const std::exception &e) {
             std::cerr << "flua: fini failed: " << e.what() << "\n";
             exit_code = 1;

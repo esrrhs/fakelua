@@ -34,10 +34,7 @@
 namespace fakelua::string {
 
 static inline int64_t NormalizePos(int64_t pos, int64_t len) {
-    if (pos >= 0) {
-        return pos;
-    }
-    return len + pos + 1;
+    return LuaPosRelat(pos, len);
 }
 
 // Lua 模式（pattern matching，见 lua_pattern.h）辅助。
@@ -1077,6 +1074,8 @@ void RegisterStringLibraryApi(State *s) {
     RegisterNativeFunction(s, "string.format", 1, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) ThrowBadArgument(1, "string.format", "string expected");
         CVar fmt_var = inter::GetNativeArg(state, args, n, 0);
+        // nil / bool / table 不是格式串。数字仍允许：luaL_checklstring 会转成字符串。
+        CheckStringArg(fmt_var, 1, "format");
         std::string temp_fmt;
         std::string_view fmt = GetStringArgView(fmt_var, temp_fmt);
 
@@ -1287,8 +1286,7 @@ void RegisterStringLibraryApi(State *s) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
             // Lua 5.4：init 是 luaL_optinteger，显式 nil 与省略等价，默认 1。
             if (a2.type_ != static_cast<int>(VarType::Nil)) {
-                CheckNumberArg(a2, 3, "string.find");
-                init_pos = inter::CVarToInteger(a2, 1);
+                init_pos = CheckIntegerArg(a2, 3, "string.find");
             }
         }
         init_pos = NormalizePos(init_pos, len);
@@ -1348,8 +1346,7 @@ void RegisterStringLibraryApi(State *s) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
             // Lua 5.4：init 是 luaL_optinteger，显式 nil 与省略等价，默认 1。
             if (a2.type_ != static_cast<int>(VarType::Nil)) {
-                CheckNumberArg(a2, 3, "string.match");
-                init_pos = inter::CVarToInteger(a2, 1);
+                init_pos = CheckIntegerArg(a2, 3, "string.match");
             }
         }
         init_pos = NormalizePos(init_pos, len);
@@ -1426,10 +1423,7 @@ void RegisterStringLibraryApi(State *s) {
         if (n >= 4) {
             CVar a3 = inter::GetNativeArg(state, args, n, 3);
             if (a3.type_ != static_cast<int>(VarType::Nil)) {
-                if (a3.type_ == static_cast<int>(VarType::Bool) || a3.type_ == static_cast<int>(VarType::Table)) {
-                    ThrowFakeluaException("bad argument #4 to 'string.gsub' (number expected)");
-                }
-                max_replace = inter::CVarToInteger(a3, max_replace);
+                max_replace = CheckIntegerArg(a3, 4, "string.gsub");
             }
         }
 
@@ -2167,10 +2161,10 @@ void RegisterStringLibraryApi(State *s) {
         int64_t start_pos = 1;
         if (n >= 3) {
             CVar a2 = inter::GetNativeArg(state, args, n, 2);
-            if (a2.type_ == static_cast<int>(VarType::Bool) || a2.type_ == static_cast<int>(VarType::Table)) {
-                ThrowFakeluaException("bad argument #3 to 'string.unpack' (number expected)");
+            // Lua 5.4：pos 是 luaL_optinteger，显式 nil 与省略等价，默认 1。
+            if (a2.type_ != static_cast<int>(VarType::Nil)) {
+                start_pos = CheckIntegerArg(a2, 3, "string.unpack");
             }
-            start_pos = inter::CVarToInteger(a2, 1);
         }
         start_pos = NormalizePos(start_pos, static_cast<int64_t>(data.size()));
         if (start_pos < 1 || start_pos > static_cast<int64_t>(data.size())) {

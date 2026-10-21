@@ -436,3 +436,18 @@ TEST(test_table, test_table_error_paths) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_table, test_table_insert_arity) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./table/test_table_insert_arity.lua", config);
+        int64_t res = 0;
+        Call(s, jit_type, "test_table_insert_arity", res);
+        EXPECT_EQ(res, 5000LL);
+    }
+
+    FakeluaDeleteState(s);
+}

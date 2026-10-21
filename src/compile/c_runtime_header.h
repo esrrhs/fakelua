@@ -421,15 +421,17 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
                 if (flat_count + extra > (int)kMaxFunctionInputParams) {
                     FakeluaThrowError(state, "too many arguments");
                 }
-                for (uint32_t j = 0; j < m->count; ++j) {
-                    flat_args_buf[flat_count++] = m->vars[j];
+                if (m) {
+                    for (uint32_t j = 0; j < m->count; ++j) {
+                        flat_args_buf[flat_count++] = m->vars[j];
+                    }
                 }
             } else if (raw_arg_arr[i].type_ == VAR_MULTI) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
                 if (flat_count >= (int)kMaxFunctionInputParams) {
                     FakeluaThrowError(state, "too many arguments");
                 }
-                flat_args_buf[flat_count++] = m->count > 0 ? m->vars[0] : (CVar){VAR_NIL};
+                flat_args_buf[flat_count++] = (m && m->count > 0) ? m->vars[0] : (CVar){VAR_NIL};
             } else {
                 if (flat_count >= (int)kMaxFunctionInputParams) {
                     FakeluaThrowError(state, "too many arguments");
@@ -1612,9 +1614,14 @@ static inline CVar FlFormatInt(int64_t v) {
     return r;
 }
 
-// select("#", multi) / select(i, multi) 的内联辅助
+// select("#", multi) / select(i, multi) 的内联辅助。
+// 空 Multi（含空指针）是 0 个值。编译器把没有实参的 ... 传成 nil，所以 nil 也是 0。
+// 其它单个值是 1 个值。
 static inline CVar FlSelectHash(CVar vararg) {
-    if (vararg.type_ == VAR_MULTI) return (CVar){.type_ = VAR_INT, .data_.i = (int64_t)vararg.data_.m->count};
+    if (vararg.type_ == VAR_MULTI) {
+        if (vararg.data_.m == NULL) return (CVar){.type_ = VAR_INT, .data_.i = 0};
+        return (CVar){.type_ = VAR_INT, .data_.i = (int64_t)vararg.data_.m->count};
+    }
     if (vararg.type_ == VAR_NIL) return (CVar){.type_ = VAR_INT, .data_.i = 0};
     return (CVar){.type_ = VAR_INT, .data_.i = 1};
 }
@@ -1622,16 +1629,32 @@ static inline CVar FlSelectHash(CVar vararg) {
 static inline CVar FlSelectIndex(int64_t idx, CVar vararg) {
     if (vararg.type_ == VAR_MULTI) {
         VarMulti *m = vararg.data_.m;
-        if (idx < 0) idx = (int64_t)m->count + idx + 1;
-        if (idx < 1 || idx > (int64_t)m->count) return (CVar){VAR_NIL};
+        int64_t count = (m != NULL) ? (int64_t)m->count : 0;
+        if (idx < 0) {
+            if (idx < -count - 1) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
+            idx = count + idx + 1;
+        }
+        if (idx < 1) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
+        if (idx > count || m == NULL) return FlAllocMulti(_S, 0);
         uint32_t start = (uint32_t)(idx - 1);
-        uint32_t count = m->count - start;
-        if (count == 1) return m->vars[start];
+        uint32_t nret = m->count - start;
+        if (nret == 1) return m->vars[start];
         return FlSliceMulti(_S, vararg, start);
     }
-    if (vararg.type_ == VAR_NIL) return (CVar){VAR_NIL};
-    if (idx == 1 || idx == -1) return vararg;
-    return (CVar){VAR_NIL};
+    // 没有实参的 ... 传进来是 nil，和空 Multi 一样是 0 个值。
+    // 正下标返回空，0 和负数都越界。Multi 在上面已经返回，这里碰不到热路径。
+    if (vararg.type_ == VAR_NIL) {
+        if (idx < 1) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
+        return FlAllocMulti(_S, 0);
+    }
+    /* 其它单个实参是 1 个值。越界下标报错；超过末尾返回 0 个值。 */
+    if (idx < 0) {
+        if (idx < -2) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
+        idx = idx + 2;
+    }
+    if (idx < 1) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
+    if (idx > 1) return FlAllocMulti(_S, 0);
+    return vararg;
 }
 
 // tonumber 热路径：数字直通；纯十进制整数字符串本地解析；其余回退 native

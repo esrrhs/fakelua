@@ -28,12 +28,9 @@ function test_utf8_len()
     -- 数字隐式转字符串
     if utf8.len(12345) ~= 5 then return 7 end
 
-    -- 下标 0 不是从末尾倒数（Lua u_posrelat 只把负数当相对下标）。
-    -- 经 is_nil 走 CVar，避免特化把 nil 拆成 int 0。
-    local function is_nil(v)
-        return v == nil
-    end
-    if not is_nil(utf8.len("abc", 0)) then return 8 end
+    -- 下标 0 不是从末尾倒数。Lua 5.4 对 i < 1 报越界，不返回 nil。
+    local ok0 = pcall(function() utf8.len("abc", 0) end)
+    if ok0 then return 8 end
 
     return 6000
 end

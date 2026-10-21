@@ -85,6 +85,20 @@ inline int64_t CheckIntegerArg(const CVar &a, int argno, const char *fname) {
     ThrowBadArgument(argno, fname, "number expected");
 }
 
+// Lua 5.4 u_posrelat: non-negative positions stay put; negative ones count from
+// the end (len + pos + 1). An offset past the start returns 0. The magnitude
+// check is what keeps pos == INT64_MIN from overflowing the signed addition.
+inline int64_t LuaPosRelat(int64_t pos, int64_t len) {
+    if (pos >= 0) {
+        return pos;
+    }
+    const uint64_t mag = 0ull - static_cast<uint64_t>(pos);
+    if (len < 0 || mag > static_cast<uint64_t>(len)) {
+        return 0;
+    }
+    return len + pos + 1;
+}
+
 // Safe double → int64: false for NaN/Inf, non-integers, and values outside int64.
 inline bool DoubleFitsInt64(double d, int64_t *out) {
     if (!std::isfinite(d) || std::trunc(d) != d) return false;
