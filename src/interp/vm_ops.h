@@ -5,6 +5,7 @@
 
 #include "fakelua.h"
 #include "util/exception.h"
+#include "util/number_util.h"
 #include "var/var_multi.h"
 #include "var/var_type.h"
 #include <cmath>
@@ -264,6 +265,8 @@ FL_VM_INLINE CVar CmpLt(const CVar &a, const CVar &b) {
     if (FL_VM_LIKELY(a.type_ == kInt && b.type_ == kInt)) return Bool(a.data_.i < b.data_.i);
     CheckNum(a);
     CheckNum(b);
+    if (a.type_ == kInt) return Bool(CompareInt64Double(a.data_.i, b.data_.f) < 0);
+    if (b.type_ == kInt) return Bool(CompareInt64Double(b.data_.i, a.data_.f) > 0);
     return Bool(ToDouble(a) < ToDouble(b));
 }
 
@@ -271,6 +274,9 @@ FL_VM_INLINE CVar CmpLe(const CVar &a, const CVar &b) {
     if (FL_VM_LIKELY(a.type_ == kInt && b.type_ == kInt)) return Bool(a.data_.i <= b.data_.i);
     CheckNum(a);
     CheckNum(b);
+    if (std::isnan(a.type_ == kFloat ? a.data_.f : b.data_.f)) return Bool(false);
+    if (a.type_ == kInt) return Bool(CompareInt64Double(a.data_.i, b.data_.f) <= 0);
+    if (b.type_ == kInt) return Bool(CompareInt64Double(b.data_.i, a.data_.f) >= 0);
     return Bool(ToDouble(a) <= ToDouble(b));
 }
 

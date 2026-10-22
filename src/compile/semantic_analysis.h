@@ -33,6 +33,11 @@ private:
     void CollectGotosInStmt(const SyntaxTreeInterfacePtr &stmt, std::vector<std::pair<std::string, SyntaxTreeInterfacePtr>> &out);
     void CollectGotosInBlock(const SyntaxTreeInterfacePtr &block, std::vector<std::pair<std::string, SyntaxTreeInterfacePtr>> &out);
     void ValidateConstAssignInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_set<std::string> const_names);
+    // 在表达式树中查找匿名 FunctionDef，并按外层词法 const 集合校验其函数体。
+    void ValidateConstInExprs(const SyntaxTreeInterfacePtr &node, const std::unordered_set<std::string> &const_names);
+    // 进入函数体：继承外层 const，参数名 / extra_shadow 遮蔽同名 const。
+    void ValidateConstInFuncbody(const SyntaxTreeInterfacePtr &funcbody, std::unordered_set<std::string> const_names,
+                                 const std::unordered_set<std::string> &extra_shadow = {});
     void CollectBlockLabels(const SyntaxTreeInterfacePtr &block, std::unordered_map<std::string, SyntaxTreeInterfacePtr> &labels);
     void CheckFunctionCall(const SyntaxTreeInterfacePtr &node);
     void CheckParList(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);

@@ -3069,3 +3069,30 @@ TEST(jitter, test_table_float_key_precise) {
         ASSERT_EQ(ret, 1);
     });
 }
+
+TEST(jitter, precise_mixed_numeric_compare) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_numeric_eval_once.lua", {.debug_mode = debug_mode});
+        int64_t ret = -1;
+        Call(s, type, "test_precise_mixed_compare", ret);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+TEST(jitter, numeric_eval_once) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_numeric_eval_once.lua", {.debug_mode = debug_mode});
+        int64_t ret = -1;
+        Call(s, type, "test_and_or_eval_once", ret);
+        ASSERT_EQ(ret, 2);
+        ret = -1;
+        Call(s, type, "test_math_inline_eval_once", ret);
+        ASSERT_EQ(ret, 5);
+        ret = -1;
+        Call(s, type, "test_numeric_ternary_once", ret, 1);
+        ASSERT_EQ(ret, 1);
+        ret = -1;
+        Call(s, type, "test_numeric_ternary_once", ret, -1);
+        ASSERT_EQ(ret, 1);
+    });
+}

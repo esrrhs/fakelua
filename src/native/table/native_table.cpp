@@ -8,12 +8,15 @@
 #include "util/number_util.h"
 #include "var/var.h"
 #include "var/var_closure.h"
+#include "var/var_multi.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -73,10 +76,10 @@ bool VarKeyEqual(CVar a, CVar b) {
         return KeyToStringView(a) == KeyToStringView(b);
     }
     if (a.type_ == kIntType && b.type_ == kFloatType) {
-        return static_cast<double>(a.data_.i) == b.data_.f;
+        return Int64DoubleEqual(a.data_.i, b.data_.f);
     }
     if (a.type_ == kFloatType && b.type_ == kIntType) {
-        return a.data_.f == static_cast<double>(b.data_.i);
+        return Int64DoubleEqual(b.data_.i, a.data_.f);
     }
     if (a.type_ != b.type_) return false;
     switch (a.type_) {
@@ -177,6 +180,29 @@ uint32_t NextPowerOfTwo(uint32_t v) {
     v |= v >> 8;
     v |= v >> 16;
     return v + 1;
+}
+
+// 与 HeapAllocator::BLOCK_SIZE 一致：一次 Alloc 不能超过一块。
+constexpr uint64_t kEngineAllocBlock = 1024ULL * 1024ULL;
+
+// table.unpack 的多返回值必须落在一块临时内存里（VarMulti 头 + count 个 CVar）。
+constexpr uint64_t kMaxUnpackResults = (kEngineAllocBlock - sizeof(VarMulti)) / sizeof(CVar);
+
+// base + delta 的数学结果已证明落在 int64 内。用无符号加法避免有符号溢出。
+int64_t OffsetIndex(int64_t base, int64_t delta) {
+    return static_cast<int64_t>(static_cast<uint64_t>(base) + static_cast<uint64_t>(delta));
+}
+
+// 空表预扩容的节点数组必须能一次分配出来。装不下就跳过预扩，改由逐元素插入。
+// count 超出 uint32 时桶数本身无法表示，同样不能预扩。
+bool MovePresizeFits(uint64_t count) {
+    if (count == 0 || count > std::numeric_limits<uint32_t>::max()) return false;
+    const uint32_t min_buckets = static_cast<uint32_t>(count);
+    const uint32_t buckets = NextPowerOfTwo(min_buckets);
+    if (buckets < min_buckets) return false;
+    const uint64_t total = static_cast<uint64_t>(buckets) + static_cast<uint64_t>(buckets / 2);
+    const uint64_t bytes = total * sizeof(VarTable::TableNode) + total * sizeof(uint32_t);
+    return bytes <= kEngineAllocBlock;
 }
 
 void TableRehashTo(State *s, VarTable *tbl, uint32_t min_buckets);
@@ -542,7 +568,7 @@ bool TableHelper::VarKeyEqualInt(CVar k, int64_t idx) {
         return k.data_.i == idx;
     }
     if (k.type_ == static_cast<int>(VarType::Float)) {
-        return k.data_.f == static_cast<double>(idx);
+        return Int64DoubleEqual(idx, k.data_.f);
     }
     return false;
 }
@@ -1053,12 +1079,16 @@ void RegisterTableLibraryApi(State *s) {
         }
 
         if (start_i > end_j) return inter::AllocMultiCVar(state, 0);
-        uint64_t count64 = static_cast<uint64_t>(end_j) - static_cast<uint64_t>(start_i) + 1;
-        if (count64 == 0 || count64 > 1000000ULL) return inter::AllocMultiCVar(state, 0);
-        int count = static_cast<int>(count64);
+        // 先用无符号宽度判断区间是否回绕，再决定能不能装进多返回值。
+        // mininteger..maxinteger 的个数是 2^64，无符号减法会变成 0。
+        const uint64_t count64 = static_cast<uint64_t>(end_j) - static_cast<uint64_t>(start_i) + 1;
+        if (count64 == 0 || count64 > static_cast<uint64_t>(std::numeric_limits<int>::max()) || count64 > kMaxUnpackResults) {
+            ThrowFakeluaException("too many results to unpack");
+        }
+        const int count = static_cast<int>(count64);
         CVar multi = inter::AllocMultiCVar(state, count);
         for (int i = 0; i < count; ++i) {
-            CVar item = TableHelper::GetTableInt(state, tbl, static_cast<int64_t>(static_cast<uint64_t>(start_i) + static_cast<uint64_t>(i)));
+            CVar item = TableHelper::GetTableInt(state, tbl, OffsetIndex(start_i, i));
             inter::SetMultiCVarElement(multi, i, item);
         }
         return multi;
@@ -1098,23 +1128,32 @@ void RegisterTableLibraryApi(State *s) {
         int64_t t = CheckIntegerArg(t_var, 4, "table.move");
 
         if (e >= f) {
-            uint64_t count = static_cast<uint64_t>(e) - static_cast<uint64_t>(f) + 1;
-            if (count == 0 || count > 10000000ULL) return a2;
-            int64_t icount = static_cast<int64_t>(count);
-            bool same_table = (a1.type_ == static_cast<int>(VarType::Table) && a2.type_ == static_cast<int>(VarType::Table) && a1.data_.t == a2.data_.t);
-            // 空目标表预扩容：避免 1→2→4→… 反复 rehash（大 n 时常数项明显）
-            if (!same_table && a2.data_.t->count_ == 0 && icount > 8 && t != static_cast<int64_t>(a2.data_.t->arr_size_) + 1) {
-                TableRehashTo(state, a2.data_.t, static_cast<uint32_t>(icount));
+            // 源区间个数 e - f + 1。e>=f 时用无符号减法，2^64 个元素会回绕成 0。
+            // 必须在 f+i / t+i 之前拦住，否则有符号加法是未定义行为。
+            const uint64_t count = static_cast<uint64_t>(e) - static_cast<uint64_t>(f) + 1;
+            if (count == 0 || count > static_cast<uint64_t>(INT64_MAX)) {
+                ThrowFakeluaException("bad argument #3 to 'table.move' (too many elements to move)");
+            }
+            const uint64_t last_off = count - 1;
+            if (t > 0 && static_cast<uint64_t>(t) > static_cast<uint64_t>(INT64_MAX) - last_off) {
+                ThrowFakeluaException("bad argument #4 to 'table.move' (destination wrap around)");
+            }
+            const int64_t icount = static_cast<int64_t>(count);
+            const bool same_table = (a1.type_ == static_cast<int>(VarType::Table) && a2.type_ == static_cast<int>(VarType::Table) && a1.data_.t == a2.data_.t);
+            // 空目标表预扩容：避免 1→2→4→… 反复 rehash。桶数或节点数组装不进引擎限制时
+            // 不预扩，改走逐元素插入；插入本身分配失败会抛明确错误，而不是静默跳过。
+            if (!same_table && a2.data_.t->count_ == 0 && icount > 8 && t != static_cast<int64_t>(a2.data_.t->arr_size_) + 1 && MovePresizeFits(count)) {
+                TableRehashTo(state, a2.data_.t, static_cast<uint32_t>(count));
             }
             if (!same_table || t <= f || t > e) {
                 for (int64_t i = 0; i < icount; ++i) {
-                    CVar val = TableHelper::GetTableInt(state, a1, f + i);
-                    TableHelper::SetTableInt(state, a2, t + i, val);
+                    CVar val = TableHelper::GetTableInt(state, a1, OffsetIndex(f, i));
+                    TableHelper::SetTableInt(state, a2, OffsetIndex(t, i), val);
                 }
             } else {
                 for (int64_t i = icount - 1; i >= 0; --i) {
-                    CVar val = TableHelper::GetTableInt(state, a1, f + i);
-                    TableHelper::SetTableInt(state, a2, t + i, val);
+                    CVar val = TableHelper::GetTableInt(state, a1, OffsetIndex(f, i));
+                    TableHelper::SetTableInt(state, a2, OffsetIndex(t, i), val);
                 }
             }
         }
@@ -1170,10 +1209,10 @@ void RegisterTableLibraryApi(State *s) {
                     return a.data_.f < b.data_.f;
                 }
                 if (a.type_ == static_cast<int>(VarType::Int) && b.type_ == static_cast<int>(VarType::Float)) {
-                    return static_cast<double>(a.data_.i) < b.data_.f;
+                    return CompareInt64Double(a.data_.i, b.data_.f) < 0;
                 }
                 if (a.type_ == static_cast<int>(VarType::Float) && b.type_ == static_cast<int>(VarType::Int)) {
-                    return a.data_.f < static_cast<double>(b.data_.i);
+                    return CompareInt64Double(b.data_.i, a.data_.f) > 0;
                 }
                 // fakelua 扩展：允许 number 与 string 混合比较（转换为 string）
                 // 标准 Lua 5.3 只允许 string-string 或 number-number，但 fakelua 支持混合

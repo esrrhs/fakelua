@@ -5,6 +5,7 @@
 #include "native/string/native_string.h"
 #include "native/table/native_table.h"
 #include "state/state.h"
+#include "util/number_util.h"
 #include "var/var.h"
 #include "var/var_closure.h"
 #include "var/var_multi.h"
@@ -130,11 +131,8 @@ static bool KeysEqual(CVar a, CVar b) {
         return a.data_.i == b.data_.i;
     }
     // 跨 Int 和 Float 比较
-    if ((a.type_ == static_cast<int>(VarType::Int) || a.type_ == static_cast<int>(VarType::Float)) && (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Float))) {
-        double va = (a.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(a.data_.i) : a.data_.f;
-        double vb = (b.type_ == static_cast<int>(VarType::Int)) ? static_cast<double>(b.data_.i) : b.data_.f;
-        return va == vb;
-    }
+    if (a.type_ == static_cast<int>(VarType::Int) && b.type_ == static_cast<int>(VarType::Float)) return Int64DoubleEqual(a.data_.i, b.data_.f);
+    if (a.type_ == static_cast<int>(VarType::Float) && b.type_ == static_cast<int>(VarType::Int)) return Int64DoubleEqual(b.data_.i, a.data_.f);
     // 跨 String 和 StringId 比较
     if ((a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId)) &&
         (b.type_ == static_cast<int>(VarType::String) || b.type_ == static_cast<int>(VarType::StringId))) {

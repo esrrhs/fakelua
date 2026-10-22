@@ -39,10 +39,11 @@ function test_os_date_table_utc()
 end
 
 function test_os_setlocale_query()
-    -- Query current locale (empty string = query)
-    local loc = os.setlocale("")
-    -- Should return a string
-    if type(loc) ~= "string" and loc ~= nil then return 1 end
+    -- nil 查询当前区域，不改变它
+    os.setlocale("C")
+    local loc = os.setlocale(nil)
+    os.setlocale("C")
+    if loc ~= "C" then return 1 end
     return 5000
 end
 

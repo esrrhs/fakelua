@@ -31,6 +31,45 @@ std::shared_ptr<SyntaxTreeExp> PreProcessor::MakeStringExp(const SyntaxTreeLocat
     return exp;
 }
 
+SyntaxTreeInterfacePtr PreProcessor::MakeLocalVarAssign(const SyntaxTreeLocation &loc, const std::string &name, const SyntaxTreeInterfacePtr &exp) {
+    const auto namelist = std::make_shared<SyntaxTreeNamelist>(loc);
+    namelist->AddName(name);
+    const auto explist = std::make_shared<SyntaxTreeExplist>(loc);
+    explist->AddExp(exp);
+    const auto lv = std::make_shared<SyntaxTreeLocalVar>(loc);
+    lv->SetNamelist(namelist);
+    lv->SetExplist(explist);
+    return lv;
+}
+
+SyntaxTreeInterfacePtr PreProcessor::GetFuncbody(const SyntaxTreeInterfacePtr &node) {
+    if (!node) {
+        return nullptr;
+    }
+    if (node->Type() == SyntaxTreeType::Function) {
+        return std::dynamic_pointer_cast<SyntaxTreeFunction>(node)->Funcbody();
+    }
+    if (node->Type() == SyntaxTreeType::LocalFunction) {
+        return std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node)->Funcbody();
+    }
+    if (node->Type() == SyntaxTreeType::FunctionDef) {
+        return std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node)->Funcbody();
+    }
+    return nullptr;
+}
+
+bool PreProcessor::FuncbodyHasVarargs(const SyntaxTreeInterfacePtr &funcbody) {
+    if (!funcbody) {
+        return false;
+    }
+    const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+    if (!fb) {
+        return false;
+    }
+    const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(fb->Parlist());
+    return parlist && parlist->VarParams();
+}
+
 PreProcessor::PreProcessor(State *s) : s_(s) {
 }
 
@@ -110,7 +149,9 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
             if (vars.size() == 1) {
                 new_stmts.push_back(stmt);
             } else {
-                // 1. 先生成临时变量名列表
+                // Lua 多赋值求值顺序：先求值全部 LHS 表基址/键，再求值全部 RHS，
+                // 最后按序写入。
+                // 1. 为 RHS 准备临时变量，保证交换 / 副作用只发生一次。
                 const auto tmp_namelist = std::make_shared<SyntaxTreeNamelist>(stmt->Loc());
                 const auto tmp_explist = std::make_shared<SyntaxTreeExplist>(stmt->Loc());
                 std::vector<std::string> tmp_names;
@@ -123,15 +164,39 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
                     }
                     tmp_names.push_back(tmp_name);
                 }
-                ++tmp_var_counter_;
 
                 // 2. 创建局部变量定义语句：local tmp1, tmp2, ... = exp1, exp2, ...
+                //    AST 先创建，但必须在全部 LHS capture 之后插入。
                 const auto local_var_stmt = std::make_shared<SyntaxTreeLocalVar>(stmt->Loc());
                 local_var_stmt->SetNamelist(tmp_namelist);
                 local_var_stmt->SetExplist(tmp_explist);
-                new_stmts.push_back(local_var_stmt);
 
-                // 3. 为每个变量生成单赋值语句：vars[i] = tmp_names[i]
+                // 3. 先把 LHS 表的 base / key（可能有副作用）提升。
+                //    例如 i, t[i] = i+1, 20 必须用旧的 i 作为下标；t, t.x = {}, 1 必须写到旧表。
+                for (size_t i = 0; i < vars.size(); ++i) {
+                    const auto var_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[i]);
+                    if (!var_ptr) {
+                        continue;
+                    }
+                    const auto kind = var_ptr->GetVarKind();
+                    if (kind != VarKind::kSquare && kind != VarKind::kDot) {
+                        continue;
+                    }
+
+                    const std::string base_tmp = std::format("__fakelua_lhs_base_{}_{}", tmp_var_counter_, i);
+                    new_stmts.push_back(MakeLocalVarAssign(stmt->Loc(), base_tmp, MakePrefixexpExp(stmt->Loc(), var_ptr->GetPrefixexp())));
+                    var_ptr->SetPrefixexp(MakeSimpleVarPrefixexp(stmt->Loc(), base_tmp));
+
+                    if (kind == VarKind::kSquare) {
+                        const std::string key_tmp = std::format("__fakelua_lhs_key_{}_{}", tmp_var_counter_, i);
+                        new_stmts.push_back(MakeLocalVarAssign(stmt->Loc(), key_tmp, var_ptr->GetExp()));
+                        var_ptr->SetExp(MakePrefixexpExp(stmt->Loc(), MakeSimpleVarPrefixexp(stmt->Loc(), key_tmp)));
+                    }
+                }
+                new_stmts.push_back(local_var_stmt);
+                ++tmp_var_counter_;
+
+                // 4. 为每个变量生成单赋值语句：vars[i] = tmp_names[i]
                 for (size_t i = 0; i < vars.size(); ++i) {
                     const auto new_assign = std::make_shared<SyntaxTreeAssign>(stmt->Loc());
                     const auto single_varlist = std::make_shared<SyntaxTreeVarlist>(stmt->Loc());
@@ -298,14 +363,16 @@ void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
         // 3. 清除变参标记，防止后续报错
         parlist->SetVarParams(false);
 
-        // 4. 重写函数体内的所有 "..."
+        // 4. 重写函数体内的所有 "..."：
+        //    - 嵌套的非变参函数可词法捕获外层 ...（继续向下改写）；
+        //    - 嵌套的变参函数使用自己的 ...（剪枝，留给对该节点的独立处理）。
         if (block_node) {
             WalkSyntaxTreePruned(block_node, [this, &vararg_name](const SyntaxTreeInterfacePtr &sub_node) -> bool {
                 if (!sub_node) return false;
 
                 const auto t = sub_node->Type();
                 if (t == SyntaxTreeType::Function || t == SyntaxTreeType::LocalFunction || t == SyntaxTreeType::FunctionDef) {
-                    return false;
+                    return !FuncbodyHasVarargs(GetFuncbody(sub_node));
                 }
 
                 // 找到 `...` 表达式进行替换

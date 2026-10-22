@@ -37,5 +37,23 @@ function test_table_move()
     local ret = table.move(src, 1, 2, 1, dst)
     if ret ~= dst then return 0 end
 
+    -- 8. 负下标与两端点本身不回绕，必须真的搬过去
+    local neg_src = {}
+    neg_src[-1] = 5
+    neg_src[0] = 6
+    neg_src[1] = 7
+    local neg_dst = {}
+    table.move(neg_src, -1, 1, -4, neg_dst)
+    if neg_dst[-4] ~= 5 or neg_dst[-3] ~= 6 or neg_dst[-2] ~= 7 then return 0 end
+
+    local edge_src = {}
+    edge_src[math.maxinteger] = 9
+    local edge_dst = {}
+    table.move(edge_src, math.maxinteger, math.maxinteger, 1, edge_dst)
+    if edge_dst[1] ~= 9 then return 0 end
+    local edge_dst2 = {}
+    table.move({ 7 }, 1, 1, math.maxinteger, edge_dst2)
+    if edge_dst2[math.maxinteger] ~= 7 then return 0 end
+
     return 5000
 end

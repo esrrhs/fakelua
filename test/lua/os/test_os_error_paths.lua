@@ -33,3 +33,11 @@ end
 function test_os_setlocale_bad_arg()
     os.setlocale(true)
 end
+
+function test_os_setlocale_nil_bad_category()
+    os.setlocale(nil, "bad")
+end
+
+function test_os_setlocale_empty_bad_category()
+    os.setlocale("", "nope")
+end

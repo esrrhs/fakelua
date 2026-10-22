@@ -66,180 +66,160 @@ private:
         level_ = snap_level;
     }
 
-    // 匹配单个「可量化」模式 item（不含其后的量词）：字面量、'.'、字符类、
-    // 集合、%b/%f/%d 转义、'$'。捕获括号 '(' ')' 由 Match 直接处理——Lua 语法里
-    // 捕获组后面不跟量词（其后的 * + - ? 是普通字面量字符）。
-    const char *MatchOneItem(const char *s, const char *p, const char *&item_end) {
-        if (p >= pe_) {
-            item_end = p;
-            return s;
-        }
-        switch (*p) {
-            case '$':
-                item_end = p + 1;
-                // '$' 只在模式末尾是锚点，其他位置是普通字符。
-                if (p + 1 == pe_) return (s == se_) ? s : nullptr;
-                return SingleChar(s, p);
-            case '%': {
-                if (p + 1 >= pe_) Fail("malformed pattern (ends with '%')");
-                const char c1 = p[1];
-                if (c1 == 'b') {
-                    if (p + 3 >= pe_) Fail("malformed pattern (missing arguments to '%b')");// 需要 p[2], p[3]
-                    item_end = p + 4;
-                    // 只返回平衡段尾后位置，剩余模式由调用方续接（量词亦可跟在 %b 后）。
-                    return MatchBalance(s, U(p[2]), U(p[3]));
-                }
-                if (c1 == 'f') {
-                    if (p + 2 >= pe_ || p[2] != '[') Fail("missing '[' after '%f' in pattern");
-                    const char *set_after = ClassEnd(p + 2);// ']' 之后
-                    item_end = set_after;
-                    const char prev = (s == src_) ? '\0' : s[-1];
-                    const bool cur_in = (s < se_) && SingleMatch(s, p + 2);
-                    const bool prev_in = SingleMatchByte(U(prev), p + 2);
-                    // 前沿模式：从前一字符不在集合中过渡到当前字符在集合中
-                    // （串首视作 '\0'）。零宽 item：ep=s 或 nullptr，续接交给调用方。
-                    return (cur_in && !prev_in) ? s : nullptr;
-                }
-                if (std::isdigit(U(c1))) {
-                    const int idx = U(c1) - '1';// %1..%9 → 0..8（%0 非法）
-                    if (idx < 0) Fail("invalid capture index %0");
-                    item_end = p + 2;
-                    return MatchCapture(s, idx);
-                }
-                item_end = p + 2;
-                return SingleChar(s, p);
-            }
-            default:
-                // '[' 集合或普通字面量；item 尾后位置统一用 ClassEnd（集合跳过 ']'）。
-                item_end = ClassEnd(p);
-                return SingleChar(s, p);
-        }
-    }
-
     // 递归匹配主入口：p 指向剩余模式（绝对位置）。
     const char *Match(const char *s, const char *p) {
         if (++depth_ > kMaxCallDepth) {
             ThrowFakeluaException("stack overflow");
         }
-        // 捕获括号：开闭捕获后直接续接剩余模式，绕过量词分发（Lua 里捕获组
-        // 不可量化；括号后面的量词字符按普通字面量匹配）。
-        if (p < pe_ && *p == '(') {
-            const char *r = (p + 1 < pe_ && p[1] == ')') ? StartCapture(s, p + 2, kCapPosition)
-                                                          : StartCapture(s, p + 1, kCapUnfinished);
+    init:
+        if (p >= pe_) {
             --depth_;
-            return r;
+            return s;
         }
-        if (p < pe_ && *p == ')') {
-            const char *r = EndCapture(s, p + 1);
-            --depth_;
-            return r;
-        }
-        const char *after;
-        const char *ep = MatchOneItem(s, p, after);
-        if (after >= pe_) {
-            // 模式结束：成功/失败直接返回（goto init 式尾调用在这里就是返回值）。
-            --depth_;
-            return ep;
-        }
-        const char q = *after;
-        const char *suffix = after + 1;
-        const char *ret = nullptr;
-        switch (q) {
-            case '?': {
-                // 先试一次，再回退零次；失败尝试整体回滚捕获状态。
-                if (ep != nullptr) {
-                    Capture snap[kMaxCaptures];
-                    const int snap_level = level_;
-                    std::memcpy(snap, caps_, sizeof(caps_));
-                    ret = Match(ep, suffix);
-                    if (ret == nullptr) RestoreCaps(snap, snap_level);
-                }
-                if (ret == nullptr) {
-                    Capture snap[kMaxCaptures];
-                    const int snap_level = level_;
-                    std::memcpy(snap, caps_, sizeof(caps_));
-                    ret = Match(s, suffix);
-                    if (ret == nullptr) RestoreCaps(snap, snap_level);
-                }
-                break;
-            }
-            case '*':
-                // 零次或多次；item 失败也算零次匹配成功。
-                ret = Greedy(s, ep, p, suffix);
-                break;
-            case '+': {
-                // 一次或多次：item 必须先成功；随后等价于从 ep 起的 '*'。
-                if (ep == nullptr) {
-                    ret = nullptr;
-                } else {
-                    const char *next_after;
-                    const char *more = MatchOneItem(ep, p, next_after);
-                    ret = Greedy(ep, more, p, suffix);
-                }
-                break;
-            }
-            case '-':
-                ret = Lazy(s, p, suffix);
-                break;
-            default:
-                // 不是量词：after 本身就是下一个 item 的起点（不是 after+1）。
-                ret = ep ? Match(ep, after) : nullptr;
-                break;
-        }
-        --depth_;
-        return ret;
-    }
-
-    // 贪婪重复。cur 为下一次 item 匹配的起点，ep 为该起点上 item 的结果
-    // （nullptr 表示 item 失败）。所有失败的 suffix 回溯尝试都必须把捕获栈恢复
-    // 到进入本次重复时的状态（Lua end_capture/max_expand 语义）。
-    const char *Greedy(const char *cur, const char *ep, const char *ip, const char *suffix) {
-        const int entry_level = level_;
-        if (ep == nullptr) {
-            // 无法再多消费一个 item：在当前位置接 suffix（零次进一步重复合法）。
-            Capture snap[kMaxCaptures];
-            std::memcpy(snap, caps_, sizeof(caps_));
-            const char *r = Match(cur, suffix);
-            if (r == nullptr) RestoreCaps(snap, entry_level);
-            return r;
-        }
-        if (ep == cur) {
-            // item 零宽匹配成功：Lua 判定整条贪婪路径失败，不回退到零次 suffix。
-            return nullptr;
-        }
-        const char *next_after;
-        const char *nxt = MatchOneItem(ep, ip, next_after);
-        if (const char *deeper = Greedy(ep, nxt, ip, suffix); deeper != nullptr) {
-            return deeper;
-        }
-        // 后续重复失败：整体回滚捕获后在当前 item 尾后试 suffix。
-        Capture snap[kMaxCaptures];
-        std::memcpy(snap, caps_, sizeof(caps_));
-        const char *r = Match(ep, suffix);
-        if (r == nullptr) RestoreCaps(snap, entry_level);
-        return r;
-    }
-
-    // 惰性重复：始终先在当前位置试 suffix，失败才再消费一个 item（必须非零宽）。
-    // 每次 suffix 尝试前后做捕获整体快照/恢复，使 end_capture 能在新位置重新回填。
-    const char *Lazy(const char *cur, const char *ip, const char *suffix) {
-        const int entry_level = level_;
-        const char *s = cur;
-        for (;;) {
-            Capture snap[kMaxCaptures];
-            const int snap_level = level_;
-            std::memcpy(snap, caps_, sizeof(caps_));
-            if (const char *r = Match(s, suffix); r != nullptr) {
+        switch (*p) {
+            case '(': {
+                const char *r = (p + 1 < pe_ && p[1] == ')') ? StartCapture(s, p + 2, kCapPosition)
+                                                              : StartCapture(s, p + 1, kCapUnfinished);
+                --depth_;
                 return r;
             }
+            case ')': {
+                const char *r = EndCapture(s, p + 1);
+                --depth_;
+                return r;
+            }
+            case '$': {
+                if (p + 1 == pe_) {
+                    --depth_;
+                    return (s == se_) ? s : nullptr;
+                }
+                goto dflt;
+            }
+            case '%': {
+                if (p + 1 < pe_) {
+                    const char c1 = p[1];
+                    if (c1 == 'b') {
+                        if (p + 3 >= pe_) Fail("malformed pattern (missing arguments to '%b')");
+                        s = MatchBalance(s, U(p[2]), U(p[3]));
+                        if (s != nullptr) {
+                            p += 4;
+                            goto init;
+                        }
+                        --depth_;
+                        return nullptr;
+                    }
+                    if (c1 == 'f') {
+                        if (p + 2 >= pe_ || p[2] != '[') Fail("missing '[' after '%f' in pattern");
+                        const char *ep = ClassEnd(p + 2);
+                        const char prev = (s == src_) ? '\0' : s[-1];
+                        const char cur = (s == se_) ? '\0' : *s;
+                        if (!SingleMatchByte(U(prev), p + 2) && SingleMatchByte(U(cur), p + 2)) {
+                            p = ep;
+                            goto init;
+                        }
+                        --depth_;
+                        return nullptr;
+                    }
+                    if (std::isdigit(U(c1))) {
+                        const int idx = U(c1) - '1';
+                        if (idx < 0) Fail("invalid capture index %0");
+                        s = MatchCapture(s, idx);
+                        if (s != nullptr) {
+                            p += 2;
+                            goto init;
+                        }
+                        --depth_;
+                        return nullptr;
+                    }
+                }
+                goto dflt;
+            }
+            default: dflt: {
+                const char *ep = ClassEnd(p);
+                const bool m = (s < se_) && SingleMatch(s, p);
+                if (!m) {
+                    if (ep < pe_ && (*ep == '*' || *ep == '?' || *ep == '-')) {
+                        p = ep + 1;
+                        goto init;
+                    }
+                    --depth_;
+                    return nullptr;
+                }
+                // matched once
+                if (ep >= pe_) {
+                    ++s;
+                    p = ep;
+                    goto init;
+                }
+                switch (*ep) {
+                    case '?': {
+                        Capture snap[kMaxCaptures];
+                        const int snap_level = level_;
+                        std::memcpy(snap, caps_, sizeof(caps_));
+                        const char *res = Match(s + 1, ep + 1);
+                        if (res != nullptr) {
+                            --depth_;
+                            return res;
+                        }
+                        RestoreCaps(snap, snap_level);
+                        p = ep + 1;
+                        goto init;
+                    }
+                    case '+':
+                        s++;
+                        /* FALLTHROUGH */
+                    case '*': {
+                        const char *res = MaxExpand(s, p, ep);
+                        --depth_;
+                        return res;
+                    }
+                    case '-': {
+                        const char *res = MinExpand(s, p, ep);
+                        --depth_;
+                        return res;
+                    }
+                    default:
+                        s++;
+                        p = ep;
+                        goto init;
+                }
+            }
+        }
+    }
+
+    // 贪婪重复：迭代扫描最大重复次数，然后自底向上回溯
+    const char *MaxExpand(const char *s, const char *p, const char *ep) {
+        ptrdiff_t i = 0;
+        while (s + i < se_ && SingleMatch(s + i, p)) {
+            i++;
+        }
+        // 每次失败后都会恢复到进入时的状态，所以快照只需在循环外取一次。
+        Capture snap[kMaxCaptures];
+        const int snap_level = level_;
+        std::memcpy(snap, caps_, sizeof(caps_));
+        while (i >= 0) {
+            const char *res = Match(s + i, ep + 1);
+            if (res != nullptr) return res;
             RestoreCaps(snap, snap_level);
-            const char *after;
-            const char *nxt = MatchOneItem(s, ip, after);
-            if (nxt == nullptr || nxt == s) {
-                level_ = entry_level;
+            i--;
+        }
+        return nullptr;
+    }
+
+    // 惰性重复
+    const char *MinExpand(const char *s, const char *p, const char *ep) {
+        Capture snap[kMaxCaptures];
+        const int snap_level = level_;
+        std::memcpy(snap, caps_, sizeof(caps_));
+        for (;;) {
+            const char *res = Match(s, ep + 1);
+            if (res != nullptr) return res;
+            RestoreCaps(snap, snap_level);
+            if (s < se_ && SingleMatch(s, p)) {
+                s++;
+            } else {
                 return nullptr;
             }
-            s = nxt;// 已消费 item 的捕获保留给下一轮 suffix
         }
     }
 
@@ -276,21 +256,28 @@ private:
         return (std::memcmp(caps_[i].init, s, static_cast<size_t>(l)) == 0) ? s + l : nullptr;
     }
 
-    // %bxy 平衡匹配。
+    // %bxy 平衡匹配。Lua 5.4 语义：当 b == e 时，首字符匹配 b，之后遇首个 e 即终止；且无固定长度上限。
     const char *MatchBalance(const char *s, int b, int e) {
-        if (b == e || s >= se_ || U(*s) != b) return nullptr;
+        if (s >= se_ || U(*s) != b) return nullptr;
+        if (b == e) {
+            // 成对相同分隔符（如 %b"" 或 %baa）：
+            // s 匹配开头的 b，随后向前扫描直到遇到第一个闭合的 e
+            const char *q = s + 1;
+            while (q < se_) {
+                if (U(*q) == e) return q + 1;
+                ++q;
+            }
+            return nullptr;
+        }
         const char *q = s + 1;
         int cont = 1;
-        int steps = 0;
         while (q < se_) {
-            if (U(*q) == b) {
+            if (U(*q) == e) {
+                if (--cont == 0) return q + 1;
+            } else if (U(*q) == b) {
                 ++cont;
-            } else if (U(*q) == e) {
-                --cont;
-                if (cont == 0) return q + 1;
             }
             ++q;
-            if (++steps > kMaxCallDepth) Fail("stack overflow");
         }
         return nullptr;
     }

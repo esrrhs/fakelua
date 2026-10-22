@@ -30,9 +30,14 @@ function test_string_format()
     if string.format("%x", "255") ~= "ff" then return 0 end
     if string.format("%.2f", "3.14") ~= "3.14" then return 0 end
 
-    -- string.format 首参数数字 & %q 数字隐式转换验证
+    -- string.format 首参数数字 & Lua 5.4 %q literal 验证
     if string.format(12345) ~= "12345" then return 0 end
-    if string.format("%q", 123) ~= "\"123\"" then return 0 end
+    if string.format("%q", 123) ~= "123" then return 0 end
+    if string.format("%q", 1.5) ~= "0x1.8p+0" then return 0 end
+    if string.format("%q", nil) ~= "nil" then return 0 end
+    if string.format("%q", true) ~= "true" or string.format("%q", false) ~= "false" then return 0 end
+    if string.format("%q", "a\rb") ~= "\"a\\13b\"" then return 0 end
+    if string.format("%q", "a\0b") ~= "\"a\\0b\"" then return 0 end
 
     local s6 = string.format("%200d", 1)
     if string.len(s6) ~= 200 then return 0 end

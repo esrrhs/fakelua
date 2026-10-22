@@ -3748,12 +3748,13 @@ TEST(infer, test_spec_direct_access) {
 }
 
 // 三元表达式（(n > 0) and 1 or 2）优化测试。
-// 校验生成的 C 代码使用原生三元表达式且 JIT 运行结果正确。
+// 校验生成的 C 代码用 if/else 只执行选中的一侧，且 JIT 运行结果正确。
 TEST(infer, test_spec_ternary) {
     const auto code = InferGetCCode("./infer/test_spec_ternary.lua");
-    // test_0 必须被生成，且内部使用原生三元条件运算符 (n) > (0) ? 1 : 2
+    // test_0 必须被生成。数值三元编译成 if/else，避免 C 三元在求值参数时把两侧都执行。
     ASSERT_NE(code.find("int64_t flua_fn_test_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("? 1 : 2"), std::string::npos);
+    ASSERT_NE(code.find("if (((n) > (0))) {\n        flua_ternary_0 = 1;\n    } else {\n        flua_ternary_0 = 2;\n    }"), std::string::npos);
+    ASSERT_EQ(code.find("? 1 : 2"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_ternary.lua", {.debug_mode = debug_mode});
@@ -4702,4 +4703,36 @@ TEST(infer, test_spec_miss_exception) {
     } catch (const FakeluaSpecMissException &e) {
         ASSERT_TRUE(std::string(e.what()).find("test spec miss signal") != std::string::npos);
     }
+}
+
+// Multi-assign: all RHS and all LHS table base/key exprs evaluate before stores.
+TEST(infer, test_multi_assign_lhs_eval) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_multi_assign_lhs_eval.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_index_before_store", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_dot_base_before_store", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_side_effect_key", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_lhs_before_rhs_order", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_simple_swap", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+// Nested non-vararg captures outer ...; nested vararg uses its own.
+TEST(infer, test_nested_capture_outer_vararg) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_nested_capture_outer_vararg.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_capture_outer_vararg", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_nested_own_vararg", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_funcdef_capture_outer_vararg", ret);
+        ASSERT_EQ(ret, 1);
+    });
 }
