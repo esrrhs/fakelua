@@ -33,6 +33,8 @@ struct InterpUnit final : JITHandle {
     std::unordered_set<std::string> const_global_names;
     FuncProto *init_proto = nullptr;
     State *state = nullptr;
+    // 运行期报错时附带的源文件名，随 FuncProto::lineinfo 一起定位到语句。
+    std::string file_name;
 };
 
 struct FuncProto {
@@ -47,6 +49,7 @@ struct FuncProto {
     std::vector<CVar> constants;
     std::vector<UpvalDesc> upvalues;
     std::vector<FuncProto *> child_protos;
+    // 与 code 一一对应的 Lua 源码行号，0 表示未知（运行期报错时据此定位）。
     std::vector<int> lineinfo;
 };
 

@@ -1389,6 +1389,25 @@ TEST(exception, spec_call_arg_count_error) {
     }
 }
 
+// 严格 arity 不能只对 C 后端生效：只编解释器字节码（两个 JIT 都关掉）时也要拒绝少传参数，
+// 否则同一个脚本换 --jit_type 就有不同的通过/失败结果。
+TEST(exception, interp_only_still_checks_call_arity) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, 0);
+
+    CompileConfig cfg;
+    cfg.disable_jit[JIT_TCC] = true;
+    cfg.disable_jit[JIT_GCC] = true;
+    try {
+        CompileFile(s, "./exception/test_spec_call_arg_count_error.lua", cfg);
+        ASSERT_TRUE(false) << "interp-only compile should reject the arity mismatch";
+    } catch (const std::exception &e) {
+        ASSERT_TRUE(std::string(e.what()).find("wrong number of arguments") != std::string::npos) << e.what();
+    }
+}
+
 TEST(exception, set_table_arg_count_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
@@ -1661,4 +1680,55 @@ TEST(exception, stacktrace_in_build_error_message) {
     ASSERT_NE(pos, std::string::npos) << msg;
     EXPECT_GT(msg.size(), pos + std::strlen("stacktrace:\n")) << msg;
     EXPECT_NE(msg.find("0#"), std::string::npos) << msg;
+}
+
+// 运行期错误必须带 Lua 源码位置（file:line），三个后端一致。
+// 行号对应 test/lua/exception/test_error_location.lua。
+TEST(exception, runtime_error_carries_lua_location) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, static_cast<int>(LogLevel::Error));
+    CompileFile(s, "./exception/test_error_location.lua", {});
+
+    struct Case {
+        const char *fn;
+        const char *location;
+    };
+    const Case cases[] = {
+        {"arith_on_nil", "test_error_location.lua:6"},
+        {"index_non_table", "test_error_location.lua:11"},
+        {"call_non_function", "test_error_location.lua:16"},
+        // 原生函数里抛的错也要定位到调用它的那条 Lua 语句
+        {"native_bad_argument", "test_error_location.lua:22"},
+        // 同一条语句中函数调用返回后，后续表达式出错仍必须定位到本语句
+        {"error_after_callee_returns", "test_error_location.lua:46"},
+    };
+    for (const auto jit_type: AllJitTypes()) {
+        for (const auto &c: cases) {
+            const std::string name = std::string("ErrorLocation.") + c.fn;
+            int64_t ret = 0;
+            try {
+                Call(s, jit_type, name, ret);
+                ADD_FAILURE() << JitTypeName(jit_type) << " " << c.fn << " should have thrown";
+            } catch (const std::exception &e) {
+                const std::string msg = e.what();
+                EXPECT_NE(msg.find(c.location), std::string::npos) << JitTypeName(jit_type) << " " << c.fn << ": " << msg;
+            }
+        }
+    }
+}
+
+// 嵌套 Lua 帧里的错误取最内层那条语句，不是主叫方的行。
+TEST(exception, runtime_error_location_is_innermost) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, static_cast<int>(LogLevel::Error));
+    CompileFile(s, "./exception/test_error_location.lua", {});
+    for (auto jit_type: AllJitTypes()) {
+        int64_t ret = 0;
+        Call(s, jit_type, "ErrorLocation.nested_frames", ret);
+        EXPECT_EQ(ret, 1) << JitTypeName(jit_type);
+    }
 }

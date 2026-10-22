@@ -698,6 +698,28 @@ TEST(test_json, encode_sparse_array) {
     FakeluaDeleteState(s);
 }
 
+TEST(test_json, encode_nested_hole) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_edge.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "JsonTest.test_encode_nested_hole", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_json, encode_sparse_without_index1) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./json/test_json_edge.lua", config);
+    int64_t ret = 0;
+    CallAll(s, "JsonTest.test_encode_sparse_without_index1", ret);
+    EXPECT_EQ(ret, 1);
+    FakeluaDeleteState(s);
+}
+
 TEST(test_json, encode_large_int_key) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);

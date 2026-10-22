@@ -52,7 +52,7 @@ void State::SetLogFile(const std::string &path, size_t max_size, size_t max_file
 
 State::State(const StateConfig &config) : config_(config), compiler_(this), const_string_(this) {
     utf8_io::Init();
-    log_level_ = static_cast<LogLevel>(config_.log_level);
+    log_level_ = config_.log_level;
     if (!config_.log_file.empty()) {
         log_sink_ = decltype(log_sink_)(CreateLogSink(config_.log_file, config_.log_max_size, config_.log_max_files), &DestroyLogSink);
     }

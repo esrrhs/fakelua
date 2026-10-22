@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fakelua.h"
+
 #include <source_location>
 #include <string>
 #include <string_view>
@@ -8,16 +10,7 @@ namespace fakelua {
 
 class State;
 
-// 日志级别
-enum class LogLevel : int {
-    Trace = 0,
-    Debug = 1,
-    Info = 2,
-    Warn = 3,
-    Error = 4,
-    Critical = 5,
-    Off = 6,
-};
+// LogLevel 是公开类型，定义在 include/fakelua.h。
 
 // 一个日志输出目标（文件 + 轮转配置），完整定义在 logging.cpp 里。每个 State 各有一份。
 class LogSink;

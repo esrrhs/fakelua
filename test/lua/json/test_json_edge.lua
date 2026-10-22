@@ -317,22 +317,40 @@ function test_encode_cyclic()
     return 1
 end
 
--- 测试 JSON 编码：非连续整数键（应编码为对象）
+-- 测试 JSON 编码：数组中途有洞要报错
+-- 以前静默退化成 {"1":"a","3":"c"}，前端收到的形状变了还没人报错
 function test_encode_sparse_array()
     local t = { [1] = "a", [3] = "c" }
-    local s = json.encode(t)
-    -- 非连续整数键应编码为对象
-    if not string.find(s, "1") then return 0 end
-    if not string.find(s, "3") then return 0 end
+    local ok, err = pcall(function() json.encode(t) end)
+    if ok then return 0 end
+    if not string.find(err, "hole at index 2") then return 0 end
     return 1
 end
 
--- 测试 JSON 编码：大整数键（应编码为对象）
+-- 测试 JSON 编码：有洞的表嵌在数组里也要报错（递归检查）
+function test_encode_nested_hole()
+    local ok, err = pcall(function() json.encode({ items = { [1] = "a", [4] = "d" } }) end)
+    if ok then return 0 end
+    if not string.find(err, "hole at index 2") then return 0 end
+    return 1
+end
+
+-- 测试 JSON 编码：整数键就是数组意图，不从 1 起连续一律报错。
+-- 要按 id 建映射请用字符串键（或 container.map），别指望整数键编成对象。
+function test_encode_sparse_without_index1()
+    local ok, err = pcall(function() json.encode({ [1001] = "player", [2002] = "player2" }) end)
+    if ok then return 0 end
+    if not string.find(err, "hole at index 1") then return 0 end
+    return 1
+end
+
+-- 测试 JSON 编码：大整数键有洞同样要报错（整数键一律视为数组意图）
 function test_encode_large_int_key()
     local t = {}
     t[9999999] = "big"
-    local s = json.encode(t)
-    if not string.find(s, "9999999") then return 0 end
+    local ok, err = pcall(function() json.encode(t) end)
+    if ok then return 0 end
+    if not string.find(err, "hole at index 1") then return 0 end
     return 1
 end
 

@@ -31,8 +31,11 @@ namespace fakelua {
 struct JitErrorBoundary {
     jmp_buf buf;
     JitErrorBoundary *prev = nullptr;
-    // 错误信息由抛出方在跳转前填好（含堆栈），边界拿它构造异常
+    // 错误信息分三段由跳转方填好（原始消息 / Lua 位置 / C++ 堆栈），
+    // 边界只负责把它还原成异常，不重复采集堆栈或追加前缀。
     std::string msg;
+    std::string loc;
+    std::string stack;
 };
 
 // 边界链的栈顶存在 State 上（State::GetJitErrorBoundary），不用线程局部变量：一个 State
@@ -42,7 +45,7 @@ inline bool InJitFrame(State *s) {
 }
 
 // 把错误交回最近的边界。仅在 InJitFrame(s) 为真时可调用。
-[[noreturn]] void JumpToJitErrorBoundary(State *s, std::string msg);
+[[noreturn]] void JumpToJitErrorBoundary(State *s, std::string msg, std::string loc = {}, std::string stack = {});
 
 // 边界的入栈与出栈。出栈必须走析构：fn 也可能直接抛出普通 C++ 异常（例如参数个数
 // 不合法），那种情况下不会回到 setjmp 点，仅靠顺序代码复位会留下悬空指针。
@@ -65,6 +68,33 @@ private:
     JitErrorBoundary *prev_;
 };
 
+// 生成代码写在 State 上的当前 Lua 位置，转成 "file:line"；未知时为空串。
+inline std::string LuaLocText(State *s) {
+    const auto &loc = s->GetLuaLoc();
+    if (loc.file == nullptr || loc.file[0] == '\0' || loc.line <= 0) {
+        return {};
+    }
+    return std::string(loc.file) + ":" + std::to_string(loc.line);
+}
+
+// 位置槽只在「这条 Lua 语句还在栈上」时有效：进入被调代码前清空、返回后恢复，
+// 免得上一趟调用的残留被当成出错位置。嵌套调用因此逐层还原到正确的主叫方。
+class LuaLocScope {
+public:
+    explicit LuaLocScope(State *s) : s_(s), saved_(s->GetLuaLoc()) {
+        s_->GetLuaLoc() = LuaLoc{};
+    }
+    ~LuaLocScope() {
+        s_->GetLuaLoc() = saved_;
+    }
+    LuaLocScope(const LuaLocScope &) = delete;
+    LuaLocScope &operator=(const LuaLocScope &) = delete;
+
+private:
+    State *s_;
+    LuaLoc saved_;
+};
+
 // 在边界内执行 fn（fn 会调用 JIT 代码）：JIT 代码里的错误会以 FakeluaException 抛出。
 template<typename Fn>
 auto RunWithJitErrorBoundary(State *s, Fn &&fn) -> decltype(fn()) {
@@ -74,7 +104,7 @@ auto RunWithJitErrorBoundary(State *s, Fn &&fn) -> decltype(fn()) {
     if (FAKELUA_SETJMP(boundary.buf) == 0) {
         return fn();
     }
-    throw FakeluaException(std::move(boundary.msg));
+    throw FakeluaException(FakeluaException::Parts{std::move(boundary.msg), std::move(boundary.loc), std::move(boundary.stack)});
 }
 
 // 供可被 JIT 代码直接调用的 C++ 入口使用：正常路径零开销，出错时先让本层及以下的
@@ -84,15 +114,18 @@ template<typename Fn>
 auto GuardJitEntry(State *s, Fn &&fn) -> decltype(fn()) {
     try {
         return fn();
-    } catch (const FakeluaException &e) {
+    } catch (FakeluaException &e) {
+        // 原生函数的报错没有 Lua 栈可读，用生成代码留下的当前位置补上。
+        // GCC 后端不埋边界（异常能正常穿过它的帧），所以补位置不能只在有边界时做。
+        e.SetLoc(LuaLocText(s));
         if (!InJitFrame(s)) throw;
-        JumpToJitErrorBoundary(s, e.what());
+        JumpToJitErrorBoundary(s, e.Msg(), e.Loc(), e.Stack());
     } catch (const std::exception &e) {
         if (!InJitFrame(s)) throw;
-        JumpToJitErrorBoundary(s, std::string("fakelua error: ") + e.what());
+        JumpToJitErrorBoundary(s, e.what(), LuaLocText(s), CaptureStacktrace());
     } catch (...) {
         if (!InJitFrame(s)) throw;
-        JumpToJitErrorBoundary(s, "fakelua error: unknown exception thrown from native code");
+        JumpToJitErrorBoundary(s, "unknown exception thrown from native code", LuaLocText(s), CaptureStacktrace());
     }
 }
 

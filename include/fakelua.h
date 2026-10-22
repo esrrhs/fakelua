@@ -378,6 +378,17 @@ inline void DisableAllJit(CompileConfig &cfg) {
     }
 }
 
+// 日志级别：低于它的日志不会输出。宿主用这个名字，不用记 0..6 的魔法数字。
+enum class LogLevel : int {
+    Trace = 0,
+    Debug = 1,
+    Info = 2,
+    Warn = 3,
+    Error = 4,
+    Critical = 5,
+    Off = 6,
+};
+
 struct StateTCCConfig {
     std::vector<std::string> include_paths = {"./include"};
     std::vector<std::string> library_paths = {"./lib"};
@@ -401,8 +412,8 @@ struct StateConfig {
     // 日志文件的轮转参数，仅在 log_file 非空时生效
     size_t log_max_size = 10 * 1024 * 1024;
     size_t log_max_files = 5;
-    // 本 State 的最低日志级别，取值与 LogLevel 相同：0=Trace … 6=Off，默认 Info(2)
-    int log_level = 2;
+    // 本 State 的最低日志级别。常驻服务建议调到 Warn 以上，否则每次编译都会打 INFO 日志。
+    LogLevel log_level = LogLevel::Info;
 };
 
 class State;
@@ -473,8 +484,10 @@ void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &fun
 // 获取 VarInterface 构造实例函数
 std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *s);
 
-// 设置本 State 的调试日志级别，取值与 LogLevel 相同：0=Trace … 6=Off。
+// 设置本 State 的调试日志级别。整数重载保留给按数字配置的地方（Lua 侧的 log.set_level），
+// 宿主代码用 LogLevel 那个。
 void SetDebugLogLevel(State *s, int level);
+void SetDebugLogLevel(State *s, LogLevel level);
 
 class NativeObject;
 
@@ -640,6 +653,8 @@ CVar GetMultiCVarElement(const CVar &multi, int idx);
 int GetMultiCVarCount(const CVar &multi);
 int64_t CVarToInteger(const CVar &v, int64_t default_val = 0);
 double CVarToNumber(const CVar &v, double default_val = 0.0);
+bool CVarToBool(const CVar &v, bool default_val);
+std::string CVarToString(const CVar &v, const char *default_val);
 
 CVar GetNativeArg(State *s, CVar *args, int n, int idx);
 
@@ -852,8 +867,23 @@ private:
 // a non-convertible value yields default_val.
 int64_t GetNativeIntArg(State *s, CVar *args, int n, int idx, int64_t default_val = 0);
 
+// The same tolerant read for the other scalar types. Float accepts int and numeric
+// string; bool strictly follows Lua truthiness (nil/missing yields default_val,
+// false yields false, all other values including 0/0.0/"" yield true); string accepts only string values.
+// Missing argument (idx >= n) always gives default_val.
+double GetNativeFloatArg(State *s, CVar *args, int n, int idx, double default_val = 0.0);
+bool GetNativeBoolArg(State *s, CVar *args, int n, int idx, bool default_val = false);
+std::string GetNativeStringArg(State *s, CVar *args, int n, int idx, const char *default_val = "");
+
 // The nil result to return from a native callback.
 CVar NativeNil(State *s);
+
+// Scalar results for a native callback, mirroring the readers above.
+CVar NativeBool(State *s, bool val);
+CVar NativeInt(State *s, int64_t val);
+CVar NativeFloat(State *s, double val);
+// Strings are copied into the state's string arena, valid for the current frame.
+CVar NativeString(State *s, const std::string &val);
 
 // Whether the script defines an entry function called name: GetFuncAddr returns
 // nullptr when it is missing (only Call turns that into an error), so this is a
@@ -876,8 +906,23 @@ void RegisterTableLibraryApi(State *s);
 
 void RegisterNativeVarFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeVarFuncCallback callback);
 
+// 模板重载：把「首参是 State* 的 C++ 可调用对象」包成原生函数。
+// 模板形参是 <Ret, Args...>，所以函数类型必须写成 std::function<...> 才能被拆开，
+// 只有一种正确写法（参数类型逐个列在 Ret 之后）：
+//
+//     RegisterNativeFunction(s, "describe", false,
+//         std::function<std::string(State *, int64_t)>([](State *, int64_t id) {
+//             return std::to_string(id);
+//         }));
+//
+// 写成 RegisterNativeFunction<std::string(State *, int64_t)>(...) 会把整个函数类型
+// 当成 Ret，展开出一堆「function cannot return function type」的错。需要参数默认值或
+// 可变参数时，用上面的 5 参回调形式自己读参数（GetNativeIntArg / GetNativeStringArg）。
 template<typename Ret, typename... Args>
 void RegisterNativeFunction(State *s, const std::string &name, bool is_vararg, std::function<Ret(State *, Args...)> func) {
+    static_assert(!std::is_function_v<Ret>,
+        "RegisterNativeFunction: Ret is a function type, so the signature was passed as a template argument. "
+        "Write std::function<Ret(State*, Args...)> instead - see the example above RegisterNativeFunction.");
     constexpr int arg_count = static_cast<int>(sizeof...(Args));
     RegisterNativeFunction(s, name, arg_count, is_vararg, [func](State *state, CVar *args, int n) -> CVar {
         auto unpack_helper = [state, args, n]<std::size_t... I>(std::index_sequence<I...>) {

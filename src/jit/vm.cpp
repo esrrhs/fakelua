@@ -10,9 +10,11 @@
 
 namespace fakelua {
 
-[[noreturn]] void JumpToJitErrorBoundary(State *s, std::string msg) {
+[[noreturn]] void JumpToJitErrorBoundary(State *s, std::string msg, std::string loc, std::string stack) {
     JitErrorBoundary *boundary = s->GetJitErrorBoundary();
     boundary->msg = std::move(msg);
+    boundary->loc = std::move(loc);
+    boundary->stack = std::move(stack);
     FAKELUA_LONGJMP(boundary->buf, 1);
 }
 
@@ -24,11 +26,13 @@ extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const) {
 }
 
 extern "C" void FakeluaThrowError(State *state, const char *msg) {
+    // 生成代码在每个 Lua 语句前写好的位置，这里直接取来用。
+    const auto loc = LuaLocText(state);
     if (InJitFrame(state)) {
         // JIT 代码直接调用本函数，中间没有需要析构的 C++ 帧，可以直接跳转
-        JumpToJitErrorBoundary(state, BuildFakeluaErrorMessage(msg));
+        JumpToJitErrorBoundary(state, msg, loc, CaptureStacktrace());
     }
-    ThrowFakeluaException(msg);
+    ThrowFakeluaExceptionAt(msg, loc);
 }
 
 // JIT 代码（C 编译）不能直接调用 inter::AllocMultiCVar，需要 extern "C" 包装。

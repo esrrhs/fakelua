@@ -54,6 +54,8 @@ using namespace fakelua;
 DEFINE_bool(debug, false, "enable debug mode");
 DEFINE_bool(once, false, "run init + fini only, without the update loop (one-shot script)");
 DEFINE_int32(jit_type, 0, "jit type: 0=tcc, 1=gcc, 2=interp");
+// 常驻服务会把 stdout 当日志用，编译期的 INFO 噪音盖掉真实错误，所以宿主默认只到 Warn。
+DEFINE_int32(log_level, static_cast<int>(LogLevel::Warn), "min log level: 0=Trace 1=Debug 2=Info 3=Warn 4=Error 5=Critical 6=Off");
 
 namespace {
 
@@ -225,7 +227,9 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    const FakeluaStateGuard guard;
+    StateConfig state_config;
+    state_config.log_level = static_cast<LogLevel>(FLAGS_log_level);
+    const FakeluaStateGuard guard{state_config};
     const auto s = guard.GetState();
 
     // Lua convention: an uncaught runtime error prints the message and exits
@@ -238,6 +242,12 @@ int main(int argc, char **argv) {
 
         CompileConfig cfg;
         cfg.debug_mode = FLAGS_debug;
+        // 只编译实际要用的后端：三个都编的话，选 interp 也要为每个文件付一次 GCC 编译
+        // （几百毫秒）和它的告警。interp 模式下仍留 TCC：pcall / load 的源码闭包按
+        // JIT_TCC 调起，关掉会让它们没有可去的引擎。
+        const auto chosen = static_cast<JITType>(FLAGS_jit_type);
+        cfg.disable_jit[JIT_TCC] = (chosen != JIT_TCC && chosen != JIT_INTERP);
+        cfg.disable_jit[JIT_GCC] = (chosen != JIT_GCC);
         for (const auto &file: CollectLuaFiles(argv[1])) {
             CompileFile(s, file, cfg);
         }

@@ -456,6 +456,10 @@ void CGen::GenerateHeader() {
     // 同一份代码也不会被跨 State 复用（每次编译都会重新生成）。
     Out() << "static void * _S = (void *) " << s_ << ";\n";
     Out() << "static bool __fakelua_init_flag__ = false;\n";
+    // Lua 源码位置槽（FlLuaLoc*，见 c_runtime_header.h）：每个语句执行前写一次，
+    // 运行期抛错据此定位；#line 则把编译告警也映射回 Lua 源码。
+    // 地址与 _S 同级保证：生成代码不会比它的宿主 State 活得更久。
+    Out() << "static void * fl_lua_loc = (void *) " << reinterpret_cast<uintptr_t>(&s_->GetLuaLoc()) << ";\n";
 
     // C 运行时类型定义、宏 and 函数（从 c_runtime_header.h 提取，便于独立维护）
     Out() << kCRuntimeHeader;
@@ -819,6 +823,18 @@ std::string CGen::GenTab() const {
     return tabs;
 }
 
+void CGen::EmitLuaLine(const SyntaxTreeInterface *node) {
+    if (node == nullptr) {
+        return;
+    }
+    const int line = static_cast<int>(node->Loc().begin.line);
+    if (line <= 0) {
+        return;
+    }
+    Out() << "#line " << line << " \"" << EscapeCStringLiteral(file_name_) << "\"\n";
+    Out() << GenTab() << "FL_LOC_SET(\"" << EscapeCStringLiteral(file_name_) << "\", " << line << ");\n";
+}
+
 InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
     if (cur_spec_ctx_ && cur_spec_ctx_->snapshot) {
         if (const auto it = cur_spec_ctx_->snapshot->find(node); it != cur_spec_ctx_->snapshot->end()) {
@@ -905,6 +921,9 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
     auto &body_ss = sections_[static_cast<size_t>(Section::Body)];
     body_ss.str("");
     body_ss.clear();
+
+    // 函数体先锚到定义行：prologue（参数装箱、临时声明）里的抛错也有位置。
+    EmitLuaLine(cur_func_info_ ? cur_func_info_->node : nullptr);
 
     // Box captured parameters at the start of the function
     if (cur_func_info_) {
@@ -1301,6 +1320,9 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
     if (IsPackageHeaderStmt(stmt)) {
         return;
     }
+    const auto prev_stmt_node = cur_stmt_node_;
+    cur_stmt_node_ = stmt.get();
+    EmitLuaLine(stmt.get());
     switch (stmt->Type()) {
         case SyntaxTreeType::Return:
             CompileStmtReturn(stmt);
@@ -1356,6 +1378,7 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
         default:
             ThrowError(std::format("not support stmt type: {}", SyntaxTreeTypeToString(stmt->Type())), stmt);
     }
+    cur_stmt_node_ = prev_stmt_node;
 }
 
 void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
@@ -2312,6 +2335,9 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
         std::string iter_res = std::format("flua_fi_res_{}", tmp_var_counter_++);
         Out() << GenTab() << "CVar " << iter_res << " = FlCallClosure(_S, " << iter_f << ", 2, " << iter_s << ", " << iter_var << ");\n";
+        if (cur_stmt_node_ != nullptr) {
+            EmitLuaLine(cur_stmt_node_);
+        }
 
         std::vector<std::string> loop_var_tmps;
         for (size_t i = 0; i < names.size(); ++i) {
@@ -3470,6 +3496,9 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
     Out() << GenTab() << tmp << " = " << call_expr << ";\n";
+    if (cur_stmt_node_ != nullptr) {
+        EmitLuaLine(cur_stmt_node_);
+    }
 
     return tmp;
 }
@@ -4248,6 +4277,9 @@ std::string CGen::TryCompileSpecDirectCall(const std::shared_ptr<SyntaxTreeFunct
                         Out() << GenTab() << tmp << " = " << BoxNativeValue(ntmp, spec_ret) << ";\n";
                     } else {
                         Out() << GenTab() << tmp << " = " << call << ";\n";
+                    }
+                    if (cur_stmt_node_ != nullptr) {
+                        EmitLuaLine(cur_stmt_node_);
                     }
                     return tmp;
                 }

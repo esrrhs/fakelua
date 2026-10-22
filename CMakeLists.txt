@@ -86,6 +86,8 @@ if (BUILD_FUZZ)
 endif ()
 
 # ── Installation & CMake Package Export ──
+# 库、头文件与包文件都留在默认 component；flua 单独是 cli component 且标了 OPTIONAL
+# （见 cmd/CMakeLists.txt），所以「只构建库」之后执行安装不会因为缺可执行文件而失败。
 install(FILES include/fakelua.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )

@@ -87,19 +87,69 @@ static CVar JsonValueToLua(State *s, const bj::value &v) {
 
 // 纯数组 table 启发式：空 table 一律编码为 []（历史上空 table 产出 {}，
 // 客户端按数组解析时直接崩）；非空时要求 key 全部是从 1 起的连续整数。
-static bool CheckIsArray(const std::vector<table::TableKV> &kvs) {
+// 键全是正整数但中间有洞（{[1]=a,[3]=c}）单独算 kHole：以前会退化成
+// {"1":"a","3":"c"}，前端收到的形状变了而且不报错，所以改成让 encode 直接失败。
+enum class ArrayShape { kObject, kArray, kHole };
+
+struct ArrayShapeInfo {
+    ArrayShape shape = ArrayShape::kObject;
     int64_t max_idx = 0;
+    // shape == kHole 时是第一个缺元素的下标
+    int64_t hole_at = 0;
+    size_t count = 0;
+};
+
+static ArrayShapeInfo CheckArrayShape(const std::vector<table::TableKV> &kvs) {
+    ArrayShapeInfo info;
+    info.count = kvs.size();
+    if (kvs.empty()) {
+        info.shape = ArrayShape::kArray;
+        return info;
+    }
+    // 只要有任何非整数 key，就当作普通 Object
     for (const auto &kv: kvs) {
         if (kv.key.type_ != static_cast<int>(VarType::Int)) {
-            return false;
+            return info;
         }
-        int64_t key = kv.key.data_.i;
-        if (key < 1 || key > 1000000) {
-            return false;
-        }
-        if (key > max_idx) max_idx = key;
+        const int64_t key = kv.key.data_.i;
+        if (key > info.max_idx) info.max_idx = key;
     }
-    return kvs.empty() || static_cast<size_t>(max_idx) == kvs.size();
+
+    // 全是整数 key 即为数组意图：按抽屉原理，若键从 1 连续递增，则 max_idx == kvs.size()
+    // 且不存在 <= 0 的 key。第一个缺失的正整数下标必然在 [1, kvs.size() + 1] 内，
+    // 无论键有多大都只需 kvs.size() + 2 槽标记，杜绝大 key 内存溢出或漏检。
+    std::vector<bool> seen(kvs.size() + 2, false);
+    bool has_non_positive = false;
+    for (const auto &kv: kvs) {
+        const int64_t key = kv.key.data_.i;
+        if (key >= 1 && static_cast<size_t>(key) <= kvs.size() + 1) {
+            seen[static_cast<size_t>(key)] = true;
+        } else if (key < 1) {
+            has_non_positive = true;
+        }
+    }
+
+    int64_t first_missing = 1;
+    for (size_t i = 1; i < seen.size(); ++i) {
+        if (!seen[i]) {
+            first_missing = static_cast<int64_t>(i);
+            break;
+        }
+    }
+
+    if (!has_non_positive && static_cast<size_t>(info.max_idx) == kvs.size() && first_missing > static_cast<int64_t>(kvs.size())) {
+        info.shape = ArrayShape::kArray;
+        return info;
+    }
+
+    info.shape = ArrayShape::kHole;
+    info.hole_at = first_missing;
+    return info;
+}
+
+static std::string HoleMessage(const std::string &who, const ArrayShapeInfo &info) {
+    return std::format("{}: array table has a hole at index {} ({} entries, max index {}); nil in an array is not encodable",
+                       who, info.hole_at, info.count, info.max_idx);
 }
 
 // Convert Lua CVar to boost::json::value
@@ -129,9 +179,12 @@ static bj::value LuaToJsonValue(CVar v, int depth, std::unordered_set<VarTable *
             }
 
             auto kvs = table::TableHelper::CollectKVPairs(v);
-            bool is_array = CheckIsArray(kvs);
+            const ArrayShapeInfo shape = CheckArrayShape(kvs);
+            if (shape.shape == ArrayShape::kHole) {
+                ThrowFakeluaException(HoleMessage("JSON encode", shape));
+            }
 
-            if (is_array) {
+            if (shape.shape == ArrayShape::kArray) {
                 std::sort(kvs.begin(), kvs.end(), [](const table::TableKV &a, const table::TableKV &b) { return a.key.data_.i < b.key.data_.i; });
                 bj::array arr;
                 arr.reserve(kvs.size());
@@ -182,21 +235,22 @@ static CVar JsonEncode(State *s, CVar *args, int n) {
     return inter::NativeToFakeluaString(s, out);
 }
 
-// 判断 table 是否为数组形（空 table 视为数组；非空要求 key 为从 1 起的连续整数）。
-static bool IsArrayLikeTable(CVar v) {
-    if (v.type_ != static_cast<int>(VarType::Table) || !v.data_.t) return false;
-    auto kvs = table::TableHelper::CollectKVPairs(v);
-    return CheckIsArray(kvs);
-}
-
 // json.encode_array(value) → JSON string
 // 严格数组编码通道：顶层必须是数组形 table（空 table → []），否则报错。
 // 用于协议字段必须为数组的场景，避免 encode 的对象/数组启发式歧义。
 static CVar JsonEncodeArray(State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "json.encode_array", "value expected");
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
-    if (!IsArrayLikeTable(a0)) {
-        ThrowFakeluaException("json.encode_array: value is not an array-like table");
+    const char *const who = "json.encode_array";
+    ArrayShapeInfo shape;
+    if (a0.type_ == static_cast<int>(VarType::Table) && a0.data_.t) {
+        shape = CheckArrayShape(table::TableHelper::CollectKVPairs(a0));
+    }
+    if (shape.shape == ArrayShape::kHole) {
+        ThrowFakeluaException(HoleMessage(who, shape));
+    }
+    if (shape.shape != ArrayShape::kArray) {
+        ThrowFakeluaException(std::format("{}: value is not an array-like table", who));
     }
     std::unordered_set<VarTable *> visited;
     bj::value jv = LuaToJsonValue(a0, 0, visited);
