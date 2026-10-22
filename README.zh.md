@@ -152,6 +152,12 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **debug 标准库**：不支持 `debug.*`。
 - **隐式类型转换**：算术中不做字符串→数字的隐式转换（`"10" + 1` 会报错）。
 - **隐式全局变量**：局部变量必须使用 `local` 声明，不支持隐式全局赋值。
+- **`json.encode` 拒绝数组空洞**：整数键就代表数组意图——键都是正整数但不从 1 起连续的表
+  （`t[1]="a"; t[3]="c"`，甚至 `{[1001]=...}`）一律报错，不再退化成 `{"1":"a","3":"c"}`：上线的
+  数据形状不许静默改变。协议数组请保持无洞（用 `""` 或 `{}` 占位，别留 nil）；要按 id 建映射就
+  用字符串键（或 `container.map`）。`#t` 仍与标准 Lua 一致只数到第一个 nil；
+  `serialize.encode/decode` 会保留非连续键。
+- **运行期错误带 Lua 源码位置**：三个后端都会输出形如 `attempt to perform arithmetic on non-numeric value at main.lua:4` 的消息，原生函数里抛出的错误同样定位到调用它的那条语句。
 
 ## 标准内置扩展库
 
@@ -219,6 +225,16 @@ cmake --build build --parallel
 cmake --build build --target fakelua flua --parallel
 ```
 
+依赖由 CPM 拉取（`CPM_SOURCE_CACHE`，默认 `~/.cache/CPM`）。Boost 是超级构建，每个库都是一
+个 git 子模块，缓存里可能「有仓库对象但子模块工作区是空的」，此时 configure 会一个接一个地
+报缺 `Boost::*` target。检测到这种情况时 configure 会直接停下并给出修复命令：
+
+```bash
+cd ~/.cache/CPM/boost/<hash>
+git submodule update --init --depth 1 --jobs 8
+git submodule foreach --recursive 'if [ -e .git ]; then git checkout HEAD -- .; fi'
+```
+
 #### Windows（MSYS2 + MinGW）
 
 ```bash
@@ -259,7 +275,10 @@ function fini() ... end      -- 退出前调用一次
 
 - `<script.lua | dir/>`：单个脚本，或一个目录（把目录下所有 `.lua` 按文件名排序编译）
 - `--once`：只跑 `init` + `fini`，不进 `update` 循环（一次性脚本 / 自检）
-- `--jit_type`：`0`=TCC，`1`=GCC，`2`=INTERP（字节码虚拟机）
+- `--jit_type`：`0`=TCC，`1`=GCC，`2`=INTERP（字节码虚拟机）。只编译选中的后端：选 INTERP
+  就不必再为每个文件跑一遍 GCC（约 0.6 秒）去产出永远不会执行的代码。
+- `--log_level`：最低日志级别，默认 `3`=Warn（`0`=Trace … `6`=Off）。常驻服务不该被逐文件的
+  INFO 编译日志盖掉真正的错误；想看回来就传 `--log_level=2`。
 - `--debug`：是否启用调试模式（默认 `false`，若为 `true` 则输出生成的 C 源码 / 更详细诊断）
 
 `update` 返回后宿主立刻再调一次；需要固定节奏的脚本自己在 `update` 末尾 `os.sleep(毫秒)`
@@ -285,6 +304,15 @@ cmake --build build --parallel
 # 安装（默认前缀：/usr/local）
 sudo cmake --install build
 # 或：cd build && sudo make install
+```
+
+`flua` 是单独的 component（`cli`）并标了 `OPTIONAL`，所以「只构建库」之后再执行安装不会再
+因为找不到可执行文件而失败：
+
+```bash
+cmake --build build --target fakelua --parallel
+sudo cmake --install build            # 装库，跳过没构建出来的 flua
+sudo cmake --install build --component cli   # 或者只装命令行工具
 ```
 
 #### 在其他 CMake 项目中使用
@@ -373,19 +401,45 @@ State* s = guard.GetState();
 | `Call()` | 调用编译后的函数 |
 | `GetLastRecordedCCode()` | 获取最近编译的 C 代码 |
 | `SetVarInterfaceNewFunc()` | 设置自定义 VarInterface 工厂 |
-| `SetDebugLogLevel(s, level)` | 设置本 State 的调试日志级别（0=Trace … 6=Off；Lua 侧用 `log.set_level`） |
+| `SetDebugLogLevel(s, level)` | 设置本 State 的日志级别（`LogLevel::Warn` … `LogLevel::Trace`；Lua 侧用 `log.set_level`） |
 
 ### 类型转换
 
-```cpp
-// 原生 → FakeLua
-CVar v_int = inter::NativeToFakelua(s, 42);
-CVar v_str = inter::NativeToFakelua(s, std::string("hello"));
+宿主代码请用公开助手；`inter::` 那套转换是解释器与 JIT 的内部实现，宿主不该依赖。
 
-// FakeLua → 原生
-int native_int = inter::FakeluaToNative<int>(v_int);
-std::string native_str = inter::FakeluaToNative<std::string>(v_str);
+```cpp
+// 原生回调里读参数（参数缺失或为 nil 时取默认值）
+int64_t id = GetNativeIntArg(s, args, n, 0, 0);
+std::string name = GetNativeStringArg(s, args, n, 1, "anon");
+bool flag = GetNativeBoolArg(s, args, n, 2, false);
+double ratio = GetNativeFloatArg(s, args, n, 3, 1.0);
+
+// 返回值
+return NativeString(s, name);   // 另有 NativeInt / NativeBool / NativeFloat / NativeNil
 ```
+
+### 注册原生函数
+
+两种写法。回调式自己读 `CVar` 数组并声明形参个数（`arg_count` + `is_vararg`）：
+
+```cpp
+RegisterNativeFunction(s, "greet", 1, false,
+    [](State *s, CVar *args, int n) -> CVar {
+        return NativeString(s, "hello " + GetNativeStringArg(s, args, n, 0));
+    });
+```
+
+强类型模板把「首参是 `State *`」的可调用对象包成原生函数。模板形参是 `<Ret, Args...>`，
+所以函数类型必须写在 `std::function<>` 里，只有这一种写法能编译：
+
+```cpp
+RegisterNativeFunction(s, "hp_of", false,
+    std::function<int64_t(State *, int64_t)>([](State *, int64_t id) { return id * 2; }));
+```
+
+写成 `RegisterNativeFunction<std::string(State *, int64_t)>(...)` 会把整个函数类型当成
+`Ret`；现在头文件用 `static_assert` 直接点出这一点，不再刷出一屏
+「function cannot return function type」。
 
 ### Table 与对象互转
 

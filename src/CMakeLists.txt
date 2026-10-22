@@ -476,6 +476,25 @@ if (NOT boost_ADDED)
     message(FATAL_ERROR "Failed to fetch boost")
 endif()
 set(BOOST_SOURCE_DIR "${boost_SOURCE_DIR}")
+
+# boost 是超级构建：每个库都是一个子模块，仓库对象在但工作区没铺开的子模块目录是空的。
+# superbuild 只给「目录存在」的库加子目录，所以缺谁就报缺谁的 target，补一个又冒出
+# 下一个（每次重跑 configure 要几分钟）。这里一次查完并直接给修复命令。
+set(_boost_unpopulated "")
+foreach(_boost_lib IN LISTS BOOST_INCLUDE_LIBRARIES)
+    if (NOT EXISTS "${BOOST_SOURCE_DIR}/libs/${_boost_lib}/include" AND
+        NOT EXISTS "${BOOST_SOURCE_DIR}/libs/${_boost_lib}/CMakeLists.txt")
+        list(APPEND _boost_unpopulated "${_boost_lib}")
+    endif ()
+endforeach ()
+if (_boost_unpopulated)
+    message(FATAL_ERROR
+        "Boost submodule workspaces are empty in ${BOOST_SOURCE_DIR}/libs: ${_boost_unpopulated}\n"
+        "The CPM cache holds the repository but not the checked-out files. Repair it once with:\n"
+        "  cd ${BOOST_SOURCE_DIR} && git submodule update --init --depth 1 --jobs 8 &&"
+        " git submodule foreach --recursive 'if [ -e .git ]; then git checkout HEAD -- .; fi'\n"
+        "(--recursive is required: nested paths such as libs/numeric/conversion need it too.)")
+endif ()
 target_include_directories(fakelua PRIVATE ${BOOST_SOURCE_DIR}/libs/json/include)
 
 # Include ALL Boost headers needed for MySQL + Asio + System

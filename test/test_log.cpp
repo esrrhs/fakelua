@@ -397,9 +397,9 @@ TEST(test_log, state_without_log_file_is_console_only) {
 // 两个 State 的日志级别互不影响
 TEST(test_log, per_state_log_level) {
     StateConfig cfg_a;
-    cfg_a.log_level = static_cast<int>(LogLevel::Trace);
+    cfg_a.log_level = LogLevel::Trace;
     StateConfig cfg_b;
-    cfg_b.log_level = static_cast<int>(LogLevel::Error);
+    cfg_b.log_level = LogLevel::Error;
 
     State *a = FakeluaNewState(cfg_a);
     State *b = FakeluaNewState(cfg_b);
@@ -537,7 +537,7 @@ TEST(test_log, multi_thread_states_isolated) {
                 const bool verbose = (i % 2) == 0;
                 StateConfig cfg;
                 cfg.log_file = paths[i];
-                cfg.log_level = static_cast<int>(verbose ? LogLevel::Trace : LogLevel::Error);
+                cfg.log_level = verbose ? LogLevel::Trace : LogLevel::Error;
                 State *s = FakeluaNewState(cfg);
                 if (s == nullptr) {
                     errors[i] = "FakeluaNewState returned null";

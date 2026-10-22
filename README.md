@@ -152,6 +152,8 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **Debug library**: No `debug.*` standard library.
 - **Implicit type coercion**: No string→number conversion in arithmetic (`"10" + 1` errors).
 - **Implicit globals**: Local variables must be declared with `local`; implicit global declarations are rejected.
+- **`json.encode` rejects array holes**: integer keys mean array intent, so a table whose keys are positive integers but not contiguous from 1 (`t[1]="a"; t[3]="c"`, or even `{[1001]=...}`) is an error instead of an object with `"1"`/`"3"` keys — the wire shape must not change silently. Keep protocol arrays gap-free (use `""` or `{}` placeholders, not nil), and use string keys (or `container.map`) for id-keyed maps. `#t` still stops at the first nil, like standard Lua; `serialize.encode/decode` keeps non-contiguous keys.
+- **Runtime errors carry the Lua source location**: `attempt to perform arithmetic on non-numeric value at main.lua:4` on all three backends, including errors raised inside native functions.
 
 ## Built-in Standard Libraries
 
@@ -219,6 +221,17 @@ Build only core library and CLI tools (no tests/benchmarks):
 cmake --build build --target fakelua flua --parallel
 ```
 
+Dependencies come through CPM (`CPM_SOURCE_CACHE`, default `~/.cache/CPM`). Boost is a
+superbuild whose libraries are git submodules, so a cache entry can hold the repository
+but have empty submodule worktrees — configure then reports one missing `Boost::*` target
+after another. Configure stops with the repair command when it detects this; it is:
+
+```bash
+cd ~/.cache/CPM/boost/<hash>
+git submodule update --init --depth 1 --jobs 8
+git submodule foreach --recursive 'if [ -e .git ]; then git checkout HEAD -- .; fi'
+```
+
 #### Windows (MSYS2 + MinGW)
 
 ```bash
@@ -260,7 +273,12 @@ function fini() ... end      -- called once before exit
 
 - `<script.lua | dir/>`: a single script, or a directory whose `.lua` files are all compiled (sorted by name)
 - `--once`: run `init` + `fini` only, without the `update` loop (one-shot script / self-check)
-- `--jit_type`: `0`=TCC, `1`=GCC, `2`=INTERP (bytecode VM)
+- `--jit_type`: `0`=TCC, `1`=GCC, `2`=INTERP (bytecode VM). Only the backend you pick gets
+  compiled: an INTERP run skips the GCC pass (~0.6 s per file) instead of paying for code it
+  will never execute.
+- `--log_level`: minimum log level, `3`=Warn by default (`0`=Trace … `6`=Off). A long-running
+  host does not want the per-file INFO compile lines drowning out real errors; pass
+  `--log_level=2` to get them back.
 - `--debug`: Enable debug mode (default `false`; when `true`, outputs generated C source / richer diagnostics)
 
 `update` is called back-to-back; a script that wants a fixed cadence paces itself, e.g.
@@ -288,6 +306,15 @@ cmake --build build --parallel
 # Install (default prefix: /usr/local)
 sudo cmake --install build
 # or: cd build && sudo make install
+```
+
+`flua` is installed as its own component (`cli`) and is marked `OPTIONAL`, so building only
+the library no longer makes the install step fail:
+
+```bash
+cmake --build build --target fakelua --parallel
+sudo cmake --install build            # installs the library, skips the missing flua
+sudo cmake --install build --component cli   # or: only the CLI
 ```
 
 #### Using FakeLua in Other CMake Projects
@@ -376,19 +403,48 @@ State* s = guard.GetState();
 | `Call()` | Invoke a compiled function |
 | `GetLastRecordedCCode()` | Get the most recently compiled C code |
 | `SetVarInterfaceNewFunc()` | Set custom VarInterface factory |
-| `SetDebugLogLevel(s, level)` | Set this State's debug log level (0=Trace … 6=Off; Lua: `log.set_level`) |
+| `SetDebugLogLevel(s, level)` | Set this State's log level (`LogLevel::Warn` … `LogLevel::Trace`; Lua: `log.set_level`) |
 
 ### Type Conversion
 
-```cpp
-// Native → FakeLua
-CVar v_int = inter::NativeToFakelua(s, 42);
-CVar v_str = inter::NativeToFakelua(s, std::string("hello"));
+Host code should use the public helpers; the `inter::` converters are the interpreter and
+JIT internals and hosts are not supposed to depend on them.
 
-// FakeLua → Native
-int native_int = inter::FakeluaToNative<int>(v_int);
-std::string native_str = inter::FakeluaToNative<std::string>(v_str);
+```cpp
+// Inside a native callback: read arguments (missing/nil argument -> default value)
+int64_t id = GetNativeIntArg(s, args, n, 0, 0);
+std::string name = GetNativeStringArg(s, args, n, 1, "anon");
+bool flag = GetNativeBoolArg(s, args, n, 2, false);
+double ratio = GetNativeFloatArg(s, args, n, 3, 1.0);
+
+// Return values
+return NativeString(s, name);   // also NativeInt / NativeBool / NativeFloat / NativeNil
 ```
+
+### Registering a Native Function
+
+Two forms. The callback form takes the raw `CVar` array and declares its arity
+(`arg_count` + `is_vararg`):
+
+```cpp
+RegisterNativeFunction(s, "greet", 1, false,
+    [](State *s, CVar *args, int n) -> CVar {
+        return NativeString(s, "hello " + GetNativeStringArg(s, args, n, 0));
+    });
+```
+
+The typed form wraps a `std::function` whose first parameter is `State *`. The template
+parameters are `<Ret, Args...>`, so the signature has to be spelled out inside
+`std::function<>` — that is the only form that compiles:
+
+```cpp
+RegisterNativeFunction(s, "hp_of", false,
+    std::function<int64_t(State *, int64_t)>([](State *, int64_t id) { return id * 2; }));
+```
+
+Writing it as `RegisterNativeFunction<std::string(State *, int64_t)>(...)` passes the whole
+function type as `Ret`; the header catches that with a `static_assert` instead of the wall
+of "function cannot return function type" errors it used to produce.
 
 ### Table ↔ Object Mapping
 

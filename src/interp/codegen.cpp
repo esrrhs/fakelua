@@ -17,6 +17,30 @@
 
 namespace fakelua {
 
+namespace {
+
+// 把「当前行」临时切到节点的源码行，离开作用域还原：嵌套表达式编译完后，
+// 外层语句后续的 Emit 仍要盖外层自己的行号。
+class LineScope {
+public:
+    LineScope(int &cur, const SyntaxTreeInterface *node) : cur_(cur), saved_(cur) {
+        if (node) {
+            cur_ = static_cast<int>(node->Loc().begin.line);
+        }
+    }
+    ~LineScope() {
+        cur_ = saved_;
+    }
+    LineScope(const LineScope &) = delete;
+    LineScope &operator=(const LineScope &) = delete;
+
+private:
+    int &cur_;
+    int saved_;
+};
+
+}// namespace
+
 const std::unordered_set<std::string> InterpCodegen::kStringLibraryMethods = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char", "format", "dump", "find", "match", "gmatch", "gsub"};
 
 InterpCodegen::InterpCodegen(State *s) : s_(s) {
@@ -99,7 +123,7 @@ int InterpCodegen::Emit(Op op, int a, int b, int c, int sbx) {
     }
     const int ip = static_cast<int>(cur_proto_->code.size());
     cur_proto_->code.push_back(inst);
-    cur_proto_->lineinfo.push_back(0);
+    cur_proto_->lineinfo.push_back(cur_line_);
     return ip;
 }
 
@@ -614,6 +638,7 @@ void InterpCodegen::CompileFunction(FuncInfo *func) {
     if (!func || func->proto) {
         return;
     }
+    const LineScope func_line(cur_line_, func->node);
     FuncInfo *prev_func = cur_func_;
     FuncProto *prev_proto = cur_proto_;
     const int prev_stack = stack_top_;
@@ -726,6 +751,7 @@ void InterpCodegen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
 void InterpCodegen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
     if (!stmt) return;
     if (IsPackageHeaderStmt(stmt)) return;
+    const LineScope line(cur_line_, stmt.get());
     const int saved = stack_top_;
     switch (stmt->Type()) {
         case SyntaxTreeType::Return:
@@ -1320,6 +1346,7 @@ void InterpCodegen::CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt)
 }
 
 int InterpCodegen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_multi, int dest) {
+    const LineScope line(cur_line_, exp.get());
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     if (e->GetExpKind() == ExpKind::kNumber || e->GetExpKind() == ExpKind::kUnop) {
         TableKeyKind kind = TableKeyKind::kInt;
@@ -1529,6 +1556,15 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
     bool last_expand = false;
     auto place_callname = [&](const std::string &name, const std::vector<int> &args) {
         const int n = static_cast<int>(args.size());
+        // 末尾是 f() / ... 这类展开时实参个数运行期才知道，检查不了。
+        if (!last_expand) {
+            if (const auto it = file_func_sigs_.find(name); it != file_func_sigs_.end()) {
+                const auto &[expected, is_vararg] = it->second;
+                if (!is_vararg && expected != n) {
+                    ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", name, expected, n), functioncall);
+                }
+            }
+        }
         int base;
         if (n == 0) {
             base = AllocReg();
@@ -1839,8 +1875,17 @@ void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, co
     std::vector<FuncInfo *> func_stack;
     ResolveScopes(pr.chunk, scopes, func_stack, nullptr);
 
+    // 先登记所有文件级函数的签名：调用点可能在函数定义之前，等 CompileFunction 再登记就漏了。
+    for (const auto &func: all_funcs_) {
+        if (func->parent != nullptr) continue;
+        const std::pair<int, bool> sig(static_cast<int>(func->params.size()), func->is_vararg);
+        if (!func->name.empty()) file_func_sigs_[func->name] = sig;
+        if (!func->unique_c_name.empty()) file_func_sigs_[func->unique_c_name] = sig;
+    }
+
     auto unit = std::make_shared<InterpUnit>();
     unit->state = s_;
+    unit->file_name = pr.file_name;
     unit_ = unit.get();
 
     if (pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block) {

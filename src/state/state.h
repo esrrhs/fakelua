@@ -7,7 +7,9 @@
 #include "state/heap.h"
 #include "util/logging.h"
 
+#include <cstddef>
 #include <memory>
+#include <type_traits>
 #include <typeindex>
 #include <unordered_map>
 
@@ -21,6 +23,15 @@ class IoContext;
 
 // JIT 错误边界，完整定义在 jit/jit_error_boundary.h
 struct JitErrorBoundary;
+
+// 生成代码写入的「当前 Lua 源码位置」。字段顺序与类型必须和 c_runtime_header.h 里的
+// FlLuaLoc 一致（生成代码直接按这个布局读写 State 上的实例）。
+struct LuaLoc {
+    const char *file = nullptr;
+    int line = 0;
+};
+static_assert(std::is_standard_layout_v<LuaLoc>);
+static_assert(offsetof(LuaLoc, line) == sizeof(const char *));
 
 // 单个运行实例
 // 线程模型：State 是单线程实体，由调用方保证同一时刻只有一个线程访问它。
@@ -98,6 +109,12 @@ public:
 
     void SetJitErrorBoundary(JitErrorBoundary *boundary) {
         jit_error_boundary_ = boundary;
+    }
+
+    // JIT 生成代码在每个 Lua 语句前写入当前位置。C++ 侧的报错拿不到 Lua 栈，
+    // 只在这里读得到，用来给没有位置的错误兜底。
+    [[nodiscard]] LuaLoc &GetLuaLoc() {
+        return lua_loc_;
     }
 
     // __fakelua_init（解释器与 JIT）期间为 true：Lua 值分配走常量堆，帧 Reset 后仍然有效。
@@ -214,6 +231,7 @@ private:
 
     std::function<VarInterface *()> var_interface_new_func_;
     JitErrorBoundary *jit_error_boundary_ = nullptr;
+    LuaLoc lua_loc_;
     bool interp_const_alloc_ = false;
     // 当前执行引擎，初值 TCC（无 Lua 调用栈的边界场景，与 kNativeCallbackJit 一致）。
     JITType current_jit_ = JIT_TCC;

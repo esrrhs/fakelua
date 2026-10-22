@@ -12,6 +12,13 @@ namespace fakelua {
 inline constexpr const char *kCRuntimeHeader = R"(
 #include <math.h>
 
+// 运行期报错定位槽。字段顺序与类型必须和 state/state.h 的 fakelua::LuaLoc 一致：
+// 生成的代码直接按这个布局读写 State 上的实例。
+typedef struct FlLuaLoc {
+    const char *file;
+    int line;
+} FlLuaLoc;
+
 typedef struct VarString {
     int size_;
     uint32_t hash_;
@@ -349,6 +356,13 @@ extern void FakeluaJitContextPop(State *s, int prev);
 #ifdef __cplusplus
 }
 #endif
+
+// 记录当前执行的 Lua 语句位置（槽地址由 CGen 以 fl_lua_loc 给出）。C++ 侧的报错
+// 拿不到 Lua 栈，只靠这里兜底定位；#line 则负责把编译告警映射回 Lua 源码。
+#define FL_LOC_SET(f, l) do { \
+    ((FlLuaLoc *)fl_lua_loc)->file = (f); \
+    ((FlLuaLoc *)fl_lua_loc)->line = (l); \
+} while (0)
 
 #define kMaxFunctionInputParams 32
 

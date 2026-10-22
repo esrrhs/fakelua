@@ -214,6 +214,7 @@ std::string_view FakeluaToNativeStringView(State *state, CVar val) {
 int64_t CVarToInteger(const CVar &v, int64_t default_val) {
     const auto &var = AsVar(v);
     if (var.Type() == VarType::Int) return var.GetInt();
+    if (var.Type() == VarType::Bool) return var.GetBool() ? 1 : 0;
     if (var.Type() == VarType::Float) {
         const double d = var.GetFloat();
         // NaN/Inf 以及超出 int64 范围的 float 强转是 UB，返回默认值让调用方决定。
@@ -265,6 +266,22 @@ double CVarToNumber(const CVar &v, double default_val) {
         }
     }
     return default_val;
+}
+
+bool CVarToBool(const CVar &v, bool default_val) {
+    const auto &var = AsVar(v);
+    if (var.Type() == VarType::Nil) return default_val;
+    if (var.Type() == VarType::Bool) return var.GetBool();
+    // 遵循 Lua 真假值规则：除 nil 与 false 外的一切值（包括 0、0.0、空字符串等）均为 true。
+    return true;
+}
+
+std::string CVarToString(const CVar &v, const char *default_val) {
+    const auto &var = AsVar(v);
+    if (var.Type() == VarType::String || var.Type() == VarType::StringId) {
+        return std::string(var.GetString()->Str());
+    }
+    return default_val != nullptr ? std::string(default_val) : std::string();
 }
 
 // VarToVi: read CVar into VarInterface* bridge type. Tables are read-only —
@@ -439,6 +456,10 @@ void SetDebugLogLevel(State *s, int level) {
     SetLogLevel(s, static_cast<LogLevel>(level));
 }
 
+void SetDebugLogLevel(State *s, LogLevel level) {
+    SetLogLevel(s, level);
+}
+
 // RegisterNativeFunction — 注册 C++ 函数供 lua 侧通过名字调用
 void RegisterNativeFunction(State *s, const std::string &name, int arg_count, bool is_vararg, NativeFuncCallback callback) {
     s->GetVM().RegisterNativeFunction(name, arg_count, is_vararg, std::move(callback));
@@ -517,6 +538,8 @@ CVar DispatchCall(State *s, void *addr, const CVar *arg_arr, int arg_count, JITT
     // 进入目标引擎代码：切换当前引擎上下文，使本次执行过程中调起的 native 函数
     // （含 native 对象方法桥接）能登记派回本引擎的异步回调。嵌套调用逐层保存恢复。
     State::JitContextScope jit_scope(s, type);
+    // 本次调用期间才承认「位置槽里是当前位置」，返回后恢复主叫方的值。
+    LuaLocScope loc_scope(s);
     // 解释器闭包用 code_str magic 识别，不能看函数指针最低位：GCC 的函数指针可以是奇数。
     // type==JIT_INTERP 且 cl 为空：Call()/CallByName 直接调注册的解释器原型。
     // cl 是 TCC/GCC 闭包时即使 type 是 JIT_INTERP 也必须走 C 函数指针（解释器回调 JIT 闭包）。
@@ -669,8 +692,36 @@ int64_t GetNativeIntArg(State *s, CVar *args, int n, int idx, int64_t default_va
     return inter::CVarToInteger(inter::GetNativeArg(s, args, n, idx), default_val);
 }
 
+double GetNativeFloatArg(State *s, CVar *args, int n, int idx, double default_val) {
+    return inter::CVarToNumber(inter::GetNativeArg(s, args, n, idx), default_val);
+}
+
+bool GetNativeBoolArg(State *s, CVar *args, int n, int idx, bool default_val) {
+    return inter::CVarToBool(inter::GetNativeArg(s, args, n, idx), default_val);
+}
+
+std::string GetNativeStringArg(State *s, CVar *args, int n, int idx, const char *default_val) {
+    return inter::CVarToString(inter::GetNativeArg(s, args, n, idx), default_val);
+}
+
 CVar NativeNil(State *s) {
     return inter::NativeToFakeluaNil(s);
+}
+
+CVar NativeBool(State *s, bool val) {
+    return inter::NativeToFakeluaBool(s, val);
+}
+
+CVar NativeInt(State *s, int64_t val) {
+    return inter::NativeToFakeluaLonglong(s, static_cast<long long>(val));
+}
+
+CVar NativeFloat(State *s, double val) {
+    return inter::NativeToFakeluaDouble(s, val);
+}
+
+CVar NativeString(State *s, const std::string &val) {
+    return inter::NativeToFakeluaString(s, val);
 }
 
 bool HasEntryFunction(State *s, JITType type, const std::string_view &name) {

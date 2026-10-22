@@ -60,6 +60,23 @@ thread_local std::vector<CVar *> g_interp_boxes;
 thread_local size_t g_interp_top = 0;
 thread_local int g_interp_boxed_frames = 0;
 
+// 出错指令的行号：取值时 ip 已自增，异常抛出点对应的就是刚取出的那条指令。
+// 只在这一层补位置，内层帧已经补过的不再覆盖，于是位置总是最内层那条 Lua 指令。
+void AnnotateInterpLocation(FuncProto *proto, const Inst *ip, FakeluaException &e) {
+    if (e.HasLoc() || proto == nullptr || proto->unit == nullptr || ip == nullptr || proto->code.empty()) {
+        return;
+    }
+    const auto offset = ip - proto->code.data();
+    if (offset <= 0 || static_cast<size_t>(offset) > proto->lineinfo.size()) {
+        return;
+    }
+    const int line = proto->lineinfo[static_cast<size_t>(offset) - 1];
+    if (line <= 0) {
+        return;
+    }
+    e.SetLoc(std::format("{}:{}", proto->unit->file_name, line));
+}
+
 constexpr size_t kInterpStackReserve = 262144;// 4 MiB of CVar; nested realloc would invalidate parent pointers
 
 struct InterpFrame {
@@ -124,6 +141,10 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
 
     const Inst *ip = proto->code.empty() ? nullptr : proto->code.data();
     Inst inst{};
+
+    // ip 是本帧的局部量，catch 里读到的就是抛出时正在执行的那条指令，
+    // 所以补位置不需要在热路径上为每个指令先存一份。
+    try {
 
     // GNU/Clang：token-threading（computed goto）。字节码由 codegen 保证以 RETURN
     // 结尾、跳转落在函数内，热路径不再做 pc 越界 / 未知 opcode 检查。
@@ -502,6 +523,11 @@ vm_switch_dispatch:
         ThrowFakeluaException("interpreter: unknown opcode");
     }
 #endif
+
+    } catch (FakeluaException &e) {
+        AnnotateInterpLocation(proto, ip, e);
+        throw;
+    }
 
 #undef VM_DISPATCH_NEXT
 #undef VM_CASE

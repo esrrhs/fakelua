@@ -135,11 +135,17 @@ private:
     std::unordered_map<std::pair<const SyntaxTreeInterface *, std::string>, VarDef *, PairHash> stmt_var_to_def_;
     std::unordered_map<const SyntaxTreeInterface *, VarDef *> var_to_def_map_;
     std::unordered_map<std::string, FuncProto *> named_protos_;
+    // 文件级函数的形参个数与是否变长（name / unique_c_name 都登记）。CGen 的 arity 检查
+    // 靠它，解释器单独编译时（disable_jit 关掉两个 C 后端）也要靠它，否则少传参数会
+    // 静默补 nil，三个后端语义就不一致了。
+    std::unordered_map<std::string, std::pair<int, bool>> file_func_sigs_;
     std::string cur_package_name_;
     std::unordered_set<std::string> file_level_names_;
 
     FuncInfo *cur_func_ = nullptr;
     FuncProto *cur_proto_ = nullptr;
+    // 最近一条语句/表达式在 Lua 源码里的行号，Emit 时盖到 lineinfo 上。
+    int cur_line_ = 0;
     int stack_top_ = 0;
     int local_top_ = 0;
     std::vector<LoopInfo> loops_;

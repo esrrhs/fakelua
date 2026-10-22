@@ -269,6 +269,10 @@ private:
     // 根据当前缩进深度生成 C 代码缩进空白字符
     [[nodiscard]] std::string GenTab() const;
 
+    // 把生成的代码锚定回 Lua 源码位置：#line 让编译告警指向 Lua 文件与行，
+    // FL_LOC_SET 写的状态位置槽则是运行期报错读的那一行。
+    void EmitLuaLine(const SyntaxTreeInterface *node);
+
     // 返回当前 active 代码段（section）的输出流引用
     std::ostream &Out() {
         return sections_[static_cast<size_t>(cur_section_)];
@@ -356,6 +360,7 @@ private:
     std::unordered_map<const SyntaxTreeInterface *, VarDef *> var_to_def_map_;
 
     FuncInfo *cur_func_info_ = nullptr;// The function currently being compiled
+    const SyntaxTreeInterface *cur_stmt_node_ = nullptr;// 当前正在编译的语句节点，用于在调用返回后重新锚定 Lua 源码位置
     std::string cur_package_name_;     // Current package name declared in chunk
 
     // 需要打 CONST_FLAG 的全局变量集合（初始化为非空表构造器的全局表/闭包）

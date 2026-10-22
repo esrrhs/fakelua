@@ -37,6 +37,10 @@ set_target_properties(flua PROPERTIES
     INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
 )
 
+# flua 单独一个 component，并且标 OPTIONAL：只构建库（cmake --build . --target fakelua）
+# 再执行安装时，缺少的可执行文件会被跳过而不是让安装整体失败。
 install(TARGETS flua
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    COMPONENT cli
+    OPTIONAL
 )
