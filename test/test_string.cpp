@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "native/string/lua_pattern.h"
 #include "test_jit.h"
 
 using namespace fakelua;
@@ -129,6 +130,70 @@ TEST(test_string, test_string_lua_pattern) {
     }
 }
 
+TEST(test_string, test_string_lua_pattern_cpp_regressions) {
+    using namespace fakelua::string::lua_pattern;
+    // 1. 100k-char match does not overflow C stack
+    {
+        std::string big_a(100000, 'a');
+        MatchResult res;
+        EXPECT_TRUE(MatchAt(big_a.data(), big_a.size(), "a*", 2, 0, res));
+        EXPECT_EQ(res.end - res.begin, 100000);
+
+        EXPECT_TRUE(MatchAt(big_a.data(), big_a.size(), "a+", 2, 0, res));
+        EXPECT_EQ(res.end - res.begin, 100000);
+
+        std::string big_ab = big_a + "b";
+        EXPECT_TRUE(MatchAt(big_ab.data(), big_ab.size(), "(a*)b", 5, 0, res));
+        EXPECT_EQ(res.level, 1);
+        EXPECT_EQ(res.caps[0].len, 100000);
+    }
+
+    // 2. %b supports equal delimiters
+    {
+        std::string s1 = "\"hello\"";
+        MatchResult res;
+        EXPECT_TRUE(MatchAt(s1.data(), s1.size(), "%b\"\"", 4, 0, res));
+        EXPECT_EQ(std::string(res.begin, res.end), "\"hello\"");
+
+        std::string s2 = "axxxa";
+        EXPECT_TRUE(MatchAt(s2.data(), s2.size(), "%baa", 4, 0, res));
+        EXPECT_EQ(std::string(res.begin, res.end), "axxxa");
+    }
+
+    // 3. %b 300-char balance without bogus 200 cap
+    {
+        std::string inner(300, 'z');
+        std::string s = "(" + inner + ")";
+        MatchResult res;
+        EXPECT_TRUE(MatchAt(s.data(), s.size(), "%b()", 4, 0, res));
+        EXPECT_EQ(std::string(res.begin, res.end), s);
+    }
+
+    // 4. %f sees implicit NUL at end of source
+    {
+        std::string s = "abc";
+        MatchResult res;
+        EXPECT_TRUE(Search(s.data(), s.size(), "%f[^%a]", 7, 0, res));
+        EXPECT_EQ(res.begin - s.data(), 3);
+
+        std::string s2 = "hello";
+        EXPECT_TRUE(Search(s2.data(), s2.size(), "%f[%A]$", 7, 0, res));
+        EXPECT_EQ(res.begin - s2.data(), 5);
+    }
+
+    // 5. Quantifiers after %b and %f are treated as literals
+    {
+        std::string s1 = "()+";
+        MatchResult res;
+        EXPECT_TRUE(MatchAt(s1.data(), s1.size(), "%b()+", 5, 0, res));
+        EXPECT_EQ(std::string(res.begin, res.end), "()+");
+
+        std::string s2 = " *";
+        EXPECT_TRUE(Search(s2.data(), s2.size(), "%f[*]*", 6, 0, res));
+        EXPECT_EQ(std::string(res.begin, res.end), "*");
+    }
+}
+
 TEST(test_string, test_string_find) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -201,6 +266,37 @@ TEST(test_string, test_string_pack_unpack) {
         EXPECT_EQ(res, 5000);
     }
 
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, test_string_lua54_pack_errors) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileFile(s, "./string/test_string_lua54_pack_errors.lua", {});
+
+    for (auto jit_type: AllJitTypes()) {
+        int64_t count = -1;
+        Call(s, jit_type, "test_string_byte_empty_count", count);
+        EXPECT_EQ(count, 0);
+
+        int64_t compat = -1;
+        Call(s, jit_type, "test_string_pack_lua54", compat, static_cast<int64_t>(sizeof(int)), static_cast<int64_t>(sizeof(long)));
+        EXPECT_EQ(compat, 0);
+    }
+
+    double res = 0;
+    CallThrow(s, "test_string_byte_empty_bad_index", res);
+    CallThrow(s, "test_string_pack_signed_overflow", res);
+    CallThrow(s, "test_string_pack_unsigned_overflow", res);
+    CallThrow(s, "test_string_pack_z_with_zero", res);
+    CallThrow(s, "test_string_unpack_unfinished_z", res);
+    CallThrow(s, "test_string_packsize_variable", res);
+    CallThrow(s, "test_string_packsize_s_variable", res);
+    CallThrow(s, "test_string_pack_bad_option", res);
+    CallThrow(s, "test_string_pack_bad_align", res);
+    int64_t padding = -1;
+    CallAll(s, "test_string_packsize_padding", padding);
+    EXPECT_EQ(padding, 0);
     FakeluaDeleteState(s);
 }
 
@@ -843,6 +939,23 @@ TEST(test_string, test_string_optint) {
         int64_t res = 0;
         Call(s, jit_type, "test_string_optint", res);
         EXPECT_EQ(res, 5000LL);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_string, plan_12_to_19_regressions) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./string/test_string_plan_12_19.lua", config);
+        int64_t res = 0;
+        int64_t expected_int_sz = static_cast<int64_t>(sizeof(int));
+        int64_t expected_long_sz = static_cast<int64_t>(sizeof(long));
+        Call(s, jit_type, "test_plan_12_19", res, expected_int_sz, expected_long_sz);
+        EXPECT_EQ(res, 1900LL);
     }
 
     FakeluaDeleteState(s);

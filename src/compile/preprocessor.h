@@ -48,6 +48,15 @@ private:
 
     std::shared_ptr<SyntaxTreeExp> MakeStringExp(const SyntaxTreeLocation &loc, const std::string &val);
 
+    // local name = exp
+    SyntaxTreeInterfacePtr MakeLocalVarAssign(const SyntaxTreeLocation &loc, const std::string &name, const SyntaxTreeInterfacePtr &exp);
+
+    // 取 Function / LocalFunction / FunctionDef 的 Funcbody；其它类型返回 nullptr。
+    static SyntaxTreeInterfacePtr GetFuncbody(const SyntaxTreeInterfacePtr &node);
+
+    // 该函数形态是否自带 ... 形参。
+    static bool FuncbodyHasVarargs(const SyntaxTreeInterfacePtr &funcbody);
+
 private:
     State *s_;
     std::string file_name_;

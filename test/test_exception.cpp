@@ -1288,11 +1288,42 @@ TEST(exception, vararg_nested_function) {
 
     try {
         CompileFile(s, "./exception/test_vararg_with_nested_function.lua", {});
-        ASSERT_TRUE(false);
+        FAIL() << "expected CompileFile to throw for nested named function statement";
     } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not support stmt type") != std::string::npos);
+        const std::string msg = e.what();
+        std::cout << msg << std::endl;
+        // Rejected in semantic analysis (before codegen's internal "not support stmt type").
+        EXPECT_NE(msg.find("no implicit globals"), std::string::npos) << msg;
+        EXPECT_NE(msg.find("named function statement"), std::string::npos) << msg;
+        EXPECT_NE(msg.find("test_vararg_with_nested_function.lua"), std::string::npos) << msg;
     }
+}
+
+// <const> 通过 FunctionDef / LocalFunction 捕获外层词法 const 时仍禁止赋值；
+// 同名 local 遮蔽后允许赋值；块作用域遮蔽结束后外层 const 仍受保护。
+TEST(exception, const_assign_through_nested_functions) {
+    for (const char *file: {"./exception/test_const_assign_funcdef.lua", "./exception/test_const_assign_localfunction.lua",
+                            "./exception/test_const_assign_block_scope.lua"}) {
+        SCOPED_TRACE(file);
+        FakeluaStateGuard sg;
+        auto s = sg.GetState();
+        ASSERT_NE(s, nullptr);
+        SetDebugLogLevel(s, 0);
+        try {
+            CompileFile(s, file, {});
+            FAIL() << "expected CompileFile to throw for " << file;
+        } catch (const std::exception &e) {
+            const std::string msg = e.what();
+            EXPECT_NE(msg.find("attempt to assign to const variable"), std::string::npos) << msg;
+            EXPECT_NE(msg.find(file), std::string::npos) << msg;
+        }
+    }
+
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, 0);
+    EXPECT_NO_THROW(CompileFile(s, "./exception/test_const_assign_nested_shadow_ok.lua", {}));
 }
 
 TEST(exception, vararg_nested_localfunction) {

@@ -1042,6 +1042,30 @@ std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
 static const std::unordered_map<BinOpKind, std::string_view> kCmpOpMap = {{BinOpKind::kLess, "<"},       {BinOpKind::kLessEqual, "<="}, {BinOpKind::kMore, ">"},
                                                                           {BinOpKind::kMoreEqual, ">="}, {BinOpKind::kEqual, "=="},     {BinOpKind::kNotEqual, "!="}};
 
+static std::string FormatNativeNumericComparison(const std::string &left, const std::string &right, InferredType left_type, InferredType right_type,
+                                                 BinOpKind op_kind) {
+    const auto cmp_it = kCmpOpMap.find(op_kind);
+    DEBUG_ASSERT(cmp_it != kCmpOpMap.end());
+    if (left_type == right_type) {
+        return std::format("({}) {} ({})", left, cmp_it->second, right);
+    }
+
+    const bool left_is_int = left_type == T_INT;
+    const std::string &integer = left_is_int ? left : right;
+    const std::string &floating = left_is_int ? right : left;
+    if (op_kind == BinOpKind::kEqual || op_kind == BinOpKind::kNotEqual) {
+        const auto eq = std::format("FL_INT_FLOAT_EQUAL(({}), ({}))", integer, floating);
+        return op_kind == BinOpKind::kEqual ? eq : std::format("!({})", eq);
+    }
+
+    // FlCompareIntDouble compares integer against floating.  Reverse the
+    // relation when the source operands are float/int.  NaN makes every
+    // ordered comparison false, including <= and >=.
+    const auto relation = left_is_int ? std::format("FlCompareIntDouble(({}), ({})) {} 0", integer, floating, cmp_it->second)
+                                      : std::format("0 {} FlCompareIntDouble(({}), ({}))", cmp_it->second, integer, floating);
+    return std::format("(!isnan(({})) && ({}))", floating, relation);
+}
+
 std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp, bool require_pure) {
     // 只处理 Exp 节点。
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
@@ -1096,7 +1120,7 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp, bo
         const auto left_native = TryCompileNativeExpr(e->Left());
         const auto right_native = TryCompileNativeExpr(e->Right());
         DEBUG_ASSERT(!left_native.empty() && !right_native.empty());
-        return std::format("({}) {} ({})", left_native, op_it->second, right_native);
+        return FormatNativeNumericComparison(left_native, right_native, left_type, right_type, op_kind);
     }
     return {};
 }
@@ -2600,17 +2624,20 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &exp, const SyntaxTr
     if (op_kind == BinOpKind::kAnd || op_kind == BinOpKind::kOr) {
         const auto left_str = CompileExp(left);
 
+        const auto left_tmp = std::format("flua_left_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << left_tmp << ";\n";
         const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
         func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
         const auto tmp_bool = std::format("flua_bt_{}", tmp_var_counter_++);
         func_temp_decls_ << "    " << "bool " << tmp_bool << ";\n";
 
-        Out() << GenTab() << std::format("IsTrue(({}), {});\n", left_str, tmp_bool);
+        Out() << GenTab() << std::format("{} = {};\n", left_tmp, left_str);
+        Out() << GenTab() << std::format("IsTrue(({}), {});\n", left_tmp, tmp_bool);
 
         const bool is_and = (op_kind == BinOpKind::kAnd);
         Out() << GenTab() << std::format("if ({}{}) {{\n", is_and ? "!" : "", tmp_bool);
         cur_tab_++;
-        Out() << GenTab() << std::format("{} = {};\n", tmp, left_str);
+        Out() << GenTab() << std::format("{} = {};\n", tmp, left_tmp);
         cur_tab_--;
         Out() << GenTab() << "} else {\n";
         cur_tab_++;
@@ -2845,7 +2872,7 @@ std::string CGen::CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, cons
             if (rt == T_INT || rt == T_FLOAT) {
                 const auto left_native = TryCompileNativeExpr(left);
                 if (const auto right_native = TryCompileNativeExpr(right); !left_native.empty() && !right_native.empty()) {
-                    const auto native_bool = std::format("({}) {} ({})", left_native, cmp_it->second, right_native);
+                    const auto native_bool = FormatNativeNumericComparison(left_native, right_native, lt, rt, op_kind);
                     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    CVar " << tmp << ";\n";
                     Out() << GenTab() << std::format("SET_BOOL({}, {});\n", tmp, native_bool);
@@ -3190,9 +3217,22 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                         const auto cond_bool = TryCompileNativeBoolExpr(cond);
                         const auto cond_str = !cond_bool.empty() ? std::format("({})", cond_bool) : std::format("FlIsTrue({})", CompileExp(cond));
 
+                        const auto result_type = LookupNodeType(e.get());
+                        DEBUG_ASSERT(result_type == T_INT || result_type == T_FLOAT);
+                        const auto result_tmp = std::format("flua_ternary_{}", tmp_var_counter_++);
+                        func_temp_decls_ << "    " << SpecReturnCTypeName(result_type) << " " << result_tmp << ";\n";
+                        Out() << GenTab() << "if (" << cond_str << ") {\n";
+                        cur_tab_++;
                         const auto val1_str = CompileNumericExp(val1);
+                        Out() << GenTab() << result_tmp << " = " << val1_str << ";\n";
+                        cur_tab_--;
+                        Out() << GenTab() << "} else {\n";
+                        cur_tab_++;
                         const auto val2_str = CompileNumericExp(val2);
-                        return std::format("({} ? {} : {})", cond_str, val1_str, val2_str);
+                        Out() << GenTab() << result_tmp << " = " << val2_str << ";\n";
+                        cur_tab_--;
+                        Out() << GenTab() << "}\n";
+                        return result_tmp;
                     }
                 }
             }
@@ -3500,45 +3540,52 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         }
         Out() << ");\n";
     };
+    const auto MaterializeArg = [&](const SyntaxTreeInterfacePtr &raw_arg) {
+        const std::string expr = CompileExp(raw_arg);
+        const auto arg_tmp = std::format("flua_math_arg_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << arg_tmp << ";\n";
+        Out() << GenTab() << arg_tmp << " = " << expr << ";\n";
+        return arg_tmp;
+    };
 
     if (method_name == "abs" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
+        std::string arg = MaterializeArg(raw_args[0]);
         // Lua 5.4：负数用无符号减法回绕，math.abs(mininteger) 仍是 integer.
         Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { ";
         Out() << "int64_t __fl_abs = " << arg << ".data_.i; if (__fl_abs < 0) __fl_abs = (int64_t)(0ull - (uint64_t)__fl_abs); ";
         Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = __fl_abs}; } ";
         Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_FLOAT, .data_.f = fabs(" << arg << ".data_.f)}; } ";
-        Out() << "else { " << tmp << " = FakeluaCallByName(_S, 0, \"math.abs\", 1, " << arg << "); }\n";
+        Out() << "else { " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.abs\", 1, " << arg << "); }\n";
         return tmp;
     }
     if (method_name == "floor" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
+        std::string arg = MaterializeArg(raw_args[0]);
         // 数值走共享的 FlMathFloor（pushnumint 规则）；数字串等其它类型回退 native
         Out() << GenTab() << tmp << " = ((" << arg << ".type_ == VAR_INT || " << arg << ".type_ == VAR_FLOAT) ? FlMathFloor(" << arg
-              << ") : FakeluaCallByName(_S, 0, \"math.floor\", 1, " << arg << "));\n";
+              << ") : FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.floor\", 1, " << arg << "));\n";
         return tmp;
     }
     if (method_name == "ceil" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
+        std::string arg = MaterializeArg(raw_args[0]);
         Out() << GenTab() << tmp << " = ((" << arg << ".type_ == VAR_INT || " << arg << ".type_ == VAR_FLOAT) ? FlMathCeil(" << arg
-              << ") : FakeluaCallByName(_S, 0, \"math.ceil\", 1, " << arg << "));\n";
+              << ") : FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ceil\", 1, " << arg << "));\n";
         return tmp;
     }
     if (method_name == "max" && raw_args.size() == 2) {
-        std::string arg1 = CompileExp(raw_args[0]);
-        std::string arg2 = CompileExp(raw_args[1]);
+        std::string arg1 = MaterializeArg(raw_args[0]);
+        std::string arg2 = MaterializeArg(raw_args[1]);
         const auto cond_tmp = std::format("flua_cmp_{}", tmp_var_counter_++);
         func_temp_decls_ << "    CVar " << cond_tmp << ";\n";
-        Out() << GenTab() << "OpGt((" << arg1 << "), (" << arg2 << "), " << cond_tmp << ");\n";
+        Out() << GenTab() << "OpGe((" << arg1 << "), (" << arg2 << "), " << cond_tmp << ");\n";
         Out() << GenTab() << tmp << " = (" << cond_tmp << ".data_.b ? (" << arg1 << ") : (" << arg2 << "));\n";
         return tmp;
     }
     if (method_name == "min" && raw_args.size() == 2) {
-        std::string arg1 = CompileExp(raw_args[0]);
-        std::string arg2 = CompileExp(raw_args[1]);
+        std::string arg1 = MaterializeArg(raw_args[0]);
+        std::string arg2 = MaterializeArg(raw_args[1]);
         const auto cond_tmp = std::format("flua_cmp_{}", tmp_var_counter_++);
         func_temp_decls_ << "    CVar " << cond_tmp << ";\n";
-        Out() << GenTab() << "OpLt((" << arg1 << "), (" << arg2 << "), " << cond_tmp << ");\n";
+        Out() << GenTab() << "OpLe((" << arg1 << "), (" << arg2 << "), " << cond_tmp << ");\n";
         Out() << GenTab() << tmp << " = (" << cond_tmp << ".data_.b ? (" << arg1 << ") : (" << arg2 << "));\n";
         return tmp;
     }
@@ -3889,7 +3936,10 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
     const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
     const auto &raw_args = explist_arg_ptr->Exps();
 
-    static const std::unordered_set<std::string> table_builtins = {"insert", "remove", "unpack", "create", "move"};
+    // move/unpack stay on the shared native path: their range/wrap and allocator
+    // limits are subtle, and duplicating those checks in generated C previously
+    // caused integer calls to retain stale, silently-truncating behavior.
+    static const std::unordered_set<std::string> table_builtins = {"insert", "remove", "create"};
     if (!table_builtins.contains(method_name)) {
         return {};
     }

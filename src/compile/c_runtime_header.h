@@ -712,6 +712,21 @@ static inline uint32_t FlHashString(const char *str, int len) {
     (result) = (LIKELY(__tv.type_ != VAR_NIL) && (__tv.type_ != VAR_BOOL || __tv.data_.b)); \
 } while(0)
 
+static inline int FlCompareIntDouble(int64_t integer, double floating) {
+    if (isnan(floating)) return 0;
+    if (floating >= 9223372036854775808.0) return -1;
+    if (floating < -9223372036854775808.0) return 1;
+    int64_t truncated = (int64_t)floating;
+    if (integer < truncated) return -1;
+    if (integer > truncated) return 1;
+    double truncated_as_double = (double)truncated;
+    if (floating > truncated_as_double) return -1;
+    if (floating < truncated_as_double) return 1;
+    return 0;
+}
+
+#define FL_INT_FLOAT_EQUAL(i, f) (!isnan((f)) && FlCompareIntDouble((i), (f)) == 0)
+
 #define VarEqual(_fa, _fb, result) do { \
     CVar __a = (_fa), __b = (_fb); \
     if (__a.type_ != __b.type_) { \
@@ -721,9 +736,9 @@ static inline uint32_t FlHashString(const char *str, int len) {
             VarString *__sb = (__b.type_ == VAR_STRING) ? __b.data_.s : (VarString *)__b.data_.i; \
             (result) = (__sa == __sb) || (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0); \
         } else if (__a.type_ == VAR_INT && __b.type_ == VAR_FLOAT) { \
-            (result) = ((double)__a.data_.i == __b.data_.f); \
+            (result) = FL_INT_FLOAT_EQUAL(__a.data_.i, __b.data_.f); \
         } else if (__a.type_ == VAR_FLOAT && __b.type_ == VAR_INT) { \
-            (result) = (__a.data_.f == (double)__b.data_.i); \
+            (result) = FL_INT_FLOAT_EQUAL(__b.data_.i, __a.data_.f); \
         } else { \
             (result) = false; \
         } \
@@ -1378,7 +1393,9 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 #define OP_CMP_IMPL(a, b, res, op) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_BOOL(res, _ra.data_.i op _rb.data_.i); } \
-    else { SET_BOOL(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
+    else if (_ra.type_ == VAR_INT) { SET_BOOL(res, !isnan(_rb.data_.f) && FlCompareIntDouble(_ra.data_.i, _rb.data_.f) op 0); } \
+    else if (_rb.type_ == VAR_INT) { SET_BOOL(res, !isnan(_ra.data_.f) && 0 op FlCompareIntDouble(_rb.data_.i, _ra.data_.f)); } \
+    else { SET_BOOL(res, _ra.data_.f op _rb.data_.f); } \
 } while(0)
 
 #define OpLt(a, b, res) OP_CMP_IMPL(a, b, res, <)

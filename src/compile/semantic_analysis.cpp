@@ -664,7 +664,58 @@ void SemanticAnalysis::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chun
     ValidateConstAssignInBlock(chunk, {});
 }
 
+void SemanticAnalysis::ValidateConstInFuncbody(const SyntaxTreeInterfacePtr &funcbody, std::unordered_set<std::string> const_names,
+                                               const std::unordered_set<std::string> &extra_shadow) {
+    if (!funcbody) {
+        return;
+    }
+    for (const auto &name: extra_shadow) {
+        const_names.erase(name);
+    }
+    const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+    if (!fb) {
+        return;
+    }
+    if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(fb->Parlist())) {
+        if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
+            for (const auto &pname: namelist->Names()) {
+                const_names.erase(pname);
+            }
+        }
+    }
+    ValidateConstAssignInBlock(fb->Block(), std::move(const_names));
+}
+
+void SemanticAnalysis::ValidateConstInExprs(const SyntaxTreeInterfacePtr &node, const std::unordered_set<std::string> &const_names) {
+    if (!node) {
+        return;
+    }
+    WalkSyntaxTreePruned(node, [this, &const_names](const SyntaxTreeInterfacePtr &n) -> bool {
+        if (!n) {
+            return false;
+        }
+        if (n->Type() == SyntaxTreeType::FunctionDef) {
+            ValidateConstInFuncbody(std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(n)->Funcbody(), const_names);
+            return false;
+        }
+        // Function / LocalFunction 作为语句由 ValidateConstAssignInBlock 处理；
+        // 出现在表达式子树里时也按同样规则继承外层 const。
+        if (n->Type() == SyntaxTreeType::Function) {
+            ValidateConstInFuncbody(std::dynamic_pointer_cast<SyntaxTreeFunction>(n)->Funcbody(), const_names);
+            return false;
+        }
+        if (n->Type() == SyntaxTreeType::LocalFunction) {
+            const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(n);
+            ValidateConstInFuncbody(lf->Funcbody(), const_names, {lf->Name()});
+            return false;
+        }
+        return true;
+    });
+}
+
 // Lua 在编译期就拒绝对 <const> 变量赋值，这里按块作用域收集 const 名字后做同样的检查。
+// 嵌套函数（LocalFunction / FunctionDef / Function）继承外层词法 const（upvalue），
+// 形参与同名 local 可遮蔽；块内 do/for/if 等嵌套作用域同样尊重遮蔽。
 void SemanticAnalysis::ValidateConstAssignInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_set<std::string> const_names) {
     const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
     if (!blk) return;
@@ -672,8 +723,9 @@ void SemanticAnalysis::ValidateConstAssignInBlock(const SyntaxTreeInterfacePtr &
     for (const auto &stmt: blk->Stmts()) {
         switch (stmt->Type()) {
             case SyntaxTreeType::LocalVar: {
-                // 先查赋值再登记：local x <const> = x 里右边的 x 是外层的同名变量。
+                // 先处理初始化表达式里的 FunctionDef（右边的名字仍是外层作用域），再登记本句 local。
                 const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+                ValidateConstInExprs(lv->Explist(), const_names);
                 const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
                 if (!namelist) break;
                 const auto &names = namelist->Names();
@@ -692,53 +744,90 @@ void SemanticAnalysis::ValidateConstAssignInBlock(const SyntaxTreeInterfacePtr &
             case SyntaxTreeType::Assign: {
                 const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
                 const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
-                if (!varlist) break;
-                for (const auto &var_node: varlist->Vars()) {
-                    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(var_node);
-                    if (var && var->GetVarKind() == VarKind::kSimple && const_names.contains(var->GetName())) {
-                        ThrowError("attempt to assign to const variable '" + var->GetName() + "'", stmt);
+                if (varlist) {
+                    for (const auto &var_node: varlist->Vars()) {
+                        const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(var_node);
+                        if (var && var->GetVarKind() == VarKind::kSimple && const_names.contains(var->GetName())) {
+                            ThrowError("attempt to assign to const variable '" + var->GetName() + "'", stmt);
+                        }
+                        // t[f()] 等左侧表达式里也可能嵌匿名函数
+                        if (var) {
+                            ValidateConstInExprs(var->GetPrefixexp(), const_names);
+                            ValidateConstInExprs(var->GetExp(), const_names);
+                        }
                     }
                 }
+                ValidateConstInExprs(assign->Explist(), const_names);
                 break;
             }
             case SyntaxTreeType::Block:
                 ValidateConstAssignInBlock(stmt, const_names);
                 break;
-            case SyntaxTreeType::While:
-                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt)->Block(), const_names);
+            case SyntaxTreeType::While: {
+                const auto w = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
+                ValidateConstInExprs(w->Exp(), const_names);
+                ValidateConstAssignInBlock(w->Block(), const_names);
                 break;
-            case SyntaxTreeType::Repeat:
-                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt)->Block(), const_names);
+            }
+            case SyntaxTreeType::Repeat: {
+                const auto r = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
+                ValidateConstAssignInBlock(r->Block(), const_names);
+                ValidateConstInExprs(r->Exp(), const_names);
                 break;
-            case SyntaxTreeType::ForLoop:
-                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt)->Block(), const_names);
+            }
+            case SyntaxTreeType::ForLoop: {
+                const auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
+                ValidateConstInExprs(fl->ExpBegin(), const_names);
+                ValidateConstInExprs(fl->ExpEnd(), const_names);
+                ValidateConstInExprs(fl->ExpStep(), const_names);
+                auto nested = const_names;
+                nested.erase(fl->Name());
+                ValidateConstAssignInBlock(fl->Block(), std::move(nested));
                 break;
-            case SyntaxTreeType::ForIn:
-                ValidateConstAssignInBlock(std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt)->Block(), const_names);
+            }
+            case SyntaxTreeType::ForIn: {
+                const auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
+                ValidateConstInExprs(fi->Explist(), const_names);
+                auto nested = const_names;
+                if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(fi->Namelist())) {
+                    for (const auto &name: nl->Names()) {
+                        nested.erase(name);
+                    }
+                }
+                ValidateConstAssignInBlock(fi->Block(), std::move(nested));
                 break;
+            }
             case SyntaxTreeType::If: {
                 const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+                ValidateConstInExprs(if_stmt->Exp(), const_names);
                 ValidateConstAssignInBlock(if_stmt->Block(), const_names);
                 if (const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
-                    for (const auto &elseif_blk: elseif_list->ElseifBlocks()) {
-                        ValidateConstAssignInBlock(elseif_blk, const_names);
+                    for (size_t i = 0; i < elseif_list->ElseifSize(); ++i) {
+                        ValidateConstInExprs(elseif_list->ElseifExp(i), const_names);
+                        ValidateConstAssignInBlock(elseif_list->ElseifBlock(i), const_names);
                     }
                 }
                 if (if_stmt->ElseBlock()) ValidateConstAssignInBlock(if_stmt->ElseBlock(), const_names);
                 break;
             }
             case SyntaxTreeType::Function: {
-                // 函数体是新的作用域，外层局部变量在里面是 upvalue，Lua 同样禁止赋值，
-                // 但 fakelua 不支持闭包捕获，所以这里只从空集合重新开始。
-                const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt)->Funcbody());
-                if (fb) ValidateConstAssignInBlock(fb->Block(), {});
+                // 继承外层词法 const（作为 upvalue）；嵌套命名 function 语句会在 CheckNode 中另行拒绝。
+                ValidateConstInFuncbody(std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt)->Funcbody(), const_names);
                 break;
             }
             case SyntaxTreeType::LocalFunction: {
-                const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt)->Funcbody());
-                if (fb) ValidateConstAssignInBlock(fb->Block(), {});
+                const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+                ValidateConstInFuncbody(lf->Funcbody(), const_names, {lf->Name()});
+                // local function 名遮蔽后续语句中的同名 const
+                const_names.erase(lf->Name());
                 break;
             }
+            case SyntaxTreeType::Return:
+                ValidateConstInExprs(std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt)->Explist(), const_names);
+                break;
+            case SyntaxTreeType::FunctionCall:
+                ValidateConstInExprs(stmt, const_names);
+                break;
             default:
                 break;
         }
@@ -783,6 +872,16 @@ void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const Analy
             CheckBlockReturnPosition(node);
             break;
         }
+        case SyntaxTreeType::Function: {
+            // 命名 function 语句在非文件级会写成隐式全局；fakelua 不支持隐式全局，
+            // 在语义分析阶段拒绝，避免拖到 codegen 才报内部 "not support stmt type"。
+            if (!top_level_stmts_.contains(node.get())) {
+                ThrowError("named function statement is not allowed here; fakelua has no implicit globals, "
+                           "use 'local function name(...)' or assign a function expression to a local",
+                           node);
+            }
+            break;
+        }
         case SyntaxTreeType::None:
         case SyntaxTreeType::Empty:
         case SyntaxTreeType::Assign:
@@ -799,7 +898,6 @@ void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const Analy
         case SyntaxTreeType::If:
         case SyntaxTreeType::ElseIfList:
         case SyntaxTreeType::NameList:
-        case SyntaxTreeType::Function:
         case SyntaxTreeType::FuncNameList:
         case SyntaxTreeType::FuncName:
         case SyntaxTreeType::FuncBody:

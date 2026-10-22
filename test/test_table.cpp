@@ -4,8 +4,34 @@
 #include "native/table/native_table.h"
 #include "test_jit.h"
 #include "var/var.h"
+#include "var/var_multi.h"
+
+#include <cstdint>
+#include <string>
 
 using namespace fakelua;
+
+namespace {
+
+// 与 native_table.cpp 的 kMaxUnpackResults 同一公式：一块临时内存装得下的 CVar 个数。
+constexpr int64_t kUnpackJustOver = static_cast<int64_t>(((1024ULL * 1024ULL) - sizeof(VarMulti)) / sizeof(CVar) + 1);
+
+template<typename... Args>
+void ExpectThrowsWith(State *s, const std::string &name, const char *needle, Args &&...args) {
+    for (const auto jit_type: ExceptionJitTypes()) {
+        SCOPED_TRACE(::testing::Message() << "jit=" << JitTypeName(jit_type) << " fn=" << name);
+        double res = 0;
+        try {
+            Call(s, jit_type, name, res, std::forward<Args>(args)...);
+            ADD_FAILURE() << "expected throw from " << name;
+        } catch (const std::exception &e) {
+            const std::string msg = e.what();
+            EXPECT_NE(msg.find(needle), std::string::npos) << msg;
+        }
+    }
+}
+
+}// namespace
 
 TEST(test_table, test_table_insert_remove) {
     State *s = FakeluaNewState();
@@ -447,6 +473,35 @@ TEST(test_table, test_table_insert_arity) {
         int64_t res = 0;
         Call(s, jit_type, "test_table_insert_arity", res);
         EXPECT_EQ(res, 5000LL);
+    }
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_table, test_table_move_unpack_limits) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./table/test_table_limits.lua", config);
+
+    int64_t moved = 0;
+    CallAll(s, "test_table_move_over_cap", moved);
+    EXPECT_EQ(moved, 5000);
+
+    int64_t unpacked = 0;
+    CallAll(s, "test_table_unpack_ok", unpacked);
+    EXPECT_EQ(unpacked, 5000);
+
+    ExpectThrowsWith(s, "test_table_move_src_wrap", "too many elements to move");
+    ExpectThrowsWith(s, "test_table_move_src_overflow", "too many elements to move");
+    ExpectThrowsWith(s, "test_table_move_dst_wrap", "destination wrap around");
+    ExpectThrowsWith(s, "test_table_unpack_over", "too many results to unpack", kUnpackJustOver);
+    ExpectThrowsWith(s, "test_table_unpack_wrap", "too many results to unpack");
+
+    for (const char *name: {"test_table_move_presize_skip", "test_table_move_overlap_backward", "test_table_move_empty_range"}) {
+        int64_t r = 0;
+        CallAll(s, name, r);
+        EXPECT_EQ(r, 5000) << name;
     }
 
     FakeluaDeleteState(s);

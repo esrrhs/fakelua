@@ -332,6 +332,27 @@ TEST(test_os, test_os_error_paths) {
     CallThrow(s, "test_os_remove_bad_arg", res);
     CallThrow(s, "test_os_rename_bad_arg", res);
     CallThrow(s, "test_os_setlocale_bad_arg", res);
+    CallThrow(s, "test_os_setlocale_nil_bad_category", res);
+    CallThrow(s, "test_os_setlocale_empty_bad_category", res);
+
+    FakeluaDeleteState(s);
+}
+
+TEST(test_os, test_os_setlocale_nil_and_empty) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    CompileFile(s, "./os/test_os_setlocale.lua", config);
+
+    for (auto jit_type: AllJitTypes()) {
+        int64_t res = 0;
+        Call(s, jit_type, "test_os_setlocale_nil_query", res);
+        EXPECT_EQ(res, 5000);
+
+        res = 0;
+        Call(s, jit_type, "test_os_setlocale_empty_env", res);
+        EXPECT_EQ(res, 5000);
+    }
 
     FakeluaDeleteState(s);
 }

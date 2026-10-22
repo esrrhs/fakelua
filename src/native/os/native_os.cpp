@@ -345,11 +345,20 @@ void RegisterOsLibraryApi(State *s) {
 
     // os.setlocale(locale[, category])
     // Standard Lua: category = luaL_checkoption(L, 2, "all", catnames), locale = luaL_optstring(L, 1, NULL).
+    // nil / omitted queries (setlocale(category, NULL)). Empty string is a real locale
+    // argument: setlocale(category, "") installs the locale from the environment.
     RegisterNativeFunction(s, "os.setlocale", 1, true, [](State *state, CVar *args, int n) -> CVar {
-        CVar a0 = inter::GetNativeArg(state, args, n, 0);
-        CheckStringArg(a0, 1, "os.setlocale");
-        std::string s_locale;
-        std::string_view locale = GetStringArgView(a0, s_locale);
+        bool query = true;
+        std::string locale_storage;
+        if (n >= 1) {
+            CVar a0 = inter::GetNativeArg(state, args, n, 0);
+            if (a0.type_ != static_cast<int>(VarType::Nil)) {
+                CheckStringArg(a0, 1, "os.setlocale");
+                std::string temp;
+                locale_storage.assign(GetStringArgView(a0, temp));
+                query = false;
+            }
+        }
 
         int category = LC_ALL;
         if (n >= 2) {
@@ -376,17 +385,9 @@ void RegisterOsLibraryApi(State *s) {
             }
         }
 
-        if (locale.empty()) {
-            // query current locale
-            const char *cur = std::setlocale(category, nullptr);
-            if (cur) {
-                return inter::NativeToFakeluaStringView(state, std::string_view(cur));
-            }
-            return inter::NativeToFakeluaNil(state);
-        }
-        const char *prev = std::setlocale(category, std::string(locale).c_str());
-        if (prev) {
-            return inter::NativeToFakeluaStringView(state, std::string_view(prev));
+        const char *result = query ? std::setlocale(category, nullptr) : std::setlocale(category, locale_storage.c_str());
+        if (result) {
+            return inter::NativeToFakeluaStringView(state, std::string_view(result));
         }
         return inter::NativeToFakeluaNil(state);
     });

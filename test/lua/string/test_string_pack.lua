@@ -58,10 +58,12 @@ function test_pack_c()
     return 1
 end
 
--- 测试 string.pack X (填充字节)
+-- 测试 string.pack X (按下一格式对齐填充，不输出多余数据)
 function test_pack_X()
     local s = string.pack("Xi4", 42)
-    if #s ~= 5 then return 0 end
+    if #s ~= 0 then return 0 end
+    local sx = string.pack("b Xi4", 1, 42)
+    if #sx ~= 1 then return 0 end
     return 1
 end
 
@@ -87,7 +89,7 @@ end
 
 -- 测试 string.pack ! (对齐)
 function test_pack_align()
-    local s = string.pack("!4Xi4", 42)
+    local s = string.pack("!4 b i4", 1, 42)
     if #s ~= 8 then return 0 end
     return 1
 end

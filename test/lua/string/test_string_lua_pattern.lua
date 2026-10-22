@@ -70,6 +70,17 @@ function test_lua_pattern_quantifiers()
     if r4 ~= "x" or n4 ~= 1 then return 8 end
     -- 捕获组后面不含量词语义：(a)* 里的 '*' 是字面量
     if string.match("aaa", "(a)*") ~= nil then return 9 end
+
+    -- 长串 * 和 + 贪婪匹配（100k 字符不应打爆 C 栈，且捕获语义正确）
+    local len = 100000
+    local big_a = string.rep("a", len)
+    local s_star = string.match(big_a, "a*")
+    if #s_star ~= len then return 10 end
+    local s_plus = string.match(big_a, "a+")
+    if #s_plus ~= len then return 11 end
+    local s_cap = string.match(big_a .. "b", "(a*)b")
+    if #s_cap ~= len then return 12 end
+
     return 0
 end
 
@@ -121,6 +132,33 @@ function test_lua_pattern_frontier_balance()
     if s ~= 2 or e ~= 9 then return 4 end
     -- 自定义平衡字符
     if string.match("a[x[y]z]b", "%b[]") ~= "[x[y]z]" then return 5 end
+
+    -- %b 支持相同分隔符 (Lua 5.4 语义)
+    if string.match("\"hello\"", "%b\"\"") ~= "\"hello\"" then return 6 end
+    if string.match("foo:bar:baz", "%b::") ~= ":bar:" then return 7 end
+    if string.match("axxxa", "%baa") ~= "axxxa" then return 8 end
+
+    -- %b 无 200 字节长度上限（>300 字符嵌套）
+    local deep_inner = string.rep("x", 300)
+    local deep_str = "a(" .. deep_inner .. ")b"
+    if string.match(deep_str, "%b()") ~= "(" .. deep_inner .. ")" then return 9 end
+
+    -- %f 视串尾后为隐式 NUL，补集在串尾匹配前沿
+    local end_f = string.match("hello", "%f[%A]$")
+    if end_f ~= "" then return 10 end
+    local end_pos = string.find("abc", "%f[^%a]")
+    if end_pos ~= 4 then return 11 end
+
+    -- %b 和 %f 后紧跟的 *+?- 按普通字面量字符处理（Lua 5.4 语法）
+    if string.match("()+", "%b()+") ~= "()+" then return 12 end
+    if string.match("()-", "%b()-") ~= "()-" then return 13 end
+    if string.match("()?", "%b()?") ~= "()?" then return 14 end
+    if string.match("()*", "%b()*") ~= "()*" then return 15 end
+    if string.match(" *", "%f[*]*") ~= "*" then return 16 end
+    if string.match(" +", "%f[+]+") ~= "+" then return 17 end
+    if string.match(" ?", "%f[?]?") ~= "?" then return 18 end
+    if string.match(" -", "%f[-]-") ~= "-" then return 19 end
+
     return 0
 end
 

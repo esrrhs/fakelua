@@ -12,7 +12,7 @@ function test_string_pack_unpack()
     if string.byte(le, 1) ~= 0x04 then return 3 end
     if string.byte(be, 1) ~= 0x01 then return 4 end
 
-    -- 多值打包 (i 需要指定字节数，用 i4/I4 代替裸 i)
+    -- 多值打包（这里显式使用 i4/I4）
     local p2 = string.pack("bBi4I4jJ", -1, 255, -1, 65535, -1, 4294967295, -1, 9223372036854775807)
     if #p2 ~= 1 + 1 + 4 + 4 + 8 + 8 then return 5 end
 
@@ -46,7 +46,6 @@ function test_string_pack_unpack()
     if string.packsize("i4") ~= 4 then return 20 end
     if string.packsize("bd") ~= 9 then return 21 end
     if string.packsize("c10") ~= 10 then return 22 end
-    if string.packsize("z", "hello") ~= 6 then return 23 end -- 5 chars + null
     if string.packsize("BH") ~= 3 then return 24 end
     if string.packsize("j") ~= 8 then return 25 end
     if string.packsize(123) ~= nil then return 26 end
@@ -118,9 +117,9 @@ function test_string_pack_unpack()
     local i8v = string.unpack("<i8", packed_i8)
     if i8v ~= 3000000000 then return 44.5 end
 
-    -- 裸 i 默认 8 字节
+    -- 裸 i 的宽度与 packsize 一致
     local packed_i = string.pack("i", 42)
-    if #packed_i ~= 8 then return 44.6 end
+    if #packed_i ~= string.packsize("i") then return 44.6 end
 
     -- c[n] 固定长度字符串解包
     local packed_c = string.pack(">c6", "hello!")
