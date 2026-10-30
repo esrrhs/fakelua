@@ -561,6 +561,14 @@ bool TableArrResizeInsert(State *s, VarTable *tbl, int64_t k, CVar v) {
     return false;
 }
 
+constexpr int kConstFlag = 0x1;
+
+void CheckConstTable(State *s, CVar tbl) {
+    if ((tbl.flag_ & kConstFlag) && (!s || !s->InterpConstAlloc())) {
+        ThrowFakeluaException("attempt to modify a const table");
+    }
+}
+
 }// namespace
 
 bool TableHelper::VarKeyEqualInt(CVar k, int64_t idx) {
@@ -781,6 +789,7 @@ CVar TableHelper::GetTableStrId(State *s, CVar tbl, const char *str_key) {
 
 void TableHelper::SetTableInt(State *s, CVar tbl, int64_t idx, CVar val) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
+    CheckConstTable(s, tbl);
     VarTable *t = tbl.data_.t;
 
     if (t->spec_set) {
@@ -829,6 +838,7 @@ void TableHelper::SetTable(State *s, CVar tbl, CVar key, CVar val) {
     if (key.type_ == kFloatType && std::isnan(key.data_.f)) {
         ThrowFakeluaException("table index is NaN");
     }
+    CheckConstTable(s, tbl);
 
     if (t->spec_set) {
         using SpecSetFn = void (*)(VarTable *, CVar, CVar, bool *);
@@ -853,6 +863,7 @@ void TableHelper::SetTable(State *s, CVar tbl, CVar key, CVar val) {
 
 void TableHelper::SetTableStrId(State *s, CVar tbl, std::string_view str_key, CVar val) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
+    CheckConstTable(s, tbl);
     VarTable *t = tbl.data_.t;
     const int64_t id = s->GetConstString().Alloc(str_key);
     const auto *vs = reinterpret_cast<const VarString *>(id);
@@ -875,7 +886,8 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar va
 // Use shared CheckNumberArg from native_common.h
 
 CVar TableHelper::CreateTable(State *state) {
-    VarTable *vtbl = static_cast<VarTable *>(FakeluaAlloc(state, sizeof(VarTable), false));
+    const bool is_const = state && state->InterpConstAlloc();
+    VarTable *vtbl = static_cast<VarTable *>(FakeluaAlloc(state, sizeof(VarTable), is_const));
     *vtbl = VarTable{};
     for (auto &qd: vtbl->quick_data_) {
         qd.key.type_ = static_cast<int>(VarType::Nil);
@@ -887,6 +899,7 @@ CVar TableHelper::CreateTable(State *state) {
     vtbl->seq_len_valid_ = 1;
     CVar tbl_cvar{};
     tbl_cvar.type_ = static_cast<int>(VarType::Table);
+    tbl_cvar.flag_ = is_const ? kConstFlag : 0;
     tbl_cvar.data_.t = vtbl;
     return tbl_cvar;
 }
@@ -937,6 +950,7 @@ void RegisterTableLibraryApi(State *s) {
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'table.remove' (table expected)");
         }
+        CheckConstTable(state, tbl);
         int64_t len = TableHelper::GetTableLen(tbl);
         int64_t pos = len;
         bool has_explicit_pos = false;
@@ -1128,6 +1142,7 @@ void RegisterTableLibraryApi(State *s) {
         int64_t f = CheckIntegerArg(f_var, 2, "table.move");
         int64_t e = CheckIntegerArg(e_var, 3, "table.move");
         int64_t t = CheckIntegerArg(t_var, 4, "table.move");
+        CheckConstTable(state, a2);
 
         if (e >= f) {
             // 源区间个数 e - f + 1。e>=f 时用无符号减法，2^64 个元素会回绕成 0。
@@ -1144,7 +1159,7 @@ void RegisterTableLibraryApi(State *s) {
             const bool same_table = (a1.type_ == static_cast<int>(VarType::Table) && a2.type_ == static_cast<int>(VarType::Table) && a1.data_.t == a2.data_.t);
             // 空目标表预扩容：避免 1→2→4→… 反复 rehash。桶数或节点数组装不进引擎限制时
             // 不预扩，改走逐元素插入；插入本身分配失败会抛明确错误，而不是静默跳过。
-            if (!same_table && a2.data_.t->count_ == 0 && icount > 8 && t != static_cast<int64_t>(a2.data_.t->arr_size_) + 1 && MovePresizeFits(count)) {
+            if (!same_table && !(a2.flag_ & kConstFlag) && a2.data_.t->count_ == 0 && icount > 8 && t != static_cast<int64_t>(a2.data_.t->arr_size_) + 1 && MovePresizeFits(count)) {
                 TableRehashTo(state, a2.data_.t, static_cast<uint32_t>(count));
             }
             if (!same_table || t <= f || t > e) {
@@ -1168,6 +1183,7 @@ void RegisterTableLibraryApi(State *s) {
         if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
             ThrowFakeluaException("bad argument #1 to 'table.sort' (table expected)");
         }
+        CheckConstTable(state, tbl);
         int64_t len = TableHelper::GetTableLen(tbl);
         if (len <= 1) return inter::NativeToFakeluaNil(state);
 
