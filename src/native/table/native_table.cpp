@@ -579,6 +579,8 @@ bool TableHelper::VarKeyEqualInt(CVar k, int64_t idx) {
 void TableHelper::ForEachKV(CVar tbl, const std::function<void(CVar key, CVar val)> &fn) {
     if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t || !fn) return;
     VarTable *t = tbl.data_.t;
+    // NativeObject 壳可能尚未填充 spec_keys；pairs/next 遍历前按需建快照。
+    EnsureNativeSpecSnapshot(t);
 
     if (t->spec_keys && t->spec_vals && t->spec_count > 0) {
         for (uint32_t i = 0; i < t->spec_count; ++i) {

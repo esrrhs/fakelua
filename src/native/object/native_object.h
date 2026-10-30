@@ -60,6 +60,10 @@ struct NativeObjectSpec {
     // spec_keys/spec_vals 已分配容量（>= spec_count）。增量更新插入时按需扩容，
     // 避免 NativeSpecSet 每次写入都整表重建快照。
     uint32_t spec_cap = 0;
+    // Wrap() 只生成轻量壳，不立即填充 spec_keys/spec_vals；pairs/next/GET_TABLE_ENTRY
+    // 首次遍历时再 EnsureNativeSpecSnapshot。snapshot_ready 为真后，NativeSpecSet
+    // 走增量维护；为假时写入只改 kv，快照仍保持惰性。
+    bool snapshot_ready = false;
 };
 
 // NativeObject: 完整实现（pImpl 的 Impl 部分）
@@ -78,8 +82,12 @@ struct NativeObject::Impl {
 CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
 void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
 // 依据 obj 当前字段集合重建 tbl 的 spec_keys/spec_vals 快照，供 pairs()/next() 迭代。
-// Wrap() 初次填充时调用；字段写入走 NativeSpecSet 的增量路径，不再每次全量重建。
+// 嵌套 NativeObject 字段只做轻量 Wrap（不递归建快照）。通常由 EnsureNativeSpecSnapshot 触发。
 void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s);
+
+// 若 tbl 是尚未建快照的 NativeObject 壳，则 RefreshSpecKeys 一次并标记 snapshot_ready。
+// pairs/next（ForEachKV）与 GET_TABLE_ENTRY 计数路径在遍历前调用；非 Native 表为 no-op。
+void EnsureNativeSpecSnapshot(VarTable *tbl);
 
 // 从 CVar key 提取字符串视图（VAR_STRINGID / VAR_STRING）
 inline std::string_view KeyToStringView(CVar k) {

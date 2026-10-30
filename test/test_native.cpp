@@ -1,7 +1,10 @@
 #include "fakelua.h"
+#include "state/state.h"
+#include "var/var_table.h"
 #include "test_jit.h"
 #include "var/var_type.h"
 #include "gtest/gtest.h"
+#include <string>
 #include <unordered_map>
 
 using namespace fakelua;
@@ -69,6 +72,59 @@ TEST(test_native, test_nested_object) {
 
     mgr.DestroyGroup(gid);
 
+    FakeluaDeleteState(s);
+}
+
+
+TEST(test_native, test_deep_nesting_wrap_is_light) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+
+    NativeObject *root = mgr.Create(gid, "node", 1);
+    NativeObject *cur = root;
+    constexpr int kDepth = 64;
+    for (int i = 1; i <= kDepth; ++i) {
+        NativeObject *child = mgr.Create(gid, "node", i + 1);
+        child->SetInt("depth", i);
+        cur->SetObject("child", child);
+        cur = child;
+    }
+
+    // Bushy fan-out on root would explode under recursive Wrap+RefreshSpecKeys.
+    for (int i = 0; i < 32; ++i) {
+        NativeObject *leaf = mgr.Create(gid, "leaf", 1000 + i);
+        leaf->SetInt("i", i);
+        root->SetObject(std::string("leaf_") + std::to_string(i), leaf);
+    }
+
+    inter::Reset(s);
+    const size_t before = s->GetValueAllocator().Size();
+    CVar wrapped = root->Wrap(s);
+    const size_t after_wrap = s->GetValueAllocator().Size();
+    // Light shell only: VarTable + NativeObjectSpec. Must not allocate O(depth * fanout) snapshots.
+    EXPECT_LT(after_wrap - before, 4096u);
+    EXPECT_EQ(wrapped.type_, static_cast<int>(VarType::Table));
+    ASSERT_NE(wrapped.data_.t, nullptr);
+    EXPECT_EQ(wrapped.data_.t->spec_count, 0u);// snapshot still lazy after Wrap
+
+    NativeObject *unwrapped = NativeObject::Unwrap(wrapped);
+    ASSERT_EQ(unwrapped, root);
+    NativeObject *child = root->GetObject("child");
+    ASSERT_NE(child, nullptr);
+    EXPECT_EQ(child->GetInt("depth"), 1);
+
+    // Nested object's own Wrap is also light (no eager snapshot / no recursive tree).
+    const size_t before_child = s->GetValueAllocator().Size();
+    CVar child_cv = child->Wrap(s);
+    const size_t after_child = s->GetValueAllocator().Size();
+    EXPECT_LT(after_child - before_child, 4096u);
+    ASSERT_EQ(child_cv.type_, static_cast<int>(VarType::Table));
+    ASSERT_NE(child_cv.data_.t, nullptr);
+    EXPECT_EQ(child_cv.data_.t->spec_count, 0u);
+    EXPECT_EQ(NativeObject::Unwrap(child_cv), child);
+
+    mgr.DestroyGroup(gid);
     FakeluaDeleteState(s);
 }
 
@@ -585,6 +641,9 @@ TEST(test_native, test_native_lua_obj_ops) {
                      {"test_object_field"},
                      {"test_pairs_on_native_obj"},
                      {"test_pairs_after_incremental_spec_set"},
+                     {"test_deep_nesting_lazy_wrap"},
+                     {"test_pairs_after_lazy_writes"},
+                     {"test_next_on_native_obj"},
                      {"test_int_bool_not_equal_cross"},
              })) {
             inter::Reset(s);

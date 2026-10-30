@@ -822,7 +822,9 @@ public:
     void ForEach(const std::function<void(std::string_view key, FieldKind kind)> &fn) const;
 
     // CVar ↔ NativeObject 转换
-    // Wrap：在当前帧 arena 中生成轻量 VarTable 壳，供 lua 访问（壳帧末自动消亡）
+    // Wrap：在当前帧 arena 中生成轻量 VarTable 壳，供 lua 访问（壳帧末自动消亡）。
+    //       不递归 Wrap 嵌套 NativeObject，也不急切填充 spec_keys/spec_vals；
+    //       pairs/next/GET_TABLE_ENTRY 首次遍历时再建快照，嵌套对象以轻量壳出现。
     // Unwrap：从 Wrap 出的 CVar 壳还原 NativeObject*（通过 spec_get 特征识别）
     [[nodiscard]] CVar Wrap(State *s) const;
     static NativeObject *Unwrap(CVar v);
