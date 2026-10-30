@@ -26,7 +26,7 @@ public:
     static void SetTableStrId(State *s, CVar tbl, std::string_view str_key, CVar val);
     // 任意类型键的写入。键会先做浮点归一化，再按与 JIT 侧一致的哈希布局落槽。
     static void SetTable(State *s, CVar tbl, CVar key, CVar val);
-    // 分配一张空表（temp arena，帧内有效）。
+    // 分配一张空表（init 期间走 const arena 并打 CONST_FLAG，其余时候走 temp arena）。
     static CVar CreateTable(State *s);
     // 与 GET_TABLE_ENTRY 一致：spec + (quick XOR buckets)，互斥遍历。
     static void ForEachKV(CVar tbl, const std::function<void(CVar key, CVar val)> &fn);
