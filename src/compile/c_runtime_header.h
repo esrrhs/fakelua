@@ -209,6 +209,9 @@ static inline void FlSeqNoteIntSet(VarTable *t, int64_t k, bool is_nil) {
     if (t->seq_len_ < INT64_MAX && k == t->seq_len_ + 1) { t->seq_len_ = FlSeqScanFrom(t, k); }
 }
 
+/* NativeObject Wrap 惰性快照：pairs/GET_TABLE_ENTRY 读 spec_count 前调用。非 Native 表 no-op。 */
+extern void FlEnsureNativeSpecSnapshot(VarTable *t);
+
 #define TABLE_SIZE(t) ((t)->count_ + (t)->spec_count + (t)->arr_size_)
 
 typedef struct VarMulti {

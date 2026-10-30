@@ -157,3 +157,114 @@ function test_pairs_after_incremental_spec_set()
     del_native_group(gid)
     return 5000
 end
+
+-- Deep nesting: Wrap must stay light (no recursive snapshot of the whole tree).
+-- Field get/set through the chain still works; pairs on root sees only one level.
+function test_deep_nesting_lazy_wrap()
+    local gid = new_native_group()
+    local root = new_native_obj(gid, "node", 701)
+    local cur = root
+    for i = 1, 40 do
+        local child = new_native_obj(gid, "node", 701 + i)
+        child.depth = i
+        cur.child = child
+        cur = child
+    end
+
+    -- Walk nested field gets (each level light-wraps on demand)
+    local n = root
+    for i = 1, 40 do
+        n = n.child
+        if n == nil then return 1 end
+        if n.depth ~= i then return 2 end
+    end
+    if n.child ~= nil then return 3 end
+
+    -- Nested field set through chain
+    root.child.child.depth = 99
+    if root.child.child.depth ~= 99 then return 4 end
+
+    -- pairs on root: one level only (child + whatever else); must not explode
+    local seen_child = false
+    local count = 0
+    for k, v in pairs(root) do
+        count = count + 1
+        if k == "child" then
+            seen_child = true
+            if v == nil then return 5 end
+            if v.depth ~= 1 then return 6 end
+        end
+    end
+    if not seen_child then return 7 end
+    if count < 1 then return 8 end
+
+    -- pairs after incremental writes once snapshot exists
+    root.tag = "root"
+    local seen_tag = false
+    for k, v in pairs(root) do
+        if k == "tag" and v == "root" then seen_tag = true end
+    end
+    if not seen_tag then return 9 end
+
+    del_native_group(gid)
+    return 5000
+end
+
+-- Writes before any pairs: kv-only path; first pairs builds snapshot including them.
+function test_pairs_after_lazy_writes()
+    local gid = new_native_group()
+    local obj = new_native_obj(gid, "item", 801)
+    obj.a = 1
+    obj.b = 2
+    obj.c = 3
+    obj.b = nil
+    obj.d = 4
+
+    local seen = {}
+    local count = 0
+    for k, v in pairs(obj) do
+        seen[k] = v
+        count = count + 1
+    end
+    if count ~= 3 then return 1 end
+    if seen.a ~= 1 then return 2 end
+    if seen.c ~= 3 then return 3 end
+    if seen.d ~= 4 then return 4 end
+    if seen.b ~= nil then return 5 end
+
+    -- Further incremental update after snapshot
+    obj.a = 10
+    obj.e = 5
+    seen = {}
+    count = 0
+    for k, v in pairs(obj) do
+        seen[k] = v
+        count = count + 1
+    end
+    if count ~= 4 then return 6 end
+    if seen.a ~= 10 then return 7 end
+    if seen.e ~= 5 then return 8 end
+
+    del_native_group(gid)
+    return 5000
+end
+
+-- next() on native object must see fields via EnsureNativeSpecSnapshot
+function test_next_on_native_obj()
+    local gid = new_native_group()
+    local obj = new_native_obj(gid, "item", 901)
+    obj.x = 11
+    obj.y = 22
+
+    local seen = {}
+    local k, v = next(obj, nil)
+    while k ~= nil do
+        seen[k] = v
+        k, v = next(obj, k)
+    end
+    if seen.x ~= 11 then return 1 end
+    if seen.y ~= 22 then return 2 end
+
+    del_native_group(gid)
+    return 5000
+end

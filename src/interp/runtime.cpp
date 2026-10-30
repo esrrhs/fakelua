@@ -1,5 +1,6 @@
 #include "interp/runtime.h"
 #include "interp/func_proto.h"
+#include "native/object/native_object.h"
 #include "native/table/native_table.h"
 #include "state/const_string.h"
 #include "state/state.h"
@@ -139,6 +140,7 @@ void TableExpandMulti(State *s, CVar t, int64_t start_idx, CVar v) {
 bool TableEntry(CVar t, uint32_t idx, CVar &k, CVar &v) {
     if (t.type_ != kTable || !t.data_.t) return false;
     VarTable *tbl = t.data_.t;
+    EnsureNativeSpecSnapshot(tbl);
     const uint32_t spec_cnt = tbl->spec_count;
     if (idx < spec_cnt) {
         k = tbl->spec_keys[idx];
@@ -169,6 +171,7 @@ uint32_t TableEntryCount(CVar t) {
     if (t.type_ != kTable || !t.data_.t) {
         ThrowFakeluaException("for in: not a table");
     }
+    EnsureNativeSpecSnapshot(t.data_.t);
     return t.data_.t->count_ + t.data_.t->spec_count + t.data_.t->arr_size_;
 }
 
