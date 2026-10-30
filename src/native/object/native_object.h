@@ -57,6 +57,9 @@ struct NativeField {
 struct NativeObjectSpec {
     NativeObject *obj;// C++ 堆，跨帧持久
     State *state;     // fakelua 状态（单帧内有效即可）
+    // spec_keys/spec_vals 已分配容量（>= spec_count）。增量更新插入时按需扩容，
+    // 避免 NativeSpecSet 每次写入都整表重建快照。
+    uint32_t spec_cap = 0;
 };
 
 // NativeObject: 完整实现（pImpl 的 Impl 部分）
@@ -74,7 +77,8 @@ struct NativeObject::Impl {
 // spec_get / spec_set 静态实现
 CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
 void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
-// 依据 obj 当前字段集合重建 tbl 的 spec_keys/spec_vals 快照，供 pairs()/next() 迭代
+// 依据 obj 当前字段集合重建 tbl 的 spec_keys/spec_vals 快照，供 pairs()/next() 迭代。
+// Wrap() 初次填充时调用；字段写入走 NativeSpecSet 的增量路径，不再每次全量重建。
 void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s);
 
 // 从 CVar key 提取字符串视图（VAR_STRINGID / VAR_STRING）

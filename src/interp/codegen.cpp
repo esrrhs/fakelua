@@ -1929,20 +1929,9 @@ void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, co
     }
 
     if (unit_->init_proto) {
+        // ConstAllocScope：init 期间 NewTable 创建即带 CONST_FLAG（与 JIT SET_TABLE 对齐）。
         State::ConstAllocScope const_alloc(s_);
         InterpreterExecute(s_, unit_->init_proto, nullptr, 0, nullptr);
-        for (const auto &name: ar.global_const_names) {
-            if (auto it = unit_->globals.find(name); it != unit_->globals.end()) {
-                it->second.flag_ |= 0x1;
-            }
-        }
-        for (const auto &name: file_level_names_) {
-            if (auto it = unit_->globals.find(name); it != unit_->globals.end()) {
-                if (it->second.type_ == static_cast<int>(VarType::Table) || it->second.type_ == static_cast<int>(VarType::Closure)) {
-                    it->second.flag_ |= 0x1;
-                }
-            }
-        }
     }
 }
 

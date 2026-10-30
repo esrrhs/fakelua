@@ -117,8 +117,16 @@ enum {
     VAR_CLOSURE = 8,
 };
 
-// CVar flag bits: 第 0 位表示该变量为只读（const），不可修改其值或表字段
+// CVar flag bits: 第 0 位表示该变量为只读（const），不可修改其值或表字段。
+// __fakelua_init_flag__：false=仍在 __fakelua_init（可填充 const 表）；true=init 已结束。
+// init 期间 NEWTABLE/SET_TABLE 创建的表直接打 CONST_FLAG（整棵树，含嵌套）；
+// SETTABLE 仅在 init 结束后才因 CONST_FLAG 抛错，以便构造器写字段。
 #define CONST_FLAG 0x1
+#define FL_CHECK_CONST_TABLE(t) do { \
+    if (UNLIKELY(((t).flag_ & CONST_FLAG) && __fakelua_init_flag__)) { \
+        FakeluaThrowError(_S, "attempt to modify a const table"); \
+    } \
+} while(0)
 
 /* 探测整数键 k 是否存在且值非 nil。查找逻辑与 FlGetTableInt 一致，但直接作用于
    VarTable*，供序列长度计算与缓存维护复用。必须查 spec：特化表的 1..n 只在
@@ -697,7 +705,8 @@ static inline uint32_t FlHashString(const char *str, int len) {
         __t->quick_data_[__i].hash = 0; \
     } } \
     (v).type_ = VAR_TABLE; \
-    (v).flag_ = 0; \
+    /* init 中创建 → CONST_FLAG（嵌套表同样走 SET_TABLE，整树只读）；init 后创建 → 可变 */ \
+    (v).flag_ = __fakelua_init_flag__ ? 0 : CONST_FLAG; \
     (v).data_.t = __t; \
 } while(0)
 
@@ -716,7 +725,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
 #define FL_SPEC(SpecType, v, field) (((SpecType *)(v).data_.t->spec)->field)
 #define FL_SET_SPEC(SpecType, v, field, index, val) do { \
     CVar __flsv = (val); \
-    if (UNLIKELY((v).flag_ & CONST_FLAG)) { FakeluaThrowError(_S, "attempt to modify a const table"); } \
+    FL_CHECK_CONST_TABLE(v); \
     FL_SPEC(SpecType, (v), field) = __flsv; \
     (v).data_.t->spec_vals[(index)] = __flsv; \
 } while(0)
@@ -1115,6 +1124,7 @@ static inline bool FlArrResizeInsert(VarTable *tbl, CVar k, CVar v) {
 static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
     k = NORMALIZE_TABLE_KEY(k);
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    FL_CHECK_CONST_TABLE(t);
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) { FakeluaThrowError(_S, "table index is NaN"); }
     VarTable *tbl = t.data_.t;
@@ -1150,7 +1160,7 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
 
 static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
-    if (UNLIKELY(t.flag_ & CONST_FLAG)) { FakeluaThrowError(_S, "attempt to modify a const table"); }
+    FL_CHECK_CONST_TABLE(t);
     VarTable *tbl = t.data_.t;
     if (tbl->spec_set) {
         CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
@@ -1188,7 +1198,7 @@ static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
 }
 
 static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
-    if (LIKELY(t.type_ == VAR_TABLE && !(t.flag_ & CONST_FLAG))) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
         VarTable *tbl = t.data_.t;
         uint64_t idx = (uint64_t)k - 1;
         /* 新旧值都非 nil 时序列长度不变，可跳过缓存维护。*/
@@ -1254,7 +1264,7 @@ static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
 
 static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
-    if (UNLIKELY(t.flag_ & CONST_FLAG)) { FakeluaThrowError(_S, "attempt to modify a const table"); }
+    FL_CHECK_CONST_TABLE(t);
     VarTable *tbl = t.data_.t;
     if (tbl->spec_set) {
         CVar k; k.type_ = VAR_STRINGID; k.data_.i = str_id;

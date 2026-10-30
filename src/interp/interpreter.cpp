@@ -45,8 +45,8 @@ CVar LookupGlobal(FuncProto *proto, std::string_view name) {
 }
 
 void SetGlobal(FuncProto *proto, std::string_view name, CVar v) {
-    // 文件级 local 表会打 CONST_FLAG，只禁止 SETTABLE 改内容。
-    // 重绑定（g = {x=1}）对齐 CGen 对 static CVar 的直接赋值，必须放行。
+    // init 内 NewTable 已带 CONST_FLAG，只禁止 SETTABLE 改内容。
+    // 重绑定（g = {x=1}）对齐 CGen 对 static CVar 的直接赋值，必须放行（编译期已拒绝用户再赋）。
     auto &g = proto->unit->globals;
     if (auto it = g.find(name); it != g.end()) {
         it->second = v;

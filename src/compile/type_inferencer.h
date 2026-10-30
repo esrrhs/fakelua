@@ -288,9 +288,20 @@ private:
     // 正在推断 __fakelua_init。它里面的 x = func() 是文件级复杂初值的唯一赋值点，不是再赋值。
     bool in_init_function_ = false;
     std::unordered_map<std::string, InferredType> file_level_types_;
-    // 文件级数值字面量 local 的 initializer 节点。InferAssign 用它判断赋值目标是不是
-    // 这条常量绑定（对函数内同名遮蔽免疫）。__fakelua_init 里的赋值不查这张表。
+    // 文件级 local 的 initializer 节点（字面量数值或预处理后的 nil 等）。绑定语义等同
+    // C++ const：用户函数里禁止整槽再赋；__fakelua_init 内的一次初始化除外。
+    // InferAssign 经 env.LookupInitNode 判定（对函数内同名遮蔽免疫）。字段赋值
+    // （x.a=1）预处理为 FAKELUA_SET_TABLE，不经 InferAssign。
     std::unordered_set<const SyntaxTreeInterface *> file_level_init_exps_;
+    // 文件级函数绑定：local function、函数字面量初始化的 local、单名 function 声明。
+    // 这类名字按「名字即函数」编译——读取处直接构造闭包（CGen FlMakeClosure / 解释器
+    // named_protos_），没有可写槽位；再赋值在 CGen 生成对右值赋值的非法 C（TCC 还会
+    // 静默丢弃），在解释器里被静默忽略。InferAssign 据此在编译期拒绝。
+    // 对 LocalFunction / Function 声明，env 里没有同名定义，需配合 env.Has 排除遮蔽。
+    std::unordered_set<std::string> file_level_func_names_;
+    // 函数字面量初始化的文件级 local：initializer 节点入此表，判定方式与
+    // file_level_init_exps_ 相同（经 env.LookupInitNode，天然对遮蔽免疫）。
+    std::unordered_set<const SyntaxTreeInterface *> file_level_func_init_exps_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;
