@@ -584,6 +584,7 @@ TEST(test_native, test_native_lua_obj_ops) {
                      {"test_string_field"},
                      {"test_object_field"},
                      {"test_pairs_on_native_obj"},
+                     {"test_pairs_after_incremental_spec_set"},
                      {"test_int_bool_not_equal_cross"},
              })) {
             inter::Reset(s);

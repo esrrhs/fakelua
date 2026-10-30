@@ -524,12 +524,11 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                         Out() << "static const double " << cname << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else {
-                    // 非数值字面量：保留 static CVar 形式。
-                    // 注意：这里不能加 const，因为 init 函数里需要赋值。
-                    // CONST_FLAG 会在 init 函数赋值后由 CompileStmtAssign 注入。
+                    // 非数值字面量：保留 static CVar（不可 C const，因 __fakelua_init 要写一次）。
+                    // 文件级绑定：推断期禁整槽再赋；表在 init 里经 SET_TABLE 创建即带 CONST_FLAG。
+                    // 记入 global_const_table_vars_，供 CompileVar 识别已声明的文件级 CVar。
                     const std::string cvar_init = exp ? CompileExp(exp) : "(CVar){.type_ = VAR_NIL}";
                     Out() << "static CVar " << cname << " = " << cvar_init << ";\n";
-                    // 全局非数值变量（表/闭包）记录到集合，后续在 init 函数赋值后注入 CONST_FLAG。
                     global_const_table_vars_.insert(cname);
                 }
             }
@@ -970,10 +969,8 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
     out << func_temp_decls_.str();
     out << body_ss.str();
     if (func_name == kInitFunctionName) {
-        // 在 init 函数末尾注入 CONST_FLAG，确保全局表已完全初始化后再标记为只读
-        for (const auto &name: global_const_table_vars_) {
-            out << "    " << name << ".flag_ = CONST_FLAG;\n";
-        }
+        // init 内 SET_TABLE 已给整棵表树打 CONST_FLAG；此处只标记 init 结束，
+        // 之后再 SETTABLE const 表才会抛错。
         out << "    __fakelua_init_flag__ = true;\n";
     }
 
@@ -1652,7 +1649,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     } else {
         const std::string rhs = CompileExp(exps[0]);
         Out() << GenTab() << CompileVar(v_ptr) << " = " << rhs << ";\n";
-        // 全局非数值变量的 CONST_FLAG 注入已移至 init 函数末尾（CompileFuncBody 中处理）
+        // CONST_FLAG 由 init 内 SET_TABLE 创建时打上，不在赋值处注入
     }
 }
 

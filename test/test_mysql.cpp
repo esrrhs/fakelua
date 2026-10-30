@@ -276,15 +276,22 @@ TEST(test_mysql, closure_callback_survives_frame_reset) {
     CompileConfig config;
     CompileFile(s, "./mysql/test_mysql_contract.lua", config);
 
-    int64_t armed = 0;
-    CallAll(s, "MysqlContractTest.arm_cross_frame", armed);
-    EXPECT_EQ(armed, 1);
+    // 各引擎各自 arm；jit_id 区分 global native holder，避免共享 State 上互相覆盖。
+    for (const auto jit_type: AllJitTypes()) {
+        SCOPED_TRACE(::testing::Message() << "arm jit=" << JitTypeName(jit_type));
+        int64_t armed = 0;
+        Call(s, jit_type, "MysqlContractTest.arm_cross_frame", armed, static_cast<int64_t>(jit_type));
+        EXPECT_EQ(armed, 1);
+    }
     // 顶层 Call 返回后显式再 Reset 一次，模拟宿主在帧末回收临时 arena。
     inter::Reset(s);
 
-    int64_t hits = 0;
-    CallAll(s, "MysqlContractTest.pump_cross_frame", hits);
-    EXPECT_EQ(hits, 7);
+    for (const auto jit_type: AllJitTypes()) {
+        SCOPED_TRACE(::testing::Message() << "pump jit=" << JitTypeName(jit_type));
+        int64_t hits = 0;
+        Call(s, jit_type, "MysqlContractTest.pump_cross_frame", hits, static_cast<int64_t>(jit_type));
+        EXPECT_EQ(hits, 7);
+    }
     FakeluaDeleteState(s);
 }
 
