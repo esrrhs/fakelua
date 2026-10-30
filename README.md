@@ -152,6 +152,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **Debug library**: No `debug.*` standard library.
 - **Implicit type coercion**: No string→number conversion in arithmetic (`"10" + 1` errors).
 - **Implicit globals**: Local variables must be declared with `local`; implicit global declarations are rejected.
+- **No file-level whole-slot reassign / deep-const file-level tables**: a file-level binding is C++-style `const` after init; tables created in `__fakelua_init` get `CONST_FLAG` (including nested) and cannot mutate fields. Use NativeObject / `new_global_obj` for mutable cross-frame state (see [File-level locals vs NativeObject](#file-level-locals-vs-nativeobject-read-this)).
 - **`json.encode` rejects array holes**: integer keys mean array intent, so a table whose keys are positive integers but not contiguous from 1 (`t[1]="a"; t[3]="c"`, or even `{[1001]=...}`) is an error instead of an object with `"1"`/`"3"` keys — the wire shape must not change silently. Keep protocol arrays gap-free (use `""` or `{}` placeholders, not nil), and use string keys (or `container.map`) for id-keyed maps. `#t` still stops at the first nil, like standard Lua; `serialize.encode/decode` keeps non-contiguous keys.
 - **Runtime errors carry the Lua source location**: `attempt to perform arithmetic on non-numeric value at main.lua:4` on all three backends, including errors raised inside native functions.
 
@@ -500,7 +501,72 @@ Lua source
 | `state` | FakeLua runtime state management |
 | `var` | Dynamic value CVar and conversion utilities |
 
+## File-level locals vs NativeObject (read this)
+
+Callers often treat file-level `local` like a mutable global table from standard Lua, or miss that a NativeObject allows `x.a = 1` and can hold cross-frame global state. These rules pair with arena frame reset — get them wrong and you hit a compile error or a runtime "attempt to modify a const table".
+
+### 1. File-level `local` ≡ C++ `const` binding
+
+A top-level `local` (literal or complex initializer) **cannot be whole-slot reassigned** after init — the name is bound to one value and cannot be replaced:
+
+```lua
+local n = 1
+local t = {a = 1}
+local x = compute()   -- complex init runs once in generated __fakelua_init()
+
+function bump()
+    n = 2          -- ❌ compile-time: cannot reassign file-level constant 'n'
+    t = {a = 2}    -- ❌ same (whole-slot rebind, not a field write)
+end
+```
+
+Think of it as C++ `const T x = ...;`: after initialization you cannot assign a new value to `x`.
+
+### 2. Tables created in `__fakelua_init` are deep-const (`CONST_FLAG`)
+
+File-level tables (including nested ones) get `CONST_FLAG` when created in `__fakelua_init`. After init finishes, **field mutation is forbidden**:
+
+```lua
+local cfg = {hp = 100, nested = {x = 1}}
+
+function tick()
+    cfg.hp = 200           -- ❌ runtime: attempt to modify a const table
+    cfg.nested.x = 2       -- ❌ same (deep-const; nested tables are read-only too)
+end
+```
+
+Why: plain Lua tables/strings live in the arena, which `State::Reset()` clears every frame. Hanging a mutable Lua table as a "global" is unsafe and fights the frame-reset model. File-level tables are for read-only config / constant structure — not mutable globals.
+
+### 3. File-level NativeObject: binding fixed, fields mutable
+
+NativeObject data lives on the **C++ heap**, isolated from the arena, and survives across frames. A file-level `local` is still a const binding (no `x = other`), but **`x.a = 1` field reads/writes are allowed and intended**:
+
+```lua
+local counter = new_global_obj("counter", "counter")
+counter.n = 0
+
+function tick()
+    counter.n = counter.n + 1   -- ✅ fields mutable; state survives frames
+    -- counter = new_global_obj("other", "counter")  -- ❌ cannot replace the binding
+end
+```
+
+So a file-level NativeObject (via `new_global_obj` / group `new_native_obj`) can act as **mutable cross-frame global state**.
+
+### 4. What to use
+
+| Need | Use |
+|------|-----|
+| Read-only config / constants | File-level `local` (numbers, strings, tables) |
+| Mutable cross-frame state | `new_global_obj` / `new_native_obj`, or `container.*` (also NativeObject-backed) |
+| Per-frame scratch | Ordinary tables inside functions (reclaimed with the arena) |
+
+**Prefer NativeObject / `new_global_obj` for mutable cross-frame state; do not use file-level Lua tables for that.** Full API: the NativeObject section in [src/native/README.md](src/native/README.md).
+
 ## FAQ
+
+### Q: Why can't I mutate a file-level table, but NativeObject allows `x.a = 1`?
+A: See [File-level locals vs NativeObject (read this)](#file-level-locals-vs-nativeobject-read-this) above. Short version: file-level `local` is a C++-style const binding; tables from `__fakelua_init` are deep-const; NativeObject lives on the C++ heap — the binding is fixed, fields are mutable, and that is the right place for cross-frame mutable state.
 
 ### Q: Why choose a Lua subset over full Lua?
 A: Certain dynamic features of full Lua (e.g., metatables) are difficult to compile efficiently. The subset focuses on statically analyzable common patterns, achieving near-C performance through type inference and JIT compilation.

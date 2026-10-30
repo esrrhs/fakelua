@@ -152,6 +152,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **debug 标准库**：不支持 `debug.*`。
 - **隐式类型转换**：算术中不做字符串→数字的隐式转换（`"10" + 1` 会报错）。
 - **隐式全局变量**：局部变量必须使用 `local` 声明，不支持隐式全局赋值。
+- **文件级 local 整槽再赋 / 文件级 Table 深 const**：文件级绑定等价于 C++ `const`，初始化后不可整槽再赋；`__fakelua_init` 创建的 Table 带 `CONST_FLAG`（含嵌套）不可改字段。跨帧可变状态请用 NativeObject / `new_global_obj`（见 [文件级 local 与 NativeObject](#文件级-local-与-nativeobject必读)）。
 - **`json.encode` 拒绝数组空洞**：整数键就代表数组意图——键都是正整数但不从 1 起连续的表
   （`t[1]="a"; t[3]="c"`，甚至 `{[1001]=...}`）一律报错，不再退化成 `{"1":"a","3":"c"}`：上线的
   数据形状不许静默改变。协议数组请保持无洞（用 `""` 或 `{}` 占位，别留 nil）；要按 id 建映射就
@@ -495,7 +496,72 @@ Lua 源码
 | `state` | FakeLua 运行时状态管理 |
 | `var` | 动态值 CVar 和转换工具 |
 
+## 文件级 local 与 NativeObject（必读）
+
+调用方经常把文件级 `local` 当成标准 Lua 里可随便改的「全局表」，或者不知道 NativeObject 可以直接 `x.a = 1`、还能充当跨帧全局状态。下面几条与 Arena 帧重置配套，弄错就会编译失败或运行期抛 "attempt to modify a const table"。
+
+### 1. 文件级 local ≡ C++ `const` 绑定
+
+文件顶层的 `local`（无论字面量还是复杂表达式初值）在初始化之后**整槽不可再赋**——名字绑死对象，不能换成另一个值：
+
+```lua
+local n = 1
+local t = {a = 1}
+local x = compute()   -- 复杂初值在生成的 __fakelua_init() 里执行一次
+
+function bump()
+    n = 2          -- ❌ 编译期：cannot reassign file-level constant 'n'
+    t = {a = 2}    -- ❌ 同上（整槽再赋，不是改字段）
+end
+```
+
+把它想成 C++ 的 `const T x = ...;`：初始化后不能给 `x` 赋新值。
+
+### 2. `__fakelua_init` 里创建的 Table 是深 const（`CONST_FLAG`）
+
+文件级 Table（含嵌套表）在 `__fakelua_init` 创建时即打上 `CONST_FLAG`。init 结束后**不能改字段**：
+
+```lua
+local cfg = {hp = 100, nested = {x = 1}}
+
+function tick()
+    cfg.hp = 200           -- ❌ 运行期：attempt to modify a const table
+    cfg.nested.x = 2       -- ❌ 同上（深 const，嵌套一并只读）
+end
+```
+
+原因：普通 Lua Table / String 等分配在 Arena 里，每帧 `State::Reset()` 会清空。把可变 Lua table 挂成「全局」既不安全，也和帧重置模型冲突。文件级表适合只读配置或常量结构，不要当可变全局。
+
+### 3. 文件级 NativeObject：绑定不可换，字段可以改
+
+NativeObject 的数据在 **C++ 堆**上，与 Arena 隔离，跨帧存活。文件级 `local` 仍然是 const 绑定（不能 `x = other`），但 **`x.a = 1` 字段读写是允许且推荐的**：
+
+```lua
+local counter = new_global_obj("counter", "counter")
+counter.n = 0
+
+function tick()
+    counter.n = counter.n + 1   -- ✅ 字段可变，跨帧保留
+    -- counter = new_global_obj("other", "counter")  -- ❌ 不能替换绑定本身
+end
+```
+
+因此文件级 NativeObject（或 `new_global_obj` / 组内 `new_native_obj`）可以充当**可变的跨帧全局状态**。
+
+### 4. 怎么选
+
+| 需求 | 用法 |
+|------|------|
+| 只读配置 / 常量 | 文件级 `local`（数值、字符串、Table） |
+| 可变跨帧状态 | `new_global_obj` / `new_native_obj`，或 `container.*`（同样挂在 NativeObject 上） |
+| 每帧临时数据 | 函数内普通 Table（帧末随 Arena 回收） |
+
+**优先用 NativeObject / `new_global_obj` 做可变跨帧状态，不要用文件级 Lua Table。** 完整 API 见 [src/native/README.zh.md](src/native/README.zh.md) 的 NativeObject 一节。
+
 ## 常见问题
+
+### Q: 为什么文件级 table 不能改，但 NativeObject 可以 `x.a = 1`？
+A: 见上文 [文件级 local 与 NativeObject（必读）](#文件级-local-与-nativeobject必读)。简要说：文件级 `local` 是 C++ 式 const 绑定；`__fakelua_init` 里建的 Table 深 const；NativeObject 数据在 C++ 堆，绑定不可换但字段可改，适合跨帧可变状态。
 
 ### Q: 为什么选择 Lua 子集而不是完整 Lua？
 A: 完整 Lua 的某些动态特性（如 metatable）很难高效编译。子集实现聚焦于可静态分析的常见模式，通过类型推导和 JIT 编译获得接近 C 的性能。
