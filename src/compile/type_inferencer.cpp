@@ -655,21 +655,20 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
         }
         SyntaxTreeInterface *init_node = (i < exps.size()) ? exps[i].get() : nullptr;
         tctx.env.Define(names[i], type, init_node);
-        // 文件顶层数值类型局部变量（非试推断且作用域深度 <= 2）：
-        // 将其记录到 file_level_types_，供 RunTrialInference
-        // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
-        if (!tctx.IsTrialInference() && tctx.env.IsAtFileScope() && IsNumericInferredType(type)) {
-            file_level_types_[names[i]] = type;
-            // 同时记录 initializer 节点：文件级数值字面量是常量。
-            // local x = func() 在预处理里已经改成 local x = nil，不会进这张表。
-            if (init_node) {
+        // 文件顶层局部变量（非试推断且作用域深度 <= 2）：
+        // 数值类型记入 file_level_types_，供 RunTrialInference 重置 env 后重注入。
+        // 绑定语义等同 C++ const：字面量与复杂初值（预处理降为 nil，真值在
+        // __fakelua_init）均登记到 file_level_init_exps_，用户函数整槽再赋编译期拒绝。
+        // 函数字面量初始化走 file_level_func_init_exps_（报「function」而非「constant」）。
+        if (!tctx.IsTrialInference() && tctx.env.IsAtFileScope()) {
+            if (IsNumericInferredType(type)) {
+                file_level_types_[names[i]] = type;
+            }
+            if (i < exps.size() && IsFunctionDefExp(exps[i])) {
+                file_level_func_init_exps_.insert(init_node);
+            } else if (init_node) {
                 file_level_init_exps_.insert(init_node);
             }
-        }
-        // 函数字面量初始化的文件级 local：名字绑定到该函数，没有可再赋值的槽位，
-        // 与文件级 local function 一样按函数绑定处理（见 file_level_func_init_exps_）。
-        if (!tctx.IsTrialInference() && tctx.env.IsAtFileScope() && i < exps.size() && IsFunctionDefExp(exps[i])) {
-            file_level_func_init_exps_.insert(init_node);
         }
     }
 
@@ -706,9 +705,9 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
 
     if (const auto *init = tctx.env.LookupInitNode(name)) {
         tctx.var_define_nodes[var.get()] = init;
-        // 文件级数值字面量是 static const，用户函数里再赋值直接报编译期错误。
-        // __fakelua_init 除外：local x = func() 不能做 C 静态初值，预处理把它改成
-        // local x = nil，并只在 __fakelua_init 里写一次 x = func()。那是初始化，不是再赋值。
+        // 文件级 local 绑定 ≡ C++ const（字面量或复杂初值均然）。用户函数整槽再赋报错。
+        // __fakelua_init 除外：复杂初值预处理成 nil 后只在那里写一次，是初始化不是再赋值。
+        // 字段赋值 x.a=1 已预处理为 FAKELUA_SET_TABLE，不会进入本路径。
         if (!in_init_function_ && file_level_init_exps_.contains(init)) {
             ThrowFakeluaException(std::format("cannot reassign file-level constant '{}' at {}", name, SyntaxTreeLocationStr(file_name_, assign)));
         }

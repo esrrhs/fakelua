@@ -3084,9 +3084,8 @@ TEST(infer, test_global_const_float) {
     });
 }
 
-// 文件级数值字面量是常量。函数里再赋值必须在编译期报错，并带上 Lua 位置。
-// local x = func() 不走这条路径：C 静态初值不能调用函数，预处理改成 local x = nil，
-// 只在 __fakelua_init 里赋值一次。见 test_global_init_multi_names_funcall。
+// 文件级 local 绑定 ≡ C++ const（字面量或复杂初值均然）。整槽再赋必须编译期报错并带 Lua 位置。
+// 复杂初值仍经 __fakelua_init 写一次（见 test_global_init_multi_names_funcall / test_global_const_complex_reassign）。
 TEST(infer, test_global_const_reassigned_not_const) {
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
@@ -4362,50 +4361,35 @@ TEST(infer, test_table_spec_reassign_to_table) {
     });
 }
 
-// 跨函数 global 回退 + 冲突 if 分支的 soundness 测试。
-// 顶层 init 让全局变量 g 获得 spec_a；非 init 函数 foo 里 g 被冲突 if 分支覆盖为
-// spec_x / spec_y，之后读取 g.a。原版 CGen 普通编译会把 global[g] 也冲掉（汇合擦除），
-// 使 g.a 降级为 FlGetTableStrId 动态路径；若前向分析未复刻该降级，会生成 FL_SPEC
-// 裸指针偏移读到错误结构体内存（因为运行时 g 的真实形状是 {x=1} 或 {y=2}，并无字段 a）。
-// 预期：cond=1 → g={x=1}, g.a=nil→0；cond=0 → g={y=2}, g.a=nil→0。
+// 文件级表绑定 ≡ C++ const：整槽再赋 g={...} 编译期报错（旧「冲突覆盖特化降级」场景不再可达）。
 TEST(infer, test_table_spec_global_conflict_ifelse) {
-    const auto code = InferGetCCode("./infer/test_table_spec_global_conflict_ifelse.lua");
-    // 顶层 init 的 g = {a=100} 仍会特化。
-    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // AnalyzeTableShapes 按函数帧隔离字段并集：init 帧 g 的合并为 {a}，foo 帧 g 的合并为 {x,y}，
-    // 故 foo 读 g.a 时标注为 spec_{x,y}，IsSpecField(spec_{x,y}, "a")=false → FlGetTableStrId 动态路径，
-    // 安全读到 nil（不会按 spec_a 裸指针偏移读到错内存）。
-    ASSERT_NE(code.find("FlGetTableStrId(g,"), std::string::npos);
-
-    InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_table_spec_global_conflict_ifelse.lua", {.debug_mode = debug_mode});
-        int64_t ret = 0;
-        // cond=1: g 实际为 {x=1}, g.a=nil → 0
-        Call(s, type, "foo", ret, 1);
-        ASSERT_EQ(ret, 0);
-        // cond=0: g 实际为 {y=2}, g.a=nil → 0
-        Call(s, type, "foo", ret, 0);
-        ASSERT_EQ(ret, 0);
-    });
+    const auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    try {
+        CompileFile(s, "./infer/test_table_spec_global_conflict_ifelse.lua", {});
+        FakeluaDeleteState(s);
+        FAIL() << "reassigning file-level table binding should fail at compile time";
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("cannot reassign file-level constant 'g'"), std::string::npos);
+        EXPECT_NE(msg.find("test_table_spec_global_conflict_ifelse.lua"), std::string::npos);
+        FakeluaDeleteState(s);
+    }
 }
 
-// 跨函数 global 特化传递：init 给 g 特化（spec_a），foo 帧冲突 if 分支覆盖后读 g.a。
-// 同样因帧隔离合并布局为 spec_{x,y}，读 g.a 走 FlGetTableStrId 动态路径 → 安全。
 TEST(infer, test_table_spec_global_crossfunc) {
-    const auto code = InferGetCCode("./infer/test_table_spec_global_crossfunc.lua");
-    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    ASSERT_NE(code.find("FlGetTableStrId(g,"), std::string::npos);
-
-    InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_table_spec_global_crossfunc.lua", {.debug_mode = debug_mode});
-        int64_t ret = 0;
-        // cond=1: g={x=1}, g.a=nil → 0
-        Call(s, type, "test_global_crossfunc", ret, 1);
-        ASSERT_EQ(ret, 0);
-        // cond=0: g={y=2}, g.a=nil → 0
-        Call(s, type, "test_global_crossfunc", ret, 0);
-        ASSERT_EQ(ret, 0);
-    });
+    const auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    try {
+        CompileFile(s, "./infer/test_table_spec_global_crossfunc.lua", {});
+        FakeluaDeleteState(s);
+        FAIL() << "reassigning file-level table binding should fail at compile time";
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("cannot reassign file-level constant 'g'"), std::string::npos);
+        EXPECT_NE(msg.find("test_table_spec_global_crossfunc.lua"), std::string::npos);
+        FakeluaDeleteState(s);
+    }
 }
 
 // 逆向传播测试：x 初始赋 1 并在后面对其重新赋 string "hello"。
@@ -4786,16 +4770,20 @@ TEST(infer, test_global_func_shadow_local_ok) {
     });
 }
 
-// 使用方（1627 明末项目）报告的真实形态：非常量初始化的文件级 local 允许异型重绑
-// （number -> table）与同型整体重绑，三后端语义一致（bug 报告问题 1 的期望语义）。
+// 复杂初值经 __fakelua_init 后仍是文件级常量：异型整槽再赋（number→table）编译期报错。
 TEST(infer, test_global_rebind_heterogeneous) {
+    ExpectCompileErrorContains("./infer/test_global_rebind_heterogeneous.lua", "cannot reassign file-level constant 'stat'");
+}
+
+// 复杂初值 local x = f() 再赋同样报错。
+TEST(infer, test_global_const_complex_reassign) {
+    ExpectCompileErrorContains("./infer/test_global_const_complex_reassign.lua", "cannot reassign file-level constant 'x'");
+}
+
+// 字段赋值 t.a = 1 编译期允许（走 FAKELUA_SET_TABLE）；运行期仍用既有 CONST_FLAG 模型。
+TEST(infer, test_global_const_field_assign_ok) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_global_rebind_heterogeneous.lua", {.debug_mode = debug_mode});
-        int ret = 0;
-        Call(s, type, "main.init", ret);
-        ASSERT_EQ(ret, 0);
-        ret = 0;
-        Call(s, type, "main.update", ret);
-        ASSERT_EQ(ret, 0);
+        CompileFile(s, "./infer/test_global_const_field_assign_ok.lua", {.debug_mode = debug_mode});
+        // 仅验证编译通过；字段写入的运行期行为由 CONST_FLAG / nativeobj 既有路径覆盖。
     });
 }
