@@ -155,28 +155,7 @@ void RegisterOsLibraryApi(State *s) {
 
         // "*t" format: return a table with date fields
         if (fmt == "*t") {
-            // 分配带 bucket 的表（9 个字段 > quick_data_ 的 8 槽）
-            auto &alloc = state->GetValueAllocator();
-            auto *vtbl = static_cast<VarTable *>(alloc.Alloc(sizeof(VarTable)));
-            *vtbl = VarTable{};
-            for (auto &qd: vtbl->quick_data_) {
-                qd.key.type_ = static_cast<int>(VarType::Nil);
-                qd.val.type_ = static_cast<int>(VarType::Nil);
-            }
-            vtbl->free_list_idx_ = VarTable::INVALID_INDEX;
-            // 预分配 bucket（16 = 最小 2 的幂 ≥ 9）
-            const uint32_t bucket_count = 16;
-            vtbl->bucket_count_ = bucket_count;
-            vtbl->nodes_ = static_cast<VarTable::TableNode *>(alloc.Alloc(sizeof(VarTable::TableNode) * bucket_count));
-            vtbl->active_list_ = static_cast<uint32_t *>(alloc.Alloc(sizeof(uint32_t) * bucket_count));
-            for (uint32_t i = 0; i < bucket_count; ++i) {
-                vtbl->nodes_[i].entry.key.type_ = static_cast<int>(VarType::Nil);
-                vtbl->nodes_[i].entry.val.type_ = static_cast<int>(VarType::Nil);
-                vtbl->nodes_[i].next = VarTable::INVALID_INDEX;
-            }
-            CVar tbl_cvar{};
-            tbl_cvar.type_ = static_cast<int>(VarType::Table);
-            tbl_cvar.data_.t = vtbl;
+            CVar tbl_cvar = TableHelper::CreateTable(state);
             TableHelper::SetTableStrId(state, tbl_cvar, "year", inter::NativeToFakeluaInt(state, static_cast<int64_t>(tm_buf.tm_year) + 1900));
             TableHelper::SetTableStrId(state, tbl_cvar, "month", inter::NativeToFakeluaInt(state, static_cast<int64_t>(tm_buf.tm_mon) + 1));
             TableHelper::SetTableStrId(state, tbl_cvar, "day", inter::NativeToFakeluaInt(state, tm_buf.tm_mday));

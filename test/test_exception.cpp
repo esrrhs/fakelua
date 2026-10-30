@@ -1622,9 +1622,35 @@ TEST(exception, const_table_modify_error) {
 
     CompileFile(s, "./exception/test_const_table_modify_error.lua", {});
 
+    const char *throw_fns[] = {
+        "test_modify_const",
+        "test_sort_const",
+        "test_sort_single_const",
+        "test_move_into_const",
+        "test_move_empty_into_const",
+        "test_insert_const",
+        "test_insert_float_pos_const",
+        "test_remove_const",
+        "test_remove_oob_valid_const",
+        "test_modify_packed_const",
+        "test_copy_const_tbl_to_table_modify",
+    };
+
     for (auto jit_type: AllJitTypes()) {
-        double res = 0;
-        EXPECT_THROW(Call(s, jit_type, "test_modify_const", res), std::exception);
+        for (const char *fn: throw_fns) {
+            double res = 0;
+            try {
+                Call(s, jit_type, fn, res);
+                ADD_FAILURE() << JitTypeName(jit_type) << " " << fn << " should have thrown";
+            } catch (const std::exception &e) {
+                const std::string msg = e.what();
+                EXPECT_NE(msg.find("attempt to modify a const table"), std::string::npos) << JitTypeName(jit_type) << " " << fn << ": " << msg;
+            }
+        }
+
+        int64_t num_res = 0;
+        Call(s, jit_type, "test_copy_const_num_to_table", num_res);
+        EXPECT_EQ(num_res, 1) << JitTypeName(jit_type);
     }
 }
 
