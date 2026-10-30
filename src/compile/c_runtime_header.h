@@ -9,7 +9,7 @@ namespace fakelua {
 
 // The C runtime header content as a raw string literal.
 // The _S (State pointer) is prepended by CGen::GenerateHeader() before this content.
-inline constexpr const char *kCRuntimeHeader = R"(
+inline constexpr const char *kCRuntimeHeader = R"FL_RUNTIME(
 #include <math.h>
 
 // 运行期报错定位槽。字段顺序与类型必须和 state/state.h 的 fakelua::LuaLoc 一致：
@@ -211,6 +211,11 @@ static inline void FlSeqNoteIntSet(VarTable *t, int64_t k, bool is_nil) {
 
 /* NativeObject Wrap 惰性快照：pairs/GET_TABLE_ENTRY 读 spec_count 前调用。非 Native 表 no-op。 */
 extern void FlEnsureNativeSpecSnapshot(VarTable *t);
+static inline void FlEnsureNativeSpecSnapshotInline(VarTable *t) {
+    if (UNLIKELY(t != NULL && t->spec != NULL)) {
+        FlEnsureNativeSpecSnapshot(t);
+    }
+}
 
 #define TABLE_SIZE(t) ((t)->count_ + (t)->spec_count + (t)->arr_size_)
 
@@ -1762,34 +1767,72 @@ static inline void FlEnsureTableBuckets(VarTable *tbl, uint32_t need) {
     }
 }
 
-// table.move 内联实现（非重叠 / 不同表的前向拷贝；重叠同表走 native）
+// 空表预扩容的节点数组必须能一次分配出来（与 native_table.cpp 的 MovePresizeFits 一致）。
+static inline int FlMovePresizeFits(uint64_t count) {
+    if (count == 0 || count > 0xFFFFFFFFULL) return 0;
+    uint32_t min_buckets = (uint32_t)count;
+    uint32_t buckets = min_buckets - 1;
+    buckets |= buckets >> 1; buckets |= buckets >> 2; buckets |= buckets >> 4;
+    buckets |= buckets >> 8; buckets |= buckets >> 16; buckets += 1;
+    if (buckets < min_buckets) return 0;
+    uint64_t total = (uint64_t)buckets + (uint64_t)(buckets / 2);
+    uint64_t bytes = total * sizeof(TableNode) + total * sizeof(uint32_t);
+    return bytes <= (1024ULL * 1024ULL);
+}
+
+// table.move 内联实现（完整对齐 Lua 5.4 边界/回绕检查与同表重叠后向拷贝）
 static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar dst) {
-    if (UNLIKELY(src.type_ != VAR_TABLE)) {
-        FakeluaThrowError(_S, "bad argument to table.move: table expected");
+    if (dst.type_ == VAR_NIL) dst = src;
+    if (UNLIKELY(src.type_ != VAR_TABLE || !src.data_.t || dst.type_ != VAR_TABLE || !dst.data_.t)) {
+        FakeluaThrowError(_S, "bad argument to 'table.move' (table expected)");
     }
-    if (dst.type_ != VAR_TABLE || !dst.data_.t) dst = src;
     FL_CHECK_CONST_TABLE(dst);
-    if (e < f) return dst;
-    uint64_t count = (uint64_t)e - (uint64_t)f + 1;
-    if (count == 0 || count > 10000000ULL) return dst;
-    int64_t icount = (int64_t)count;
-    int same = (src.data_.t == dst.data_.t);
-    if (same && t > f && t <= e) {
-        // 后向重叠：回退完整 native 语义
-        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "table.move", 5, src,
-            (CVar){.type_ = VAR_INT, .data_.i = f},
-            (CVar){.type_ = VAR_INT, .data_.i = e},
-            (CVar){.type_ = VAR_INT, .data_.i = t},
-            dst);
+    if (e >= f) {
+        uint64_t count = (uint64_t)e - (uint64_t)f + 1;
+        if (UNLIKELY(count == 0 || count > (uint64_t)INT64_MAX)) {
+            FakeluaThrowError(_S, "bad argument #3 to 'table.move' (too many elements to move)");
+        }
+        uint64_t last_off = count - 1;
+        if (UNLIKELY(t > 0 && (uint64_t)t > (uint64_t)INT64_MAX - last_off)) {
+            FakeluaThrowError(_S, "bad argument #4 to 'table.move' (destination wrap around)");
+        }
+        int64_t icount = (int64_t)count;
+        int same = (src.data_.t == dst.data_.t);
+        if (!same && dst.data_.t->count_ == 0 && icount > 8 && t != (int64_t)dst.data_.t->arr_size_ + 1 && FlMovePresizeFits(count)) {
+            FlEnsureTableBuckets(dst.data_.t, (uint32_t)icount);
+        }
+        if (!same || t <= f || t > e) {
+            int64_t i;
+            for (i = 0; i < icount; ++i) {
+                CVar val = FlGetTableInt(src, (int64_t)((uint64_t)f + (uint64_t)i));
+                FlSetTableInt(dst, (int64_t)((uint64_t)t + (uint64_t)i), val);
+            }
+        } else {
+            int64_t i;
+            for (i = icount - 1; i >= 0; --i) {
+                CVar val = FlGetTableInt(src, (int64_t)((uint64_t)f + (uint64_t)i));
+                FlSetTableInt(dst, (int64_t)((uint64_t)t + (uint64_t)i), val);
+            }
+        }
     }
-    if (!same && !(dst.flag_ & CONST_FLAG) && dst.data_.t->count_ == 0 && icount > 8 && t != (int64_t)dst.data_.t->arr_size_ + 1) {
-        FlEnsureTableBuckets(dst.data_.t, (uint32_t)icount);
-    }
-    { int64_t i; for (i = 0; i < icount; ++i) {
-        CVar val = FlGetTableInt(src, f + i);
-        FlSetTableInt(dst, t + i, val);
-    } }
     return dst;
+}
+
+// table.unpack 内联实现（完整对齐 Lua 5.4 区间回绕与单块分配上限检查）
+static inline CVar FlTableUnpack(CVar tbl, int64_t start_i, int64_t end_j) {
+    if (start_i > end_j) return FlAllocMulti(_S, 0);
+    uint64_t count64 = (uint64_t)end_j - (uint64_t)start_i + 1;
+    uint64_t max_unpack = (1024ULL * 1024ULL - sizeof(VarMulti)) / sizeof(CVar);
+    if (UNLIKELY(count64 == 0 || count64 > 2147483647ULL || count64 > max_unpack)) {
+        FakeluaThrowError(_S, "too many results to unpack");
+    }
+    uint32_t count = (uint32_t)count64;
+    CVar multi = FlAllocMulti(_S, count);
+    uint32_t i;
+    for (i = 0; i < count; ++i) {
+        multi.data_.m->vars[i] = FlGetTableInt(tbl, (int64_t)((uint64_t)start_i + (uint64_t)i));
+    }
+    return multi;
 }
 
 #define GET_TABLE_ENTRY(tbl, idx, k, v) do { \
@@ -2047,6 +2090,6 @@ enum {
 #define FAKELUA_LOG_CRITICAL(msg, file, line, fname) \
     do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_CRITICAL)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_CRITICAL, msg, file, line, fname); } while (0)
 
-)";
+)FL_RUNTIME";
 
 }// namespace fakelua

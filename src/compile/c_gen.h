@@ -271,7 +271,9 @@ private:
 
     // 把生成的代码锚定回 Lua 源码位置：#line 让编译告警指向 Lua 文件与行，
     // FL_LOC_SET 写的状态位置槽则是运行期报错读的那一行。
-    void EmitLuaLine(const SyntaxTreeInterface *node);
+    void EmitLuaLine(const SyntaxTreeInterface *node, bool emit_loc_set = true);
+    // 判定语句执行期是否可能抛出运行时错误（不可能抛错的纯原生赋值/声明/跳转可省去 FL_LOC_SET）
+    [[nodiscard]] bool StmtCanThrow(const SyntaxTreeInterfacePtr &stmt) const;
 
     // 返回当前 active 代码段（section）的输出流引用
     std::ostream &Out() {

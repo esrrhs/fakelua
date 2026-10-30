@@ -380,7 +380,7 @@ void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
     if (spec) spec->snapshot_ready = true;
 }
 
-void EnsureNativeSpecSnapshot(VarTable *tbl) {
+void EnsureNativeSpecSnapshotSlow(VarTable *tbl) {
     if (!tbl || !tbl->spec || tbl->spec_get != reinterpret_cast<void *>(NativeSpecGet)) return;
     auto *spec = static_cast<NativeObjectSpec *>(tbl->spec);
     if (spec->snapshot_ready) return;
@@ -395,7 +395,7 @@ void EnsureNativeSpecSnapshot(VarTable *tbl) {
 
 // JIT / c_runtime_header 入口：在读取 spec_count 做 GET_TABLE_ENTRY 遍历前确保快照已建。
 extern "C" void FlEnsureNativeSpecSnapshot(VarTable *tbl) {
-    EnsureNativeSpecSnapshot(tbl);
+    EnsureNativeSpecSnapshotSlow(tbl);
 }
 
 CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish) {
