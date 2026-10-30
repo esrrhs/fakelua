@@ -4736,3 +4736,66 @@ TEST(infer, test_nested_capture_outer_vararg) {
         ASSERT_EQ(ret, 1);
     });
 }
+
+// ---------------------------------------------------------------------------
+// 文件级函数绑定（local function / 函数字面量初始化的 local / function 声明）
+// 是「名字即函数」绑定：读取处直接构造闭包，没有可写槽位。再赋值必须编译期报错，
+// 而不是解释器静默丢弃写入、CGen 生成对右值赋值的非法 C。
+// ---------------------------------------------------------------------------
+
+static void ExpectCompileErrorContains(const std::string &lua_file, const std::string &expect) {
+    const auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    bool thrown = false;
+    try {
+        CompileFile(s, lua_file.c_str(), {});
+    } catch (const std::exception &e) {
+        thrown = true;
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find(expect), std::string::npos) << "compile error for " << lua_file << ": " << msg;
+        EXPECT_NE(msg.find(lua_file), std::string::npos) << "error must carry the Lua file location: " << msg;
+    }
+    FakeluaDeleteState(s);
+    ASSERT_TRUE(thrown) << "reassigning " << lua_file << " should fail at compile time";
+}
+
+TEST(infer, test_global_func_reassign_localfunction) {
+    ExpectCompileErrorContains("./infer/test_global_func_reassign_localfunction.lua", "cannot reassign file-level function 'handler'");
+}
+
+TEST(infer, test_global_func_reassign_funclit) {
+    ExpectCompileErrorContains("./infer/test_global_func_reassign_funclit.lua", "cannot reassign file-level function 'handler'");
+}
+
+TEST(infer, test_global_func_reassign_globalfunc) {
+    ExpectCompileErrorContains("./infer/test_global_func_reassign_globalfunc.lua", "cannot reassign file-level function 'handler'");
+}
+
+// 多名声明的常量初始化与单名一致（使用方 bug 报告问题 2a）。
+TEST(infer, test_global_const_reassign_multi_names) {
+    ExpectCompileErrorContains("./infer/test_global_const_reassign_multi_names.lua", "cannot reassign file-level constant 'a'");
+}
+
+// 函数内同名局部变量是独立槽位：赋值合法，不得误报。
+TEST(infer, test_global_func_shadow_local_ok) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_global_func_shadow_local_ok.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "init", ret);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+// 使用方（1627 明末项目）报告的真实形态：非常量初始化的文件级 local 允许异型重绑
+// （number -> table）与同型整体重绑，三后端语义一致（bug 报告问题 1 的期望语义）。
+TEST(infer, test_global_rebind_heterogeneous) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_global_rebind_heterogeneous.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "main.init", ret);
+        ASSERT_EQ(ret, 0);
+        ret = 0;
+        Call(s, type, "main.update", ret);
+        ASSERT_EQ(ret, 0);
+    });
+}

@@ -63,6 +63,15 @@ void UniquifySpecFieldCNames(std::vector<TableFieldInfo> &fields) {
     }
 }
 
+// 函数字面量表达式（local fn = function() ... end 的 initializer）。
+bool IsFunctionDefExp(const SyntaxTreeInterfacePtr &exp) {
+    if (!exp || exp->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    return e && e->GetExpKind() == ExpKind::kFunctionDef;
+}
+
 }// namespace
 
 TypeInferencer::TypeInferencer(State *s) : s_(s) {
@@ -404,6 +413,8 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const AnalysisResu
     file_name_ = pr.file_name;
     file_level_types_.clear();
     file_level_init_exps_.clear();
+    file_level_func_names_.clear();
+    file_level_func_init_exps_.clear();
     InferResult ir;
     EvalTypeSnapshot current_map;
     TypeEnvironment env;
@@ -487,6 +498,15 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
         }
         case SyntaxTreeType::Function: {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+            // 文件级单名 function 声明（function f() end）：f 是「名字即函数」绑定。
+            // function a.b() end 这类多段名是字段赋值，不是对 a 的绑定，不登记。
+            if (!tctx.IsTrialInference() && tctx.env.IsAtFileScope()) {
+                if (const auto fn = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname())) {
+                    if (const auto fnl = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(fn->FuncNameList()); fnl && fnl->Funcnames().size() == 1) {
+                        file_level_func_names_.insert(fnl->Funcnames()[0]);
+                    }
+                }
+            }
             const bool prev_init = in_init_function_;
             if (IsFakeluaInitFunction(func)) {
                 in_init_function_ = true;
@@ -497,6 +517,11 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
         }
         case SyntaxTreeType::LocalFunction: {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
+            // 文件级 local function 同样是函数绑定；env 里没有它的定义，
+            // InferAssign 侧配合 env.Has 排除函数内同名遮蔽。
+            if (!tctx.IsTrialInference() && tctx.env.IsAtFileScope()) {
+                file_level_func_names_.insert(func->Name());
+            }
             InferNode(func->Funcbody(), tctx);
             return RecordType(current_map, node.get(), T_UNKNOWN);
         }
@@ -641,6 +666,11 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
                 file_level_init_exps_.insert(init_node);
             }
         }
+        // 函数字面量初始化的文件级 local：名字绑定到该函数，没有可再赋值的槽位，
+        // 与文件级 local function 一样按函数绑定处理（见 file_level_func_init_exps_）。
+        if (!tctx.IsTrialInference() && tctx.env.IsAtFileScope() && i < exps.size() && IsFunctionDefExp(exps[i])) {
+            file_level_func_init_exps_.insert(init_node);
+        }
     }
 
     // Infer types of extra expressions (when exps.size() > names.size())
@@ -682,6 +712,17 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
         if (!in_init_function_ && file_level_init_exps_.contains(init)) {
             ThrowFakeluaException(std::format("cannot reassign file-level constant '{}' at {}", name, SyntaxTreeLocationStr(file_name_, assign)));
         }
+        // 函数字面量初始化的文件级 local：名字绑定到函数（读取处直接构造闭包），
+        // 没有可写槽位。再赋值在 CGen 生成对右值赋值的非法 C，在解释器里被静默忽略。
+        if (!in_init_function_ && file_level_func_init_exps_.contains(init)) {
+            ThrowFakeluaException(std::format("cannot reassign file-level function '{}' at {}", name, SyntaxTreeLocationStr(file_name_, assign)));
+        }
+    }
+
+    // 文件级 local function / 单名 function 声明：同上按函数绑定拒绝再赋值。
+    // 这两类声明没有进 env，用 env.Has 排除函数内同名局部变量/形参的合法赋值。
+    if (!in_init_function_ && !tctx.env.Has(name) && file_level_func_names_.contains(name)) {
+        ThrowFakeluaException(std::format("cannot reassign file-level function '{}' at {}", name, SyntaxTreeLocationStr(file_name_, assign)));
     }
 
     current_map[var.get()] = current;
