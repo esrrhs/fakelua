@@ -4780,12 +4780,11 @@ TEST(infer, test_global_const_complex_reassign) {
     ExpectCompileErrorContains("./infer/test_global_const_complex_reassign.lua", "cannot reassign file-level constant 'x'");
 }
 
-// 字段赋值 t.a = 1：编译期允许，运行期也可改文件级表字段。
+// 字段赋值 t.a = 1：编译期允许（FAKELUA_SET_TABLE）；运行期 CONST_FLAG 抛错。
 TEST(infer, test_global_const_field_assign_ok) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_global_const_field_assign_ok.lua", {.debug_mode = debug_mode});
         int ret = 0;
-        Call(s, type, "touch", ret);
-        ASSERT_EQ(ret, 1);
+        EXPECT_THROW(Call(s, type, "touch", ret), std::exception);
     });
 }

@@ -1931,7 +1931,19 @@ void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, co
     if (unit_->init_proto) {
         State::ConstAllocScope const_alloc(s_);
         InterpreterExecute(s_, unit_->init_proto, nullptr, 0, nullptr);
-        // 与 CGen 一致：文件级绑定不打 CONST_FLAG，允许表字段 / nativeobj 修改。
+        // 与 CGen 一致：文件级表/闭包打 CONST_FLAG，SETTABLE（x.a=1）运行期抛错。
+        for (const auto &name: ar.global_const_names) {
+            if (auto it = unit_->globals.find(name); it != unit_->globals.end()) {
+                it->second.flag_ |= 0x1;
+            }
+        }
+        for (const auto &name: file_level_names_) {
+            if (auto it = unit_->globals.find(name); it != unit_->globals.end()) {
+                if (it->second.type_ == static_cast<int>(VarType::Table) || it->second.type_ == static_cast<int>(VarType::Closure)) {
+                    it->second.flag_ |= 0x1;
+                }
+            }
+        }
     }
 }
 

@@ -143,13 +143,13 @@ end
 
 -- 回归（P1-6）：在 on_event 回调里直接调用 obj:send()（不走返回 "echo" 的路径）。
 -- 派发上下文中的 send 会先入队，由本轮 tick 派发完后统一泵出；客户端随后收到数据。
--- 文件级绑定不可整槽再赋；用表字段保存回调里要用的 server 引用。
-local send_in_cb_server = { s = nil }
+-- 文件级表打 CONST_FLAG；server 引用挂在内层表 holder 上（可 SETTABLE）。
+local send_in_cb_box = { holder = {} }
 
 function on_send_in_cb(type, connid, data, len, reason)
     if type == "recv" then
-        if send_in_cb_server.s then
-            send_in_cb_server.s:send(connid, "direct:" .. data)
+        if send_in_cb_box.holder.s then
+            send_in_cb_box.holder.s:send(connid, "direct:" .. data)
         end
     end
 end
@@ -157,7 +157,7 @@ end
 function test_send_in_callback()
     local server = net.server({ port = 19987, maxconn = 4 })
     server:dispatch("NetTest.on_send_in_cb")
-    send_in_cb_server.s = server
+    send_in_cb_box.holder.s = server
 
     local client = net.client({ port = 19987 })
     client:dispatch("NetTest.on_client_event")
@@ -178,7 +178,7 @@ function test_send_in_callback()
     end
 
     local ok = client:get_last_data() == "direct:ping"
-    send_in_cb_server.s = nil
+    send_in_cb_box.holder.s = nil
     server:close()
     client:close()
     return ok and 1 or 0

@@ -152,19 +152,19 @@ end
 -- arena Reset。arm 在一次 Call 里登记回调后返回；宿主显式 Reset 临时 arena；
 -- pump 是下一次 Call，再 tick 到回调。若字节串暂存失效，ctx 字段会坏掉或回调跑不起来。
 -- 回调派回登记时的引擎：三引擎各自 arm/pump 闭环，文件级 local 各自独立也没问题。
--- 文件级绑定 ≡ C++ const，不可整槽再赋；用表字段承载可变跨帧结果。
-local cross_hits = { n = nil }
+-- 文件级表打 CONST_FLAG，不可改自身字段；可变状态挂在内层表（init 时建好，无 CONST_FLAG）。
+local cross_store = { hits = { n = nil } }
 
 function contract_on_cross(c, err, result, ctx)
     if ctx.tag == "ok" and ctx.n == 7 and type(err) == "string" then
-        cross_hits.n = ctx.n
+        cross_store.hits.n = ctx.n
     else
-        cross_hits.n = -1
+        cross_store.hits.n = -1
     end
 end
 
 function arm_cross_frame()
-    cross_hits.n = nil
+    cross_store.hits.n = nil
     local conn = mysql.connect(dead_cfg, "contract_on_connect", "connect_tag")
 
     conn:query("SELECT 1", "contract_on_cross", { tag = "ok", n = 7 })
@@ -174,9 +174,9 @@ end
 function pump_cross_frame()
     for i = 1, 2000 do
         runtime.tick()
-        if cross_hits.n ~= nil then break end
+        if cross_store.hits.n ~= nil then break end
         os.sleep(1)
     end
-    if cross_hits.n == nil then return 0 end
-    return cross_hits.n
+    if cross_store.hits.n == nil then return 0 end
+    return cross_store.hits.n
 end

@@ -363,7 +363,7 @@ private:
     const SyntaxTreeInterface *cur_stmt_node_ = nullptr;// 当前正在编译的语句节点，用于在调用返回后重新锚定 Lua 源码位置
     std::string cur_package_name_;     // Current package name declared in chunk
 
-    // 文件级非数值 CVar 全局名（供 CompileVar 识别已声明绑定；不再用于 CONST_FLAG）
+    // 文件级非数值 CVar 全局名：供 CompileVar 识别；init 末尾对其打 CONST_FLAG
     std::unordered_set<std::string> global_const_table_vars_;
 
     // 文件级 C 标识符（全局 static 变量 / 函数符号）去重
