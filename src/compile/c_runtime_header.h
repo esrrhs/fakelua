@@ -1768,6 +1768,7 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
         FakeluaThrowError(_S, "bad argument to table.move: table expected");
     }
     if (dst.type_ != VAR_TABLE || !dst.data_.t) dst = src;
+    FL_CHECK_CONST_TABLE(dst);
     if (e < f) return dst;
     uint64_t count = (uint64_t)e - (uint64_t)f + 1;
     if (count == 0 || count > 10000000ULL) return dst;
@@ -1781,7 +1782,7 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
             (CVar){.type_ = VAR_INT, .data_.i = t},
             dst);
     }
-    if (!same && dst.data_.t->count_ == 0 && icount > 8 && t != (int64_t)dst.data_.t->arr_size_ + 1) {
+    if (!same && !(dst.flag_ & CONST_FLAG) && dst.data_.t->count_ == 0 && icount > 8 && t != (int64_t)dst.data_.t->arr_size_ + 1) {
         FlEnsureTableBuckets(dst.data_.t, (uint32_t)icount);
     }
     { int64_t i; for (i = 0; i < icount; ++i) {

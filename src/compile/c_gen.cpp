@@ -4130,6 +4130,7 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         // 省略 pos 或显式 INT 走内联；2.0 以前会当成 #t，删错元素。
         Out() << GenTab() << "if (LIKELY(" << pos_c << ".type_ == VAR_NIL || " << pos_c << ".type_ == VAR_INT)) {\n";
         Out() << GenTab() << "    FlLenInt(" << tbl_tmp << ", " << len_tmp << ");\n";
+        Out() << GenTab() << "    FL_CHECK_CONST_TABLE(" << tbl_tmp << ");\n";
         Out() << GenTab() << "    " << pos_tmp << " = (" << pos_c << ".type_ == VAR_INT) ? " << pos_c << ".data_.i : " << len_tmp << ";\n";
         // Lua：省略/nil 位置（即 #t，含空表）不做边界校验；只有显式 INT 才校验 [1, len+1]
         Out() << GenTab() << "    if (" << pos_c << ".type_ == VAR_INT && (" << pos_tmp << " < 1 || " << pos_tmp << " > " << len_tmp << " + 1)) {\n";
