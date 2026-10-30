@@ -1614,7 +1614,7 @@ TEST(exception, no_arg_call) {
     }
 }
 
-TEST(exception, const_table_modify_error) {
+TEST(exception, const_table_field_assign_ok) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
@@ -1624,7 +1624,8 @@ TEST(exception, const_table_modify_error) {
 
     for (auto jit_type: AllJitTypes()) {
         double res = 0;
-        EXPECT_THROW(Call(s, jit_type, "test_modify_const", res), std::exception);
+        Call(s, jit_type, "test_modify_const", res);
+        EXPECT_EQ(res, 100);
     }
 }
 

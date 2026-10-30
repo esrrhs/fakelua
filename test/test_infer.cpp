@@ -4780,10 +4780,12 @@ TEST(infer, test_global_const_complex_reassign) {
     ExpectCompileErrorContains("./infer/test_global_const_complex_reassign.lua", "cannot reassign file-level constant 'x'");
 }
 
-// 字段赋值 t.a = 1 编译期允许（走 FAKELUA_SET_TABLE）；运行期仍用既有 CONST_FLAG 模型。
+// 字段赋值 t.a = 1：编译期允许，运行期也可改文件级表字段。
 TEST(infer, test_global_const_field_assign_ok) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_global_const_field_assign_ok.lua", {.debug_mode = debug_mode});
-        // 仅验证编译通过；字段写入的运行期行为由 CONST_FLAG / nativeobj 既有路径覆盖。
+        int ret = 0;
+        Call(s, type, "touch", ret);
+        ASSERT_EQ(ret, 1);
     });
 }
