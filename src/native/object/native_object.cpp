@@ -349,7 +349,8 @@ static void EnsureSpecCapacity(VarTable *tbl, NativeObjectSpec *spec, State *s, 
 
 // 依据 obj->impl_->kv 的当前内容，重建 tbl 的 spec_keys / spec_vals 快照数组，
 // 使 pairs()/next() 迭代结果能反映最新字段集合。
-// 主要用于 Wrap() 初次填充；日常字段写入由 NativeSpecSet 增量维护快照。
+// 嵌套 Object 字段经 NativeFieldToCVar → Wrap 只生成轻量壳（不再递归 RefreshSpecKeys）。
+// 由 EnsureNativeSpecSnapshot 在首次遍历时调用；之后 NativeSpecSet 增量维护快照。
 void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
     auto *spec = static_cast<NativeObjectSpec *>(tbl->spec);
     const auto &kv = obj->impl_->kv;
@@ -359,7 +360,10 @@ void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
         tbl->spec_keys = nullptr;
         tbl->spec_vals = nullptr;
         tbl->spec_count = 0;
-        if (spec) spec->spec_cap = 0;
+        if (spec) {
+            spec->spec_cap = 0;
+            spec->snapshot_ready = true;
+        }
         return;
     }
 
@@ -369,9 +373,29 @@ void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
     size_t i = 0;
     for (const auto &[k, v]: kv) {
         tbl->spec_keys[i] = AllocSpecKeyCVar(s, k);
+        // NativeFieldToCVar 对 Object 调用 Wrap：此时 Wrap 不再建快照，故不会沿嵌套树爆炸。
         tbl->spec_vals[i] = NativeFieldToCVar(v, s);
         ++i;
     }
+    if (spec) spec->snapshot_ready = true;
+}
+
+void EnsureNativeSpecSnapshot(VarTable *tbl) {
+    if (!tbl || !tbl->spec || tbl->spec_get != reinterpret_cast<void *>(NativeSpecGet)) return;
+    auto *spec = static_cast<NativeObjectSpec *>(tbl->spec);
+    if (spec->snapshot_ready) return;
+    NativeObject *obj = spec->obj;
+    State *s = spec->state;
+    if (!obj || !obj->Alive() || !s) {
+        spec->snapshot_ready = true;
+        return;
+    }
+    RefreshSpecKeys(tbl, obj, s);
+}
+
+// JIT / c_runtime_header 入口：在读取 spec_count 做 GET_TABLE_ENTRY 遍历前确保快照已建。
+extern "C" void FlEnsureNativeSpecSnapshot(VarTable *tbl) {
+    EnsureNativeSpecSnapshot(tbl);
 }
 
 CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish) {
@@ -459,8 +483,17 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
     const std::string skey(key);
     State *s = spec->state;
 
-    // 增量维护快照：更新已有键只改 spec_vals；新增键追加；删除键 swap-remove。
-    // 避免每次写入都 O(n) 全量 RefreshSpecKeys（重复分配全部 VarString + 转换全部字段）。
+    // 快照尚未建立：只写 kv，保持惰性；首次 pairs/next/GET_TABLE_ENTRY 再 RefreshSpecKeys。
+    if (!spec->snapshot_ready) {
+        if (v.type_ == static_cast<int>(VarType::Nil)) {
+            obj->impl_->kv.erase(skey);
+        } else {
+            obj->impl_->kv[skey] = CVarToNativeField(v);
+        }
+        return;
+    }
+
+    // 快照已存在：增量维护（更新已有键 / 追加 / swap-remove），避免每次 O(n) 全量重建。
     if (v.type_ == static_cast<int>(VarType::Nil)) {
         obj->impl_->kv.erase(skey);
         const int idx = FindSpecKeyIndex(tbl, key);
@@ -552,13 +585,18 @@ CVar NativeObject::Wrap(State *s) const {
     spec->obj = const_cast<NativeObject *>(this);// C++ 堆，跨帧持久
     spec->state = s;
     spec->spec_cap = 0;
+    spec->snapshot_ready = false;
 
     vtbl->spec = spec;
     vtbl->spec_get = reinterpret_cast<void *>(NativeSpecGet);
     vtbl->spec_set = reinterpret_cast<void *>(NativeSpecSet);
 
-    // 填充 spec_keys / spec_vals（供 pairs() 迭代）
-    RefreshSpecKeys(vtbl, this, s);
+    // 惰性快照：不在 Wrap 时填充 spec_keys/spec_vals，也不递归 Wrap 嵌套对象。
+    // pairs/next/GET_TABLE_ENTRY 首次遍历时 EnsureNativeSpecSnapshot 再建快照；
+    // 嵌套对象以轻量壳形式出现在快照 vals 中，其自身快照仍保持惰性。
+    vtbl->spec_keys = nullptr;
+    vtbl->spec_vals = nullptr;
+    vtbl->spec_count = 0;
 
     CVar r{};
     r.type_ = static_cast<int>(VarType::Table);

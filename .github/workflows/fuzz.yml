@@ -13,7 +13,7 @@ on:
       duration:
         description: 'Fuzz duration per target (seconds)'
         required: false
-        default: '300'
+        default: '1200'
         type: string
 
 jobs:
@@ -147,19 +147,19 @@ jobs:
           set -x
           cd build
 
-          # Determine run duration:
-          # - PR: quick 60-second smoke test
-          # - Push to master: 10 min per target
-          # - Weekly schedule: 60 min per target
+          # Determine run duration (aim ~30 min wall clock incl. setup/build;
+          # stay under BuildWithWindows ~40–60m so fuzz is not the slowest):
+          # - PR / push to master: 20 min per target
+          # - Weekly schedule: 30 min per target
           # - Manual dispatch: user-specified duration
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            DURATION=60
+            DURATION=1200
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             DURATION=${{ github.event.inputs.duration }}
           elif [ "${{ github.event_name }}" = "schedule" ]; then
-            DURATION=3600
+            DURATION=1800
           else
-            DURATION=600
+            DURATION=1200
           fi
 
           echo "Fuzzing ${{ matrix.target }} for ${DURATION}s..."
