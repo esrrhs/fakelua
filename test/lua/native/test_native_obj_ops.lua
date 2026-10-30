@@ -118,3 +118,42 @@ function test_int_bool_not_equal_cross()
     del_native_group(gid)
     return 5000
 end
+
+-- Cover incremental spec_keys/spec_vals maintenance in NativeSpecSet:
+-- update existing fields (no full rebuild), delete, then insert; pairs must
+-- reflect the latest key set and values.
+function test_pairs_after_incremental_spec_set()
+    local gid = new_native_group()
+    local obj = new_native_obj(gid, "item", 409)
+    obj.a = 1
+    obj.b = 2
+    obj.c = 3
+
+    -- Hot path: overwrite existing fields many times
+    for i = 1, 20 do
+        obj.a = i
+        obj.b = i * 10
+    end
+    if obj.a ~= 20 then return 1 end
+    if obj.b ~= 200 then return 2 end
+
+    -- Delete one field, then insert a new one
+    obj.b = nil
+    if obj.b ~= nil then return 3 end
+    obj.d = 40
+
+    local seen = {}
+    local count = 0
+    for k, v in pairs(obj) do
+        seen[k] = v
+        count = count + 1
+    end
+    if count ~= 3 then return 4 end
+    if seen.a ~= 20 then return 5 end
+    if seen.c ~= 3 then return 6 end
+    if seen.d ~= 40 then return 7 end
+    if seen.b ~= nil then return 8 end
+
+    del_native_group(gid)
+    return 5000
+end

@@ -1628,6 +1628,20 @@ TEST(exception, const_table_modify_error) {
     }
 }
 
+TEST(exception, const_table_nested_modify_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, 0);
+
+    CompileFile(s, "./exception/test_const_table_nested_modify_error.lua", {});
+
+    for (auto jit_type: AllJitTypes()) {
+        double res = 0;
+        EXPECT_THROW(Call(s, jit_type, "test_modify_nested", res), std::exception);
+    }
+}
+
 // ============================================================================
 // 错误必须能穿过 JIT 帧回到调用方，而不是让进程 abort。TCC 的代码页没有 DWARF
 // 展开表，这两条路径以前都会 std::terminate()：

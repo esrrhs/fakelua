@@ -143,12 +143,12 @@ end
 
 -- 回归（P1-6）：在 on_event 回调里直接调用 obj:send()（不走返回 "echo" 的路径）。
 -- 派发上下文中的 send 会先入队，由本轮 tick 派发完后统一泵出；客户端随后收到数据。
-local send_in_cb_server = nil
-
+-- init 表整棵只读；server 引用挂在 global native holder（跨回调、非文件级表）。
 function on_send_in_cb(type, connid, data, len, reason)
     if type == "recv" then
-        if send_in_cb_server then
-            send_in_cb_server:send(connid, "direct:" .. data)
+        local holder = get_global_obj("net_send_in_cb")
+        if holder and holder.s then
+            holder.s:send(connid, "direct:" .. data)
         end
     end
 end
@@ -156,7 +156,11 @@ end
 function test_send_in_callback()
     local server = net.server({ port = 19987, maxconn = 4 })
     server:dispatch("NetTest.on_send_in_cb")
-    send_in_cb_server = server
+    local holder = get_global_obj("net_send_in_cb")
+    if holder == nil then
+        holder = new_global_obj("net_send_in_cb", "holder")
+    end
+    holder.s = server
 
     local client = net.client({ port = 19987 })
     client:dispatch("NetTest.on_client_event")
@@ -177,7 +181,7 @@ function test_send_in_callback()
     end
 
     local ok = client:get_last_data() == "direct:ping"
-    send_in_cb_server = nil
+    holder.s = nil
     server:close()
     client:close()
     return ok and 1 or 0

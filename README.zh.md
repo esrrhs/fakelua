@@ -152,6 +152,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **debug 标准库**：不支持 `debug.*`。
 - **隐式类型转换**：算术中不做字符串→数字的隐式转换（`"10" + 1` 会报错）。
 - **隐式全局变量**：局部变量必须使用 `local` 声明，不支持隐式全局赋值。
+- **文件级 local 为 const 绑定**：初始化后不可整槽再赋，`__fakelua_init` 创建的 Table 深 const；跨帧可变状态请用 NativeObject / `new_global_obj`。
 - **`json.encode` 拒绝数组空洞**：整数键就代表数组意图——键都是正整数但不从 1 起连续的表
   （`t[1]="a"; t[3]="c"`，甚至 `{[1001]=...}`）一律报错，不再退化成 `{"1":"a","3":"c"}`：上线的
   数据形状不许静默改变。协议数组请保持无洞（用 `""` 或 `{}` 占位，别留 nil）；要按 id 建映射就
