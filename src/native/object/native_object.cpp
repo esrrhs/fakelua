@@ -293,11 +293,65 @@ CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar) {
 
 // spec_get / spec_set 实现
 
-// 依据 obj->impl_->kv 的当前内容，重建 tbl 的 spec_keys / spec_vals 快照数组，
-// 使 pairs()/next() 迭代结果能反映 NativeSpecSet 写入后的最新字段集合。
-// 该函数在 Wrap() 和 NativeSpecSet() 之后都会被调用，以保持快照与实际字段同步。
-void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
+// 在 arena 中分配一份供 spec_keys 使用的字符串键 CVar。
+static CVar AllocSpecKeyCVar(State *s, std::string_view key) {
     auto &alloc = s->GetValueAllocator();
+    const size_t klen = key.size();
+    auto *vs = static_cast<VarString *>(alloc.Alloc(sizeof(VarString) + klen + 1));
+    *reinterpret_cast<int *>(vs) = static_cast<int>(klen);
+    *reinterpret_cast<uint32_t *>(reinterpret_cast<char *>(vs) + sizeof(int)) = 0u;
+    char *buf = reinterpret_cast<char *>(vs) + sizeof(VarString);
+    if (klen > 0) {
+        std::memcpy(buf, key.data(), klen);
+    }
+    buf[klen] = '\0';
+
+    CVar ck{};
+    ck.type_ = static_cast<int>(VarType::String);
+    ck.flag_ = 0;
+    ck.data_.s = vs;
+    return ck;
+}
+
+// 在现有 spec_keys 快照中按字符串查找键下标；未找到返回 -1。
+static int FindSpecKeyIndex(const VarTable *tbl, std::string_view key) {
+    if (!tbl->spec_keys || tbl->spec_count == 0) return -1;
+    for (uint32_t i = 0; i < tbl->spec_count; ++i) {
+        const CVar &ck = tbl->spec_keys[i];
+        if (ck.type_ != static_cast<int>(VarType::String) || !ck.data_.s) continue;
+        if (ck.data_.s->Str() == key) return static_cast<int>(i);
+    }
+    return -1;
+}
+
+// 保证 spec_keys/spec_vals 至少能容纳 need 个槽；不足时按 2 倍扩容并拷贝旧内容。
+// 旧数组留在 arena 中直到帧结束，与 RefreshSpecKeys 全量重建的分配策略一致，
+// 但扩容后已有键的 VarString 可直接复用，不再逐键重分配。
+static void EnsureSpecCapacity(VarTable *tbl, NativeObjectSpec *spec, State *s, uint32_t need) {
+    if (need <= spec->spec_cap && tbl->spec_keys && tbl->spec_vals) return;
+
+    uint32_t new_cap = spec->spec_cap == 0 ? 4u : spec->spec_cap;
+    while (new_cap < need) {
+        new_cap *= 2u;
+    }
+
+    auto &alloc = s->GetValueAllocator();
+    auto *new_keys = static_cast<CVar *>(alloc.Alloc(sizeof(CVar) * new_cap));
+    auto *new_vals = static_cast<CVar *>(alloc.Alloc(sizeof(CVar) * new_cap));
+    if (tbl->spec_count > 0 && tbl->spec_keys && tbl->spec_vals) {
+        std::memcpy(new_keys, tbl->spec_keys, sizeof(CVar) * tbl->spec_count);
+        std::memcpy(new_vals, tbl->spec_vals, sizeof(CVar) * tbl->spec_count);
+    }
+    tbl->spec_keys = new_keys;
+    tbl->spec_vals = new_vals;
+    spec->spec_cap = new_cap;
+}
+
+// 依据 obj->impl_->kv 的当前内容，重建 tbl 的 spec_keys / spec_vals 快照数组，
+// 使 pairs()/next() 迭代结果能反映最新字段集合。
+// 主要用于 Wrap() 初次填充；日常字段写入由 NativeSpecSet 增量维护快照。
+void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
+    auto *spec = static_cast<NativeObjectSpec *>(tbl->spec);
     const auto &kv = obj->impl_->kv;
     const size_t n = kv.size();
 
@@ -305,30 +359,16 @@ void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
         tbl->spec_keys = nullptr;
         tbl->spec_vals = nullptr;
         tbl->spec_count = 0;
+        if (spec) spec->spec_cap = 0;
         return;
     }
 
-    tbl->spec_keys = static_cast<CVar *>(alloc.Alloc(sizeof(CVar) * n));
-    tbl->spec_vals = static_cast<CVar *>(alloc.Alloc(sizeof(CVar) * n));
+    EnsureSpecCapacity(tbl, spec, s, static_cast<uint32_t>(n));
     tbl->spec_count = static_cast<uint32_t>(n);
 
     size_t i = 0;
     for (const auto &[k, v]: kv) {
-        // key：在 arena 中分配 VarString
-        const size_t klen = k.size();
-        auto *vs = static_cast<VarString *>(alloc.Alloc(sizeof(VarString) + klen + 1));
-        *reinterpret_cast<int *>(vs) = static_cast<int>(klen);
-        *reinterpret_cast<uint32_t *>(reinterpret_cast<char *>(vs) + sizeof(int)) = 0u;
-        char *buf = reinterpret_cast<char *>(vs) + sizeof(VarString);
-        if (klen > 0) {
-            std::memcpy(buf, k.data(), klen);
-        }
-        buf[klen] = '\0';
-
-        tbl->spec_keys[i].type_ = static_cast<int>(VarType::String);
-        tbl->spec_keys[i].flag_ = 0;
-        tbl->spec_keys[i].data_.s = vs;
-
+        tbl->spec_keys[i] = AllocSpecKeyCVar(s, k);
         tbl->spec_vals[i] = NativeFieldToCVar(v, s);
         ++i;
     }
@@ -417,16 +457,39 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
 
     *finish = true;
     const std::string skey(key);
+    State *s = spec->state;
 
+    // 增量维护快照：更新已有键只改 spec_vals；新增键追加；删除键 swap-remove。
+    // 避免每次写入都 O(n) 全量 RefreshSpecKeys（重复分配全部 VarString + 转换全部字段）。
     if (v.type_ == static_cast<int>(VarType::Nil)) {
         obj->impl_->kv.erase(skey);
-    } else {
-        obj->impl_->kv[skey] = CVarToNativeField(v);
+        const int idx = FindSpecKeyIndex(tbl, key);
+        if (idx >= 0 && tbl->spec_count > 0) {
+            const uint32_t uidx = static_cast<uint32_t>(idx);
+            const uint32_t last = tbl->spec_count - 1;
+            if (uidx != last) {
+                tbl->spec_keys[uidx] = tbl->spec_keys[last];
+                tbl->spec_vals[uidx] = tbl->spec_vals[last];
+            }
+            tbl->spec_count = last;
+        }
+        return;
     }
 
-    // 保持 spec_keys/spec_vals 快照与最新字段集合同步，使 pairs()/next() 迭代
-    // 能够看到 Wrap() 之后通过 spec_set 写入/删除的字段。
-    RefreshSpecKeys(tbl, obj, spec->state);
+    obj->impl_->kv[skey] = CVarToNativeField(v);
+    const CVar new_val = NativeFieldToCVar(obj->impl_->kv[skey], s);
+
+    const int idx = FindSpecKeyIndex(tbl, key);
+    if (idx >= 0) {
+        tbl->spec_vals[static_cast<uint32_t>(idx)] = new_val;
+        return;
+    }
+
+    EnsureSpecCapacity(tbl, spec, s, tbl->spec_count + 1);
+    const uint32_t i = tbl->spec_count;
+    tbl->spec_keys[i] = AllocSpecKeyCVar(s, key);
+    tbl->spec_vals[i] = new_val;
+    tbl->spec_count = i + 1;
 }
 
 // NativeObject 公开实现
@@ -488,6 +551,7 @@ CVar NativeObject::Wrap(State *s) const {
     auto *spec = static_cast<NativeObjectSpec *>(alloc.Alloc(sizeof(NativeObjectSpec)));
     spec->obj = const_cast<NativeObject *>(this);// C++ 堆，跨帧持久
     spec->state = s;
+    spec->spec_cap = 0;
 
     vtbl->spec = spec;
     vtbl->spec_get = reinterpret_cast<void *>(NativeSpecGet);
