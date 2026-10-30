@@ -1,4 +1,4 @@
--- 修改文件级 const 表字段应抛出运行时异常（CONST_FLAG）。
+-- 修改 init 中创建的文件级表字段应抛出运行时异常（创建时 CONST_FLAG）。
 local t = { a = 1, b = 2 }
 
 function test_modify_const()

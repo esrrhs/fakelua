@@ -416,7 +416,7 @@ http 的 `CallNamed`、redis 的结果回调）。这是 State 上的一个整�
 |------|---------|------|
 | 改"运行时创建的 table"的字段 | ✅ | 回调里新建的 table 挂到长生命周期 table 上是可靠模式 |
 | `send` / mysql `query` 等 IO | ✅ | send 会在派发结束后由 tick 统一泵出；query 异步排队 |
-| 给文件级 `local` 表的**字段**赋值 | ❌ | 文件级表初始化后打 CONST_FLAG，改内容会抛 "attempt to modify a const table" |
+| 给文件级 `local` 表的**字段**赋值 | ❌ | 文件级表在 __fakelua_init 里创建时即打 CONST_FLAG（含嵌套），改内容会抛 "attempt to modify a const table" |
 | 重绑定文件级数值 `local`（`x = ...`） | ❌ | 字面量初值的文件级数值 local 是常量，函数里再赋值是带行号的编译期错误。`local x = func()` 不能做 C 静态初值：声明先写成 `local x = nil`，加载 so 时由 `__fakelua_init` 赋值一次 |
 
 ---

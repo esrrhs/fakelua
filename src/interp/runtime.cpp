@@ -100,7 +100,8 @@ void SetTable(State *s, CVar t, CVar k, CVar v) {
     if (k.type_ == kFloat && std::isnan(k.data_.f)) {
         ThrowFakeluaException("table index is NaN");
     }
-    if (t.flag_ & kConstFlag) {
+    // init（InterpConstAlloc）期间允许填充；结束后 const 表不可改。
+    if ((t.flag_ & kConstFlag) && !s->InterpConstAlloc()) {
         ThrowFakeluaException("attempt to modify a const table");
     }
     table::TableHelper::SetTable(s, t, k, v);
@@ -118,6 +119,8 @@ CVar NewTable(State *s) {
     vtbl->seq_len_valid_ = 1;
     CVar tbl{};
     tbl.type_ = kTable;
+    // 与 JIT SET_TABLE 一致：__fakelua_init / ConstAllocScope 内创建 → CONST_FLAG
+    tbl.flag_ = s->InterpConstAlloc() ? kConstFlag : 0;
     tbl.data_.t = vtbl;
     return tbl;
 }

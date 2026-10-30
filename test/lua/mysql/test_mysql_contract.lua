@@ -151,32 +151,38 @@ end
 -- 跨帧绑定参数（P0-1 的新形态）：绑定参数序列化后必须活过下一次顶层 Call 的
 -- arena Reset。arm 在一次 Call 里登记回调后返回；宿主显式 Reset 临时 arena；
 -- pump 是下一次 Call，再 tick 到回调。若字节串暂存失效，ctx 字段会坏掉或回调跑不起来。
--- 回调派回登记时的引擎：三引擎各自 arm/pump 闭环，文件级 local 各自独立也没问题。
--- 文件级表打 CONST_FLAG，不可改自身字段；可变状态挂在内层表（init 时建好，无 CONST_FLAG）。
-local cross_store = { hits = { n = nil } }
-
+-- 回调派回登记时的引擎：三引擎各自 arm/pump 闭环。
+-- init 里创建的表整棵只读；跨帧可变状态挂在 native 连接对象上（C++ 堆，Reset 不回收），
+-- 并用 global native holder（按 jit_id）跨 Call 找回同一连接。
 function contract_on_cross(c, err, result, ctx)
     if ctx.tag == "ok" and ctx.n == 7 and type(err) == "string" then
-        cross_store.hits.n = ctx.n
+        c.hits = ctx.n
     else
-        cross_store.hits.n = -1
+        c.hits = -1
     end
 end
 
-function arm_cross_frame()
-    cross_store.hits.n = nil
+function arm_cross_frame(jit_id)
+    local key = "mysql_cross_" .. tostring(jit_id)
+    local holder = get_global_obj(key)
+    if holder == nil then
+        holder = new_global_obj(key, "holder")
+    end
     local conn = mysql.connect(dead_cfg, "contract_on_connect", "connect_tag")
-
+    conn.hits = nil
+    holder.conn = conn
     conn:query("SELECT 1", "contract_on_cross", { tag = "ok", n = 7 })
     return 1
 end
 
-function pump_cross_frame()
+function pump_cross_frame(jit_id)
+    local holder = get_global_obj("mysql_cross_" .. tostring(jit_id))
+    local conn = holder.conn
     for i = 1, 2000 do
         runtime.tick()
-        if cross_store.hits.n ~= nil then break end
+        if conn.hits ~= nil then break end
         os.sleep(1)
     end
-    if cross_store.hits.n == nil then return 0 end
-    return cross_store.hits.n
+    if conn.hits == nil then return 0 end
+    return conn.hits
 end
