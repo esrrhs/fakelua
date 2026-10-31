@@ -68,31 +68,65 @@ private:
     JitErrorBoundary *prev_;
 };
 
-// 生成代码写在 State 上的当前 Lua 位置，转成 "file:line"；未知时为空串。
+// 生成代码写在各自文件级全局变量上的当前 Lua 位置，宿主通过注册的地址读取并转成 "file:line"；未知时为空串。
 inline std::string LuaLocText(State *s) {
-    const auto &loc = s->GetLuaLoc();
-    if (loc.file == nullptr || loc.file[0] == '\0' || loc.line <= 0) {
-        return {};
+    const auto &locs = s->GetLuaLocs(s->CurrentJit());
+    for (auto it = locs.rbegin(); it != locs.rend(); ++it) {
+        const LuaLoc *loc = *it;
+        if (loc != nullptr && loc->file != nullptr && loc->file[0] != '\0' && loc->line > 0) {
+            return std::string(loc->file) + ":" + std::to_string(loc->line);
+        }
     }
-    return std::string(loc.file) + ":" + std::to_string(loc.line);
+    return {};
 }
 
-// 位置槽只在「这条 Lua 语句还在栈上」时有效：进入被调代码前清空、返回后恢复，
+// 位置槽只在「这条 Lua 语句还在栈上」时有效：进入被调代码前清空 line、返回后恢复，
 // 免得上一趟调用的残留被当成出错位置。嵌套调用因此逐层还原到正确的主叫方。
 class LuaLocScope {
 public:
-    explicit LuaLocScope(State *s) : s_(s), saved_(s->GetLuaLoc()) {
-        s_->GetLuaLoc() = LuaLoc{};
+    explicit LuaLocScope(State *s) : s_(s), jit_(s->CurrentJit()) {
+        const auto &locs = s_->GetLuaLocs(jit_);
+        if (locs.size() == 1) {
+            single_ptr_ = locs[0];
+            single_line_ = single_ptr_->line;
+            single_ptr_->line = 0;
+        } else if (!locs.empty()) {
+            saved_.reserve(locs.size());
+            for (LuaLoc *loc : locs) {
+                saved_.emplace_back(loc, loc->line);
+                loc->line = 0;
+            }
+        }
     }
     ~LuaLocScope() {
-        s_->GetLuaLoc() = saved_;
+        const auto &locs = s_->GetLuaLocs(jit_);
+        if (single_ptr_ != nullptr) {
+            for (LuaLoc *cur : locs) {
+                if (cur == single_ptr_) {
+                    single_ptr_->line = single_line_;
+                    break;
+                }
+            }
+        } else {
+            for (const auto &[loc, line] : saved_) {
+                for (LuaLoc *cur : locs) {
+                    if (cur == loc) {
+                        loc->line = line;
+                        break;
+                    }
+                }
+            }
+        }
     }
     LuaLocScope(const LuaLocScope &) = delete;
     LuaLocScope &operator=(const LuaLocScope &) = delete;
 
 private:
     State *s_;
-    LuaLoc saved_;
+    JITType jit_;
+    LuaLoc *single_ptr_ = nullptr;
+    int single_line_ = 0;
+    std::vector<std::pair<LuaLoc *, int>> saved_;
 };
 
 // 在边界内执行 fn（fn 会调用 JIT 代码）：JIT 代码里的错误会以 FakeluaException 抛出。

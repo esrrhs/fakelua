@@ -56,6 +56,12 @@ extern "C" void FakeluaJitContextPop(State *s, int prev) {
     s->SetCurrentJit(static_cast<JITType>(prev));
 }
 
+extern "C" __attribute__((used)) void FakeluaRegisterLuaLoc(State *s, int jit_type, LuaLoc *loc) {
+    if (s && loc) {
+        s->RegisterLuaLoc(static_cast<JITType>(jit_type), loc);
+    }
+}
+
 static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr);
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {

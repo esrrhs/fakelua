@@ -1772,3 +1772,32 @@ TEST(exception, runtime_error_location_is_innermost) {
         EXPECT_EQ(ret, 1) << JitTypeName(jit_type);
     }
 }
+
+// 同时加载多个 .so 时，跨编译单元闭包调用抛错与返回后抛错都必须准确定位到对应文件与行号。
+TEST(exception, runtime_error_location_multi_so_closure) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, static_cast<int>(LogLevel::Error));
+    CompileFile(s, "./exception/test_error_location.lua", {});
+    CompileFile(s, "./exception/test_error_location_peer.lua", {});
+
+    for (const auto jit_type: AllJitTypes()) {
+        int64_t ret = 0;
+        try {
+            Call(s, jit_type, "ErrorLocationPeer.call_peer_throwing_closure", ret);
+            ADD_FAILURE() << JitTypeName(jit_type) << " call_peer_throwing_closure should have thrown";
+        } catch (const std::exception &e) {
+            const std::string msg = e.what();
+            EXPECT_NE(msg.find("test_error_location.lua:52"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+        }
+
+        try {
+            Call(s, jit_type, "ErrorLocationPeer.error_after_peer_closure_returns", ret);
+            ADD_FAILURE() << JitTypeName(jit_type) << " error_after_peer_closure_returns should have thrown";
+        } catch (const std::exception &e) {
+            const std::string msg = e.what();
+            EXPECT_NE(msg.find("test_error_location_peer.lua:13"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+        }
+    }
+}

@@ -65,7 +65,7 @@ static bool CallClosure(State *state, VarClosure *cl, CVar *args, int n, CVar &r
     try {
         void *addr = cl->func_ptr;
         if (addr != nullptr) {
-            result = inter::DispatchCallClosure(state, cl, args, n, JIT_TCC);
+            result = inter::DispatchCallClosure(state, cl, args, n, state->CurrentJit());
         } else if (cl->code_str) {
             result = FlEvalLoadClosure(state, cl, n, args);
         } else {

@@ -42,6 +42,9 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     if (init_ptr) {
         State::ConstAllocScope const_alloc(s_);
         inter::DispatchCall(s_, init_ptr, nullptr, 0, JIT_TCC);
+        if (!s_->GetLuaLocs(JIT_TCC).empty()) {
+            handle->SetLuaLoc(s_->GetLuaLocs(JIT_TCC).back());
+        }
     }
 
     LOG_INFO(s_, "engine", "TCC JIT compilation finished for {}", pr.file_name);
