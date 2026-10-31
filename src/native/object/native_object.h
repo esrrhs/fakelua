@@ -87,7 +87,11 @@ void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s);
 
 // 若 tbl 是尚未建快照的 NativeObject 壳，则 RefreshSpecKeys 一次并标记 snapshot_ready。
 // pairs/next（ForEachKV）与 GET_TABLE_ENTRY 计数路径在遍历前调用；非 Native 表为 no-op。
-void EnsureNativeSpecSnapshot(VarTable *tbl);
+void EnsureNativeSpecSnapshotSlow(VarTable *tbl);
+inline void EnsureNativeSpecSnapshot(VarTable *tbl) {
+    if (!tbl || !tbl->spec) return;
+    EnsureNativeSpecSnapshotSlow(tbl);
+}
 
 // 从 CVar key 提取字符串视图（VAR_STRINGID / VAR_STRING）
 inline std::string_view KeyToStringView(CVar k) {

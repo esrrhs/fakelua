@@ -170,7 +170,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, LoadLibrary failed for {}: {}", so_file, WinErrToString(GetLastError())));
     }
-    const auto handle = std::make_shared<GCCHandle>(c_file, so_file, log_file, module_handle);
+    const auto handle = std::make_shared<GCCHandle>(s_, c_file, so_file, log_file, module_handle);
 
     // Common post-load: register compiled functions + call init.
     auto dlsym_lambda = [&](const std::string &sym) -> void * {
@@ -232,7 +232,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, dlopen failed for {}: {}", so_file, dlerror()));
     }
-    const auto handle = std::make_shared<GCCHandle>(c_file, so_file, log_file, dl_handle);
+    const auto handle = std::make_shared<GCCHandle>(s_, c_file, so_file, log_file, dl_handle);
 
     auto dlsym_lambda = [&](const std::string &sym) -> void * { return dlsym(dl_handle, sym.c_str()); };
 #endif
@@ -253,6 +253,9 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     if (init_ptr) {
         State::ConstAllocScope const_alloc(s_);
         inter::DispatchCall(s_, init_ptr, nullptr, 0, JIT_GCC);
+        if (!s_->GetLuaLocs(JIT_GCC).empty()) {
+            handle->SetLuaLoc(s_->GetLuaLocs(JIT_GCC).back());
+        }
     }
 
 #if !defined(_WIN32)
