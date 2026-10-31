@@ -1045,8 +1045,9 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
 
     // 写入调用方提供的输出流。
     if (func_name == kInitFunctionName) {
-        // 编译完成加载执行 __fakelua_init 时，将本编译单元的文件级全局位置变量地址传给宿主 State，
-        // 后续运行期只修改 fl_lua_loc，抛异常时宿主直接从该地址读取文件与行号。
+        // 编译完成加载执行 __fakelua_init 时，初始化文件名并将本编译单元的文件级全局位置变量地址
+        // 传给宿主 State，后续运行期只修改 fl_lua_loc.line，抛异常时宿主直接从该地址读取文件与行号。
+        out << "    fl_lua_loc.file = fl_lua_file;\n";
         out << "    FakeluaRegisterLuaLoc(_S, FAKELUA_JIT_TYPE, &fl_lua_loc);\n";
     }
     out << func_temp_decls_.str();

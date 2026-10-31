@@ -374,11 +374,11 @@ extern void FakeluaRegisterLuaLoc(State *s, int jit_type, FlLuaLoc *loc);
 }
 #endif
 
-// 记录当前执行的 Lua 语句位置（槽地址由 CGen 以 fl_lua_loc 给出）。C++ 侧的报错
-// 拿不到 Lua 栈，只靠这里兜底定位；#line 则负责把编译告警映射回 Lua 源码。
+// 记录当前执行的 Lua 语句位置（文件级全局变量 fl_lua_loc 在 __fakelua_init 时把地址传给宿主 State）。
+// C++ 侧的报错拿不到 Lua 栈，直接通过注册的变量地址读取；#line 则负责把编译告警映射回 Lua 源码。
 static FlLuaLoc fl_lua_loc = { 0, 0 };
 #define FL_LOC_SET(f, l) do { \
-    fl_lua_loc.file = (f); \
+    (void)(f); \
     fl_lua_loc.line = (l); \
 } while (0)
 
@@ -574,9 +574,12 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
 
 #define FCCASE(N)                                                                                                                                                                                       \
     case N: {                                                                                                                                                                                          \
+        int __fl_saved_line = fl_lua_loc.line;                                                                                                                                                         \
+        fl_lua_loc.line = 0;                                                                                                                                                                           \
         int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);                                                                                                                           \
         CVar __fl_ret = ((CVar (*)(VarClosure * FCCVAR_##N))(addr))(cl FCARG_##N);                                                                                                                     \
         FakeluaJitContextPop(state, __fl_prev_jit);                                                                                                                                                    \
+        fl_lua_loc.line = __fl_saved_line;                                                                                                                                                             \
         return __fl_ret;                                                                                                                                                                               \
     }
 

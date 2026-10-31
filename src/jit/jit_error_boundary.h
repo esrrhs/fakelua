@@ -80,7 +80,7 @@ inline std::string LuaLocText(State *s) {
     return {};
 }
 
-// 位置槽只在「这条 Lua 语句还在栈上」时有效：进入被调代码前清空、返回后恢复，
+// 位置槽只在「这条 Lua 语句还在栈上」时有效：进入被调代码前清空 line、返回后恢复，
 // 免得上一趟调用的残留被当成出错位置。嵌套调用因此逐层还原到正确的主叫方。
 class LuaLocScope {
 public:
@@ -88,13 +88,13 @@ public:
         const auto &locs = s_->GetLuaLocs(jit_);
         if (locs.size() == 1) {
             single_ptr_ = locs[0];
-            single_val_ = *single_ptr_;
-            *single_ptr_ = LuaLoc{};
+            single_line_ = single_ptr_->line;
+            single_ptr_->line = 0;
         } else if (!locs.empty()) {
             saved_.reserve(locs.size());
             for (LuaLoc *loc : locs) {
-                saved_.emplace_back(loc, *loc);
-                *loc = LuaLoc{};
+                saved_.emplace_back(loc, loc->line);
+                loc->line = 0;
             }
         }
     }
@@ -103,15 +103,15 @@ public:
         if (single_ptr_ != nullptr) {
             for (LuaLoc *cur : locs) {
                 if (cur == single_ptr_) {
-                    *single_ptr_ = single_val_;
+                    single_ptr_->line = single_line_;
                     break;
                 }
             }
         } else {
-            for (const auto &[loc, val] : saved_) {
+            for (const auto &[loc, line] : saved_) {
                 for (LuaLoc *cur : locs) {
                     if (cur == loc) {
-                        *loc = val;
+                        loc->line = line;
                         break;
                     }
                 }
@@ -125,8 +125,8 @@ private:
     State *s_;
     JITType jit_;
     LuaLoc *single_ptr_ = nullptr;
-    LuaLoc single_val_{};
-    std::vector<std::pair<LuaLoc *, LuaLoc>> saved_;
+    int single_line_ = 0;
+    std::vector<std::pair<LuaLoc *, int>> saved_;
 };
 
 // 在边界内执行 fn（fn 会调用 JIT 代码）：JIT 代码里的错误会以 FakeluaException 抛出。
