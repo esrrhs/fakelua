@@ -9,6 +9,10 @@ namespace fakelua {
 
 HeapAllocator::~HeapAllocator() {
     Reset();
+    if (slot_) {
+        slot_->curr = nullptr;
+        slot_->end = nullptr;
+    }
     for (const auto &block: blocks_) {
 #if defined(_WIN32)
         _aligned_free(block);
@@ -54,6 +58,10 @@ void *HeapAllocator::Alloc(size_t size) {
     current_block_offset_ += padding;
     void *ptr = static_cast<char *>(blocks_[current_block_index_]) + current_block_offset_;
     current_block_offset_ += size;
+    if (slot_) {
+        slot_->curr = static_cast<char *>(blocks_[current_block_index_]) + current_block_offset_;
+        slot_->end = static_cast<char *>(blocks_[current_block_index_]) + BLOCK_SIZE;
+    }
     return ptr;
 }
 
@@ -64,6 +72,15 @@ void HeapAllocator::Reset() {
     destructors_.clear();
     current_block_index_ = 0;
     current_block_offset_ = 0;
+    if (slot_) {
+        if (!blocks_.empty()) {
+            slot_->curr = static_cast<char *>(blocks_[0]);
+            slot_->end = static_cast<char *>(blocks_[0]) + BLOCK_SIZE;
+        } else {
+            slot_->curr = nullptr;
+            slot_->end = nullptr;
+        }
+    }
 }
 
 size_t HeapAllocator::Size() const {

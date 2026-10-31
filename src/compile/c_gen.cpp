@@ -460,6 +460,8 @@ void CGen::GenerateHeader() {
     // 运行期抛错据此定位；#line 则把编译告警也映射回 Lua 源码。
     // 地址与 _S 同级保证：生成代码不会比它的宿主 State 活得更久。
     Out() << "static void * fl_lua_loc = (void *) " << reinterpret_cast<uintptr_t>(&s_->GetLuaLoc()) << ";\n";
+    Out() << "static void * fl_temp_heap = (void *) " << reinterpret_cast<uintptr_t>(&s_->GetTempHeapSlot()) << ";\n";
+    Out() << "static void * fl_const_heap = (void *) " << reinterpret_cast<uintptr_t>(&s_->GetConstHeapSlot()) << ";\n";
 
     // C 运行时类型定义、宏 and 函数（从 c_runtime_header.h 提取，便于独立维护）
     Out() << kCRuntimeHeader;

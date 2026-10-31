@@ -219,10 +219,28 @@ typedef struct VarMulti {
     CVar vars[0];
 } VarMulti;
 
+typedef struct FlHeapSlot {
+    char *curr;
+    char *end;
+} FlHeapSlot;
+
 extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
 
+static inline void* FlFastAlloc(State *state, size_t size, bool is_const) {
+    FlHeapSlot *hs = (is_const || !__fakelua_init_flag__) ? (FlHeapSlot *)fl_const_heap : (FlHeapSlot *)fl_temp_heap;
+    if (LIKELY(hs != NULL)) {
+        size_t aligned_size = (size + 15) & ~(size_t)15;
+        char *c = hs->curr;
+        if (LIKELY(c != NULL && c + aligned_size <= hs->end)) {
+            hs->curr = c + aligned_size;
+            return (void *)c;
+        }
+    }
+    return FakeluaAlloc(state, size, is_const);
+}
+
 static inline CVar FlAllocMulti(State *state, uint32_t count) {
-    VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *m = (VarMulti *)FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
     m->count = count;
     CVar res;
     res.type_ = VAR_MULTI;
@@ -240,7 +258,7 @@ static inline void FlSetMultiCVarElement(CVar multi, int idx, CVar val) {
 }
 
 static inline CVar FlMakeMulti(State *state, uint32_t count, ...) {
-    VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *m = (VarMulti *)FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
     m->count = count;
     va_list args_list;
     va_start(args_list, count);
@@ -265,7 +283,7 @@ static inline CVar FlCombineMulti(State *state, uint32_t prefix_count, const CVa
     }
 
     uint32_t total_count = prefix_count + last_count;
-    VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + total_count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *m = (VarMulti *)FlFastAlloc(state, sizeof(VarMulti) + total_count * sizeof(CVar), !__fakelua_init_flag__);
     m->count = total_count;
 
     for (uint32_t i = 0; i < prefix_count; ++i) {
@@ -304,7 +322,7 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
         return (CVar){VAR_NIL};
     }
     uint32_t count = m->count - start_idx;
-    VarMulti *nm = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *nm = (VarMulti *)FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
     nm->count = count;
     for (uint32_t i = 0; i < count; ++i) {
         nm->vars[i] = m->vars[start_idx + i];
@@ -381,7 +399,7 @@ extern void FakeluaJitContextPop(State *s, int prev);
 // 具名形参若类型会受默认实参提升影响（bool/_Bool 会被提升为 int），行为未定义。
 // 调用处传入的 true/false 会隐式转换为 int。
 static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count, int expected_arg_count, int is_vararg, ...) {
-    VarClosure *cl = (VarClosure *)FakeluaAlloc(state, sizeof(VarClosure) + upvalue_count * sizeof(CVar *), !__fakelua_init_flag__);
+    VarClosure *cl = (VarClosure *)FlFastAlloc(state, sizeof(VarClosure) + upvalue_count * sizeof(CVar *), !__fakelua_init_flag__);
     cl->func_ptr = func_ptr;
     cl->upvalue_count = upvalue_count;
     cl->expected_arg_count = expected_arg_count;
@@ -470,7 +488,7 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
                 temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){VAR_NIL};
             }
             const int vararg_count = flat_count - fixed_arg_count;
-            VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + (vararg_count > 0 ? vararg_count : 0) * sizeof(CVar), !__fakelua_init_flag__);
+            VarMulti *m = (VarMulti *)FlFastAlloc(state, sizeof(VarMulti) + (vararg_count > 0 ? vararg_count : 0) * sizeof(CVar), !__fakelua_init_flag__);
             m->count = vararg_count > 0 ? vararg_count : 0;
             for (int i = 0; i < vararg_count; ++i) {
                 m->vars[i] = flat_args_buf[fixed_arg_count + i];
@@ -675,7 +693,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
 #define SET_STRING(v, str, len) do { \
     int __len = (len); \
     const char *__s_ptr = (str); \
-    VarString *__vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + __len, !__fakelua_init_flag__); \
+    VarString *__vs = (VarString *)FlFastAlloc(_S, sizeof(VarString) + __len, !__fakelua_init_flag__); \
     __vs->size_ = __len; \
     __vs->hash_ = 0; \
     memcpy(__vs->data_, __s_ptr, __len); \
@@ -684,7 +702,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
 } while(0)
 
 #define SET_TABLE(v) do { \
-    VarTable *__t = (VarTable *)FakeluaAlloc(_S, sizeof(VarTable), !__fakelua_init_flag__); \
+    VarTable *__t = (VarTable *)FlFastAlloc(_S, sizeof(VarTable), !__fakelua_init_flag__); \
     __t->count_ = 0; \
     __t->bucket_count_ = 0; \
     __t->nodes_ = NULL; \
@@ -715,12 +733,12 @@ static inline uint32_t FlHashString(const char *str, int len) {
 
 #define SET_TABLE_SPEC(v, SpecType, get_fn, set_fn, field_count) do { \
     SET_TABLE(v); \
-    SpecType *__sp = (SpecType *)FakeluaAlloc(_S, sizeof(SpecType), !__fakelua_init_flag__); \
+    SpecType *__sp = (SpecType *)FlFastAlloc(_S, sizeof(SpecType), !__fakelua_init_flag__); \
     (v).data_.t->spec = __sp; \
     (v).data_.t->spec_get = (get_fn); \
     (v).data_.t->spec_set = (set_fn); \
-    (v).data_.t->spec_keys = (CVar *)FakeluaAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
-    (v).data_.t->spec_vals = (CVar *)FakeluaAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
+    (v).data_.t->spec_keys = (CVar *)FlFastAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
+    (v).data_.t->spec_vals = (CVar *)FlFastAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
     (v).data_.t->spec_count = (field_count); \
     assert(sizeof(SpecType) == (field_count) * sizeof(CVar)); \
 } while(0)
@@ -891,7 +909,7 @@ static inline void FlTableRehash(VarTable *tbl) {
         uint32_t total_nodes = new_bucket_count + overflow_count;
         size_t nodes_size = total_nodes * sizeof(TableNode);
         size_t active_list_size = total_nodes * sizeof(uint32_t);
-        char *buffer = (char *)FakeluaAlloc(_S, nodes_size + active_list_size, !__fakelua_init_flag__);
+        char *buffer = (char *)FlFastAlloc(_S, nodes_size + active_list_size, !__fakelua_init_flag__);
         TableNode *new_nodes = (TableNode *)buffer;
         uint32_t *new_active_list = (uint32_t *)(buffer + nodes_size);
         { uint32_t i; for (i = 0; i < total_nodes; ++i) { new_nodes[i].entry.key.type_ = VAR_NIL; new_nodes[i].next = 0xFFFFFFFF; new_nodes[i].active_pos = 0xFFFFFFFF; } }
@@ -1016,7 +1034,7 @@ static inline CVar FlHashGetInt(VarTable *tbl, int64_t k) {
 
 __attribute__((noinline)) static void FlArrGrow(VarTable *tbl) {
     uint32_t cap = tbl->arr_cap_ ? tbl->arr_cap_ * 2 : 4;
-    CVar *na = (CVar *)FakeluaAlloc(_S, (size_t)cap * sizeof(CVar), !__fakelua_init_flag__);
+    CVar *na = (CVar *)FlFastAlloc(_S, (size_t)cap * sizeof(CVar), !__fakelua_init_flag__);
     if (tbl->arr_size_ > 0) { memcpy(na, tbl->arr_, (size_t)tbl->arr_size_ * sizeof(CVar)); }
     tbl->arr_ = na;
     tbl->arr_cap_ = cap;
@@ -1080,7 +1098,7 @@ __attribute__((noinline)) static bool FlArrTryResize(VarTable *tbl, int64_t nk) 
     if (optimal <= (uint64_t)tbl->arr_size_) { return false; }
     {
         uint32_t old_size = tbl->arr_size_;
-        CVar *na = (CVar *)FakeluaAlloc(_S, (size_t)optimal * sizeof(CVar), !__fakelua_init_flag__);
+        CVar *na = (CVar *)FlFastAlloc(_S, (size_t)optimal * sizeof(CVar), !__fakelua_init_flag__);
         if (old_size > 0) { memcpy(na, tbl->arr_, (size_t)old_size * sizeof(CVar)); }
         memset(na + old_size, 0, (size_t)(optimal - old_size) * sizeof(CVar));
         tbl->arr_ = na;
@@ -1226,8 +1244,7 @@ static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
     // hash fallback
     if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
     VarString *vs = (VarString *)str_id;
-    if (vs->hash_ == 0) { vs->hash_ = FlHashString(vs->data_, vs->size_); }
-    uint32_t h = vs->hash_;
+    uint32_t h = LIKELY(vs->hash_ != 0) ? vs->hash_ : (vs->hash_ = FlHashString(vs->data_, vs->size_));
     if (LIKELY(tbl->bucket_count_ == 0)) {
         for (uint32_t i = 0; i < tbl->count_; ++i) {
             if (tbl->quick_data_[i].hash == h) {
@@ -1277,8 +1294,7 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     }
     // hash fallback
     VarString *vs = (VarString *)str_id;
-    if (vs->hash_ == 0) { vs->hash_ = FlHashString(vs->data_, vs->size_); }
-    uint32_t h = vs->hash_;
+    uint32_t h = LIKELY(vs->hash_ != 0) ? vs->hash_ : (vs->hash_ = FlHashString(vs->data_, vs->size_));
     CVar key_cvar; key_cvar.type_ = VAR_STRINGID; key_cvar.data_.i = str_id;
     if (UNLIKELY(v.type_ == VAR_NIL)) {
         FlSetTable((CVar){.type_ = VAR_TABLE, .data_.t = tbl}, key_cvar, v);
@@ -1501,7 +1517,7 @@ static inline CVar FlConcat(CVar a, CVar b) {
     else { CONCAT_CHECK_NUMERIC(b); lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
     int total = la + lb;
     if (UNLIKELY(total < la || total < lb)) { FakeluaThrowError(_S, "string concatenation result too long"); }
-    VarString *vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
+    VarString *vs = (VarString *)FlFastAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
     vs->size_ = total;
     vs->hash_ = 0;
     memcpy(vs->data_, sa, la);
@@ -1518,7 +1534,7 @@ static inline CVar FlStringChar1(int64_t c) {
     if (UNLIKELY(c < 0 || c > 255)) {
         FakeluaThrowError(_S, "bad argument to string.char: value out of range");
     }
-    VarString *vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + 1, !__fakelua_init_flag__);
+    VarString *vs = (VarString *)FlFastAlloc(_S, sizeof(VarString) + 1, !__fakelua_init_flag__);
     vs->size_ = 1;
     vs->hash_ = 0;
     vs->data_[0] = (char)c;
@@ -1536,7 +1552,7 @@ static inline CVar FlStringLower(CVar s) {
     if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
     else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
     else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.lower", 1, s); }
-    VarString *out = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    VarString *out = (VarString *)FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
     out->size_ = len;
     out->hash_ = 0;
     for (int i = 0; i < len; ++i) {
@@ -1553,7 +1569,7 @@ static inline CVar FlStringUpper(CVar s) {
     if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
     else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
     else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.upper", 1, s); }
-    VarString *out = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    VarString *out = (VarString *)FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
     out->size_ = len;
     out->hash_ = 0;
     for (int i = 0; i < len; ++i) {
@@ -1584,7 +1600,7 @@ static inline CVar FlStringRep(CVar s, int64_t n) {
     else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
     else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar){.type_ = VAR_INT, .data_.i = n}); }
     if (n <= 0 || len == 0) {
-        VarString *vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString), !__fakelua_init_flag__);
+        VarString *vs = (VarString *)FlFastAlloc(_S, sizeof(VarString), !__fakelua_init_flag__);
         vs->size_ = 0; vs->hash_ = 0; vs->data_[0] = '\0';
         CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = vs; return r;
     }
@@ -1593,7 +1609,7 @@ static inline CVar FlStringRep(CVar s, int64_t n) {
         return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar){.type_ = VAR_INT, .data_.i = n});
     }
     int64_t total = (int64_t)len * n;
-    VarString *out = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
+    VarString *out = (VarString *)FlFastAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
     out->size_ = total;
     out->hash_ = 0;
     char *dst = out->data_;
@@ -1612,7 +1628,7 @@ static inline CVar FlStringReverse(CVar s) {
     if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
     else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
     else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.reverse", 1, s); }
-    VarString *out = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    VarString *out = (VarString *)FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
     out->size_ = len;
     out->hash_ = 0;
     for (int i = 0; i < len; ++i) {
@@ -1650,7 +1666,7 @@ static inline CVar FlFormatInt(int64_t v) {
     char buf[32];
     int n = snprintf(buf, sizeof(buf), "%lld", (long long)v);
     if (n < 0) n = 0;
-    VarString *vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + n, !__fakelua_init_flag__);
+    VarString *vs = (VarString *)FlFastAlloc(_S, sizeof(VarString) + n, !__fakelua_init_flag__);
     vs->size_ = n;
     vs->hash_ = 0;
     memcpy(vs->data_, buf, (size_t)n);

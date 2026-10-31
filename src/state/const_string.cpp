@@ -15,6 +15,7 @@ int64_t ConstString::Alloc(const std::string_view &str) {
 
     auto ptr = static_cast<VarString *>(s_->GetHeap().GetAllocator(true).Alloc(sizeof(VarString) + str.size()));
     new (ptr) VarString(str);
+    (void)ptr->Hash();
     auto id = reinterpret_cast<int64_t>(ptr);
 
     auto key = ptr->Str();
