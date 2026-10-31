@@ -456,13 +456,8 @@ void CGen::GenerateHeader() {
     // 同一份代码也不会被跨 State 复用（每次编译都会重新生成）。
     Out() << "static void * _S = (void *) " << s_ << ";\n";
     Out() << "static bool __fakelua_init_flag__ = false;\n";
-    // Lua 源码位置槽（FlLuaLoc*，见 c_runtime_header.h）：每个语句执行前写一次，
-    // 运行期抛错据此定位；#line 则把编译告警也映射回 Lua 源码。
-    // 地址与 _S 同级保证：生成代码不会比它的宿主 State 活得更久。
-    Out() << "static void * fl_lua_loc = (void *) " << reinterpret_cast<uintptr_t>(&s_->GetLuaLoc()) << ";\n";
-    Out() << "static const char * const fl_lua_file = \"" << EscapeCStringLiteral(file_name_) << "\";\n";
-
     // C 运行时类型定义、宏 and 函数（从 c_runtime_header.h 提取，便于独立维护）
+    Out() << "static const char * const fl_lua_file = \"" << EscapeCStringLiteral(file_name_) << "\";\n";
     Out() << kCRuntimeHeader;
 
     // 前置发射所有 spec 类型的 typedef + 特化 get/set 函数（读取 TypeInferencer 预计算的
@@ -1049,6 +1044,11 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
     cur_tab_--;
 
     // 写入调用方提供的输出流。
+    if (func_name == kInitFunctionName) {
+        // 编译完成加载执行 __fakelua_init 时，将本编译单元的文件级全局位置变量地址传给宿主 State，
+        // 后续运行期只修改 fl_lua_loc，抛异常时宿主直接从该地址读取文件与行号。
+        out << "    FakeluaRegisterLuaLoc(_S, FAKELUA_JIT_TYPE, &fl_lua_loc);\n";
+    }
     out << func_temp_decls_.str();
     out << body_ss.str();
     if (func_name == kInitFunctionName) {
@@ -3490,22 +3490,37 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     const auto pe_pre_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe_pre);
 
     if (auto result = TryCompileBuiltinMathCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        if (cur_stmt_node_ != nullptr) {
+            EmitLuaLine(cur_stmt_node_);
+        }
         return result;
     }
 
     if (auto result = TryCompileBuiltinTableCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        if (cur_stmt_node_ != nullptr) {
+            EmitLuaLine(cur_stmt_node_);
+        }
         return result;
     }
 
     if (auto result = TryCompileBuiltinStringCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        if (cur_stmt_node_ != nullptr) {
+            EmitLuaLine(cur_stmt_node_);
+        }
         return result;
     }
 
     if (auto result = TryCompileBuiltinLogCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        if (cur_stmt_node_ != nullptr) {
+            EmitLuaLine(cur_stmt_node_);
+        }
         return result;
     }
 
     if (auto result = TryCompileBuiltinBasicCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        if (cur_stmt_node_ != nullptr) {
+            EmitLuaLine(cur_stmt_node_);
+        }
         return result;
     }
 
@@ -3514,6 +3529,9 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     }
 
     if (auto result = TryCompileSetTableCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
+        if (cur_stmt_node_ != nullptr) {
+            EmitLuaLine(cur_stmt_node_);
+        }
         return result;
     }
 

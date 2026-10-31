@@ -369,15 +369,17 @@ extern CVar FakeluaInterpCall(State *state, VarClosure *cl, int arg_num, const C
 // pop 恢复。native 对象方法等在闭包内执行时据此登记派回本引擎的异步回调。
 extern int FakeluaJitContextPush(State *s, int jit);
 extern void FakeluaJitContextPop(State *s, int prev);
+extern void FakeluaRegisterLuaLoc(State *s, int jit_type, FlLuaLoc *loc);
 #ifdef __cplusplus
 }
 #endif
 
 // 记录当前执行的 Lua 语句位置（槽地址由 CGen 以 fl_lua_loc 给出）。C++ 侧的报错
 // 拿不到 Lua 栈，只靠这里兜底定位；#line 则负责把编译告警映射回 Lua 源码。
+static FlLuaLoc fl_lua_loc = { 0, 0 };
 #define FL_LOC_SET(f, l) do { \
-    ((FlLuaLoc *)fl_lua_loc)->file = (f); \
-    ((FlLuaLoc *)fl_lua_loc)->line = (l); \
+    fl_lua_loc.file = (f); \
+    fl_lua_loc.line = (l); \
 } while (0)
 
 #define kMaxFunctionInputParams 32
