@@ -1,4 +1,5 @@
 #include "jit/gcc_handle.h"
+#include "state/state.h"
 
 #include <filesystem>
 
@@ -12,6 +13,10 @@
 namespace fakelua {
 
 GCCHandle::~GCCHandle() {
+    if (s_ && lua_loc_) {
+        s_->UnregisterLuaLoc(JIT_GCC, lua_loc_);
+        lua_loc_ = nullptr;
+    }
     // Unload the dynamic library first (files can't be deleted while mapped).
 #if defined(_WIN32)
     if (dl_handle_) {

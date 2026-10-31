@@ -12,6 +12,7 @@
 #include <type_traits>
 #include <typeindex>
 #include <unordered_map>
+#include <vector>
 
 struct TCCState;
 
@@ -111,10 +112,42 @@ public:
         jit_error_boundary_ = boundary;
     }
 
-    // JIT 生成代码在每个 Lua 语句前写入当前位置。C++ 侧的报错拿不到 Lua 栈，
-    // 只在这里读得到，用来给没有位置的错误兜底。
-    [[nodiscard]] LuaLoc &GetLuaLoc() {
-        return lua_loc_;
+    // JIT 生成代码在编译加载完成（__fakelua_init）时把本文件级的全局位置变量地址传给宿主 State。
+    // 动态库运行期只修改自己的全局变量，抛异常时宿主层直接通过该变量地址读取文件与行号。
+    void RegisterLuaLoc(JITType jit_type, LuaLoc *loc) {
+        if (!loc) {
+            return;
+        }
+        const auto idx = static_cast<size_t>(jit_type);
+        if (idx < JIT_MAX) {
+            for (auto *existing : lua_locs_[idx]) {
+                if (existing == loc) {
+                    return;
+                }
+            }
+            lua_locs_[idx].push_back(loc);
+        }
+    }
+
+    void UnregisterLuaLoc(JITType jit_type, LuaLoc *loc) {
+        if (!loc) {
+            return;
+        }
+        const auto idx = static_cast<size_t>(jit_type);
+        if (idx < JIT_MAX) {
+            auto &vec = lua_locs_[idx];
+            for (auto it = vec.begin(); it != vec.end(); ++it) {
+                if (*it == loc) {
+                    vec.erase(it);
+                    return;
+                }
+            }
+        }
+    }
+
+    [[nodiscard]] const std::vector<LuaLoc *> &GetLuaLocs(JITType jit_type) const {
+        const auto idx = static_cast<size_t>(jit_type);
+        return lua_locs_[idx < JIT_MAX ? idx : 0];
     }
 
     // __fakelua_init（解释器与 JIT）期间为 true：Lua 值分配走常量堆，帧 Reset 后仍然有效。
@@ -231,7 +264,7 @@ private:
 
     std::function<VarInterface *()> var_interface_new_func_;
     JitErrorBoundary *jit_error_boundary_ = nullptr;
-    LuaLoc lua_loc_;
+    std::vector<LuaLoc *> lua_locs_[JIT_MAX];
     bool interp_const_alloc_ = false;
     // 当前执行引擎，初值 TCC（无 Lua 调用栈的边界场景，与 kNativeCallbackJit 一致）。
     JITType current_jit_ = JIT_TCC;

@@ -15,8 +15,9 @@ extern "C" void FakeluaLogLua(State *s, int level, CVar msg, const char *file, i
 extern "C" int GetLogLevel(State *s);
 struct VarTable;
 extern "C" void FlEnsureNativeSpecSnapshot(VarTable *t);
+extern "C" void FakeluaRegisterLuaLoc(State *s, int jit_type, LuaLoc *loc);
 
-TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
+TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) : s_(s) {
     const auto &config = s->GetStateConfig();
     tcc_state_ = tcc_new();
     if (!tcc_state_) {
@@ -50,10 +51,15 @@ TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
     tcc_add_symbol(tcc_state_, "FakeluaLogLua", reinterpret_cast<void *>(FakeluaLogLua));
     tcc_add_symbol(tcc_state_, "GetLogLevel", reinterpret_cast<void *>(GetLogLevel));
     tcc_add_symbol(tcc_state_, "FlEnsureNativeSpecSnapshot", reinterpret_cast<void *>(FlEnsureNativeSpecSnapshot));
+    tcc_add_symbol(tcc_state_, "FakeluaRegisterLuaLoc", reinterpret_cast<void *>(FakeluaRegisterLuaLoc));
     tcc_define_symbol(tcc_state_, "FAKELUA_JIT_TYPE", std::to_string(static_cast<int>(JIT_TCC)).c_str());
 }
 
 TCCHandle::~TCCHandle() {
+    if (s_ && lua_loc_) {
+        s_->UnregisterLuaLoc(JIT_TCC, lua_loc_);
+        lua_loc_ = nullptr;
+    }
     if (tcc_state_) {
         tcc_delete(tcc_state_);
         tcc_state_ = nullptr;
