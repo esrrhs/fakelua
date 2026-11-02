@@ -1829,7 +1829,7 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     Out() << GenTab() << "while (1) {\n";
     cur_tab_++;
     const auto cond_bool = CompileCondBoolExpr(while_stmt->Exp(), "flua_wbt");
-    Out() << GenTab() << std::format("if (!{}) break;\n", cond_bool);
+    Out() << GenTab() << std::format("if (!({})) break;\n", cond_bool);
     CompileStmtBlock(while_stmt->Block());
     cur_tab_--;
     Out() << GenTab() << "}\n";
