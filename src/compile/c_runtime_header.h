@@ -236,7 +236,7 @@ static inline void* FlFastAlloc(State *state, size_t size, bool is_const) {
     if (LIKELY(hs != NULL)) {
         size_t aligned_size = (size + 15) & ~(size_t)15;
         char *c = hs->curr;
-        if (LIKELY(c != NULL && c + aligned_size <= hs->end)) {
+        if (LIKELY(c != NULL && aligned_size >= size && c + aligned_size > c && c + aligned_size <= hs->end)) {
             hs->curr = c + aligned_size;
             return (void *)c;
         }
