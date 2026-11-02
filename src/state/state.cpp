@@ -50,7 +50,8 @@ void State::SetLogFile(const std::string &path, size_t max_size, size_t max_file
     }
 }
 
-State::State(const StateConfig &config) : config_(config), compiler_(this), const_string_(this) {
+State::State(const StateConfig &config)
+    : config_(config), compiler_(this), heap_(&temp_heap_slot_, &const_heap_slot_), const_string_(this) {
     utf8_io::Init();
     log_level_ = config_.log_level;
     if (!config_.log_file.empty()) {

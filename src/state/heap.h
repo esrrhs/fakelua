@@ -7,8 +7,15 @@
 
 namespace fakelua {
 
+// JIT C 运行时快速分配槽。直接以指针暴露给 JIT 代码。
+struct FlHeapSlot {
+    char *curr = nullptr;
+    char *end = nullptr;
+};
+
 class HeapAllocator {
 public:
+    HeapAllocator(FlHeapSlot *slot = nullptr) : slot_(slot) {}
     ~HeapAllocator();
 
     // 分配一块连续的临时内存，分配后的指针地址不会变化
@@ -37,6 +44,7 @@ private:
 
     static constexpr size_t BLOCK_SIZE = 1024UL * 1024UL;// 每块内存的大小，默认1MB
     static_assert(BLOCK_SIZE % alignof(std::max_align_t) == 0, "BLOCK_SIZE must be a multiple of max alignment");
+    FlHeapSlot *slot_ = nullptr;              // 同步更新给 JIT 的快速分配槽
     std::vector<void *> blocks_;             // 大块内存的地址
     size_t current_block_index_ = 0;         // 当前使用的大块内存索引
     size_t current_block_offset_ = 0;        // 当前使用的大块内存偏移
@@ -46,6 +54,9 @@ private:
 // 从大块内存中切出一小块内存使用，释放的时候一口气全释放
 class Heap {
 public:
+    Heap(FlHeapSlot *temp_slot = nullptr, FlHeapSlot *const_slot = nullptr)
+        : temp_allocator_(temp_slot), const_allocator_(const_slot) {}
+
     HeapAllocator &GetAllocator(bool is_const) {
         if (is_const) {
             return const_allocator_;
