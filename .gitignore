@@ -65,3 +65,11 @@ test_results.log
 .cache/
 base_cov/
 new_cov/
+
+
+# WorkBuddy 工作空间记忆（本地）
+.workbuddy/
+build*/
+deliverables/
+ITERATION_PLAN.md
+.deps/
