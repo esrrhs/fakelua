@@ -10,6 +10,7 @@
 #include <iterator>
 #include <sstream>
 #include <vector>
+#include <random>
 
 #if defined(_WIN32)
 #define NOMINMAX
@@ -81,7 +82,23 @@ GccJitter::GccJitter(State *s) : s_(s) {
 
 void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg) {
     LOG_INFO(s_, "engine", "GCC JIT compile start: {}, {} functions", pr.file_name, gr.function_names.size());
+#if defined(USE_COV)
+    // Coverage builds: put JIT temps under the CMake build tree so .gcno/.gcda are
+    // visible to `lcov --directory build`. Keep random names to avoid collisions.
+    std::string c_file;
+    {
+        const std::filesystem::path cov_dir(FAKELUA_JIT_COV_DIR);
+        std::error_code ec;
+        std::filesystem::create_directories(cov_dir, ec);
+        std::mt19937 rng{std::random_device{}()};
+        std::uniform_int_distribution<int> dist(100000, 999999);
+        do {
+            c_file = (cov_dir / ("fakelua_jit_" + std::to_string(dist(rng)) + ".c")).string();
+        } while (std::ifstream(c_file));
+    }
+#else
     const std::string c_file = GenerateTmpFilename("fakelua_jit_", ".c");
+#endif
     const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
 #if defined(_WIN32)
                                 ".dll";
@@ -92,10 +109,13 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 #endif
     const std::string log_file = c_file.substr(0, c_file.size() - kCExtLen) + ".gcc.log";
 
+    const std::string obj_file = c_file.substr(0, c_file.size() - kCExtLen) + ".o";
+
     // RAII cleanup for temp files on early error paths (before GCCHandle takes ownership).
     const auto CleanupOnError = [&]() {
         std::error_code ec;
         std::filesystem::remove(c_file, ec);
+        std::filesystem::remove(obj_file, ec);
         std::filesystem::remove(so_file, ec);
         std::filesystem::remove(log_file, ec);
     };
@@ -107,64 +127,172 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         ofs.close();
     }
 
-    std::vector<std::string> args;
-    args.emplace_back("gcc");
-    args.emplace_back("-x");
-    args.emplace_back("c");
-    args.emplace_back("-shared");
-#if !defined(_WIN32)
-    args.emplace_back("-fPIC");
-#endif
-#if defined(__APPLE__)
-    // macOS 的 .dylib 需要 -undefined dynamic_lookup 选项，
-    // 允许运行时由宿主进程提供未解析的符号。
-    args.emplace_back("-undefined");
-    args.emplace_back("dynamic_lookup");
-#endif
-    args.emplace_back(cfg.debug_mode ? "-O0" : "-O3");
-    args.emplace_back("-DFAKELUA_JIT_TYPE=" + std::to_string(static_cast<int>(JIT_GCC)));
-    for (const auto &path: s_->GetStateConfig().gcc_config.include_paths) {
-        args.emplace_back("-I" + path);
-    }
+    const auto opt_flag = cfg.debug_mode ? "-O0" : "-O3";
+    const std::string jit_type_def = "-DFAKELUA_JIT_TYPE=" + std::to_string(static_cast<int>(JIT_GCC));
+
+    auto append_includes_and_libs = [&](std::vector<std::string> &a, bool for_link) {
+        for (const auto &path: s_->GetStateConfig().gcc_config.include_paths) {
+            a.emplace_back("-I" + path);
+        }
+        if (!for_link) {
+            return;
+        }
 #if defined(_WIN32)
-    for (const auto &path: GetWindowsDefaultLibraryPaths()) {
-        args.emplace_back("-L" + path);
-    }
-    args.emplace_back("-lfakelua");
+        for (const auto &path: GetWindowsDefaultLibraryPaths()) {
+            a.emplace_back("-L" + path);
+        }
+        a.emplace_back("-lfakelua");
 #endif
-    for (const auto &path: s_->GetStateConfig().gcc_config.library_paths) {
-        args.emplace_back("-L" + path);
-    }
-    for (const auto &lib: s_->GetStateConfig().gcc_config.libraries) {
-        args.emplace_back("-l" + lib);
-    }
-    args.emplace_back("-o");
-    args.emplace_back(so_file);
-    args.emplace_back(c_file);
+        for (const auto &path: s_->GetStateConfig().gcc_config.library_paths) {
+            a.emplace_back("-L" + path);
+        }
+        for (const auto &lib: s_->GetStateConfig().gcc_config.libraries) {
+            a.emplace_back("-l" + lib);
+        }
+    };
 
     // Helper: build null-terminated argv from std::vector<std::string>.
-    auto build_argv = [&]() {
+    auto build_argv = [](std::vector<std::string> &a) {
         std::vector<char *> argv;
-        argv.reserve(args.size() + 1);
-        for (auto &arg: args) {
+        argv.reserve(a.size() + 1);
+        for (auto &arg: a) {
             argv.emplace_back(arg.data());
         }
         argv.emplace_back(nullptr);
         return argv;
     };
 
-#if defined(_WIN32)
-    auto argv = build_argv();
-    const int compile_status = _spawnvp(_P_WAIT, "gcc", argv.data());
-    if (compile_status == -1) {
-        CleanupOnError();
-        ThrowFakeluaException(std::format("GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}", pr.file_name, errno, std::strerror(errno), JoinCommand(args)));
-    }
-    if (compile_status != 0) {
-        CleanupOnError();
-        ThrowFakeluaException(std::format("GCC compile failed for {} with exit code {}. cmd: {}", pr.file_name, compile_status, JoinCommand(args)));
+    {
+        std::ofstream trunc(log_file, std::ios::trunc);
     }
 
+    auto run_gcc = [&](std::vector<std::string> &a) {
+#if defined(_WIN32)
+        auto argv = build_argv(a);
+        const int compile_status = _spawnvp(_P_WAIT, "gcc", argv.data());
+        if (compile_status == -1) {
+            CleanupOnError();
+            ThrowFakeluaException(std::format("GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}", pr.file_name, errno, std::strerror(errno), JoinCommand(a)));
+        }
+        if (compile_status != 0) {
+            CleanupOnError();
+            ThrowFakeluaException(std::format("GCC compile failed for {} with exit code {}. cmd: {}", pr.file_name, compile_status, JoinCommand(a)));
+        }
+#else
+        auto argv = build_argv(a);
+        const int log_fd = open(log_file.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (log_fd < 0) {
+            CleanupOnError();
+            ThrowFakeluaException(std::format("GCC compile failed, cannot open log file {}", log_file));
+        }
+
+        // Block SIGCHLD before fork to prevent the default handler from turning
+        // the child into a zombie before we get to waitpid.
+        sigset_t old_mask, block_mask;
+        sigemptyset(&block_mask);
+        sigaddset(&block_mask, SIGCHLD);
+        pthread_sigmask(SIG_BLOCK, &block_mask, &old_mask);
+
+        const pid_t pid = fork();
+        if (pid < 0) {
+            pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
+            close(log_fd);
+            CleanupOnError();
+            ThrowFakeluaException(std::format("GCC compile failed, fork failed for {}", pr.file_name));
+        }
+
+        if (pid == 0) {
+            // Restore default signal mask in child before exec.
+            pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
+            dup2(log_fd, STDOUT_FILENO);
+            dup2(log_fd, STDERR_FILENO);
+            close(log_fd);
+            execvp("gcc", argv.data());
+            _exit(kExecFailedStatus);
+        }
+        close(log_fd);
+
+        int status = 0;
+        if (waitpid(pid, &status, 0) < 0) {
+            pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
+            CleanupOnError();
+            ThrowFakeluaException(std::format("GCC compile failed, waitpid failed for {}", pr.file_name));
+        }
+        pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+            std::string gcc_log;
+            if (std::ifstream ifs(log_file); ifs.is_open()) {
+                gcc_log.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
+            }
+            CleanupOnError();
+            ThrowFakeluaException(std::format("GCC compile failed for {} (log: {})\n{}", pr.file_name, log_file, gcc_log));
+        }
+#endif
+    };
+
+#if defined(USE_COV)
+    // Two-step compile so gcov notes/data are named `<stem>.gcno/.gcda` (not
+    // `<stem>.so-<stem>.gcno` from one-shot -shared of a .c file).
+    {
+        std::vector<std::string> compile_args{"gcc", "-x", "c", "-c"};
+#if !defined(_WIN32)
+        compile_args.emplace_back("-fPIC");
+#endif
+        compile_args.emplace_back(opt_flag);
+        compile_args.emplace_back("-fprofile-arcs");
+        compile_args.emplace_back("-ftest-coverage");
+        compile_args.emplace_back("-fprofile-update=atomic");
+        compile_args.emplace_back(jit_type_def);
+        append_includes_and_libs(compile_args, false);
+        compile_args.emplace_back("-o");
+        compile_args.emplace_back(obj_file);
+        compile_args.emplace_back(c_file);
+        run_gcc(compile_args);
+    }
+    {
+        std::vector<std::string> link_args{"gcc", "-shared"};
+#if !defined(_WIN32)
+        link_args.emplace_back("-fPIC");
+#endif
+#if defined(__APPLE__)
+        link_args.emplace_back("-undefined");
+        link_args.emplace_back("dynamic_lookup");
+#endif
+        link_args.emplace_back("--coverage");
+        append_includes_and_libs(link_args, true);
+        link_args.emplace_back("-o");
+        link_args.emplace_back(so_file);
+        link_args.emplace_back(obj_file);
+        run_gcc(link_args);
+    }
+    {
+        // Object file not needed after link; keep .c/.gcno for lcov.
+        std::error_code ec;
+        std::filesystem::remove(obj_file, ec);
+    }
+#else
+    {
+        std::vector<std::string> args{"gcc", "-x", "c", "-shared"};
+#if !defined(_WIN32)
+        args.emplace_back("-fPIC");
+#endif
+#if defined(__APPLE__)
+        // macOS 的 .dylib 需要 -undefined dynamic_lookup 选项，
+        // 允许运行时由宿主进程提供未解析的符号。
+        args.emplace_back("-undefined");
+        args.emplace_back("dynamic_lookup");
+#endif
+        args.emplace_back(opt_flag);
+        args.emplace_back(jit_type_def);
+        append_includes_and_libs(args, true);
+        args.emplace_back("-o");
+        args.emplace_back(so_file);
+        args.emplace_back(c_file);
+        run_gcc(args);
+    }
+#endif
+
+#if defined(_WIN32)
     HMODULE module_handle = LoadLibraryA(so_file.c_str());
     if (!module_handle) {
         CleanupOnError();
@@ -178,55 +306,6 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         return p ? reinterpret_cast<void *>(p) : nullptr;
     };
 #else
-    auto argv = build_argv();
-    const int log_fd = open(log_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (log_fd < 0) {
-        CleanupOnError();
-        ThrowFakeluaException(std::format("GCC compile failed, cannot open log file {}", log_file));
-    }
-
-    // Block SIGCHLD before fork to prevent the default handler from turning
-    // the child into a zombie before we get to waitpid.
-    sigset_t old_mask, block_mask;
-    sigemptyset(&block_mask);
-    sigaddset(&block_mask, SIGCHLD);
-    pthread_sigmask(SIG_BLOCK, &block_mask, &old_mask);
-
-    const pid_t pid = fork();
-    if (pid < 0) {
-        pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
-        close(log_fd);
-        CleanupOnError();
-        ThrowFakeluaException(std::format("GCC compile failed, fork failed for {}", pr.file_name));
-    }
-
-    if (pid == 0) {
-        // Restore default signal mask in child before exec.
-        pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
-        dup2(log_fd, STDOUT_FILENO);
-        dup2(log_fd, STDERR_FILENO);
-        close(log_fd);
-        execvp("gcc", argv.data());
-        _exit(kExecFailedStatus);
-    }
-    close(log_fd);
-
-    int status = 0;
-    if (waitpid(pid, &status, 0) < 0) {
-        pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
-        CleanupOnError();
-        ThrowFakeluaException(std::format("GCC compile failed, waitpid failed for {}", pr.file_name));
-    }
-    pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        std::string gcc_log;
-        if (std::ifstream ifs(log_file); ifs.is_open()) {
-            gcc_log.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
-        }
-        CleanupOnError();
-        ThrowFakeluaException(std::format("GCC compile failed for {} (log: {})\n{}", pr.file_name, log_file, gcc_log));
-    }
-
     void *dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!dl_handle) {
         CleanupOnError();
