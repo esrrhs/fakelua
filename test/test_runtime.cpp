@@ -12,7 +12,10 @@
 #include "var/var_table.h"
 #include "var/var_type.h"
 #include "gtest/gtest.h"
+#include <cstring>
 #include <filesystem>
+#include <utility>
+#include <vector>
 
 using namespace fakelua;
 
@@ -662,4 +665,81 @@ TEST(runtime, fakelua_call_by_name_vararg_path) {
     CVar r4 = FakeluaCallByName(&s, TEST_JIT_TYPE, "echo2_null", 2, multi_null, inter::NativeToFakeluaInt(&s, 100));
     ASSERT_EQ(r4.type_, static_cast<int>(VarType::Int));
     ASSERT_EQ(r4.data_.i, 100);
+}
+
+// Regression for FlFastAlloc / HeapAllocator offset desync (PR #46 / 23addcc):
+// FlFastAlloc bumps slot_->curr without updating current_block_offset_. Without
+// syncing at Alloc entry, the next C++ Alloc reuses the same block range and
+// overlaps the JIT allocation (table corruption / SEGV in ForEachKV).
+TEST(runtime, heap_allocator_syncs_offset_from_flfastalloc_slot) {
+    FlHeapSlot slot;
+    HeapAllocator alloc(&slot);
+
+    void *p0 = alloc.Alloc(64);
+    ASSERT_NE(p0, nullptr);
+    ASSERT_NE(slot.curr, nullptr);
+    ASSERT_NE(slot.end, nullptr);
+
+    // Simulate JIT FlFastAlloc: advance curr only.
+    constexpr size_t kFast = 256;
+    ASSERT_GE(static_cast<size_t>(slot.end - slot.curr), kFast);
+    char *fast_start = slot.curr;
+    slot.curr = fast_start + kFast;
+    char *stale_without_sync = fast_start;// would be the next C++ return without sync
+
+    void *p1 = alloc.Alloc(128);
+    ASSERT_NE(p1, nullptr);
+    auto *p1c = static_cast<char *>(p1);
+
+    // Must start at/after the FlFastAlloc bump, not at the stale pre-bump offset.
+    EXPECT_GE(p1c, fast_start + kFast);
+    EXPECT_NE(p1c, stale_without_sync);
+
+    // Poison both ranges; overlapping reuse would corrupt the "JIT" region.
+    std::memset(fast_start, 0xAB, kFast);
+    std::memset(p1c, 0xCD, 128);
+    for (size_t i = 0; i < kFast; ++i) {
+        EXPECT_EQ(static_cast<unsigned char>(fast_start[i]), 0xAB) << "overlap at " << i;
+    }
+    for (size_t i = 0; i < 128; ++i) {
+        EXPECT_EQ(static_cast<unsigned char>(p1c[i]), 0xCD) << "cpp corrupt at " << i;
+    }
+}
+
+// Same desync across several FlFastAlloc-sized bumps interleaved with C++ Alloc.
+TEST(runtime, heap_allocator_syncs_offset_under_interleaved_bumps) {
+    FlHeapSlot slot;
+    HeapAllocator alloc(&slot);
+
+    ASSERT_NE(alloc.Alloc(32), nullptr);
+    std::vector<std::pair<char *, size_t>> fast_regions;
+    std::vector<char *> cpp_ptrs;
+
+    for (int round = 0; round < 32; ++round) {
+        const size_t fast_n = 48 + static_cast<size_t>(round) * 8;
+        ASSERT_NE(slot.curr, nullptr);
+        ASSERT_GE(static_cast<size_t>(slot.end - slot.curr), fast_n);
+        char *fast = slot.curr;
+        slot.curr = fast + fast_n;
+        fast_regions.emplace_back(fast, fast_n);
+
+        void *p = alloc.Alloc(64 + static_cast<size_t>(round));
+        ASSERT_NE(p, nullptr);
+        auto *pc = static_cast<char *>(p);
+        EXPECT_GE(pc, fast + fast_n);
+        cpp_ptrs.push_back(pc);
+    }
+
+    for (size_t i = 0; i < fast_regions.size(); ++i) {
+        std::memset(fast_regions[i].first, static_cast<int>(0xA0 + (i & 0x0f)), fast_regions[i].second);
+    }
+    for (size_t i = 0; i < cpp_ptrs.size(); ++i) {
+        std::memset(cpp_ptrs[i], static_cast<int>(0xC0 + (i & 0x0f)), 64 + i);
+    }
+    for (size_t i = 0; i < fast_regions.size(); ++i) {
+        const auto fill = static_cast<unsigned char>(0xA0 + (i & 0x0f));
+        for (size_t j = 0; j < fast_regions[i].second; ++j) {
+            EXPECT_EQ(static_cast<unsigned char>(fast_regions[i].first[j]), fill);
+        }
+    }
 }
