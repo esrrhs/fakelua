@@ -46,3 +46,15 @@ function error_after_callee_returns()
     local x = returns_nil() + 1
     return x
 end
+
+function make_throwing_closure()
+    return function(x)
+        return x.missing + 1
+    end
+end
+
+function make_returning_closure()
+    return function()
+        return nil
+    end
+end

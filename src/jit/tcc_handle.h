@@ -8,6 +8,7 @@ struct TCCState;
 namespace fakelua {
 
 class State;
+struct LuaLoc;
 
 class TCCHandle : public JITHandle {
 public:
@@ -21,8 +22,14 @@ public:
         return tcc_state_;
     }
 
+    void SetLuaLoc(LuaLoc *loc) {
+        lua_loc_ = loc;
+    }
+
 private:
+    State *s_ = nullptr;
     ::TCCState *tcc_state_ = nullptr;
+    LuaLoc *lua_loc_ = nullptr;
 };
 
 using TCCHandlePtr = std::shared_ptr<TCCHandle>;
