@@ -4,11 +4,21 @@
 // This file contains the C type definitions, macros, and runtime functions
 // that are injected into every generated C compilation unit.
 // Extracted from c_gen.cpp for maintainability.
+//
+// Coverage view: src/compile/c_runtime_cov.h holds the same raw C body (no C++
+// wrapper) so Codecov can browse Fl* hits. CGen emits
+//   #line 1 "src/compile/c_runtime_cov.h"
+// around kCRuntimeHeader. Keep that file byte-identical to the raw-string body
+// (leading newline in the string is not part of the file; see GenerateHeader).
 
 namespace fakelua {
 
+// Stable in-repo path used in #line for gcov/lcov/Codecov (repo-root relative).
+inline constexpr const char *kCRuntimeCovPath = "src/compile/c_runtime_cov.h";
+
 // The C runtime header content as a raw string literal.
 // The _S (State pointer) is prepended by CGen::GenerateHeader() before this content.
+// Source of truth for the runtime text; sync c_runtime_cov.h when editing.
 inline constexpr const char *kCRuntimeHeader = R"FL_RUNTIME(
 #include <math.h>
 

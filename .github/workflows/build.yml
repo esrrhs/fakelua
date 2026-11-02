@@ -201,11 +201,12 @@ jobs:
           printf 'package "main"\nfunction init() return 0 end\nfunction fini() return 0 end\n' > test.lua
           ./bin/flua test.lua --once
           cd "$GITHUB_WORKSPACE"
-          # Host sources + GCC JIT temps under build/jit_cov. --no-external drops
-          # /usr and CPM. Extract keeps src/, include/, and JIT-emitted C
-          # (build/jit_cov/fakelua_jit_*.c); #line→.lua remaps are excluded.
-          # inconsistent: JIT #line to .lua confuses end-line checks; also some
-          # host TU gcov consistency noise.
+          # Host sources + optional GCC JIT temps. --no-external drops /usr and CPM.
+          # Fl* runtime arcs are #line-mapped onto src/compile/c_runtime_cov.h
+          # (checked-in view header); extract src/* covers that. build/jit_cov/*
+          # kept as a safety net for any residual temp-.c hits (preamble).
+          # #line→.lua remaps stay excluded. inconsistent: Lua #line end-line
+          # checks + some host TU gcov noise.
           lcov --directory build --capture --output-file coverage.info \
             --base-directory "$GITHUB_WORKSPACE" --no-external \
             --ignore-errors source,mismatch,inconsistent

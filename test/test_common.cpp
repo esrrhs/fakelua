@@ -5,6 +5,10 @@
 #include "gtest/gtest.h"
 
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <cstdlib>
 
 namespace {
 struct UnbufferedStdio {
@@ -334,4 +338,27 @@ TEST(common, ToFloat_hex_errors) {
     EXPECT_THROW(ToFloat("0x1.2P3xyz"), std::exception);
     // Hex integer with invalid digits.
     EXPECT_THROW(ToFloat("0xGGG"), std::exception);
+}
+
+#include "compile/c_runtime_header.h"
+
+// Keep c_runtime_cov.h (Codecov view / #line target) identical to kCRuntimeHeader's
+// raw-string body. The string begins with a leading '\n' that is not in the file.
+TEST(common, c_runtime_cov_matches_kCRuntimeHeader) {
+    const char *home = std::getenv("FAKELUA_HOME");
+    std::filesystem::path cov_path;
+    if (home && *home) {
+        cov_path = std::filesystem::path(home) / kCRuntimeCovPath;
+    } else {
+        // unit_tests usually run with cwd=test/lua
+        cov_path = std::filesystem::path("../../") / kCRuntimeCovPath;
+    }
+    std::ifstream ifs(cov_path);
+    ASSERT_TRUE(ifs.good()) << "missing view header: " << cov_path;
+    std::ostringstream oss;
+    oss << ifs.rdbuf();
+    const std::string file_body = oss.str();
+    const std::string expected = kCRuntimeHeader[0] == '\n' ? std::string(kCRuntimeHeader + 1) : std::string(kCRuntimeHeader);
+    EXPECT_EQ(file_body, expected) << "Edit kCRuntimeHeader and sync " << kCRuntimeCovPath
+                                   << " (or the reverse); Codecov #line mapping depends on it.";
 }
