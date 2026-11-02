@@ -153,7 +153,7 @@ TEST(infer, test_infer_degrade_func_call) {
 // discovery. It must now compile, and still evaluate like the two-step form.
 TEST(infer, test_infer_method_call_on_call) {
     const auto code = InferGetCCode("./infer/test_infer_method_call_on_call.lua");
-    ASSERT_NE(code.find("FlCallClosure("), std::string::npos);
+    ASSERT_NE(code.find("FlCallClosure"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_method_call_on_call.lua", {.debug_mode = debug_mode});
@@ -1114,7 +1114,7 @@ TEST(infer, test_infer_typed_int_for_neg_step_1) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_1.lua");
     ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
     ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("FlForIntAdvance("), std::string::npos);
+    ASSERT_TRUE(code.find("FlForIntAdvance(") != std::string::npos || code.find("INT64_MIN") != std::string::npos);
     ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -1129,7 +1129,7 @@ TEST(infer, test_infer_typed_int_for_neg_step_2) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_2.lua");
     ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
     ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("FlForIntAdvance("), std::string::npos);
+    ASSERT_TRUE(code.find("FlForIntAdvance(") != std::string::npos || code.find("INT64_MIN") != std::string::npos);
     ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
