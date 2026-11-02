@@ -201,15 +201,20 @@ jobs:
           printf 'package "main"\nfunction init() return 0 end\nfunction fini() return 0 end\n' > test.lua
           ./bin/flua test.lua --once
           cd "$GITHUB_WORKSPACE"
-          # Only this repo's sources. Uploading Boost/CPM/usr headers makes Codecov
-          # drop file-level reports because paths cannot be matched to GitHub.
+          # Host sources + GCC JIT temps under build/jit_cov. --no-external drops
+          # /usr and CPM. Extract keeps src/, include/, and JIT-emitted C
+          # (build/jit_cov/fakelua_jit_*.c); #line→.lua remaps are excluded.
+          # inconsistent: JIT #line to .lua confuses end-line checks; also some
+          # host TU gcov consistency noise.
           lcov --directory build --capture --output-file coverage.info \
             --base-directory "$GITHUB_WORKSPACE" --no-external \
-            --ignore-errors source,mismatch
+            --ignore-errors source,mismatch,inconsistent
           lcov --extract coverage.info \
             "$GITHUB_WORKSPACE/src/*" \
             "$GITHUB_WORKSPACE/include/*" \
-            --output-file coverage.info
+            "$GITHUB_WORKSPACE/build/jit_cov/*" \
+            --output-file coverage.info \
+            --ignore-errors unused,inconsistent
           ls -l coverage.info
           lcov --list coverage.info
 
