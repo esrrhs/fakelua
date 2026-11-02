@@ -76,7 +76,7 @@ std::string CGen::LookupFuncCName(const std::string &lua_name) const {
 }
 
 void CGen::UniquifyFuncCNames() {
-    file_c_ident_used_.insert({"_S", "__fakelua_init_flag__", "fl_lua_loc", "fl_lua_file", "kNil", "kTrue", "kFalse", kInitFunctionName});
+    file_c_ident_used_.insert({"_S", "__fakelua_init_flag__", "fl_temp_heap", "fl_const_heap", "fl_lua_loc", "fl_lua_file", "kNil", "kTrue", "kFalse", kInitFunctionName});
 
     FuncInfo *real_init = nullptr;
     for (auto it = all_funcs_.rbegin(); it != all_funcs_.rend(); ++it) {
@@ -456,6 +456,9 @@ void CGen::GenerateHeader() {
     // 同一份代码也不会被跨 State 复用（每次编译都会重新生成）。
     Out() << "static void * _S = (void *) " << s_ << ";\n";
     Out() << "static bool __fakelua_init_flag__ = false;\n";
+    Out() << "static void * fl_temp_heap = (void *) " << reinterpret_cast<uintptr_t>(&s_->GetTempHeapSlot()) << ";\n";
+    Out() << "static void * fl_const_heap = (void *) " << reinterpret_cast<uintptr_t>(&s_->GetConstHeapSlot()) << ";\n";
+
     // C 运行时类型定义、宏 and 函数（从 c_runtime_header.h 提取，便于独立维护）
     Out() << "static const char * const fl_lua_file = \"" << EscapeCStringLiteral(file_name_) << "\";\n";
     Out() << kCRuntimeHeader;

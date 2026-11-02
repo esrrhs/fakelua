@@ -150,6 +150,14 @@ public:
         return lua_locs_[idx < JIT_MAX ? idx : 0];
     }
 
+    [[nodiscard]] FlHeapSlot &GetTempHeapSlot() {
+        return temp_heap_slot_;
+    }
+
+    [[nodiscard]] FlHeapSlot &GetConstHeapSlot() {
+        return const_heap_slot_;
+    }
+
     // __fakelua_init（解释器与 JIT）期间为 true：Lua 值分配走常量堆，帧 Reset 后仍然有效。
     void SetInterpConstAlloc(bool v) {
         interp_const_alloc_ = v;
@@ -265,6 +273,8 @@ private:
     std::function<VarInterface *()> var_interface_new_func_;
     JitErrorBoundary *jit_error_boundary_ = nullptr;
     std::vector<LuaLoc *> lua_locs_[JIT_MAX];
+    FlHeapSlot temp_heap_slot_;
+    FlHeapSlot const_heap_slot_;
     bool interp_const_alloc_ = false;
     // 当前执行引擎，初值 TCC（无 Lua 调用栈的边界场景，与 kNativeCallbackJit 一致）。
     JITType current_jit_ = JIT_TCC;

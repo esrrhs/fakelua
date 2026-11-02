@@ -9,6 +9,10 @@ namespace fakelua {
 
 HeapAllocator::~HeapAllocator() {
     Reset();
+    if (slot_) {
+        slot_->curr = nullptr;
+        slot_->end = nullptr;
+    }
     for (const auto &block: blocks_) {
 #if defined(_WIN32)
         _aligned_free(block);
@@ -21,6 +25,17 @@ HeapAllocator::~HeapAllocator() {
 
 void *HeapAllocator::Alloc(size_t size) {
     constexpr size_t alignment = alignof(std::max_align_t);
+
+    // JIT FlFastAlloc bumps slot_->curr without updating current_block_offset_.
+    // Pull the bump pointer back before every C++ allocation so the two paths
+    // never hand out overlapping ranges in the same block.
+    if (slot_ && slot_->curr && current_block_index_ < blocks_.size()) {
+        char *base = static_cast<char *>(blocks_[current_block_index_]);
+        char *end = base + BLOCK_SIZE;
+        if (slot_->curr >= base && slot_->curr <= end) {
+            current_block_offset_ = static_cast<size_t>(slot_->curr - base);
+        }
+    }
 
     // 仅检查 size 本身是否超出块容量。padding 在同一块内才有意义，
     // 跨块时 offset 会重置为 0 导致 padding 为 0，因此不参与上限判断。
@@ -54,6 +69,10 @@ void *HeapAllocator::Alloc(size_t size) {
     current_block_offset_ += padding;
     void *ptr = static_cast<char *>(blocks_[current_block_index_]) + current_block_offset_;
     current_block_offset_ += size;
+    if (slot_) {
+        slot_->curr = static_cast<char *>(blocks_[current_block_index_]) + current_block_offset_;
+        slot_->end = static_cast<char *>(blocks_[current_block_index_]) + BLOCK_SIZE;
+    }
     return ptr;
 }
 
@@ -64,6 +83,15 @@ void HeapAllocator::Reset() {
     destructors_.clear();
     current_block_index_ = 0;
     current_block_offset_ = 0;
+    if (slot_) {
+        if (!blocks_.empty()) {
+            slot_->curr = static_cast<char *>(blocks_[0]);
+            slot_->end = static_cast<char *>(blocks_[0]) + BLOCK_SIZE;
+        } else {
+            slot_->curr = nullptr;
+            slot_->end = nullptr;
+        }
+    }
 }
 
 size_t HeapAllocator::Size() const {
