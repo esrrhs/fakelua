@@ -1368,7 +1368,7 @@ TEST(test_basic, heap_offset_sync_many_tables_next) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     CompileConfig config;
-    CompileFile(s, "./basic/test_heap_offset_sync.lua", config);
+    CompileFile(s, "./basic/test_heap_offset_sync_many_tables_next.lua", config);
     for (auto jit_type: AllJitTypes()) {
         double res = 0;
         Call(s, jit_type, "test_heap_offset_sync_many_tables_next", res);
@@ -1381,7 +1381,7 @@ TEST(test_basic, heap_offset_sync_pairs_under_alloc_pressure) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     CompileConfig config;
-    CompileFile(s, "./basic/test_heap_offset_sync.lua", config);
+    CompileFile(s, "./basic/test_heap_offset_sync_pairs_under_alloc_pressure.lua", config);
     for (auto jit_type: AllJitTypes()) {
         double res = 0;
         Call(s, jit_type, "test_heap_offset_sync_pairs_under_alloc_pressure", res);
@@ -1394,7 +1394,7 @@ TEST(test_basic, heap_offset_sync_nested_tables_next) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     CompileConfig config;
-    CompileFile(s, "./basic/test_heap_offset_sync.lua", config);
+    CompileFile(s, "./basic/test_heap_offset_sync_nested_tables_next.lua", config);
     for (auto jit_type: AllJitTypes()) {
         double res = 0;
         Call(s, jit_type, "test_heap_offset_sync_nested_tables_next", res);
@@ -1407,7 +1407,7 @@ TEST(test_basic, heap_offset_sync_string_keys_and_rehash) {
     State *s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     CompileConfig config;
-    CompileFile(s, "./basic/test_heap_offset_sync.lua", config);
+    CompileFile(s, "./basic/test_heap_offset_sync_string_keys_and_rehash.lua", config);
     for (auto jit_type: AllJitTypes()) {
         double res = 0;
         Call(s, jit_type, "test_heap_offset_sync_string_keys_and_rehash", res);
