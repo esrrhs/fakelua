@@ -461,7 +461,17 @@ void CGen::GenerateHeader() {
 
     // C 运行时类型定义、宏 and 函数（从 c_runtime_header.h 提取，便于独立维护）
     Out() << "static const char * const fl_lua_file = \"" << EscapeCStringLiteral(file_name_) << "\";\n";
+
+    // Attribute the pasted Fl* runtime to the checked-in view header so USE_COV
+    // gcov → lcov → Codecov can display hits on a real repo path (not
+    // build/jit_cov/fakelua_jit_*.c). Preamble above (_S, heaps, fl_lua_file)
+    // stays on the temp .c. kCRuntimeHeader begins with '\n', so do not write a
+    // newline after #line — logical line 1 becomes "#include <math.h>", matching
+    // src/compile/c_runtime_cov.h. Reset afterward so per-TU spec boilerplate is
+    // not falsely mapped onto that header; Lua body #line directives still apply.
+    Out() << "#line 1 \"" << kCRuntimeCovPath << "\"";
     Out() << kCRuntimeHeader;
+    Out() << "#line 1 \"<fakelua-generated>\"\n";
 
     // 前置发射所有 spec 类型的 typedef + 特化 get/set 函数（读取 TypeInferencer 预计算的
     // ir.spec_type_metadata）。CGen 不再在 CompileTableconstructor 里懒发射这些样板代码。

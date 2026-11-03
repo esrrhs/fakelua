@@ -32,9 +32,14 @@ GCCHandle::~GCCHandle() {
 
     // Best-effort cleanup of temporary compilation artifacts.
     std::error_code ec;
+#if defined(USE_COV)
+    // Keep the emitted .c so lcov can attribute arcs to a real source path.
+    // .gcno/.gcda sit beside the .so basename and are intentionally left for harvest.
+#else
     if (!c_file_.empty()) {
         std::filesystem::remove(c_file_, ec);
     }
+#endif
     if (!so_file_.empty()) {
         std::filesystem::remove(so_file_, ec);
     }

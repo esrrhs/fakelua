@@ -4,11 +4,21 @@
 // This file contains the C type definitions, macros, and runtime functions
 // that are injected into every generated C compilation unit.
 // Extracted from c_gen.cpp for maintainability.
+//
+// Coverage view: src/compile/c_runtime_cov.h holds the same raw C body (no C++
+// wrapper) so Codecov can browse Fl* hits. CGen emits
+//   #line 1 "src/compile/c_runtime_cov.h"
+// around kCRuntimeHeader. Keep that file byte-identical to the raw-string body
+// (leading newline in the string is not part of the file; see GenerateHeader).
 
 namespace fakelua {
 
+// Stable in-repo path used in #line for gcov/lcov/Codecov (repo-root relative).
+inline constexpr const char *kCRuntimeCovPath = "src/compile/c_runtime_cov.h";
+
 // The C runtime header content as a raw string literal.
 // The _S (State pointer) is prepended by CGen::GenerateHeader() before this content.
+// Source of truth for the runtime text; sync c_runtime_cov.h when editing.
 inline constexpr const char *kCRuntimeHeader = R"FL_RUNTIME(
 #include <math.h>
 
@@ -133,7 +143,7 @@ enum {
    spec 里，不在 quick/nodes。以前从 spec_count 起扫，等于把字段个数当成 #。 */
 static inline bool FlTableHasIntKey(VarTable *t, int64_t k) {
     if (t->spec_get) {
-        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.flag_ = 0; key_cvar.data_.i = k;
         bool __finish = false;
         CVar __r = t->spec_get(t, key_cvar, &__finish);
         if (__finish) return __r.type_ != VAR_NIL;
@@ -1270,7 +1280,7 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
     VarTable *tbl = t.data_.t;
     if (LIKELY((uint64_t)k - 1 < (uint64_t)tbl->arr_size_)) { return tbl->arr_[k - 1]; }
     if (UNLIKELY(tbl->spec_get)) {
-        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.flag_ = 0; key_cvar.data_.i = k;
         bool __finish = false;
         CVar __r = tbl->spec_get(tbl, key_cvar, &__finish);
         if (__finish) return __r;
@@ -1283,14 +1293,14 @@ static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
     FL_CHECK_CONST_TABLE(t);
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_set)) {
-        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.flag_ = 0; key_cvar.data_.i = k;
         bool __finish = false;
         tbl->spec_set(tbl, key_cvar, v, &__finish);
         if (__finish) return;
     }
     if (FlArrSetInt(tbl, k, v)) { return; }
     uint32_t h = (uint32_t)(k ^ (k >> 32));
-    CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+    CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.flag_ = 0; key_cvar.data_.i = k;
     if (UNLIKELY(v.type_ == VAR_NIL)) {
         FlHashSet(tbl, key_cvar, v);
         return;
@@ -1383,7 +1393,7 @@ static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_get)) {
-        CVar k; k.type_ = VAR_STRINGID; k.data_.i = str_id;
+        CVar k; k.type_ = VAR_STRINGID; k.flag_ = 0; k.data_.i = str_id;
         bool __finish = false;
         CVar __r = tbl->spec_get(tbl, k, &__finish);
         if (__finish) return __r;
@@ -1434,7 +1444,7 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     FL_CHECK_CONST_TABLE(t);
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_set)) {
-        CVar k; k.type_ = VAR_STRINGID; k.data_.i = str_id;
+        CVar k; k.type_ = VAR_STRINGID; k.flag_ = 0; k.data_.i = str_id;
         bool __finish = false;
         tbl->spec_set(tbl, k, v, &__finish);
         if (__finish) return;
@@ -1442,7 +1452,7 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     // hash fallback
     VarString *vs = (VarString *)str_id;
     uint32_t h = LIKELY(vs->hash_ != 0) ? vs->hash_ : (vs->hash_ = FlHashString(vs->data_, vs->size_));
-    CVar key_cvar; key_cvar.type_ = VAR_STRINGID; key_cvar.data_.i = str_id;
+    CVar key_cvar; key_cvar.type_ = VAR_STRINGID; key_cvar.flag_ = 0; key_cvar.data_.i = str_id;
     if (UNLIKELY(v.type_ == VAR_NIL)) {
         FlSetTable((CVar){.type_ = VAR_TABLE, .data_.t = tbl}, key_cvar, v);
         return;

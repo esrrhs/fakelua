@@ -113,6 +113,14 @@ if (WIN32)
     target_link_options(fakelua PRIVATE "-Wl,--export-all-symbols" "-Wl,--exclude-libs,ALL")
 endif ()
 
+# When USE_COV is on, expose it to C++ so the GCC JIT path can instrument emitted C
+# (host CXXFLAGS alone do not affect the forked `gcc` argv for temp .c → .so).
+# FAKELUA_JIT_COV_DIR places JIT temps + .gcno/.gcda under the build tree for lcov.
+if (USE_COV)
+    target_compile_definitions(fakelua PRIVATE USE_COV=1)
+    target_compile_definitions(fakelua PRIVATE "FAKELUA_JIT_COV_DIR=\"${CMAKE_BINARY_DIR}/jit_cov\"")
+endif ()
+
 find_package(Threads REQUIRED)
 
 if (WIN32)
