@@ -1248,7 +1248,7 @@ static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) { FakeluaThrowError(_S, "table index is NaN"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_set) {
+    if (UNLIKELY(tbl->spec_set)) {
         bool __finish = false;
         tbl->spec_set(tbl, k, v, &__finish);
         if (__finish) return;
@@ -1269,7 +1269,7 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
     if (LIKELY((uint64_t)k - 1 < (uint64_t)tbl->arr_size_)) { return tbl->arr_[k - 1]; }
-    if (tbl->spec_get) {
+    if (UNLIKELY(tbl->spec_get)) {
         CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
         bool __finish = false;
         CVar __r = tbl->spec_get(tbl, key_cvar, &__finish);
@@ -1282,7 +1282,7 @@ static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     FL_CHECK_CONST_TABLE(t);
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_set) {
+    if (UNLIKELY(tbl->spec_set)) {
         CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
         bool __finish = false;
         tbl->spec_set(tbl, key_cvar, v, &__finish);
@@ -1347,6 +1347,22 @@ static inline void FlSetTableInt_Int(CVar t, int64_t k, int64_t v) {
     if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, false); }
 }
 
+static inline void FlSetTableInt_Float(CVar t, int64_t k, double v) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
+        VarTable *tbl = t.data_.t;
+        uint64_t idx = (uint64_t)k - 1;
+        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
+            tbl->arr_[idx].type_ = VAR_FLOAT;
+            tbl->arr_[idx].flag_ = 0;
+            tbl->arr_[idx].data_.f = v;
+            return;
+        }
+    }
+    CVar cv; cv.type_ = VAR_FLOAT; cv.flag_ = 0; cv.data_.f = v;
+    FlSetTableIntImpl(t, k, cv);
+    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, false); }
+}
+
 static inline void FlSetTableInt_Bool(CVar t, int64_t k, bool b) {
     if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
         VarTable *tbl = t.data_.t;
@@ -1366,7 +1382,7 @@ static inline void FlSetTableInt_Bool(CVar t, int64_t k, bool b) {
 static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_get) {
+    if (UNLIKELY(tbl->spec_get)) {
         CVar k; k.type_ = VAR_STRINGID; k.data_.i = str_id;
         bool __finish = false;
         CVar __r = tbl->spec_get(tbl, k, &__finish);
@@ -1417,7 +1433,7 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     FL_CHECK_CONST_TABLE(t);
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_set) {
+    if (UNLIKELY(tbl->spec_set)) {
         CVar k; k.type_ = VAR_STRINGID; k.data_.i = str_id;
         bool __finish = false;
         tbl->spec_set(tbl, k, v, &__finish);

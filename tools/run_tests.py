@@ -45,7 +45,7 @@ def find_build_dir(hint=None):
             return p
         raise FileNotFoundError(f"unit_tests not found in {hint}")
 
-    candidates = ["build-macos", "build", "cmake-build-debug", "cmake-build-release"]
+    candidates = ["build-macos", "build_mac", "build", "cmake-build-debug", "cmake-build-release"]
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     for c in candidates:
         candidate_bin = os.path.join(repo_root, c, "bin", "unit_tests")
@@ -144,6 +144,7 @@ def main():
     # Run network tests in isolation if full suite was requested
     if run_net_separately:
         print(f"  [Network Tests] Running test_net.* sequentially to avoid port collision...")
+        time.sleep(1.0)
         net_idx, net_code, net_elapsed, net_stdout, net_stderr = run_shard(
             0, 1, unit_tests_bin, run_cwd, "test_net.*"
         )

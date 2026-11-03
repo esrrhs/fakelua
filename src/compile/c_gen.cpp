@@ -2142,7 +2142,6 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
     const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
     const auto step_pos_var = std::format("flua_for_step_pos_{}", tmp_var_counter_++);
-    const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);
     const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);
     const auto skip_var = std::format("flua_for_skip_{}", tmp_var_counter_++);
     const auto is_int_var = std::format("flua_for_is_int_{}", tmp_var_counter_++);
@@ -2152,7 +2151,6 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     func_temp_decls_ << "    CVar " << end_var << ";\n";
     func_temp_decls_ << "    CVar " << step_var << ";\n";
     func_temp_decls_ << "    bool " << step_pos_var << ";\n";
-    func_temp_decls_ << "    bool " << cond_var << ";\n";
     func_temp_decls_ << "    CVar " << cmp_var << ";\n";
     func_temp_decls_ << "    int " << skip_var << ";\n";
     func_temp_decls_ << "    int " << is_int_var << ";\n";
@@ -2205,8 +2203,7 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     Out() << GenTab() << std::format("OpLt(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
     cur_tab_--;
     Out() << GenTab() << "}\n";
-    Out() << GenTab() << std::format("IsTrue(({0}), {1});\n", cmp_var, cond_var);
-    Out() << GenTab() << skip_var << " = " << cond_var << ";\n";
+    Out() << GenTab() << skip_var << " = FlIsTrue(" << cmp_var << ");\n";
     Out() << GenTab() << "SET_FLOAT(" << ctrl_var << ", CVAR_TO_DOUBLE(" << ctrl_var << "));\n";
     Out() << GenTab() << "SET_FLOAT(" << end_var << ", CVAR_TO_DOUBLE(" << end_var << "));\n";
     Out() << GenTab() << "SET_FLOAT(" << step_var << ", CVAR_TO_DOUBLE(" << step_var << "));\n";
@@ -2235,37 +2232,35 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     cur_tab_--;
     Out() << GenTab() << "}\n";
 
-    // Lua continue 必须落到步进处；C continue 会回到 while(1) 并跳过 OpAdd。
+    // Lua continue 必须落到步进处；C continue 会回到 while(1) 并跳过步进。
     Out() << "flua_for_cont_" << for_cont_id << ":\n";
     Out() << GenTab() << "if (" << is_int_var << ") {\n";
     cur_tab_++;
     Out() << GenTab() << "if (!FlForIntAdvance(&" << ctrl_var << ".data_.i, " << step_var << ".data_.i)) break;\n";
     Out() << GenTab() << "if (" << step_pos_var << ") {\n";
     cur_tab_++;
-    Out() << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
+    Out() << GenTab() << "if (" << ctrl_var << ".data_.i > " << end_var << ".data_.i) break;\n";
     cur_tab_--;
     Out() << GenTab() << "} else {\n";
     cur_tab_++;
-    Out() << GenTab() << std::format("OpGe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
+    Out() << GenTab() << "if (" << ctrl_var << ".data_.i < " << end_var << ".data_.i) break;\n";
     cur_tab_--;
     Out() << GenTab() << "}\n";
     cur_tab_--;
     Out() << GenTab() << "} else {\n";
     cur_tab_++;
-    Out() << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", ctrl_var, step_var, ctrl_var);
+    Out() << GenTab() << ctrl_var << ".data_.f += " << step_var << ".data_.f;\n";
     Out() << GenTab() << "if (" << step_pos_var << ") {\n";
     cur_tab_++;
-    Out() << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
+    Out() << GenTab() << "if (!(" << ctrl_var << ".data_.f <= " << end_var << ".data_.f)) break;\n";
     cur_tab_--;
     Out() << GenTab() << "} else {\n";
     cur_tab_++;
-    Out() << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", end_var, ctrl_var, cmp_var);
+    Out() << GenTab() << "if (!(" << end_var << ".data_.f <= " << ctrl_var << ".data_.f)) break;\n";
     cur_tab_--;
     Out() << GenTab() << "}\n";
     cur_tab_--;
     Out() << GenTab() << "}\n";
-    Out() << GenTab() << std::format("IsTrue(({0}), {1});\n", cmp_var, cond_var);
-    Out() << GenTab() << std::format("if (!{}) break;\n", cond_var);
 
     cur_tab_--;
     Out() << GenTab() << "}\n";
@@ -2794,14 +2789,11 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &exp, const SyntaxTr
         func_temp_decls_ << "    CVar " << left_tmp << ";\n";
         const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
         func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
-        const auto tmp_bool = std::format("flua_bt_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    " << "bool " << tmp_bool << ";\n";
 
         Out() << GenTab() << std::format("{} = {};\n", left_tmp, left_str);
-        Out() << GenTab() << std::format("IsTrue(({}), {});\n", left_tmp, tmp_bool);
 
         const bool is_and = (op_kind == BinOpKind::kAnd);
-        Out() << GenTab() << std::format("if ({}{}) {{\n", is_and ? "!" : "", tmp_bool);
+        Out() << GenTab() << std::format("if ({}(FlIsTrue({}))) {{\n", is_and ? "!" : "", left_tmp);
         cur_tab_++;
         Out() << GenTab() << std::format("{} = {};\n", tmp, left_tmp);
         cur_tab_--;
@@ -4846,6 +4838,11 @@ std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctio
                                     Out() << GenTab() << std::format("FlSetTableInt_Int({}, {}, {});\n", tbl_str, info.repr, native_val);
                                     break;
                                 }
+                            } else if (val_type == T_FLOAT) {
+                                if (const auto native_val = TryCompileNativeExpr(raw_args[2]); !native_val.empty()) {
+                                    Out() << GenTab() << std::format("FlSetTableInt_Float({}, {}, {});\n", tbl_str, info.repr, native_val);
+                                    break;
+                                }
                             }
                             if (const auto val_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[2])) {
                                 if (val_exp->GetExpKind() == ExpKind::kTrue) {
@@ -4878,6 +4875,12 @@ std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctio
                     if (const auto val_type = GetType(raw_args[2]); val_type == T_INT) {
                         if (const auto native_val = TryCompileNativeExpr(raw_args[2]); !native_val.empty()) {
                             Out() << GenTab() << std::format("FlSetTableInt_Int({}, {}, {});\n", tbl_str, native_key, native_val);
+                            Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
+                            return tmp;
+                        }
+                    } else if (val_type == T_FLOAT) {
+                        if (const auto native_val = TryCompileNativeExpr(raw_args[2]); !native_val.empty()) {
+                            Out() << GenTab() << std::format("FlSetTableInt_Float({}, {}, {});\n", tbl_str, native_key, native_val);
                             Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
                             return tmp;
                         }
