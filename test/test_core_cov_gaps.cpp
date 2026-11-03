@@ -1,6 +1,16 @@
 #include "compile/compile_common.h"
+#include "compile/compiler.h"
+#include "compile/semantic_analysis.h"
 #include "compile/syntax_tree.h"
 #include "fakelua.h"
+#include "interp/interpreter.h"
+#include "interp/runtime.h"
+#include "interp/vm_ops.h"
+#include "native/table/native_table.h"
+#include "state/state.h"
+#include "util/file_util.h"
+#include "var/var_closure.h"
+#include "var/var_multi.h"
 #include "var/var_type.h"
 #include "test_jit.h"
 #include "util/logging.h"
@@ -425,6 +435,14 @@ TEST(core_cov_gaps, string_escapes_and_math_inline) {
         EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
         Call(s, jit_type, "test_select_and_closure_args", res);
         EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_file_level_literals", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_bool_nil_locals", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_empty_body", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_interp_errors", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
     }
     FakeluaDeleteState(s);
 }
@@ -580,5 +598,275 @@ end
 
     SetDebugLogLevel(s, 1);
     SetDebugLogLevel(s, LogLevel::Warn);
+    FakeluaDeleteState(s);
+}
+
+TEST(core_cov_gaps, var_type_unknown_and_file_util) {
+    EXPECT_EQ(VarTypeToString(static_cast<VarType>(999)), "UNKNOWN");
+    EXPECT_EQ(VarTypeToString(static_cast<VarType>(-1)), "UNKNOWN");
+
+    // Collision path in GenerateTmpFilename: pre-create the first candidate.
+    const auto first = GenerateTmpFilename("cov_collide_", ".tmp");
+    {
+        std::ofstream ofs(first);
+        ofs << "x";
+    }
+    // Force same pid/count window by creating many temps; at least exercise the function.
+    const auto second = GenerateTmpFilename("cov_collide_", ".tmp");
+    EXPECT_NE(first, second);
+    std::error_code ec;
+    std::filesystem::remove(first, ec);
+    std::filesystem::remove(second, ec);
+}
+
+TEST(core_cov_gaps, semantic_collect_returns_all_shapes) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+    Compiler c(s);
+    // skip_jit: parse-only so file-level control flow is allowed for CollectReturns coverage.
+    const char *src = R"(
+return 1
+if true then
+  return 2
+elseif false then
+  return 3
+else
+  return 4
+end
+while false do
+  return 5
+end
+repeat
+  return 6
+until true
+for i = 1, 2 do
+  return 7
+end
+for k, v in pairs({}) do
+  return 8
+end
+function nested()
+  return 9
+end
+local function inner()
+  return 10
+end
+)";
+    auto pr = c.CompileString(src, {true});
+    ASSERT_NE(pr.chunk, nullptr);
+    SemanticAnalysis sa(s);
+    std::vector<SyntaxTreeInterfacePtr> returns;
+    sa.CollectReturnsForBlock(pr.chunk, returns);
+    EXPECT_GE(returns.size(), 5u);
+    // Descend into function bodies via Function/LocalFunction case (no nested returns collected).
+    for (const auto &stmt : std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk)->Stmts()) {
+        if (stmt->Type() == SyntaxTreeType::Function || stmt->Type() == SyntaxTreeType::LocalFunction) {
+            sa.CollectReturnsForBlock(stmt, returns);
+        }
+    }
+    // nullptr early-return
+    sa.CollectReturnsForBlock(nullptr, returns);
+    // non-statement node error path
+    auto exp = std::make_shared<SyntaxTreeExp>(yy::location());
+    exp->SetExpKind(ExpKind::kNumber);
+    exp->SetValue("1");
+    EXPECT_THROW(sa.CollectReturnsForBlock(exp, returns), std::exception);
+}
+
+TEST(core_cov_gaps, interp_runtime_error_paths) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+
+    EXPECT_THROW(interp_rt::UnLen(interp_rt::Int(1)), std::exception);
+    EXPECT_THROW(interp_rt::GetTable(s, interp_rt::Int(1), interp_rt::Int(1)), std::exception);
+    EXPECT_THROW(interp_rt::GetTable(s, interp_rt::NewTable(s), interp_rt::Nil()), std::exception);
+    CVar nan_key{};
+    nan_key.type_ = interp_rt::kFloat;
+    nan_key.data_.f = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_THROW(interp_rt::GetTable(s, interp_rt::NewTable(s), nan_key), std::exception);
+    EXPECT_THROW(interp_rt::SetTable(s, interp_rt::Int(1), interp_rt::Int(1), interp_rt::Int(1)), std::exception);
+    EXPECT_THROW(interp_rt::SetTable(s, interp_rt::NewTable(s), interp_rt::Nil(), interp_rt::Int(1)), std::exception);
+    EXPECT_THROW(interp_rt::TableEntryCount(interp_rt::Int(1)), std::exception);
+
+    CVar tbl = interp_rt::NewTable(s);
+    // non-multi expand path
+    interp_rt::TableExpandMulti(s, tbl, 1, interp_rt::Int(42));
+    EXPECT_EQ(table::TableHelper::GetTableInt(s, tbl, 1).data_.i, 42);
+
+    // CombineMulti / MakeMulti with nested empty multi
+    CVar empty_multi = inter::AllocMultiCVar(s, 0);
+    CVar prefix[1] = {empty_multi};
+    CVar combined = interp_rt::CombineMulti(s, prefix, 1, empty_multi);
+    EXPECT_EQ(combined.type_, interp_rt::kMulti);
+    CVar vals[2] = {empty_multi, interp_rt::Int(7)};
+    CVar made = interp_rt::MakeMulti(s, vals, 2);
+    EXPECT_EQ(made.type_, interp_rt::kMulti);
+}
+
+TEST(core_cov_gaps, vm_ops_for_and_arith_edges) {
+    using namespace interp_rt;
+    (void)Nil();
+    (void)Bool(true);
+    (void)Int(1);
+    (void)Float(1.5);
+
+    EXPECT_THROW(CheckInt(Bool(true)), std::exception);
+    EXPECT_EQ(BinAdd(Int(1), Int(2)).data_.i, 3);
+    EXPECT_EQ(BinSub(Int(5), Int(3)).data_.i, 2);
+    EXPECT_EQ(BinMul(Int(4), Int(5)).data_.i, 20);
+
+    EXPECT_THROW(ForStepPositive(Int(0)), std::exception);
+    EXPECT_THROW(ForStepPositive(Float(0.0)), std::exception);
+    EXPECT_THROW(ForStepPositive(Bool(true)), std::exception);
+    EXPECT_TRUE(ForStepPositive(Int(1)));
+    EXPECT_FALSE(ForStepPositive(Int(-1)));
+    EXPECT_TRUE(ForLoopInRange(Int(1), Int(3), Int(1)));
+    EXPECT_TRUE(ForLoopInRange(Int(3), Int(1), Int(-1)));
+
+    bool skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(std::numeric_limits<double>::infinity()), -1, &skip), 0);
+    EXPECT_TRUE(skip);
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(std::numeric_limits<double>::infinity()), 1, &skip), std::numeric_limits<int64_t>::max());
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(-std::numeric_limits<double>::infinity()), 1, &skip), 0);
+    EXPECT_TRUE(skip);
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(-std::numeric_limits<double>::infinity()), -1, &skip), std::numeric_limits<int64_t>::min());
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(1e300), -1, &skip), 0);
+    EXPECT_TRUE(skip);
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(1e300), 1, &skip), std::numeric_limits<int64_t>::max());
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(-1e300), 1, &skip), 0);
+    EXPECT_TRUE(skip);
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(-1e300), -1, &skip), std::numeric_limits<int64_t>::min());
+
+    CVar idx = Int(1);
+    CVar limit = Int(3);
+    CVar step = Int(0);
+    CVar loopvar{};
+    EXPECT_THROW(ForPrep(idx, limit, step, loopvar), std::exception);
+    idx = Float(1.0);
+    limit = Float(3.0);
+    step = Float(0.0);
+    EXPECT_THROW(ForPrep(idx, limit, step, loopvar), std::exception);
+}
+
+TEST(core_cov_gaps, fakelua_varto_vi_and_native_bridge) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+
+    CVar nil{};
+    VarInterface *vi_nil = inter::FakeluaToNativeObj(s, nil);
+    ASSERT_NE(vi_nil, nullptr);
+    EXPECT_EQ(vi_nil->ViGetType(), VarInterface::Type::NIL);
+    delete vi_nil;
+
+    CVar b{};
+    b.type_ = static_cast<int>(VarType::Bool);
+    b.data_.b = true;
+    VarInterface *vi_b = inter::FakeluaToNativeObj(s, b);
+    EXPECT_EQ(vi_b->ViGetType(), VarInterface::Type::BOOL);
+    EXPECT_TRUE(vi_b->ViGetBool());
+    delete vi_b;
+
+    CVar f{};
+    f.type_ = static_cast<int>(VarType::Float);
+    f.data_.f = 2.5;
+    VarInterface *vi_f = inter::FakeluaToNativeObj(s, f);
+    EXPECT_EQ(vi_f->ViGetType(), VarInterface::Type::FLOAT);
+    delete vi_f;
+
+    // Hash/bucket table path (nodes_ + active_list_)
+    CVar big = table::TableHelper::CreateTable(s);
+    for (int i = 0; i < 20; ++i) {
+        CVar k{};
+        k.type_ = static_cast<int>(VarType::StringId);
+        k.data_.i = s->GetConstString().Alloc("k" + std::to_string(i));
+        table::TableHelper::SetTable(s, big, k, interp_rt::Int(i));
+    }
+    VarInterface *vi_t = inter::FakeluaToNativeObj(s, big);
+    ASSERT_NE(vi_t, nullptr);
+    EXPECT_EQ(vi_t->ViGetType(), VarInterface::Type::TABLE);
+    delete vi_t;
+
+    // Closure / Multi unsupported
+    CVar cl{};
+    cl.type_ = static_cast<int>(VarType::Closure);
+    EXPECT_THROW(inter::FakeluaToNativeObj(s, cl), std::exception);
+    CVar multi = inter::AllocMultiCVar(s, 2);
+    EXPECT_THROW(inter::FakeluaToNativeObj(s, multi), std::exception);
+
+    // ViToVar paths via NativeToFakeluaVarInterface
+    EXPECT_EQ(inter::NativeToFakeluaVarInterface(s, nullptr).type_, static_cast<int>(VarType::Nil));
+    SimpleVarImpl bool_vi;
+    bool_vi.ViSetBool(false);
+    EXPECT_EQ(inter::NativeToFakeluaVarInterface(s, &bool_vi).type_, static_cast<int>(VarType::Bool));
+    SimpleVarImpl float_vi;
+    float_vi.ViSetFloat(1.25);
+    EXPECT_EQ(inter::NativeToFakeluaVarInterface(s, &float_vi).type_, static_cast<int>(VarType::Float));
+    // default / unknown: leave as NIL after Clear — already covered; synthesize bogus by INT then
+    // Call NativeFloat helper
+    CVar nf = NativeFloat(s, 3.14);
+    EXPECT_EQ(nf.type_, static_cast<int>(VarType::Float));
+
+    EXPECT_EQ(inter::GetMultiCVarCount(multi), 2);
+    CVar args_multi[1] = {multi};
+    inter::SetMultiCVarElement(multi, 0, interp_rt::Int(11));
+    inter::SetMultiCVarElement(multi, 1, interp_rt::Int(22));
+    EXPECT_EQ(inter::GetNativeArg(s, args_multi, 1, 0).data_.i, 11);
+    EXPECT_EQ(inter::GetNativeArg(s, args_multi, 1, 1).data_.i, 22);
+
+    // Nested multi unwrap in GetNativeArg
+    CVar nested = inter::AllocMultiCVar(s, 1);
+    inter::SetMultiCVarElement(nested, 0, multi);// multi-in-multi
+    CVar args_nested[1] = {nested};
+    // idx 0 yields nested multi then unwraps first element of multi -> 11? 
+    // GetNativeArg: args[0] is Multi nested; gets idx from nested; then while Multi unwraps.
+    CVar got = inter::GetNativeArg(s, args_nested, 1, 0);
+    // nested[0] is `multi` (Multi); unwrap loop takes multi.vars[0] == 11
+    EXPECT_EQ(got.type_, static_cast<int>(VarType::Int));
+
+    EXPECT_THROW(inter::DispatchCallClosure(s, nullptr, nullptr, 0, JIT_GCC), std::exception);
+    VarClosure empty_cl{};
+    empty_cl.func_ptr = nullptr;
+    empty_cl.code_str = nullptr;
+    EXPECT_THROW(inter::DispatchCallClosure(s, &empty_cl, nullptr, 0, JIT_GCC), std::exception);
+
+    EXPECT_THROW(InterpreterExecute(s, nullptr, nullptr, 0, nullptr), std::exception);
+    EXPECT_THROW(FakeluaInterpCall(s, nullptr, 0, nullptr), std::exception);
+
+    // C exports used by JIT
+    CVar m2 = FakeluaAllocMultiCVar(s, 1);
+    FakeluaSetMultiCVarElement(&m2, 0, interp_rt::Int(9));
+    EXPECT_EQ(inter::GetMultiCVarElement(m2, 0).data_.i, 9);
+
+    // NativeObject null
+    EXPECT_EQ(inter::NativeToFakeluaNativeObject(s, nullptr).type_, static_cast<int>(VarType::Nil));
+}
+
+TEST(core_cov_gaps, cvar_to_integer_catch_paths) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+    Var huge_digits;
+    huge_digits.SetTempString(s, std::string(400, '9'));
+    EXPECT_EQ(inter::CVarToInteger(reinterpret_cast<const CVar &>(huge_digits), 7), 7);
+    Var bad_exp;
+    bad_exp.SetTempString(s, "1.2e");
+    EXPECT_EQ(inter::CVarToInteger(reinterpret_cast<const CVar &>(bad_exp), 8), 8);
+}
+
+TEST(core_cov_gaps, tcc_libraries_config_path) {
+    StateConfig cfg;
+    // Exercise tcc_add_library loop; missing lib still reaches that line before compile fails.
+    cfg.tcc_config.libraries.push_back("fakelua_missing_lib_for_cov");
+    State *s = FakeluaNewState(cfg);
+    ASSERT_NE(s, nullptr);
+    CompileConfig ccfg;
+    ccfg.debug_mode = true;
+    EXPECT_THROW(CompileString(s, "function tcc_lib_cov()\n  return 3\nend\n", ccfg), std::exception);
     FakeluaDeleteState(s);
 }
