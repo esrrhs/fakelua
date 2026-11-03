@@ -4,6 +4,7 @@
 #include "util/file_util.h"
 #include "util/logging.h"
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -127,6 +128,17 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         ofs.close();
     }
 
+    std::string compiler = "gcc";
+    if (const char *env_cc = std::getenv("FAKELUA_CC"); env_cc && *env_cc) {
+        compiler = env_cc;
+    }
+#if defined(__APPLE__)
+    else {
+        // macOS 上 Apple Clang 比外部 Homebrew gcc 快 2~3 倍，默认优先使用 clang
+        compiler = "clang";
+    }
+#endif
+
     const auto opt_flag = cfg.debug_mode ? "-O0" : "-O3";
     const std::string jit_type_def = "-DFAKELUA_JIT_TYPE=" + std::to_string(static_cast<int>(JIT_GCC));
 
@@ -169,7 +181,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     auto run_gcc = [&](std::vector<std::string> &a) {
 #if defined(_WIN32)
         auto argv = build_argv(a);
-        const int compile_status = _spawnvp(_P_WAIT, "gcc", argv.data());
+        const int compile_status = _spawnvp(_P_WAIT, compiler.c_str(), argv.data());
         if (compile_status == -1) {
             CleanupOnError();
             ThrowFakeluaException(std::format("GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}", pr.file_name, errno, std::strerror(errno), JoinCommand(a)));
@@ -207,7 +219,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
             dup2(log_fd, STDOUT_FILENO);
             dup2(log_fd, STDERR_FILENO);
             close(log_fd);
-            execvp("gcc", argv.data());
+            execvp(compiler.c_str(), argv.data());
             _exit(kExecFailedStatus);
         }
         close(log_fd);
@@ -234,7 +246,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     // Two-step compile so gcov notes/data are named `<stem>.gcno/.gcda` (not
     // `<stem>.so-<stem>.gcno` from one-shot -shared of a .c file).
     {
-        std::vector<std::string> compile_args{"gcc", "-x", "c", "-c"};
+        std::vector<std::string> compile_args{compiler, "-x", "c", "-c"};
 #if !defined(_WIN32)
         compile_args.emplace_back("-fPIC");
 #endif
@@ -250,13 +262,14 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         run_gcc(compile_args);
     }
     {
-        std::vector<std::string> link_args{"gcc", "-shared"};
+        std::vector<std::string> link_args{compiler, "-shared"};
 #if !defined(_WIN32)
         link_args.emplace_back("-fPIC");
 #endif
 #if defined(__APPLE__)
         link_args.emplace_back("-undefined");
         link_args.emplace_back("dynamic_lookup");
+        link_args.emplace_back("-Wl,-adhoc_codesign");
 #endif
         link_args.emplace_back("--coverage");
         append_includes_and_libs(link_args, true);
@@ -272,7 +285,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     }
 #else
     {
-        std::vector<std::string> args{"gcc", "-x", "c", "-shared"};
+        std::vector<std::string> args{compiler, "-x", "c", "-shared"};
 #if !defined(_WIN32)
         args.emplace_back("-fPIC");
 #endif
@@ -281,6 +294,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         // 允许运行时由宿主进程提供未解析的符号。
         args.emplace_back("-undefined");
         args.emplace_back("dynamic_lookup");
+        args.emplace_back("-Wl,-adhoc_codesign");
 #endif
         args.emplace_back(opt_flag);
         args.emplace_back(jit_type_def);
@@ -307,6 +321,13 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     };
 #else
     void *dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (!dl_handle) {
+        // 在高并发多进程测试场景下，macOS 内核 AMFI 代码签名检查偶现缓存同步微延迟，重试以确保平滑加载
+        for (int retry = 0; retry < 5 && !dl_handle; ++retry) {
+            usleep(2000 * (retry + 1));
+            dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
+        }
+    }
     if (!dl_handle) {
         CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, dlopen failed for {}: {}", so_file, dlerror()));

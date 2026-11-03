@@ -373,7 +373,7 @@ static inline int FlDoubleFitsInt64(double d, int64_t *out) {
 
 #define NORMALIZE_TABLE_KEY(key) ({ \
     CVar __k = (key); \
-    if (LIKELY(__k.type_ == VAR_FLOAT)) { \
+    if (UNLIKELY(__k.type_ == VAR_FLOAT)) { \
         int64_t __i; \
         if (FlDoubleFitsInt64(__k.data_.f, &__i)) { \
             __k.type_ = VAR_INT; \
@@ -428,6 +428,35 @@ static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count
         cl->upvalues[i] = va_arg(args_list, CVar *);
     }
     va_end(args_list);
+    CVar res;
+    res.type_ = VAR_CLOSURE;
+    res.flag_ = 0;
+    res.data_.cl = cl;
+    return res;
+}
+
+static inline CVar FlMakeClosure0(State *state, void *func_ptr, int expected_arg_count, int is_vararg) {
+    VarClosure *cl = (VarClosure *)FlFastAlloc(state, sizeof(VarClosure), !__fakelua_init_flag__);
+    cl->func_ptr = func_ptr;
+    cl->upvalue_count = 0;
+    cl->expected_arg_count = expected_arg_count;
+    cl->is_vararg = is_vararg;
+    cl->code_str = NULL;
+    CVar res;
+    res.type_ = VAR_CLOSURE;
+    res.flag_ = 0;
+    res.data_.cl = cl;
+    return res;
+}
+
+static inline CVar FlMakeClosure1(State *state, void *func_ptr, int expected_arg_count, int is_vararg, CVar *up0) {
+    VarClosure *cl = (VarClosure *)FlFastAlloc(state, sizeof(VarClosure) + sizeof(CVar *), !__fakelua_init_flag__);
+    cl->func_ptr = func_ptr;
+    cl->upvalue_count = 1;
+    cl->expected_arg_count = expected_arg_count;
+    cl->is_vararg = is_vararg;
+    cl->code_str = NULL;
+    cl->upvalues[0] = up0;
     CVar res;
     res.type_ = VAR_CLOSURE;
     res.flag_ = 0;
@@ -688,6 +717,66 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
 #undef FCARG_30
 #undef FCARG_31
 #undef FCARG_32
+}
+
+static inline CVar FlCallClosure0(State *state, CVar cl_var) {
+    if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
+        VarClosure *cl = cl_var.data_.cl;
+        void *addr = cl->func_ptr;
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 0 && cl->code_str != (const char *)1)) {
+            int __fl_saved_line = fl_lua_loc.line;
+            fl_lua_loc.line = 0;
+            CVar __fl_ret = ((CVar (*)(VarClosure *))(addr))(cl);
+            fl_lua_loc.line = __fl_saved_line;
+            return __fl_ret;
+        }
+    }
+    return FlCallClosure(state, cl_var, 0);
+}
+
+static inline CVar FlCallClosure1(State *state, CVar cl_var, CVar a0) {
+    if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
+        VarClosure *cl = cl_var.data_.cl;
+        void *addr = cl->func_ptr;
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 1 && a0.type_ != VAR_MULTI && cl->code_str != (const char *)1)) {
+            int __fl_saved_line = fl_lua_loc.line;
+            fl_lua_loc.line = 0;
+            CVar __fl_ret = ((CVar (*)(VarClosure *, CVar))(addr))(cl, a0);
+            fl_lua_loc.line = __fl_saved_line;
+            return __fl_ret;
+        }
+    }
+    return FlCallClosure(state, cl_var, 1, a0);
+}
+
+static inline CVar FlCallClosure2(State *state, CVar cl_var, CVar a0, CVar a1) {
+    if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
+        VarClosure *cl = cl_var.data_.cl;
+        void *addr = cl->func_ptr;
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 2 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && cl->code_str != (const char *)1)) {
+            int __fl_saved_line = fl_lua_loc.line;
+            fl_lua_loc.line = 0;
+            CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar))(addr))(cl, a0, a1);
+            fl_lua_loc.line = __fl_saved_line;
+            return __fl_ret;
+        }
+    }
+    return FlCallClosure(state, cl_var, 2, a0, a1);
+}
+
+static inline CVar FlCallClosure3(State *state, CVar cl_var, CVar a0, CVar a1, CVar a2) {
+    if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
+        VarClosure *cl = cl_var.data_.cl;
+        void *addr = cl->func_ptr;
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 3 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && a2.type_ != VAR_MULTI && cl->code_str != (const char *)1)) {
+            int __fl_saved_line = fl_lua_loc.line;
+            fl_lua_loc.line = 0;
+            CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar, CVar))(addr))(cl, a0, a1, a2);
+            fl_lua_loc.line = __fl_saved_line;
+            return __fl_ret;
+        }
+    }
+    return FlCallClosure(state, cl_var, 3, a0, a1, a2);
 }
 
 static inline bool FlIsTrue(CVar v) {
@@ -1169,7 +1258,7 @@ static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) { FakeluaThrowError(_S, "table index is NaN"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_set) {
+    if (UNLIKELY(tbl->spec_set)) {
         bool __finish = false;
         tbl->spec_set(tbl, k, v, &__finish);
         if (__finish) return;
@@ -1190,7 +1279,7 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
     if (LIKELY((uint64_t)k - 1 < (uint64_t)tbl->arr_size_)) { return tbl->arr_[k - 1]; }
-    if (tbl->spec_get) {
+    if (UNLIKELY(tbl->spec_get)) {
         CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.flag_ = 0; key_cvar.data_.i = k;
         bool __finish = false;
         CVar __r = tbl->spec_get(tbl, key_cvar, &__finish);
@@ -1203,7 +1292,7 @@ static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     FL_CHECK_CONST_TABLE(t);
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_set) {
+    if (UNLIKELY(tbl->spec_set)) {
         CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.flag_ = 0; key_cvar.data_.i = k;
         bool __finish = false;
         tbl->spec_set(tbl, key_cvar, v, &__finish);
@@ -1252,10 +1341,58 @@ static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
     if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, v.type_ == VAR_NIL); }
 }
 
+static inline void FlSetTableInt_Int(CVar t, int64_t k, int64_t v) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
+        VarTable *tbl = t.data_.t;
+        uint64_t idx = (uint64_t)k - 1;
+        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
+            tbl->arr_[idx].type_ = VAR_INT;
+            tbl->arr_[idx].flag_ = 0;
+            tbl->arr_[idx].data_.i = v;
+            return;
+        }
+    }
+    CVar cv; cv.type_ = VAR_INT; cv.flag_ = 0; cv.data_.i = v;
+    FlSetTableIntImpl(t, k, cv);
+    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, false); }
+}
+
+static inline void FlSetTableInt_Float(CVar t, int64_t k, double v) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
+        VarTable *tbl = t.data_.t;
+        uint64_t idx = (uint64_t)k - 1;
+        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
+            tbl->arr_[idx].type_ = VAR_FLOAT;
+            tbl->arr_[idx].flag_ = 0;
+            tbl->arr_[idx].data_.f = v;
+            return;
+        }
+    }
+    CVar cv; cv.type_ = VAR_FLOAT; cv.flag_ = 0; cv.data_.f = v;
+    FlSetTableIntImpl(t, k, cv);
+    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, false); }
+}
+
+static inline void FlSetTableInt_Bool(CVar t, int64_t k, bool b) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
+        VarTable *tbl = t.data_.t;
+        uint64_t idx = (uint64_t)k - 1;
+        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
+            tbl->arr_[idx].type_ = VAR_BOOL;
+            tbl->arr_[idx].flag_ = 0;
+            tbl->arr_[idx].data_.b = b;
+            return;
+        }
+    }
+    CVar cv; cv.type_ = VAR_BOOL; cv.flag_ = 0; cv.data_.b = b;
+    FlSetTableIntImpl(t, k, cv);
+    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, false); }
+}
+
 static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_get) {
+    if (UNLIKELY(tbl->spec_get)) {
         CVar k; k.type_ = VAR_STRINGID; k.flag_ = 0; k.data_.i = str_id;
         bool __finish = false;
         CVar __r = tbl->spec_get(tbl, k, &__finish);
@@ -1306,7 +1443,7 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     FL_CHECK_CONST_TABLE(t);
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_set) {
+    if (UNLIKELY(tbl->spec_set)) {
         CVar k; k.type_ = VAR_STRINGID; k.flag_ = 0; k.data_.i = str_id;
         bool __finish = false;
         tbl->spec_set(tbl, k, v, &__finish);
@@ -1382,25 +1519,25 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 #define FL_INT_MUL(a, b) ((int64_t)((uint64_t)(int64_t)(a) * (uint64_t)(int64_t)(b)))
 
 #define OP_ARITH_IMPL(a, b, res, op) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    CVar _ra = (a); CVar _rb = (b); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, _ra.data_.i op _rb.data_.i); } \
-    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
+    else { CheckNum(_ra); CheckNum(_rb); SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
 
 #define OpAdd(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    CVar _ra = (a); CVar _rb = (b); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_ADD(_ra.data_.i, _rb.data_.i)); } \
-    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) + CVAR_TO_DOUBLE(_rb)); } \
+    else { CheckNum(_ra); CheckNum(_rb); SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) + CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
 #define OpSub(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    CVar _ra = (a); CVar _rb = (b); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_SUB(_ra.data_.i, _rb.data_.i)); } \
-    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) - CVAR_TO_DOUBLE(_rb)); } \
+    else { CheckNum(_ra); CheckNum(_rb); SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) - CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
 #define OpMul(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    CVar _ra = (a); CVar _rb = (b); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_MUL(_ra.data_.i, _rb.data_.i)); } \
-    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) * CVAR_TO_DOUBLE(_rb)); } \
+    else { CheckNum(_ra); CheckNum(_rb); SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) * CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
 
 #define OpDiv(a, b, res) do { \
@@ -1409,12 +1546,13 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 } while(0)
 
 #define OpFloorDiv(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    CVar _ra = (a); CVar _rb = (b); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { \
         int64_t _q; \
         FlFloorDivInt(_ra.data_.i, _rb.data_.i, _q); \
         SET_INT(res, _q); \
     } else { \
+        CheckNum(_ra); CheckNum(_rb); \
         SET_FLOAT(res, floor(CVAR_TO_DOUBLE(_ra) / CVAR_TO_DOUBLE(_rb))); \
     } \
 } while(0)
@@ -1425,12 +1563,13 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 } while(0)
 
 #define OpMod(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
+    CVar _ra = (a); CVar _rb = (b); \
     if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { \
         int64_t _r; \
         FlModInt(_ra.data_.i, _rb.data_.i, _r); \
         SET_INT(res, _r); \
     } else { \
+        CheckNum(_ra); CheckNum(_rb); \
         double _fa = CVAR_TO_DOUBLE(_ra); \
         double _fb = CVAR_TO_DOUBLE(_rb); \
         SET_FLOAT(res, _fa - _fb * floor(_fa / _fb)); \
@@ -1453,29 +1592,65 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 #define OpRightShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 1)
 #define OpLeftShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 0)
 
-#define OP_CMP_IMPL(a, b, res, op) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_BOOL(res, _ra.data_.i op _rb.data_.i); } \
-    else if (_ra.type_ == VAR_INT) { SET_BOOL(res, !isnan(_rb.data_.f) && FlCompareIntDouble(_ra.data_.i, _rb.data_.f) op 0); } \
-    else if (_rb.type_ == VAR_INT) { SET_BOOL(res, !isnan(_ra.data_.f) && 0 op FlCompareIntDouble(_rb.data_.i, _ra.data_.f)); } \
-    else { SET_BOOL(res, _ra.data_.f op _rb.data_.f); } \
-} while(0)
+static inline bool FlCmpLt(CVar a, CVar b) {
+    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) { return a.data_.i < b.data_.i; }
+    CheckNum(a); CheckNum(b);
+    if (a.type_ == VAR_INT) { return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) < 0; }
+    else if (b.type_ == VAR_INT) { return !isnan(a.data_.f) && 0 < FlCompareIntDouble(b.data_.i, a.data_.f); }
+    else { return a.data_.f < b.data_.f; }
+}
 
-#define OpLt(a, b, res) OP_CMP_IMPL(a, b, res, <)
-#define OpGt(a, b, res) OP_CMP_IMPL(a, b, res, >)
-#define OpLe(a, b, res) OP_CMP_IMPL(a, b, res, <=)
-#define OpGe(a, b, res) OP_CMP_IMPL(a, b, res, >=)
+static inline bool FlCmpGt(CVar a, CVar b) {
+    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) { return a.data_.i > b.data_.i; }
+    CheckNum(a); CheckNum(b);
+    if (a.type_ == VAR_INT) { return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) > 0; }
+    else if (b.type_ == VAR_INT) { return !isnan(a.data_.f) && 0 > FlCompareIntDouble(b.data_.i, a.data_.f); }
+    else { return a.data_.f > b.data_.f; }
+}
 
-#define OpEq(a, b, res) do { bool _eq; VarEqual(a, b, _eq); SET_BOOL(res, _eq); } while(0)
+static inline bool FlCmpLe(CVar a, CVar b) {
+    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) { return a.data_.i <= b.data_.i; }
+    CheckNum(a); CheckNum(b);
+    if (a.type_ == VAR_INT) { return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) <= 0; }
+    else if (b.type_ == VAR_INT) { return !isnan(a.data_.f) && 0 <= FlCompareIntDouble(b.data_.i, a.data_.f); }
+    else { return a.data_.f <= b.data_.f; }
+}
 
-#define OpNe(a, b, res) do { bool _eq; VarEqual(a, b, _eq); SET_BOOL(res, !_eq); } while(0)
+static inline bool FlCmpGe(CVar a, CVar b) {
+    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) { return a.data_.i >= b.data_.i; }
+    CheckNum(a); CheckNum(b);
+    if (a.type_ == VAR_INT) { return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) >= 0; }
+    else if (b.type_ == VAR_INT) { return !isnan(a.data_.f) && 0 >= FlCompareIntDouble(b.data_.i, a.data_.f); }
+    else { return a.data_.f >= b.data_.f; }
+}
+
+static inline bool FlCmpEq(CVar a, CVar b) {
+    bool _eq;
+    VarEqual(a, b, _eq);
+    return _eq;
+}
+
+static inline bool FlCmpNe(CVar a, CVar b) {
+    bool _eq;
+    VarEqual(a, b, _eq);
+    return !_eq;
+}
+
+#define OpLt(a, b, res) SET_BOOL(res, FlCmpLt(a, b))
+#define OpGt(a, b, res) SET_BOOL(res, FlCmpGt(a, b))
+#define OpLe(a, b, res) SET_BOOL(res, FlCmpLe(a, b))
+#define OpGe(a, b, res) SET_BOOL(res, FlCmpGe(a, b))
+
+#define OpEq(a, b, res) SET_BOOL(res, FlCmpEq(a, b))
+
+#define OpNe(a, b, res) SET_BOOL(res, FlCmpNe(a, b))
 
 #define OpNot(a, res) do { bool _bt; IsTrue(a, _bt); SET_BOOL(res, !_bt); } while(0)
 
 #define OpUnaryMinus(a, res) do { \
-    CVar _ra = (a); CheckNum(_ra); \
+    CVar _ra = (a); \
     if (LIKELY(_ra.type_ == VAR_INT)) { SET_INT(res, FL_INT_SUB(0, _ra.data_.i)); } \
-    else { SET_FLOAT(res, -_ra.data_.f); } \
+    else { CheckNum(_ra); SET_FLOAT(res, -_ra.data_.f); } \
 } while(0)
 
 #define OpBitNot(a, res) do { int64_t _ai; CheckInt(a, _ai); SET_INT(res, ~_ai); } while(0)
@@ -1490,11 +1665,40 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 
 #define OpConcat(a, b, res) do { res = FlConcat(a, b); } while(0)
 
+static inline int FlFastItoA(int64_t v, char *buf) {
+    if (v == 0) {
+        buf[0] = '0';
+        return 1;
+    }
+    char tmp[24];
+    int i = 0;
+    bool neg = false;
+    uint64_t u;
+    if (v < 0) {
+        neg = true;
+        u = 0ULL - (uint64_t)v;
+    } else {
+        u = (uint64_t)v;
+    }
+    while (u > 0) {
+        tmp[i++] = (char)('0' + (u % 10));
+        u /= 10;
+    }
+    int len = 0;
+    if (neg) {
+        buf[len++] = '-';
+    }
+    while (i > 0) {
+        buf[len++] = tmp[--i];
+    }
+    return len;
+}
+
 static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
     switch (v.type_) {
         case VAR_NIL: memcpy(buf, "nil", 3); buf[3] = '\0'; return 3;
         case VAR_BOOL: if (v.data_.b) { memcpy(buf, "true", 4); buf[4] = '\0'; return 4; } else { memcpy(buf, "false", 5); buf[5] = '\0'; return 5; }
-        case VAR_INT: return snprintf(buf, buf_size, "%lld", (long long)v.data_.i);
+        case VAR_INT: return FlFastItoA(v.data_.i, buf);
         case VAR_FLOAT: {
             /* Lua 5.4 tostringbuff: %.14g，结果只含数字和符号时补 .0 */
             int flen = snprintf(buf, buf_size, "%.14g", v.data_.f);
@@ -1526,15 +1730,21 @@ static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
     if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) { FakeluaThrowError(_S, "attempt to concatenate a non-string value"); }
 
 static inline CVar FlConcat(CVar a, CVar b) {
-    char buf_a[256], buf_b[256];
+    char buf_a[64], buf_b[64];
     const char *sa = buf_a; int la;
     const char *sb = buf_b; int lb;
     if (LIKELY(a.type_ == VAR_STRING)) { sa = STR_DATA(a.data_.s); la = STR_SIZE(a.data_.s); }
-    else if (UNLIKELY(a.type_ == VAR_STRINGID)) { VarString *vs = (VarString *)a.data_.i; sa = STR_DATA(vs); la = STR_SIZE(vs); }
-    else { CONCAT_CHECK_NUMERIC(a); la = FlVarToStr(a, buf_a, sizeof(buf_a)); }
+    else if (a.type_ == VAR_STRINGID) { VarString *vs = (VarString *)a.data_.i; sa = STR_DATA(vs); la = STR_SIZE(vs); }
+    else if (a.type_ == VAR_INT) { la = FlFastItoA(a.data_.i, buf_a); }
+    else if (a.type_ == VAR_FLOAT) { la = FlVarToStr(a, buf_a, sizeof(buf_a)); }
+    else { FakeluaThrowError(_S, "attempt to concatenate a non-string value"); return (CVar){VAR_NIL}; }
+
     if (LIKELY(b.type_ == VAR_STRING)) { sb = STR_DATA(b.data_.s); lb = STR_SIZE(b.data_.s); }
-    else if (UNLIKELY(b.type_ == VAR_STRINGID)) { VarString *vs = (VarString *)b.data_.i; sb = STR_DATA(vs); lb = STR_SIZE(vs); }
-    else { CONCAT_CHECK_NUMERIC(b); lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
+    else if (b.type_ == VAR_STRINGID) { VarString *vs = (VarString *)b.data_.i; sb = STR_DATA(vs); lb = STR_SIZE(vs); }
+    else if (b.type_ == VAR_INT) { lb = FlFastItoA(b.data_.i, buf_b); }
+    else if (b.type_ == VAR_FLOAT) { lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
+    else { FakeluaThrowError(_S, "attempt to concatenate a non-string value"); return (CVar){VAR_NIL}; }
+
     int total = la + lb;
     if (UNLIKELY(total < la || total < lb)) { FakeluaThrowError(_S, "string concatenation result too long"); }
     VarString *vs = (VarString *)FlFastAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
@@ -1684,8 +1894,7 @@ static inline CVar FlStringFindPlain(CVar s, CVar pat) {
 // string.format("%d", int)
 static inline CVar FlFormatInt(int64_t v) {
     char buf[32];
-    int n = snprintf(buf, sizeof(buf), "%lld", (long long)v);
-    if (n < 0) n = 0;
+    int n = FlFastItoA(v, buf);
     VarString *vs = (VarString *)FlFastAlloc(_S, sizeof(VarString) + n, !__fakelua_init_flag__);
     vs->size_ = n;
     vs->hash_ = 0;
