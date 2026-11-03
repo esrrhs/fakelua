@@ -4,6 +4,7 @@
 #include "util/file_util.h"
 #include "util/logging.h"
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -107,8 +108,19 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         ofs.close();
     }
 
+    std::string compiler = "gcc";
+    if (const char *env_cc = std::getenv("FAKELUA_CC"); env_cc && *env_cc) {
+        compiler = env_cc;
+    }
+#if defined(__APPLE__)
+    else {
+        // macOS 上 Apple Clang 比外部 Homebrew gcc 快 2~3 倍，默认优先使用 clang
+        compiler = "clang";
+    }
+#endif
+
     std::vector<std::string> args;
-    args.emplace_back("gcc");
+    args.emplace_back(compiler);
     args.emplace_back("-x");
     args.emplace_back("c");
     args.emplace_back("-shared");
@@ -120,6 +132,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     // 允许运行时由宿主进程提供未解析的符号。
     args.emplace_back("-undefined");
     args.emplace_back("dynamic_lookup");
+    args.emplace_back("-Wl,-adhoc_codesign");
 #endif
     args.emplace_back(cfg.debug_mode ? "-O0" : "-O3");
     args.emplace_back("-DFAKELUA_JIT_TYPE=" + std::to_string(static_cast<int>(JIT_GCC)));
@@ -155,7 +168,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
 #if defined(_WIN32)
     auto argv = build_argv();
-    const int compile_status = _spawnvp(_P_WAIT, "gcc", argv.data());
+    const int compile_status = _spawnvp(_P_WAIT, compiler.c_str(), argv.data());
     if (compile_status == -1) {
         CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}", pr.file_name, errno, std::strerror(errno), JoinCommand(args)));
@@ -206,7 +219,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         dup2(log_fd, STDOUT_FILENO);
         dup2(log_fd, STDERR_FILENO);
         close(log_fd);
-        execvp("gcc", argv.data());
+        execvp(compiler.c_str(), argv.data());
         _exit(kExecFailedStatus);
     }
     close(log_fd);
@@ -228,6 +241,13 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     }
 
     void *dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (!dl_handle) {
+        // 在高并发多进程测试场景下，macOS 内核 AMFI 代码签名检查偶现缓存同步微延迟，重试以确保平滑加载
+        for (int retry = 0; retry < 5 && !dl_handle; ++retry) {
+            usleep(2000 * (retry + 1));
+            dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
+        }
+    }
     if (!dl_handle) {
         CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, dlopen failed for {}: {}", so_file, dlerror()));

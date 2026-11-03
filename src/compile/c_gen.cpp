@@ -1026,7 +1026,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
             for (const auto &pname: cur_func_info_->params) {
                 if (IsCapturedInStmt(parlist_ptr, pname)) {
                     const auto cpname = CIdent(pname);
-                    func_temp_decls_ << "    CVar *__box_" << cpname << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+                    func_temp_decls_ << "    CVar *__box_" << cpname << " = (CVar *)FlFastAlloc(_S, sizeof(CVar), !__fakelua_init_flag__);\n";
                     if (cur_spec_ctx_) {
                         if (const auto pit = cur_spec_ctx_->param_types.find(pname); pit != cur_spec_ctx_->param_types.end()) {
                             if (pit->second == T_INT) {
@@ -1794,11 +1794,8 @@ std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const s
         }
     }
 
-    const auto tmp_bool = std::format("{}_{}", tmp_prefix, tmp_var_counter_++);
-    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
     const auto cond = CompileExp(exp);
-    Out() << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
-    return tmp_bool;
+    return std::format("FlIsTrue({})", cond);
 }
 
 void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
@@ -2543,6 +2540,12 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_mu
         case ExpKind::kFunctionDef: {
             const auto func_def = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(e->Right());
             FuncInfo *func = func_map_[func_def.get()];
+            if (func->captured_vars.empty()) {
+                return std::format("FlMakeClosure0(_S, (void*){}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false");
+            }
+            if (func->captured_vars.size() == 1) {
+                return std::format("FlMakeClosure1(_S, (void*){}, {}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false", CompileUpvaluePointer(func->captured_vars[0]));
+            }
             std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}", func->unique_c_name, func->captured_vars.size(), func->params.size(), func->is_vararg ? "true" : "false");
             for (VarDef *up: func->captured_vars) {
                 closure_expr += ", " + CompileUpvaluePointer(up);
@@ -3128,7 +3131,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         if (!BindsLocalValue(v_ptr.get()) && local_func_names_.contains(name)) {
             const auto &info = local_func_names_.at(name);
             const std::string &csym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
-            return std::format("FlMakeClosure(_S, (void*){}, 0, {}, {})", csym, info.params_count, info.is_vararg ? "true" : "false");
+            return std::format("FlMakeClosure0(_S, (void*){}, {}, {})", csym, info.params_count, info.is_vararg ? "true" : "false");
         }
 
         // 3. Regular native variable checking
@@ -3546,37 +3549,22 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     const auto pe_pre_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe_pre);
 
     if (auto result = TryCompileBuiltinMathCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
-        if (cur_stmt_node_ != nullptr) {
-            EmitLuaLine(cur_stmt_node_);
-        }
         return result;
     }
 
     if (auto result = TryCompileBuiltinTableCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
-        if (cur_stmt_node_ != nullptr) {
-            EmitLuaLine(cur_stmt_node_);
-        }
         return result;
     }
 
     if (auto result = TryCompileBuiltinStringCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
-        if (cur_stmt_node_ != nullptr) {
-            EmitLuaLine(cur_stmt_node_);
-        }
         return result;
     }
 
     if (auto result = TryCompileBuiltinLogCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
-        if (cur_stmt_node_ != nullptr) {
-            EmitLuaLine(cur_stmt_node_);
-        }
         return result;
     }
 
     if (auto result = TryCompileBuiltinBasicCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
-        if (cur_stmt_node_ != nullptr) {
-            EmitLuaLine(cur_stmt_node_);
-        }
         return result;
     }
 
@@ -3585,9 +3573,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     }
 
     if (auto result = TryCompileSetTableCall(fc, args_ptr, pe_pre_ptr); !result.empty()) {
-        if (cur_stmt_node_ != nullptr) {
-            EmitLuaLine(cur_stmt_node_);
-        }
         return result;
     }
 
@@ -4773,6 +4758,13 @@ std::string CGen::TryCompileBuiltinBasicCall(const std::shared_ptr<SyntaxTreeFun
     }
 
     if (name == "tostring" && raw_args.size() == 1) {
+        if (GetType(raw_args[0]) == T_INT) {
+            if (const auto native_arg = TryCompileNativeExpr(raw_args[0]); !native_arg.empty()) {
+                func_temp_decls_ << "    CVar " << tmp << ";\n";
+                Out() << GenTab() << tmp << " = FlFormatInt(" << native_arg << ");\n";
+                return tmp;
+            }
+        }
         func_temp_decls_ << "    CVar " << tmp << ";\n";
         const std::string arg = CompileExp(raw_args[0]);
         const auto arg_tmp = std::format("flua_tostr_{}", tmp_var_counter_++);
@@ -4848,9 +4840,26 @@ std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctio
                             Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
                             break;
                         }
-                        case TableKeyKind::kInt:
+                        case TableKeyKind::kInt: {
+                            if (const auto val_type = GetType(raw_args[2]); val_type == T_INT) {
+                                if (const auto native_val = TryCompileNativeExpr(raw_args[2]); !native_val.empty()) {
+                                    Out() << GenTab() << std::format("FlSetTableInt_Int({}, {}, {});\n", tbl_str, info.repr, native_val);
+                                    break;
+                                }
+                            }
+                            if (const auto val_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[2])) {
+                                if (val_exp->GetExpKind() == ExpKind::kTrue) {
+                                    Out() << GenTab() << std::format("FlSetTableInt_Bool({}, {}, true);\n", tbl_str, info.repr);
+                                    break;
+                                }
+                                if (val_exp->GetExpKind() == ExpKind::kFalse) {
+                                    Out() << GenTab() << std::format("FlSetTableInt_Bool({}, {}, false);\n", tbl_str, info.repr);
+                                    break;
+                                }
+                            }
                             Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", tbl_str, info.repr, val_str);
                             break;
+                        }
                         case TableKeyKind::kFloat:
                             Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}, {});\n", tbl_str, info.repr, val_str);
                             break;
@@ -4866,6 +4875,25 @@ std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctio
             if (const auto key_type = GetType(raw_args[1]); key_type == T_INT) {
                 if (const auto native_key = TryCompileNativeExpr(raw_args[1]); !native_key.empty()) {
                     const auto tbl_str = CompileExp(raw_args[0]);
+                    if (const auto val_type = GetType(raw_args[2]); val_type == T_INT) {
+                        if (const auto native_val = TryCompileNativeExpr(raw_args[2]); !native_val.empty()) {
+                            Out() << GenTab() << std::format("FlSetTableInt_Int({}, {}, {});\n", tbl_str, native_key, native_val);
+                            Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
+                            return tmp;
+                        }
+                    }
+                    if (const auto val_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[2])) {
+                        if (val_exp->GetExpKind() == ExpKind::kTrue) {
+                            Out() << GenTab() << std::format("FlSetTableInt_Bool({}, {}, true);\n", tbl_str, native_key);
+                            Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
+                            return tmp;
+                        }
+                        if (val_exp->GetExpKind() == ExpKind::kFalse) {
+                            Out() << GenTab() << std::format("FlSetTableInt_Bool({}, {}, false);\n", tbl_str, native_key);
+                            Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
+                            return tmp;
+                        }
+                    }
                     const auto val_str = CompileExp(raw_args[2]);
                     Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", tbl_str, native_key, val_str);
                     Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
@@ -5402,7 +5430,7 @@ bool CGen::IsCapturedInStmt(const SyntaxTreeInterface *stmt_ptr, const std::stri
 
 void CGen::EmitCapturedBoxDecl(const std::string &name, const std::string &init_expr) {
     const auto cn = CIdent(name);
-    Out() << GenTab() << "CVar *__box_" << cn << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+    Out() << GenTab() << "CVar *__box_" << cn << " = (CVar *)FlFastAlloc(_S, sizeof(CVar), !__fakelua_init_flag__);\n";
     if (!init_expr.empty()) {
         Out() << GenTab() << "*__box_" << cn << " = " << init_expr << ";\n";
     }
@@ -5415,11 +5443,18 @@ void CGen::CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt) {
 
     FuncInfo *func = func_map_[lf.get()];
 
-    std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}", func->unique_c_name, func->captured_vars.size(), func->params.size(), func->is_vararg ? "true" : "false");
-    for (VarDef *up: func->captured_vars) {
-        closure_expr += ", " + CompileUpvaluePointer(up);
+    std::string closure_expr;
+    if (func->captured_vars.empty()) {
+        closure_expr = std::format("FlMakeClosure0(_S, (void*){}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false");
+    } else if (func->captured_vars.size() == 1) {
+        closure_expr = std::format("FlMakeClosure1(_S, (void*){}, {}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false", CompileUpvaluePointer(func->captured_vars[0]));
+    } else {
+        closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}", func->unique_c_name, func->captured_vars.size(), func->params.size(), func->is_vararg ? "true" : "false");
+        for (VarDef *up: func->captured_vars) {
+            closure_expr += ", " + CompileUpvaluePointer(up);
+        }
+        closure_expr += ")";
     }
-    closure_expr += ")";
 
     if (IsCapturedInStmt(lf.get(), name)) {
         EmitCapturedBoxDecl(name, closure_expr);

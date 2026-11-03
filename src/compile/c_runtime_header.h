@@ -363,7 +363,7 @@ static inline int FlDoubleFitsInt64(double d, int64_t *out) {
 
 #define NORMALIZE_TABLE_KEY(key) ({ \
     CVar __k = (key); \
-    if (LIKELY(__k.type_ == VAR_FLOAT)) { \
+    if (UNLIKELY(__k.type_ == VAR_FLOAT)) { \
         int64_t __i; \
         if (FlDoubleFitsInt64(__k.data_.f, &__i)) { \
             __k.type_ = VAR_INT; \
@@ -418,6 +418,35 @@ static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count
         cl->upvalues[i] = va_arg(args_list, CVar *);
     }
     va_end(args_list);
+    CVar res;
+    res.type_ = VAR_CLOSURE;
+    res.flag_ = 0;
+    res.data_.cl = cl;
+    return res;
+}
+
+static inline CVar FlMakeClosure0(State *state, void *func_ptr, int expected_arg_count, int is_vararg) {
+    VarClosure *cl = (VarClosure *)FlFastAlloc(state, sizeof(VarClosure), !__fakelua_init_flag__);
+    cl->func_ptr = func_ptr;
+    cl->upvalue_count = 0;
+    cl->expected_arg_count = expected_arg_count;
+    cl->is_vararg = is_vararg;
+    cl->code_str = NULL;
+    CVar res;
+    res.type_ = VAR_CLOSURE;
+    res.flag_ = 0;
+    res.data_.cl = cl;
+    return res;
+}
+
+static inline CVar FlMakeClosure1(State *state, void *func_ptr, int expected_arg_count, int is_vararg, CVar *up0) {
+    VarClosure *cl = (VarClosure *)FlFastAlloc(state, sizeof(VarClosure) + sizeof(CVar *), !__fakelua_init_flag__);
+    cl->func_ptr = func_ptr;
+    cl->upvalue_count = 1;
+    cl->expected_arg_count = expected_arg_count;
+    cl->is_vararg = is_vararg;
+    cl->code_str = NULL;
+    cl->upvalues[0] = up0;
     CVar res;
     res.type_ = VAR_CLOSURE;
     res.flag_ = 0;
@@ -687,9 +716,7 @@ static inline CVar FlCallClosure0(State *state, CVar cl_var) {
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 0 && cl->code_str != (const char *)1)) {
             int __fl_saved_line = fl_lua_loc.line;
             fl_lua_loc.line = 0;
-            int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);
             CVar __fl_ret = ((CVar (*)(VarClosure *))(addr))(cl);
-            FakeluaJitContextPop(state, __fl_prev_jit);
             fl_lua_loc.line = __fl_saved_line;
             return __fl_ret;
         }
@@ -704,9 +731,7 @@ static inline CVar FlCallClosure1(State *state, CVar cl_var, CVar a0) {
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 1 && a0.type_ != VAR_MULTI && cl->code_str != (const char *)1)) {
             int __fl_saved_line = fl_lua_loc.line;
             fl_lua_loc.line = 0;
-            int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar))(addr))(cl, a0);
-            FakeluaJitContextPop(state, __fl_prev_jit);
             fl_lua_loc.line = __fl_saved_line;
             return __fl_ret;
         }
@@ -721,9 +746,7 @@ static inline CVar FlCallClosure2(State *state, CVar cl_var, CVar a0, CVar a1) {
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 2 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && cl->code_str != (const char *)1)) {
             int __fl_saved_line = fl_lua_loc.line;
             fl_lua_loc.line = 0;
-            int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar))(addr))(cl, a0, a1);
-            FakeluaJitContextPop(state, __fl_prev_jit);
             fl_lua_loc.line = __fl_saved_line;
             return __fl_ret;
         }
@@ -738,9 +761,7 @@ static inline CVar FlCallClosure3(State *state, CVar cl_var, CVar a0, CVar a1, C
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 3 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && a2.type_ != VAR_MULTI && cl->code_str != (const char *)1)) {
             int __fl_saved_line = fl_lua_loc.line;
             fl_lua_loc.line = 0;
-            int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar, CVar))(addr))(cl, a0, a1, a2);
-            FakeluaJitContextPop(state, __fl_prev_jit);
             fl_lua_loc.line = __fl_saved_line;
             return __fl_ret;
         }
@@ -1308,6 +1329,38 @@ static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
     }
     FlSetTableIntImpl(t, k, v);
     if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, v.type_ == VAR_NIL); }
+}
+
+static inline void FlSetTableInt_Int(CVar t, int64_t k, int64_t v) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
+        VarTable *tbl = t.data_.t;
+        uint64_t idx = (uint64_t)k - 1;
+        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
+            tbl->arr_[idx].type_ = VAR_INT;
+            tbl->arr_[idx].flag_ = 0;
+            tbl->arr_[idx].data_.i = v;
+            return;
+        }
+    }
+    CVar cv; cv.type_ = VAR_INT; cv.flag_ = 0; cv.data_.i = v;
+    FlSetTableIntImpl(t, k, cv);
+    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, false); }
+}
+
+static inline void FlSetTableInt_Bool(CVar t, int64_t k, bool b) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
+        VarTable *tbl = t.data_.t;
+        uint64_t idx = (uint64_t)k - 1;
+        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
+            tbl->arr_[idx].type_ = VAR_BOOL;
+            tbl->arr_[idx].flag_ = 0;
+            tbl->arr_[idx].data_.b = b;
+            return;
+        }
+    }
+    CVar cv; cv.type_ = VAR_BOOL; cv.flag_ = 0; cv.data_.b = b;
+    FlSetTableIntImpl(t, k, cv);
+    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, false); }
 }
 
 static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {

@@ -1,8 +1,15 @@
 #include "common.h"
 
+#include <atomic>
+#include <chrono>
 #include <boost/filesystem.hpp>
 #include <boost/system/error_code.hpp>
 #include <fstream>
+#if defined(_WIN32)
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace fakelua {
 
@@ -15,12 +22,26 @@ std::string GenerateTmpFilename(const std::string &head, const std::string &tail
     tmpdir /= "fakelua";
     boost::filesystem::create_directories(tmpdir, ec);
 
-    std::mt19937 rng{std::random_device{}()};
-    std::uniform_int_distribution<int> dist(100000, 999999);
+    static std::atomic<uint64_t> seq{0};
+#if defined(_WIN32)
+    const int pid = _getpid();
+#else
+    const int pid = getpid();
+#endif
+    const auto count = seq.fetch_add(1, std::memory_order_relaxed);
+    const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
 
     std::string fileName;
+    uint64_t sub_seq = 0;
     do {
-        fileName = (tmpdir / (head + std::to_string(dist(rng)) + tail)).string();
+        std::string suffix = std::to_string(pid) + "_" + std::to_string(count);
+        if (sub_seq > 0) {
+            suffix += "_" + std::to_string(sub_seq);
+        } else {
+            suffix += "_" + std::to_string(now % 1000000);
+        }
+        fileName = (tmpdir / (head + suffix + tail)).string();
+        ++sub_seq;
     } while (std::ifstream(fileName));
     return fileName;
 }
