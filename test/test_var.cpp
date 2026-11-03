@@ -1,7 +1,10 @@
 #include "fakelua.h"
 #include "state/state.h"
 #include "var/var.h"
+#include "var/var_closure.h"
 #include "var/var_string.h"
+#include "var/var_multi.h"
+#include "native/table/native_table.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -360,4 +363,77 @@ TEST(var, test_true_string) {
     Var empty_str;
     empty_str.SetTempString(s, "");
     ASSERT_TRUE(empty_str.TestTrue());// empty string is still truthy in Lua
+}
+
+
+TEST(var, tostring_hash_equal_table_multi_closure) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    CVar tbl_cv = table::TableHelper::CreateTable(s);
+    Var &tbl = AsVar(tbl_cv);
+    ASSERT_EQ(tbl.Type(), VarType::Table);
+    ASSERT_TRUE(tbl.TestTrue());
+    const std::string tbl_str = tbl.ToString();
+    ASSERT_NE(tbl_str.find("table("), std::string::npos);
+    ASSERT_NE(tbl.Hash(), 0u);
+    ASSERT_TRUE(tbl.Equal(tbl));
+
+    CVar tbl2_cv = table::TableHelper::CreateTable(s);
+    Var &tbl2 = AsVar(tbl2_cv);
+    ASSERT_FALSE(tbl.Equal(tbl2));
+
+    CVar multi_cv = inter::AllocMultiCVar(s, 2);
+    CVar one{};
+    one.type_ = static_cast<int>(VarType::Int);
+    one.data_.i = 1;
+    CVar two{};
+    two.type_ = static_cast<int>(VarType::Int);
+    two.data_.i = 2;
+    inter::SetMultiCVarElement(multi_cv, 0, one);
+    inter::SetMultiCVarElement(multi_cv, 1, two);
+    Var &multi = AsVar(multi_cv);
+    ASSERT_EQ(multi.Type(), VarType::Multi);
+    ASSERT_TRUE(multi.TestTrue());
+    const std::string multi_str = multi.ToString();
+    ASSERT_NE(multi_str.find("multi("), std::string::npos);
+    ASSERT_NE(multi_str.find("1"), std::string::npos);
+    ASSERT_NE(multi.Hash(), 0u);
+
+    CVar multi2_cv = inter::AllocMultiCVar(s, 2);
+    inter::SetMultiCVarElement(multi2_cv, 0, one);
+    inter::SetMultiCVarElement(multi2_cv, 1, two);
+    ASSERT_TRUE(multi.Equal(AsVar(multi2_cv)));
+    CVar ninetynine{};
+    ninetynine.type_ = static_cast<int>(VarType::Int);
+    ninetynine.data_.i = 99;
+    inter::SetMultiCVarElement(multi2_cv, 1, ninetynine);
+    ASSERT_FALSE(multi.Equal(AsVar(multi2_cv)));
+
+    CVar multi3_cv = inter::AllocMultiCVar(s, 1);
+    inter::SetMultiCVarElement(multi3_cv, 0, one);
+    ASSERT_FALSE(multi.Equal(AsVar(multi3_cv)));
+
+    Var cl;
+    cl.type_ = static_cast<int>(VarType::Closure);
+    cl.data_.cl = reinterpret_cast<VarClosure *>(0x1234);
+    ASSERT_TRUE(cl.TestTrue());
+    const std::string cl_str = cl.ToString();
+    ASSERT_NE(cl_str.find("function("), std::string::npos);
+    ASSERT_NE(cl.Hash(), 0u);
+    Var cl2;
+    cl2.type_ = static_cast<int>(VarType::Closure);
+    cl2.data_.cl = reinterpret_cast<VarClosure *>(0x1234);
+    ASSERT_TRUE(cl.Equal(cl2));
+    cl2.data_.cl = reinterpret_cast<VarClosure *>(0x5678);
+    ASSERT_FALSE(cl.Equal(cl2));
+}
+
+TEST(var, equal_same_type_int_bool_float) {
+    ASSERT_TRUE(Var(static_cast<int64_t>(7)).Equal(Var(static_cast<int64_t>(7))));
+    ASSERT_FALSE(Var(static_cast<int64_t>(7)).Equal(Var(static_cast<int64_t>(8))));
+    ASSERT_TRUE(Var(true).Equal(Var(true)));
+    ASSERT_FALSE(Var(true).Equal(Var(false)));
+    ASSERT_TRUE(Var(1.25).Equal(Var(1.25)));
+    ASSERT_FALSE(Var(1.25).Equal(Var(1.5)));
 }

@@ -5,6 +5,8 @@
 
 #include <cstdio>
 #include <fstream>
+#include <filesystem>
+#include <format>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -739,4 +741,31 @@ TEST(test_log, level_transitions_and_errors) {
     ret = 0;
     CallThrow(s, "LogAllLevels.test_log_info_no_args", ret);
     FakeluaDeleteState(s);
+}
+
+
+TEST(test_log, log_file_rotation_small_limit) {
+    // Force RotateLogs by using a tiny max size and writing repeatedly.
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    const auto log_path = (std::filesystem::temp_directory_path() / "fakelua_cov_rotate.log").string();
+    std::error_code ec;
+    std::filesystem::remove(log_path, ec);
+    for (int i = 1; i <= 5; ++i) {
+        std::filesystem::remove(std::format("{}.{}", log_path, i), ec);
+    }
+    SetLogFile(s, log_path, /*max_size=*/64, /*max_files=*/3);
+    SetLogLevel(s, LogLevel::Trace);
+    for (int i = 0; i < 40; ++i) {
+        LOG_INFO(s, "engine", "rotate-me-{}-{}", i, std::string(80, 'x'));
+    }
+    SetLogFile(s, "", 0, 0);
+    FakeluaDeleteState(s);
+    // At least the primary or a rotated file should exist.
+    const bool any = std::filesystem::exists(log_path) || std::filesystem::exists(log_path + ".1");
+    EXPECT_TRUE(any);
+    std::filesystem::remove(log_path, ec);
+    for (int i = 1; i <= 5; ++i) {
+        std::filesystem::remove(std::format("{}.{}", log_path, i), ec);
+    }
 }

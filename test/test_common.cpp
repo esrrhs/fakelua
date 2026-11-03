@@ -3,6 +3,7 @@
 #include "util/macro.h"
 #include "util/string_util.h"
 #include "gtest/gtest.h"
+#include <vector>
 
 #include <cstdio>
 #include <filesystem>
@@ -345,16 +346,37 @@ TEST(common, ToFloat_hex_errors) {
 // Keep c_runtime_cov.h (Codecov view / #line target) identical to kCRuntimeHeader's
 // raw-string body. The string begins with a leading '\n' that is not in the file.
 TEST(common, c_runtime_cov_matches_kCRuntimeHeader) {
-    const char *home = std::getenv("FAKELUA_HOME");
-    std::filesystem::path cov_path;
-    if (home && *home) {
-        cov_path = std::filesystem::path(home) / kCRuntimeCovPath;
-    } else {
-        // unit_tests usually run with cwd=test/lua
-        cov_path = std::filesystem::path("../../") / kCRuntimeCovPath;
+    std::vector<std::filesystem::path> candidates;
+    if (const char *home = std::getenv("FAKELUA_HOME"); home && *home) {
+        candidates.emplace_back(std::filesystem::path(home) / kCRuntimeCovPath);
     }
-    std::ifstream ifs(cov_path);
-    ASSERT_TRUE(ifs.good()) << "missing view header: " << cov_path;
+    // unit_tests usually run with cwd=test/lua; shards may use a temp cwd with symlinks.
+    candidates.emplace_back(std::filesystem::path("../../") / kCRuntimeCovPath);
+    candidates.emplace_back(std::filesystem::path("../..") / "src" / "compile" / "c_runtime_cov.h");
+    candidates.emplace_back(std::filesystem::current_path() / ".." / ".." / kCRuntimeCovPath);
+    // Walk up from cwd looking for the repo-rooted header.
+    {
+        auto cur = std::filesystem::current_path();
+        for (int i = 0; i < 6; ++i) {
+            candidates.emplace_back(cur / kCRuntimeCovPath);
+            if (!cur.has_parent_path() || cur == cur.parent_path()) break;
+            cur = cur.parent_path();
+        }
+    }
+    std::filesystem::path cov_path;
+    std::ifstream ifs;
+    for (const auto &cand: candidates) {
+        std::error_code ec;
+        auto canon = std::filesystem::weakly_canonical(cand, ec);
+        if (ec) continue;
+        ifs.open(canon);
+        if (ifs.good()) {
+            cov_path = canon;
+            break;
+        }
+        ifs.close();
+    }
+    ASSERT_TRUE(ifs.good()) << "missing view header; tried FAKELUA_HOME/cwd parents for " << kCRuntimeCovPath;
     std::ostringstream oss;
     oss << ifs.rdbuf();
     const std::string file_body = oss.str();
