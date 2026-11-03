@@ -20,6 +20,7 @@
 #include "gtest/gtest.h"
 
 #include <cmath>
+#include <string>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -505,6 +506,22 @@ TEST(core_cov_gaps, fakelua_log_lua_cvar_types) {
     std::filesystem::remove(path + ".1", ec);
 }
 
+namespace {
+void SetTestEnv(const char *name, const char *value) {
+#if defined(_WIN32)
+    // MinGW/MSVC: empty value clears getenv for gcc_jit's FAKELUA_CC check.
+    const std::string entry = std::string(name) + "=" + (value ? value : "");
+    _putenv(entry.c_str());
+#else
+    if (value) {
+        setenv(name, value, 1);
+    } else {
+        unsetenv(name);
+    }
+#endif
+}
+}// namespace
+
 TEST(core_cov_gaps, gcc_jit_env_and_paths) {
     StateConfig cfg;
     cfg.gcc_config.include_paths.push_back("/usr/include");
@@ -513,7 +530,7 @@ TEST(core_cov_gaps, gcc_jit_env_and_paths) {
     State *s = FakeluaNewState(cfg);
     ASSERT_NE(s, nullptr);
 
-    setenv("FAKELUA_CC", "gcc", 1);
+    SetTestEnv("FAKELUA_CC", "gcc");
     CompileConfig ccfg;
     ccfg.debug_mode = true;
     EXPECT_NO_THROW(CompileString(s, "function gcc_cov_fn()\n  return 1\nend\n", ccfg));
@@ -522,9 +539,10 @@ TEST(core_cov_gaps, gcc_jit_env_and_paths) {
     EXPECT_EQ(res, 1.0);
 
     // Force GCC failure to hit JoinCommand / CleanupOnError / log-read paths.
-    setenv("FAKELUA_CC", "false", 1);
+    // Use a nonexistent binary so Windows/MinGW and POSIX both fail the spawn.
+    SetTestEnv("FAKELUA_CC", "fakelua_nonexistent_cc_for_cov");
     EXPECT_THROW(CompileString(s, "function gcc_fail()\n  return 2\nend\n", ccfg), std::exception);
-    unsetenv("FAKELUA_CC");
+    SetTestEnv("FAKELUA_CC", nullptr);
     FakeluaDeleteState(s);
 }
 
