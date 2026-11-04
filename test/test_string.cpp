@@ -966,7 +966,7 @@ TEST(test_string, cov_string_escapes_and_ops) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
     for (auto jit_type: AllJitTypes()) {
-        CompileFile(s, "./cov/test_core_gaps.lua", config);
+        CompileFile(s, "./string/test_string_escapes_and_ops.lua", config);
         double res = 0;
         Call(s, jit_type, "test_string_escapes", res);
         EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);

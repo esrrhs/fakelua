@@ -1337,7 +1337,7 @@ TEST(test_math, cov_math_inline_extra) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
     for (auto jit_type: AllJitTypes()) {
-        CompileFile(s, "./cov/test_core_gaps.lua", config);
+        CompileFile(s, "./math/test_math_inline_extra.lua", config);
         double res = 0;
         Call(s, jit_type, "test_math_inline_extra", res);
         EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);

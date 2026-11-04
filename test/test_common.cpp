@@ -680,7 +680,11 @@ TEST(common, cov_gaps_lua_misc_paths) {
     ASSERT_NE(s, nullptr);
     CompileConfig config;
     for (auto jit_type: AllJitTypes()) {
-        CompileFile(s, "./cov/test_core_gaps.lua", config);
+        CompileFile(s, "./basic/test_local_multi_assign.lua", config);
+        CompileFile(s, "./table/test_table_seq_and_move.lua", config);
+        CompileFile(s, "./basic/test_select_and_closure_args.lua", config);
+        CompileFile(s, "./basic/test_file_level_literals.lua", config);
+        CompileFile(s, "./basic/test_interp_errors.lua", config);
         double res = 0;
         Call(s, jit_type, "test_local_multi_assign", res);
         EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
