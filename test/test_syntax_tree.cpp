@@ -1,6 +1,11 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
 #include "gtest/gtest.h"
+#include "compile/semantic_analysis.h"
+#include "compile/syntax_tree.h"
+#include <memory>
+#include <string>
+#include <vector>
 
 using namespace fakelua;
 
@@ -2174,4 +2179,189 @@ TEST(syntax_tree, SyntaxTreeTypeToString) {
     ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Unop), "Unop");
     ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Args), "Args");
     ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::PrefixExp), "PrefixExp");
+}
+
+namespace {
+
+yy::location StCovLoc() {
+    return yy::location();
+}
+
+SyntaxTreeInterfacePtr StCovMakeNumberExp(const std::string &v) {
+    auto e = std::make_shared<SyntaxTreeExp>(StCovLoc());
+    e->SetExpKind(ExpKind::kNumber);
+    e->SetValue(v);
+    return e;
+}
+
+SyntaxTreeInterfacePtr StCovMakeSimpleVar(const std::string &name) {
+    auto v = std::make_shared<SyntaxTreeVar>(StCovLoc());
+    v->SetVarKind(VarKind::kSimple);
+    v->SetName(name);
+    return v;
+}
+
+SyntaxTreeInterfacePtr StCovMakePrefixVar(const std::string &name) {
+    auto pe = std::make_shared<SyntaxTreePrefixexp>(StCovLoc());
+    pe->SetPrefixKind(PrefixExpKind::kVar);
+    pe->SetValue(StCovMakeSimpleVar(name));
+    return pe;
+}
+
+}// namespace
+
+TEST(syntax_tree, getters_setters_coverage) {
+    auto empty = std::make_shared<SyntaxTreeEmpty>(StCovLoc());
+    EXPECT_EQ(empty->Type(), SyntaxTreeType::Empty);
+    EXPECT_FALSE(empty->Dump(1).empty());
+    empty->SetLoc(StCovLoc());
+    (void)empty->Loc();
+
+    auto label = std::make_shared<SyntaxTreeLabel>(StCovLoc());
+    label->SetName("L");
+    EXPECT_EQ(label->GetName(), "L");
+    EXPECT_EQ(label->Type(), SyntaxTreeType::Label);
+
+    auto ret = std::make_shared<SyntaxTreeReturn>(StCovLoc());
+    auto el = std::make_shared<SyntaxTreeExplist>(StCovLoc());
+    ret->SetExplist(el);
+    EXPECT_EQ(ret->Explist(), el);
+
+    auto assign = std::make_shared<SyntaxTreeAssign>(StCovLoc());
+    auto vl = std::make_shared<SyntaxTreeVarlist>(StCovLoc());
+    assign->SetVarlist(vl);
+    assign->SetExplist(el);
+    EXPECT_EQ(assign->Varlist(), vl);
+    EXPECT_EQ(assign->Explist(), el);
+    vl->AddVar(StCovMakeSimpleVar("a"));
+    EXPECT_EQ(vl->Vars().size(), 1u);
+    el->AddExp(StCovMakeNumberExp("1"));
+    EXPECT_EQ(el->Exps().size(), 1u);
+
+    auto var = std::make_shared<SyntaxTreeVar>(StCovLoc());
+    var->SetName("t");
+    var->SetVarKind(VarKind::kDot);
+    auto pe = StCovMakePrefixVar("obj");
+    var->SetPrefixexp(pe);
+    var->SetExp(StCovMakeNumberExp("1"));
+    EXPECT_EQ(var->GetName(), "t");
+    EXPECT_EQ(var->GetPrefixexp(), pe);
+    EXPECT_NE(var->GetExp(), nullptr);
+    EXPECT_EQ(var->GetVarKind(), VarKind::kDot);
+    // const overloads
+    const SyntaxTreeVar &cvar = *var;
+    EXPECT_EQ(cvar.GetName(), "t");
+    EXPECT_EQ(cvar.GetPrefixexp(), pe);
+    EXPECT_NE(cvar.GetExp(), nullptr);
+
+    auto fc = std::make_shared<SyntaxTreeFunctioncall>(StCovLoc());
+    fc->SetPrefixexp(pe);
+    auto args = std::make_shared<SyntaxTreeArgs>(StCovLoc());
+    args->SetArgsKind(ArgsKind::kExpList);
+    args->SetExplist(el);
+    fc->SetArgs(args);
+    fc->SetName("m");
+    EXPECT_EQ(fc->prefixexp(), pe);
+    EXPECT_EQ(fc->Args(), args);
+    EXPECT_EQ(fc->Name(), "m");
+
+    auto tc = std::make_shared<SyntaxTreeTableconstructor>(StCovLoc());
+    auto fl = std::make_shared<SyntaxTreeFieldlist>(StCovLoc());
+    auto field = std::make_shared<SyntaxTreeField>(StCovLoc());
+    field->SetKey(StCovMakeNumberExp("1"));
+    field->SetValue(StCovMakeNumberExp("2"));
+    field->SetName("k");
+    field->SetFieldKind(FieldKind::kObject);
+    EXPECT_NE(field->Key(), nullptr);
+    EXPECT_NE(field->Value(), nullptr);
+    EXPECT_EQ(field->Name(), "k");
+    EXPECT_EQ(field->GetFieldKind(), FieldKind::kObject);
+    fl->AddField(field);
+    EXPECT_EQ(fl->Fields().size(), 1u);
+    tc->SetFieldlist(fl);
+    EXPECT_EQ(tc->Fieldlist(), fl);
+
+    auto brk = std::make_shared<SyntaxTreeBreak>(StCovLoc());
+    EXPECT_EQ(brk->Type(), SyntaxTreeType::Break);
+    auto gt = std::make_shared<SyntaxTreeGoto>(StCovLoc());
+    gt->SetLabel("L");
+    EXPECT_EQ(gt->GetLabel(), "L");
+
+    auto wh = std::make_shared<SyntaxTreeWhile>(StCovLoc());
+    wh->SetExp(StCovMakeNumberExp("1"));
+    wh->SetBlock(std::make_shared<SyntaxTreeBlock>(StCovLoc()));
+    EXPECT_NE(wh->Exp(), nullptr);
+    EXPECT_NE(wh->Block(), nullptr);
+
+    auto rp = std::make_shared<SyntaxTreeRepeat>(StCovLoc());
+    rp->SetBlock(std::make_shared<SyntaxTreeBlock>(StCovLoc()));
+    rp->SetExp(StCovMakeNumberExp("1"));
+    EXPECT_NE(rp->Block(), nullptr);
+    EXPECT_NE(rp->Exp(), nullptr);
+
+    auto iff = std::make_shared<SyntaxTreeIf>(StCovLoc());
+    iff->SetExp(StCovMakeNumberExp("1"));
+    iff->SetBlock(std::make_shared<SyntaxTreeBlock>(StCovLoc()));
+    iff->SetElseiflist(std::make_shared<SyntaxTreeElseiflist>(StCovLoc()));
+    iff->SetElseBlock(std::make_shared<SyntaxTreeBlock>(StCovLoc()));
+    EXPECT_NE(iff->Exp(), nullptr);
+    EXPECT_NE(iff->Block(), nullptr);
+    EXPECT_NE(iff->ElseIfs(), nullptr);
+    EXPECT_NE(iff->ElseBlock(), nullptr);
+
+    EXPECT_EQ(SyntaxTreeTypeToString(static_cast<SyntaxTreeType>(999)), "UNKNOWN");
+}
+
+TEST(syntax_tree, semantic_collect_returns_all_shapes) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+    Compiler c(s);
+    // skip_jit: parse-only so file-level control flow is allowed for CollectReturns coverage.
+    const char *src = R"(
+return 1
+if true then
+  return 2
+elseif false then
+  return 3
+else
+  return 4
+end
+while false do
+  return 5
+end
+repeat
+  return 6
+until true
+for i = 1, 2 do
+  return 7
+end
+for k, v in pairs({}) do
+  return 8
+end
+function nested()
+  return 9
+end
+local function inner()
+  return 10
+end
+)";
+    auto pr = c.CompileString(src, {true});
+    ASSERT_NE(pr.chunk, nullptr);
+    SemanticAnalysis sa(s);
+    std::vector<SyntaxTreeInterfacePtr> returns;
+    sa.CollectReturnsForBlock(pr.chunk, returns);
+    EXPECT_GE(returns.size(), 5u);
+    // Descend into function bodies via Function/LocalFunction case (no nested returns collected).
+    for (const auto &stmt : std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk)->Stmts()) {
+        if (stmt->Type() == SyntaxTreeType::Function || stmt->Type() == SyntaxTreeType::LocalFunction) {
+            sa.CollectReturnsForBlock(stmt, returns);
+        }
+    }
+    // nullptr early-return
+    sa.CollectReturnsForBlock(nullptr, returns);
+    // non-statement node error path
+    auto exp = std::make_shared<SyntaxTreeExp>(yy::location());
+    exp->SetExpKind(ExpKind::kNumber);
+    exp->SetValue("1");
+    EXPECT_THROW(sa.CollectReturnsForBlock(exp, returns), std::exception);
 }

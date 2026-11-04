@@ -2,6 +2,14 @@
 #include "util/common.h"
 #include "util/string_util.h"
 #include "gtest/gtest.h"
+#include "util/file_util.h"
+#include "util/number_util.h"
+#include "util/os.h"
+#include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <limits>
+#include <string>
 
 using namespace fakelua;
 
@@ -133,4 +141,47 @@ TEST(util, ReplaceEscapeChars_mixed_escapes) {
     std::string s = "A\\nB\\tC\\97D\\z   E\\\\F";
     std::string result = ReplaceEscapeChars(s);
     ASSERT_EQ(result, "A\nB\tCaDE\\F");
+}
+
+TEST(util, number_util_and_os_exec) {
+    EXPECT_TRUE(IsInteger("42"));
+    EXPECT_FALSE(IsInteger("1.0"));
+    EXPECT_FALSE(IsInteger(""));
+
+    EXPECT_EQ(FormatLuaFloat(1.0), "1.0");
+    EXPECT_FALSE(FormatLuaFloat(1.5).empty());
+    EXPECT_FALSE(FormatLuaFloat(-42.0).empty());
+
+    EXPECT_EQ(*TryConvertDoubleToInt64(3.0), 3);
+    EXPECT_FALSE(TryConvertDoubleToInt64(1.5).has_value());
+    EXPECT_FALSE(TryConvertDoubleToInt64(std::numeric_limits<double>::infinity()).has_value());
+    EXPECT_FALSE(TryConvertDoubleToInt64(1e300).has_value());
+    EXPECT_EQ(*TryConvertDoubleToInt64(static_cast<double>(std::numeric_limits<int64_t>::min())), std::numeric_limits<int64_t>::min());
+
+    EXPECT_EQ(CompareInt64Double(1, std::numeric_limits<double>::quiet_NaN()), 0);
+    EXPECT_EQ(CompareInt64Double(1, 1e300), -1);
+    EXPECT_EQ(CompareInt64Double(1, -1e300), 1);
+    EXPECT_EQ(CompareInt64Double(2, 2.5), -1);
+    EXPECT_EQ(CompareInt64Double(3, 2.5), 1);
+    EXPECT_EQ(CompareInt64Double(2, 2.0), 0);
+    EXPECT_TRUE(Int64DoubleEqual(2, 2.0));
+    EXPECT_FALSE(Int64DoubleEqual(2, std::numeric_limits<double>::quiet_NaN()));
+
+    const std::string out = Exec("echo hello_cov");
+    EXPECT_NE(out.find("hello_cov"), std::string::npos);
+}
+
+TEST(util, generate_tmp_filename_collision) {
+    // Collision path in GenerateTmpFilename: pre-create the first candidate.
+    const auto first = GenerateTmpFilename("cov_collide_", ".tmp");
+    {
+        std::ofstream ofs(first);
+        ofs << "x";
+    }
+    // Force same pid/count window by creating many temps; at least exercise the function.
+    const auto second = GenerateTmpFilename("cov_collide_", ".tmp");
+    EXPECT_NE(first, second);
+    std::error_code ec;
+    std::filesystem::remove(first, ec);
+    std::filesystem::remove(second, ec);
 }

@@ -6,6 +6,9 @@
 #include "var/var_string.h"
 #include "var/var_type.h"
 #include "gtest/gtest.h"
+#include "test_jit.h"
+#include <cstdlib>
+#include <string>
 
 using namespace fakelua;
 
@@ -3095,4 +3098,56 @@ TEST(jitter, numeric_eval_once) {
         Call(s, type, "test_numeric_ternary_once", ret, -1);
         ASSERT_EQ(ret, 1);
     });
+}
+
+namespace {
+void SetTestEnv(const char *name, const char *value) {
+#if defined(_WIN32)
+    // MinGW/MSVC: empty value clears getenv for gcc_jit's FAKELUA_CC check.
+    const std::string entry = std::string(name) + "=" + (value ? value : "");
+    _putenv(entry.c_str());
+#else
+    if (value) {
+        setenv(name, value, 1);
+    } else {
+        unsetenv(name);
+    }
+#endif
+}
+}// namespace
+
+TEST(jitter, gcc_jit_env_and_paths) {
+    StateConfig cfg;
+    cfg.gcc_config.include_paths.push_back("/usr/include");
+    cfg.gcc_config.library_paths.push_back("/usr/lib");
+    cfg.gcc_config.libraries.push_back("m");
+    State *s = FakeluaNewState(cfg);
+    ASSERT_NE(s, nullptr);
+
+    SetTestEnv("FAKELUA_CC", "gcc");
+    CompileConfig ccfg;
+    ccfg.debug_mode = true;
+    EXPECT_NO_THROW(CompileString(s, "function gcc_cov_fn()\n  return 1\nend\n", ccfg));
+    double res = 0;
+    Call(s, JIT_GCC, "gcc_cov_fn", res);
+    EXPECT_EQ(res, 1.0);
+
+    // Force GCC failure to hit JoinCommand / CleanupOnError / log-read paths.
+    // Use a nonexistent binary so Windows/MinGW and POSIX both fail the spawn.
+    SetTestEnv("FAKELUA_CC", "fakelua_nonexistent_cc_for_cov");
+    EXPECT_THROW(CompileString(s, "function gcc_fail()\n  return 2\nend\n", ccfg), std::exception);
+    SetTestEnv("FAKELUA_CC", nullptr);
+    FakeluaDeleteState(s);
+}
+
+TEST(jitter, tcc_libraries_config_path) {
+    StateConfig cfg;
+    // Exercise tcc_add_library loop; missing lib still reaches that line before compile fails.
+    cfg.tcc_config.libraries.push_back("fakelua_missing_lib_for_cov");
+    State *s = FakeluaNewState(cfg);
+    ASSERT_NE(s, nullptr);
+    CompileConfig ccfg;
+    ccfg.debug_mode = true;
+    EXPECT_THROW(CompileString(s, "function tcc_lib_cov()\n  return 3\nend\n", ccfg), std::exception);
+    FakeluaDeleteState(s);
 }

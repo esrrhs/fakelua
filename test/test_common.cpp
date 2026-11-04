@@ -342,6 +342,12 @@ TEST(common, ToFloat_hex_errors) {
 }
 
 #include "compile/c_runtime_header.h"
+#include "compile/compile_common.h"
+#include "compile/syntax_tree.h"
+#include "test_jit.h"
+#include <cmath>
+#include <limits>
+#include <string>
 
 // Keep c_runtime_cov.h (Codecov view / #line target) identical to kCRuntimeHeader's
 // raw-string body. The string begins with a leading '\n' that is not in the file.
@@ -383,4 +389,313 @@ TEST(common, c_runtime_cov_matches_kCRuntimeHeader) {
     const std::string expected = kCRuntimeHeader[0] == '\n' ? std::string(kCRuntimeHeader + 1) : std::string(kCRuntimeHeader);
     EXPECT_EQ(file_body, expected) << "Edit kCRuntimeHeader and sync " << kCRuntimeCovPath
                                    << " (or the reverse); Codecov #line mapping depends on it.";
+}
+
+namespace {
+
+yy::location CovLoc() {
+    return yy::location();
+}
+
+SyntaxTreeInterfacePtr CovMakeNumberExp(const std::string &v) {
+    auto e = std::make_shared<SyntaxTreeExp>(CovLoc());
+    e->SetExpKind(ExpKind::kNumber);
+    e->SetValue(v);
+    return e;
+}
+
+SyntaxTreeInterfacePtr CovMakeStringExp(const std::string &v) {
+    auto e = std::make_shared<SyntaxTreeExp>(CovLoc());
+    e->SetExpKind(ExpKind::kString);
+    e->SetValue(v);
+    return e;
+}
+
+SyntaxTreeInterfacePtr CovMakeSimpleVar(const std::string &name) {
+    auto v = std::make_shared<SyntaxTreeVar>(CovLoc());
+    v->SetVarKind(VarKind::kSimple);
+    v->SetName(name);
+    return v;
+}
+
+SyntaxTreeInterfacePtr CovMakePrefixVar(const std::string &name) {
+    auto pe = std::make_shared<SyntaxTreePrefixexp>(CovLoc());
+    pe->SetPrefixKind(PrefixExpKind::kVar);
+    pe->SetValue(CovMakeSimpleVar(name));
+    return pe;
+}
+
+SyntaxTreeInterfacePtr CovMakePrefixCall(const std::string &name) {
+    auto pe = std::make_shared<SyntaxTreePrefixexp>(CovLoc());
+    pe->SetPrefixKind(PrefixExpKind::kFunctionCall);
+    pe->SetValue(CovMakeSimpleVar(name));
+    return pe;
+}
+
+SyntaxTreeInterfacePtr CovMakeVarPrefixExp(const std::string &name) {
+    auto e = std::make_shared<SyntaxTreeExp>(CovLoc());
+    e->SetExpKind(ExpKind::kPrefixExp);
+    e->SetRight(CovMakePrefixVar(name));
+    return e;
+}
+
+SyntaxTreeInterfacePtr CovMakeCallPrefixExp(const std::string &name) {
+    auto e = std::make_shared<SyntaxTreeExp>(CovLoc());
+    e->SetExpKind(ExpKind::kPrefixExp);
+    e->SetRight(CovMakePrefixCall(name));
+    return e;
+}
+
+SyntaxTreeInterfacePtr CovMakeUnaryMinus(const SyntaxTreeInterfacePtr &right) {
+    auto op = std::make_shared<SyntaxTreeUnop>(CovLoc());
+    op->SetOpKind(UnOpKind::kMinus);
+    auto e = std::make_shared<SyntaxTreeExp>(CovLoc());
+    e->SetExpKind(ExpKind::kUnop);
+    e->SetOp(op);
+    e->SetRight(right);
+    return e;
+}
+
+}// namespace
+
+TEST(common, compile_math_param_helpers) {
+    EXPECT_EQ(MathParamKindOf(0, 0), kMathParamInt);
+    EXPECT_EQ(MathParamKindOf(1, 0), kMathParamFloat);
+    EXPECT_EQ(MathParamKindOf(2, 1), kMathParamFloat);
+    EXPECT_STREQ(MathParamCTypeName(kMathParamInt), "int64_t");
+    EXPECT_STREQ(MathParamCTypeName(kMathParamFloat), "double");
+    EXPECT_EQ(MathParamSuffix(kMathParamInt), '0');
+    EXPECT_EQ(MathParamSuffix(kMathParamFloat), '1');
+
+    EXPECT_EQ(InferredTypeToString(T_UNKNOWN), "T_UNKNOWN");
+    EXPECT_EQ(InferredTypeToString(T_INT), "T_INT");
+    EXPECT_EQ(InferredTypeToString(T_FLOAT), "T_FLOAT");
+    EXPECT_EQ(InferredTypeToString(T_DYNAMIC), "T_DYNAMIC");
+    EXPECT_EQ(InferredTypeToString(static_cast<InferredType>(99)), "T_UNKNOWN");
+
+    EXPECT_TRUE(IsNumericInferredType(T_INT));
+    EXPECT_TRUE(IsNumericInferredType(T_FLOAT));
+    EXPECT_FALSE(IsNumericInferredType(T_UNKNOWN));
+    EXPECT_FALSE(IsNumericInferredType(T_DYNAMIC));
+
+    EXPECT_EQ(InferNumericBinopResultType(BinOpKind::kSlash, T_INT, T_INT), T_FLOAT);
+    EXPECT_EQ(InferNumericBinopResultType(BinOpKind::kPow, T_INT, T_FLOAT), T_FLOAT);
+    EXPECT_EQ(InferNumericBinopResultType(BinOpKind::kPlus, T_INT, T_INT), T_INT);
+    EXPECT_EQ(InferNumericBinopResultType(BinOpKind::kPlus, T_INT, T_FLOAT), T_FLOAT);
+    EXPECT_EQ(InferNumericBinopResultType(BinOpKind::kBitAnd, T_INT, T_INT), T_INT);
+    EXPECT_EQ(InferNumericBinopResultType(BinOpKind::kAnd, T_INT, T_FLOAT), T_FLOAT);
+    EXPECT_EQ(InferNumericBinopResultType(BinOpKind::kOr, T_INT, T_FLOAT), T_INT);
+    EXPECT_EQ(InferNumericBinopResultType(BinOpKind::kConcat, T_INT, T_INT), T_DYNAMIC);
+    EXPECT_EQ(InferNumericBinopResultType(BinOpKind::kPlus, T_DYNAMIC, T_INT), T_DYNAMIC);
+
+    EXPECT_STREQ(SpecReturnCTypeName(T_INT), "int64_t");
+    EXPECT_STREQ(SpecReturnCTypeName(T_FLOAT), "double");
+    EXPECT_STREQ(SpecReturnCTypeName(T_DYNAMIC), "CVar");
+
+    EXPECT_EQ(SpecFuncName("fib", {0}, 0), "fib_0");
+    EXPECT_EQ(SpecFuncName("test", {1, 4}, 2), "test_0_1");
+    EXPECT_NE(BoxNativeValue("x", T_INT).find("VAR_INT"), std::string::npos);
+    EXPECT_NE(BoxNativeValue("y", T_FLOAT).find("VAR_FLOAT"), std::string::npos);
+}
+
+TEST(common, compile_extract_args_and_vararg) {
+    {
+        auto args = std::make_shared<SyntaxTreeArgs>(CovLoc());
+        args->SetArgsKind(ArgsKind::kExpList);
+        auto el = std::make_shared<SyntaxTreeExplist>(CovLoc());
+        el->AddExp(CovMakeNumberExp("1"));
+        el->AddExp(CovMakeNumberExp("2"));
+        args->SetExplist(el);
+        auto raw = ExtractCallRawArgs(args);
+        ASSERT_EQ(raw.size(), 2u);
+    }
+    {
+        auto args = std::make_shared<SyntaxTreeArgs>(CovLoc());
+        args->SetArgsKind(ArgsKind::kString);
+        args->SetString(CovMakeStringExp("\"hi\""));
+        auto raw = ExtractCallRawArgs(args);
+        ASSERT_EQ(raw.size(), 1u);
+    }
+    {
+        auto args = std::make_shared<SyntaxTreeArgs>(CovLoc());
+        args->SetArgsKind(ArgsKind::kTableConstructor);
+        auto tc = std::make_shared<SyntaxTreeTableconstructor>(CovLoc());
+        args->SetTableconstructor(tc);
+        auto raw = ExtractCallRawArgs(args);
+        ASSERT_EQ(raw.size(), 1u);
+    }
+
+    EXPECT_FALSE(IsVarargExp(nullptr));
+    EXPECT_FALSE(IsVarargExp(CovMakeNumberExp("1")));
+    EXPECT_FALSE(IsVarargExp(CovMakeCallPrefixExp("f")));
+    EXPECT_TRUE(IsVarargExp(CovMakeVarPrefixExp("__fakelua_vararg_0")));
+    EXPECT_FALSE(IsVarargExp(CovMakeVarPrefixExp("x")));
+
+    EXPECT_FALSE(IsFunctionCallExp(nullptr));
+    EXPECT_FALSE(IsFunctionCallExp(CovMakeNumberExp("1")));
+    EXPECT_TRUE(IsFunctionCallExp(CovMakeCallPrefixExp("f")));
+    EXPECT_FALSE(IsFunctionCallExp(CovMakeVarPrefixExp("x")));
+}
+
+TEST(common, compile_package_and_strings) {
+    EXPECT_EQ(StripLuaStringQuotes("\"abc\""), "abc");
+    EXPECT_EQ(StripLuaStringQuotes("'xyz'"), "xyz");
+    EXPECT_EQ(StripLuaStringQuotes("bare"), "bare");
+    EXPECT_EQ(StripLuaStringQuotes("\""), "\"");
+
+    {
+        // package "mypkg"
+        auto fc = std::make_shared<SyntaxTreeFunctioncall>(CovLoc());
+        fc->SetPrefixexp(CovMakePrefixVar("package"));
+        auto args = std::make_shared<SyntaxTreeArgs>(CovLoc());
+        args->SetArgsKind(ArgsKind::kString);
+        args->SetString(CovMakeStringExp("\"mypkg\""));
+        fc->SetArgs(args);
+        std::string out;
+        EXPECT_TRUE(ExtractPackageName(fc, out));
+        EXPECT_EQ(out, "mypkg");
+    }
+    {
+        // package("mypkg") via explist
+        auto fc = std::make_shared<SyntaxTreeFunctioncall>(CovLoc());
+        fc->SetPrefixexp(CovMakePrefixVar("package"));
+        auto args = std::make_shared<SyntaxTreeArgs>(CovLoc());
+        args->SetArgsKind(ArgsKind::kExpList);
+        auto el = std::make_shared<SyntaxTreeExplist>(CovLoc());
+        el->AddExp(CovMakeStringExp("\"pkg2\""));
+        args->SetExplist(el);
+        fc->SetArgs(args);
+        std::string out;
+        EXPECT_TRUE(ExtractPackageName(fc, out));
+        EXPECT_EQ(out, "pkg2");
+    }
+    {
+        // package = "pkg3"
+        auto assign = std::make_shared<SyntaxTreeAssign>(CovLoc());
+        auto vl = std::make_shared<SyntaxTreeVarlist>(CovLoc());
+        vl->AddVar(CovMakeSimpleVar("package"));
+        auto el = std::make_shared<SyntaxTreeExplist>(CovLoc());
+        el->AddExp(CovMakeStringExp("\"pkg3\""));
+        assign->SetVarlist(vl);
+        assign->SetExplist(el);
+        std::string out;
+        EXPECT_TRUE(ExtractPackageName(assign, out));
+        EXPECT_EQ(out, "pkg3");
+    }
+    {
+        auto empty = std::make_shared<SyntaxTreeEmpty>(CovLoc());
+        std::string out;
+        EXPECT_FALSE(ExtractPackageName(empty, out));
+    }
+
+    auto empty = std::make_shared<SyntaxTreeEmpty>(CovLoc());
+    EXPECT_FALSE(SyntaxTreeLocationStr("f.lua", empty).empty());
+}
+
+TEST(common, compile_number_key_classify) {
+    TableKeyKind kind = TableKeyKind::kString;
+    std::string canon;
+    int64_t iv = 0;
+    double fv = 0;
+
+    EXPECT_TRUE(ClassifyLuaNumberKey("42", kind, canon, iv, fv));
+    EXPECT_EQ(kind, TableKeyKind::kInt);
+    EXPECT_EQ(iv, 42);
+
+    EXPECT_TRUE(ClassifyLuaNumberKey("0x10", kind, canon, iv, fv));
+    EXPECT_EQ(kind, TableKeyKind::kInt);
+    EXPECT_EQ(iv, 16);
+
+    EXPECT_TRUE(ClassifyLuaNumberKey("1.5", kind, canon, iv, fv));
+    EXPECT_EQ(kind, TableKeyKind::kFloat);
+
+    EXPECT_TRUE(ClassifyLuaNumberKey("1.0", kind, canon, iv, fv));
+    EXPECT_EQ(kind, TableKeyKind::kInt);
+    EXPECT_EQ(iv, 1);
+
+    EXPECT_FALSE(ClassifyLuaNumberKey("", kind, canon, iv, fv));
+    EXPECT_FALSE(ClassifyLuaNumberKey("abc", kind, canon, iv, fv));
+    EXPECT_FALSE(ClassifyLuaNumberKey("inf", kind, canon, iv, fv));
+
+    auto n = CovMakeNumberExp("7");
+    EXPECT_TRUE(ClassifyConstNumberExp(n, kind, canon, iv, fv));
+    EXPECT_EQ(iv, 7);
+
+    auto neg = CovMakeUnaryMinus(CovMakeNumberExp("3"));
+    EXPECT_TRUE(ClassifyConstNumberExp(neg, kind, canon, iv, fv));
+    EXPECT_EQ(iv, -3);
+
+    auto min_neg = CovMakeUnaryMinus(CovMakeNumberExp(std::to_string(std::numeric_limits<int64_t>::min())));
+    // May classify as float overflow path; just exercise the branch.
+    (void)ClassifyConstNumberExp(min_neg, kind, canon, iv, fv);
+
+    auto two63 = CovMakeUnaryMinus(CovMakeNumberExp("9223372036854775808.0"));
+    EXPECT_TRUE(ClassifyConstNumberExp(two63, kind, canon, iv, fv));
+
+    EXPECT_FALSE(ClassifyConstNumberExp(CovMakeStringExp("\"x\""), kind, canon, iv, fv));
+    EXPECT_FALSE(ConstNumberExpHasFloatSyntax(nullptr));
+    EXPECT_TRUE(ConstNumberExpHasFloatSyntax(CovMakeNumberExp("1.0")));
+    EXPECT_FALSE(ConstNumberExpHasFloatSyntax(CovMakeNumberExp("1")));
+    EXPECT_TRUE(ConstNumberExpHasFloatSyntax(CovMakeUnaryMinus(CovMakeNumberExp("0.0"))));
+
+    EXPECT_TRUE(ConstNumberExpIsIntValue(TableKeyKind::kInt, CovMakeNumberExp("1")));
+    EXPECT_FALSE(ConstNumberExpIsIntValue(TableKeyKind::kInt, CovMakeNumberExp("1.0")));
+
+    const double z = ConstNumberExpToDouble(TableKeyKind::kInt, 0, 0.0, CovMakeNumberExp("0.0"));
+    EXPECT_TRUE(z == 0.0);
+    const double nz = ConstNumberExpToDouble(TableKeyKind::kInt, 0, 0.0, CovMakeUnaryMinus(CovMakeNumberExp("0.0")));
+    EXPECT_TRUE(std::signbit(nz));
+
+    EXPECT_NE(FormatCDoubleLiteral(1.0).find('.'), std::string::npos);
+    EXPECT_FALSE(FormatCDoubleLiteral(1.5).empty());
+
+    EXPECT_EQ(EscapeCStringLiteral("a\"b\\c\n\r\td"), "a\\\"b\\\\c\\n\\r\\td");
+    EXPECT_NE(EscapeCStringLiteral(std::string("\x01\x7f", 2)).find('\\'), std::string::npos);
+}
+
+TEST(common, compile_table_spec_helpers) {
+    TableFieldInfo fs{.key = "a", .type = T_INT, .key_kind = TableKeyKind::kString};
+    TableFieldInfo fi{.key = "1", .type = T_INT, .key_kind = TableKeyKind::kInt, .int_value = 1};
+    TableFieldInfo fb{.key = "true", .type = T_INT, .key_kind = TableKeyKind::kBool, .bool_value = true};
+    TableFieldInfo ff{.key = "1.5", .type = T_FLOAT, .key_kind = TableKeyKind::kFloat, .float_value = 1.5};
+    EXPECT_EQ(TableFieldDescriptor(fs), "S_a");
+    EXPECT_EQ(TableFieldDescriptor(fi), "I_1");
+    EXPECT_EQ(TableFieldDescriptor(fb), "B_true");
+    EXPECT_EQ(TableFieldDescriptor(ff), "F_1.5");
+
+    std::vector<TableFieldInfo> fields{fs, fi};
+    const auto name = ComputeTableSpecName(fields);
+    EXPECT_EQ(name.rfind("flua_spec_", 0), 0u);
+    EXPECT_EQ(ComputeTableSpecName({fi, fs}), name);
+
+    EXPECT_EQ(GetSimpleVarName(nullptr), "");
+    EXPECT_EQ(GetSimpleVarName(CovMakeSimpleVar("x")), "x");
+    EXPECT_EQ(GetSimpleVarName(CovMakePrefixVar("y")), "y");
+    EXPECT_EQ(GetSimpleVarName(CovMakeVarPrefixExp("z")), "z");
+    EXPECT_EQ(GetSimpleVarName(CovMakeNumberExp("1")), "");
+}
+
+TEST(common, cov_gaps_lua_misc_paths) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./cov/test_core_gaps.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_local_multi_assign", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_table_seq_and_move", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_select_and_closure_args", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_file_level_literals", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_bool_nil_locals", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_empty_body", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_interp_errors", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+    }
+    FakeluaDeleteState(s);
 }

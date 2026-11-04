@@ -11,6 +11,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include "state/state.h"
 
 using namespace fakelua;
 
@@ -768,4 +769,64 @@ TEST(test_log, log_file_rotation_small_limit) {
     for (int i = 1; i <= 5; ++i) {
         std::filesystem::remove(std::format("{}.{}", log_path, i), ec);
     }
+}
+
+extern "C" void FakeluaLogLua(State *s, int level, CVar msg, const char *file, int line, const char *func);
+
+TEST(test_log, fakelua_log_lua_cvar_types) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetLogLevel(s, LogLevel::Trace);
+
+    CVar nil{};
+    FakeluaLogLua(s, static_cast<int>(LogLevel::Info), nil, "f.lua", 1, "fn");
+
+    CVar b{};
+    b.type_ = static_cast<int>(VarType::Bool);
+    b.data_.b = true;
+    FakeluaLogLua(s, static_cast<int>(LogLevel::Info), b, "f.lua", 2, "fn");
+    b.data_.b = false;
+    FakeluaLogLua(s, static_cast<int>(LogLevel::Warn), b, "f.lua", 3, "fn");
+
+    CVar i{};
+    i.type_ = static_cast<int>(VarType::Int);
+    i.data_.i = 42;
+    FakeluaLogLua(s, static_cast<int>(LogLevel::Error), i, "f.lua", 4, "fn");
+
+    CVar f{};
+    f.type_ = static_cast<int>(VarType::Float);
+    f.data_.f = 3.14;
+    FakeluaLogLua(s, static_cast<int>(LogLevel::Critical), f, "f.lua", 5, "fn");
+
+    CVar bad{};
+    bad.type_ = static_cast<int>(VarType::Table);
+    FakeluaLogLua(s, static_cast<int>(LogLevel::Info), bad, nullptr, 6, nullptr);
+
+    // Level filter early-return in FakeluaLogLua / LogLua
+    SetLogLevel(s, LogLevel::Error);
+    FakeluaLogLua(s, static_cast<int>(LogLevel::Info), i, "f.lua", 7, "fn");
+    LogLua(s, LogLevel::Debug, "t", "m", "f.lua", 8, "fn");
+
+    // Off level name path via explicit Off log when level is Off
+    SetLogLevel(s, LogLevel::Off);
+    Log(s, LogLevel::Off, "t", "off-msg");
+
+    // empty path configure + reconfigure existing sink
+    SetLogFile(s, "", 0, 0);
+    const auto path = (std::filesystem::temp_directory_path() / "fakelua_cov_log2.log").string();
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    // Create oversized file so Configure rotates on open
+    {
+        std::ofstream ofs(path);
+        ofs << std::string(200, 'z');
+    }
+    SetLogFile(s, path, /*max_size=*/50, /*max_files=*/2);
+    SetLogFile(s, path, /*max_size=*/50, /*max_files=*/2);// close existing
+    SetLogLevel(s, LogLevel::Info);
+    LOG_INFO(s, "engine", "after-rotate");
+    SetLogFile(s, "", 0, 0);
+    FakeluaDeleteState(s);
+    std::filesystem::remove(path, ec);
+    std::filesystem::remove(path + ".1", ec);
 }

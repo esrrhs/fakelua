@@ -960,3 +960,18 @@ TEST(test_string, plan_12_to_19_regressions) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_string, cov_string_escapes_and_ops) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./cov/test_core_gaps.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_string_escapes", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+        Call(s, jit_type, "test_string_ops_extra", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+    }
+    FakeluaDeleteState(s);
+}
