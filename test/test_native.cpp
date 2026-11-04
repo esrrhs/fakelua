@@ -735,3 +735,48 @@ TEST(test_native, test_native_manager_destroy_empty) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_native, register_native_var_and_func_addr) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    RegisterNativeVarFunction(s, "cov_make_tbl", 0, false, [](State *state, const std::vector<VarInterface *> &) -> VarInterface * {
+        auto *t = new SimpleVarImpl();
+        std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
+        auto *k = new SimpleVarImpl();
+        k->ViSetString("a");
+        auto *v = new SimpleVarImpl();
+        v->ViSetInt(1);
+        kvs.emplace_back(k, v);
+        t->ViSetTable(kvs);
+        delete k;
+        delete v;
+        return t;
+    });
+    // null callback path
+    RegisterNativeVarFunction(s, "cov_nil_cb", 0, false, NativeVarFuncCallback{});
+
+    CompileConfig config;
+    CompileString(s, R"(
+function test_native_var()
+    local t = cov_make_tbl()
+    if t.a ~= 1 then return 1 end
+    local n = cov_nil_cb()
+    if n ~= nil then return 2 end
+    return 0
+end
+)",
+                  config);
+    double res = 0;
+    Call(s, JIT_GCC, "test_native_var", res);
+    EXPECT_EQ(res, 0.0);
+
+    int argc = 0;
+    bool is_va = false;
+    void *addr = inter::GetFuncAddr(s, JIT_GCC, "test_native_var", argc, is_va);
+    EXPECT_NE(addr, nullptr);
+    EXPECT_EQ(inter::GetFuncAddr(s, JIT_GCC, "no_such_fn_xyz", argc, is_va), nullptr);
+
+    SetDebugLogLevel(s, 1);
+    SetDebugLogLevel(s, LogLevel::Warn);
+    FakeluaDeleteState(s);
+}

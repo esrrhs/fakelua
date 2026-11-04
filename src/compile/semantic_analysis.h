@@ -24,6 +24,9 @@ public:
     // 运行语义分析
     AnalysisResult Analyze(const ParseResult &pr, const CompileConfig &cfg);
 
+    // Collect return statements under a syntax subtree (also used by focused coverage tests).
+    void CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node, std::vector<SyntaxTreeInterfacePtr> &returns);
+
 private:
     void AnalyzeGlobalConstNames(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);
     void CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk, const AnalysisResult &ar);
@@ -65,7 +68,6 @@ private:
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 
     void AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);
-    void CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node, std::vector<SyntaxTreeInterfacePtr> &returns);
     std::string GetCalleeName(const SyntaxTreeInterfacePtr &exp_node);
 
 private:

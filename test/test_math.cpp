@@ -1331,3 +1331,16 @@ TEST(test_math, special_functions) {
     CallThrow(s, "test_math_clamp_bad_bounds", throw_ret);
     FakeluaDeleteState(s);
 }
+
+TEST(test_math, cov_math_inline_extra) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    CompileConfig config;
+    for (auto jit_type: AllJitTypes()) {
+        CompileFile(s, "./math/test_math_inline_extra.lua", config);
+        double res = 0;
+        Call(s, jit_type, "test_math_inline_extra", res);
+        EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
+    }
+    FakeluaDeleteState(s);
+}

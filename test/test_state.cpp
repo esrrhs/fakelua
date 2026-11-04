@@ -8,6 +8,8 @@
 #include "var/var.h"
 #include "var/var_string.h"
 #include "gtest/gtest.h"
+#include <cmath>
+#include <limits>
 
 using namespace fakelua;
 
@@ -442,4 +444,110 @@ TEST(state, heap_alloc_boundary) {
     // Reset and verify empty
     inter::Reset(s);
     ASSERT_EQ(alloc.Size(), 0u);
+}
+
+
+TEST(state, cvar_to_integer_edge_cases) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+
+    CVar i{};
+    i.type_ = static_cast<int>(VarType::Int);
+    i.data_.i = 42;
+    EXPECT_EQ(inter::CVarToInteger(i, -1), 42);
+
+    CVar btrue{};
+    btrue.type_ = static_cast<int>(VarType::Bool);
+    btrue.data_.b = true;
+    CVar bfalse{};
+    bfalse.type_ = static_cast<int>(VarType::Bool);
+    bfalse.data_.b = false;
+    EXPECT_EQ(inter::CVarToInteger(btrue, -1), 1);
+    EXPECT_EQ(inter::CVarToInteger(bfalse, -1), 0);
+
+    CVar f{};
+    f.type_ = static_cast<int>(VarType::Float);
+    f.data_.f = 3.9;
+    EXPECT_EQ(inter::CVarToInteger(f, -1), 3);
+
+    CVar nanv{};
+    nanv.type_ = static_cast<int>(VarType::Float);
+    nanv.data_.f = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_EQ(inter::CVarToInteger(nanv, 99), 99);
+
+    CVar inf{};
+    inf.type_ = static_cast<int>(VarType::Float);
+    inf.data_.f = std::numeric_limits<double>::infinity();
+    EXPECT_EQ(inter::CVarToInteger(inf, 99), 99);
+
+    CVar huge{};
+    huge.type_ = static_cast<int>(VarType::Float);
+    huge.data_.f = 1e300;
+    EXPECT_EQ(inter::CVarToInteger(huge, 99), 99);
+
+    Var vs;
+    vs.SetTempString(s, "123");
+    EXPECT_EQ(inter::CVarToInteger(reinterpret_cast<const CVar &>(vs), -1), 123);
+
+    Var vsf;
+    vsf.SetTempString(s, "12.5");
+    EXPECT_EQ(inter::CVarToInteger(reinterpret_cast<const CVar &>(vsf), -1), 12);
+
+    Var vsbad;
+    vsbad.SetTempString(s, "12x");
+    EXPECT_EQ(inter::CVarToInteger(reinterpret_cast<const CVar &>(vsbad), 77), 77);
+
+    Var vempty;
+    vempty.SetTempString(s, "");
+    EXPECT_EQ(inter::CVarToInteger(reinterpret_cast<const CVar &>(vempty), 77), 77);
+
+    Var vhuge;
+    vhuge.SetTempString(s, "1e300");
+    EXPECT_EQ(inter::CVarToInteger(reinterpret_cast<const CVar &>(vhuge), 77), 77);
+
+    CVar nil{};
+    EXPECT_EQ(inter::CVarToInteger(nil, 55), 55);
+}
+
+TEST(state, cvar_to_number_bool_string) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+
+    CVar f{};
+    f.type_ = static_cast<int>(VarType::Float);
+    f.data_.f = 1.5;
+    EXPECT_DOUBLE_EQ(inter::CVarToNumber(f, -1), 1.5);
+
+    CVar i{};
+    i.type_ = static_cast<int>(VarType::Int);
+    i.data_.i = 8;
+    EXPECT_DOUBLE_EQ(inter::CVarToNumber(i, -1), 8.0);
+
+    Var vs;
+    vs.SetTempString(s, "2.5");
+    EXPECT_DOUBLE_EQ(inter::CVarToNumber(reinterpret_cast<const CVar &>(vs), -1), 2.5);
+
+    Var vsbad;
+    vsbad.SetTempString(s, "nope");
+    EXPECT_DOUBLE_EQ(inter::CVarToNumber(reinterpret_cast<const CVar &>(vsbad), 9.0), 9.0);
+
+    CVar zero{};
+    zero.type_ = static_cast<int>(VarType::Int);
+    zero.data_.i = 0;
+    EXPECT_TRUE(inter::CVarToBool(zero, false));
+
+    CVar nil{};
+    EXPECT_TRUE(inter::CVarToBool(nil, true));
+    EXPECT_FALSE(inter::CVarToBool(nil, false));
+
+    CVar bfalse{};
+    bfalse.type_ = static_cast<int>(VarType::Bool);
+    bfalse.data_.b = false;
+    EXPECT_FALSE(inter::CVarToBool(bfalse, true));
+
+    Var hello;
+    hello.SetTempString(s, "hi");
+    EXPECT_EQ(inter::CVarToString(reinterpret_cast<const CVar &>(hello), "x"), "hi");
+    EXPECT_EQ(inter::CVarToString(CVar{}, "def"), "def");
+    EXPECT_EQ(inter::CVarToString(CVar{}, nullptr), "");
 }

@@ -3669,7 +3669,8 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     const auto &raw_args = explist_arg_ptr->Exps();
 
     static const std::unordered_set<std::string> math_builtins = {"abs",        "floor", "ceil",  "max", "min", "sqrt",  "sin",  "cos",  "tan",  "pow",  "deg",  "rad", "random",
-                                                                  "randomseed", "modf",  "frexp", "exp", "log", "log10", "asin", "acos", "atan", "sinh", "cosh", "tanh"};
+                                                                  "randomseed", "modf",  "frexp", "exp", "log", "log10", "asin", "acos", "atan", "sinh", "cosh", "tanh",
+                                                                  "fmod",      "ldexp", "type",  "tointeger", "ult"};
 
     if (!math_builtins.contains(method_name)) {
         return {};
@@ -3886,20 +3887,22 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
         return tmp;
     }
     if (method_name == "type" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
+        // INT/FLOAT 快路径；其余（含数字字符串）与 Lua 一致返回 nil。
+        std::string arg = MaterializeArg(raw_args[0]);
         Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = (CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("integer") << "}; } ";
         Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("float") << "}; } ";
         Out() << "else { " << tmp << " = kNil; }\n";
         return tmp;
     }
     if (method_name == "tointeger" && raw_args.size() == 1) {
-        std::string arg = CompileExp(raw_args[0]);
+        // INT/FLOAT 快路径；字符串转换与 bool/table 报错走 native，保持与标准库一致。
+        std::string arg = MaterializeArg(raw_args[0]);
         const auto iv_tmp = std::format("flua_toi_{}", tmp_var_counter_++);
         func_temp_decls_ << "    int64_t " << iv_tmp << ";\n";
         Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = " << arg << "; } ";
         Out() << "else if (" << arg << ".type_ == VAR_FLOAT && FlDoubleFitsInt64(" << arg << ".data_.f, &" << iv_tmp << ")) { ";
         Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << iv_tmp << "}; } ";
-        Out() << "else { " << tmp << " = kNil; }\n";
+        Out() << "else { " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.tointeger\", 1, " << arg << "); }\n";
         return tmp;
     }
     if (method_name == "ult" && raw_args.size() >= 2) {

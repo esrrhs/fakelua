@@ -16,6 +16,11 @@
 #include <filesystem>
 #include <utility>
 #include <vector>
+#include "interp/runtime.h"
+#include "interp/vm_ops.h"
+#include "native/table/native_table.h"
+#include <cmath>
+#include <limits>
 
 using namespace fakelua;
 
@@ -742,4 +747,86 @@ TEST(runtime, heap_allocator_syncs_offset_under_interleaved_bumps) {
             EXPECT_EQ(static_cast<unsigned char>(fast_regions[i].first[j]), fill);
         }
     }
+}
+
+TEST(runtime, interp_runtime_error_paths) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+
+    EXPECT_THROW(interp_rt::UnLen(interp_rt::Int(1)), std::exception);
+    EXPECT_THROW(interp_rt::GetTable(s, interp_rt::Int(1), interp_rt::Int(1)), std::exception);
+    EXPECT_THROW(interp_rt::GetTable(s, interp_rt::NewTable(s), interp_rt::Nil()), std::exception);
+    CVar nan_key{};
+    nan_key.type_ = interp_rt::kFloat;
+    nan_key.data_.f = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_THROW(interp_rt::GetTable(s, interp_rt::NewTable(s), nan_key), std::exception);
+    EXPECT_THROW(interp_rt::SetTable(s, interp_rt::Int(1), interp_rt::Int(1), interp_rt::Int(1)), std::exception);
+    EXPECT_THROW(interp_rt::SetTable(s, interp_rt::NewTable(s), interp_rt::Nil(), interp_rt::Int(1)), std::exception);
+    EXPECT_THROW(interp_rt::TableEntryCount(interp_rt::Int(1)), std::exception);
+
+    CVar tbl = interp_rt::NewTable(s);
+    // non-multi expand path
+    interp_rt::TableExpandMulti(s, tbl, 1, interp_rt::Int(42));
+    EXPECT_EQ(table::TableHelper::GetTableInt(s, tbl, 1).data_.i, 42);
+
+    // CombineMulti / MakeMulti with nested empty multi
+    CVar empty_multi = inter::AllocMultiCVar(s, 0);
+    CVar prefix[1] = {empty_multi};
+    CVar combined = interp_rt::CombineMulti(s, prefix, 1, empty_multi);
+    EXPECT_EQ(combined.type_, interp_rt::kMulti);
+    CVar vals[2] = {empty_multi, interp_rt::Int(7)};
+    CVar made = interp_rt::MakeMulti(s, vals, 2);
+    EXPECT_EQ(made.type_, interp_rt::kMulti);
+}
+
+TEST(runtime, vm_ops_for_and_arith_edges) {
+    using namespace interp_rt;
+    (void)Nil();
+    (void)Bool(true);
+    (void)Int(1);
+    (void)Float(1.5);
+
+    EXPECT_THROW(CheckInt(Bool(true)), std::exception);
+    EXPECT_EQ(BinAdd(Int(1), Int(2)).data_.i, 3);
+    EXPECT_EQ(BinSub(Int(5), Int(3)).data_.i, 2);
+    EXPECT_EQ(BinMul(Int(4), Int(5)).data_.i, 20);
+
+    EXPECT_THROW(ForStepPositive(Int(0)), std::exception);
+    EXPECT_THROW(ForStepPositive(Float(0.0)), std::exception);
+    EXPECT_THROW(ForStepPositive(Bool(true)), std::exception);
+    EXPECT_TRUE(ForStepPositive(Int(1)));
+    EXPECT_FALSE(ForStepPositive(Int(-1)));
+    EXPECT_TRUE(ForLoopInRange(Int(1), Int(3), Int(1)));
+    EXPECT_TRUE(ForLoopInRange(Int(3), Int(1), Int(-1)));
+
+    bool skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(std::numeric_limits<double>::infinity()), -1, &skip), 0);
+    EXPECT_TRUE(skip);
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(std::numeric_limits<double>::infinity()), 1, &skip), std::numeric_limits<int64_t>::max());
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(-std::numeric_limits<double>::infinity()), 1, &skip), 0);
+    EXPECT_TRUE(skip);
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(-std::numeric_limits<double>::infinity()), -1, &skip), std::numeric_limits<int64_t>::min());
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(1e300), -1, &skip), 0);
+    EXPECT_TRUE(skip);
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(1e300), 1, &skip), std::numeric_limits<int64_t>::max());
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(-1e300), 1, &skip), 0);
+    EXPECT_TRUE(skip);
+    skip = false;
+    EXPECT_EQ(ForLimitToInt(Float(-1e300), -1, &skip), std::numeric_limits<int64_t>::min());
+
+    CVar idx = Int(1);
+    CVar limit = Int(3);
+    CVar step = Int(0);
+    CVar loopvar{};
+    EXPECT_THROW(ForPrep(idx, limit, step, loopvar), std::exception);
+    idx = Float(1.0);
+    limit = Float(3.0);
+    step = Float(0.0);
+    EXPECT_THROW(ForPrep(idx, limit, step, loopvar), std::exception);
 }

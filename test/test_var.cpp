@@ -1,8 +1,17 @@
 #include "fakelua.h"
 #include "state/state.h"
 #include "var/var.h"
+#include "var/var_closure.h"
 #include "var/var_string.h"
+#include "var/var_multi.h"
+#include "native/table/native_table.h"
 #include "gtest/gtest.h"
+#include "interp/interpreter.h"
+#include "interp/runtime.h"
+#include "var/var_type.h"
+#include <limits>
+#include <string>
+#include <vector>
 
 using namespace fakelua;
 
@@ -360,4 +369,186 @@ TEST(var, test_true_string) {
     Var empty_str;
     empty_str.SetTempString(s, "");
     ASSERT_TRUE(empty_str.TestTrue());// empty string is still truthy in Lua
+}
+
+
+TEST(var, tostring_hash_equal_table_multi_closure) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    CVar tbl_cv = table::TableHelper::CreateTable(s);
+    Var &tbl = AsVar(tbl_cv);
+    ASSERT_EQ(tbl.Type(), VarType::Table);
+    ASSERT_TRUE(tbl.TestTrue());
+    const std::string tbl_str = tbl.ToString();
+    ASSERT_NE(tbl_str.find("table("), std::string::npos);
+    ASSERT_NE(tbl.Hash(), 0u);
+    ASSERT_TRUE(tbl.Equal(tbl));
+
+    CVar tbl2_cv = table::TableHelper::CreateTable(s);
+    Var &tbl2 = AsVar(tbl2_cv);
+    ASSERT_FALSE(tbl.Equal(tbl2));
+
+    CVar multi_cv = inter::AllocMultiCVar(s, 2);
+    CVar one{};
+    one.type_ = static_cast<int>(VarType::Int);
+    one.data_.i = 1;
+    CVar two{};
+    two.type_ = static_cast<int>(VarType::Int);
+    two.data_.i = 2;
+    inter::SetMultiCVarElement(multi_cv, 0, one);
+    inter::SetMultiCVarElement(multi_cv, 1, two);
+    Var &multi = AsVar(multi_cv);
+    ASSERT_EQ(multi.Type(), VarType::Multi);
+    ASSERT_TRUE(multi.TestTrue());
+    const std::string multi_str = multi.ToString();
+    ASSERT_NE(multi_str.find("multi("), std::string::npos);
+    ASSERT_NE(multi_str.find("1"), std::string::npos);
+    ASSERT_NE(multi.Hash(), 0u);
+
+    CVar multi2_cv = inter::AllocMultiCVar(s, 2);
+    inter::SetMultiCVarElement(multi2_cv, 0, one);
+    inter::SetMultiCVarElement(multi2_cv, 1, two);
+    ASSERT_TRUE(multi.Equal(AsVar(multi2_cv)));
+    CVar ninetynine{};
+    ninetynine.type_ = static_cast<int>(VarType::Int);
+    ninetynine.data_.i = 99;
+    inter::SetMultiCVarElement(multi2_cv, 1, ninetynine);
+    ASSERT_FALSE(multi.Equal(AsVar(multi2_cv)));
+
+    CVar multi3_cv = inter::AllocMultiCVar(s, 1);
+    inter::SetMultiCVarElement(multi3_cv, 0, one);
+    ASSERT_FALSE(multi.Equal(AsVar(multi3_cv)));
+
+    Var cl;
+    cl.type_ = static_cast<int>(VarType::Closure);
+    cl.data_.cl = reinterpret_cast<VarClosure *>(0x1234);
+    ASSERT_TRUE(cl.TestTrue());
+    const std::string cl_str = cl.ToString();
+    ASSERT_NE(cl_str.find("function("), std::string::npos);
+    ASSERT_NE(cl.Hash(), 0u);
+    Var cl2;
+    cl2.type_ = static_cast<int>(VarType::Closure);
+    cl2.data_.cl = reinterpret_cast<VarClosure *>(0x1234);
+    ASSERT_TRUE(cl.Equal(cl2));
+    cl2.data_.cl = reinterpret_cast<VarClosure *>(0x5678);
+    ASSERT_FALSE(cl.Equal(cl2));
+}
+
+TEST(var, equal_same_type_int_bool_float) {
+    ASSERT_TRUE(Var(static_cast<int64_t>(7)).Equal(Var(static_cast<int64_t>(7))));
+    ASSERT_FALSE(Var(static_cast<int64_t>(7)).Equal(Var(static_cast<int64_t>(8))));
+    ASSERT_TRUE(Var(true).Equal(Var(true)));
+    ASSERT_FALSE(Var(true).Equal(Var(false)));
+    ASSERT_TRUE(Var(1.25).Equal(Var(1.25)));
+    ASSERT_FALSE(Var(1.25).Equal(Var(1.5)));
+}
+
+TEST(var, type_unknown_string) {
+    EXPECT_EQ(VarTypeToString(static_cast<VarType>(999)), "UNKNOWN");
+    EXPECT_EQ(VarTypeToString(static_cast<VarType>(-1)), "UNKNOWN");
+}
+
+TEST(var, fakelua_varto_vi_and_native_bridge) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+
+    CVar nil{};
+    VarInterface *vi_nil = inter::FakeluaToNativeObj(s, nil);
+    ASSERT_NE(vi_nil, nullptr);
+    EXPECT_EQ(vi_nil->ViGetType(), VarInterface::Type::NIL);
+    delete vi_nil;
+
+    CVar b{};
+    b.type_ = static_cast<int>(VarType::Bool);
+    b.data_.b = true;
+    VarInterface *vi_b = inter::FakeluaToNativeObj(s, b);
+    EXPECT_EQ(vi_b->ViGetType(), VarInterface::Type::BOOL);
+    EXPECT_TRUE(vi_b->ViGetBool());
+    delete vi_b;
+
+    CVar f{};
+    f.type_ = static_cast<int>(VarType::Float);
+    f.data_.f = 2.5;
+    VarInterface *vi_f = inter::FakeluaToNativeObj(s, f);
+    EXPECT_EQ(vi_f->ViGetType(), VarInterface::Type::FLOAT);
+    delete vi_f;
+
+    // Hash/bucket table path (nodes_ + active_list_)
+    CVar big = table::TableHelper::CreateTable(s);
+    for (int i = 0; i < 20; ++i) {
+        CVar k{};
+        k.type_ = static_cast<int>(VarType::StringId);
+        k.data_.i = s->GetConstString().Alloc("k" + std::to_string(i));
+        table::TableHelper::SetTable(s, big, k, interp_rt::Int(i));
+    }
+    VarInterface *vi_t = inter::FakeluaToNativeObj(s, big);
+    ASSERT_NE(vi_t, nullptr);
+    EXPECT_EQ(vi_t->ViGetType(), VarInterface::Type::TABLE);
+    delete vi_t;
+
+    // Closure / Multi unsupported
+    CVar cl{};
+    cl.type_ = static_cast<int>(VarType::Closure);
+    EXPECT_THROW(inter::FakeluaToNativeObj(s, cl), std::exception);
+    CVar multi = inter::AllocMultiCVar(s, 2);
+    EXPECT_THROW(inter::FakeluaToNativeObj(s, multi), std::exception);
+
+    // ViToVar paths via NativeToFakeluaVarInterface
+    EXPECT_EQ(inter::NativeToFakeluaVarInterface(s, nullptr).type_, static_cast<int>(VarType::Nil));
+    SimpleVarImpl bool_vi;
+    bool_vi.ViSetBool(false);
+    EXPECT_EQ(inter::NativeToFakeluaVarInterface(s, &bool_vi).type_, static_cast<int>(VarType::Bool));
+    SimpleVarImpl float_vi;
+    float_vi.ViSetFloat(1.25);
+    EXPECT_EQ(inter::NativeToFakeluaVarInterface(s, &float_vi).type_, static_cast<int>(VarType::Float));
+    // default / unknown: leave as NIL after Clear — already covered; synthesize bogus by INT then
+    // Call NativeFloat helper
+    CVar nf = NativeFloat(s, 3.14);
+    EXPECT_EQ(nf.type_, static_cast<int>(VarType::Float));
+
+    EXPECT_EQ(inter::GetMultiCVarCount(multi), 2);
+    CVar args_multi[1] = {multi};
+    inter::SetMultiCVarElement(multi, 0, interp_rt::Int(11));
+    inter::SetMultiCVarElement(multi, 1, interp_rt::Int(22));
+    EXPECT_EQ(inter::GetNativeArg(s, args_multi, 1, 0).data_.i, 11);
+    EXPECT_EQ(inter::GetNativeArg(s, args_multi, 1, 1).data_.i, 22);
+
+    // Nested multi unwrap in GetNativeArg
+    CVar nested = inter::AllocMultiCVar(s, 1);
+    inter::SetMultiCVarElement(nested, 0, multi);// multi-in-multi
+    CVar args_nested[1] = {nested};
+    // idx 0 yields nested multi then unwraps first element of multi -> 11?
+    // GetNativeArg: args[0] is Multi nested; gets idx from nested; then while Multi unwraps.
+    CVar got = inter::GetNativeArg(s, args_nested, 1, 0);
+    // nested[0] is `multi` (Multi); unwrap loop takes multi.vars[0] == 11
+    EXPECT_EQ(got.type_, static_cast<int>(VarType::Int));
+
+    EXPECT_THROW(inter::DispatchCallClosure(s, nullptr, nullptr, 0, JIT_GCC), std::exception);
+    VarClosure empty_cl{};
+    empty_cl.func_ptr = nullptr;
+    empty_cl.code_str = nullptr;
+    EXPECT_THROW(inter::DispatchCallClosure(s, &empty_cl, nullptr, 0, JIT_GCC), std::exception);
+
+    EXPECT_THROW(InterpreterExecute(s, nullptr, nullptr, 0, nullptr), std::exception);
+    EXPECT_THROW(FakeluaInterpCall(s, nullptr, 0, nullptr), std::exception);
+
+    // C exports used by JIT
+    CVar m2 = FakeluaAllocMultiCVar(s, 1);
+    FakeluaSetMultiCVarElement(&m2, 0, interp_rt::Int(9));
+    EXPECT_EQ(inter::GetMultiCVarElement(m2, 0).data_.i, 9);
+
+    // NativeObject null
+    EXPECT_EQ(inter::NativeToFakeluaNativeObject(s, nullptr).type_, static_cast<int>(VarType::Nil));
+}
+
+TEST(var, cvar_to_integer_catch_paths) {
+    FakeluaStateGuard guard;
+    auto *s = guard.GetState();
+    Var huge_digits;
+    huge_digits.SetTempString(s, std::string(400, '9'));
+    EXPECT_EQ(inter::CVarToInteger(reinterpret_cast<const CVar &>(huge_digits), 7), 7);
+    Var bad_exp;
+    bad_exp.SetTempString(s, "1.2e");
+    EXPECT_EQ(inter::CVarToInteger(reinterpret_cast<const CVar &>(bad_exp), 8), 8);
 }
