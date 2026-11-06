@@ -1,5 +1,4 @@
 #include "native/object/native_object.h"
-#include "native/object/native_object_test_access.h"
 #include "jit/jit_error_boundary.h"
 #include "jit/vm.h"
 #include "native/basic/native_basic.h"
@@ -1223,32 +1222,6 @@ bool NativeObject::SelfCheck(const NativeObject *obj, bool recursive) {
         }
     }
     return true;
-}
-
-// ---- 单元测试白盒访问器（生产代码禁止使用）----
-
-void NativeObjectVersionTestAccess::RawSetInt(NativeObject *obj, std::string_view key, int64_t val) {
-    if (!obj || !obj->impl_) return;
-    // 故意绕过 TouchVersion / 父子边维护，用于验证 SelfCheck 的检测能力。
-    auto &f = obj->impl_->kv[std::string(key)];
-    f.kind = NativeField::Kind::Int;
-    f.i = val;
-}
-
-void NativeObjectVersionTestAccess::SetStamp(uint64_t stamp) {
-    g_version_seq.store(stamp, std::memory_order_relaxed);
-}
-
-uint64_t NativeObjectVersionTestAccess::GetStamp() {
-    return g_version_seq.load(std::memory_order_relaxed);
-}
-
-void NativeObjectVersionTestAccess::SetFromCVar(NativeObject *obj, std::string_view key, CVar v) {
-    if (obj) obj->SetFromCVar(key, v);
-}
-
-CVar NativeObjectVersionTestAccess::GetAsCVar(NativeObject *obj, std::string_view key, State *s) {
-    return obj ? obj->GetAsCVar(key, s) : CVar{};
 }
 
 }// namespace fakelua

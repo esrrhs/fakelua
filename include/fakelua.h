@@ -773,11 +773,6 @@ namespace io {
 void RegisterIoLibraryApi(State *s);
 }
 
-// 仅供单元测试的白盒访问器，不属于公开 API，生产代码不得使用。
-// 方法声明在 src/native/object/native_object_test_access.h（不随安装头发布），
-// 这里只保留前向声明 + friend 声明，避免把测试辅助接口暴露给下游。
-struct NativeObjectVersionTestAccess;
-
 class NativeObject {
 public:
     // 禁止拷贝
@@ -890,7 +885,6 @@ private:
     [[nodiscard]] CVar GetAsCVar(std::string_view key, State *s) const;
 
     friend class NativeObjectManager;
-    friend struct NativeObjectVersionTestAccess;
     friend CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
     friend void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
     friend void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s);

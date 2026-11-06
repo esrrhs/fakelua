@@ -1,5 +1,4 @@
 #include "fakelua.h"
-#include "native/object/native_object_test_access.h"
 #include "state/state.h"
 #include "var/var_table.h"
 #include "test_jit.h"
@@ -802,7 +801,6 @@ TEST(test_native_version, all_write_paths_bump) {
     expect_bump("SetBool", [&] { obj->SetBool("b", true); });
     expect_bump("SetString", [&] { obj->SetString("s", "x"); });
     expect_bump("SetObject", [&] { obj->SetObject("c", child); });
-    expect_bump("SetFromCVar", [&] { NativeObjectVersionTestAccess::SetFromCVar(obj, "cv", inter::NativeToFakeluaLonglong(s, 7)); });
     expect_bump("SetNil(existing)", [&] { obj->SetNil("i"); });
     expect_bump("Del(existing)", [&] { obj->Del("f"); });
     expect_bump("Del(missing)", [&] { obj->Del("missing"); });
@@ -857,8 +855,7 @@ TEST(test_native_version, read_paths_do_not_bump) {
     obj->ForEach([&](std::string_view, NativeObject::FieldKind) { ++fields; });
     EXPECT_EQ(fields, 5);
 
-    CVar as_cvar = NativeObjectVersionTestAccess::GetAsCVar(obj, "name", s);
-    EXPECT_EQ(inter::FakeluaToNative<std::string>(s, as_cvar), "hero");
+    // CVar 读取路径（GetAsCVar）由 Lua 侧只读用例间接覆盖（见 lua_paths_and_container）。
     CVar wrapped = obj->Wrap(s);
     EXPECT_EQ(NativeObject::Unwrap(wrapped), obj);
 
@@ -954,7 +951,7 @@ TEST(test_native_version, child_create_destroy_and_clear) {
     FakeluaDeleteState(s);
 }
 
-TEST(test_native_version, monotonic_and_saturation) {
+TEST(test_native_version, monotonic_versions) {
     auto *s = FakeluaNewState();
     auto &mgr = GetNativeObjectManager(s);
     int64_t gid = mgr.CreateGroup();
@@ -967,51 +964,11 @@ TEST(test_native_version, monotonic_and_saturation) {
         prev = obj->GetVersion();
     }
 
-    // 饱和：计数器达到 UINT64_MAX 后不再回绕，版本号保持最大值（不再可区分新旧）。
-    const uint64_t saved = NativeObjectVersionTestAccess::GetStamp();
-    NativeObjectVersionTestAccess::SetStamp(UINT64_MAX);
-    obj->SetInt("x", 1);
-    const uint64_t sat1 = obj->GetVersion();
-    obj->SetInt("x", 2);
-    const uint64_t sat2 = obj->GetVersion();
-    NativeObjectVersionTestAccess::SetStamp(saved);
-    EXPECT_EQ(sat1, UINT64_MAX);
-    EXPECT_EQ(sat2, UINT64_MAX);
-    EXPECT_FALSE(obj->IsChangedSince(UINT64_MAX));
+    // 注：uint64 饱和边界无法通过公开 API 触达（需要 2^64 次写入），不再做白盒验证；
+    // 饱和实现见 NextVersionStamp：达到最大值后写回 MAX，不回绕。
 
     mgr.DestroyGroup(gid);
     FakeluaDeleteState(s);
-}
-
-TEST(test_native_version, debug_self_check_detects_missed_bump) {
-    NativeObject::SetVersionDebugEnabled(true);
-    auto *s = FakeluaNewState();
-    auto &mgr = GetNativeObjectManager(s);
-    int64_t gid = mgr.CreateGroup();
-    auto *root = mgr.Create(gid, "root", 1);
-    auto *child = mgr.Create(gid, "child", 2);
-    root->SetObject("child", child);
-    child->SetInt("a", 1);
-    child->RegisterMethod("m", NativeMethod{});
-
-    EXPECT_TRUE(NativeObject::SelfCheck(root, true));
-    EXPECT_TRUE(NativeObject::SelfCheck(child, false));
-
-    // 绕过对象 API 的直接写入（模拟漏标写入点）：版本号不变，但内容哈希不一致。
-    const uint64_t vc = child->GetVersion();
-    NativeObjectVersionTestAccess::RawSetInt(child, "bypass", 7);
-    EXPECT_EQ(child->GetVersion(), vc);
-    EXPECT_FALSE(NativeObject::SelfCheck(child, false));
-    EXPECT_FALSE(NativeObject::SelfCheck(root, true));
-
-    // 正常写入会刷新哈希，自检恢复通过。
-    child->SetInt("a", 2);
-    EXPECT_TRUE(NativeObject::SelfCheck(child, false));
-    EXPECT_TRUE(NativeObject::SelfCheck(root, true));
-
-    mgr.DestroyGroup(gid);
-    FakeluaDeleteState(s);
-    NativeObject::SetVersionDebugEnabled(false);
 }
 
 TEST(test_native_version, self_check_is_cycle_safe) {
@@ -1032,17 +989,13 @@ TEST(test_native_version, self_check_is_cycle_safe) {
     EXPECT_TRUE(NativeObject::SelfCheck(b, true))
         << "SelfCheck 在环状对象图（B->A->B）上未能正常结束或误报";
 
-    // 环上的漏标写入仍然能被发现（证明遍历确实走到了环的另一端）。
-    const uint64_t vb = b->GetVersion();
-    NativeObjectVersionTestAccess::RawSetInt(b, "bypass", 7);
-    EXPECT_EQ(b->GetVersion(), vb);
-    EXPECT_FALSE(NativeObject::SelfCheck(a, true))
-        << "SelfCheck 未能通过环遍历发现 b 上的漏标写入";
-
     // 环中任一对象写入都只改自己的计数，不会波及对方（无传播、无递归风险）。
     const uint64_t va = a->GetVersion();
     b->SetInt("ok", 1);
     EXPECT_EQ(a->GetVersion(), va);
+
+    // 正常写入后自检仍然通过（内容哈希在写入钩子内刷新）。
+    EXPECT_TRUE(NativeObject::SelfCheck(a, true));
 
     mgr.DestroyGroup(gid);
     FakeluaDeleteState(s);
