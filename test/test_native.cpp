@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "native/object/native_object_test_access.h"
 #include "state/state.h"
 #include "var/var_table.h"
 #include "test_jit.h"

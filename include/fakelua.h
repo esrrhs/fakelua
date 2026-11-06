@@ -773,18 +773,10 @@ namespace io {
 void RegisterIoLibraryApi(State *s);
 }
 
-// 仅用于单元测试的白盒访问器，不属于稳定公开 API。生产代码不得使用。
-// 定义见 src/native/object/native_object.cpp。
-struct NativeObjectVersionTestAccess {
-    // 绕过版本号/父子边维护直接写字段，用于验证 SelfCheck 能发现漏标写入。
-    static void RawSetInt(NativeObject *obj, std::string_view key, int64_t val);
-    // 调整全局版本戳，用于测试饱和边界。
-    static void SetStamp(uint64_t stamp);
-    [[nodiscard]] static uint64_t GetStamp();
-    // 转发到 NativeObject 的私有 CVar 写入/读取路径。
-    static void SetFromCVar(NativeObject *obj, std::string_view key, CVar v);
-    [[nodiscard]] static CVar GetAsCVar(NativeObject *obj, std::string_view key, State *s);
-};
+// 仅供单元测试的白盒访问器，不属于公开 API，生产代码不得使用。
+// 方法声明在 src/native/object/native_object_test_access.h（不随安装头发布），
+// 这里只保留前向声明 + friend 声明，避免把测试辅助接口暴露给下游。
+struct NativeObjectVersionTestAccess;
 
 class NativeObject {
 public:

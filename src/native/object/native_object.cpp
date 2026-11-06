@@ -1,4 +1,5 @@
 #include "native/object/native_object.h"
+#include "native/object/native_object_test_access.h"
 #include "jit/jit_error_boundary.h"
 #include "jit/vm.h"
 #include "native/basic/native_basic.h"
