@@ -827,21 +827,28 @@ public:
     void Clear();
 
     // ---- 对象级变更版本号（增量存档 / C++ 镜像同步 / UI 缓存失效）----
-    // 语义：每次写入（字段、方法、子对象关系、Clear）都会让本对象及其所有祖先的
-    // 版本号单调变大；读取不改变版本号。返回的是全局单调时间戳，不是计数器，
-    // 只应与同一对象自己上一次记录的版本号比较，不应跨对象比较大小。
+    // 语义边界：只描述「这个对象自身」，不包含它的子树。
+    //   * 本对象自身的写入（字段、方法、id/group、finalizer、Clear、直接子对象的挂载/卸载）
+    //     会让本对象的版本号单调变大；
+    //   * 子对象内部的写入只改变子对象自己的版本号，不会改变本对象；
+    //   * 所有读操作都不改变版本号。
+    // 返回的是全局单调时间戳，不是计数器；只应与同一对象自己上一次记录的版本号比较，
+    // 不应跨对象比较大小。
     // 调用方：记下 v = obj->GetVersion()；之后用 obj->IsChangedSince(v) 做 O(1) 判断。
-    // 子树的任何写入都会向上传播，因此对根对象取版本即可覆盖整棵子树。
+    // 需要「整棵子树」粒度时，调用方自行遍历对象图、记录读到的每个对象的版本集合，
+    // 再在上层聚合判断（遍历只读指针，成本远低于字段序列化）。
     // 版本号不写入存档、不改变既有数据格式；对象销毁后仍保留最后一次版本号。
     [[nodiscard]] uint64_t GetVersion() const;
     [[nodiscard]] bool IsChangedSince(uint64_t version) const;
 
-    // 显式标记本对象（及其祖先）已变更。用于通过字段写入无法表达的副作用修改，
-    // 例如 native/container 内部容器内容、外部资源状态等。
+    // 显式标记本对象（仅本对象，不含父对象/子对象）已变更。
+    // 用于通过字段写入无法表达的副作用修改，例如 native/container 内部容器内容、
+    // 外部资源状态（io/socket 等）改变。
     void MarkModified();
 
     // 调试自检（默认关闭）：开启后每次写入都会维护内容哈希；SelfCheck 会重新计算
-    // 字段/方法内容哈希并与记录值比对，并递归校验「父版本 >= 子版本」，
+    // 字段/方法内容哈希并与记录值比对，并递归校验所有嵌套对象的内容哈希
+    // （visited 集合去重，对象图成环或共享子对象都是安全的），
     // 用于交叉验证是否有写入点漏标版本。只在调试/测试中使用，开销较大。
     static void SetVersionDebugEnabled(bool enabled);
     [[nodiscard]] static bool SelfCheck(const NativeObject *obj, bool recursive = true);
@@ -873,7 +880,7 @@ private:
     explicit NativeObject(std::string type_name);
     ~NativeObject();
 
-    // 版本号内部维护
+    // 版本号内部维护：TouchVersion 只提升本对象自身（O(1)，不做祖先传播）。
     void TouchVersion();
     void LinkChild(NativeObject *child);
     void UnlinkChild(NativeObject *child);

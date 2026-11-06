@@ -85,10 +85,9 @@ struct NativeObject::Impl {
     // 只有引用计数归零才真正断开父子边。
     // 懒分配：绝大多数对象没有任何嵌套关系，空容器不占堆内存。
     std::unique_ptr<std::unordered_map<NativeObject *, uint32_t>> children;
-    // 直接父对象集合：写入后沿这些边把新版本戳传播给所有祖先。
+    // 直接父对象集合：子对象销毁/解绑时据此 bump 直接父对象的自身版本号。
+    // 不做任何祖先传播；父集合只在需要「子对象删除通知父对象」时才用到。
     std::unique_ptr<std::unordered_set<NativeObject *>> parents;
-    // 版本传播的去重/防环标记；每次传播使用一个自增 epoch，O(1) 判断是否已访问。
-    uint64_t prop_epoch = 0;
     // 调试自检模式下的内容哈希（关闭调试时不维护）。
     uint64_t debug_hash = 0;
     // 该哈希所属的调试 epoch。每次开关调试开关都会换 epoch，

@@ -868,7 +868,7 @@ TEST(test_native_version, read_paths_do_not_bump) {
     FakeluaDeleteState(s);
 }
 
-TEST(test_native_version, nested_propagation_and_isolation) {
+TEST(test_native_version, nested_writes_do_not_bump_ancestors) {
     auto *s = FakeluaNewState();
     auto &mgr = GetNativeObjectManager(s);
     int64_t gid = mgr.CreateGroup();
@@ -880,41 +880,46 @@ TEST(test_native_version, nested_propagation_and_isolation) {
     root->SetObject("b", b);
     a->SetObject("leaf", leaf);
 
+    // 子对象内部的写入只改变子对象自己的计数，父对象与祖先都不变。
     uint64_t vr = root->GetVersion(), va = a->GetVersion(), vb = b->GetVersion();
     const uint64_t vl = leaf->GetVersion();
     leaf->SetInt("x", 1);
-    EXPECT_TRUE(root->IsChangedSince(vr));
-    EXPECT_TRUE(a->IsChangedSince(va));
     EXPECT_TRUE(leaf->IsChangedSince(vl));
+    EXPECT_FALSE(a->IsChangedSince(va));
+    EXPECT_FALSE(root->IsChangedSince(vr));
     EXPECT_FALSE(b->IsChangedSince(vb));
 
+    // 中间层写入同样不向上蔓延。
     va = a->GetVersion();
-    vb = b->GetVersion();
-    b->SetInt("y", 2);
-    EXPECT_TRUE(root->IsChangedSince(vb));
-    EXPECT_TRUE(b->IsChangedSince(vb));
-    EXPECT_FALSE(a->IsChangedSince(va));
+    vr = root->GetVersion();
+    a->SetInt("y", 2);
+    EXPECT_TRUE(a->IsChangedSince(va));
+    EXPECT_FALSE(root->IsChangedSince(vr));
 
-    // 共享子对象：被多个父对象引用时都能感知
+    // 共享子对象：多个父对象引用同一个子对象，子对象写入不影响任一父对象。
     auto *p1 = mgr.Create(gid, "p1", 5);
     auto *p2 = mgr.Create(gid, "p2", 6);
     p1->SetObject("c", leaf);
     p2->SetObject("c", leaf);
     uint64_t v1 = p1->GetVersion(), v2 = p2->GetVersion();
     leaf->SetInt("x", 2);
-    EXPECT_TRUE(p1->IsChangedSince(v1));
-    EXPECT_TRUE(p2->IsChangedSince(v2));
-
-    // 同一父对象的多字段引用：任一字段仍在引用时，写入仍能传播
-    p1->SetObject("d", leaf);
-    p1->SetNil("c");
-    v1 = p1->GetVersion();
-    leaf->SetInt("x", 3);
-    EXPECT_TRUE(p1->IsChangedSince(v1));
-    p1->SetNil("d");
-    v1 = p1->GetVersion();
-    leaf->SetInt("x", 4);
     EXPECT_FALSE(p1->IsChangedSince(v1));
+    EXPECT_FALSE(p2->IsChangedSince(v2));
+
+    // 直接子对象的挂载/卸载属于父对象自身的结构变化：只 bump 该父对象，
+    // 不 bump 它的父对象（祖先链上不蔓延）。
+    auto *gp = mgr.Create(gid, "gp", 7);
+    gp->SetObject("p1", p1);
+    uint64_t vgp = gp->GetVersion();
+    v1 = p1->GetVersion();
+    p1->SetObject("d", leaf);
+    EXPECT_TRUE(p1->IsChangedSince(v1));
+    EXPECT_FALSE(gp->IsChangedSince(vgp));
+    vgp = gp->GetVersion();
+    v1 = p1->GetVersion();
+    p1->SetNil("d");
+    EXPECT_TRUE(p1->IsChangedSince(v1));
+    EXPECT_FALSE(gp->IsChangedSince(vgp));
 
     mgr.DestroyGroup(gid);
     FakeluaDeleteState(s);
@@ -1008,19 +1013,66 @@ TEST(test_native_version, debug_self_check_detects_missed_bump) {
     NativeObject::SetVersionDebugEnabled(false);
 }
 
-TEST(test_native_version, cycle_is_guard) {
+TEST(test_native_version, self_check_is_cycle_safe) {
+    NativeObject::SetVersionDebugEnabled(true);
     auto *s = FakeluaNewState();
     auto &mgr = GetNativeObjectManager(s);
     int64_t gid = mgr.CreateGroup();
     auto *a = mgr.Create(gid, "a", 1);
     auto *b = mgr.Create(gid, "b", 2);
+    // 故意成环：A 挂 B，B 又指回 A。对象模型允许成环（LinkChild 不做环校验），
+    // 因此下游不能依赖「对象图无环」这个前提。
     a->SetObject("b", b);
     b->SetObject("a", a);
 
+    // 环状对象图下自检必须正常终止，且内容一致时返回 true。
+    EXPECT_TRUE(NativeObject::SelfCheck(a, true))
+        << "SelfCheck 在环状对象图（A->B->A）上未能正常结束或误报";
+    EXPECT_TRUE(NativeObject::SelfCheck(b, true))
+        << "SelfCheck 在环状对象图（B->A->B）上未能正常结束或误报";
+
+    // 环上的漏标写入仍然能被发现（证明遍历确实走到了环的另一端）。
     const uint64_t vb = b->GetVersion();
-    a->SetInt("x", 1);// 不应因环而死循环
-    EXPECT_TRUE(b->IsChangedSince(vb));
-    EXPECT_TRUE(NativeObject::SelfCheck(a, true));
+    NativeObjectVersionTestAccess::RawSetInt(b, "bypass", 7);
+    EXPECT_EQ(b->GetVersion(), vb);
+    EXPECT_FALSE(NativeObject::SelfCheck(a, true))
+        << "SelfCheck 未能通过环遍历发现 b 上的漏标写入";
+
+    // 环中任一对象写入都只改自己的计数，不会波及对方（无传播、无递归风险）。
+    const uint64_t va = a->GetVersion();
+    b->SetInt("ok", 1);
+    EXPECT_EQ(a->GetVersion(), va);
+
+    mgr.DestroyGroup(gid);
+    FakeluaDeleteState(s);
+    NativeObject::SetVersionDebugEnabled(false);
+}
+
+TEST(test_native_version, destroy_bumps_direct_parent_only) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *gp = mgr.Create(gid, "gp", 1);
+    auto *parent = mgr.Create(gid, "parent", 2);
+    auto *child = mgr.Create(gid, "child", 3);
+    gp->SetObject("parent", parent);
+    parent->SetObject("child", child);
+
+    const uint64_t vgp = gp->GetVersion();
+    const uint64_t vp = parent->GetVersion();
+    const uint64_t vc = child->GetVersion();
+    mgr.DestroySingle("child", 3);
+    EXPECT_TRUE(parent->IsChangedSince(vp)) << "子对象删除应 bump 直接父对象";
+    EXPECT_FALSE(gp->IsChangedSince(vgp)) << "子对象删除不应 bump 祖父对象";
+    EXPECT_FALSE(child->Alive());
+    EXPECT_EQ(child->GetVersion(), vc) << "销毁后版本号应保留，不回退";
+
+    // 直接子表维护本身也算父对象的结构变化。
+    auto *c2 = mgr.Create(gid, "child2", 4);
+    const uint64_t vp2 = parent->GetVersion();
+    parent->SetObject("child2", c2);
+    EXPECT_TRUE(parent->IsChangedSince(vp2));
+    EXPECT_FALSE(gp->IsChangedSince(vgp));
 
     mgr.DestroyGroup(gid);
     FakeluaDeleteState(s);
@@ -1056,7 +1108,7 @@ TEST(test_native_version, lua_paths_and_container) {
         EXPECT_EQ(global_player->GetInt("hp"), 101);
         inter::Reset(s);
 
-        // 容器内部内容写入通过 MarkModified 传播到父对象
+        // 容器内部内容写入通过 MarkModified 标记到容器对象自身
         const uint64_t v2 = global_player->GetVersion();
         Call(s, jit_type, "test_version_container_write", ret);
         EXPECT_TRUE(global_player->IsChangedSince(v2));

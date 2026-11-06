@@ -5,7 +5,7 @@
 
 using namespace fakelua;
 
-// NativeObject 热路径基准：字段读写、对象创建、父子绑定与子树版本传播。
+// NativeObject 热路径基准：字段读写、对象创建、父子绑定与深树叶子写入。
 // 这些用例只使用长期存在的公开 API，因此同一份基准可分别跑在加版本号前后的构建上。
 
 static void BM_NativeObjectSetInt(benchmark::State &state) {
@@ -75,7 +75,7 @@ static void BM_NativeObjectSetObject(benchmark::State &state) {
     FakeluaDeleteState(s);
 }
 
-// 8 层父子链上写叶子：用于观察子树脏版本传播的 O(depth) 开销。
+// 8 层父子链上写叶子：用于观察深层对象上的写入开销（简化后应与浅层写入一致）。
 static void BM_NativeObjectDeepLeafWrite(benchmark::State &state) {
     auto *s = FakeluaNewState();
     auto &mgr = GetNativeObjectManager(s);

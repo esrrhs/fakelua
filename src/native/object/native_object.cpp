@@ -21,14 +21,12 @@ namespace fakelua {
 namespace {
 
 // ---- 对象级版本戳基础设施 ----
-// 版本号使用全局单调时间戳（不是每对象的计数器），这样父对象只需保存
-// max(自身戳, 所有子对象戳) 就能在 O(1) 内回答「整棵子树自某版本后是否变过」。
+// 版本号使用全局单调时间戳（不是每对象的计数器）。语义是「对象自身」粒度：
+// 只反映本对象自己的写入，不包含子树；需要子树粒度时由调用方自行聚合。
 constexpr uint64_t kMaxVersionStamp = std::numeric_limits<uint64_t>::max();
 
 // 全局时间戳：每次写入分配一个更大的值。饱和而不是回绕，保证单调性永不被破坏。
 std::atomic<uint64_t> g_version_seq{0};
-// 传播去重/防环用的 epoch。每个对象记录最后一次访问它的 epoch，命中即停止。
-std::atomic<uint64_t> g_prop_epoch{0};
 // 调试自检开关（默认关闭）。
 std::atomic<bool> g_version_debug{false};
 // 调试 epoch：每次切换调试开关都递增，使旧对象上记录的哈希失效。
@@ -629,7 +627,7 @@ void NativeObject::Destroy(NativeObject *obj) {
         obj->impl_->finalizer = nullptr;
         fn(obj);
     }
-    // 子对象被删除属于父对象子树的变化，需要让父对象（及其祖先）的版本号前进。
+    // 子对象被删除属于父对象自身的结构变化，DetachAll 会让直接父对象的版本号前进。
     obj->DetachAll();
     delete obj->impl_;
     obj->impl_ = nullptr;
@@ -1077,8 +1075,9 @@ void NativeObject::UnlinkChild(NativeObject *child) {
 
 void NativeObject::DetachAll() {
     if (!impl_) return;
-    // 1) 从所有父对象的直接子表里移除自己；父对象的子树发生变化，需要 bump。
-    //    复制一份 parents，避免传播过程中任何潜在的结构变动影响遍历。
+    // 1) 从所有父对象的直接子表里移除自己：子对象的直接删除属于父对象自身的结构变化，
+    //    因此 bump 直接父对象（只 bump 直接父对象，不再向上蔓延）。
+    //    复制一份 parents，避免遍历过程中任何潜在的结构变动影响迭代。
     boost::container::small_vector<NativeObject *, 16> parent_list;
     if (impl_->parents) {
         parent_list.assign(impl_->parents->begin(), impl_->parents->end());
@@ -1106,32 +1105,11 @@ void NativeObject::DetachAll() {
 
 void NativeObject::TouchVersion() {
     if (!impl_) return;
-    // 全局单调时间戳：比任何已分配的版本号都大（除非已饱和）。
+    // 只提升本对象自己的版本号：不向父对象传播，也不影响子对象。
+    // 因此写入代价是 O(1)，与树的深度无关。
     const uint64_t stamp = NextVersionStamp();
     if (version_ < stamp) version_ = stamp;
     if (g_version_debug.load(std::memory_order_relaxed)) RefreshDebugHash();
-
-    // 沿父子边把时间戳向上传播给所有祖先。父对象保存 max(自身, 子对象) 即可
-    // 在 O(1) 内回答子树是否变化；写入代价为 O(祖先数量)。
-    // 用 epoch 标记访问过的节点，O(1) 去重并防止用户构造的环导致死循环。
-    if (!impl_->parents || impl_->parents->empty()) return;// 热点：无父对象不进入传播循环
-    const uint64_t epoch = g_prop_epoch.fetch_add(1, std::memory_order_relaxed) + 1;
-    impl_->prop_epoch = epoch;
-    boost::container::small_vector<NativeObject *, 16> stack;
-    stack.push_back(this);
-    while (!stack.empty()) {
-        NativeObject *node = stack.back();
-        stack.pop_back();
-        for (NativeObject *parent: *node->impl_->parents) {
-            if (!parent || !parent->impl_) continue;
-            if (parent->version_ < stamp) parent->version_ = stamp;
-            if (parent->impl_->prop_epoch == epoch) continue;
-            parent->impl_->prop_epoch = epoch;
-            // 祖先链到头（该父对象自己没有父对象）：无需入栈，出栈时也不会空解引用。
-            if (!parent->impl_->parents) continue;
-            stack.push_back(parent);
-        }
-    }
 }
 
 void NativeObject::RefreshDebugHash() {
@@ -1221,8 +1199,10 @@ bool NativeObject::SelfCheck(const NativeObject *obj, bool recursive) {
     }
     if (!recursive) return true;
 
-    // 递归校验所有嵌套对象，并检查传播不变式：父版本 >= 任意子版本。
-    // 用 visited 防止用户构造的环导致无限递归。
+    // 递归校验所有嵌套对象的内容哈希。
+    // 环安全：用 visited 集合去重，对象图成环（A→B→A）或共享子对象时不会重复入栈、
+    // 也不会无限递归。代价是 O(N) 的额外内存，只在本调试开关打开时发生；
+    // 不使用深度上限，因此不会因为截断深度而产生误报/漏报。
     std::unordered_set<const NativeObject *> visited;
     boost::container::small_vector<const NativeObject *, 32> stack;
     stack.push_back(obj);
@@ -1232,13 +1212,12 @@ bool NativeObject::SelfCheck(const NativeObject *obj, bool recursive) {
         stack.pop_back();
         if (!node->impl_->children) continue;
         for (const auto &[child, _]: *node->impl_->children) {
-            if (!child || !child->impl_) return false;
+            if (!child || !child->impl_) continue;
             if (debug) {
                 if (hash_is_current(child->impl_) && child->impl_->debug_hash != ComputeContentHash(child)) {
                     return false;
                 }
             }
-            if (node->version_ < child->version_) return false;
             if (visited.insert(child).second) stack.push_back(child);
         }
     }
