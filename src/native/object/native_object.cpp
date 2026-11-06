@@ -27,10 +27,13 @@ constexpr uint64_t kMaxVersionStamp = std::numeric_limits<uint64_t>::max();
 
 // 全局时间戳：每次写入分配一个更大的值。饱和而不是回绕，保证单调性永不被破坏。
 std::atomic<uint64_t> g_version_seq{0};
-// 调试自检开关（默认关闭）。
+
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
+// 调试自检开关（默认关闭，仅调试构建存在）。
 std::atomic<bool> g_version_debug{false};
 // 调试 epoch：每次切换调试开关都递增，使旧对象上记录的哈希失效。
 std::atomic<uint64_t> g_debug_epoch{0};
+#endif
 
 uint64_t NextVersionStamp() {
     const uint64_t old = g_version_seq.fetch_add(1, std::memory_order_relaxed);
@@ -42,6 +45,7 @@ uint64_t NextVersionStamp() {
     return old + 1;
 }
 
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
 inline void FnvHashBytes(uint64_t &h, const void *data, size_t n) {
     const unsigned char *p = static_cast<const unsigned char *>(data);
     for (size_t i = 0; i < n; ++i) {
@@ -53,6 +57,7 @@ inline void FnvHashBytes(uint64_t &h, const void *data, size_t n) {
 inline void FnvHashU64(uint64_t &h, uint64_t v) {
     FnvHashBytes(h, &v, sizeof(v));
 }
+#endif
 
 }// namespace
 
@@ -523,13 +528,6 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
     const std::string skey(key);
     State *s = spec->state;
 
-    // 记录被覆盖前的字段（可能是嵌套对象），写入后维护父子边并 bump 版本号。
-    const auto old_it = obj->impl_->kv.find(skey);
-    NativeObject *prev_obj = nullptr;
-    if (old_it != obj->impl_->kv.end() && old_it->second.kind == NativeField::Kind::Object) {
-        prev_obj = old_it->second.obj;
-    }
-
     // 快照尚未建立：只写 kv，保持惰性；首次 pairs/next/GET_TABLE_ENTRY 再 RefreshSpecKeys。
     if (!spec->snapshot_ready) {
         if (v.type_ == static_cast<int>(VarType::Nil)) {
@@ -537,12 +535,9 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
         } else {
             auto new_field = CVarToNativeField(v);
             obj->impl_->kv[skey] = new_field;
-            if (prev_obj && prev_obj != new_field.obj) obj->UnlinkChild(prev_obj);
-            if (new_field.obj && prev_obj != new_field.obj) obj->LinkChild(new_field.obj);
             obj->TouchVersion();
             return;
         }
-        if (prev_obj) obj->UnlinkChild(prev_obj);
         obj->TouchVersion();
         return;
     }
@@ -550,7 +545,6 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
     // 快照已存在：增量维护（更新已有键 / 追加 / swap-remove），避免每次 O(n) 全量重建。
     if (v.type_ == static_cast<int>(VarType::Nil)) {
         obj->impl_->kv.erase(skey);
-        if (prev_obj) obj->UnlinkChild(prev_obj);
         obj->TouchVersion();
         const int idx = FindSpecKeyIndex(tbl, key);
         if (idx >= 0 && tbl->spec_count > 0) {
@@ -566,8 +560,6 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
     }
 
     auto new_field = CVarToNativeField(v);
-    if (prev_obj && prev_obj != new_field.obj) obj->UnlinkChild(prev_obj);
-    if (new_field.obj && prev_obj != new_field.obj) obj->LinkChild(new_field.obj);
     obj->impl_->kv[skey] = new_field;
     obj->TouchVersion();
     const CVar new_val = NativeFieldToCVar(obj->impl_->kv[skey], s);
@@ -590,14 +582,14 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
 NativeObject::NativeObject(std::string type_name) : impl_(new Impl{std::move(type_name)}) {
     // 创建本身也是一次变化：分配一个全新的时间戳，保证新对象的版本号大于任何既有记录。
     version_ = NextVersionStamp();
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
     if (g_version_debug.load(std::memory_order_relaxed)) RefreshDebugHash();
+#endif
 }
 
 NativeObject::~NativeObject() {
     // 触发销毁回调，让拥有者释放关联的 C++ 资源（在 impl_ 仍有效时调用）。
     if (impl_ && impl_->finalizer) impl_->finalizer(this);
-    // 未走 NativeObject::Destroy 直接析构时，也要断开父子边，避免幸存对象持有悬空指针。
-    DetachAll();
     delete impl_;
     impl_ = nullptr;
 }
@@ -627,8 +619,7 @@ void NativeObject::Destroy(NativeObject *obj) {
         obj->impl_->finalizer = nullptr;
         fn(obj);
     }
-    // 子对象被删除属于父对象自身的结构变化，DetachAll 会让直接父对象的版本号前进。
-    obj->DetachAll();
+    // 不维护父子边索引：销毁前调用方必须已从所有父对象字段中移除该对象。
     delete obj->impl_;
     obj->impl_ = nullptr;
 }
@@ -700,16 +691,12 @@ void NativeObject::Del(std::string_view key) {
         TouchVersion();
         return;
     }
-    if (it->second.kind == NativeField::Kind::Object) UnlinkChild(it->second.obj);
     impl_->kv.erase(it);
     TouchVersion();
 }
 
 void NativeObject::Clear() {
     if (!impl_) return;
-    for (const auto &[_, field]: impl_->kv) {
-        if (field.kind == NativeField::Kind::Object) UnlinkChild(field.obj);
-    }
     impl_->kv.clear();
     impl_->methods.clear();
     TouchVersion();
@@ -741,7 +728,6 @@ void NativeObject::SetNil(std::string_view key) {
     if (!impl_) return;
     auto it = impl_->kv.find(std::string(key));
     if (it != impl_->kv.end()) {
-        if (it->second.kind == NativeField::Kind::Object) UnlinkChild(it->second.obj);
         impl_->kv.erase(it);
     }
     TouchVersion();
@@ -750,7 +736,6 @@ void NativeObject::SetNil(std::string_view key) {
 void NativeObject::SetInt(std::string_view key, int64_t val) {
     if (!impl_) return;
     auto &f = impl_->kv[std::string(key)];
-    if (f.kind == NativeField::Kind::Object) UnlinkChild(f.obj);
     f.kind = NativeField::Kind::Int;
     f.i = val;
     f.obj = nullptr;
@@ -760,7 +745,6 @@ void NativeObject::SetInt(std::string_view key, int64_t val) {
 void NativeObject::SetFloat(std::string_view key, double val) {
     if (!impl_) return;
     auto &f = impl_->kv[std::string(key)];
-    if (f.kind == NativeField::Kind::Object) UnlinkChild(f.obj);
     f.kind = NativeField::Kind::Float;
     f.f = val;
     f.obj = nullptr;
@@ -770,7 +754,6 @@ void NativeObject::SetFloat(std::string_view key, double val) {
 void NativeObject::SetBool(std::string_view key, bool val) {
     if (!impl_) return;
     auto &f = impl_->kv[std::string(key)];
-    if (f.kind == NativeField::Kind::Object) UnlinkChild(f.obj);
     f.kind = NativeField::Kind::Bool;
     f.b = val;
     f.obj = nullptr;
@@ -780,7 +763,6 @@ void NativeObject::SetBool(std::string_view key, bool val) {
 void NativeObject::SetString(std::string_view key, std::string_view val) {
     if (!impl_) return;
     auto &f = impl_->kv[std::string(key)];
-    if (f.kind == NativeField::Kind::Object) UnlinkChild(f.obj);
     f.kind = NativeField::Kind::String;
     f.s = std::string(val);
     f.vs_dirty = true;
@@ -791,11 +773,6 @@ void NativeObject::SetString(std::string_view key, std::string_view val) {
 void NativeObject::SetObject(std::string_view key, NativeObject *obj) {
     if (!impl_) return;
     auto &f = impl_->kv[std::string(key)];
-    NativeObject *prev = f.kind == NativeField::Kind::Object ? f.obj : nullptr;
-    if (prev && prev != obj) UnlinkChild(prev);
-    if (obj) {
-        if (prev != obj) LinkChild(obj);
-    }
     f.kind = NativeField::Kind::Object;
     f.obj = obj;
     TouchVersion();
@@ -803,13 +780,7 @@ void NativeObject::SetObject(std::string_view key, NativeObject *obj) {
 
 void NativeObject::SetFromCVar(std::string_view key, CVar v) {
     if (!impl_) return;
-    auto nf = CVarToNativeField(v);
-    auto it = impl_->kv.find(std::string(key));
-    NativeObject *prev = nullptr;
-    if (it != impl_->kv.end() && it->second.kind == NativeField::Kind::Object) prev = it->second.obj;
-    if (prev && prev != nf.obj) UnlinkChild(prev);
-    if (nf.obj && prev != nf.obj) LinkChild(nf.obj);
-    impl_->kv[std::string(key)] = nf;
+    impl_->kv[std::string(key)] = CVarToNativeField(v);
     TouchVersion();
 }
 
@@ -1029,9 +1000,14 @@ bool NativeObject::IsChangedSince(uint64_t version) const {
 }
 
 void NativeObject::SetVersionDebugEnabled(bool enabled) {
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
     g_version_debug.store(enabled, std::memory_order_relaxed);
     // 失效旧 epoch 的哈希：关闭期间发生的写入不会被误判为“漏标”。
     g_debug_epoch.fetch_add(1, std::memory_order_relaxed);
+#else
+    // 默认构建不含哈希字段，开关为空操作。
+    (void) enabled;
+#endif
 }
 
 void NativeObject::MarkModified() {
@@ -1039,79 +1015,18 @@ void NativeObject::MarkModified() {
     TouchVersion();
 }
 
-void NativeObject::LinkChild(NativeObject *child) {
-    if (!impl_ || !child || !child->impl_) return;
-    if (!impl_->children) {
-        impl_->children = std::make_unique<std::unordered_map<NativeObject *, uint32_t>>();
-    } else {
-        auto it = impl_->children->find(child);
-        if (it != impl_->children->end()) {
-            ++it->second;
-            return;
-        }
-    }
-    impl_->children->emplace(child, 1u);
-    if (!child->impl_->parents) {
-        child->impl_->parents = std::make_unique<std::unordered_set<NativeObject *>>();
-    }
-    child->impl_->parents->insert(this);
-}
-
-void NativeObject::UnlinkChild(NativeObject *child) {
-    if (!impl_ || !child || !impl_->children) return;
-    auto it = impl_->children->find(child);
-    if (it == impl_->children->end()) return;
-    if (it->second > 1) {
-        --it->second;
-        return;
-    }
-    impl_->children->erase(it);
-    if (impl_->children->empty()) impl_->children.reset();
-    if (child->impl_ && child->impl_->parents) {
-        child->impl_->parents->erase(this);
-        if (child->impl_->parents->empty()) child->impl_->parents.reset();
-    }
-}
-
-void NativeObject::DetachAll() {
-    if (!impl_) return;
-    // 1) 从所有父对象的直接子表里移除自己：子对象的直接删除属于父对象自身的结构变化，
-    //    因此 bump 直接父对象（只 bump 直接父对象，不再向上蔓延）。
-    //    复制一份 parents，避免遍历过程中任何潜在的结构变动影响迭代。
-    boost::container::small_vector<NativeObject *, 16> parent_list;
-    if (impl_->parents) {
-        parent_list.assign(impl_->parents->begin(), impl_->parents->end());
-        impl_->parents->clear();
-    }
-    for (NativeObject *p: parent_list) {
-        if (!p || !p->impl_ || p == this || !p->impl_->children) continue;
-        p->impl_->children->erase(this);
-        if (p->impl_->children->empty()) p->impl_->children.reset();
-        p->TouchVersion();
-    }
-    // 2) 从所有子对象的父集合里移除自己；子对象自身内容未变，不需要 bump。
-    if (impl_->children) {
-        for (const auto &[child, _]: *impl_->children) {
-            if (child && child->impl_ && child != this && child->impl_->parents) {
-                child->impl_->parents->erase(this);
-                if (child->impl_->parents->empty()) child->impl_->parents.reset();
-            }
-        }
-        impl_->children->clear();
-    }
-    impl_->children.reset();
-    impl_->parents.reset();
-}
-
 void NativeObject::TouchVersion() {
     if (!impl_) return;
     // 只提升本对象自己的版本号：不向父对象传播，也不影响子对象。
-    // 因此写入代价是 O(1)，与树的深度无关。
+    // 不做任何父子边簿记，写入代价是 O(1)，与树的深度和子对象数量无关。
     const uint64_t stamp = NextVersionStamp();
     if (version_ < stamp) version_ = stamp;
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
     if (g_version_debug.load(std::memory_order_relaxed)) RefreshDebugHash();
+#endif
 }
 
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
 void NativeObject::RefreshDebugHash() {
     if (!impl_) return;
     impl_->debug_hash = ComputeContentHash(this);
@@ -1181,46 +1096,25 @@ uint64_t NativeObject::ComputeContentHash(const NativeObject *obj) {
     FnvHashU64(h, static_cast<uint64_t>(obj->impl_->group_id));
     return h;
 }
+#endif
 
 bool NativeObject::SelfCheck(const NativeObject *obj, bool recursive) {
-    if (!obj || !obj->impl_) return true;
-
-    const bool debug = g_version_debug.load(std::memory_order_relaxed);
-    const uint64_t debug_epoch = g_debug_epoch.load(std::memory_order_relaxed);
-    const auto hash_is_current = [debug_epoch](const NativeObject::Impl *impl) {
-        return impl->debug_hash_epoch != 0 && impl->debug_hash_epoch == debug_epoch;
-    };
-    if (debug) {
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
+    if (obj && obj->impl_ && g_version_debug.load(std::memory_order_relaxed)) {
         // 内容哈希比对：若某次写入绕过了对象 API（因此没有 TouchVersion），
         // 记录下来的哈希会与真实内容不一致。
-        if (hash_is_current(obj->impl_) && obj->impl_->debug_hash != ComputeContentHash(obj)) {
+        const uint64_t debug_epoch = g_debug_epoch.load(std::memory_order_relaxed);
+        if (obj->impl_->debug_hash_epoch != 0 && obj->impl_->debug_hash_epoch == debug_epoch &&
+            obj->impl_->debug_hash != ComputeContentHash(obj)) {
             return false;
         }
     }
-    if (!recursive) return true;
-
-    // 递归校验所有嵌套对象的内容哈希。
-    // 环安全：用 visited 集合去重，对象图成环（A→B→A）或共享子对象时不会重复入栈、
-    // 也不会无限递归。代价是 O(N) 的额外内存，只在本调试开关打开时发生；
-    // 不使用深度上限，因此不会因为截断深度而产生误报/漏报。
-    std::unordered_set<const NativeObject *> visited;
-    boost::container::small_vector<const NativeObject *, 32> stack;
-    stack.push_back(obj);
-    visited.insert(obj);
-    while (!stack.empty()) {
-        const NativeObject *node = stack.back();
-        stack.pop_back();
-        if (!node->impl_->children) continue;
-        for (const auto &[child, _]: *node->impl_->children) {
-            if (!child || !child->impl_) continue;
-            if (debug) {
-                if (hash_is_current(child->impl_) && child->impl_->debug_hash != ComputeContentHash(child)) {
-                    return false;
-                }
-            }
-            if (visited.insert(child).second) stack.push_back(child);
-        }
-    }
+#else
+    (void) obj;
+#endif
+    // 不维护父子边，也不做子树递归：版本号是「对象自身」粒度。
+    // recursive 参数为兼容保留，当前忽略。
+    (void) recursive;
     return true;
 }
 

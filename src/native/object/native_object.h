@@ -81,18 +81,16 @@ struct NativeObject::Impl {
     std::function<void(NativeObject *self)> finalizer;
 
     // ---- 对象级版本号的内部簿记（不进入存档，不改变既有数据格式）----
-    // 直接子对象及引用计数：同一个子对象可被同一父对象的多个字段引用，
-    // 只有引用计数归零才真正断开父子边。
-    // 懒分配：绝大多数对象没有任何嵌套关系，空容器不占堆内存。
-    std::unique_ptr<std::unordered_map<NativeObject *, uint32_t>> children;
-    // 直接父对象集合：子对象销毁/解绑时据此 bump 直接父对象的自身版本号。
-    // 不做任何祖先传播；父集合只在需要「子对象删除通知父对象」时才用到。
-    std::unique_ptr<std::unordered_set<NativeObject *>> parents;
-    // 调试自检模式下的内容哈希（关闭调试时不维护）。
+    // 版本号只是「本对象可能变过」的信号，不做精确引用账本：
+    // 不记录子对象引用计数/父对象集合，父对象结构变化时一律直接 bump 自己即可。
+    // 对象在销毁前必须先从所有父对象的字段中移除（Del/SetNil/Clear），见公开头注释。
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
+    // 调试自检模式下的内容哈希（仅在定义该宏的调试构建中存在，默认构建不占字段）。
     uint64_t debug_hash = 0;
     // 该哈希所属的调试 epoch。每次开关调试开关都会换 epoch，
     // 避免把关闭期间发生的写入和旧哈希错误地比较（误报漏标）。
     uint64_t debug_hash_epoch = 0;
+#endif
 };
 
 // spec_get / spec_set 静态实现

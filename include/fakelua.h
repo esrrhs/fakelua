@@ -833,10 +833,13 @@ public:
     // 外部资源状态（io/socket 等）改变。
     void MarkModified();
 
-    // 调试自检（默认关闭）：开启后每次写入都会维护内容哈希；SelfCheck 会重新计算
-    // 字段/方法内容哈希并与记录值比对，并递归校验所有嵌套对象的内容哈希
-    // （visited 集合去重，对象图成环或共享子对象都是安全的），
-    // 用于交叉验证是否有写入点漏标版本。只在调试/测试中使用，开销较大。
+    // 调试自检（编译期开关）：仅当库以 FAKELUA_NATIVE_OBJECT_DEBUG_HASH 编译时，
+    // 每次写入才维护内容哈希；SelfCheck 重新计算本对象字段/方法的内容哈希并与记录值
+    // 比对，用于交叉验证是否有写入点漏标版本。
+    // 默认构建不包含哈希字段与维护逻辑：SetVersionDebugEnabled 为空操作，
+    // SelfCheck 恒返回 true（不做任何检查）。
+    // 不做子树递归：版本号是对象自身粒度，且不再维护父子边，
+    // recursive 参数为兼容保留、当前被忽略。
     static void SetVersionDebugEnabled(bool enabled);
     [[nodiscard]] static bool SelfCheck(const NativeObject *obj, bool recursive = true);
 
@@ -867,16 +870,19 @@ private:
     explicit NativeObject(std::string type_name);
     ~NativeObject();
 
-    // 版本号内部维护：TouchVersion 只提升本对象自身（O(1)，不做祖先传播）。
+    // 版本号内部维护：TouchVersion 只提升本对象自身（O(1)，无任何父子边簿记）。
     void TouchVersion();
-    void LinkChild(NativeObject *child);
-    void UnlinkChild(NativeObject *child);
-    // 销毁/析构时断开父子边：从父对象移除自己并 bump 父对象，从子对象移除自己但不 bump。
-    void DetachAll();
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
+    // 调试哈希维护（仅调试构建存在）。
     void RefreshDebugHash();
     [[nodiscard]] static uint64_t ComputeContentHash(const NativeObject *obj);
+#endif
 
     // 内部申请与释放（只能由 NativeObjectManager 管理调配）
+    // 约束：销毁前必须先从所有父对象的字段中移除该对象（Del/SetNil/Clear 或覆盖字段）。
+    // 实现不维护父子边索引，无法自动通知或清空父对象字段；销毁仍被引用/嵌套的对象
+    // 属于调用方错误（父对象字段会保持悬空指针）。整组销毁（DestroyGroup/Clear）不受此限，
+    // 因为组内对象同时销毁。
     static NativeObject *Create(int64_t group_id, std::string type_name, int64_t id = 0);
     static void Destroy(NativeObject *obj);
 

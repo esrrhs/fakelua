@@ -923,7 +923,7 @@ TEST(test_native_version, nested_writes_do_not_bump_ancestors) {
     FakeluaDeleteState(s);
 }
 
-TEST(test_native_version, child_create_destroy_and_clear) {
+TEST(test_native_version, child_create_and_clear_bump_parent) {
     auto *s = FakeluaNewState();
     auto &mgr = GetNativeObjectManager(s);
     int64_t gid = mgr.CreateGroup();
@@ -934,15 +934,20 @@ TEST(test_native_version, child_create_destroy_and_clear) {
     parent->SetObject("child", child);
     EXPECT_TRUE(parent->IsChangedSince(vp));// 子对象创建/挂载
 
+    // 约束：销毁子对象前必须先把它从父对象字段中移除；移除本身会 bump 父对象。
+    vp = parent->GetVersion();
+    parent->Del("child");
+    EXPECT_TRUE(parent->IsChangedSince(vp));
+    EXPECT_EQ(parent->GetObject("child"), nullptr);
+
     vp = parent->GetVersion();
     const uint64_t vc = child->GetVersion();
     mgr.DestroySingle("child", 2);
-    EXPECT_TRUE(parent->IsChangedSince(vp));// 子对象删除
     EXPECT_FALSE(child->Alive());
     EXPECT_EQ(child->GetVersion(), vc);// 自身最后一次版本保留，单调不回退
+    // 不维护父子边索引：销毁子对象不会再通知/bump 父对象。
+    EXPECT_FALSE(parent->IsChangedSince(vp));
 
-    auto *c2 = mgr.Create(gid, "child2", 3);
-    parent->SetObject("c2", c2);
     vp = parent->GetVersion();
     parent->Clear();
     EXPECT_TRUE(parent->IsChangedSince(vp));// 重置/批量清空
@@ -978,12 +983,13 @@ TEST(test_native_version, self_check_is_cycle_safe) {
     int64_t gid = mgr.CreateGroup();
     auto *a = mgr.Create(gid, "a", 1);
     auto *b = mgr.Create(gid, "b", 2);
-    // 故意成环：A 挂 B，B 又指回 A。对象模型允许成环（LinkChild 不做环校验），
+    // 故意成环：A 挂 B，B 又指回 A。对象模型允许成环（SetObject 不做环校验），
     // 因此下游不能依赖「对象图无环」这个前提。
     a->SetObject("b", b);
     b->SetObject("a", a);
 
-    // 环状对象图下自检必须正常终止，且内容一致时返回 true。
+    // SelfCheck 只校验本对象（不做子树递归，也不再维护父子边），
+    // 成环对象图上必须直接返回、不崩不挂起。
     EXPECT_TRUE(NativeObject::SelfCheck(a, true))
         << "SelfCheck 在环状对象图（A->B->A）上未能正常结束或误报";
     EXPECT_TRUE(NativeObject::SelfCheck(b, true))
@@ -1002,7 +1008,7 @@ TEST(test_native_version, self_check_is_cycle_safe) {
     NativeObject::SetVersionDebugEnabled(false);
 }
 
-TEST(test_native_version, destroy_bumps_direct_parent_only) {
+TEST(test_native_version, destroy_requires_detach_first) {
     auto *s = FakeluaNewState();
     auto &mgr = GetNativeObjectManager(s);
     int64_t gid = mgr.CreateGroup();
@@ -1012,21 +1018,58 @@ TEST(test_native_version, destroy_bumps_direct_parent_only) {
     gp->SetObject("parent", parent);
     parent->SetObject("child", child);
 
+    // 约定：销毁被引用对象前，先从所有父对象字段中移除它。
+    uint64_t vp = parent->GetVersion();
+    parent->Del("child");
+    EXPECT_TRUE(parent->IsChangedSince(vp)) << "解绑子对象应 bump 父对象自身";
+    EXPECT_EQ(parent->GetObject("child"), nullptr);
+
     const uint64_t vgp = gp->GetVersion();
-    const uint64_t vp = parent->GetVersion();
+    vp = parent->GetVersion();
     const uint64_t vc = child->GetVersion();
     mgr.DestroySingle("child", 3);
-    EXPECT_TRUE(parent->IsChangedSince(vp)) << "子对象删除应 bump 直接父对象";
-    EXPECT_FALSE(gp->IsChangedSince(vgp)) << "子对象删除不应 bump 祖父对象";
     EXPECT_FALSE(child->Alive());
     EXPECT_EQ(child->GetVersion(), vc) << "销毁后版本号应保留，不回退";
+    // 不维护父子边索引：销毁不再通知父对象，也不再向上蔓延。
+    EXPECT_FALSE(parent->IsChangedSince(vp));
+    EXPECT_FALSE(gp->IsChangedSince(vgp));
 
-    // 直接子表维护本身也算父对象的结构变化。
+    // 直接子对象挂载仍是父对象自身的结构变化。
     auto *c2 = mgr.Create(gid, "child2", 4);
     const uint64_t vp2 = parent->GetVersion();
     parent->SetObject("child2", c2);
     EXPECT_TRUE(parent->IsChangedSince(vp2));
     EXPECT_FALSE(gp->IsChangedSince(vgp));
+
+    mgr.DestroyGroup(gid);
+    FakeluaDeleteState(s);
+}
+
+// 事实前提：同一个子对象可被同一父对象的多个字段引用（对象模型不禁止共享）。
+TEST(test_native_version, same_child_in_multiple_fields) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *parent = mgr.Create(gid, "parent", 1);
+    auto *child = mgr.Create(gid, "child", 2);
+
+    parent->SetObject("a", child);
+    parent->SetObject("b", child);
+    EXPECT_EQ(parent->GetObject("a"), child);
+    EXPECT_EQ(parent->GetObject("b"), child);
+
+    uint64_t vp = parent->GetVersion();
+    parent->SetNil("a");
+    EXPECT_TRUE(parent->IsChangedSince(vp));
+    // 另一个字段仍然引用该子对象：不会因为解绑一处而被销毁或悬空。
+    EXPECT_EQ(parent->GetObject("b"), child);
+    EXPECT_TRUE(child->Alive());
+
+    vp = parent->GetVersion();
+    parent->Del("b");
+    EXPECT_TRUE(parent->IsChangedSince(vp));
+    mgr.DestroySingle("child", 2);
+    EXPECT_FALSE(child->Alive());
 
     mgr.DestroyGroup(gid);
     FakeluaDeleteState(s);
