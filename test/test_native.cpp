@@ -780,3 +780,348 @@ end
     SetDebugLogLevel(s, LogLevel::Warn);
     FakeluaDeleteState(s);
 }
+
+// ==================== 对象级变更版本号 ====================
+
+TEST(test_native_version, all_write_paths_bump) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *obj = mgr.Create(gid, "vobj", 1);
+    auto *child = mgr.Create(gid, "vchild", 2);
+
+    const auto expect_bump = [&](const char *what, const std::function<void()> &fn) {
+        const uint64_t before = obj->GetVersion();
+        fn();
+        EXPECT_GT(obj->GetVersion(), before) << "write path not counted: " << what;
+    };
+
+    expect_bump("SetInt", [&] { obj->SetInt("i", 1); });
+    expect_bump("SetFloat", [&] { obj->SetFloat("f", 1.5); });
+    expect_bump("SetBool", [&] { obj->SetBool("b", true); });
+    expect_bump("SetString", [&] { obj->SetString("s", "x"); });
+    expect_bump("SetObject", [&] { obj->SetObject("c", child); });
+    expect_bump("SetNil(existing)", [&] { obj->SetNil("i"); });
+    expect_bump("Del(existing)", [&] { obj->Del("f"); });
+    expect_bump("Del(missing)", [&] { obj->Del("missing"); });
+    expect_bump("RegisterMethod", [&] { obj->RegisterMethod("m", NativeMethod{}); });
+    expect_bump("UnregisterMethod", [&] { obj->UnregisterMethod("m"); });
+    expect_bump("SetId", [&] { obj->SetId(11); });
+    expect_bump("SetGroupId", [&] { obj->SetGroupId(gid); });
+    expect_bump("SetFinalizer", [&] { obj->SetFinalizer([](NativeObject *) {}); });
+    expect_bump("MarkModified", [&] { obj->MarkModified(); });
+    expect_bump("Clear", [&] { obj->Clear(); });
+
+    // 版本号不是可见字段，不改变既有数据格式
+    EXPECT_FALSE(obj->Has("version"));
+    EXPECT_FALSE(obj->Has("__version__"));
+
+    // 本用例改过 id，manager 的 (type,id) 索引与对象当前 id 不一致；
+    // 用 Clear() 统一销毁，避免 DestroyGroup 按新 id 擦除索引造成重复释放。
+    mgr.Clear();
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native_version, read_paths_do_not_bump) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *obj = mgr.Create(gid, "vobj", 1);
+    auto *child = mgr.Create(gid, "vchild", 2);
+    child->SetInt("gold", 5);
+    obj->SetInt("hp", 10);
+    obj->SetFloat("speed", 2.5);
+    obj->SetBool("alive", true);
+    obj->SetString("name", "hero");
+    obj->SetObject("child", child);
+    obj->RegisterMethod("m", NativeMethod{});
+
+    const uint64_t v = obj->GetVersion();
+    const uint64_t vc = child->GetVersion();
+
+    EXPECT_EQ(obj->GetInt("hp"), 10);
+    EXPECT_DOUBLE_EQ(obj->GetFloat("speed"), 2.5);
+    EXPECT_TRUE(obj->GetBool("alive"));
+    EXPECT_EQ(obj->GetString("name"), "hero");
+    EXPECT_EQ(obj->GetObject("child"), child);
+    EXPECT_EQ(obj->GetInt("missing", 42), 42);
+    EXPECT_TRUE(obj->Has("hp"));
+    EXPECT_EQ(obj->Size(), 5);
+    EXPECT_TRUE(obj->HasMethod("m"));
+    EXPECT_EQ(obj->GetId(), 1);
+    EXPECT_EQ(obj->GetGroupId(), gid);
+    EXPECT_NE(obj->GetTypeName(), "");
+    int fields = 0;
+    obj->ForEach([&](std::string_view, NativeObject::FieldKind) { ++fields; });
+    EXPECT_EQ(fields, 5);
+
+    // CVar 读取路径（GetAsCVar）由 Lua 侧只读用例间接覆盖（见 lua_paths_and_container）。
+    CVar wrapped = obj->Wrap(s);
+    EXPECT_EQ(NativeObject::Unwrap(wrapped), obj);
+
+    EXPECT_EQ(obj->GetVersion(), v);
+    EXPECT_EQ(child->GetVersion(), vc);
+
+    mgr.DestroyGroup(gid);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native_version, nested_writes_do_not_bump_ancestors) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *root = mgr.Create(gid, "root", 1);
+    auto *a = mgr.Create(gid, "a", 2);
+    auto *b = mgr.Create(gid, "b", 3);
+    auto *leaf = mgr.Create(gid, "leaf", 4);
+    root->SetObject("a", a);
+    root->SetObject("b", b);
+    a->SetObject("leaf", leaf);
+
+    // 子对象内部的写入只改变子对象自己的计数，父对象与祖先都不变。
+    uint64_t vr = root->GetVersion(), va = a->GetVersion(), vb = b->GetVersion();
+    const uint64_t vl = leaf->GetVersion();
+    leaf->SetInt("x", 1);
+    EXPECT_TRUE(leaf->IsChangedSince(vl));
+    EXPECT_FALSE(a->IsChangedSince(va));
+    EXPECT_FALSE(root->IsChangedSince(vr));
+    EXPECT_FALSE(b->IsChangedSince(vb));
+
+    // 中间层写入同样不向上蔓延。
+    va = a->GetVersion();
+    vr = root->GetVersion();
+    a->SetInt("y", 2);
+    EXPECT_TRUE(a->IsChangedSince(va));
+    EXPECT_FALSE(root->IsChangedSince(vr));
+
+    // 共享子对象：多个父对象引用同一个子对象，子对象写入不影响任一父对象。
+    auto *p1 = mgr.Create(gid, "p1", 5);
+    auto *p2 = mgr.Create(gid, "p2", 6);
+    p1->SetObject("c", leaf);
+    p2->SetObject("c", leaf);
+    uint64_t v1 = p1->GetVersion(), v2 = p2->GetVersion();
+    leaf->SetInt("x", 2);
+    EXPECT_FALSE(p1->IsChangedSince(v1));
+    EXPECT_FALSE(p2->IsChangedSince(v2));
+
+    // 直接子对象的挂载/卸载属于父对象自身的结构变化：只 bump 该父对象，
+    // 不 bump 它的父对象（祖先链上不蔓延）。
+    auto *gp = mgr.Create(gid, "gp", 7);
+    gp->SetObject("p1", p1);
+    uint64_t vgp = gp->GetVersion();
+    v1 = p1->GetVersion();
+    p1->SetObject("d", leaf);
+    EXPECT_TRUE(p1->IsChangedSince(v1));
+    EXPECT_FALSE(gp->IsChangedSince(vgp));
+    vgp = gp->GetVersion();
+    v1 = p1->GetVersion();
+    p1->SetNil("d");
+    EXPECT_TRUE(p1->IsChangedSince(v1));
+    EXPECT_FALSE(gp->IsChangedSince(vgp));
+
+    mgr.DestroyGroup(gid);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native_version, child_create_and_clear_bump_parent) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *parent = mgr.Create(gid, "parent", 1);
+    auto *child = mgr.Create(gid, "child", 2);
+
+    uint64_t vp = parent->GetVersion();
+    parent->SetObject("child", child);
+    EXPECT_TRUE(parent->IsChangedSince(vp));// 子对象创建/挂载
+
+    // 约束：销毁子对象前必须先把它从父对象字段中移除；移除本身会 bump 父对象。
+    vp = parent->GetVersion();
+    parent->Del("child");
+    EXPECT_TRUE(parent->IsChangedSince(vp));
+    EXPECT_EQ(parent->GetObject("child"), nullptr);
+
+    vp = parent->GetVersion();
+    const uint64_t vc = child->GetVersion();
+    mgr.DestroySingle("child", 2);
+    EXPECT_FALSE(child->Alive());
+    EXPECT_EQ(child->GetVersion(), vc);// 自身最后一次版本保留，单调不回退
+    // 不维护父子边索引：销毁子对象不会再通知/bump 父对象。
+    EXPECT_FALSE(parent->IsChangedSince(vp));
+
+    vp = parent->GetVersion();
+    parent->Clear();
+    EXPECT_TRUE(parent->IsChangedSince(vp));// 重置/批量清空
+
+    mgr.DestroyGroup(gid);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native_version, monotonic_versions) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *obj = mgr.Create(gid, "vobj", 1);
+
+    uint64_t prev = obj->GetVersion();
+    for (int i = 0; i < 1000; ++i) {
+        obj->SetInt("x", i);
+        EXPECT_GT(obj->GetVersion(), prev);
+        prev = obj->GetVersion();
+    }
+
+    // 注：uint64 饱和边界无法通过公开 API 触达（需要 2^64 次写入），不再做白盒验证；
+    // 饱和实现见 NextVersionStamp：达到最大值后写回 MAX，不回绕。
+
+    mgr.DestroyGroup(gid);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native_version, self_check_is_cycle_safe) {
+    NativeObject::SetVersionDebugEnabled(true);
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *a = mgr.Create(gid, "a", 1);
+    auto *b = mgr.Create(gid, "b", 2);
+    // 故意成环：A 挂 B，B 又指回 A。对象模型允许成环（SetObject 不做环校验），
+    // 因此下游不能依赖「对象图无环」这个前提。
+    a->SetObject("b", b);
+    b->SetObject("a", a);
+
+    // SelfCheck 只校验本对象（不做子树递归，也不再维护父子边），
+    // 成环对象图上必须直接返回、不崩不挂起。
+    EXPECT_TRUE(NativeObject::SelfCheck(a, true))
+        << "SelfCheck 在环状对象图（A->B->A）上未能正常结束或误报";
+    EXPECT_TRUE(NativeObject::SelfCheck(b, true))
+        << "SelfCheck 在环状对象图（B->A->B）上未能正常结束或误报";
+
+    // 环中任一对象写入都只改自己的计数，不会波及对方（无传播、无递归风险）。
+    const uint64_t va = a->GetVersion();
+    b->SetInt("ok", 1);
+    EXPECT_EQ(a->GetVersion(), va);
+
+    // 正常写入后自检仍然通过（内容哈希在写入钩子内刷新）。
+    EXPECT_TRUE(NativeObject::SelfCheck(a, true));
+
+    mgr.DestroyGroup(gid);
+    FakeluaDeleteState(s);
+    NativeObject::SetVersionDebugEnabled(false);
+}
+
+TEST(test_native_version, destroy_requires_detach_first) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *gp = mgr.Create(gid, "gp", 1);
+    auto *parent = mgr.Create(gid, "parent", 2);
+    auto *child = mgr.Create(gid, "child", 3);
+    gp->SetObject("parent", parent);
+    parent->SetObject("child", child);
+
+    // 约定：销毁被引用对象前，先从所有父对象字段中移除它。
+    uint64_t vp = parent->GetVersion();
+    parent->Del("child");
+    EXPECT_TRUE(parent->IsChangedSince(vp)) << "解绑子对象应 bump 父对象自身";
+    EXPECT_EQ(parent->GetObject("child"), nullptr);
+
+    const uint64_t vgp = gp->GetVersion();
+    vp = parent->GetVersion();
+    const uint64_t vc = child->GetVersion();
+    mgr.DestroySingle("child", 3);
+    EXPECT_FALSE(child->Alive());
+    EXPECT_EQ(child->GetVersion(), vc) << "销毁后版本号应保留，不回退";
+    // 不维护父子边索引：销毁不再通知父对象，也不再向上蔓延。
+    EXPECT_FALSE(parent->IsChangedSince(vp));
+    EXPECT_FALSE(gp->IsChangedSince(vgp));
+
+    // 直接子对象挂载仍是父对象自身的结构变化。
+    auto *c2 = mgr.Create(gid, "child2", 4);
+    const uint64_t vp2 = parent->GetVersion();
+    parent->SetObject("child2", c2);
+    EXPECT_TRUE(parent->IsChangedSince(vp2));
+    EXPECT_FALSE(gp->IsChangedSince(vgp));
+
+    mgr.DestroyGroup(gid);
+    FakeluaDeleteState(s);
+}
+
+// 事实前提：同一个子对象可被同一父对象的多个字段引用（对象模型不禁止共享）。
+TEST(test_native_version, same_child_in_multiple_fields) {
+    auto *s = FakeluaNewState();
+    auto &mgr = GetNativeObjectManager(s);
+    int64_t gid = mgr.CreateGroup();
+    auto *parent = mgr.Create(gid, "parent", 1);
+    auto *child = mgr.Create(gid, "child", 2);
+
+    parent->SetObject("a", child);
+    parent->SetObject("b", child);
+    EXPECT_EQ(parent->GetObject("a"), child);
+    EXPECT_EQ(parent->GetObject("b"), child);
+
+    uint64_t vp = parent->GetVersion();
+    parent->SetNil("a");
+    EXPECT_TRUE(parent->IsChangedSince(vp));
+    // 另一个字段仍然引用该子对象：不会因为解绑一处而被销毁或悬空。
+    EXPECT_EQ(parent->GetObject("b"), child);
+    EXPECT_TRUE(child->Alive());
+
+    vp = parent->GetVersion();
+    parent->Del("b");
+    EXPECT_TRUE(parent->IsChangedSince(vp));
+    mgr.DestroySingle("child", 2);
+    EXPECT_FALSE(child->Alive());
+
+    mgr.DestroyGroup(gid);
+    FakeluaDeleteState(s);
+}
+
+TEST(test_native_version, lua_paths_and_container) {
+    for (auto jit_type: AllJitTypes()) {
+        auto *s = FakeluaNewState();
+        auto &mgr = GetNativeObjectManager(s);
+        int64_t gid = mgr.CreateGroup();
+        static NativeObject *global_player = nullptr;
+        global_player = mgr.Create(gid, "player", 100);
+        global_player->SetInt("hp", 100);
+        RegisterNativeFunction(s, "get_player", 0, false,
+                               [](State *state, CVar *, int) -> CVar {
+                                   return inter::NativeToFakelua(state, global_player);
+                               });
+
+        CompileConfig config;
+        CompileFile(s, "./native/test_native_get_set.lua", config);
+
+        // 只读（字段读取 + pairs 快照）不涨版本
+        const uint64_t v0 = global_player->GetVersion();
+        CVar ret;
+        Call(s, jit_type, "test_version_read_only", ret);
+        EXPECT_EQ(global_player->GetVersion(), v0);
+        inter::Reset(s);
+
+        // 快照已建立后的增量写入（NativeSpecSet snapshot_ready 分支）
+        const uint64_t v1 = global_player->GetVersion();
+        Call(s, jit_type, "test_version_write_after_pairs", ret);
+        EXPECT_TRUE(global_player->IsChangedSince(v1));
+        EXPECT_EQ(global_player->GetInt("hp"), 101);
+        inter::Reset(s);
+
+        // 容器内部内容写入通过 MarkModified 标记到容器对象自身
+        const uint64_t v2 = global_player->GetVersion();
+        Call(s, jit_type, "test_version_container_write", ret);
+        EXPECT_TRUE(global_player->IsChangedSince(v2));
+        auto *container = global_player->GetObject("bag_container");
+        ASSERT_NE(container, nullptr);
+        const uint64_t vc = container->GetVersion();
+        EXPECT_GT(vc, 0);
+        inter::Reset(s);
+
+        // 容器只读方法不涨版本
+        Call(s, jit_type, "test_version_container_read", ret);
+        EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 1);
+        EXPECT_EQ(container->GetVersion(), vc);
+
+        mgr.DestroyGroup(gid);
+        global_player = nullptr;
+        FakeluaDeleteState(s);
+    }
+}

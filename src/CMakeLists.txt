@@ -121,6 +121,13 @@ if (USE_COV)
     target_compile_definitions(fakelua PRIVATE "FAKELUA_JIT_COV_DIR=\"${CMAKE_BINARY_DIR}/jit_cov\"")
 endif ()
 
+# NativeObject 版本号调试自检：开启后每个对象额外维护内容哈希（仅调试/排障用，默认关闭，
+# 默认构建不占这些字段）。配合 NativeObject::SetVersionDebugEnabled / SelfCheck 使用。
+option(FAKELUA_NATIVE_OBJECT_DEBUG_HASH "Enable NativeObject version content-hash self-check" OFF)
+if (FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
+    target_compile_definitions(fakelua PRIVATE FAKELUA_NATIVE_OBJECT_DEBUG_HASH=1)
+endif ()
+
 find_package(Threads REQUIRED)
 
 if (WIN32)
