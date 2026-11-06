@@ -10,11 +10,14 @@
 #include "var/var_type.h"
 
 #include <boost/container/small_vector.hpp>
+#include <cstdint>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace fakelua {
@@ -76,6 +79,21 @@ struct NativeObject::Impl {
     std::unordered_map<std::string, NativeMethod> methods;
     // 可选销毁回调：NativeObject 被 Destroy 时调用（无论是否经 close 方法），用于释放关联资源
     std::function<void(NativeObject *self)> finalizer;
+
+    // ---- 对象级版本号的内部簿记（不进入存档，不改变既有数据格式）----
+    // 直接子对象及引用计数：同一个子对象可被同一父对象的多个字段引用，
+    // 只有引用计数归零才真正断开父子边。
+    // 懒分配：绝大多数对象没有任何嵌套关系，空容器不占堆内存。
+    std::unique_ptr<std::unordered_map<NativeObject *, uint32_t>> children;
+    // 直接父对象集合：写入后沿这些边把新版本戳传播给所有祖先。
+    std::unique_ptr<std::unordered_set<NativeObject *>> parents;
+    // 版本传播的去重/防环标记；每次传播使用一个自增 epoch，O(1) 判断是否已访问。
+    uint64_t prop_epoch = 0;
+    // 调试自检模式下的内容哈希（关闭调试时不维护）。
+    uint64_t debug_hash = 0;
+    // 该哈希所属的调试 epoch。每次开关调试开关都会换 epoch，
+    // 避免把关闭期间发生的写入和旧哈希错误地比较（误报漏标）。
+    uint64_t debug_hash_epoch = 0;
 };
 
 // spec_get / spec_set 静态实现

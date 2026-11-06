@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <format>
 #include <functional>
 #include <memory>
@@ -772,6 +773,19 @@ namespace io {
 void RegisterIoLibraryApi(State *s);
 }
 
+// 仅用于单元测试的白盒访问器，不属于稳定公开 API。生产代码不得使用。
+// 定义见 src/native/object/native_object.cpp。
+struct NativeObjectVersionTestAccess {
+    // 绕过版本号/父子边维护直接写字段，用于验证 SelfCheck 能发现漏标写入。
+    static void RawSetInt(NativeObject *obj, std::string_view key, int64_t val);
+    // 调整全局版本戳，用于测试饱和边界。
+    static void SetStamp(uint64_t stamp);
+    [[nodiscard]] static uint64_t GetStamp();
+    // 转发到 NativeObject 的私有 CVar 写入/读取路径。
+    static void SetFromCVar(NativeObject *obj, std::string_view key, CVar v);
+    [[nodiscard]] static CVar GetAsCVar(NativeObject *obj, std::string_view key, State *s);
+};
+
 class NativeObject {
 public:
     // 禁止拷贝
@@ -812,6 +826,26 @@ public:
     void Del(std::string_view key);
     void Clear();
 
+    // ---- 对象级变更版本号（增量存档 / C++ 镜像同步 / UI 缓存失效）----
+    // 语义：每次写入（字段、方法、子对象关系、Clear）都会让本对象及其所有祖先的
+    // 版本号单调变大；读取不改变版本号。返回的是全局单调时间戳，不是计数器，
+    // 只应与同一对象自己上一次记录的版本号比较，不应跨对象比较大小。
+    // 调用方：记下 v = obj->GetVersion()；之后用 obj->IsChangedSince(v) 做 O(1) 判断。
+    // 子树的任何写入都会向上传播，因此对根对象取版本即可覆盖整棵子树。
+    // 版本号不写入存档、不改变既有数据格式；对象销毁后仍保留最后一次版本号。
+    [[nodiscard]] uint64_t GetVersion() const;
+    [[nodiscard]] bool IsChangedSince(uint64_t version) const;
+
+    // 显式标记本对象（及其祖先）已变更。用于通过字段写入无法表达的副作用修改，
+    // 例如 native/container 内部容器内容、外部资源状态等。
+    void MarkModified();
+
+    // 调试自检（默认关闭）：开启后每次写入都会维护内容哈希；SelfCheck 会重新计算
+    // 字段/方法内容哈希并与记录值比对，并递归校验「父版本 >= 子版本」，
+    // 用于交叉验证是否有写入点漏标版本。只在调试/测试中使用，开销较大。
+    static void SetVersionDebugEnabled(bool enabled);
+    [[nodiscard]] static bool SelfCheck(const NativeObject *obj, bool recursive = true);
+
     // 销毁回调
     // 设置 NativeObject 被 Destroy 时（含管理器 Clear / DestroyGroup）的回调，
     // 用于释放该对象拥有的 C++ 资源（如 socket）。回调内不应再操作 Lua 状态。
@@ -832,9 +866,21 @@ public:
 private:
     struct Impl;
     Impl *impl_;
+    // 对象级版本戳保存在 NativeObject 本身（不随 Impl 释放），
+    // 因此 Destroy 之后仍能查到最后一次版本，保持单调性。
+    uint64_t version_ = 0;
 
     explicit NativeObject(std::string type_name);
     ~NativeObject();
+
+    // 版本号内部维护
+    void TouchVersion();
+    void LinkChild(NativeObject *child);
+    void UnlinkChild(NativeObject *child);
+    // 销毁/析构时断开父子边：从父对象移除自己并 bump 父对象，从子对象移除自己但不 bump。
+    void DetachAll();
+    void RefreshDebugHash();
+    [[nodiscard]] static uint64_t ComputeContentHash(const NativeObject *obj);
 
     // 内部申请与释放（只能由 NativeObjectManager 管理调配）
     static NativeObject *Create(int64_t group_id, std::string type_name, int64_t id = 0);
@@ -845,6 +891,7 @@ private:
     [[nodiscard]] CVar GetAsCVar(std::string_view key, State *s) const;
 
     friend class NativeObjectManager;
+    friend struct NativeObjectVersionTestAccess;
     friend CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish);
     friend void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish);
     friend void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s);
