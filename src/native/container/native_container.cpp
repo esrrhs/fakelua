@@ -249,6 +249,8 @@ CVar ClearOf(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
             c->set.clear();
             break;
     }
+    // 容器内容存放在 NativeObject 之外的 C++ 结构中，字段写入无法感知，需要显式标记版本变更。
+    self->MarkModified();
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -257,12 +259,14 @@ CVar ClearOf(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
 CVar DequePushBack(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "deque:push_back", "value expected");
     Require(self)->deque.push_back(PersistValue(inter::GetNativeArg(s, args, n, 0), "deque:push_back"));
+    self->MarkModified();
     return inter::NativeToFakeluaNil(s);
 }
 
 CVar DequePushFront(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "deque:push_front", "value expected");
     Require(self)->deque.push_front(PersistValue(inter::GetNativeArg(s, args, n, 0), "deque:push_front"));
+    self->MarkModified();
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -271,6 +275,7 @@ CVar DequePopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     if (d.empty()) return inter::NativeToFakeluaNil(s);
     NativeField v = std::move(d.back());
     d.pop_back();
+    self->MarkModified();
     return FieldToLua(v, s);
 }
 
@@ -279,6 +284,7 @@ CVar DequePopFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     if (d.empty()) return inter::NativeToFakeluaNil(s);
     NativeField v = std::move(d.front());
     d.pop_front();
+    self->MarkModified();
     return FieldToLua(v, s);
 }
 
@@ -310,6 +316,7 @@ CVar DequeSet(NativeObject *self, State *s, CVar *args, int n) {
         ThrowBadArgument(1, "deque:set", "index out of range");
     }
     d[static_cast<size_t>(i - 1)] = PersistValue(inter::GetNativeArg(s, args, n, 1), "deque:set");
+    self->MarkModified();
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -329,6 +336,7 @@ CVar MapSet(NativeObject *self, State *s, CVar *args, int n) {
     auto &m = Require(self)->map;
     ContainerKey k = ContainerKey::FromCVar(inter::GetNativeArg(s, args, n, 0));
     m[std::move(k)] = PersistValue(inter::GetNativeArg(s, args, n, 1), "map:set");
+    self->MarkModified();
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -350,6 +358,7 @@ CVar MapErase(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "map:erase", "key expected");
     auto &m = Require(self)->map;
     bool ok = m.erase(ContainerKey::FromCVar(inter::GetNativeArg(s, args, n, 0))) > 0;
+    self->MarkModified();
     return inter::NativeToFakeluaBool(s, ok);
 }
 
@@ -378,6 +387,7 @@ CVar SetInsert(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "set:insert", "value expected");
     auto &st = Require(self)->set;
     auto r = st.insert(ContainerKey::FromCVar(inter::GetNativeArg(s, args, n, 0)));
+    self->MarkModified();
     return inter::NativeToFakeluaBool(s, r.second);
 }
 
@@ -391,6 +401,7 @@ CVar SetErase(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "set:erase", "value expected");
     auto &st = Require(self)->set;
     bool ok = st.erase(ContainerKey::FromCVar(inter::GetNativeArg(s, args, n, 0))) > 0;
+    self->MarkModified();
     return inter::NativeToFakeluaBool(s, ok);
 }
 
@@ -506,10 +517,14 @@ boost::container::list<NativeField> &ListOf(NativeObject *self) {
 }
 
 CVar VectorPushBack(NativeObject *self, State *s, CVar *args, int n) {
-    return SeqPushBack(VecOf(self), s, args, n, "vector:push_back");
+    auto r = SeqPushBack(VecOf(self), s, args, n, "vector:push_back");
+    self->MarkModified();
+    return r;
 }
 CVar VectorPopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    return SeqPopBack(VecOf(self), s);
+    auto r = SeqPopBack(VecOf(self), s);
+    self->MarkModified();
+    return r;
 }
 CVar VectorFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqFront(VecOf(self), s);
@@ -521,17 +536,23 @@ CVar VectorAt(NativeObject *self, State *s, CVar *args, int n) {
     return SeqAt(VecOf(self), s, args, n, "vector:at");
 }
 CVar VectorSet(NativeObject *self, State *s, CVar *args, int n) {
-    return SeqSet(VecOf(self), s, args, n, "vector:set");
+    auto r = SeqSet(VecOf(self), s, args, n, "vector:set");
+    self->MarkModified();
+    return r;
 }
 CVar VectorToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqToTable(VecOf(self), s);
 }
 
 CVar SmallPushBack(NativeObject *self, State *s, CVar *args, int n) {
-    return SeqPushBack(SmallOf(self), s, args, n, "small_vector:push_back");
+    auto r = SeqPushBack(SmallOf(self), s, args, n, "small_vector:push_back");
+    self->MarkModified();
+    return r;
 }
 CVar SmallPopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    return SeqPopBack(SmallOf(self), s);
+    auto r = SeqPopBack(SmallOf(self), s);
+    self->MarkModified();
+    return r;
 }
 CVar SmallFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqFront(SmallOf(self), s);
@@ -543,23 +564,33 @@ CVar SmallAt(NativeObject *self, State *s, CVar *args, int n) {
     return SeqAt(SmallOf(self), s, args, n, "small_vector:at");
 }
 CVar SmallSet(NativeObject *self, State *s, CVar *args, int n) {
-    return SeqSet(SmallOf(self), s, args, n, "small_vector:set");
+    auto r = SeqSet(SmallOf(self), s, args, n, "small_vector:set");
+    self->MarkModified();
+    return r;
 }
 CVar SmallToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqToTable(SmallOf(self), s);
 }
 
 CVar ListPushBack(NativeObject *self, State *s, CVar *args, int n) {
-    return SeqPushBack(ListOf(self), s, args, n, "list:push_back");
+    auto r = SeqPushBack(ListOf(self), s, args, n, "list:push_back");
+    self->MarkModified();
+    return r;
 }
 CVar ListPushFront(NativeObject *self, State *s, CVar *args, int n) {
-    return SeqPushFront(ListOf(self), s, args, n, "list:push_front");
+    auto r = SeqPushFront(ListOf(self), s, args, n, "list:push_front");
+    self->MarkModified();
+    return r;
 }
 CVar ListPopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    return SeqPopBack(ListOf(self), s);
+    auto r = SeqPopBack(ListOf(self), s);
+    self->MarkModified();
+    return r;
 }
 CVar ListPopFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    return SeqPopFront(ListOf(self), s);
+    auto r = SeqPopFront(ListOf(self), s);
+    self->MarkModified();
+    return r;
 }
 CVar ListFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqFront(ListOf(self), s);
@@ -571,7 +602,9 @@ CVar ListAt(NativeObject *self, State *s, CVar *args, int n) {
     return SeqAt(ListOf(self), s, args, n, "list:at");
 }
 CVar ListSet(NativeObject *self, State *s, CVar *args, int n) {
-    return SeqSet(ListOf(self), s, args, n, "list:set");
+    auto r = SeqSet(ListOf(self), s, args, n, "list:set");
+    self->MarkModified();
+    return r;
 }
 CVar ListToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqToTable(ListOf(self), s);

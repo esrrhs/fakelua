@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <format>
 #include <functional>
 #include <memory>
@@ -812,6 +813,36 @@ public:
     void Del(std::string_view key);
     void Clear();
 
+    // ---- 对象级变更版本号（增量存档 / C++ 镜像同步 / UI 缓存失效）----
+    // 语义边界：只描述「这个对象自身」，不包含它的子树。
+    //   * 本对象自身的写入（字段、方法、id/group、finalizer、Clear、直接子对象的挂载/卸载）
+    //     会让本对象的版本号单调变大；
+    //   * 子对象内部的写入只改变子对象自己的版本号，不会改变本对象；
+    //   * 所有读操作都不改变版本号。
+    // 返回的是全局单调时间戳，不是计数器；只应与同一对象自己上一次记录的版本号比较，
+    // 不应跨对象比较大小。
+    // 调用方：记下 v = obj->GetVersion()；之后用 obj->IsChangedSince(v) 做 O(1) 判断。
+    // 需要「整棵子树」粒度时，调用方自行遍历对象图、记录读到的每个对象的版本集合，
+    // 再在上层聚合判断（遍历只读指针，成本远低于字段序列化）。
+    // 版本号不写入存档、不改变既有数据格式；对象销毁后仍保留最后一次版本号。
+    [[nodiscard]] uint64_t GetVersion() const;
+    [[nodiscard]] bool IsChangedSince(uint64_t version) const;
+
+    // 显式标记本对象（仅本对象，不含父对象/子对象）已变更。
+    // 用于通过字段写入无法表达的副作用修改，例如 native/container 内部容器内容、
+    // 外部资源状态（io/socket 等）改变。
+    void MarkModified();
+
+    // 调试自检（编译期开关）：仅当库以 FAKELUA_NATIVE_OBJECT_DEBUG_HASH 编译时，
+    // 每次写入才维护内容哈希；SelfCheck 重新计算本对象字段/方法的内容哈希并与记录值
+    // 比对，用于交叉验证是否有写入点漏标版本。
+    // 默认构建不包含哈希字段与维护逻辑：SetVersionDebugEnabled 为空操作，
+    // SelfCheck 恒返回 true（不做任何检查）。
+    // 不做子树递归：版本号是对象自身粒度，且不再维护父子边，
+    // recursive 参数为兼容保留、当前被忽略。
+    static void SetVersionDebugEnabled(bool enabled);
+    [[nodiscard]] static bool SelfCheck(const NativeObject *obj, bool recursive = true);
+
     // 销毁回调
     // 设置 NativeObject 被 Destroy 时（含管理器 Clear / DestroyGroup）的回调，
     // 用于释放该对象拥有的 C++ 资源（如 socket）。回调内不应再操作 Lua 状态。
@@ -832,11 +863,26 @@ public:
 private:
     struct Impl;
     Impl *impl_;
+    // 对象级版本戳保存在 NativeObject 本身（不随 Impl 释放），
+    // 因此 Destroy 之后仍能查到最后一次版本，保持单调性。
+    uint64_t version_ = 0;
 
     explicit NativeObject(std::string type_name);
     ~NativeObject();
 
+    // 版本号内部维护：TouchVersion 只提升本对象自身（O(1)，无任何父子边簿记）。
+    void TouchVersion();
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
+    // 调试哈希维护（仅调试构建存在）。
+    void RefreshDebugHash();
+    [[nodiscard]] static uint64_t ComputeContentHash(const NativeObject *obj);
+#endif
+
     // 内部申请与释放（只能由 NativeObjectManager 管理调配）
+    // 约束：销毁前必须先从所有父对象的字段中移除该对象（Del/SetNil/Clear 或覆盖字段）。
+    // 实现不维护父子边索引，无法自动通知或清空父对象字段；销毁仍被引用/嵌套的对象
+    // 属于调用方错误（父对象字段会保持悬空指针）。整组销毁（DestroyGroup/Clear）不受此限，
+    // 因为组内对象同时销毁。
     static NativeObject *Create(int64_t group_id, std::string type_name, int64_t id = 0);
     static void Destroy(NativeObject *obj);
 

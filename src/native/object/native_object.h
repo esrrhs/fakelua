@@ -10,11 +10,14 @@
 #include "var/var_type.h"
 
 #include <boost/container/small_vector.hpp>
+#include <cstdint>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace fakelua {
@@ -76,6 +79,18 @@ struct NativeObject::Impl {
     std::unordered_map<std::string, NativeMethod> methods;
     // 可选销毁回调：NativeObject 被 Destroy 时调用（无论是否经 close 方法），用于释放关联资源
     std::function<void(NativeObject *self)> finalizer;
+
+    // ---- 对象级版本号的内部簿记（不进入存档，不改变既有数据格式）----
+    // 版本号只是「本对象可能变过」的信号，不做精确引用账本：
+    // 不记录子对象引用计数/父对象集合，父对象结构变化时一律直接 bump 自己即可。
+    // 对象在销毁前必须先从所有父对象的字段中移除（Del/SetNil/Clear），见公开头注释。
+#if defined(FAKELUA_NATIVE_OBJECT_DEBUG_HASH)
+    // 调试自检模式下的内容哈希（仅在定义该宏的调试构建中存在，默认构建不占字段）。
+    uint64_t debug_hash = 0;
+    // 该哈希所属的调试 epoch。每次开关调试开关都会换 epoch，
+    // 避免把关闭期间发生的写入和旧哈希错误地比较（误报漏标）。
+    uint64_t debug_hash_epoch = 0;
+#endif
 };
 
 // spec_get / spec_set 静态实现
