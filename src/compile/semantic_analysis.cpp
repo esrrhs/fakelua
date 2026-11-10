@@ -1029,6 +1029,10 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
             if (lit != label_index.end()) {
                 check_skip_locals(i, lit->second, target_name, stmt);
             }
+        } else if (stmt->Type() == SyntaxTreeType::Break) {
+            if (loop_depth <= 0) {
+                ThrowError("'break' statement not inside a loop", stmt);
+            }
         } else if (stmt->Type() == SyntaxTreeType::Continue) {
             if (loop_depth <= 0) {
                 ThrowError("'continue' statement not inside a loop", stmt);
