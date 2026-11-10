@@ -6,7 +6,6 @@
 #include "compile/compiler.h"
 #include "compile/preprocessor.h"
 #include "compile/semantic_analysis.h"
-#include "compile/register_limit.h"
 
 using namespace fakelua;
 
@@ -1422,8 +1421,9 @@ TEST(test_basic, heap_offset_sync_string_keys_and_rehash) {
 }
 
 
-// 寄存器高峰门禁：语义分析阶段按共享 FunctionRegisterUsage 规则检查，与 JIT_INTERP 的 Inst::a/b/c(uint8) 对齐。
-// 共享计量 = 高峰并发槽（形参 + AllocLocal + AllocReg 临时）。
+// 寄存器高峰门禁：SemanticAnalysis::CheckRegisterLimits 在 Analyze 中按与 InterpCodegen
+// 相同的 AllocLocal/AllocReg/FreeTo 寿命规则检查，与 JIT_INTERP 的 Inst::a/b/c(uint8) 对齐。
+// 计量 = 高峰并发槽（形参 + AllocLocal + AllocReg 临时）。
 // 包含语义分析/预处理插入的临时 local（如 __fakelua_tmp_*、__fakelua_lhs_*），
 // 不是「源码里用户写的 local 个数」，更不是 C 后端临时 C 变量个数。
 // 复杂相邻夹具 pad=234 OK / pad=235 over（table/调用/多赋值+下标 LHS）；
@@ -1529,8 +1529,8 @@ TEST(test_basic, reg_limit_exact_257_over_all_gates) {
     expect_throw(only_interp, "INTERP only");
 }
 
-// 高峰检查在 SemanticAnalysis::Analyze 中完成，且 CheckFunctionRegisterLimits
-// 本身不需要 State（不 Alloc 常量串、不注册 VM、不跑 init）。
+// 高峰检查在 SemanticAnalysis::Analyze -> CheckRegisterLimits 中完成：
+// 不生成字节码、不创建原型/常量串、不注册 VM、不跑 init。
 TEST(test_basic, reg_limit_check_without_state) {
     const char *accepted[] = {
         "./basic/test_reg_limit_ok.lua",
@@ -1552,8 +1552,6 @@ TEST(test_basic, reg_limit_check_without_state) {
         SemanticAnalysis semantic(guard.GetState());
         AnalysisResult ar;
         ASSERT_NO_THROW(ar = semantic.Analyze(pr, {}));
-        // Analyze 已做过检查；再直接调用证明该入口无需 State。
-        EXPECT_NO_THROW(CheckFunctionRegisterLimits(pr, ar));
     }
     const char *rejected[] = {
         "./basic/test_reg_limit_over.lua",

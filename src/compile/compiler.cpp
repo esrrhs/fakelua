@@ -84,7 +84,7 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     TypeInferencer inferencer(s_);
     InferResult ir = inferencer.InferTypes(pr, ar, cfg);
 
-    // 寄存器高峰已在 step 4 的 SemanticAnalysis::Analyze 中按共享 Alloc* 规则检查。
+    // 寄存器高峰已在 step 4 的 SemanticAnalysis::Analyze（CheckRegisterLimits）中按 Alloc* 寿命规则检查。
     const bool need_c = !cfg.disable_jit[JIT_TCC] || !cfg.disable_jit[JIT_GCC] || cfg.record_c_code;
     const bool want_interp = !cfg.disable_jit[JIT_INTERP];
 
