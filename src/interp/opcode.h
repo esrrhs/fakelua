@@ -43,6 +43,8 @@ namespace fakelua {
     X(JMP)       /* pc += sbx */ \
     X(CALL)      /* R(A) = call R(A) with B args at R(A+1)..; C=0 keep multi, C=1 unbox */ \
     X(CALLNAME)  /* R(A) = CallByName(Kstr(Bx), B args at R(A)..); C as CALL */ \
+    X(TAIL)      /* tail-call R(A) with B args at R(A+1)..; C=kTailSelfExact: reuse this proto/cl */ \
+    X(TAILNAME)  /* tail CallByName(Kstr(Bx), B args at R(A)..); C=kTailSelfExact: no name lookup */ \
     X(RETURN)    /* return R(A); B=0 keep multi, B=1 single */ \
     X(CLOSURE)   /* R(A) = closure(proto Bx) */ \
     X(SETLIST)   /* expand multi R(C) into table R(A) starting at int sbx */ \
@@ -54,6 +56,10 @@ namespace fakelua {
     X(THROW)     /* throw string constant K(sbx) */ \
     X(FORPREP)   /* int: R(A+1)=count; float: keep limit; skip if empty (pc+=sbx); R(A+3)=R(A) */ \
     X(FORLOOP)   /* int: if --count>=0: R(A)+=step, R(A+3)=R(A), pc+=sbx; float: add+compare */
+
+// TAIL/TAILNAME 的 C 操作数：精确自尾调用（非变参、编译期已知实参个数、无末参展开）。
+// 文件级函数不可再赋，因此解释器可跳过查表，原地复用当前 proto/cl。
+constexpr uint8_t kTailSelfExact = 2;
 
 enum class Op : uint8_t {
 #define FAKELUA_OP_ENUM(name) name,

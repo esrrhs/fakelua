@@ -37,12 +37,21 @@ public:
         }
     }
 
-    // 获取 JIT 函数
+    // 获取 JIT 函数（拷贝 VmFunction，含 name 与各后端 handle 的 shared_ptr）
     [[nodiscard]] VmFunction GetFunction(std::string_view name) const {
-        if (const auto iter = vm_functions_.find(name); iter != vm_functions_.end()) {
-            return iter->second;
+        if (const auto *fn = FindFunction(name)) {
+            return *fn;
         }
         return {};
+    }
+
+    // 热路径查找：返回表内指针，避免每次调用拷贝 VmFunction。
+    // 指针在下一次 RegisterFunction 触发 rehash 前有效；调用前先取出 addr / 签名。
+    [[nodiscard]] const VmFunction *FindFunction(std::string_view name) const {
+        if (const auto iter = vm_functions_.find(name); iter != vm_functions_.end()) {
+            return &iter->second;
+        }
+        return nullptr;
     }
 
     // 注册 C++ 原生函数（可在编译前或编译后调用）
@@ -117,6 +126,6 @@ extern "C" int FakeluaJitContextPush(State *s, int jit);
 extern "C" void FakeluaJitContextPop(State *s, int prev);
 
 // 数组版 FakeluaCallByName，供解释器使用
-CVar CallByNameArgs(State *state, int jit_type, const char *name, int arg_num, const CVar *args);
+CVar CallByNameArgs(State *state, int jit_type, std::string_view name, int arg_num, const CVar *args);
 
 }// namespace fakelua

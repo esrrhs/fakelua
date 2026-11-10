@@ -62,7 +62,7 @@ extern "C" __attribute__((used)) void FakeluaRegisterLuaLoc(State *s, int jit_ty
     }
 }
 
-static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr);
+static CVar CallByNameImpl(State *state, int jit_type, std::string_view name, int arg_num, const CVar *raw_arg_arr);
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
     // 参数必须在 varargs 函数自身里取出，随后的分发交给普通函数处理。
@@ -91,28 +91,30 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     return GuardJitEntry(state, [&] { return CallByNameImpl(state, jit_type, name, arg_num, raw_arg_arr); });
 }
 
-static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg_num, const CVar *raw_arg_arr) {
+static CVar CallByNameImpl(State *state, int jit_type, std::string_view name, int arg_num, const CVar *raw_arg_arr) {
     // 记录"当前 Lua 调用方引擎"：native 函数内登记的异步回调据此派回同一引擎。
     // 作用域覆盖整个函数（含嵌套的 Lua 回调），退出时恢复外层引擎。
     State::JitContextScope jit_scope(state, static_cast<JITType>(jit_type));
-    // 查找函数：优先 JIT，其次 C++ 原生
-    // 用 string_view 查表，避免每次调用都堆分配 std::string
-    const std::string_view func_name(name);
-    const auto jit_func = state->GetVM().GetFunction(func_name);
-    const bool has_jit = !jit_func.Empty();
+    // 查找函数：优先 JIT，其次 C++ 原生。FindFunction 避免每次拷贝 VmFunction。
+    const VmFunction *jit_func = state->GetVM().FindFunction(name);
+    const bool has_jit = jit_func != nullptr;
 
-    // 确定 is_vararg / expected_arg_count / fixed_arg_count
+    // 确定 is_vararg / expected_arg_count / fixed_arg_count，并提前取出 addr，
+    // 避免调用期间 RegisterFunction 触发 rehash 后仍持有 jit_func 指针。
     bool is_vararg = false;
     int expected_arg_count = 0;
     int fixed_arg_count = 0;
     const NativeFuncEntry *native_entry = nullptr;
+    void *jit_addr = nullptr;
 
     if (has_jit) {
-        is_vararg = jit_func.IsVararg();
-        expected_arg_count = jit_func.GetArgCount();
+        is_vararg = jit_func->IsVararg();
+        expected_arg_count = jit_func->GetArgCount();
         fixed_arg_count = is_vararg ? std::max(0, expected_arg_count - 1) : expected_arg_count;
+        jit_addr = jit_func->GetAddr(static_cast<JITType>(jit_type));
+        jit_func = nullptr;
     } else {
-        native_entry = state->GetVM().FindNativeFunction(func_name);
+        native_entry = state->GetVM().FindNativeFunction(name);
         if (UNLIKELY(!native_entry)) {
             ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' not found", name));
         }
@@ -227,17 +229,16 @@ static CVar CallByNameImpl(State *state, int jit_type, const char *name, int arg
     }
 
     // 情形 2：JIT 编译的 lua 函数
-    void *addr = jit_func.GetAddr(static_cast<JITType>(jit_type));
-    if (UNLIKELY(!addr)) {
+    if (UNLIKELY(!jit_addr)) {
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no address for jit_type {}", name, jit_type));
     }
 
     // 走 DispatchCall 而不是在这里再展开一遍调用阶梯：它自带 JIT 错误边界，
-    // 被调用方出错时本函数的帧（持有 VmFunction 里的 shared_ptr）才能正常析构。
-    return inter::DispatchCall(state, addr, arg_arr, expected_arg_count, static_cast<JITType>(jit_type));
+    // 被调用方出错时本函数的帧才能正常析构。
+    return inter::DispatchCall(state, jit_addr, arg_arr, expected_arg_count, static_cast<JITType>(jit_type));
 }
 
-CVar CallByNameArgs(State *state, int jit_type, const char *name, int arg_num, const CVar *args) {
+CVar CallByNameArgs(State *state, int jit_type, std::string_view name, int arg_num, const CVar *args) {
     return GuardJitEntry(state, [&] { return CallByNameImpl(state, jit_type, name, arg_num, args); });
 }
 

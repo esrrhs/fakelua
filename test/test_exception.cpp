@@ -1801,3 +1801,52 @@ TEST(exception, runtime_error_location_multi_so_closure) {
         }
     }
 }
+
+// 尾调用替换当前解释器帧后，运行期错误仍必须定位到最内层那条语句。
+TEST(exception, runtime_error_location_tail_call) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, static_cast<int>(LogLevel::Error));
+    CompileFile(s, "./exception/test_error_location_tail.lua", {});
+
+    for (const auto jit_type: AllJitTypes()) {
+        int64_t ret = 0;
+        try {
+            Call(s, jit_type, "TailErr.boom", ret, 5);
+            ADD_FAILURE() << JitTypeName(jit_type) << " TailErr.boom should have thrown";
+        } catch (const std::exception &e) {
+            const std::string msg = e.what();
+            EXPECT_NE(msg.find("test_error_location_tail.lua:6"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+        }
+        try {
+            Call(s, jit_type, "TailErr.call_missing", ret, 5);
+            ADD_FAILURE() << JitTypeName(jit_type) << " TailErr.call_missing should have thrown";
+        } catch (const std::exception &e) {
+            const std::string msg = e.what();
+            EXPECT_NE(msg.find("test_error_location_tail.lua:13"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+            EXPECT_NE(msg.find("does_not_exist"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+        }
+    }
+}
+
+// INTERP 深层尾调用后报错，不能变成 C 栈溢出，位置仍是 boom 里那一行。
+TEST(exception, runtime_error_location_tail_call_deep_interp) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, static_cast<int>(LogLevel::Error));
+    CompileConfig cfg;
+    cfg.debug_mode = false;
+    cfg.disable_jit[JIT_TCC] = true;
+    cfg.disable_jit[JIT_GCC] = true;
+    CompileFile(s, "./exception/test_error_location_tail.lua", cfg);
+    int64_t ret = 0;
+    try {
+        Call(s, JIT_INTERP, "TailErr.boom", ret, 20000);
+        ADD_FAILURE() << "deep INTERP TailErr.boom should have thrown";
+    } catch (const std::exception &e) {
+        const std::string msg = e.what();
+        EXPECT_NE(msg.find("test_error_location_tail.lua:6"), std::string::npos) << msg;
+    }
+}
