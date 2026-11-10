@@ -55,7 +55,7 @@ int InterpCodegen::AllocReg() {
         stack_top_ = local_top_;
     }
     const int r = stack_top_++;
-    if (r > 255) {
+    if (r > kMaxFunctionRegisterIndex) {
         ThrowFakeluaException("interpreter: function uses too many registers");
     }
     if (cur_proto_ && stack_top_ > cur_proto_->max_stack) {
@@ -71,7 +71,7 @@ int InterpCodegen::AllocLocal() {
     }
     const int r = local_top_++;
     stack_top_ = local_top_;
-    if (r > 255) {
+    if (r > kMaxFunctionRegisterIndex) {
         ThrowFakeluaException("interpreter: function uses too many registers");
     }
     if (cur_proto_ && stack_top_ > cur_proto_->max_stack) {
@@ -96,22 +96,33 @@ void InterpCodegen::EnsureStack(int n) {
     }
 }
 
+int InterpCodegen::CodeSize() const {
+    return check_only_ ? check_ip_ : static_cast<int>(cur_proto_->code.size());
+}
+
+int64_t InterpCodegen::StringId(const std::string &s) {
+    return check_only_ ? 0 : s_->GetConstString().Alloc(s);
+}
+
 int InterpCodegen::AddConst(const CVar &v) {
+    if (check_only_) return 0;
     cur_proto_->constants.push_back(v);
     return static_cast<int>(cur_proto_->constants.size()) - 1;
 }
 
 int InterpCodegen::AddStringConst(const std::string &s) {
+    if (check_only_) return 0;
     CVar v{};
     v.type_ = static_cast<int>(VarType::StringId);
-    v.data_.i = s_->GetConstString().Alloc(s);
+    v.data_.i = StringId(s);
     return AddConst(v);
 }
 
 int InterpCodegen::Emit(Op op, int a, int b, int c, int sbx) {
-    if (a < 0 || a > 255 || b < 0 || b > 255 || c < 0 || c > 255) {
+    if (a < 0 || a > kMaxFunctionRegisterIndex || b < 0 || b > kMaxFunctionRegisterIndex || c < 0 || c > kMaxFunctionRegisterIndex) {
         ThrowFakeluaException("interpreter: instruction operand out of range");
     }
+    if (check_only_) return check_ip_++;
     Inst inst;
     inst.op = op;
     inst.a = static_cast<uint8_t>(a);
@@ -121,13 +132,14 @@ int InterpCodegen::Emit(Op op, int a, int b, int c, int sbx) {
     if (op == Op::NEWBOX) {
         cur_proto_->uses_boxes = true;
     }
-    const int ip = static_cast<int>(cur_proto_->code.size());
+    const int ip = CodeSize();
     cur_proto_->code.push_back(inst);
     cur_proto_->lineinfo.push_back(cur_line_);
     return ip;
 }
 
 void InterpCodegen::PatchSbx(int ip, int dest) {
+    if (check_only_) return;
     cur_proto_->code[static_cast<size_t>(ip)].sbx = dest - ip - 1;
 }
 
@@ -249,7 +261,7 @@ CVar InterpCodegen::LiteralFromExp(const SyntaxTreeInterfacePtr &exp) {
         case ExpKind::kString: {
             CVar s{};
             s.type_ = static_cast<int>(VarType::StringId);
-            s.data_.i = s_->GetConstString().Alloc(e->ExpValue());
+            s.data_.i = StringId(e->ExpValue());
             return s;
         }
         case ExpKind::kPrefixExp: {
@@ -276,8 +288,11 @@ int InterpCodegen::ResolveSimpleName(const SyntaxTreeVar *var, const std::string
     }
     if (const auto nit = named_protos_.find(name); nit != named_protos_.end()) {
         const int r = AllocReg();
-        const int idx = static_cast<int>(cur_proto_->child_protos.size());
-        cur_proto_->child_protos.push_back(nit->second);
+        int idx = 0;
+        if (!check_only_) {
+            idx = static_cast<int>(cur_proto_->child_protos.size());
+            cur_proto_->child_protos.push_back(nit->second);
+        }
         Emit(Op::CLOSURE, r, 0, 0, idx);
         return r;
     }
@@ -285,7 +300,7 @@ int InterpCodegen::ResolveSimpleName(const SyntaxTreeVar *var, const std::string
         const int r = AllocReg();
         CVar v{};
         v.type_ = static_cast<int>(VarType::StringId);
-        v.data_.i = s_->GetConstString().Alloc(std::string("Fakelua ") + FAKELUA_VERSION_STRING);
+        v.data_.i = StringId(std::string("Fakelua ") + FAKELUA_VERSION_STRING);
         LoadConstTo(r, v);
         return r;
     }
@@ -605,6 +620,11 @@ void InterpCodegen::ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vecto
 
 int InterpCodegen::EmitClosure(FuncInfo *child) {
     CompileFunction(child);
+    if (check_only_) {
+        const int r = AllocReg();
+        Emit(Op::CLOSURE, r);
+        return r;
+    }
     child->proto->upvalues.clear();
     for (VarDef *def: child->captured_vars) {
         UpvalDesc uv;
@@ -635,7 +655,7 @@ int InterpCodegen::EmitClosure(FuncInfo *child) {
 }
 
 void InterpCodegen::CompileFunction(FuncInfo *func) {
-    if (!func || func->proto) {
+    if (!func || func->compiled) {
         return;
     }
     const LineScope func_line(cur_line_, func->node);
@@ -646,14 +666,19 @@ void InterpCodegen::CompileFunction(FuncInfo *func) {
     auto prev_loops = std::move(loops_);
     auto prev_label_scopes = std::move(label_scopes_);
 
-    auto proto = std::make_unique<FuncProto>();
-    proto->unit = unit_;
-    proto->name = func->unique_c_name;
-    proto->param_count = static_cast<int>(func->params.size());
-    proto->is_vararg = func->is_vararg;
-    proto->max_stack = proto->param_count;
-    func->proto = proto.get();
-    unit_->protos.push_back(std::move(proto));
+    func->compiled = true;
+    const int prev_check_ip = check_ip_;
+    check_ip_ = 0;
+    if (!check_only_) {
+        auto proto = std::make_unique<FuncProto>();
+        proto->unit = unit_;
+        proto->name = func->unique_c_name;
+        proto->param_count = static_cast<int>(func->params.size());
+        proto->is_vararg = func->is_vararg;
+        proto->max_stack = proto->param_count;
+        func->proto = proto.get();
+        unit_->protos.push_back(std::move(proto));
+    }
 
     if (func->parent == nullptr && !func->unique_c_name.empty()) {
         named_protos_[func->unique_c_name] = func->proto;
@@ -664,8 +689,8 @@ void InterpCodegen::CompileFunction(FuncInfo *func) {
 
     cur_func_ = func;
     cur_proto_ = func->proto;
-    stack_top_ = func->proto->param_count;
-    local_top_ = func->proto->param_count;
+    stack_top_ = static_cast<int>(func->params.size());
+    local_top_ = stack_top_;
     loops_.clear();
     label_scopes_.clear();
 
@@ -699,6 +724,7 @@ void InterpCodegen::CompileFunction(FuncInfo *func) {
         Emit(Op::RETURN, r, 1);
     }
 
+    check_ip_ = prev_check_ip;
     cur_func_ = prev_func;
     cur_proto_ = prev_proto;
     stack_top_ = prev_stack;
@@ -939,15 +965,15 @@ void InterpCodegen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
     LoopInfo loop;
     loop.kind = LoopInfo::kWhile;
-    loop.continue_ip = static_cast<int>(cur_proto_->code.size());
+    loop.continue_ip = CodeSize();
     const int saved = stack_top_;
     const int cond = CompileExp(while_stmt->Exp(), false);
     const int jmpf = Emit(Op::TESTJMP, cond, 0);
     FreeTo(saved);
     loops_.push_back(std::move(loop));
     CompileStmtBlock(while_stmt->Block());
-    Emit(Op::JMP, 0, 0, 0, loops_.back().continue_ip - static_cast<int>(cur_proto_->code.size()) - 1);
-    const int end = static_cast<int>(cur_proto_->code.size());
+    Emit(Op::JMP, 0, 0, 0, loops_.back().continue_ip - CodeSize() - 1);
+    const int end = CodeSize();
     PatchSbx(jmpf, end);
     for (int ip: loops_.back().break_jmps) {
         PatchSbx(ip, end);
@@ -959,15 +985,15 @@ void InterpCodegen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
     LoopInfo loop;
     loop.kind = LoopInfo::kRepeat;
-    const int start = static_cast<int>(cur_proto_->code.size());
+    const int start = CodeSize();
     loops_.push_back(std::move(loop));
     CompileStmtBlock(repeat_stmt->Block());
-    loops_.back().continue_ip = static_cast<int>(cur_proto_->code.size());
+    loops_.back().continue_ip = CodeSize();
     const int saved = stack_top_;
     const int cond = CompileExp(repeat_stmt->Exp(), false);
     const int jmp_true = Emit(Op::TESTJMP, cond, 1);
-    Emit(Op::JMP, 0, 0, 0, start - static_cast<int>(cur_proto_->code.size()) - 1);
-    const int end = static_cast<int>(cur_proto_->code.size());
+    Emit(Op::JMP, 0, 0, 0, start - CodeSize() - 1);
+    const int end = CodeSize();
     PatchSbx(jmp_true, end);
     for (int ip: loops_.back().break_jmps) {
         PatchSbx(ip, end);
@@ -989,7 +1015,7 @@ void InterpCodegen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
         FreeTo(saved);
         CompileStmtBlock(block);
         end_jmps.push_back(Emit(Op::JMP));
-        PatchSbx(jmpf, static_cast<int>(cur_proto_->code.size()));
+        PatchSbx(jmpf, CodeSize());
     };
     emit_branch(if_stmt->Exp(), if_stmt->Block());
     if (const auto elseifs_node = if_stmt->ElseIfs()) {
@@ -1001,7 +1027,7 @@ void InterpCodegen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     if (const auto else_block = if_stmt->ElseBlock()) {
         CompileStmtBlock(else_block);
     }
-    const int end = static_cast<int>(cur_proto_->code.size());
+    const int end = CodeSize();
     for (int ip: end_jmps) {
         PatchSbx(ip, end);
     }
@@ -1053,7 +1079,7 @@ void InterpCodegen::CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt) {
     if (sc.defined.contains(name)) {
         ThrowError("label '" + name + "' already defined", stmt);
     }
-    const int ip = static_cast<int>(cur_proto_->code.size());
+    const int ip = CodeSize();
     sc.defined[name] = ip;
     if (const auto it = sc.pending.find(name); it != sc.pending.end()) {
         for (int jmp: it->second) {
@@ -1089,7 +1115,7 @@ void InterpCodegen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     LoopInfo loop;
     loop.kind = LoopInfo::kFor;
     const int prep = Emit(Op::FORPREP, ctrl);
-    const int loop_head = static_cast<int>(cur_proto_->code.size());
+    const int loop_head = CodeSize();
     // 先换新 box。FORLOOP 写 R(A+3) 时会清 box 指针，避免写穿上一轮闭包。
     if (ldef->is_captured) {
         Emit(Op::NEWBOX, ldef->reg);
@@ -1098,13 +1124,13 @@ void InterpCodegen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     loop.continue_ip = -1;
     loops_.push_back(std::move(loop));
     CompileStmtBlock(for_stmt->Block());
-    loops_.back().continue_ip = static_cast<int>(cur_proto_->code.size());
+    loops_.back().continue_ip = CodeSize();
     for (int ip: loops_.back().continue_jmps) {
         PatchSbx(ip, loops_.back().continue_ip);
     }
     const int loop_op = Emit(Op::FORLOOP, ctrl);
     PatchSbx(loop_op, loop_head);
-    const int end = static_cast<int>(cur_proto_->code.size());
+    const int end = CodeSize();
     PatchSbx(prep, end);
     for (int ip: loops_.back().break_jmps) {
         PatchSbx(ip, end);
@@ -1177,7 +1203,7 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         LoadConstTo(idx, interp_rt::Int(1));
         LoopInfo loop;
         loop.kind = LoopInfo::kForIn;
-        const int head = static_cast<int>(cur_proto_->code.size());
+        const int head = CodeSize();
         loop.continue_ip = -1;
         const int vreg = AllocReg();
         Emit(Op::GETTABLE, vreg, tbl, idx);
@@ -1189,7 +1215,7 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         bind_loop_vars(idx, vreg);
         loops_.push_back(std::move(loop));
         CompileStmtBlock(for_in->Block());
-        const int cont = static_cast<int>(cur_proto_->code.size());
+        const int cont = CodeSize();
         loops_.back().continue_ip = cont;
         for (int ip: loops_.back().continue_jmps) {
             PatchSbx(ip, cont);
@@ -1197,8 +1223,8 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         const int one = AllocReg();
         LoadConstTo(one, interp_rt::Int(1));
         Emit(Op::ADD, idx, idx, one);
-        Emit(Op::JMP, 0, 0, 0, head - static_cast<int>(cur_proto_->code.size()) - 1);
-        const int end = static_cast<int>(cur_proto_->code.size());
+        Emit(Op::JMP, 0, 0, 0, head - CodeSize() - 1);
+        const int end = CodeSize();
         PatchSbx(jmp_exit, end);
         for (int ip: loops_.back().break_jmps) {
             PatchSbx(ip, end);
@@ -1214,7 +1240,7 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         LoadConstTo(idx, interp_rt::Int(0));
         LoopInfo loop;
         loop.kind = LoopInfo::kForIn;
-        const int head = static_cast<int>(cur_proto_->code.size());
+        const int head = CodeSize();
         loop.continue_ip = -1;
         const int cmp = AllocReg();
         Emit(Op::LT, cmp, idx, sz);
@@ -1222,7 +1248,7 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         const int kreg = AllocReg();
         const int vreg = AllocReg();
         Emit(Op::TABENT, tbl, kreg, vreg, 0);
-        cur_proto_->code.back().sbx = idx;
+        if (!check_only_) cur_proto_->code.back().sbx = idx;
         const int vnil = AllocReg();
         const int nlit = AllocReg();
         Emit(Op::LOADNIL, nlit);
@@ -1231,7 +1257,7 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         bind_loop_vars(kreg, vreg);
         loops_.push_back(std::move(loop));
         CompileStmtBlock(for_in->Block());
-        const int cont = static_cast<int>(cur_proto_->code.size());
+        const int cont = CodeSize();
         loops_.back().continue_ip = cont;
         for (int ip: loops_.back().continue_jmps) {
             PatchSbx(ip, cont);
@@ -1240,8 +1266,8 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         const int one = AllocReg();
         LoadConstTo(one, interp_rt::Int(1));
         Emit(Op::ADD, idx, idx, one);
-        Emit(Op::JMP, 0, 0, 0, head - static_cast<int>(cur_proto_->code.size()) - 1);
-        const int end = static_cast<int>(cur_proto_->code.size());
+        Emit(Op::JMP, 0, 0, 0, head - CodeSize() - 1);
+        const int end = CodeSize();
         PatchSbx(jmp_exit, end);
         for (int ip: loops_.back().break_jmps) {
             PatchSbx(ip, end);
@@ -1283,7 +1309,7 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
     LoopInfo loop;
     loop.kind = LoopInfo::kForIn;
-    const int head = static_cast<int>(cur_proto_->code.size());
+    const int head = CodeSize();
     loop.continue_ip = head;
     const int base = stack_top_;
     EnsureStack(base + 3);
@@ -1310,13 +1336,13 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     MoveTo(iter_var, first);
     loops_.push_back(std::move(loop));
     CompileStmtBlock(for_in->Block());
-    const int cont = static_cast<int>(cur_proto_->code.size());
+    const int cont = CodeSize();
     loops_.back().continue_ip = cont;
     for (int ip: loops_.back().continue_jmps) {
         PatchSbx(ip, cont);
     }
-    Emit(Op::JMP, 0, 0, 0, head - static_cast<int>(cur_proto_->code.size()) - 1);
-    const int end = static_cast<int>(cur_proto_->code.size());
+    Emit(Op::JMP, 0, 0, 0, head - CodeSize() - 1);
+    const int end = CodeSize();
     PatchSbx(jmp_exit, end);
     for (int ip: loops_.back().break_jmps) {
         PatchSbx(ip, end);
@@ -1392,7 +1418,7 @@ int InterpCodegen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_m
             const int r = dest >= 0 ? dest : AllocReg();
             CVar v{};
             v.type_ = static_cast<int>(VarType::StringId);
-            v.data_.i = s_->GetConstString().Alloc(e->ExpValue());
+            v.data_.i = StringId(e->ExpValue());
             LoadConstTo(r, v);
             return r;
         }
@@ -1482,7 +1508,7 @@ int InterpCodegen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                     const int r = AllocReg();
                     CVar s{};
                     s.type_ = static_cast<int>(VarType::StringId);
-                    s.data_.i = s_->GetConstString().Alloc(kCharPattern);
+                    s.data_.i = StringId(kCharPattern);
                     LoadConstTo(r, s);
                     return r;
                 }
@@ -1509,7 +1535,7 @@ int InterpCodegen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                     const int r = AllocReg();
                     CVar s{};
                     s.type_ = static_cast<int>(VarType::StringId);
-                    s.data_.i = s_->GetConstString().Alloc(kUtf8Pattern);
+                    s.data_.i = StringId(kUtf8Pattern);
                     LoadConstTo(r, s);
                     return r;
                 }
@@ -1520,7 +1546,7 @@ int InterpCodegen::CompileVar(const SyntaxTreeInterfacePtr &v) {
     const int k = AllocReg();
     CVar key{};
     key.type_ = static_cast<int>(VarType::StringId);
-    key.data_.i = s_->GetConstString().Alloc(name);
+    key.data_.i = StringId(name);
     LoadConstTo(k, key);
     const int r = AllocReg();
     Emit(Op::GETTABLE, r, t, k);
@@ -1630,7 +1656,7 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
         const int k = AllocReg();
         CVar key{};
         key.type_ = static_cast<int>(VarType::StringId);
-        key.data_.i = s_->GetConstString().Alloc(fc->Name());
+        key.data_.i = StringId(fc->Name());
         LoadConstTo(k, key);
         const int method = AllocReg();
         Emit(Op::GETTABLE, method, method_obj, k);
@@ -1707,7 +1733,7 @@ int InterpCodegen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 const int k = AllocReg();
                 CVar key{};
                 key.type_ = static_cast<int>(VarType::StringId);
-                key.data_.i = s_->GetConstString().Alloc(field_ptr->Name());
+                key.data_.i = StringId(field_ptr->Name());
                 LoadConstTo(k, key);
                 Emit(Op::SETTABLE, tbl, k, val);
             } else if (const auto key = field_ptr->Key()) {
@@ -1738,9 +1764,9 @@ int InterpCodegen::CompileBinop(const SyntaxTreeInterfacePtr &exp, int dest) {
         const int right = CompileExp(e->Right(), false);
         MoveTo(result, right);
         const int jmp_end = Emit(Op::JMP);
-        PatchSbx(jmp, static_cast<int>(cur_proto_->code.size()));
+        PatchSbx(jmp, CodeSize());
         MoveTo(result, left);
-        PatchSbx(jmp_end, static_cast<int>(cur_proto_->code.size()));
+        PatchSbx(jmp_end, CodeSize());
         return result;
     }
     const int left = CompileExp(e->Left(), false);
@@ -1835,8 +1861,16 @@ int InterpCodegen::CompileUnop(const SyntaxTreeInterfacePtr &exp, int dest) {
     return r;
 }
 
-void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, const CompileConfig &cfg) {
-    (void)cfg;
+void InterpCodegen::Build(const ParseResult &pr, const AnalysisResult &ar) {
+    Walk(pr, ar);
+}
+
+void InterpCodegen::CheckRegisterLimit(const ParseResult &pr, const AnalysisResult &ar) {
+    check_only_ = true;
+    Walk(pr, ar);
+}
+
+void InterpCodegen::Walk(const ParseResult &pr, const AnalysisResult &ar) {
     file_name_ = pr.file_name;
     ar_ = &ar;
 
@@ -1883,10 +1917,12 @@ void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, co
         if (!func->unique_c_name.empty()) file_func_sigs_[func->unique_c_name] = sig;
     }
 
-    auto unit = std::make_shared<InterpUnit>();
-    unit->state = s_;
-    unit->file_name = pr.file_name;
-    unit_ = unit.get();
+    if (!check_only_) {
+        unit_hold_ = std::make_shared<InterpUnit>();
+        unit_hold_->state = s_;
+        unit_hold_->file_name = pr.file_name;
+        unit_ = unit_hold_.get();
+    }
 
     if (pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block) {
         const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
@@ -1901,7 +1937,9 @@ void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, co
             for (size_t i = 0; i < nl->Names().size(); ++i) {
                 const auto &name = nl->Names()[i];
                 file_level_names_.insert(name);
-                unit_->globals[name] = (i < exps.size()) ? LiteralFromExp(exps[i]) : interp_rt::Nil();
+                if (!check_only_) {
+                    unit_->globals[name] = (i < exps.size()) ? LiteralFromExp(exps[i]) : interp_rt::Nil();
+                }
             }
         }
     }
@@ -1911,8 +1949,14 @@ void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, co
             CompileFunction(func.get());
         }
     }
+}
 
-    const auto handle = std::static_pointer_cast<JITHandle>(unit);
+void InterpCodegen::RegisterAndInit() {
+    if (!unit_hold_ || !unit_) {
+        ThrowFakeluaException("interpreter: RegisterAndInit called before Build");
+    }
+
+    const auto handle = std::static_pointer_cast<JITHandle>(unit_hold_);
     for (const auto &func: all_funcs_) {
         if (func->parent != nullptr || !func->proto) continue;
         const std::string &c_name = func->unique_c_name;
@@ -1934,5 +1978,15 @@ void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, co
         InterpreterExecute(s_, unit_->init_proto, nullptr, 0, nullptr);
     }
 }
+
+void InterpCodegen::Generate(const ParseResult &pr, const AnalysisResult &ar, const CompileConfig &cfg) {
+    if (!cfg.disable_jit[JIT_INTERP]) {
+        Build(pr, ar);
+        RegisterAndInit();
+    } else {
+        CheckRegisterLimit(pr, ar);
+    }
+}
+
 
 }// namespace fakelua

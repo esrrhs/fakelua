@@ -4,6 +4,13 @@
 
 namespace fakelua {
 
+// JIT_INTERP 每函数寄存器槽：Inst::a/b/c 为 uint8_t，下标 0..kMaxFunctionRegisterIndex。
+// 计量的是 InterpCodegen 高峰并发槽（形参 + AllocLocal + AllocReg 临时），不是「用户 local 声明数」
+// 或 C 后端临时变量数；预处理插入的 __fakelua_tmp_* 等也会占 AllocLocal。
+// 常量池走 sbx(int32)，不受此上限约束。
+inline constexpr int kMaxFunctionRegisterIndex = 255;
+inline constexpr int kMaxFunctionRegisters = kMaxFunctionRegisterIndex + 1;
+
 // 寄存器字节码指令。布局参考 fakescript 的三地址形式，操作数以寄存器槽为主。
 // X-macro 同时驱动 enum 与解释器 computed-goto 跳转表，新增 opcode 必须加在这里。
 #define FAKELUA_FOR_EACH_OP(X) \

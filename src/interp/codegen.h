@@ -18,6 +18,16 @@ class InterpCodegen {
 public:
     explicit InterpCodegen(State *s);
 
+    // 只生成字节码并做寄存器高峰检查；不注册 VM、不跑 __fakelua_init。
+    void Build(const ParseResult &pr, const AnalysisResult &ar);
+
+    // 复用相同 AST/寄存器分配遍历；不创建字节码、原型、常量池，不访问 State。
+    void CheckRegisterLimit(const ParseResult &pr, const AnalysisResult &ar);
+
+    // 注册 JIT_INTERP 并执行 init。须在 TCC/GCC 注册完成之后调用，且同一实例已 Build。
+    void RegisterAndInit();
+
+    // Build + RegisterAndInit（仅解释器单测等便捷路径）。
     void Generate(const ParseResult &pr, const AnalysisResult &ar, const CompileConfig &cfg);
 
 private:
@@ -48,6 +58,7 @@ private:
         std::vector<VarDef *> captured_vars;
         std::unordered_set<VarDef *> captured_set;
         FuncProto *proto = nullptr;
+        bool compiled = false;
     };
 
     struct PairHash {
@@ -95,6 +106,10 @@ private:
     int EmitClosure(FuncInfo *child);
     void EmitCallArgs(const std::shared_ptr<class SyntaxTreeArgs> &args_ptr, std::vector<int> &arg_regs, bool &last_expand);
 
+    void Walk(const ParseResult &pr, const AnalysisResult &ar);
+    int CodeSize() const;
+    int64_t StringId(const std::string &s);
+
     int AllocReg();
     int AllocLocal();
     void FreeTo(int top);
@@ -124,10 +139,14 @@ private:
 
     static const std::unordered_set<std::string> kStringLibraryMethods;
 
+    bool check_only_ = false;
+    int check_ip_ = 0; // 控制流位置占位，无指令流
     State *s_ = nullptr;
     std::string file_name_;
     const AnalysisResult *ar_ = nullptr;
     InterpUnit *unit_ = nullptr;
+    // Build 持有；RegisterAndInit 交给 VM handle 续命。校验-only 路径随本对象析构丢弃。
+    std::shared_ptr<InterpUnit> unit_hold_;
 
     std::vector<std::unique_ptr<VarDef>> all_defs_;
     std::vector<std::unique_ptr<FuncInfo>> all_funcs_;
