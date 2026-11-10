@@ -1,4 +1,5 @@
 #include "compile/semantic_analysis.h"
+#include "compile/register_limit.h"
 #include "state/state.h"
 #include "util/common.h"
 #include "util/exception.h"
@@ -62,6 +63,10 @@ AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileCon
             }
         }
     });
+
+    // 每函数寄存器高峰：与解释器 AllocLocal/AllocReg/FreeTo 寿命规则相同，
+    // 作为语言约束在语义分析阶段统一门禁，TCC/GCC 不再依赖解释器 codegen。
+    CheckFunctionRegisterLimits(pr, ar);
 
     return ar;
 }

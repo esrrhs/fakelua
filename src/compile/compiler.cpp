@@ -84,34 +84,22 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     TypeInferencer inferencer(s_);
     InferResult ir = inferencer.InferTypes(pr, ar, cfg);
 
-    // 6. 寄存器高峰检查：须在 TCC/GCC 副作用之前。
-    // 计量 InterpCodegen 并发寄存器槽（0..kMaxFunctionRegisterIndex）；含预处理插入的
-    // __fakelua_tmp_* 等语义临时 local，不是 C 后端临时变量数，也不是用户 local 声明数。
-    // 仅 C/JIT 时走 CheckRegisterLimit（同一套 Alloc* 规则，不生成字节码/常量池）。
-    // 启用 INTERP 时 step 6 一次 Build，step 8b 复用，不二次生成；注册/init 仍在 C JIT 之后。
+    // 寄存器高峰已在 step 4 的 SemanticAnalysis::Analyze 中按共享 Alloc* 规则检查。
     const bool need_c = !cfg.disable_jit[JIT_TCC] || !cfg.disable_jit[JIT_GCC] || cfg.record_c_code;
     const bool want_interp = !cfg.disable_jit[JIT_INTERP];
-    InterpCodegen icgen(s_);
-    if (want_interp) {
-        LOG_DEBUG(s_, "engine", "step 6: interpreter bytecode Build");
-        icgen.Build(pr, ar);
-    } else if (need_c) {
-        LOG_DEBUG(s_, "engine", "step 6: register limit check (no bytecode)");
-        icgen.CheckRegisterLimit(pr, ar);
-    }
 
-    // 7. 转译为C（TCC/GCC 需要；仅解释器时跳过）
+    // 6. 转译为C（TCC/GCC 需要；仅解释器时跳过）
     GenResult gr;
     if (need_c) {
-        LOG_DEBUG(s_, "engine", "step 7: C code generation");
+        LOG_DEBUG(s_, "engine", "step 6: C code generation");
         CGen cgen(s_);
         gr = cgen.Generate(pr, ir, ar, cfg);
     } else {
-        LOG_DEBUG(s_, "engine", "step 7: skip C code generation (interpreter only)");
+        LOG_DEBUG(s_, "engine", "step 6: skip C code generation (interpreter only)");
     }
 
-    // 8. JIT 编译（TCC/GCC）——保持原有「先 C 后端注册」顺序
-    LOG_DEBUG(s_, "engine", "step 8: JIT compilation (TCC={}, GCC={})", !cfg.disable_jit[JIT_TCC], !cfg.disable_jit[JIT_GCC]);
+    // 7. JIT 编译（TCC/GCC）——保持原有「先 C 后端注册」顺序
+    LOG_DEBUG(s_, "engine", "step 7: JIT compilation (TCC={}, GCC={})", !cfg.disable_jit[JIT_TCC], !cfg.disable_jit[JIT_GCC]);
     if (need_c && !cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(pr, gr, cfg);
@@ -121,10 +109,11 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
         jitter.Compile(pr, gr, cfg);
     }
 
-    // 8b. INTERP 注册 + init（在 C JIT 之后，避免改变 init 可见顺序）
+    // 8. INTERP 字节码 + 注册 + init（在 C JIT 之后，避免改变 init 可见顺序）
     if (want_interp) {
-        LOG_DEBUG(s_, "engine", "step 8b: interpreter RegisterAndInit");
-        icgen.RegisterAndInit();
+        LOG_DEBUG(s_, "engine", "step 8: interpreter Build + RegisterAndInit");
+        InterpCodegen icgen(s_);
+        icgen.Generate(pr, ar, cfg);
     }
 
     if (cfg.record_c_code) {
