@@ -1,7 +1,11 @@
 #include <gtest/gtest.h>
+#include <string>
 
 #include "fakelua.h"
 #include "test_jit.h"
+#include "compile/compiler.h"
+#include "compile/preprocessor.h"
+#include "compile/semantic_analysis.h"
 
 using namespace fakelua;
 
@@ -1416,3 +1420,184 @@ TEST(test_basic, heap_offset_sync_string_keys_and_rehash) {
     FakeluaDeleteState(s);
 }
 
+
+// 寄存器高峰门禁：SemanticAnalysis::CheckRegisterLimits 在 Analyze 中按与 InterpCodegen
+// 相同的 AllocLocal/AllocReg/FreeTo 寿命规则检查，与 JIT_INTERP 的 Inst::a/b/c(uint8) 对齐。
+// 计量 = 高峰并发槽（形参 + AllocLocal + AllocReg 临时）。
+// 包含语义分析/预处理插入的临时 local（如 __fakelua_tmp_*、__fakelua_lhs_*），
+// 不是「源码里用户写的 local 个数」，更不是 C 后端临时 C 变量个数。
+// 复杂相邻夹具 pad=234 OK / pad=235 over（table/调用/多赋值+下标 LHS）；
+// exact 夹具另证 256 槽 vs 第 257 次 AllocLocal。
+TEST(test_basic, reg_limit_ok_all_backends) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    ASSERT_NO_THROW(CompileFile(s, "./basic/test_reg_limit_ok.lua", {}));
+    for (auto jit_type: AllJitTypes()) {
+        double res = 0;
+        Call(s, jit_type, "test_reg_limit", res);
+        // sum(1..234) + a + b + t[1] = 27495 + 1 + 2 + 2
+        EXPECT_NEAR(res, 27500.0, 0.5) << "jit=" << JitTypeName(jit_type);
+    }
+    FakeluaDeleteState(s);
+}
+
+static void ExpectRegLimitThrow(CompileConfig cfg, const char *label) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr) << label;
+    try {
+        CompileFile(s, "./basic/test_reg_limit_over.lua", cfg);
+        FAIL() << label << ": expected compile to throw too many registers";
+    } catch (const std::exception &e) {
+        EXPECT_NE(std::string(e.what()).find("too many registers"), std::string::npos) << label << " what=" << e.what();
+    }
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, reg_limit_over_consistent_across_backend_gates) {
+    CompileConfig all{};
+    ExpectRegLimitThrow(all, "all backends enabled");
+
+    CompileConfig no_interp{};
+    no_interp.disable_jit[JIT_INTERP] = true;
+    ExpectRegLimitThrow(no_interp, "INTERP disabled (TCC/GCC only)");
+
+    CompileConfig only_interp{};
+    only_interp.disable_jit[JIT_TCC] = true;
+    only_interp.disable_jit[JIT_GCC] = true;
+    ExpectRegLimitThrow(only_interp, "INTERP only");
+}
+
+TEST(test_basic, reg_limit_nested_over) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    try {
+        CompileFile(s, "./basic/test_reg_limit_nested_over.lua", {});
+        FAIL() << "expected nested over-limit function to throw";
+    } catch (const std::exception &e) {
+        EXPECT_NE(std::string(e.what()).find("too many registers"), std::string::npos) << e.what();
+    }
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, reg_limit_many_constants_allowed) {
+    // 常量池走 sbx(int32)，>256 个互异常量在寄存器高峰不高时应可通过。
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    ASSERT_NO_THROW(CompileFile(s, "./basic/test_reg_limit_many_constants.lua", {}));
+    for (auto jit_type: AllJitTypes()) {
+        double res = 0;
+        Call(s, jit_type, "test_reg_limit_many_constants", res);
+        EXPECT_NEAR(res, 301.0, 0.5) << "jit=" << JitTypeName(jit_type);
+    }
+    FakeluaDeleteState(s);
+}
+
+
+// Exact 256 vs 257 AllocLocal slots (indices 0..255 vs 第 257 次 AllocLocal 失败)。
+// 无公开 introspection：靠「256 个 local + return u256」与「257 个 local」相邻证明槽位上限。
+TEST(test_basic, reg_limit_exact_256_ok) {
+    State *s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    ASSERT_NO_THROW(CompileFile(s, "./basic/test_reg_limit_exact_ok.lua", {}));
+    for (auto jit_type: AllJitTypes()) {
+        double res = 0;
+        Call(s, jit_type, "test_reg_limit_exact", res);
+        EXPECT_NEAR(res, 256.0, 0.5) << "jit=" << JitTypeName(jit_type);
+    }
+    FakeluaDeleteState(s);
+}
+
+TEST(test_basic, reg_limit_exact_257_over_all_gates) {
+    auto expect_throw = [](CompileConfig cfg, const char *label) {
+        State *s = FakeluaNewState();
+        ASSERT_NE(s, nullptr) << label;
+        try {
+            CompileFile(s, "./basic/test_reg_limit_exact_over.lua", cfg);
+            FAIL() << label << ": expected too many registers";
+        } catch (const std::exception &e) {
+            EXPECT_NE(std::string(e.what()).find("too many registers"), std::string::npos) << label << " what=" << e.what();
+        }
+        FakeluaDeleteState(s);
+    };
+    expect_throw({}, "all backends");
+    CompileConfig no_interp{};
+    no_interp.disable_jit[JIT_INTERP] = true;
+    expect_throw(no_interp, "INTERP disabled");
+    CompileConfig only_interp{};
+    only_interp.disable_jit[JIT_TCC] = true;
+    only_interp.disable_jit[JIT_GCC] = true;
+    expect_throw(only_interp, "INTERP only");
+}
+
+// 高峰检查在 SemanticAnalysis::Analyze -> CheckRegisterLimits 中完成：
+// 不生成字节码、不创建原型/常量串、不注册 VM、不跑 init。
+TEST(test_basic, reg_limit_check_without_state) {
+    const char *accepted[] = {
+        "./basic/test_reg_limit_ok.lua",
+        "./basic/test_reg_limit_exact_ok.lua",
+        "./basic/test_reg_limit_many_constants.lua",
+        "./basic/test_init_load_table.lua",
+        "./closure/test_closure_nested.lua",
+        "./basic/test_basic_pairs.lua",
+    };
+    for (const char *file: accepted) {
+        SCOPED_TRACE(file);
+        FakeluaStateGuard guard;
+        Compiler compiler(guard.GetState());
+        CompileConfig parse_only{};
+        parse_only.skip_jit = true;
+        auto pr = compiler.CompileFile(file, parse_only);
+        PreProcessor pp(guard.GetState());
+        pp.Process(pr, {});
+        SemanticAnalysis semantic(guard.GetState());
+        AnalysisResult ar;
+        ASSERT_NO_THROW(ar = semantic.Analyze(pr, {}));
+    }
+    const char *rejected[] = {
+        "./basic/test_reg_limit_over.lua",
+        "./basic/test_reg_limit_exact_over.lua",
+        "./basic/test_reg_limit_nested_over.lua",
+    };
+    for (const char *file: rejected) {
+        SCOPED_TRACE(file);
+        FakeluaStateGuard guard;
+        Compiler compiler(guard.GetState());
+        CompileConfig parse_only{};
+        parse_only.skip_jit = true;
+        auto pr = compiler.CompileFile(file, parse_only);
+        PreProcessor pp(guard.GetState());
+        pp.Process(pr, {});
+        SemanticAnalysis semantic(guard.GetState());
+        try {
+            semantic.Analyze(pr, {});
+            FAIL() << "expected register limit failure in semantic analysis";
+        } catch (const std::exception &e) {
+            EXPECT_NE(std::string(e.what()).find("too many registers"), std::string::npos) << e.what();
+        }
+    }
+}
+
+TEST(test_basic, reg_limit_jit_only_execution) {
+    struct Case { const char *file; const char *fn; double expected; };
+    const Case cases[] = {
+        {"./basic/test_reg_limit_ok.lua", "test_reg_limit", 27500},
+        {"./basic/test_reg_limit_exact_ok.lua", "test_reg_limit_exact", 256},
+        {"./basic/test_reg_limit_many_constants.lua", "test_reg_limit_many_constants", 301},
+        {"./basic/test_init_load_table.lua", "InitLoadTable.test_init_load_table", 1},
+    };
+    CompileConfig cfg{};
+    cfg.disable_jit[JIT_INTERP] = true;
+    for (const auto &c: cases) {
+        SCOPED_TRACE(c.file);
+        FakeluaStateGuard guard;
+        auto s = guard.GetState();
+        ASSERT_NO_THROW(CompileFile(s, c.file, cfg));
+        for (auto jit: {JIT_TCC, JIT_GCC}) {
+            double result = 0;
+            ASSERT_NO_THROW(Call(s, jit, c.fn, result));
+            EXPECT_EQ(result, c.expected) << JitTypeName(jit);
+        }
+    }
+    FakeluaStateGuard guard;
+    EXPECT_THROW(CompileFile(guard.GetState(), "./basic/test_reg_limit_nested_over.lua", cfg), std::exception);
+}

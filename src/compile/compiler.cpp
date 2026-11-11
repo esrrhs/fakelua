@@ -84,8 +84,11 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     TypeInferencer inferencer(s_);
     InferResult ir = inferencer.InferTypes(pr, ar, cfg);
 
-    // 6. 转译为C（TCC/GCC 需要；仅解释器时跳过）
+    // 寄存器高峰已在 step 4 的 SemanticAnalysis::Analyze（CheckRegisterLimits）中按 Alloc* 寿命规则检查。
     const bool need_c = !cfg.disable_jit[JIT_TCC] || !cfg.disable_jit[JIT_GCC] || cfg.record_c_code;
+    const bool want_interp = !cfg.disable_jit[JIT_INTERP];
+
+    // 6. 转译为C（TCC/GCC 需要；仅解释器时跳过）
     GenResult gr;
     if (need_c) {
         LOG_DEBUG(s_, "engine", "step 6: C code generation");
@@ -95,8 +98,8 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
         LOG_DEBUG(s_, "engine", "step 6: skip C code generation (interpreter only)");
     }
 
-    // 7. JIT编译
-    LOG_DEBUG(s_, "engine", "step 7: JIT compilation (TCC={}, GCC={}, INTERP={})", !cfg.disable_jit[JIT_TCC], !cfg.disable_jit[JIT_GCC], !cfg.disable_jit[JIT_INTERP]);
+    // 7. JIT 编译（TCC/GCC）——保持原有「先 C 后端注册」顺序
+    LOG_DEBUG(s_, "engine", "step 7: JIT compilation (TCC={}, GCC={})", !cfg.disable_jit[JIT_TCC], !cfg.disable_jit[JIT_GCC]);
     if (need_c && !cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(pr, gr, cfg);
@@ -105,8 +108,10 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
         GccJitter jitter(s_);
         jitter.Compile(pr, gr, cfg);
     }
-    if (!cfg.disable_jit[JIT_INTERP]) {
-        LOG_DEBUG(s_, "engine", "step 7b: interpreter bytecode generation");
+
+    // 8. INTERP 字节码 + 注册 + init（在 C JIT 之后，避免改变 init 可见顺序）
+    if (want_interp) {
+        LOG_DEBUG(s_, "engine", "step 8: interpreter Build + RegisterAndInit");
         InterpCodegen icgen(s_);
         icgen.Generate(pr, ar, cfg);
     }

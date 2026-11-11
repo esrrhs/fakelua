@@ -1113,8 +1113,11 @@ TEST(exception, test_break_error) {
         CompileFile(s, "./exception/test_break_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("compile") != std::string::npos);
+        const std::string msg = e.what();
+        std::cout << msg << std::endl;
+        // Diagnosed in semantic analysis (same loop_depth walk as continue),
+        // not by a later C-compiler "compile error" or a stack-trace path.
+        ASSERT_TRUE(msg.find("'break' statement not inside a loop") != std::string::npos) << msg;
     }
 }
 
