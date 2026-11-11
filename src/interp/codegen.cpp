@@ -851,6 +851,13 @@ void InterpCodegen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
         return;
     }
     if (exps.size() == 1) {
+        // Lua 语义：`return f(...)` 是尾调用；`return (f(...))` 不是（括号是 kExp）。
+        if (IsFunctionCallExp(exps[0])) {
+            const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[0]);
+            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
+            CompileFunctioncall(pe->GetValue(), true, true);
+            return;
+        }
         const int r = CompileExp(exps[0], true);
         Emit(Op::RETURN, r, 0);
         return;
@@ -1572,7 +1579,7 @@ void InterpCodegen::EmitCallArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr
     }
 }
 
-int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall, bool preserve_multi) {
+int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall, bool preserve_multi, bool is_tail) {
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
     const auto pe_pre_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
@@ -1580,6 +1587,26 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
 
     std::vector<int> arg_regs;
     bool last_expand = false;
+    auto self_tail_c = [&](int n, bool named, const std::string &name, bool self_closure) -> int {
+        if (!is_tail || last_expand || !cur_func_ || cur_func_->is_vararg || !cur_func_->proto) {
+            return 0;
+        }
+        if (n != cur_func_->proto->param_count) {
+            return 0;
+        }
+        if (self_closure) {
+            return kTailSelfExact;
+        }
+        if (named && !name.empty()) {
+            if (name == cur_func_->name || name == cur_func_->unique_c_name) {
+                return kTailSelfExact;
+            }
+            if (!cur_package_name_.empty() && !cur_func_->name.empty() && name == cur_package_name_ + "." + cur_func_->name) {
+                return kTailSelfExact;
+            }
+        }
+        return 0;
+    };
     auto place_callname = [&](const std::string &name, const std::vector<int> &args) {
         const int n = static_cast<int>(args.size());
         // 末尾是 f() / ... 这类展开时实参个数运行期才知道，检查不了。
@@ -1602,11 +1629,12 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
             }
             stack_top_ = base + n;
         }
-        Emit(Op::CALLNAME, base, n, unbox, AddStringConst(name));
+        const int c = is_tail ? self_tail_c(n, true, name, false) : unbox;
+        Emit(is_tail ? Op::TAILNAME : Op::CALLNAME, base, n, c, AddStringConst(name));
         stack_top_ = base + 1;
         return base;
     };
-    auto place_call = [&](int fn, const std::vector<int> &args) {
+    auto place_call = [&](int fn, const std::vector<int> &args, bool self_closure = false) {
         const int n = static_cast<int>(args.size());
         const int base = stack_top_;
         EnsureStack(base + 1 + n);
@@ -1615,7 +1643,8 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
             MoveTo(base + 1 + i, args[i]);
         }
         stack_top_ = base + 1 + n;
-        Emit(Op::CALL, base, n, unbox);
+        const int c = is_tail ? self_tail_c(n, false, {}, self_closure) : unbox;
+        Emit(is_tail ? Op::TAIL : Op::CALL, base, n, c);
         stack_top_ = base + 1;
         return base;
     };
@@ -1631,6 +1660,9 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
             Emit(Op::SETTABLE, t, k, val);
             const int r = AllocReg();
             Emit(Op::LOADNIL, r);
+            if (is_tail) {
+                Emit(Op::RETURN, r, 1);
+            }
             return r;
         }
     }
@@ -1707,7 +1739,13 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
     } else {
         fn = CompilePrefixexp(fc->prefixexp(), false);
     }
-    return place_call(fn, arg_regs);
+    bool self_closure = false;
+    if (is_tail && is_local_callee && var_ptr && cur_func_ && cur_func_->node) {
+        if (const auto it = var_to_def_map_.find(var_ptr); it != var_to_def_map_.end() && it->second->def_node == cur_func_->node) {
+            self_closure = true;
+        }
+    }
+    return place_call(fn, arg_regs, self_closure);
 }
 
 int InterpCodegen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {

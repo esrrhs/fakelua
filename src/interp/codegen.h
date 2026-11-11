@@ -98,7 +98,7 @@ protected:
     int CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_multi = false, int dest = -1);
     int CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preserve_multi, int dest = -1);
     int CompileVar(const SyntaxTreeInterfacePtr &v);
-    int CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall, bool preserve_multi);
+    int CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall, bool preserve_multi, bool is_tail = false);
     int CompileTableconstructor(const SyntaxTreeInterfacePtr &tc);
     int CompileBinop(const SyntaxTreeInterfacePtr &exp, int dest = -1);
     int CompileUnop(const SyntaxTreeInterfacePtr &exp, int dest = -1);

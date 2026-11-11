@@ -7,6 +7,7 @@
 #include "state/const_string.h"
 #include "state/state.h"
 #include "util/exception.h"
+#include "util/macro.h"
 #include "var/var.h"
 #include "var/var_closure.h"
 #include "var/var_multi.h"
@@ -75,6 +76,318 @@ void AnnotateInterpLocation(FuncProto *proto, const Inst *ip, FakeluaException &
         return;
     }
     e.SetLoc(std::format("{}:{}", proto->unit->file_name, line));
+}
+
+// 解释器帧内再调解释器：当前引擎通常已是 INTERP，错误位置走 lineinfo，
+// 不必再套 DispatchCall 的 JitContextScope / LuaLocScope。若从尚未切换引擎
+// 的入口进来（例如 init），先把 CurrentJit 设成 INTERP 再执行。
+CVar InterpExecuteInContext(State *s, FuncProto *proto, const CVar *args, int arg_count, VarClosure *cl) {
+    if (s->CurrentJit() != JIT_INTERP) {
+        State::JitContextScope jit_scope(s, JIT_INTERP);
+        return InterpreterExecute(s, proto, args, arg_count, cl);
+    }
+    return InterpreterExecute(s, proto, args, arg_count, cl);
+}
+
+// 文件级 / 全局命名调用的快路径：签名匹配且目标是 INTERP 原型时直接 InterpreterExecute，
+// 跳过 CallByName 的 VmFunction 拷贝、GuardJitEntry 与参数再装箱。
+// 变参、末参 Multi、参数个数不一致、原生函数或无 INTERP 地址时返回 false，由调用方走 CallByNameArgs。
+bool TryInterpNamedCall(State *s, std::string_view name, const CVar *args, int nargs, CVar &ret) {
+    const VmFunction *fn = s->GetVM().FindFunction(name);
+    if (!fn) {
+        return false;
+    }
+    void *addr = fn->GetAddr(JIT_INTERP);
+    if (!addr || fn->IsVararg()) {
+        return false;
+    }
+    const int expected = fn->GetArgCount();
+    const bool last_is_multi = (nargs > 0 && args[nargs - 1].type_ == static_cast<int>(VarType::Multi));
+    if (last_is_multi || nargs != expected) {
+        return false;
+    }
+    ret = InterpExecuteInContext(s, AsInterpProto(addr), args, nargs, nullptr);
+    return true;
+}
+
+// 尾调用跨 InterpreterExecuteT 模板（无 boxes 的帧尾调到 uses_boxes 函数）
+// 或需要在根帧重新 reserve 时，通过此槽把目标原型交还给 InterpreterExecute 的外层循环。
+// 不增加 C 栈深度。
+struct InterpTailJob {
+    bool pending = false;
+    FuncProto *proto = nullptr;
+    VarClosure *cl = nullptr;
+    int arg_count = 0;
+    CVar args[kMaxFunctionInputParams]{};
+};
+thread_local InterpTailJob g_interp_tail;
+
+void RequestTailTrampoline(FuncProto *new_proto, VarClosure *new_cl, const CVar *args, int arg_count) {
+    g_interp_tail.pending = true;
+    g_interp_tail.proto = new_proto;
+    g_interp_tail.cl = new_cl;
+    g_interp_tail.arg_count = arg_count;
+    for (int i = 0; i < arg_count; ++i) {
+        g_interp_tail.args[i] = args[i];
+    }
+}
+
+int FlattenByNameArgs(const CVar *raw, int arg_num, CVar *flat) {
+    int flat_count = 0;
+    for (int i = 0; i < arg_num; ++i) {
+        if (i == arg_num - 1 && raw[i].type_ == static_cast<int>(VarType::Multi)) {
+            VarMulti *m = raw[i].data_.m;
+            const int extra = m ? static_cast<int>(m->GetCount()) : 0;
+            if (flat_count + extra > static_cast<int>(kMaxFunctionInputParams)) {
+                ThrowFakeluaException(std::format("interpreter: too many arguments ({}), max is {}", flat_count + extra, kMaxFunctionInputParams));
+            }
+            if (m) {
+                for (uint32_t j = 0; j < m->GetCount(); ++j) {
+                    flat[flat_count++] = m->GetVars()[j];
+                }
+            }
+        } else if (raw[i].type_ == static_cast<int>(VarType::Multi)) {
+            VarMulti *m = raw[i].data_.m;
+            if (flat_count >= static_cast<int>(kMaxFunctionInputParams)) {
+                ThrowFakeluaException(std::format("interpreter: too many arguments, max is {}", kMaxFunctionInputParams));
+            }
+            flat[flat_count++] = (m && m->GetCount() > 0) ? m->GetVars()[0] : interp_rt::Nil();
+        } else {
+            if (flat_count >= static_cast<int>(kMaxFunctionInputParams)) {
+                ThrowFakeluaException(std::format("interpreter: too many arguments, max is {}", kMaxFunctionInputParams));
+            }
+            flat[flat_count++] = raw[i];
+        }
+    }
+    return flat_count;
+}
+
+// 按闭包签名装箱（与 DispatchCallClosure 一致）：变参打进最后的 Multi，缺参补 nil，多余丢掉。
+int PackClosureCallArgs(State *s, VarClosure *cl, const CVar *flat, int flat_count, CVar *packed) {
+    const int expected = cl->expected_arg_count;
+    if (expected < 0 || expected > static_cast<int>(kMaxFunctionInputParams)) {
+        ThrowFakeluaException("too many arguments");
+    }
+    if (cl->is_vararg) {
+        const int fixed = (expected > 0) ? (expected - 1) : 0;
+        for (int i = 0; i < fixed; ++i) {
+            packed[i] = (i < flat_count) ? flat[i] : interp_rt::Nil();
+        }
+        const int extra = (flat_count > fixed) ? (flat_count - fixed) : 0;
+        CVar multi = inter::AllocMultiCVar(s, extra);
+        for (int i = 0; i < extra; ++i) {
+            inter::SetMultiCVarElement(multi, i, flat[fixed + i]);
+        }
+        packed[fixed] = multi;
+        return (expected > 0) ? expected : 1;
+    }
+    for (int i = 0; i < expected; ++i) {
+        packed[i] = (i < flat_count) ? flat[i] : interp_rt::Nil();
+    }
+    return expected;
+}
+
+// 按 CallByName 规则装箱：非变参且末参不是 Multi 时实参个数必须精确匹配。
+int PackNamedCallArgs(State *s, std::string_view name, bool is_vararg, int expected, const CVar *raw, int raw_n, const CVar *flat, int flat_count, CVar *packed) {
+    if (expected < 0 || expected > static_cast<int>(kMaxFunctionInputParams)) {
+        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' declares too many parameters ({}), max is {}", name, expected, kMaxFunctionInputParams));
+    }
+    const int fixed = is_vararg ? std::max(0, expected - 1) : expected;
+    const bool last_is_multi = (raw_n > 0 && raw[raw_n - 1].type_ == static_cast<int>(VarType::Multi));
+    if (is_vararg) {
+        for (int i = 0; i < fixed; ++i) {
+            packed[i] = (i < flat_count) ? flat[i] : interp_rt::Nil();
+        }
+        const int vararg_count = std::max(0, flat_count - fixed);
+        CVar multi = inter::AllocMultiCVar(s, vararg_count);
+        for (int i = 0; i < vararg_count; ++i) {
+            inter::SetMultiCVarElement(multi, i, flat[fixed + i]);
+        }
+        packed[fixed] = multi;
+        return expected;
+    }
+    if (!last_is_multi && flat_count != expected) {
+        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected, flat_count));
+    }
+    for (int i = 0; i < expected; ++i) {
+        packed[i] = (i < flat_count) ? flat[i] : interp_rt::Nil();
+    }
+    return expected;
+}
+
+// 在本 InterpreterExecuteT 帧内切到新的 INTERP 原型；需要换 HasBoxes 模板或扩容时走 trampoline。
+// 成功且应继续分发返回 true（已更新 proto/cl/ip/stk）；应 return ret 则返回 false。
+template<bool HasBoxes>
+bool ApplyInterpTail(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const stk, CVar **const boxp, size_t saved, const Inst *&ip, FuncProto *new_proto, VarClosure *new_cl, const CVar *args, int arg_count, CVar &ret) {
+    if (!new_proto) {
+        ThrowFakeluaException("interpreter: null function prototype");
+    }
+    CVar copy[kMaxFunctionInputParams];
+    for (int i = 0; i < arg_count; ++i) {
+        copy[i] = args[i];
+    }
+    if (new_proto->uses_boxes && !HasBoxes) {
+        RequestTailTrampoline(new_proto, new_cl, copy, arg_count);
+        ret = {};
+        return false;
+    }
+    const size_t new_slots = static_cast<size_t>(std::max(new_proto->max_stack, new_proto->param_count)) + 8;
+    const size_t need = saved + new_slots;
+    // 不在本帧 realloc：父帧可能仍持有 data() 指针。容量不够就 trampoline（根帧）或报溢出。
+    // 因此 stk/boxp 地址不变，热路径可以把它们当成不变指针。
+    if (need > g_interp_stack.capacity()) {
+        if (saved == 0) {
+            RequestTailTrampoline(new_proto, new_cl, copy, arg_count);
+            ret = {};
+            return false;
+        }
+        ThrowFakeluaException("interpreter stack overflow");
+    }
+    if (HasBoxes && need > g_interp_boxes.capacity()) {
+        if (g_interp_boxed_frames > 1) {
+            ThrowFakeluaException("interpreter stack overflow");
+        }
+        RequestTailTrampoline(new_proto, new_cl, copy, arg_count);
+        ret = {};
+        return false;
+    }
+    if (need > g_interp_top) {
+        g_interp_stack.resize(need);
+    }
+    g_interp_top = need;
+    const int nparam = new_proto->param_count;
+    // 形参马上覆盖，不必先清；只清剩余寄存器，避免脏局部漏到下一帧。
+    if (new_slots > static_cast<size_t>(nparam)) {
+        std::fill(stk + nparam, stk + new_slots, CVar{});
+    }
+    if (HasBoxes) {
+        if (need > g_interp_boxes.size()) {
+            g_interp_boxes.resize(need);
+        }
+        std::fill(boxp, boxp + new_slots, nullptr);
+    }
+    for (int i = 0; i < nparam; ++i) {
+        stk[static_cast<size_t>(i)] = (i < arg_count) ? copy[i] : interp_rt::Nil();
+    }
+    proto = new_proto;
+    cl = new_cl;
+    if (proto->code.empty()) {
+        ret = interp_rt::Nil();
+        return false;
+    }
+    ip = proto->code.data();
+    return true;
+}
+
+
+// 精确自尾调用：复用当前帧与 proto/cl，不做查表、装箱、整帧 memset。
+// 参数先拷到 TLS（可能与 R(0..) 重叠），再写形参并清空其余寄存器。
+// 不用 InterpreterExecuteT 的栈上大数组，以免抬高非尾调用的 C 帧。
+template<bool HasBoxes>
+#if defined(__GNUC__)
+__attribute__((always_inline))
+#endif
+inline bool ReuseFrameSelfTail(FuncProto *proto, CVar *const stk, CVar **const boxp, const Inst *&ip, int arg_base, int nargs) {
+    CVar *const tmp = g_interp_tail.args;
+    for (int i = 0; i < nargs; ++i) {
+        tmp[i] = interp_rt::VmSlot<HasBoxes>(stk, boxp, arg_base + i);
+    }
+    const int nparam = proto->param_count;
+    const int live = std::max(proto->max_stack, nparam);
+    if (live > nparam) {
+        std::fill(stk + nparam, stk + live, CVar{});
+    }
+    if (HasBoxes && boxp) {
+        std::fill(boxp, boxp + live, nullptr);
+    }
+    for (int i = 0; i < nargs; ++i) {
+        stk[static_cast<size_t>(i)] = tmp[i];
+    }
+    for (int i = nargs; i < nparam; ++i) {
+        stk[static_cast<size_t>(i)] = interp_rt::Nil();
+    }
+    if (proto->code.empty()) {
+        return false;
+    }
+    ip = proto->code.data();
+    return true;
+}
+
+// 尾调用实现单独成函数，避免把 InterpreterExecuteT 热路径胀大、扰乱寄存器分配。
+template<bool HasBoxes>
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+bool InterpDoTail(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const stk, CVar **const boxp, size_t saved, const Inst *&ip, const Inst &inst, CVar &ret) {
+    CVar fn = interp_rt::VmSlot<HasBoxes>(stk, boxp, inst.a);
+    if (fn.type_ != static_cast<int>(VarType::Closure) || !fn.data_.cl) {
+        ThrowFakeluaException("attempt to call a non-function value");
+    }
+    CVar call_args[kMaxFunctionInputParams];
+    const int nargs = inst.b;
+    if (nargs < 0 || nargs > static_cast<int>(kMaxFunctionInputParams)) {
+        ThrowFakeluaException(std::format("interpreter: too many arguments ({}), max is {}", nargs, kMaxFunctionInputParams));
+    }
+    int nflat = 0;
+    for (int i = 0; i < nargs; ++i) {
+        CVar av = interp_rt::VmSlot<HasBoxes>(stk, boxp, inst.a + 1 + i);
+        if (i == nargs - 1 && av.type_ == static_cast<int>(VarType::Multi)) {
+            VarMulti *m = av.data_.m;
+            const int extra = m ? static_cast<int>(m->GetCount()) : 0;
+            if (nflat + extra > static_cast<int>(kMaxFunctionInputParams)) {
+                ThrowFakeluaException(std::format("interpreter: too many arguments ({}), max is {}", nflat + extra, kMaxFunctionInputParams));
+            }
+            for (uint32_t j = 0; j < m->GetCount(); ++j) {
+                call_args[nflat++] = m->GetVars()[j];
+            }
+        } else {
+            call_args[nflat++] = interp_rt::UnboxMulti(av, 0);
+        }
+    }
+    VarClosure *callee = fn.data_.cl;
+    if (!IsInterpClosure(callee)) {
+        ret = inter::DispatchCallClosure(s, callee, call_args, nflat, JIT_INTERP);
+        return false;
+    }
+    CVar packed[kMaxFunctionInputParams];
+    const int n_dispatch = PackClosureCallArgs(s, callee, call_args, nflat, packed);
+    return ApplyInterpTail<HasBoxes>(s, proto, cl, stk, boxp, saved, ip, AsInterpProto(callee->func_ptr), callee, packed, n_dispatch, ret);
+}
+
+template<bool HasBoxes>
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+bool InterpDoTailName(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const stk, CVar **const boxp, size_t saved, const Inst *&ip, const Inst &inst, CVar &ret) {
+    const std::string_view name = ConstToName(proto->constants[static_cast<size_t>(inst.sbx)]);
+    CVar raw[kMaxFunctionInputParams];
+    const int nargs = inst.b;
+    if (nargs < 0 || nargs > static_cast<int>(kMaxFunctionInputParams)) {
+        ThrowFakeluaException(std::format("interpreter: too many arguments ({}) passed for function '{}', max is {}", nargs, name, kMaxFunctionInputParams));
+    }
+    for (int i = 0; i < nargs; ++i) {
+        raw[i] = interp_rt::VmSlot<HasBoxes>(stk, boxp, inst.a + i);
+    }
+    const VmFunction *fn = s->GetVM().FindFunction(name);
+    if (fn) {
+        void *addr = fn->GetAddr(JIT_INTERP);
+        const bool is_vararg = fn->IsVararg();
+        const int expected = fn->GetArgCount();
+        CVar flat[kMaxFunctionInputParams];
+        const int nflat = FlattenByNameArgs(raw, nargs, flat);
+        CVar packed[kMaxFunctionInputParams];
+        const int n_dispatch = PackNamedCallArgs(s, name, is_vararg, expected, raw, nargs, flat, nflat, packed);
+        if (addr) {
+            return ApplyInterpTail<HasBoxes>(s, proto, cl, stk, boxp, saved, ip, AsInterpProto(addr), nullptr, packed, n_dispatch, ret);
+        }
+        ret = CallByNameArgs(s, JIT_INTERP, name, nargs, raw);
+        return false;
+    }
+    if (!s->GetVM().FindNativeFunction(name)) {
+        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' not found", name));
+    }
+    ret = CallByNameArgs(s, JIT_INTERP, name, nargs, raw);
+    return false;
 }
 
 constexpr size_t kInterpStackReserve = 262144;// 4 MiB of CVar; nested realloc would invalidate parent pointers
@@ -369,14 +682,27 @@ vm_switch_dispatch:
                 call_args[nflat++] = interp_rt::UnboxMulti(av, 0);
             }
         }
-        CVar ret = inter::DispatchCallClosure(s, fn.data_.cl, call_args, nflat, JIT_INTERP);
+        CVar ret;
+        VarClosure *callee = fn.data_.cl;
+        // 解释器闭包且非变参、实参个数正好等于形参时，直接 InterpreterExecute，
+        // 跳过 DispatchCallClosure 的再装箱与 LuaLocScope。其余情况（变参、少参/多参、
+        // load() 源码闭包、TCC/GCC 闭包）仍走原来的 DispatchCallClosure。
+        if (IsInterpClosure(callee) && !callee->is_vararg &&
+            callee->expected_arg_count == nflat &&
+            nflat <= static_cast<int>(kMaxFunctionInputParams)) {
+            ret = InterpExecuteInContext(s, AsInterpProto(callee->func_ptr), call_args, nflat, callee);
+        } else {
+            ret = inter::DispatchCallClosure(s, callee, call_args, nflat, JIT_INTERP);
+        }
         VM_W(inst.a, inst.c == 0 ? ret : interp_rt::UnboxMulti(ret, 0));
         VM_DISPATCH_NEXT();
     }
     VM_CASE(CALLNAME) {
-        // std::string 必须在 computed-goto 之前析构。
+        // ConstToName 返回 string_view（interned，不一定带 NUL）。成功路径不再堆分配
+        // std::string；报错走 std::format 的 string_view，仅在 CallByNameImpl 的失败路径
+        // 才可能分配。
         {
-            const std::string name(ConstToName(proto->constants[static_cast<size_t>(inst.sbx)]));
+            const std::string_view name = ConstToName(proto->constants[static_cast<size_t>(inst.sbx)]);
             CVar call_args[kMaxFunctionInputParams];
             const int nargs = inst.b;
             if (nargs < 0 || nargs > static_cast<int>(kMaxFunctionInputParams)) {
@@ -385,10 +711,42 @@ vm_switch_dispatch:
             for (int i = 0; i < nargs; ++i) {
                 call_args[i] = VM_R(inst.a + i);
             }
-            CVar ret = CallByNameArgs(s, JIT_INTERP, name.c_str(), nargs, call_args);
+            CVar ret;
+            if (!TryInterpNamedCall(s, name, call_args, nargs, ret)) {
+                ret = CallByNameArgs(s, JIT_INTERP, name, nargs, call_args);
+            }
             VM_W(inst.a, inst.c == 0 ? ret : interp_rt::UnboxMulti(ret, 0));
         }
         VM_DISPATCH_NEXT();
+    }
+    VM_CASE(TAIL) {
+        if (inst.c == kTailSelfExact) {
+            // 本函数精确自尾调用：保持 cl，直接重置 ip。
+            if (ReuseFrameSelfTail<HasBoxes>(proto, stk, boxp, ip, inst.a + 1, inst.b)) {
+                VM_DISPATCH_NEXT();
+            }
+            return interp_rt::Nil();
+        }
+        CVar ret{};
+        const bool cont = InterpDoTail<HasBoxes>(s, proto, cl, stk, boxp, frame.saved, ip, inst, ret);
+        if (cont) {
+            VM_DISPATCH_NEXT();
+        }
+        return ret;
+    }
+    VM_CASE(TAILNAME) {
+        if (inst.c == kTailSelfExact) {
+            if (ReuseFrameSelfTail<HasBoxes>(proto, stk, boxp, ip, inst.a, inst.b)) {
+                VM_DISPATCH_NEXT();
+            }
+            return interp_rt::Nil();
+        }
+        CVar ret{};
+        const bool cont = InterpDoTailName<HasBoxes>(s, proto, cl, stk, boxp, frame.saved, ip, inst, ret);
+        if (cont) {
+            VM_DISPATCH_NEXT();
+        }
+        return ret;
     }
     VM_CASE(RETURN) {
         CVar ret = VM_R(inst.a);
@@ -541,10 +899,18 @@ CVar InterpreterExecute(State *s, FuncProto *proto, const CVar *args, int arg_co
     if (!proto) {
         ThrowFakeluaException("interpreter: null function prototype");
     }
-    if (proto->uses_boxes) {
-        return InterpreterExecuteT<true>(s, proto, args, arg_count, cl);
+    // 热路径与引入尾调用前相同：一次 ExecuteT 后直接返回。
+    // 仅在需要换 HasBoxes 模板或根帧重新 reserve 时，才用 TLS 槽循环再进入（C 栈深度仍为 1）。
+    CVar ret = proto->uses_boxes ? InterpreterExecuteT<true>(s, proto, args, arg_count, cl) : InterpreterExecuteT<false>(s, proto, args, arg_count, cl);
+    while (UNLIKELY(g_interp_tail.pending)) {
+        proto = g_interp_tail.proto;
+        cl = g_interp_tail.cl;
+        arg_count = g_interp_tail.arg_count;
+        args = g_interp_tail.args;
+        g_interp_tail.pending = false;
+        ret = proto->uses_boxes ? InterpreterExecuteT<true>(s, proto, args, arg_count, cl) : InterpreterExecuteT<false>(s, proto, args, arg_count, cl);
     }
-    return InterpreterExecuteT<false>(s, proto, args, arg_count, cl);
+    return ret;
 }
 
 extern "C" __attribute__((used)) CVar FakeluaInterpCall(State *state, VarClosure *cl, int arg_num, const CVar *args) {
