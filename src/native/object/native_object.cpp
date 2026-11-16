@@ -1041,9 +1041,7 @@ uint64_t NativeObject::ComputeContentHash(const NativeObject *obj) {
     std::vector<const std::pair<const std::string, NativeField> *> fields;
     fields.reserve(obj->impl_->kv.size());
     for (const auto &item: obj->impl_->kv) fields.push_back(&item);
-    std::sort(fields.begin(), fields.end(), [](const auto *a, const auto *b) {
-        return a->first < b->first;
-    });
+    std::sort(fields.begin(), fields.end(), [](const auto *a, const auto *b) { return a->first < b->first; });
     FnvHashU64(h, fields.size());
     for (const auto *item: fields) {
         const auto &key = item->first;
@@ -1084,8 +1082,7 @@ uint64_t NativeObject::ComputeContentHash(const NativeObject *obj) {
     std::vector<const std::string *> method_names;
     method_names.reserve(obj->impl_->methods.size());
     for (const auto &item: obj->impl_->methods) method_names.push_back(&item.first);
-    std::sort(method_names.begin(), method_names.end(),
-              [](const std::string *a, const std::string *b) { return *a < *b; });
+    std::sort(method_names.begin(), method_names.end(), [](const std::string *a, const std::string *b) { return *a < *b; });
     FnvHashU64(h, method_names.size());
     for (const auto *name: method_names) {
         FnvHashU64(h, name->size());
@@ -1104,8 +1101,7 @@ bool NativeObject::SelfCheck(const NativeObject *obj, bool recursive) {
         // 内容哈希比对：若某次写入绕过了对象 API（因此没有 TouchVersion），
         // 记录下来的哈希会与真实内容不一致。
         const uint64_t debug_epoch = g_debug_epoch.load(std::memory_order_relaxed);
-        if (obj->impl_->debug_hash_epoch != 0 && obj->impl_->debug_hash_epoch == debug_epoch &&
-            obj->impl_->debug_hash != ComputeContentHash(obj)) {
+        if (obj->impl_->debug_hash_epoch != 0 && obj->impl_->debug_hash_epoch == debug_epoch && obj->impl_->debug_hash != ComputeContentHash(obj)) {
             return false;
         }
     }

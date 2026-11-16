@@ -517,3 +517,59 @@ A: Enable `CompileConfig::debug_mode` to inspect logs and C code; use `GetLastRe
 
 ### Q: Is multithreading supported?
 A: Each `State` is currently thread-local; in multithreaded environments, create an independent `State` per thread.
+
+### GCC JIT filesystem cache
+
+GCC JIT caches compiled shared libraries by default. `StateConfig::gcc_config`
+has `enable_cache` (default `true`) and `cache_directory`. An empty directory uses
+`<system-temp>/fakelua/cache/uid-<uid>` on POSIX (typically
+`/tmp/fakelua/cache/uid-1000` on Linux), or `<system-temp>/fakelua/cache` on Windows.
+The system temp directory is selected by the same helper as transient JIT files,
+including platform temp environment settings; macOS/Windows may use a per-user
+temp directory rather than `/tmp`. An explicit `cache_directory` overrides this.
+POSIX cache directories must belong to the current user and have mode 0700;
+untrusted writable/foreign-owned parent directories are rejected. Cache failures
+fall back to normal compilation.
+
+The key includes the complete generated C (including Lua debug path), optimization
+mode, compiler, relevant compiler environment, and a source/build ABI fingerprint.
+System header and compiler/backend/assembler/linker/support-library contents are
+validated before reuse. Custom GCC include/library configurations, compiler search-path environment
+overrides, wrapper scripts and coverage builds bypass caching. TCC remains in-memory; INTERP is unchanged. Compiler wrappers
+with hidden inputs must disable caching or use a separate cache directory when
+those inputs change. Do not modify a toolchain concurrently with compilation.
+
+`cache_max_entries` defaults to **256 complete entries per cache directory**.
+Set it to `0` for unlimited entries, or set `enable_cache=false` to disable caching.
+Lookup/publication trims excess entries in publication order (FIFO, not LRU): hits
+do not refresh an entry's age. A directory-wide thread/process lock coordinates
+restore, publication and eviction; actual C compilation stays outside that lock.
+Use the same limit for clients sharing a directory; each operation applies its
+client's configured limit. Deletion failures are best effort and can temporarily
+leave the directory above the limit; a later operation tries again. This is an
+entry-count limit, not a byte limit; partial/staging and unrelated files do not count.
+
+Striped key thread/process locks and atomic directory publication prevent partial hits;
+corrupt/stale entries are rebuilt. Every load gets a private image, then binds State,
+heap slots and interned string IDs once to generated C statics. This preserves
+cross-module string identity, independent globals/closures and allocation lifetimes;
+no runtime cache lookup is added. Hits skip C compilation/linking, not the Lua frontend; a cheap compiler-version
+query still verifies the selected toolchain.
+
+Cache directories contain executable code: keep them private and on a local
+filesystem supporting advisory locks and atomic rename. System temp cleanup is
+OS/admin-policy dependent, not guaranteed. Removing entries or the cache subtree
+causes cache misses/recompilation, not loss of loaded modules (their images are
+private copies outside the cache). If a cleaner unlinks a live POSIX lock inode,
+advisory exclusion alone no longer holds: detached locks are detected where possible,
+writer-private staging, atomic publication and image validation keep cleanup races
+best effort rather than a source of partial executable images. Redundant compilation
+and temporary cap overshoot are possible during external cleanup. Lock metadata
+is bounded to 256 key stripes plus one index lock; eviction never unlinks locks.
+For deterministic manual cleanup, stop cache users before removing its directory.
+Interrupted writers may leave writer-private `.tmp.*` directories; these do not count
+toward the limit and can be removed with the cache when it is idle. Old-format
+`.tmp` staging for a key is cleared on its next publication. See
+[the release benchmark harness](tools/benchmark_jit_cache.cpp) for measurement commands.
+
+Cache synchronization does not make a State itself safe for concurrent use.

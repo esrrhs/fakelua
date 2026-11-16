@@ -92,24 +92,25 @@ public:
             single_ptr_->line = 0;
         } else if (!locs.empty()) {
             saved_.reserve(locs.size());
-            for (LuaLoc *loc : locs) {
+            for (LuaLoc *loc: locs) {
                 saved_.emplace_back(loc, loc->line);
                 loc->line = 0;
             }
         }
     }
+
     ~LuaLocScope() {
         const auto &locs = s_->GetLuaLocs(jit_);
         if (single_ptr_ != nullptr) {
-            for (LuaLoc *cur : locs) {
+            for (LuaLoc *cur: locs) {
                 if (cur == single_ptr_) {
                     single_ptr_->line = single_line_;
                     break;
                 }
             }
         } else {
-            for (const auto &[loc, line] : saved_) {
-                for (LuaLoc *cur : locs) {
+            for (const auto &[loc, line]: saved_) {
+                for (LuaLoc *cur: locs) {
                     if (cur == loc) {
                         loc->line = line;
                         break;
@@ -118,6 +119,7 @@ public:
             }
         }
     }
+
     LuaLocScope(const LuaLocScope &) = delete;
     LuaLocScope &operator=(const LuaLocScope &) = delete;
 

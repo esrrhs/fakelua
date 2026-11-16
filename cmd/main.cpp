@@ -67,6 +67,7 @@ constexpr const char *kFiniEntry = "main.fini";
 
 std::atomic<bool> g_exit_requested{false};
 std::atomic<int> g_exit_code{0};
+
 bool ExitRequested() {
     return g_exit_requested.load(std::memory_order_acquire);
 }
@@ -117,7 +118,7 @@ std::vector<std::string> CollectLuaFiles(const std::string &path) {
         }
         return files;
     }
-    return { path };
+    return {path};
 }
 
 [[noreturn]] void ReportMissingEntry(const char *name) {
@@ -199,7 +200,7 @@ int RunLifecycle(State *s, JITType jit) {
     return exit_code;
 }
 
-} // namespace
+}// namespace
 
 int main(int argc, char **argv) {
     gflags::SetUsageMessage("usage: ./flua <file.lua | dir/> [options]\n"

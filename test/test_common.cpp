@@ -6,10 +6,10 @@
 #include <vector>
 
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
-#include <cstdlib>
 
 namespace {
 struct UnbufferedStdio {
@@ -387,8 +387,7 @@ TEST(common, c_runtime_cov_matches_kCRuntimeHeader) {
     oss << ifs.rdbuf();
     const std::string file_body = oss.str();
     const std::string expected = kCRuntimeHeader[0] == '\n' ? std::string(kCRuntimeHeader + 1) : std::string(kCRuntimeHeader);
-    EXPECT_EQ(file_body, expected) << "Edit kCRuntimeHeader and sync " << kCRuntimeCovPath
-                                   << " (or the reverse); Codecov #line mapping depends on it.";
+    EXPECT_EQ(file_body, expected) << "Edit kCRuntimeHeader and sync " << kCRuntimeCovPath << " (or the reverse); Codecov #line mapping depends on it.";
 }
 
 namespace {
@@ -627,7 +626,7 @@ TEST(common, compile_number_key_classify) {
 
     auto min_neg = CovMakeUnaryMinus(CovMakeNumberExp(std::to_string(std::numeric_limits<int64_t>::min())));
     // May classify as float overflow path; just exercise the branch.
-    (void)ClassifyConstNumberExp(min_neg, kind, canon, iv, fv);
+    (void) ClassifyConstNumberExp(min_neg, kind, canon, iv, fv);
 
     auto two63 = CovMakeUnaryMinus(CovMakeNumberExp("9223372036854775808.0"));
     EXPECT_TRUE(ClassifyConstNumberExp(two63, kind, canon, iv, fv));

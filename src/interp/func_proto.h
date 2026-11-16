@@ -19,9 +19,11 @@ struct FuncProto;
 // 一次编译单元：持有全部函数原型与文件级全局槽，生命周期绑定到 VmFunction 的 handle。
 struct TransparentStringHash {
     using is_transparent = void;
+
     std::size_t operator()(std::string_view sv) const noexcept {
         return std::hash<std::string_view>{}(sv);
     }
+
     std::size_t operator()(const std::string &s) const noexcept {
         return std::hash<std::string_view>{}(s);
     }

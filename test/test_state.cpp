@@ -1,10 +1,10 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
-#include "test_jit.h"
 #include "jit/vm.h"
 #include "jit/vm_function.h"
 #include "state/const_string.h"
 #include "state/state.h"
+#include "test_jit.h"
 #include "var/var.h"
 #include "var/var_string.h"
 #include "gtest/gtest.h"
@@ -445,7 +445,6 @@ TEST(state, heap_alloc_boundary) {
     inter::Reset(s);
     ASSERT_EQ(alloc.Size(), 0u);
 }
-
 
 TEST(state, cvar_to_integer_edge_cases) {
     FakeluaStateGuard guard;

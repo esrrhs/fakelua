@@ -3,15 +3,15 @@
 #include "util/logging.h"
 #include "gtest/gtest.h"
 
+#include "state/state.h"
 #include <cstdio>
-#include <fstream>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
-#include "state/state.h"
 
 using namespace fakelua;
 
@@ -743,7 +743,6 @@ TEST(test_log, level_transitions_and_errors) {
     CallThrow(s, "LogAllLevels.test_log_info_no_args", ret);
     FakeluaDeleteState(s);
 }
-
 
 TEST(test_log, log_file_rotation_small_limit) {
     // Force RotateLogs by using a tiny max size and writing repeatedly.

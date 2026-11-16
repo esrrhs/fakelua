@@ -297,8 +297,7 @@ CVar DecodeValue(std::string_view in, size_t &pos, DecodeState &state, State *s)
 // 严格校验：回调绑定参数不允许静默丢字段。任意位置出现不可序列化类型都响亮报错。
 void ValidateStrict(CVar v, int depth, std::unordered_set<VarTable *> &visited, const char *fname, int argno) {
     if (!IsSupported(v)) {
-        ThrowBadArgument(argno, fname,
-                         "callback args must be nil, boolean, number, string or a table thereof (closures and native objects are not allowed)");
+        ThrowBadArgument(argno, fname, "callback args must be nil, boolean, number, string or a table thereof (closures and native objects are not allowed)");
     }
     if (v.type_ != static_cast<int>(VarType::Table) || !v.data_.t) return;
     VarTable *t = v.data_.t;

@@ -26,7 +26,7 @@ public:
 
 private:
     // 当前写入的输出 section
-    enum class Section { Headers, Globals, Decls, Impls, Body, Count };
+    enum class Section { Includes, StringDecls, Headers, Globals, Decls, Impls, Bindings, Body, Count };
 
     // RAII guard：临时切换 section，析构时自动恢复，天然异常安全
     struct SectionGuard {
@@ -58,6 +58,8 @@ private:
     void GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
     // 生成所有函数具体的 C 语言代码实现
     void GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
+    // 加载时一次性绑定 State、堆槽及字符串驻留 ID。
+    void GenerateBindings();
 
     // 根据 AST 节点生成符合规范的 C 函数名称
     std::string CompileFuncName(const SyntaxTreeInterfacePtr &ptr);
@@ -286,6 +288,11 @@ private:
     }
 
 private:
+    std::string StringId(const std::string_view &value);
+    std::vector<std::string> string_literals_;
+    std::unordered_map<std::string, size_t> string_indices_;
+    std::ostringstream global_initializers_;
+    std::string code_file_name_;
     State *s_;                                                      // 全局虚拟机状态 State 引用
     std::string file_name_;                                         // 当前编译的源码文件名称
     std::optional<std::reference_wrapper<const InferResult>> ir_;   // 全局类型推断结果快照引用
@@ -305,14 +312,14 @@ private:
 
     const struct SpecFuncContext *cur_spec_ctx_ = nullptr;// 当前特化版本的上下文（func_name/bitmask/snapshot）
 
-    std::stringstream func_temp_decls_;  // 用于临时存放函数体内部临时 C 变量声明的代码流
-    int cur_tab_ = 0;                    // 当前 C 代码生成器所处的缩进级别深度
-    int repeat_depth_ = 0;               // repeat-until 循环嵌套深度（0 表示不在 repeat 内）
-    int repeat_label_counter_ = 0;       // repeat 循环标签计数器，保证每个 flua_until_ 标签唯一
-    std::vector<int> repeat_label_stack_;// 当前活跃的 repeat 标签 id 栈，栈顶即最近外层 repeat
-    int for_cont_id_ = 0;                // 动态 numeric for 的 continue 标签计数器
-    std::vector<int> for_cont_stack_;    // 动态 numeric for 的 continue 标签栈（while(1)+后置步进）
-    int label_uniq_ = 0;                 // Lua ::label:: 生成的 C 标签后缀，保证兄弟块同名不冲突
+    std::stringstream func_temp_decls_;                                      // 用于临时存放函数体内部临时 C 变量声明的代码流
+    int cur_tab_ = 0;                                                        // 当前 C 代码生成器所处的缩进级别深度
+    int repeat_depth_ = 0;                                                   // repeat-until 循环嵌套深度（0 表示不在 repeat 内）
+    int repeat_label_counter_ = 0;                                           // repeat 循环标签计数器，保证每个 flua_until_ 标签唯一
+    std::vector<int> repeat_label_stack_;                                    // 当前活跃的 repeat 标签 id 栈，栈顶即最近外层 repeat
+    int for_cont_id_ = 0;                                                    // 动态 numeric for 的 continue 标签计数器
+    std::vector<int> for_cont_stack_;                                        // 动态 numeric for 的 continue 标签栈（while(1)+后置步进）
+    int label_uniq_ = 0;                                                     // Lua ::label:: 生成的 C 标签后缀，保证兄弟块同名不冲突
     std::vector<std::unordered_map<std::string, std::string>> label_c_stack_;// Lua 名 → 当前块唯一 C 标签
 
 private:
@@ -361,9 +368,9 @@ private:
     std::unordered_map<std::pair<const SyntaxTreeInterface *, std::string>, VarDef *, PairHash> stmt_var_to_def_;
     std::unordered_map<const SyntaxTreeInterface *, VarDef *> var_to_def_map_;
 
-    FuncInfo *cur_func_info_ = nullptr;// The function currently being compiled
+    FuncInfo *cur_func_info_ = nullptr;                 // The function currently being compiled
     const SyntaxTreeInterface *cur_stmt_node_ = nullptr;// 当前正在编译的语句节点，用于在调用返回后重新锚定 Lua 源码位置
-    std::string cur_package_name_;     // Current package name declared in chunk
+    std::string cur_package_name_;                      // Current package name declared in chunk
 
     // 文件级非数值 CVar 全局名：供 CompileVar 识别已声明绑定
     std::unordered_set<std::string> global_const_table_vars_;

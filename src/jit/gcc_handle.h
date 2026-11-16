@@ -10,8 +10,8 @@ struct LuaLoc;
 
 class GCCHandle : public JITHandle {
 public:
-    GCCHandle(State *s, std::string c_file, std::string so_file, std::string log_file, void *dl_handle)
-        : s_(s), c_file_(std::move(c_file)), so_file_(std::move(so_file)), log_file_(std::move(log_file)), dl_handle_(dl_handle) {
+    GCCHandle(State *s, std::string c_file, std::string so_file, std::string log_file, void *dl_handle, std::string workspace = {})
+        : s_(s), c_file_(std::move(c_file)), so_file_(std::move(so_file)), log_file_(std::move(log_file)), dl_handle_(dl_handle), workspace_(std::move(workspace)) {
     }
 
     ~GCCHandle() override;
@@ -39,6 +39,7 @@ private:
     std::string log_file_;
     void *dl_handle_ = nullptr;
     LuaLoc *lua_loc_ = nullptr;
+    std::string workspace_;
 };
 
 typedef std::shared_ptr<GCCHandle> GCCHandlePtr;

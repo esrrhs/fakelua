@@ -302,8 +302,14 @@ enum JITType {
 struct JitTypeSpan {
     JITType data[JIT_MAX]{};
     int size = 0;
-    const JITType *begin() const { return data; }
-    const JITType *end() const { return data + size; }
+
+    const JITType *begin() const {
+        return data;
+    }
+
+    const JITType *end() const {
+        return data + size;
+    }
 };
 
 inline const char *JitTypeName(JITType t) {
@@ -400,6 +406,14 @@ struct StateGCCConfig {
     std::vector<std::string> include_paths;
     std::vector<std::string> library_paths;
     std::vector<std::string> libraries;
+    // Best-effort persistent shared-library cache. Empty directory uses the
+    // system-temp/fakelua/cache (POSIX: /uid-<uid>), not a home cache.
+    // System cleanup is policy-dependent. Custom include/library configs bypass it.
+    bool enable_cache = true;
+    std::string cache_directory;
+    // Maximum complete entries per directory, evicted in publication order (FIFO).
+    // Zero means unlimited; enable_cache=false disables caching entirely.
+    size_t cache_max_entries = 256;
 };
 
 struct StateConfig {
@@ -968,9 +982,8 @@ void RegisterNativeVarFunction(State *s, const std::string &name, int arg_count,
 // 可变参数时，用上面的 5 参回调形式自己读参数（GetNativeIntArg / GetNativeStringArg）。
 template<typename Ret, typename... Args>
 void RegisterNativeFunction(State *s, const std::string &name, bool is_vararg, std::function<Ret(State *, Args...)> func) {
-    static_assert(!std::is_function_v<Ret>,
-        "RegisterNativeFunction: Ret is a function type, so the signature was passed as a template argument. "
-        "Write std::function<Ret(State*, Args...)> instead - see the example above RegisterNativeFunction.");
+    static_assert(!std::is_function_v<Ret>, "RegisterNativeFunction: Ret is a function type, so the signature was passed as a template argument. "
+                                            "Write std::function<Ret(State*, Args...)> instead - see the example above RegisterNativeFunction.");
     constexpr int arg_count = static_cast<int>(sizeof...(Args));
     RegisterNativeFunction(s, name, arg_count, is_vararg, [func](State *state, CVar *args, int n) -> CVar {
         auto unpack_helper = [state, args, n]<std::size_t... I>(std::index_sequence<I...>) {

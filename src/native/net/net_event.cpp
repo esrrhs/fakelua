@@ -4,9 +4,9 @@
 #include "native/tls_util.h"
 #include "state/state.h"
 
+#include <event2/buffer.h>
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
-#include <event2/buffer.h>
 #include <event2/dns.h>
 #include <event2/listener.h>
 
@@ -188,11 +188,12 @@ bool TryParseWsFrame(CircularBuffer &buf, std::string &payload, bool &closed, bo
 class EventConn : public std::enable_shared_from_this<EventConn> {
 public:
     EventConn(native::IoContext &io, const NetConfig &cfg, int conn_id, bool from_client, bool tls, EventSink sink)
-        : io_(io), cfg_(cfg), conn_id_(conn_id), from_client_(from_client), tls_(tls), sink_(std::move(sink)),
-          recv_buf_(cfg.recv_buf_size), send_buf_(cfg.send_buf_size) {
+        : io_(io), cfg_(cfg), conn_id_(conn_id), from_client_(from_client), tls_(tls), sink_(std::move(sink)), recv_buf_(cfg.recv_buf_size), send_buf_(cfg.send_buf_size) {
     }
 
-    ~EventConn() { Close(false); }
+    ~EventConn() {
+        Close(false);
+    }
 
     void Attach(bufferevent *bev) {
         bev_ = bev;
@@ -231,9 +232,17 @@ public:
         return true;
     }
 
-    [[nodiscard]] bool IsOpen() const { return !closed_ && bev_; }
-    [[nodiscard]] bool Ready() const { return ready_ && !closed_ && bev_; }
-    [[nodiscard]] int ConnId() const { return conn_id_; }
+    [[nodiscard]] bool IsOpen() const {
+        return !closed_ && bev_;
+    }
+
+    [[nodiscard]] bool Ready() const {
+        return ready_ && !closed_ && bev_;
+    }
+
+    [[nodiscard]] int ConnId() const {
+        return conn_id_;
+    }
 
     void OnConnected() {
         if (IsWebSocket(cfg_)) return;
@@ -259,9 +268,7 @@ private:
     void SendWsClientHandshake() {
         ws_key_ = RandomWsKey();
         std::string host = cfg_.ws_host.empty() ? (cfg_.ip + ":" + std::to_string(cfg_.port)) : cfg_.ws_host;
-        std::string req = "GET " + cfg_.ws_path + " HTTP/1.1\r\nHost: " + host +
-                          "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: " + ws_key_ +
-                          "\r\nSec-WebSocket-Version: 13\r\n";
+        std::string req = "GET " + cfg_.ws_path + " HTTP/1.1\r\nHost: " + host + "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: " + ws_key_ + "\r\nSec-WebSocket-Version: 13\r\n";
         if (!cfg_.ws_origin.empty()) req += "Origin: " + cfg_.ws_origin + "\r\n";
         req += "\r\n";
         bufferevent_write(bev_, req.data(), req.size());
@@ -436,9 +443,9 @@ void TcpServer::Start() {
     if (config_.tls && !ssl_ctx_) return;
     sockaddr_in addr{};
     if (!FillSockaddr(addr, config_.ip, config_.port)) return;
-    listener_ = evconnlistener_new_bind(io_.Get(), [](evconnlistener *, evutil_socket_t fd, sockaddr *, int, void *p) {
-        static_cast<TcpServer *>(p)->OnAccept(fd);
-    }, this, LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE, config_.backlog > 0 ? config_.backlog : -1, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
+    listener_ = evconnlistener_new_bind(
+            io_.Get(), [](evconnlistener *, evutil_socket_t fd, sockaddr *, int, void *p) { static_cast<TcpServer *>(p)->OnAccept(fd); }, this, LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE,
+            config_.backlog > 0 ? config_.backlog : -1, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
 }
 
 void TcpServer::Stop() {
@@ -576,11 +583,12 @@ bool TcpClient::Connected() const {
 }
 
 UdpSocket::UdpSocket(const NetConfig &config, ::fakelua::State *state, bool connected)
-    : config_(config), connected_(connected), io_(state->GetIoContext()),
-      recv_buf_(config.recv_buf_size > 0 ? static_cast<size_t>(config.recv_buf_size) : 65536) {
+    : config_(config), connected_(connected), io_(state->GetIoContext()), recv_buf_(config.recv_buf_size > 0 ? static_cast<size_t>(config.recv_buf_size) : 65536) {
 }
 
-UdpSocket::~UdpSocket() { Stop(); }
+UdpSocket::~UdpSocket() {
+    Stop();
+}
 
 bool UdpSocket::Start() {
     fd_ = static_cast<socket_t>(socket(AF_INET, SOCK_DGRAM, 0));
@@ -643,7 +651,9 @@ void UdpSocket::OnRecv() {
     EmitEvent(std::move(ev));
 }
 
-void UdpSocket::EmitEvent(ConnEvent ev) { events_.push_back(std::move(ev)); }
+void UdpSocket::EmitEvent(ConnEvent ev) {
+    events_.push_back(std::move(ev));
+}
 
 void UdpSocket::DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher) {
     io_.Poll();

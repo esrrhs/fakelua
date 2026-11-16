@@ -10,9 +10,9 @@
 #include "var/var.h"
 #include "var/var_multi.h"
 
+#include <event2/buffer.h>
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
-#include <event2/buffer.h>
 #include <event2/event.h>
 #include <event2/listener.h>
 #include <event2/util.h>
@@ -358,9 +358,12 @@ struct HttpResponseData {
 
 class HttpClientOp : public std::enable_shared_from_this<HttpClientOp> {
 public:
-    HttpClientOp(State *state, NativeObject *nat) : io_(state->GetIoContext()), lua_state_(state), native_obj_(nat) {}
+    HttpClientOp(State *state, NativeObject *nat) : io_(state->GetIoContext()), lua_state_(state), native_obj_(nat) {
+    }
 
-    ~HttpClientOp() { Close(); }
+    ~HttpClientOp() {
+        Close();
+    }
 
     void Start(std::string method, std::string url, HeaderList headers, std::string body, int timeout_ms, unsigned version, bool tls_verify, std::string tls_ca) {
         timeout_ms_ = timeout_ms;
@@ -433,9 +436,13 @@ public:
         if (!done_) Finish("closed");
     }
 
-    bool Done() const { return done_ && !pending_; }
+    bool Done() const {
+        return done_ && !pending_;
+    }
 
-    void SetCallback(std::string name) { cb_ = std::move(name); }
+    void SetCallback(std::string name) {
+        cb_ = std::move(name);
+    }
 
 private:
     bufferevent *MakeBev() {
@@ -464,9 +471,7 @@ private:
     void ArmTimeout() {
         ClearTimeout();
         if (timeout_ms_ <= 0) return;
-        timeout_ev_ = evtimer_new(io_.Get(), [](evutil_socket_t, short, void *p) {
-            static_cast<HttpClientOp *>(p)->Finish("timeout");
-        }, this);
+        timeout_ev_ = evtimer_new(io_.Get(), [](evutil_socket_t, short, void *p) { static_cast<HttpClientOp *>(p)->Finish("timeout"); }, this);
         timeval tv{};
         tv.tv_sec = timeout_ms_ / 1000;
         tv.tv_usec = (timeout_ms_ % 1000) * 1000;
@@ -600,8 +605,7 @@ private:
 
 class HttpServerConn : public std::enable_shared_from_this<HttpServerConn> {
 public:
-    HttpServerConn(native::IoContext &io, evutil_socket_t fd, int conn_id, int timeout_ms, SSL_CTX *ctx)
-        : io_(io), conn_id_(conn_id), timeout_ms_(timeout_ms) {
+    HttpServerConn(native::IoContext &io, evutil_socket_t fd, int conn_id, int timeout_ms, SSL_CTX *ctx) : io_(io), conn_id_(conn_id), timeout_ms_(timeout_ms) {
         if (ctx) {
             SSL *ssl = SSL_new(ctx);
             if (ssl) {
@@ -609,7 +613,8 @@ public:
                 if (!bev_) SSL_free(ssl);
             }
             if (bev_) bufferevent_openssl_set_allow_dirty_shutdown(bev_, 1);
-            else evutil_closesocket(fd);
+            else
+                evutil_closesocket(fd);
         } else {
             bev_ = bufferevent_socket_new(io_.Get(), fd, BEV_OPT_CLOSE_ON_FREE);
             if (!bev_) evutil_closesocket(fd);
@@ -621,7 +626,9 @@ public:
         ArmTimeout();
     }
 
-    ~HttpServerConn() { Close(); }
+    ~HttpServerConn() {
+        Close();
+    }
 
     void Start(std::function<void(int, HttpRequestData)> on_request, std::function<void(int)> on_close) {
         on_request_ = std::move(on_request);
@@ -650,15 +657,15 @@ public:
         if (on_close_) on_close_(conn_id_);
     }
 
-    int ConnId() const { return conn_id_; }
+    int ConnId() const {
+        return conn_id_;
+    }
 
 private:
     void ArmTimeout() {
         ClearTimeout();
         if (timeout_ms_ <= 0) return;
-        timeout_ev_ = evtimer_new(io_.Get(), [](evutil_socket_t, short, void *p) {
-            static_cast<HttpServerConn *>(p)->Close();
-        }, this);
+        timeout_ev_ = evtimer_new(io_.Get(), [](evutil_socket_t, short, void *p) { static_cast<HttpServerConn *>(p)->Close(); }, this);
         timeval tv{};
         tv.tv_sec = timeout_ms_ / 1000;
         tv.tv_usec = (timeout_ms_ % 1000) * 1000;
@@ -736,9 +743,12 @@ private:
 
 class HttpServer {
 public:
-    explicit HttpServer(State *state) : io_(state->GetIoContext()), lua_state_(state) {}
+    explicit HttpServer(State *state) : io_(state->GetIoContext()), lua_state_(state) {
+    }
 
-    ~HttpServer() { Close(); }
+    ~HttpServer() {
+        Close();
+    }
 
     void Listen(const std::string &ip, uint16_t port, int backlog, int timeout_ms, SSL_CTX *tls_ctx) {
         timeout_ms_ = timeout_ms;
@@ -747,22 +757,29 @@ public:
         if (!net::FillSockaddr(addr, ip, port)) {
             throw std::runtime_error("invalid listen address");
         }
-        listener_ = evconnlistener_new_bind(io_.Get(), [](evconnlistener *, evutil_socket_t fd, sockaddr *, int, void *p) {
-            static_cast<HttpServer *>(p)->OnAccept(fd);
-        }, this, LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE, backlog > 0 ? backlog : -1, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
+        listener_ = evconnlistener_new_bind(
+                io_.Get(), [](evconnlistener *, evutil_socket_t fd, sockaddr *, int, void *p) { static_cast<HttpServer *>(p)->OnAccept(fd); }, this, LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE,
+                backlog > 0 ? backlog : -1, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
         if (!listener_) throw std::runtime_error("listen failed");
         auto fd = evconnlistener_get_fd(listener_);
         sockaddr_in local{};
         socklen_t slen = sizeof(local);
         if (getsockname(fd, reinterpret_cast<sockaddr *>(&local), &slen) == 0) bound_port_ = ntohs(local.sin_port);
-        else bound_port_ = port;
+        else
+            bound_port_ = port;
     }
 
-    uint16_t BoundPort() const { return bound_port_; }
+    uint16_t BoundPort() const {
+        return bound_port_;
+    }
 
-    void SetDispatch(std::string name) { dispatch_ = std::move(name); }
+    void SetDispatch(std::string name) {
+        dispatch_ = std::move(name);
+    }
 
-    void SetNativeObject(NativeObject *nat) { native_obj_ = nat; }
+    void SetNativeObject(NativeObject *nat) {
+        native_obj_ = nat;
+    }
 
     void Tick() {
         io_.Poll();
@@ -773,7 +790,8 @@ public:
         }
         for (auto it = conns_.begin(); it != conns_.end();) {
             if (!it->second) it = conns_.erase(it);
-            else ++it;
+            else
+                ++it;
         }
     }
 
@@ -810,9 +828,7 @@ private:
         int id = ++next_id_;
         auto conn = std::make_shared<HttpServerConn>(io_, fd, id, timeout_ms_, ssl_ctx_);
         conns_[id] = conn;
-        conn->Start(
-                [this](int conn_id, HttpRequestData req) { pending_requests_.emplace_back(conn_id, std::move(req)); },
-                [this](int conn_id) { conns_.erase(conn_id); });
+        conn->Start([this](int conn_id, HttpRequestData req) { pending_requests_.emplace_back(conn_id, std::move(req)); }, [this](int conn_id) { conns_.erase(conn_id); });
     }
 
     void DispatchRequest(int conn_id, const HttpRequestData &req) {
@@ -985,7 +1001,8 @@ static CVar ServerPort(NativeObject *self, State *s, CVar * /*args*/, int /*n*/)
     return inter::NativeToFakeluaInt(s, srv->BoundPort());
 }
 
-static void ParseRequestOpts(State *s, CVar opts, std::string &method, std::string &url, HeaderList &headers, std::string &body, int &timeout_ms, unsigned &version, bool &tls_verify, std::string &tls_ca) {
+static void ParseRequestOpts(State *s, CVar opts, std::string &method, std::string &url, HeaderList &headers, std::string &body, int &timeout_ms, unsigned &version, bool &tls_verify,
+                             std::string &tls_ca) {
     method = "GET";
     timeout_ms = 10000;
     version = 11;
@@ -1026,9 +1043,11 @@ static CVar StartClient(State *s, std::string method, std::string url, HeaderLis
     nat->SetInt("__http_owned__", 1);
     nat->RegisterMethod("close", ClientClose);
     RegisterWrapper(s, nat, false);
+
     struct ClientHold {
         std::shared_ptr<HttpClientOp> ptr;
     };
+
     auto *hold = new ClientHold{op};
     nat->SetInt("__http_hold__", reinterpret_cast<int64_t>(hold));
     nat->SetFinalizer([hold](NativeObject *self) {

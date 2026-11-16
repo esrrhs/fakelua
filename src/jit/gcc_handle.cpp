@@ -46,6 +46,7 @@ GCCHandle::~GCCHandle() {
     if (!log_file_.empty()) {
         std::filesystem::remove(log_file_, ec);
     }
+    if (!workspace_.empty()) std::filesystem::remove_all(workspace_, ec);
 }
 
 }// namespace fakelua

@@ -98,4 +98,4 @@ size_t HeapAllocator::Size() const {
     return current_block_index_ * BLOCK_SIZE + current_block_offset_;
 }
 
-} // namespace fakelua
+}// namespace fakelua

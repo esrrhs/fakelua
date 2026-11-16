@@ -23,22 +23,20 @@ inline constexpr const char *kInitFunctionName = "__fakelua_init";
 // Lua 标识符已是 [A-Za-z_][A-Za-z0-9_]*，用作 C 标识符时只需避开关键字和运行时保留名。
 inline std::string SanitizeCIdent(const std::string &lua_name) {
     static const std::unordered_set<std::string> kReserved = {
-            "auto",       "break",     "case",     "char",      "const",       "continue",     "default",     "do",
-            "double",     "else",      "enum",     "extern",    "float",       "for",          "goto",        "if",
-            "inline",     "int",       "long",     "register",  "restrict",    "return",       "short",       "signed",
-            "sizeof",     "static",    "struct",   "switch",    "typedef",     "union",        "unsigned",    "void",
-            "volatile",   "while",     "_Alignas", "_Alignof",  "_Atomic",     "_Bool",        "_Complex",    "_Generic",
-            "_Imaginary", "_Noreturn", "_Static_assert", "_Thread_local", "bool", "class", "template", "typename",
-            "namespace",  "new",       "delete",   "this",      "operator",    "private",      "public",      "protected",
-            "virtual",    "override",  "final",    "constexpr", "nullptr",     "true",         "false",       "catch",
-            "try",        "throw",     "using",    "friend",    "explicit",    "export",       "mutable",     "wchar_t",
-            "char16_t",   "char32_t",  "char8_t",  "noexcept",  "static_assert", "thread_local", "alignas",    "alignof",
-            "decltype",   "consteval", "constinit", "concept",  "requires",    "co_await",     "co_return",   "co_yield",
-            "and",        "or",        "not",      "xor",       "bitand",      "bitor",        "compl",       "and_eq",
-            "or_eq",      "xor_eq",    "not_eq",   "CVar",      "VarType",     "VarTable",     "VarClosure",  "State",
-            "stdin",      "stdout",    "stderr",   "_S",        "_CL",         "kNil",         "kTrue",       "kFalse",
+            "auto",       "break",     "case",           "char",          "const",    "continue",  "default",       "do",           "double",    "else",
+            "enum",       "extern",    "float",          "for",           "goto",     "if",        "inline",        "int",          "long",      "register",
+            "restrict",   "return",    "short",          "signed",        "sizeof",   "static",    "struct",        "switch",       "typedef",   "union",
+            "unsigned",   "void",      "volatile",       "while",         "_Alignas", "_Alignof",  "_Atomic",       "_Bool",        "_Complex",  "_Generic",
+            "_Imaginary", "_Noreturn", "_Static_assert", "_Thread_local", "bool",     "class",     "template",      "typename",     "namespace", "new",
+            "delete",     "this",      "operator",       "private",       "public",   "protected", "virtual",       "override",     "final",     "constexpr",
+            "nullptr",    "true",      "false",          "catch",         "try",      "throw",     "using",         "friend",       "explicit",  "export",
+            "mutable",    "wchar_t",   "char16_t",       "char32_t",      "char8_t",  "noexcept",  "static_assert", "thread_local", "alignas",   "alignof",
+            "decltype",   "consteval", "constinit",      "concept",       "requires", "co_await",  "co_return",     "co_yield",     "and",       "or",
+            "not",        "xor",       "bitand",         "bitor",         "compl",    "and_eq",    "or_eq",         "xor_eq",       "not_eq",    "CVar",
+            "VarType",    "VarTable",  "VarClosure",     "State",         "stdin",    "stdout",    "stderr",        "_S",           "_CL",       "kNil",
+            "kTrue",      "kFalse",
     };
-    if (kReserved.contains(lua_name)) {
+    if (kReserved.contains(lua_name) || lua_name.starts_with("__fakelua_cache_")) {
         return "flua_id_" + lua_name;
     }
     return lua_name;
@@ -286,6 +284,9 @@ struct ParseResult {
     std::string file_name;
     // 语法树根节点（代码块）
     SyntaxTreeInterfacePtr chunk;
+    // String input uses a stable C #line label, while runtime diagnostics still
+    // bind the original temporary source filename for each loaded instance.
+    bool from_string = false;
 };
 
 // ---- 阶段三：语义与控制流分析结果 -----------------------------------------

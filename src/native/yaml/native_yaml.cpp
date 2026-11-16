@@ -148,12 +148,15 @@ static CVar NodeToLua(State *s, const YAML::Node &node, int depth, std::vector<Y
         }
     }
     stack.push_back(node);
+
     struct PopGuard {
         std::vector<YAML::Node> &stack;
+
         ~PopGuard() {
             stack.pop_back();
         }
     } guard{stack};
+
     if (node.IsSequence()) {
         CVar tbl = table::TableHelper::CreateTable(s);
         size_t idx = 1;

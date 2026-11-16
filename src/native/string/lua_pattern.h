@@ -27,8 +27,8 @@ struct Capture {
 
 struct MatchResult {
     const char *begin = nullptr;
-    const char *end = nullptr; // 尾后指针（零宽匹配时 end == begin）
-    int level = 0;             // 显式捕获个数
+    const char *end = nullptr;// 尾后指针（零宽匹配时 end == begin）
+    int level = 0;            // 显式捕获个数
     Capture caps[kMaxCaptures]{};
 };
 

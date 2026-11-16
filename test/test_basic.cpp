@@ -1,11 +1,11 @@
 #include <gtest/gtest.h>
 #include <string>
 
-#include "fakelua.h"
-#include "test_jit.h"
 #include "compile/compiler.h"
 #include "compile/preprocessor.h"
 #include "compile/semantic_analysis.h"
+#include "fakelua.h"
+#include "test_jit.h"
 
 using namespace fakelua;
 
@@ -1420,7 +1420,6 @@ TEST(test_basic, heap_offset_sync_string_keys_and_rehash) {
     FakeluaDeleteState(s);
 }
 
-
 // 寄存器高峰门禁：SemanticAnalysis::CheckRegisterLimits 在 Analyze 中按与 InterpCodegen
 // 相同的 AllocLocal/AllocReg/FreeTo 寿命规则检查，与 JIT_INTERP 的 Inst::a/b/c(uint8) 对齐。
 // 计量 = 高峰并发槽（形参 + AllocLocal + AllocReg 临时）。
@@ -1492,7 +1491,6 @@ TEST(test_basic, reg_limit_many_constants_allowed) {
     FakeluaDeleteState(s);
 }
 
-
 // Exact 256 vs 257 AllocLocal slots (indices 0..255 vs 第 257 次 AllocLocal 失败)。
 // 无公开 introspection：靠「256 个 local + return u256」与「257 个 local」相邻证明槽位上限。
 TEST(test_basic, reg_limit_exact_256_ok) {
@@ -1533,12 +1531,8 @@ TEST(test_basic, reg_limit_exact_257_over_all_gates) {
 // 不生成字节码、不创建原型/常量串、不注册 VM、不跑 init。
 TEST(test_basic, reg_limit_check_without_state) {
     const char *accepted[] = {
-        "./basic/test_reg_limit_ok.lua",
-        "./basic/test_reg_limit_exact_ok.lua",
-        "./basic/test_reg_limit_many_constants.lua",
-        "./basic/test_init_load_table.lua",
-        "./closure/test_closure_nested.lua",
-        "./basic/test_basic_pairs.lua",
+            "./basic/test_reg_limit_ok.lua",    "./basic/test_reg_limit_exact_ok.lua", "./basic/test_reg_limit_many_constants.lua",
+            "./basic/test_init_load_table.lua", "./closure/test_closure_nested.lua",   "./basic/test_basic_pairs.lua",
     };
     for (const char *file: accepted) {
         SCOPED_TRACE(file);
@@ -1554,9 +1548,9 @@ TEST(test_basic, reg_limit_check_without_state) {
         ASSERT_NO_THROW(ar = semantic.Analyze(pr, {}));
     }
     const char *rejected[] = {
-        "./basic/test_reg_limit_over.lua",
-        "./basic/test_reg_limit_exact_over.lua",
-        "./basic/test_reg_limit_nested_over.lua",
+            "./basic/test_reg_limit_over.lua",
+            "./basic/test_reg_limit_exact_over.lua",
+            "./basic/test_reg_limit_nested_over.lua",
     };
     for (const char *file: rejected) {
         SCOPED_TRACE(file);
@@ -1578,12 +1572,17 @@ TEST(test_basic, reg_limit_check_without_state) {
 }
 
 TEST(test_basic, reg_limit_jit_only_execution) {
-    struct Case { const char *file; const char *fn; double expected; };
+    struct Case {
+        const char *file;
+        const char *fn;
+        double expected;
+    };
+
     const Case cases[] = {
-        {"./basic/test_reg_limit_ok.lua", "test_reg_limit", 27500},
-        {"./basic/test_reg_limit_exact_ok.lua", "test_reg_limit_exact", 256},
-        {"./basic/test_reg_limit_many_constants.lua", "test_reg_limit_many_constants", 301},
-        {"./basic/test_init_load_table.lua", "InitLoadTable.test_init_load_table", 1},
+            {"./basic/test_reg_limit_ok.lua", "test_reg_limit", 27500},
+            {"./basic/test_reg_limit_exact_ok.lua", "test_reg_limit_exact", 256},
+            {"./basic/test_reg_limit_many_constants.lua", "test_reg_limit_many_constants", 301},
+            {"./basic/test_init_load_table.lua", "InitLoadTable.test_init_load_table", 1},
     };
     CompileConfig cfg{};
     cfg.disable_jit[JIT_INTERP] = true;

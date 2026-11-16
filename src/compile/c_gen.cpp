@@ -1,5 +1,7 @@
 #include "compile/c_gen.h"
 
+#include "var/var_string.h"
+#include <map>
 #include <ranges>
 
 #include "compile/c_runtime_header.h"
@@ -9,6 +11,16 @@
 #include "util/file_util.h"
 
 namespace fakelua {
+
+std::string CGen::StringId(const std::string_view &value) {
+    auto [it, inserted] = string_indices_.try_emplace(std::string(value), string_literals_.size());
+    if (inserted) {
+        string_literals_.emplace_back(value);
+        SectionGuard sg(*this, Section::StringDecls);
+        Out() << "static int64_t __fakelua_cache_sid_" << it->second << ";\n";
+    }
+    return "__fakelua_cache_sid_" + std::to_string(it->second);
+}
 
 bool CGen::IsFuncLocalName(const std::string &lua_name) const {
     if (!cur_func_info_) {
@@ -76,7 +88,7 @@ std::string CGen::LookupFuncCName(const std::string &lua_name) const {
 }
 
 void CGen::UniquifyFuncCNames() {
-    file_c_ident_used_.insert({"_S", "__fakelua_init_flag__", "fl_temp_heap", "fl_const_heap", "fl_lua_loc", "fl_lua_file", "kNil", "kTrue", "kFalse", kInitFunctionName});
+    file_c_ident_used_.insert({"__fakelua_bind", "_S", "__fakelua_init_flag__", "fl_temp_heap", "fl_const_heap", "fl_lua_loc", "fl_lua_file", "kNil", "kTrue", "kFalse", kInitFunctionName});
 
     FuncInfo *real_init = nullptr;
     for (auto it = all_funcs_.rbegin(); it != all_funcs_.rend(); ++it) {
@@ -183,6 +195,7 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Ana
     LOG_DEBUG(s_, "engine", "start CGen::Generate {}", pr.file_name);
 
     file_name_ = pr.file_name;
+    code_file_name_ = pr.from_string ? "<fakelua-string>" : pr.file_name;
     ir_ = ir;
     ar_ = ar;
 
@@ -272,8 +285,20 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     if (cfg.record_c_code) {
         gr.recorded_c_code = GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls);
     }
-    gr.c_code = GetSectionStr(Section::Headers) + GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls);
+    GenerateBindings();
+    gr.c_code = GetSectionStr(Section::Includes) + GetSectionStr(Section::StringDecls) + GetSectionStr(Section::Headers) + GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) +
+                GetSectionStr(Section::Impls) + GetSectionStr(Section::Bindings);
     return gr;
+}
+
+void CGen::GenerateBindings() {
+    SectionGuard sg(*this, Section::Bindings);
+    Out() << "void *__fakelua_bind(void *s, void *temp, void *constant, const char *file, int64_t (*intern)(void *, const char *, size_t)) {\n"
+          << "    _S = s; fl_temp_heap = temp; fl_const_heap = constant; fl_lua_file = file;\n";
+    for (size_t i = 0; i < string_literals_.size(); ++i) {
+        Out() << "    __fakelua_cache_sid_" << i << " = intern(s, \"" << EscapeCStringLiteral(string_literals_[i]) << "\", " << string_literals_[i].size() << ");\n";
+    }
+    Out() << "    return &fl_lua_loc;\n}\n";
 }
 
 // EmitSpecAccessorBody —— 按 key kind（string / int / float / bool）发射
@@ -283,31 +308,50 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
     // ---- string keys ----
     if (meta.has_string_keys) {
         Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
-        Out() << "        switch (k.data_.i) {\n";
+
+        auto emit_id_match = [&](const TableFieldInfo &f, int index) {
+            Out() << "            if (k.data_.i == " << StringId(f.key) << ") { ";
+            if (is_get) {
+                Out() << "*__finish = true; return s->" << f.c_field_name << "; }\n";
+            } else {
+                Out() << "s->" << f.c_field_name << " = v; tbl->spec_vals[" << index << "] = v; tbl->spec_keys[" << index << "] = k; *__finish = true; return; }\n";
+            }
+        };
+        std::map<uint32_t, std::vector<int>> hash_cases;
+        int string_count = 0;
+        for (size_t i = 0; i < meta.fields.size(); ++i) {
+            const auto &f = meta.fields[i];
+            if (f.key_kind == TableKeyKind::kString) {
+                hash_cases[VarString::HashOf(f.key)].push_back(static_cast<int>(i));
+                ++string_count;
+            }
+        }
+        if (string_count <= 4) {
+            for (size_t i = 0; i < meta.fields.size(); ++i)
+                if (meta.fields[i].key_kind == TableKeyKind::kString) emit_id_match(meta.fields[i], static_cast<int>(i));
+        } else {
+            // Interned strings already have a cached hash. A constant hash
+            // switch keeps wide shapes O(1)/O(log N), rather than turning the
+            // old immediate-address switch into N runtime-static comparisons.
+            // Always guard by canonical identity, including hash collisions.
+            Out() << "        switch (((VarString *)k.data_.i)->hash_) {\n";
+            for (const auto &[hash, indices]: hash_cases) {
+                Out() << "        case " << hash << "u:\n";
+                for (int index: indices) emit_id_match(meta.fields[index], index);
+                Out() << "            break;\n";
+            }
+            Out() << "        default: break;\n        }\n";
+        }
+        Out() << "    } else if (k.type_ == VAR_STRING) {\n";
+        Out() << "        VarString *__vs = k.data_.s;\n";
         int f_idx = 0;
         for (const auto &f: meta.fields) {
             if (f.key_kind == TableKeyKind::kString) {
                 if (is_get) {
-                    Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": *__finish = true; return s->" << f.c_field_name << ";\n";
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << EscapeCStringLiteral(f.key) << "\", " << f.key.size()
+                          << ") == 0) { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
-                    Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
-                          << "] = k; *__finish = true; return;\n";
-                }
-            }
-            f_idx++;
-        }
-        Out() << "            default: break;\n";
-        Out() << "        }\n";
-        Out() << "    } else if (k.type_ == VAR_STRING) {\n";
-        Out() << "        VarString *__vs = k.data_.s;\n";
-        f_idx = 0;
-        for (const auto &f: meta.fields) {
-            if (f.key_kind == TableKeyKind::kString) {
-                if (is_get) {
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << EscapeCStringLiteral(f.key) << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->"
-                          << f.c_field_name << "; }\n";
-                } else {
-                    const auto id = s_->GetConstString().Alloc(f.key);
+                    const auto id = StringId(f.key);
                     Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << EscapeCStringLiteral(f.key) << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name
                           << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
                 }
@@ -376,8 +420,8 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
                 if (is_get) {
                     Out() << "        if ((double)__ival == " << FormatCDoubleLiteral(f.float_value) << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
-                    Out() << "        if ((double)__ival == " << FormatCDoubleLiteral(f.float_value) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
-                          << "] = k; *__finish = true; return; }\n";
+                    Out() << "        if ((double)__ival == " << FormatCDoubleLiteral(f.float_value) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys["
+                          << f_idx << "] = k; *__finish = true; return; }\n";
                 }
             }
             f_idx++;
@@ -435,7 +479,7 @@ void CGen::EmitSpecTypeBoilerplate(const std::string &spec_type, const SpecTypeM
 }
 
 void CGen::GenerateHeader() {
-    SectionGuard sg(*this, Section::Headers);
+    SectionGuard sg(*this, Section::Includes);
     Out() << R"(// Generated by FakeLua CGen
 #include <assert.h>
 #include <math.h>
@@ -448,19 +492,18 @@ void CGen::GenerateHeader() {
 
 )";
 
-    // 硬编码 state 指针到生成的 C 代码中。
-    // 生命周期保证：生成的代码最终由 TCCState/GCC 产物承载，这些产物通过 TCCHandle/JITHandle
-    // 被 VmFunction 以 shared_ptr 持有，而 VmFunction 注册在本 State 的 Vm 中（见
-    // src/jit/tcc_jit.cpp 与 src/jit/vm_function.h）。因此生成代码里的 _S 永远不会
-    // 比其宿主 State 活得更久——State 析构即销毁 Vm，进而释放 handle 和代码页。
-    // 同一份代码也不会被跨 State 复用（每次编译都会重新生成）。
-    Out() << "static void * _S = (void *) " << s_ << ";\n";
+    SectionGuard runtime_header(*this, Section::Headers);
+    // StringDecls is assembled between Includes and Headers: spec helpers below
+    // can use interned IDs even when those literals are discovered later.
+    // Each loaded image is private to one compilation/State. Bind once, never
+    // embed process addresses in persistent code or look them up on hot paths.
+    Out() << "static void * _S;\n";
     Out() << "static bool __fakelua_init_flag__ = false;\n";
-    Out() << "static void * fl_temp_heap = (void *) " << reinterpret_cast<uintptr_t>(&s_->GetTempHeapSlot()) << ";\n";
-    Out() << "static void * fl_const_heap = (void *) " << reinterpret_cast<uintptr_t>(&s_->GetConstHeapSlot()) << ";\n";
+    Out() << "static void * fl_temp_heap;\n";
+    Out() << "static void * fl_const_heap;\n";
 
     // C 运行时类型定义、宏 and 函数（从 c_runtime_header.h 提取，便于独立维护）
-    Out() << "static const char * const fl_lua_file = \"" << EscapeCStringLiteral(file_name_) << "\";\n";
+    Out() << "static const char *fl_lua_file;\n";
 
     // Attribute the pasted Fl* runtime to the checked-in view header so USE_COV
     // gcov → lcov → Codecov can display hits on a real repo path (not
@@ -475,9 +518,10 @@ void CGen::GenerateHeader() {
 
     // 前置发射所有 spec 类型的 typedef + 特化 get/set 函数（读取 TypeInferencer 预计算的
     // ir.spec_type_metadata）。CGen 不再在 CompileTableconstructor 里懒发射这些样板代码。
-    for (const auto &[spec_type, meta]: ir().spec_type_metadata) {
-        EmitSpecTypeBoilerplate(spec_type, meta);
-    }
+    std::vector<std::string> spec_types;
+    for (const auto &[name, meta]: ir().spec_type_metadata) spec_types.push_back(name);
+    std::sort(spec_types.begin(), spec_types.end());
+    for (const auto &name: spec_types) EmitSpecTypeBoilerplate(name, ir().spec_type_metadata.at(name));
 }
 
 void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
@@ -537,7 +581,8 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                     // 文件级绑定：推断期禁整槽再赋；表在 init 里经 SET_TABLE 创建即带 CONST_FLAG。
                     // 记入 global_const_table_vars_，供 CompileVar 识别已声明的文件级 CVar。
                     const std::string cvar_init = exp ? CompileExp(exp) : "(CVar){.type_ = VAR_NIL}";
-                    Out() << "static CVar " << cname << " = " << cvar_init << ";\n";
+                    Out() << "static CVar " << cname << ";\n";
+                    global_initializers_ << "    " << cname << " = " << cvar_init << ";\n";
                     global_const_table_vars_.insert(cname);
                 }
             }
@@ -766,7 +811,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
 }
 
 void CGen::GenerateEntryDispatcher(const std::string &c_name, const std::string &lua_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices,
-                                  const std::string &dyn_name) {
+                                   const std::string &dyn_name) {
     const int k = static_cast<int>(math_param_indices.size());
     const int num_specs = 1 << k;
 
@@ -839,7 +884,7 @@ void CGen::EmitLuaLine(const SyntaxTreeInterface *node, bool emit_loc_set) {
     if (line <= 0) {
         return;
     }
-    Out() << "#line " << line << " \"" << EscapeCStringLiteral(file_name_) << "\"\n";
+    Out() << "#line " << line << " \"" << EscapeCStringLiteral(code_file_name_) << "\"\n";
     if (emit_loc_set) {
         Out() << GenTab() << "FL_LOC_SET(fl_lua_file, " << line << ");\n";
     }
@@ -1072,6 +1117,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
         out << "    FakeluaRegisterLuaLoc(_S, FAKELUA_JIT_TYPE, &fl_lua_loc);\n";
     }
     out << func_temp_decls_.str();
+    if (func_name == kInitFunctionName) out << global_initializers_.str();
     out << body_ss.str();
     if (func_name == kInitFunctionName) {
         // init 内 SET_TABLE 已给整棵表树打 CONST_FLAG；此处只标记 init 结束，
@@ -1163,8 +1209,7 @@ std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
 static const std::unordered_map<BinOpKind, std::string_view> kCmpOpMap = {{BinOpKind::kLess, "<"},       {BinOpKind::kLessEqual, "<="}, {BinOpKind::kMore, ">"},
                                                                           {BinOpKind::kMoreEqual, ">="}, {BinOpKind::kEqual, "=="},     {BinOpKind::kNotEqual, "!="}};
 
-static std::string FormatNativeNumericComparison(const std::string &left, const std::string &right, InferredType left_type, InferredType right_type,
-                                                 BinOpKind op_kind) {
+static std::string FormatNativeNumericComparison(const std::string &left, const std::string &right, InferredType left_type, InferredType right_type, BinOpKind op_kind) {
     const auto cmp_it = kCmpOpMap.find(op_kind);
     DEBUG_ASSERT(cmp_it != kCmpOpMap.end());
     if (left_type == right_type) {
@@ -1182,8 +1227,8 @@ static std::string FormatNativeNumericComparison(const std::string &left, const 
     // FlCompareIntDouble compares integer against floating.  Reverse the
     // relation when the source operands are float/int.  NaN makes every
     // ordered comparison false, including <= and >=.
-    const auto relation = left_is_int ? std::format("FlCompareIntDouble(({}), ({})) {} 0", integer, floating, cmp_it->second)
-                                      : std::format("0 {} FlCompareIntDouble(({}), ({}))", cmp_it->second, integer, floating);
+    const auto relation =
+            left_is_int ? std::format("FlCompareIntDouble(({}), ({})) {} 0", integer, floating, cmp_it->second) : std::format("0 {} FlCompareIntDouble(({}), ({}))", cmp_it->second, integer, floating);
     return std::format("(!isnan(({})) && ({}))", floating, relation);
 }
 
@@ -1788,12 +1833,8 @@ std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const s
             if (op) {
                 const auto op_kind = op->GetOpKind();
                 static const std::unordered_map<BinOpKind, std::string> kCmpFunctions = {
-                    {BinOpKind::kLess, "FlCmpLt"},
-                    {BinOpKind::kLessEqual, "FlCmpLe"},
-                    {BinOpKind::kMore, "FlCmpGt"},
-                    {BinOpKind::kMoreEqual, "FlCmpGe"},
-                    {BinOpKind::kEqual, "FlCmpEq"},
-                    {BinOpKind::kNotEqual, "FlCmpNe"},
+                        {BinOpKind::kLess, "FlCmpLt"},      {BinOpKind::kLessEqual, "FlCmpLe"}, {BinOpKind::kMore, "FlCmpGt"},
+                        {BinOpKind::kMoreEqual, "FlCmpGe"}, {BinOpKind::kEqual, "FlCmpEq"},     {BinOpKind::kNotEqual, "FlCmpNe"},
                 };
                 if (auto it = kCmpFunctions.find(op_kind); it != kCmpFunctions.end()) {
                     const auto left_expr = CompileExp(e->Left());
@@ -2088,11 +2129,11 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         if (loop_type == T_INT) {
             Out() << GenTab() << stop_var << " = 0;\n";
             if (step_int_val > 0) {
-                Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << " && !" << stop_var << "; "
-                      << ctrl_var << " >= INT64_MAX - " << (step_int_val - 1) << "LL ? (" << stop_var << " = 1) : (" << ctrl_var << " += " << step_int_val << "LL)) {\n";
+                Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << " && !" << stop_var << "; " << ctrl_var << " >= INT64_MAX - " << (step_int_val - 1) << "LL ? (" << stop_var
+                      << " = 1) : (" << ctrl_var << " += " << step_int_val << "LL)) {\n";
             } else {
-                Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << " && !" << stop_var << "; "
-                      << ctrl_var << " <= INT64_MIN - (" << (step_int_val + 1) << "LL) ? (" << stop_var << " = 1) : (" << ctrl_var << " += " << step_int_val << "LL)) {\n";
+                Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << " && !" << stop_var << "; " << ctrl_var << " <= INT64_MIN - (" << (step_int_val + 1) << "LL) ? (" << stop_var
+                      << " = 1) : (" << ctrl_var << " += " << step_int_val << "LL)) {\n";
             }
         } else if (step_double_val > 0.0) {
             const std::string incr = (step_double_val == 1.0) ? (ctrl_var + "++") : (ctrl_var + " += " + std::to_string(step_double_val));
@@ -2537,7 +2578,7 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_mu
                 return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}", ToFloat(value));
             }
         case ExpKind::kString:
-            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc(value));
+            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", StringId(value));
         case ExpKind::kPrefixExp:
             return CompilePrefixexp(e->Right(), preserve_multi);
         case ExpKind::kTableConstructor:
@@ -2549,7 +2590,8 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_mu
                 return std::format("FlMakeClosure0(_S, (void*){}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false");
             }
             if (func->captured_vars.size() == 1) {
-                return std::format("FlMakeClosure1(_S, (void*){}, {}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false", CompileUpvaluePointer(func->captured_vars[0]));
+                return std::format("FlMakeClosure1(_S, (void*){}, {}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false",
+                                   CompileUpvaluePointer(func->captured_vars[0]));
             }
             std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}", func->unique_c_name, func->captured_vars.size(), func->params.size(), func->is_vararg ? "true" : "false");
             for (VarDef *up: func->captured_vars) {
@@ -2642,7 +2684,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
                 if (fp->GetFieldKind() == FieldKind::kObject) {
                     const auto key_name = fp->Name();
-                    const auto id = s_->GetConstString().Alloc(key_name);
+                    const auto id = StringId(key_name);
                     Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
                 } else {
                     if (fp->Key() == nullptr) {
@@ -2655,7 +2697,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                             if (ClassifyLiteralKey(fp->Key(), key_info)) {
                                 switch (key_info.kind) {
                                     case TableKeyKind::kString: {
-                                        const auto id = s_->GetConstString().Alloc(key_info.repr);
+                                        const auto id = StringId(key_info.repr);
                                         Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
                                         break;
                                     }
@@ -2721,13 +2763,13 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
             if (fkind == FieldKind::kObject) {
                 const auto name = field_ptr->Name();
-                const auto id = s_->GetConstString().Alloc(name);
+                const auto id = StringId(name);
                 Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
             } else {
                 DEBUG_ASSERT(fkind == FieldKind::kArray);
                 if (const auto key = field_ptr->Key()) {
                     if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
-                        const auto id = s_->GetConstString().Alloc(key_exp->ExpValue());
+                        const auto id = StringId(key_exp->ExpValue());
                         Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
                     } else {
                         if (const auto key_type = GetType(key); key_type == T_INT) {
@@ -3149,7 +3191,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         // 拦截 _VERSION 全局常量（编译期替换为 "Fakelua x.y.z"）
         if (name == "_VERSION") {
             std::string ver = std::string("Fakelua ") + FAKELUA_VERSION_STRING;
-            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc(ver));
+            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", StringId(ver));
         }
 
         // 未声明/未定义的简单变量：Lua 语义中未定义变量求值为 nil。
@@ -3178,7 +3220,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                 }
                 switch (info.kind) {
                     case TableKeyKind::kString: {
-                        const auto id = s_->GetConstString().Alloc(info.repr);
+                        const auto id = StringId(info.repr);
                         return std::format("FlGetTableStrId({}, {})", pe_ret, id);
                     }
                     case TableKeyKind::kInt:
@@ -3236,7 +3278,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                                 p.push_back(']');
                                 return p;
                             }();
-                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc(kCharPattern));
+                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", StringId(kCharPattern));
                         }
                     }
                     // 拦截 utf8 静态库常量访问 (utf8.charpattern)
@@ -3262,8 +3304,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                                 p.push_back('*');
                                 return p;
                             }();
-                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}",
-                                               s_->GetConstString().Alloc(kUtf8Pattern));
+                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", StringId(kUtf8Pattern));
                         }
                     }
                 }
@@ -3279,7 +3320,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         }
 
         // String constant key fast path: use FlGetTableStrId directly.
-        const auto id = s_->GetConstString().Alloc(name);
+        const auto id = StringId(name);
         return std::format("FlGetTableStrId({}, {})", pe_ret, id);
     }
 }
@@ -3668,9 +3709,8 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
     const auto &raw_args = explist_arg_ptr->Exps();
 
-    static const std::unordered_set<std::string> math_builtins = {"abs",        "floor", "ceil",  "max", "min", "sqrt",  "sin",  "cos",  "tan",  "pow",  "deg",  "rad", "random",
-                                                                  "randomseed", "modf",  "frexp", "exp", "log", "log10", "asin", "acos", "atan", "sinh", "cosh", "tanh",
-                                                                  "fmod",      "ldexp", "type",  "tointeger", "ult"};
+    static const std::unordered_set<std::string> math_builtins = {"abs",   "floor", "ceil", "max",   "min",  "sqrt", "sin",  "cos",  "tan",  "pow",  "deg",  "rad",   "random", "randomseed", "modf",
+                                                                  "frexp", "exp",   "log",  "log10", "asin", "acos", "atan", "sinh", "cosh", "tanh", "fmod", "ldexp", "type",   "tointeger",  "ult"};
 
     if (!math_builtins.contains(method_name)) {
         return {};
@@ -3739,8 +3779,8 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     }
     if (method_name == "ceil" && raw_args.size() == 1) {
         std::string arg = MaterializeArg(raw_args[0]);
-        Out() << GenTab() << tmp << " = ((" << arg << ".type_ == VAR_INT || " << arg << ".type_ == VAR_FLOAT) ? FlMathCeil(" << arg
-              << ") : FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ceil\", 1, " << arg << "));\n";
+        Out() << GenTab() << tmp << " = ((" << arg << ".type_ == VAR_INT || " << arg << ".type_ == VAR_FLOAT) ? FlMathCeil(" << arg << ") : FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ceil\", 1, "
+              << arg << "));\n";
         return tmp;
     }
     if (method_name == "max" && raw_args.size() == 2) {
@@ -3889,8 +3929,8 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     if (method_name == "type" && raw_args.size() == 1) {
         // INT/FLOAT 快路径；其余（含数字字符串）与 Lua 一致返回 nil。
         std::string arg = MaterializeArg(raw_args[0]);
-        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = (CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("integer") << "}; } ";
-        Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("float") << "}; } ";
+        Out() << GenTab() << "if (" << arg << ".type_ == VAR_INT) { " << tmp << " = (CVar){.type_ = VAR_STRINGID, .data_.i = " << StringId("integer") << "}; } ";
+        Out() << "else if (" << arg << ".type_ == VAR_FLOAT) { " << tmp << " = (CVar){.type_ = VAR_STRINGID, .data_.i = " << StringId("float") << "}; } ";
         Out() << "else { " << tmp << " = kNil; }\n";
         return tmp;
     }
@@ -4142,8 +4182,8 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         Out() << GenTab() << dst_tmp << " = " << (has_dst ? dst_arg : src_tmp) << ";\n";
         // 仅当 f/e/t 均为 INT 且 src/dst 为合法 table（或 dst 为 nil）时走 FlTableMove 内联快路径；
         // 其余（如 2.0 精确浮点下标、数字字符串、非法类型报错等）回退到 native 统一处理。
-        Out() << GenTab() << "if (LIKELY(" << src_tmp << ".type_ == VAR_TABLE && (" << dst_tmp << ".type_ == VAR_TABLE || " << dst_tmp << ".type_ == VAR_NIL) && "
-              << f_c << ".type_ == VAR_INT && " << e_c << ".type_ == VAR_INT && " << t_c << ".type_ == VAR_INT)) {\n";
+        Out() << GenTab() << "if (LIKELY(" << src_tmp << ".type_ == VAR_TABLE && (" << dst_tmp << ".type_ == VAR_TABLE || " << dst_tmp << ".type_ == VAR_NIL) && " << f_c << ".type_ == VAR_INT && "
+              << e_c << ".type_ == VAR_INT && " << t_c << ".type_ == VAR_INT)) {\n";
         Out() << GenTab() << "    " << tmp << " = FlTableMove(" << src_tmp << ", " << f_c << ".data_.i, " << e_c << ".data_.i, " << t_c << ".data_.i, " << dst_tmp << ");\n";
         Out() << GenTab() << "} else {\n";
         if (has_dst) {
@@ -4506,8 +4546,8 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
             Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT)) {\n";
             Out() << GenTab() << "    " << tmp << " = FlFormatInt(" << arg_tmp << ".data_.i);\n";
             Out() << GenTab() << "} else {\n";
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.format\", 2, " << "(CVar){.type_ = VAR_STRINGID, .data_.i = " << s_->GetConstString().Alloc("%d")
-                  << "}, " << arg_tmp << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.format\", 2, " << "(CVar){.type_ = VAR_STRINGID, .data_.i = " << StringId("%d") << "}, "
+                  << arg_tmp << ");\n";
             Out() << GenTab() << "}\n";
             return tmp;
         }
@@ -4657,7 +4697,6 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     }
 
     // 获取当前源文件位置信息
-    const std::string file_name = file_name_;
     int line_number = fc->Loc().begin.line;
     std::string func_name = (cur_func_info_ && !cur_func_info_->name.empty()) ? cur_func_info_->name : "global";
 
@@ -4698,7 +4737,7 @@ std::string CGen::TryCompileBuiltinLogCall(const std::shared_ptr<SyntaxTreeFunct
     func_temp_decls_ << "    CVar " << msg_tmp << ";\n";
     func_temp_decls_ << "    CVar " << ret_tmp << ";\n";
     Out() << GenTab() << msg_tmp << " = " << msg_cvar << ";\n";
-    Out() << GenTab() << log_macro << "(" << msg_tmp << ", " << "\"" << file_name << "\", " << line_number << ", \"" << func_name << "\");\n";
+    Out() << GenTab() << log_macro << "(" << msg_tmp << ", fl_lua_file, " << line_number << ", \"" << func_name << "\");\n";
     Out() << GenTab() << ret_tmp << ".type_ = VAR_NIL;\n";
     return ret_tmp;
 }
@@ -4824,7 +4863,7 @@ std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctio
                     Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
                     switch (info.kind) {
                         case TableKeyKind::kString: {
-                            const auto id = s_->GetConstString().Alloc(info.repr);
+                            const auto id = StringId(info.repr);
                             Out() << GenTab() << std::format("{}.data_.t->spec_keys[{}] = (CVar){{.type_ = VAR_STRINGID, .data_.i = {}}};\n", tbl_str, index, id);
                             break;
                         }
@@ -4841,7 +4880,7 @@ std::string CGen::TryCompileSetTableCall(const std::shared_ptr<SyntaxTreeFunctio
                 } else {
                     switch (info.kind) {
                         case TableKeyKind::kString: {
-                            const auto id = s_->GetConstString().Alloc(info.repr);
+                            const auto id = StringId(info.repr);
                             Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
                             break;
                         }
@@ -5080,7 +5119,7 @@ std::string CGen::BuildMethodCall(const std::shared_ptr<SyntaxTreeFunctioncall> 
         // 避免 FlGetTableStrId 对非表值（如 string）触发 "attempt to index a non-table value"。
         return forwarded;
     } else {
-        const auto id = s_->GetConstString().Alloc(method_name);
+        const auto id = StringId(method_name);
         callee_expr = std::format("FlGetTableStrId({}, {})", obj_tmp, id);
     }
 
@@ -5463,7 +5502,8 @@ void CGen::CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt) {
     if (func->captured_vars.empty()) {
         closure_expr = std::format("FlMakeClosure0(_S, (void*){}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false");
     } else if (func->captured_vars.size() == 1) {
-        closure_expr = std::format("FlMakeClosure1(_S, (void*){}, {}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false", CompileUpvaluePointer(func->captured_vars[0]));
+        closure_expr =
+                std::format("FlMakeClosure1(_S, (void*){}, {}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false", CompileUpvaluePointer(func->captured_vars[0]));
     } else {
         closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}", func->unique_c_name, func->captured_vars.size(), func->params.size(), func->is_vararg ? "true" : "false");
         for (VarDef *up: func->captured_vars) {

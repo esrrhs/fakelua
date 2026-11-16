@@ -70,6 +70,7 @@ protected:
 
     struct LoopInfo {
         enum Kind { kWhile, kRepeat, kFor, kForIn } kind = kWhile;
+
         int continue_ip = -1;
         std::vector<int> break_jmps;
         std::vector<int> continue_jmps;
@@ -140,7 +141,7 @@ protected:
     static const std::unordered_set<std::string> kStringLibraryMethods;
 
     bool check_only_ = false;
-    int check_ip_ = 0; // 控制流位置占位，无指令流
+    int check_ip_ = 0;// 控制流位置占位，无指令流
     State *s_ = nullptr;
     std::string file_name_;
     const AnalysisResult *ar_ = nullptr;
@@ -173,6 +174,7 @@ protected:
         std::unordered_map<std::string, int> defined;
         std::unordered_map<std::string, std::vector<int>> pending;
     };
+
     std::vector<LabelScope> label_scopes_;
 };
 

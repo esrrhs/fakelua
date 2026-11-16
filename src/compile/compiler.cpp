@@ -40,6 +40,7 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
 
     ParseResult pr;
     pr.file_name = f.GetFilename();
+    pr.from_string = f.IsString();
 
     // 1. 生成语法树（AST）
     LOG_DEBUG(s_, "engine", "step 1: parsing AST");

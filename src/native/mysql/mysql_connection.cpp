@@ -24,7 +24,11 @@ int64_t NowMs() {
 
 struct TickDepthGuard {
     int &depth;
-    explicit TickDepthGuard(int &d) : depth(d) { ++depth; }
+
+    explicit TickDepthGuard(int &d) : depth(d) {
+        ++depth;
+    }
+
     ~TickDepthGuard() {
         if (depth > 0) --depth;
     }
@@ -142,13 +146,12 @@ void MysqlConnection::ArmWait(int status) {
         ptv = &tv;
     }
     my_socket fd = mysql_get_socket(mysql_);
-    wait_ev_ = event_new(io_.Get(), fd, ev, [](evutil_socket_t, short what, void *ctx) {
-        static_cast<MysqlConnection *>(ctx)->Continue(WaitReady(what));
-    }, this);
+    wait_ev_ = event_new(io_.Get(), fd, ev, [](evutil_socket_t, short what, void *ctx) { static_cast<MysqlConnection *>(ctx)->Continue(WaitReady(what)); }, this);
     event_add(wait_ev_, ptv);
 }
 
-void MysqlConnection::Connect(const std::string &host, uint16_t port, const std::string &user, const std::string &password, const std::string &database, int timeout_ms, SslMode ssl, std::string ssl_ca) {
+void MysqlConnection::Connect(const std::string &host, uint16_t port, const std::string &user, const std::string &password, const std::string &database, int timeout_ms, SslMode ssl,
+                              std::string ssl_ca) {
     host_ = host;
     port_ = port;
     user_ = user;
@@ -704,7 +707,8 @@ void MysqlConnection::Tick() {
     if (pending_connect_) {
         pending_connect_ = false;
         if (!pending_connect_err_.empty()) DispatchConnect(pending_connect_err_.c_str());
-        else DispatchConnect(nullptr);
+        else
+            DispatchConnect(nullptr);
         pending_connect_err_.clear();
     }
 
@@ -767,11 +771,26 @@ bool MysqlConnection::IsRetryable(MysqlErrorType type) {
     }
 }
 
-void MysqlConnection::SetConnectCallback(const ResultCallback &cb) { connect_cb_ = cb; }
-void MysqlConnection::SetResultCallback(const ResultCallback &cb) { result_cb_ = cb; }
-void MysqlConnection::SetState(::fakelua::State *state) { lua_state_ = state; }
-void MysqlConnection::SetNativeObject(::fakelua::NativeObject *obj) { native_obj_ = obj; }
-bool MysqlConnection::Connected() const { return ready_; }
+void MysqlConnection::SetConnectCallback(const ResultCallback &cb) {
+    connect_cb_ = cb;
+}
+
+void MysqlConnection::SetResultCallback(const ResultCallback &cb) {
+    result_cb_ = cb;
+}
+
+void MysqlConnection::SetState(::fakelua::State *state) {
+    lua_state_ = state;
+}
+
+void MysqlConnection::SetNativeObject(::fakelua::NativeObject *obj) {
+    native_obj_ = obj;
+}
+
+bool MysqlConnection::Connected() const {
+    return ready_;
+}
+
 void MysqlConnection::MarkConnectedForTest() {
     ClearWait();
     wait_op_ = WaitOp::None;
@@ -781,17 +800,25 @@ void MysqlConnection::MarkConnectedForTest() {
     ready_ = true;
     close_pending_ = false;
 }
-bool MysqlConnection::Connecting() const { return state_ == ConnState::Connecting || state_ == ConnState::Handshaking; }
-int MysqlConnection::TickDepth() const { return tick_depth_; }
-bool MysqlConnection::ClosePending() const { return close_pending_; }
-void MysqlConnection::RequestClose() { close_pending_ = true; }
+
+bool MysqlConnection::Connecting() const {
+    return state_ == ConnState::Connecting || state_ == ConnState::Handshaking;
+}
+
+int MysqlConnection::TickDepth() const {
+    return tick_depth_;
+}
+
+bool MysqlConnection::ClosePending() const {
+    return close_pending_;
+}
+
+void MysqlConnection::RequestClose() {
+    close_pending_ = true;
+}
+
 bool MysqlConnection::HasPendingWork() const {
-    return state_ == ConnState::Querying ||
-           state_ == ConnState::Connecting ||
-           state_ == ConnState::Handshaking ||
-           wait_op_ != WaitOp::None ||
-           pending_result_ ||
-           pending_connect_ ||
+    return state_ == ConnState::Querying || state_ == ConnState::Connecting || state_ == ConnState::Handshaking || wait_op_ != WaitOp::None || pending_result_ || pending_connect_ ||
            !queued_queries_.empty();
 }
 
@@ -882,8 +909,7 @@ void MysqlConnection::DispatchCallbackWithResult(const ResultCallback &cb, const
         std::vector<CVar> args = BuildCallbackArgs(a0, inter::NativeToFakeluaString(lua_state_, msg), nil, decoded);
         InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
     } else if (dispatch_stmt_id_ != 0) {
-        std::vector<CVar> args = BuildCallbackArgs(a0, nil,
-                                                   inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(dispatch_stmt_id_)), decoded);
+        std::vector<CVar> args = BuildCallbackArgs(a0, nil, inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(dispatch_stmt_id_)), decoded);
         InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
     } else if (pending_results_.empty()) {
         std::vector<CVar> args = BuildCallbackArgs(a0, nil, table::TableHelper::CreateTable(lua_state_), decoded);

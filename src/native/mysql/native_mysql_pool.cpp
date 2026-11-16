@@ -169,8 +169,10 @@ static CVar PoolCreate(State *s, CVar *args, int n) {
         } else if (ssl_var.type_ != static_cast<int>(VarType::Nil)) {
             std::string mode = CVarToString(ssl_var);
             if (mode == "require" || mode == "true") config.ssl = SslMode::Require;
-            else if (mode == "enable") config.ssl = SslMode::Enable;
-            else config.ssl = SslMode::Disable;
+            else if (mode == "enable")
+                config.ssl = SslMode::Enable;
+            else
+                config.ssl = SslMode::Disable;
         }
         CVar ca_var = table::TableHelper::GetTableStrId(s, a0, "ssl_ca");
         if (ca_var.type_ != static_cast<int>(VarType::Nil)) config.ssl_ca = CVarToString(ca_var);
@@ -276,12 +278,14 @@ static CVar PoolWith(NativeObject *self, State *s, CVar *args, int n) {
 
     CVar conn_arg = inter::NativeToFakeluaNativeObject(s, nat);
     auto *conn = UnwrapConnNative(nat);
+
     // 租约保护：离开作用域时检查。
     // 若无在途/排队的异步工作（如同步抛错或未发起 query），立刻归还连接；
     // 若已有 query 在飞行或排队中，打上 auto_release 标记，由 Tick 在全部 query 结果派发完毕后自动归还。
     struct LeaseGuard {
         NativeObject *nat;
         MysqlConnection *conn;
+
         ~LeaseGuard() {
             if (!nat) return;
             if (!conn || !conn->HasPendingWork()) {
@@ -291,6 +295,7 @@ static CVar PoolWith(NativeObject *self, State *s, CVar *args, int n) {
             }
         }
     } lease{nat, conn};
+
     // fn 是同帧同步调用，直接沿用当前 Lua 调用方的引擎（异常边界随之正确），
     // 不固定 TCC 标记。
     return inter::DispatchCallClosure(s, a0.data_.cl, &conn_arg, 1, s->CurrentJit());

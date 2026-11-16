@@ -1,10 +1,10 @@
 #include "fakelua.h"
 #include "util/common.h"
-#include "util/string_util.h"
-#include "gtest/gtest.h"
 #include "util/file_util.h"
 #include "util/number_util.h"
 #include "util/os.h"
+#include "util/string_util.h"
+#include "gtest/gtest.h"
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -184,4 +184,11 @@ TEST(util, generate_tmp_filename_collision) {
     std::error_code ec;
     std::filesystem::remove(first, ec);
     std::filesystem::remove(second, ec);
+}
+
+TEST(util, temporary_directory_shared_with_generated_filenames) {
+    const auto dir = std::filesystem::path(GetTmpDirectory());
+    EXPECT_EQ(dir.filename(), "fakelua");
+    EXPECT_TRUE(std::filesystem::is_directory(dir));
+    EXPECT_EQ(std::filesystem::path(GenerateTmpFilename("directory_probe_", ".tmp")).parent_path(), dir);
 }

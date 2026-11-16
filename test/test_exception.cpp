@@ -5,6 +5,7 @@
 #include "util/string_util.h"
 #include "gtest/gtest.h"
 #include <cstring>
+#include <tuple>
 
 using namespace fakelua;
 
@@ -1039,11 +1040,12 @@ TEST(exception, undeclared_var_error) {
         const char *name;
         int line;
     };
+
     const Case cases[] = {
-        {"./exception/test_undeclared_var_read_error.lua", "unknown_global", 2},
-        {"./exception/test_undeclared_var_write_read_error.lua", "flag", 2},
-        {"./exception/test_undeclared_field_base_error.lua", "unknown_object", 2},
-        {"./exception/test_no_define_lvalue_error.lua", "b", 2},
+            {"./exception/test_undeclared_var_read_error.lua", "unknown_global", 2},
+            {"./exception/test_undeclared_var_write_read_error.lua", "flag", 2},
+            {"./exception/test_undeclared_field_base_error.lua", "unknown_object", 2},
+            {"./exception/test_no_define_lvalue_error.lua", "b", 2},
     };
     for (const auto &c: cases) {
         SCOPED_TRACE(c.file);
@@ -1305,8 +1307,7 @@ TEST(exception, vararg_nested_function) {
 // <const> 通过 FunctionDef / LocalFunction 捕获外层词法 const 时仍禁止赋值；
 // 同名 local 遮蔽后允许赋值；块作用域遮蔽结束后外层 const 仍受保护。
 TEST(exception, const_assign_through_nested_functions) {
-    for (const char *file: {"./exception/test_const_assign_funcdef.lua", "./exception/test_const_assign_localfunction.lua",
-                            "./exception/test_const_assign_block_scope.lua"}) {
+    for (const char *file: {"./exception/test_const_assign_funcdef.lua", "./exception/test_const_assign_localfunction.lua", "./exception/test_const_assign_block_scope.lua"}) {
         SCOPED_TRACE(file);
         FakeluaStateGuard sg;
         auto s = sg.GetState();
@@ -1626,17 +1627,8 @@ TEST(exception, const_table_modify_error) {
     CompileFile(s, "./exception/test_const_table_modify_error.lua", {});
 
     const char *throw_fns[] = {
-        "test_modify_const",
-        "test_sort_const",
-        "test_sort_single_const",
-        "test_move_into_const",
-        "test_move_empty_into_const",
-        "test_insert_const",
-        "test_insert_float_pos_const",
-        "test_remove_const",
-        "test_remove_oob_valid_const",
-        "test_modify_packed_const",
-        "test_copy_const_tbl_to_table_modify",
+            "test_modify_const",           "test_sort_const",   "test_sort_single_const",      "test_move_into_const",     "test_move_empty_into_const",          "test_insert_const",
+            "test_insert_float_pos_const", "test_remove_const", "test_remove_oob_valid_const", "test_modify_packed_const", "test_copy_const_tbl_to_table_modify",
     };
 
     for (auto jit_type: AllJitTypes()) {
@@ -1738,14 +1730,15 @@ TEST(exception, runtime_error_carries_lua_location) {
         const char *fn;
         const char *location;
     };
+
     const Case cases[] = {
-        {"arith_on_nil", "test_error_location.lua:6"},
-        {"index_non_table", "test_error_location.lua:11"},
-        {"call_non_function", "test_error_location.lua:16"},
-        // 原生函数里抛的错也要定位到调用它的那条 Lua 语句
-        {"native_bad_argument", "test_error_location.lua:22"},
-        // 同一条语句中函数调用返回后，后续表达式出错仍必须定位到本语句
-        {"error_after_callee_returns", "test_error_location.lua:46"},
+            {"arith_on_nil", "test_error_location.lua:6"},
+            {"index_non_table", "test_error_location.lua:11"},
+            {"call_non_function", "test_error_location.lua:16"},
+            // 原生函数里抛的错也要定位到调用它的那条 Lua 语句
+            {"native_bad_argument", "test_error_location.lua:22"},
+            // 同一条语句中函数调用返回后，后续表达式出错仍必须定位到本语句
+            {"error_after_callee_returns", "test_error_location.lua:46"},
     };
     for (const auto jit_type: AllJitTypes()) {
         for (const auto &c: cases) {
@@ -1851,5 +1844,65 @@ TEST(exception, runtime_error_location_tail_call_deep_interp) {
     } catch (const std::exception &e) {
         const std::string msg = e.what();
         EXPECT_NE(msg.find("test_error_location_tail.lua:6"), std::string::npos) << msg;
+    }
+}
+
+TEST(exception, gcc_cache_preserves_each_string_input_debug_filename) {
+    StateConfig state_cfg;
+    state_cfg.log_level = LogLevel::Off;
+    FakeluaStateGuard first(state_cfg), second(state_cfg);
+    CompileConfig cfg;
+    DisableAllJit(cfg);
+    cfg.disable_jit[JIT_GCC] = false;
+    cfg.debug_mode = false;
+    const std::string source = "function cached_failure()\n local value=nil\n return value.missing\nend\n";
+    Compiler first_compiler(first.GetState()), second_compiler(second.GetState());
+    const auto a = first_compiler.CompileString(source, cfg);
+    const auto b = second_compiler.CompileString(source, cfg);
+    ASSERT_NE(a.file_name, b.file_name);
+    for (auto [state, own, other]: {std::tuple{first.GetState(), a.file_name, b.file_name}, std::tuple{second.GetState(), b.file_name, a.file_name}}) {
+        try {
+            int64_t result = 0;
+            Call(state, JIT_GCC, "cached_failure", result);
+            FAIL() << "expected runtime error";
+        } catch (const std::exception &e) {
+            const std::string message = e.what();
+            EXPECT_NE(message.find(own + ":3"), std::string::npos) << message;
+            EXPECT_EQ(message.find(other), std::string::npos) << message;
+        }
+    }
+}
+
+TEST(exception, gcc_cache_failed_init_same_state_retry_all_backends) {
+    const std::string source = R"(
+        local text = retry_init_seed()
+        function retry_init_read() return text end
+    )";
+    for (auto type: {JIT_TCC, JIT_GCC, JIT_INTERP}) {
+        for (bool debug: {false, true}) {
+            SCOPED_TRACE(std::format("backend={} debug={}", static_cast<int>(type), debug));
+            StateConfig config;
+            config.log_level = LogLevel::Off;
+            FakeluaStateGuard state(config);
+            auto *s = state.GetState();
+            bool fail = true;
+            int calls = 0;
+            RegisterNativeFunction(s, "retry_init_seed", false, std::function<std::string(State *)>([&](State *) {
+                                       ++calls;
+                                       if (fail) throw std::runtime_error("expected initialization failure");
+                                       return std::string("ok after retry");
+                                   }));
+            CompileConfig cfg;
+            DisableAllJit(cfg);
+            cfg.disable_jit[type] = false;
+            cfg.debug_mode = debug;
+            EXPECT_THROW(CompileString(s, source, cfg), std::exception);
+            fail = false;
+            CompileString(s, source, cfg);
+            std::string value;
+            Call(s, type, "retry_init_read", value);
+            EXPECT_EQ(value, "ok after retry");
+            EXPECT_EQ(calls, 2);
+        }
     }
 }

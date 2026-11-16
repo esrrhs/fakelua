@@ -31,6 +31,7 @@ struct LuaLoc {
     const char *file = nullptr;
     int line = 0;
 };
+
 static_assert(std::is_standard_layout_v<LuaLoc>);
 static_assert(offsetof(LuaLoc, line) == sizeof(const char *));
 
@@ -120,7 +121,7 @@ public:
         }
         const auto idx = static_cast<size_t>(jit_type);
         if (idx < JIT_MAX) {
-            for (auto *existing : lua_locs_[idx]) {
+            for (auto *existing: lua_locs_[idx]) {
                 if (existing == loc) {
                     return;
                 }
@@ -176,9 +177,11 @@ public:
         explicit ConstAllocScope(State *s) : s_(s), prev_(s->InterpConstAlloc()) {
             s_->SetInterpConstAlloc(true);
         }
+
         ~ConstAllocScope() {
             s_->SetInterpConstAlloc(prev_);
         }
+
         ConstAllocScope(const ConstAllocScope &) = delete;
         ConstAllocScope &operator=(const ConstAllocScope &) = delete;
 
@@ -207,9 +210,11 @@ public:
         explicit JitContextScope(State *s, JITType jit) : s_(s), prev_(s->current_jit_) {
             s_->current_jit_ = jit;
         }
+
         ~JitContextScope() {
             s_->current_jit_ = prev_;
         }
+
         JitContextScope(const JitContextScope &) = delete;
         JitContextScope &operator=(const JitContextScope &) = delete;
 

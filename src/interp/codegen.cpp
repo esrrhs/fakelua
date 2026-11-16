@@ -1,12 +1,12 @@
 #include "interp/codegen.h"
 
 #include "compile/compile_common.h"
+#include "interp/interpreter.h"
 #include "interp/runtime.h"
+#include "jit/vm.h"
 #include "state/const_string.h"
 #include "state/state.h"
 #include "util/exception.h"
-#include "interp/interpreter.h"
-#include "jit/vm.h"
 #include "util/string_util.h"
 #include "var/var.h"
 #include <algorithm>
@@ -28,9 +28,11 @@ public:
             cur_ = static_cast<int>(node->Loc().begin.line);
         }
     }
+
     ~LineScope() {
         cur_ = saved_;
     }
+
     LineScope(const LineScope &) = delete;
     LineScope &operator=(const LineScope &) = delete;
 
@@ -278,7 +280,7 @@ CVar InterpCodegen::LiteralFromExp(const SyntaxTreeInterfacePtr &exp) {
 }
 
 int InterpCodegen::ResolveSimpleName(const SyntaxTreeVar *var, const std::string &name, bool as_callee) {
-    (void)as_callee;
+    (void) as_callee;
     if (const auto it = var_to_def_map_.find(var); it != var_to_def_map_.end()) {
         VarDef *def = it->second;
         if (def->defining_func == cur_func_ || def->defining_func != nullptr) {
@@ -1310,7 +1312,7 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         Emit(Op::UNBOX, iter_s, iter_s, 0);
         Emit(Op::UNBOX, iter_var, e2, 0);
         for (size_t i = 3; i < exps.size(); ++i) {
-            (void)CompileExp(exps[i], i + 1 == exps.size());
+            (void) CompileExp(exps[i], i + 1 == exps.size());
         }
     }
 
@@ -1710,8 +1712,7 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
                 // 函数定义。文件级 local 变量（如 local gv = f）即使 defining_func
                 // 为 nullptr 也不在 named_protos_ 里，必须按闭包调用，否则运行时报
                 // "function 'gv' not found"（C 后端此处按闭包处理，行为一致）。
-                file_level_func = it->second->defining_func == nullptr && it->second->def_node != nullptr &&
-                                  it->second->def_node->Type() == SyntaxTreeType::LocalFunction;
+                file_level_func = it->second->defining_func == nullptr && it->second->def_node != nullptr && it->second->def_node->Type() == SyntaxTreeType::LocalFunction;
             }
         } else if (var && var->GetVarKind() == VarKind::kDot) {
             const auto base_pe = var->GetPrefixexp();
@@ -1903,7 +1904,6 @@ void InterpCodegen::Build(const ParseResult &pr, const AnalysisResult &ar) {
     Walk(pr, ar);
 }
 
-
 void InterpCodegen::Walk(const ParseResult &pr, const AnalysisResult &ar) {
     file_name_ = pr.file_name;
     ar_ = &ar;
@@ -1984,8 +1984,6 @@ void InterpCodegen::Walk(const ParseResult &pr, const AnalysisResult &ar) {
         }
     }
 }
-
-
 
 void InterpCodegen::RegisterAndInit() {
     if (!unit_hold_ || !unit_) {

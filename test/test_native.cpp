@@ -1,7 +1,7 @@
 #include "fakelua.h"
 #include "state/state.h"
-#include "var/var_table.h"
 #include "test_jit.h"
+#include "var/var_table.h"
 #include "var/var_type.h"
 #include "gtest/gtest.h"
 #include <string>
@@ -74,7 +74,6 @@ TEST(test_native, test_nested_object) {
 
     FakeluaDeleteState(s);
 }
-
 
 TEST(test_native, test_deep_nesting_wrap_is_light) {
     auto *s = FakeluaNewState();
@@ -387,7 +386,8 @@ TEST(test_native, host_scalar_arg_helpers) {
     });
 
     CompileConfig cfg;
-    ASSERT_NO_THROW(CompileString(s, R"(package "HostHelpers"
+    ASSERT_NO_THROW(CompileString(s,
+                                  R"(package "HostHelpers"
 function defaults()
     return host_join("p1", 7)
 end
@@ -405,7 +405,9 @@ function false_flag()
     -- false 是假值，from_int 为 false，返回 NativeBool(from_bool == 0) -> true
     if host_scalar_roundtrip(0, false) then return 1 else return 0 end
 end
-)""", cfg));
+)"
+                                  "",
+                                  cfg));
 
     for (auto jit_type: AllJitTypes()) {
         std::string out;
@@ -990,10 +992,8 @@ TEST(test_native_version, self_check_is_cycle_safe) {
 
     // SelfCheck 只校验本对象（不做子树递归，也不再维护父子边），
     // 成环对象图上必须直接返回、不崩不挂起。
-    EXPECT_TRUE(NativeObject::SelfCheck(a, true))
-        << "SelfCheck 在环状对象图（A->B->A）上未能正常结束或误报";
-    EXPECT_TRUE(NativeObject::SelfCheck(b, true))
-        << "SelfCheck 在环状对象图（B->A->B）上未能正常结束或误报";
+    EXPECT_TRUE(NativeObject::SelfCheck(a, true)) << "SelfCheck 在环状对象图（A->B->A）上未能正常结束或误报";
+    EXPECT_TRUE(NativeObject::SelfCheck(b, true)) << "SelfCheck 在环状对象图（B->A->B）上未能正常结束或误报";
 
     // 环中任一对象写入都只改自己的计数，不会波及对方（无传播、无递归风险）。
     const uint64_t va = a->GetVersion();
@@ -1083,10 +1083,7 @@ TEST(test_native_version, lua_paths_and_container) {
         static NativeObject *global_player = nullptr;
         global_player = mgr.Create(gid, "player", 100);
         global_player->SetInt("hp", 100);
-        RegisterNativeFunction(s, "get_player", 0, false,
-                               [](State *state, CVar *, int) -> CVar {
-                                   return inter::NativeToFakelua(state, global_player);
-                               });
+        RegisterNativeFunction(s, "get_player", 0, false, [](State *state, CVar *, int) -> CVar { return inter::NativeToFakelua(state, global_player); });
 
         CompileConfig config;
         CompileFile(s, "./native/test_native_get_set.lua", config);
@@ -1124,4 +1121,27 @@ TEST(test_native_version, lua_paths_and_container) {
         global_player = nullptr;
         FakeluaDeleteState(s);
     }
+}
+
+TEST(native, gcc_cache_binds_native_callbacks_per_state) {
+    StateConfig config;
+    config.log_level = LogLevel::Off;
+    // Same default cache key/code, different native callbacks in each State.
+    FakeluaStateGuard first(config), second(config);
+    RegisterNativeFunction(first.GetState(), "cache_host", false, std::function<int64_t(State *, int64_t)>([](State *, int64_t n) { return n + 10; }));
+    RegisterNativeFunction(second.GetState(), "cache_host", false, std::function<int64_t(State *, int64_t)>([](State *, int64_t n) { return n + 20; }));
+    CompileConfig cfg;
+    DisableAllJit(cfg);
+    cfg.disable_jit[JIT_GCC] = false;
+    cfg.debug_mode = false;
+    const std::string source = "function cache_native(n) return cache_host(n) end";
+    CompileString(first.GetState(), source, cfg);
+    CompileString(second.GetState(), source, cfg);
+    int64_t value = 0;
+    Call(first.GetState(), JIT_GCC, "cache_native", value, 3);
+    EXPECT_EQ(value, 13);
+    Call(second.GetState(), JIT_GCC, "cache_native", value, 3);
+    EXPECT_EQ(value, 23);
+    Call(first.GetState(), JIT_GCC, "cache_native", value, 4);
+    EXPECT_EQ(value, 14);
 }

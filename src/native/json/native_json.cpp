@@ -148,8 +148,7 @@ static ArrayShapeInfo CheckArrayShape(const std::vector<table::TableKV> &kvs) {
 }
 
 static std::string HoleMessage(const std::string &who, const ArrayShapeInfo &info) {
-    return std::format("{}: array table has a hole at index {} ({} entries, max index {}); nil in an array is not encodable",
-                       who, info.hole_at, info.count, info.max_idx);
+    return std::format("{}: array table has a hole at index {} ({} entries, max index {}); nil in an array is not encodable", who, info.hole_at, info.count, info.max_idx);
 }
 
 // Convert Lua CVar to boost::json::value

@@ -7,6 +7,7 @@ namespace fakelua {
 
 // 输入文件进行解析
 void MyFlexer::InputFile(const std::string &file) {
+    is_string_ = false;
     file_.open(file.data(), std::ios::binary);
     if (file_.fail()) {
         ThrowFakeluaException("Read file failed, failed to open file " + file);
@@ -19,6 +20,7 @@ void MyFlexer::InputFile(const std::string &file) {
 
 // 输入字符串进行解析，通过生成临时文件来实现
 void MyFlexer::InputString(const std::string &str) {
+    is_string_ = true;
     filename_ = GenerateTmpFile(str);
     location_.initialize(&filename_);
     set_debug(0);

@@ -2,6 +2,7 @@
 #include "fakelua.h"
 #include "jit/tcc_jit.h"
 #include "native/compress/native_compress.h"
+#include "native/container/native_container.h"
 #include "native/crypto/native_crypto.h"
 #include "native/csv/native_csv.h"
 #include "native/event/native_event.h"
@@ -17,15 +18,14 @@
 #include "native/process/native_process.h"
 #include "native/protobuf/native_protobuf.h"
 #include "native/random/native_random.h"
-#include "native/container/native_container.h"
 #include "native/redis/native_redis.h"
 #include "native/runtime/native_runtime.h"
 #include "native/serialize/native_serialize.h"
 #include "native/sqlite/native_sqlite.h"
 #include "native/timer/native_timer.h"
 #include "native/toml/native_toml.h"
-#include "native/utf8/native_utf8.h"
 #include "native/url/native_url.h"
+#include "native/utf8/native_utf8.h"
 #include "native/xml/native_xml.h"
 #include "native/yaml/native_yaml.h"
 #include "util/logging.h"
@@ -50,8 +50,7 @@ void State::SetLogFile(const std::string &path, size_t max_size, size_t max_file
     }
 }
 
-State::State(const StateConfig &config)
-    : config_(config), compiler_(this), heap_(&temp_heap_slot_, &const_heap_slot_), const_string_(this) {
+State::State(const StateConfig &config) : config_(config), compiler_(this), heap_(&temp_heap_slot_, &const_heap_slot_), const_string_(this) {
     utf8_io::Init();
     log_level_ = config_.log_level;
     if (!config_.log_file.empty()) {

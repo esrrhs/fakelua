@@ -1,9 +1,9 @@
 #include "common.h"
 
 #include <atomic>
-#include <chrono>
 #include <boost/filesystem.hpp>
 #include <boost/system/error_code.hpp>
+#include <chrono>
 #include <fstream>
 #if defined(_WIN32)
 #include <process.h>
@@ -13,7 +13,7 @@
 
 namespace fakelua {
 
-std::string GenerateTmpFilename(const std::string &head, const std::string &tail) {
+std::string GetTmpDirectory() {
     boost::system::error_code ec;
     auto tmpdir = boost::filesystem::temp_directory_path(ec);
     if (ec) {
@@ -21,7 +21,11 @@ std::string GenerateTmpFilename(const std::string &head, const std::string &tail
     }
     tmpdir /= "fakelua";
     boost::filesystem::create_directories(tmpdir, ec);
+    return tmpdir.string();
+}
 
+std::string GenerateTmpFilename(const std::string &head, const std::string &tail) {
+    const boost::filesystem::path tmpdir(GetTmpDirectory());
     static std::atomic<uint64_t> seq{0};
 #if defined(_WIN32)
     const int pid = _getpid();
