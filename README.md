@@ -517,3 +517,35 @@ A: Enable `CompileConfig::debug_mode` to inspect logs and C code; use `GetLastRe
 
 ### Q: Is multithreading supported?
 A: Each `State` is currently thread-local; in multithreaded environments, create an independent `State` per thread.
+
+### GCC JIT filesystem cache
+
+GCC JIT caches compiled shared libraries by default. `StateConfig::gcc_config`
+has `enable_cache` (default `true`) and `cache_directory` (empty = per-user OS
+cache: `$XDG_CACHE_HOME/fakelua/jit`, `$HOME/.cache/fakelua/jit`, or Windows
+`%LOCALAPPDATA%/fakelua/jit`). POSIX cache directories must belong to the current
+user and have mode 0700. Cache failures fall back to normal compilation.
+
+The key includes the complete generated C (including Lua debug path), optimization
+mode, compiler, relevant compiler environment, and a source/build ABI fingerprint.
+System header and compiler/backend/assembler/linker/support-library contents are
+validated before reuse. Custom GCC include/library configurations, compiler search-path environment
+overrides, wrapper scripts and coverage builds bypass caching. TCC remains in-memory; INTERP is unchanged. Compiler wrappers
+with hidden inputs must disable caching or use a separate cache directory when
+those inputs change. Do not modify a toolchain concurrently with compilation.
+
+Per-key thread/process locks and atomic directory publication prevent partial hits;
+corrupt/stale entries are rebuilt. Every load gets a private image, then binds State,
+heap slots and interned string IDs once to generated C statics. This preserves
+cross-module string identity, independent globals/closures and allocation lifetimes;
+no runtime cache lookup is added. Hits skip C compilation/linking, not the Lua frontend; a cheap compiler-version
+query still verifies the selected toolchain.
+
+Cache directories contain executable code: keep them private and on a local
+filesystem supporting advisory locks and atomic rename. No automatic eviction is
+performed. To reclaim space, stop users of the cache before removing its directory
+(do not unlink live lock files). Interrupted writers may leave `.tmp` directories,
+which the next writer for that key cleans up. See
+[the release benchmark harness](tools/README.jit-cache.md) for measurement commands.
+
+Cache synchronization does not make a State itself safe for concurrent use.

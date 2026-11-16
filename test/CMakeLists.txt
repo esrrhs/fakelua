@@ -78,6 +78,9 @@ ELSE ()
 ENDIF ()
 
 add_executable(unit_tests ${TEST_SRC_LIST})
+if (USE_COV)
+    target_compile_definitions(unit_tests PRIVATE FAKELUA_TEST_NO_GCC_CACHE=1)
+endif ()
 
 # dl is only available on Linux. macOS and Windows don't need it.
 if (NOT WIN32 AND NOT APPLE)

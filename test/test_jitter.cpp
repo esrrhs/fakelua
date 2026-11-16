@@ -9,6 +9,16 @@
 #include "test_jit.h"
 #include <cstdlib>
 #include <string>
+#include <filesystem>
+#include <fstream>
+#include <thread>
+#include <atomic>
+#include "util/file_util.h"
+#include "jit/gcc_cache.h"
+#if !defined(_WIN32)
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 using namespace fakelua;
 
@@ -3150,4 +3160,387 @@ TEST(jitter, tcc_libraries_config_path) {
     ccfg.debug_mode = true;
     EXPECT_THROW(CompileString(s, "function tcc_lib_cov()\n  return 3\nend\n", ccfg), std::exception);
     FakeluaDeleteState(s);
+}
+
+namespace {
+struct JitCacheTestDir {
+    std::filesystem::path path = GenerateTmpFilename("jit_cache_test_", ".dir");
+    JitCacheTestDir() {
+        std::filesystem::create_directory(path);
+        std::filesystem::permissions(path, std::filesystem::perms::owner_all);
+    }
+    ~JitCacheTestDir() { std::error_code ec; std::filesystem::remove_all(path, ec); }
+    StateConfig Config() const {
+        StateConfig cfg; cfg.log_level = LogLevel::Off;
+        cfg.gcc_config.cache_directory = path.string(); return cfg;
+    }
+    std::vector<std::filesystem::path> Entries() const {
+        std::vector<std::filesystem::path> entries;
+        for (const auto &entry : std::filesystem::directory_iterator(path))
+            if (entry.is_directory() && std::filesystem::exists(entry.path() / "image")) entries.push_back(entry.path());
+        return entries;
+    }
+};
+CompileConfig CacheCompileConfig() {
+    CompileConfig cfg; cfg.debug_mode = false;
+    DisableAllJit(cfg); cfg.disable_jit[JIT_GCC] = false; return cfg;
+}
+const std::string kCacheSource = R"(
+local text = "a\0\255\"\\\n中文"
+local config = { value = 17, name = "shared" }
+function cache_value(n) return config.value + n end
+function cache_string() return text end
+function cache_lookup(k) local t = {name="shared", value=23} return t[k] end
+function cache_closure(n) return function(x) return n+x end end
+function cache_run(n) local f=cache_closure(n) return f(3) end
+)";
+void CheckCacheState(State *s) {
+    int64_t n = 0; Call(s, JIT_GCC, "cache_value", n, 4); EXPECT_EQ(n, 21);
+    Call(s, JIT_GCC, "cache_run", n, 9); EXPECT_EQ(n, 12);
+    std::string text; Call(s, JIT_GCC, "cache_string", text);
+    EXPECT_EQ(text, std::string("a\0\xff\"\\\n中文", 12));
+    Call(s, JIT_GCC, "cache_lookup", text, std::string("name")); EXPECT_EQ(text, "shared");
+}
+}
+#if defined(FAKELUA_TEST_NO_GCC_CACHE)
+TEST(jitter, gcc_cache_coverage_bypass) {
+    JitCacheTestDir dir;
+    FakeluaStateGuard s(dir.Config());
+    CompileString(s.GetState(), kCacheSource, CacheCompileConfig());
+    CheckCacheState(s.GetState());
+    EXPECT_TRUE(dir.Entries().empty());
+}
+#else
+TEST(jitter, gcc_cache_states_strings_closures_and_lifetime) {
+    JitCacheTestDir dir;
+    auto cfg = CacheCompileConfig(); cfg.record_c_code = true;
+    FakeluaStateGuard first(dir.Config());
+    CompileString(first.GetState(), kCacheSource, cfg); CheckCacheState(first.GetState());
+    auto entries = dir.Entries(); ASSERT_EQ(entries.size(), 1u);
+    auto stamp = std::filesystem::last_write_time(entries[0] / "image");
+    {
+        FakeluaStateGuard second(dir.Config());
+        // Perturb its intern table: no address or allocation-order dependencies.
+        (void)second.GetState()->GetConstString().Alloc("unrelated interned string");
+        CompileString(second.GetState(), kCacheSource, cfg); CheckCacheState(second.GetState());
+        CheckCacheState(first.GetState());
+        EXPECT_EQ(GetLastRecordedCCode(first.GetState()), GetLastRecordedCCode(second.GetState()));
+    }
+    CheckCacheState(first.GetState());
+    CompileString(first.GetState(), kCacheSource, cfg); CheckCacheState(first.GetState());
+    ASSERT_EQ(dir.Entries().size(), 1u);
+    EXPECT_EQ(stamp, std::filesystem::last_write_time(entries[0] / "image"));
+}
+TEST(jitter, gcc_cache_interned_identity_survives_actual_module_unload) {
+    JitCacheTestDir dir; auto cfg = CacheCompileConfig();
+    FakeluaStateGuard state(dir.Config()); auto *s = state.GetState();
+    const std::string producer = R"(function cache_export_id() return "shared\0identity" end)";
+    CompileString(s, producer, cfg);
+    const auto image = dir.Entries().at(0) / "image";
+    const auto stamp = std::filesystem::last_write_time(image);
+    std::weak_ptr<JITHandle> old = s->GetVM().GetFunction("cache_export_id").GetHandle(JIT_GCC);
+    CVar value = inter::DispatchCall(s, s->GetVM().FindFunction("cache_export_id")->GetAddr(JIT_GCC), nullptr, 0, JIT_GCC);
+    if (value.type_ == static_cast<int>(VarType::Multi)) value = inter::GetMultiCVarElement(value, 0);
+    ASSERT_EQ(value.type_, static_cast<int>(VarType::StringId));
+    const std::string text("shared\0identity", 15);
+    EXPECT_EQ(value.data_.i, s->GetConstString().Alloc(text));
+    CompileString(s, R"(function cache_consume_id(k)
+        local t={["shared\0identity"]=71, a=1, b=2, c=3, d=4, e=5}
+        return t[k]
+    end)", cfg);
+    // Replace every producer export (including init): the weak handle proves
+    // this really unloads the first image, not merely loads another module.
+    CompileString(s, producer, cfg);
+    EXPECT_TRUE(old.expired());
+    EXPECT_EQ(std::filesystem::last_write_time(image), stamp);
+    inter::Reset(s);
+    EXPECT_EQ(s->GetConstString().GetString(value.data_.i), text);
+    const auto result = inter::DispatchCall(s, s->GetVM().FindFunction("cache_consume_id")->GetAddr(JIT_GCC), &value, 1, JIT_GCC);
+    EXPECT_EQ(inter::FakeluaToNative<int64_t>(s, result), 71);
+    CVar reloaded = inter::DispatchCall(s, s->GetVM().FindFunction("cache_export_id")->GetAddr(JIT_GCC), nullptr, 0, JIT_GCC);
+    if (reloaded.type_ == static_cast<int>(VarType::Multi)) reloaded = inter::GetMultiCVarElement(reloaded, 0);
+    EXPECT_EQ(reloaded.type_, static_cast<int>(VarType::StringId));
+    EXPECT_EQ(reloaded.data_.i, value.data_.i);
+    EXPECT_EQ(dir.Entries().size(), 2u);
+}
+TEST(jitter, gcc_cache_nonnumeric_initializers_are_per_load_and_per_state) {
+    JitCacheTestDir dir; auto cfg = CacheCompileConfig();
+    const std::string source = R"(
+        local text = cache_load_seed()
+        local config = {name=text, enabled=true}
+        function cache_read_seed() return config.name end
+    )";
+    int calls_a = 0, calls_b = 0;
+    std::string seed_a = "first", seed_b = "second";
+    FakeluaStateGuard first(dir.Config()), second(dir.Config());
+    RegisterNativeFunction(first.GetState(), "cache_load_seed", false,
+        std::function<std::string(State *)>([&](State *) { ++calls_a; return seed_a; }));
+    RegisterNativeFunction(second.GetState(), "cache_load_seed", false,
+        std::function<std::string(State *)>([&](State *) { ++calls_b; return seed_b; }));
+    CompileString(first.GetState(), source, cfg);
+    ASSERT_EQ(dir.Entries().size(), 1u);
+    const auto image = dir.Entries()[0] / "image";
+    const auto stamp = std::filesystem::last_write_time(image);
+    CompileString(second.GetState(), source, cfg);
+    EXPECT_EQ(calls_a, 1); EXPECT_EQ(calls_b, 1);
+    std::string result;
+    for (int i = 0; i < 3; ++i) {
+        Call(first.GetState(), JIT_GCC, "cache_read_seed", result); EXPECT_EQ(result, "first");
+        Call(second.GetState(), JIT_GCC, "cache_read_seed", result); EXPECT_EQ(result, "second");
+    }
+    EXPECT_EQ(calls_a, 1); EXPECT_EQ(calls_b, 1);
+    std::weak_ptr<JITHandle> old = first.GetState()->GetVM().GetFunction("cache_read_seed").GetHandle(JIT_GCC);
+    seed_a = "reloaded";
+    CompileString(first.GetState(), source, cfg);
+    EXPECT_TRUE(old.expired());
+    EXPECT_EQ(calls_a, 2); EXPECT_EQ(calls_b, 1);
+    Call(first.GetState(), JIT_GCC, "cache_read_seed", result); EXPECT_EQ(result, "reloaded");
+    Call(second.GetState(), JIT_GCC, "cache_read_seed", result); EXPECT_EQ(result, "second");
+    EXPECT_EQ(dir.Entries().size(), 1u);
+    EXPECT_EQ(std::filesystem::last_write_time(image), stamp);
+}
+TEST(jitter, gcc_cache_failed_runtime_init_does_not_cache_state) {
+    JitCacheTestDir dir; auto cfg = CacheCompileConfig();
+    const std::string source = R"(
+        local text = cache_load_seed()
+        function cache_read_seed() return text end
+    )";
+    int calls = 0; bool fail = true;
+    FakeluaStateGuard good(dir.Config());
+    RegisterNativeFunction(good.GetState(), "cache_load_seed", false,
+        std::function<std::string(State *)>([&](State *) {
+            ++calls;
+            if (fail) throw std::runtime_error("expected init failure");
+            return std::string("recovered");
+        }));
+    EXPECT_THROW(CompileString(good.GetState(), source, cfg), std::exception);
+    // Valid machine code may be published before Lua initialization. Retrying
+    // in the SAME State must unload its old image and remove its Lua location,
+    // not retain dangling diagnostic pointers or a partially initialized flag.
+    ASSERT_EQ(dir.Entries().size(), 1u);
+    const auto image = dir.Entries()[0] / "image";
+    const auto stamp = std::filesystem::last_write_time(image);
+    std::weak_ptr<JITHandle> old = good.GetState()->GetVM().GetFunction("cache_read_seed").GetHandle(JIT_GCC);
+    fail = false;
+    CompileString(good.GetState(), source, cfg);
+    EXPECT_TRUE(old.expired());
+    EXPECT_EQ(good.GetState()->GetLuaLocs(JIT_GCC).size(), 1u);
+    std::string result; Call(good.GetState(), JIT_GCC, "cache_read_seed", result);
+    EXPECT_EQ(result, "recovered"); EXPECT_EQ(calls, 2);
+    EXPECT_EQ(std::filesystem::last_write_time(image), stamp);
+}
+TEST(jitter, gcc_cache_recursive_same_key_init_owns_exact_location) {
+    JitCacheTestDir dir; auto cfg = CacheCompileConfig();
+    FakeluaStateGuard state(dir.Config()); auto *s = state.GetState();
+    const std::string source = R"(
+        local boot = cache_reenter()
+        function cache_recursive_value() return 11 end
+    )";
+    bool entered = false; int calls = 0; std::weak_ptr<JITHandle> outer;
+    RegisterNativeFunction(s, "cache_reenter", false,
+        std::function<int64_t(State *)>([&](State *current) {
+            ++calls;
+            if (!entered) {
+                entered = true;
+                outer = current->GetVM().GetFunction("cache_recursive_value").GetHandle(JIT_GCC);
+                // The same cache key must already be unlocked. The inner image
+                // replaces all outer exports while its init is still running.
+                CompileString(current, source, cfg);
+            }
+            return int64_t{0};
+        }));
+    CompileString(s, source, cfg);
+    EXPECT_EQ(calls, 2); EXPECT_TRUE(outer.expired());
+    EXPECT_EQ(s->GetLuaLocs(JIT_GCC).size(), 1u);
+    int64_t result = 0; Call(s, JIT_GCC, "cache_recursive_value", result); EXPECT_EQ(result, 11);
+    EXPECT_EQ(dir.Entries().size(), 1u);
+}
+TEST(jitter, gcc_cache_bad_manifest_recovery_preserves_live_image) {
+    JitCacheTestDir dir; auto cfg = CacheCompileConfig();
+    FakeluaStateGuard live(dir.Config()); CompileString(live.GetState(), kCacheSource, cfg);
+    auto entries = dir.Entries(); ASSERT_EQ(entries.size(), 1u);
+    for (const auto &bad_manifest : {std::string("not a manifest"), std::string(64, '0') + "\n10001\n"}) {
+        { std::ofstream out(entries[0] / "manifest", std::ios::trunc); out << bad_manifest; }
+        FakeluaStateGuard repaired(dir.Config()); CompileString(repaired.GetState(), kCacheSource, cfg);
+        CheckCacheState(repaired.GetState()); CheckCacheState(live.GetState());
+        EXPECT_EQ(dir.Entries().size(), 1u);
+    }
+    // Deleting the persistent image must not affect the private mapped copy.
+    std::filesystem::remove(entries[0] / "image"); CheckCacheState(live.GetState());
+    FakeluaStateGuard repaired(dir.Config()); CompileString(repaired.GetState(), kCacheSource, cfg);
+    CheckCacheState(repaired.GetState()); CheckCacheState(live.GetState());
+    EXPECT_EQ(dir.Entries().size(), 1u);
+}
+TEST(jitter, gcc_cache_invalidation_corruption_and_partial_entry) {
+    JitCacheTestDir dir; auto cfg = CacheCompileConfig();
+    auto compile = [&](const std::string &source) { FakeluaStateGuard s(dir.Config()); CompileString(s.GetState(), source, cfg); CheckCacheState(s.GetState()); };
+    compile(kCacheSource);
+    auto entries = dir.Entries(); ASSERT_EQ(entries.size(), 1u);
+    { std::ofstream corrupt(entries[0] / "image", std::ios::trunc); corrupt << "broken"; }
+    compile(kCacheSource);
+    EXPECT_GT(std::filesystem::file_size(entries[0] / "image"), 100u);
+    std::filesystem::remove(entries[0] / "manifest"); compile(kCacheSource);
+    ASSERT_TRUE(std::filesystem::exists(entries[0] / "manifest"));
+    cfg.debug_mode = true; compile(kCacheSource); EXPECT_EQ(dir.Entries().size(), 2u);
+    cfg.debug_mode = false; compile(kCacheSource + "\nfunction extra() return 81 end\n"); EXPECT_EQ(dir.Entries().size(), 3u);
+    auto disabled = dir.Config(); disabled.gcc_config.enable_cache = false;
+    FakeluaStateGuard s(disabled); CompileString(s.GetState(), kCacheSource + "\n-- disabled\n", cfg);
+    CheckCacheState(s.GetState()); EXPECT_EQ(dir.Entries().size(), 3u);
+}
+TEST(jitter, gcc_cache_unavailable_directory_falls_back) {
+    JitCacheTestDir dir; auto config = dir.Config();
+    auto file = dir.path / "not_a_directory"; { std::ofstream out(file); out << "x"; }
+    config.gcc_config.cache_directory = file.string();
+    FakeluaStateGuard s(config); CompileString(s.GetState(), kCacheSource, CacheCompileConfig()); CheckCacheState(s.GetState());
+    EXPECT_EQ(dir.Entries().size(), 0u);
+}
+TEST(jitter, gcc_cache_thread_race_private_mutable_statics) {
+    JitCacheTestDir dir; std::atomic<int> ready{0}, failures{0};
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 8; ++i) threads.emplace_back([&] {
+        ++ready; while (ready.load() != 8) std::this_thread::yield();
+        try {
+            FakeluaStateGuard s(dir.Config()); CompileString(s.GetState(), kCacheSource, CacheCompileConfig());
+            for (int j = 0; j < 100; ++j) {
+                int64_t n = 0; Call(s.GetState(), JIT_GCC, "cache_run", n, j);
+                if (n != j + 3) ++failures;
+            }
+        } catch (...) { ++failures; }
+    });
+    for (auto &thread : threads) thread.join();
+    EXPECT_EQ(failures.load(), 0); EXPECT_EQ(dir.Entries().size(), 1u);
+}
+#if !defined(_WIN32)
+TEST(jitter, gcc_cache_process_race_and_reuse) {
+    JitCacheTestDir dir; std::vector<pid_t> children;
+    for (int i = 0; i < 4; ++i) {
+        pid_t pid = fork(); ASSERT_GE(pid, 0);
+        if (pid == 0) {
+            try {
+                int result;
+                {
+                    FakeluaStateGuard s(dir.Config()); CompileString(s.GetState(), kCacheSource, CacheCompileConfig());
+                    int64_t n = 0; Call(s.GetState(), JIT_GCC, "cache_run", n, 9);
+                    result = n == 12 ? 0 : 2;
+                }
+                _exit(result);
+            } catch (...) { _exit(3); }
+        }
+        children.push_back(pid);
+    }
+    for (auto pid : children) { int status = 0; ASSERT_EQ(waitpid(pid, &status, 0), pid); ASSERT_TRUE(WIFEXITED(status)); EXPECT_EQ(WEXITSTATUS(status), 0); }
+    EXPECT_EQ(dir.Entries().size(), 1u);
+    FakeluaStateGuard s(dir.Config()); CompileString(s.GetState(), kCacheSource, CacheCompileConfig()); CheckCacheState(s.GetState());
+}
+#endif
+
+TEST(jitter, gcc_cache_dependency_and_compiler_invalidation) {
+    JitCacheTestDir dir; auto config = dir.Config().gcc_config;
+    const auto source = (dir.path / "input.c").string();
+    const auto header = (dir.path / "header.h").string();
+    const auto deps = (dir.path / "input.d").string();
+    const auto binary = (dir.path / "output.so").string();
+    const auto restored = (dir.path / "restored.so").string();
+    { std::ofstream out(source); out << "source"; }
+    { std::ofstream out(header); out << "first header"; }
+    auto make_path = [](const std::string &path) {
+        std::string escaped;
+        for (char c : path) {
+            if (c == ' ' || c == '#' || c == '\\') escaped += '\\';
+            if (c == '$') escaped += '$';
+            escaped += c;
+        }
+        return escaped;
+    };
+    { std::ofstream out(deps); out << "flua: " << make_path(source) << " " << make_path(header) << "\n"; }
+    { std::ofstream out(binary, std::ios::binary); out << "compiled bytes"; }
+#if defined(__APPLE__)
+    const char *compiler = "clang";
+#else
+    const char *compiler = "gcc";
+#endif
+#if !defined(_WIN32)
+    // Abrupt process exit: leave a held OS lock, partial entry and staging data.
+    // The next writer must recover without relying on destructor cleanup.
+    int ready[2]; ASSERT_EQ(pipe(ready), 0);
+    auto child = fork(); ASSERT_GE(child, 0);
+    if (child == 0) {
+        close(ready[0]);
+        try {
+            GccCache cache(config, compiler, "the generated C", false);
+            for (const auto &entry : std::filesystem::directory_iterator(dir.path)) {
+                if (entry.path().extension() != ".lock") continue;
+                auto key = dir.path / entry.path().stem();
+                std::filesystem::create_directory(key);
+                { std::ofstream partial(key / "image"); partial << "partial"; }
+                std::filesystem::create_directory(key.string() + ".tmp");
+            }
+            const char mark = 'x'; (void)write(ready[1], &mark, 1);
+            _exit(0);
+        } catch (...) { _exit(3); }
+    }
+    close(ready[1]); char mark = 0;
+    ASSERT_EQ(read(ready[0], &mark, 1), 1); close(ready[0]);
+    int status = 0; ASSERT_EQ(waitpid(child, &status, 0), child);
+    ASSERT_TRUE(WIFEXITED(status)); ASSERT_EQ(WEXITSTATUS(status), 0);
+#endif
+    {
+        GccCache cache(config, compiler, "the generated C", false);
+        EXPECT_FALSE(cache.Restore(restored));
+        cache.Publish(binary, deps, source);
+    }
+    ASSERT_EQ(dir.Entries().size(), 1u);
+    EXPECT_FALSE(std::filesystem::exists(dir.Entries()[0].string() + ".tmp"));
+    { GccCache cache(config, compiler, "the generated C", false); EXPECT_TRUE(cache.Restore(restored)); }
+    { GccCache cache(config, "fakelua_no_such_compiler", "the generated C", false); EXPECT_FALSE(cache.Restore(restored)); }
+    { std::ofstream out(header); out << "other header"; }
+    { GccCache cache(config, compiler, "the generated C", false); EXPECT_FALSE(cache.Restore(restored)); }
+    EXPECT_EQ(dir.Entries().size(), 0u);
+}
+TEST(jitter, gcc_cache_failed_compile_does_not_publish) {
+    JitCacheTestDir dir;
+    struct RestoreCompiler {
+        bool present = std::getenv("FAKELUA_CC") != nullptr;
+        std::string value = present ? std::getenv("FAKELUA_CC") : "";
+        ~RestoreCompiler() { SetTestEnv("FAKELUA_CC", present ? value.c_str() : nullptr); }
+    } restore;
+    SetTestEnv("FAKELUA_CC", "fakelua_nonexistent_cache_compiler");
+    { FakeluaStateGuard s(dir.Config()); EXPECT_THROW(CompileString(s.GetState(), kCacheSource, CacheCompileConfig()), std::exception); }
+    EXPECT_EQ(dir.Entries().size(), 0u);
+    SetTestEnv("FAKELUA_CC", nullptr);
+    FakeluaStateGuard s(dir.Config()); CompileString(s.GetState(), kCacheSource, CacheCompileConfig()); CheckCacheState(s.GetState());
+    EXPECT_EQ(dir.Entries().size(), 1u);
+}
+
+#endif // FAKELUA_TEST_NO_GCC_CACHE
+
+TEST(jitter, gcc_cache_binary_literal_strings_all_backends) {
+    JitCacheTestDir dir;
+    std::string source = "function cache_all_bytes() return \"";
+    std::string expected;
+    for (int i = 0; i < 256; ++i) {
+        source += std::format("\\{:03d}", i);
+        expected += static_cast<char>(i);
+    }
+    source += "\" end\nfunction cache_trigraph() return \"" + std::string("?") + "?/\" end\n";
+    source += R"(function cache_binary_key(k) local t={["a\0b"]=42} return t[k] end
+function cache_binary_static() return cache_binary_key("a\0b") end
+function cache_collision(k)
+ local t={ab=1,bA=2,c=3,d=4,e=5,f=6}
+ t[k]=t[k]+10
+ return t[k]
+end
+function cache_collisions() return cache_collision("ab")*100+cache_collision("bA") end
+)";
+    CompileConfig cfg; cfg.debug_mode = false;
+    for (int instance = 0; instance < 2; ++instance) {
+        FakeluaStateGuard s(dir.Config()); CompileString(s.GetState(), source, cfg);
+        for (auto type : {JIT_TCC, JIT_GCC, JIT_INTERP}) {
+            std::string result; Call(s.GetState(), type, "cache_all_bytes", result); EXPECT_EQ(result, expected);
+            Call(s.GetState(), type, "cache_trigraph", result); EXPECT_EQ(result, std::string("?") + "?/");
+            int64_t value = 0; Call(s.GetState(), type, "cache_binary_key", value, std::string("a\0b", 3)); EXPECT_EQ(value, 42);
+            Call(s.GetState(), type, "cache_binary_static", value); EXPECT_EQ(value, 42);
+            Call(s.GetState(), type, "cache_collisions", value); EXPECT_EQ(value, 1112);
+        }
+    }
 }

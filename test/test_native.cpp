@@ -1125,3 +1125,20 @@ TEST(test_native_version, lua_paths_and_container) {
         FakeluaDeleteState(s);
     }
 }
+
+TEST(native, gcc_cache_binds_native_callbacks_per_state) {
+    StateConfig config; config.log_level = LogLevel::Off;
+    // Same default cache key/code, different native callbacks in each State.
+    FakeluaStateGuard first(config), second(config);
+    RegisterNativeFunction(first.GetState(), "cache_host", false,
+        std::function<int64_t(State *, int64_t)>([](State *, int64_t n) { return n + 10; }));
+    RegisterNativeFunction(second.GetState(), "cache_host", false,
+        std::function<int64_t(State *, int64_t)>([](State *, int64_t n) { return n + 20; }));
+    CompileConfig cfg; DisableAllJit(cfg); cfg.disable_jit[JIT_GCC] = false; cfg.debug_mode = false;
+    const std::string source = "function cache_native(n) return cache_host(n) end";
+    CompileString(first.GetState(), source, cfg); CompileString(second.GetState(), source, cfg);
+    int64_t value = 0;
+    Call(first.GetState(), JIT_GCC, "cache_native", value, 3); EXPECT_EQ(value, 13);
+    Call(second.GetState(), JIT_GCC, "cache_native", value, 3); EXPECT_EQ(value, 23);
+    Call(first.GetState(), JIT_GCC, "cache_native", value, 4); EXPECT_EQ(value, 14);
+}

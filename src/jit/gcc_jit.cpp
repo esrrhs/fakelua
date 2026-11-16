@@ -1,5 +1,7 @@
 #include "jit/gcc_jit.h"
 #include "jit/gcc_handle.h"
+#include "jit/gcc_cache.h"
+#include "jit/code_binding.h"
 #include "state/state.h"
 #include "util/file_util.h"
 #include "util/logging.h"
@@ -21,6 +23,7 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
@@ -83,6 +86,16 @@ GccJitter::GccJitter(State *s) : s_(s) {
 
 void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg) {
     LOG_INFO(s_, "engine", "GCC JIT compile start: {}, {} functions", pr.file_name, gr.function_names.size());
+    struct Workspace {
+        std::string path;
+        bool transferred = false;
+        bool created = false;
+        ~Workspace() {
+            if (created && !transferred && !path.empty()) {
+                std::error_code ec; std::filesystem::remove_all(path, ec);
+            }
+        }
+    } workspace;
 #if defined(USE_COV)
     // Coverage builds: put JIT temps under the CMake build tree so .gcno/.gcda are
     // visible to `lcov --directory build`. Keep random names to avoid collisions.
@@ -98,7 +111,17 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         } while (std::ifstream(c_file));
     }
 #else
-    const std::string c_file = GenerateTmpFilename("fakelua_jit_", ".c");
+    // An exclusive private directory prevents temp-file collisions/symlink
+    // races and ensures every dlopen/LoadLibrary sees a distinct image inode.
+    workspace.path = GenerateTmpFilename("fakelua_jit_", ".dir");
+#if defined(_WIN32)
+    if (!std::filesystem::create_directory(workspace.path))
+#else
+    if (::mkdir(workspace.path.c_str(), 0700) != 0)
+#endif
+        ThrowFakeluaException("GCC compile failed, cannot create private workspace");
+    workspace.created = true;
+    const std::string c_file = (std::filesystem::path(workspace.path) / "module.c").string();
 #endif
     const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
 #if defined(_WIN32)
@@ -138,6 +161,14 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         compiler = "clang";
     }
 #endif
+
+    GccCache cache(s_->GetStateConfig().gcc_config, compiler, gr.c_code, cfg.debug_mode);
+    bool cache_hit = cache.Restore(so_file);
+    const std::string dep_file = c_file + ".d";
+    struct DependencyCleanup {
+        const std::string &path;
+        ~DependencyCleanup() { std::error_code ec; std::filesystem::remove(path, ec); }
+    } dependency_cleanup{dep_file};
 
     const auto opt_flag = cfg.debug_mode ? "-O0" : "-O3";
     const std::string jit_type_def = "-DFAKELUA_JIT_TYPE=" + std::to_string(static_cast<int>(JIT_GCC));
@@ -242,6 +273,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 #endif
     };
 
+    auto compile_image = [&]() {
 #if defined(USE_COV)
     // Two-step compile so gcov notes/data are named `<stem>.gcno/.gcda` (not
     // `<stem>.so-<stem>.gcno` from one-shot -shared of a .c file).
@@ -296,6 +328,11 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         args.emplace_back("dynamic_lookup");
         args.emplace_back("-Wl,-adhoc_codesign");
 #endif
+        args.emplace_back("-MD");
+        args.emplace_back("-MF");
+        args.emplace_back(dep_file);
+        args.emplace_back("-MT");
+        args.emplace_back("flua");
         args.emplace_back(opt_flag);
         args.emplace_back(jit_type_def);
         append_includes_and_libs(args, true);
@@ -305,14 +342,22 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         run_gcc(args);
     }
 #endif
+    };
+    if (!cache_hit) compile_image();
 
 #if defined(_WIN32)
     HMODULE module_handle = LoadLibraryA(so_file.c_str());
+    if (!module_handle && cache_hit) {
+        cache.Invalidate(); cache_hit = false;
+        compile_image();
+        module_handle = LoadLibraryA(so_file.c_str());
+    }
     if (!module_handle) {
         CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, LoadLibrary failed for {}: {}", so_file, WinErrToString(GetLastError())));
     }
-    const auto handle = std::make_shared<GCCHandle>(s_, c_file, so_file, log_file, module_handle);
+    const auto handle = std::make_shared<GCCHandle>(s_, c_file, so_file, log_file, module_handle, workspace.path);
+    workspace.transferred = true;
 
     // Common post-load: register compiled functions + call init.
     auto dlsym_lambda = [&](const std::string &sym) -> void * {
@@ -321,6 +366,11 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     };
 #else
     void *dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (!dl_handle && cache_hit) {
+        cache.Invalidate(); cache_hit = false;
+        compile_image();
+        dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
+    }
     if (!dl_handle) {
         // 在高并发多进程测试场景下，macOS 内核 AMFI 代码签名检查偶现缓存同步微延迟，重试以确保平滑加载
         for (int retry = 0; retry < 5 && !dl_handle; ++retry) {
@@ -332,10 +382,26 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         CleanupOnError();
         ThrowFakeluaException(std::format("GCC compile failed, dlopen failed for {}: {}", so_file, dlerror()));
     }
-    const auto handle = std::make_shared<GCCHandle>(s_, c_file, so_file, log_file, dl_handle);
+    const auto handle = std::make_shared<GCCHandle>(s_, c_file, so_file, log_file, dl_handle, workspace.path);
+    workspace.transferred = true;
 
     auto dlsym_lambda = [&](const std::string &sym) -> void * { return dlsym(dl_handle, sym.c_str()); };
 #endif
+
+    // Own this exact image's location before init: init may throw or compile
+    // another module recursively, so GetLuaLocs().back() is not reliable.
+    handle->SetLuaLoc(BindGeneratedCode(dlsym_lambda("__fakelua_bind"), s_, pr.file_name));
+    // Validate before publication/registration. Runtime init executes separately
+    // for every private image, including cache hits.
+    for (const auto &[name, info] : gr.function_names) {
+        const auto &symbol = info.c_symbol_name.empty() ? name : info.c_symbol_name;
+        if (!dlsym_lambda(symbol)) {
+            cache.Invalidate();
+            ThrowFakeluaException("GCC image missing function " + symbol);
+        }
+    }
+    if (!cache_hit) cache.Publish(so_file, dep_file, c_file);
+    cache.Release(); // init may call native code which recursively compiles Lua
 
     // ---- Common post-load: register compiled functions + call init ----
     LOG_DEBUG(s_, "engine", "GCC: registering {} functions from {}", gr.function_names.size(), so_file);
@@ -353,9 +419,6 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     if (init_ptr) {
         State::ConstAllocScope const_alloc(s_);
         inter::DispatchCall(s_, init_ptr, nullptr, 0, JIT_GCC);
-        if (!s_->GetLuaLocs(JIT_GCC).empty()) {
-            handle->SetLuaLoc(s_->GetLuaLocs(JIT_GCC).back());
-        }
     }
 
 #if !defined(_WIN32)

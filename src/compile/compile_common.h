@@ -38,7 +38,7 @@ inline std::string SanitizeCIdent(const std::string &lua_name) {
             "or_eq",      "xor_eq",    "not_eq",   "CVar",      "VarType",     "VarTable",     "VarClosure",  "State",
             "stdin",      "stdout",    "stderr",   "_S",        "_CL",         "kNil",         "kTrue",       "kFalse",
     };
-    if (kReserved.contains(lua_name)) {
+    if (kReserved.contains(lua_name) || lua_name.starts_with("__fakelua_cache_")) {
         return "flua_id_" + lua_name;
     }
     return lua_name;
@@ -286,6 +286,9 @@ struct ParseResult {
     std::string file_name;
     // 语法树根节点（代码块）
     SyntaxTreeInterfacePtr chunk;
+    // String input uses a stable C #line label, while runtime diagnostics still
+    // bind the original temporary source filename for each loaded instance.
+    bool from_string = false;
 };
 
 // ---- 阶段三：语义与控制流分析结果 -----------------------------------------

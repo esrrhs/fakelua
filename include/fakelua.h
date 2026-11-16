@@ -400,6 +400,10 @@ struct StateGCCConfig {
     std::vector<std::string> include_paths;
     std::vector<std::string> library_paths;
     std::vector<std::string> libraries;
+    // Best-effort persistent shared-library cache. Empty directory uses the
+    // per-user OS cache directory. Custom include/library configs bypass it.
+    bool enable_cache = true;
+    std::string cache_directory;
 };
 
 struct StateConfig {

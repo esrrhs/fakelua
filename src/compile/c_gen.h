@@ -286,6 +286,12 @@ private:
     }
 
 private:
+    std::string StringId(const std::string_view &value);
+    std::vector<std::string> string_literals_;
+    std::unordered_map<std::string, size_t> string_indices_;
+    std::ostringstream string_decls_;
+    std::ostringstream global_initializers_;
+    std::string code_file_name_;
     State *s_;                                                      // 全局虚拟机状态 State 引用
     std::string file_name_;                                         // 当前编译的源码文件名称
     std::optional<std::reference_wrapper<const InferResult>> ir_;   // 全局类型推断结果快照引用

@@ -1,5 +1,6 @@
 #include "jit/tcc_jit.h"
 #include "jit/tcc_handle.h"
+#include "jit/code_binding.h"
 #include "state/state.h"
 #include "util/logging.h"
 
@@ -23,6 +24,8 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         ThrowFakeluaException(std::format("TCC compile failed, tcc_relocate failed for {}", pr.file_name));
     }
 
+    handle->SetLuaLoc(BindGeneratedCode(tcc_get_symbol(s, "__fakelua_bind"), s_, pr.file_name));
+
     LOG_DEBUG(s_, "engine", "TCC: registering {} functions", gr.function_names.size());
     for (const auto &[name, info]: gr.function_names) {
         const std::string &sym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
@@ -42,9 +45,6 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     if (init_ptr) {
         State::ConstAllocScope const_alloc(s_);
         inter::DispatchCall(s_, init_ptr, nullptr, 0, JIT_TCC);
-        if (!s_->GetLuaLocs(JIT_TCC).empty()) {
-            handle->SetLuaLoc(s_->GetLuaLocs(JIT_TCC).back());
-        }
     }
 
     LOG_INFO(s_, "engine", "TCC JIT compilation finished for {}", pr.file_name);
