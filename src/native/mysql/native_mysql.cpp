@@ -43,11 +43,9 @@ static std::string CVarToString(CVar v) {
 //   conn:query(sql, "on_result", tag, ctx_table)
 // 绑定参数在登记当下序列化成自有字节串随回调暂存，派发时 decode 追加在固定参数后。
 // 名称参数非法（闭包/数字/空串等）直接抛错——历史上坏回调会被静默转成空串、永不触发。
-static ResultCallback BuildCallback(State *s, CVar name_v, int name_argno, CVar *args, int bound_first, int n,
-                                    const char *fname) {
+static ResultCallback BuildCallback(State *s, CVar name_v, int name_argno, CVar *args, int bound_first, int n, const char *fname) {
     if (name_v.type_ == static_cast<int>(VarType::Closure)) {
-        ThrowBadArgument(name_argno, fname,
-                         "global callback function name expected; inline closures are not supported for async callbacks, pass a name string plus data args");
+        ThrowBadArgument(name_argno, fname, "global callback function name expected; inline closures are not supported for async callbacks, pass a name string plus data args");
     }
     std::string name = CVarToString(name_v);
     if (name.empty()) {
@@ -205,8 +203,10 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
         } else if (ssl_var.type_ != static_cast<int>(VarType::Nil)) {
             std::string mode = CVarToString(ssl_var);
             if (mode == "require" || mode == "true") ssl = SslMode::Require;
-            else if (mode == "enable") ssl = SslMode::Enable;
-            else ssl = SslMode::Disable;
+            else if (mode == "enable")
+                ssl = SslMode::Enable;
+            else
+                ssl = SslMode::Disable;
         }
         CVar ca_var = table::TableHelper::GetTableStrId(s, a0, "ssl_ca");
         if (ca_var.type_ != static_cast<int>(VarType::Nil)) ssl_ca = CVarToString(ca_var);

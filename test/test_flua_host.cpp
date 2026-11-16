@@ -128,7 +128,7 @@ std::filesystem::path WriteScript(const std::filesystem::path &dir, const char *
     return path;
 }
 
-} // namespace
+}// namespace
 
 TEST(flua_host, set_exit_code_after_frames) {
     const auto flua = FluaBinary();

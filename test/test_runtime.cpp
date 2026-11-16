@@ -1,6 +1,9 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
+#include "interp/runtime.h"
+#include "interp/vm_ops.h"
 #include "jit/vm.h"
+#include "native/table/native_table.h"
 #include "state/const_string.h"
 #include "state/heap.h"
 #include "state/state.h"
@@ -12,15 +15,12 @@
 #include "var/var_table.h"
 #include "var/var_type.h"
 #include "gtest/gtest.h"
+#include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <utility>
 #include <vector>
-#include "interp/runtime.h"
-#include "interp/vm_ops.h"
-#include "native/table/native_table.h"
-#include <cmath>
-#include <limits>
 
 using namespace fakelua;
 
@@ -781,10 +781,10 @@ TEST(runtime, interp_runtime_error_paths) {
 
 TEST(runtime, vm_ops_for_and_arith_edges) {
     using namespace interp_rt;
-    (void)Nil();
-    (void)Bool(true);
-    (void)Int(1);
-    (void)Float(1.5);
+    (void) Nil();
+    (void) Bool(true);
+    (void) Int(1);
+    (void) Float(1.5);
 
     EXPECT_THROW(CheckInt(Bool(true)), std::exception);
     EXPECT_EQ(BinAdd(Int(1), Int(2)).data_.i, 3);

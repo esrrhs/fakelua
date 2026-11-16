@@ -1,7 +1,7 @@
 #include "jit/gcc_jit.h"
-#include "jit/gcc_handle.h"
-#include "jit/gcc_cache.h"
 #include "jit/code_binding.h"
+#include "jit/gcc_cache.h"
+#include "jit/gcc_handle.h"
 #include "state/state.h"
 #include "util/file_util.h"
 #include "util/logging.h"
@@ -11,9 +11,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <random>
 #include <sstream>
 #include <vector>
-#include <random>
 
 #if defined(_WIN32)
 #define NOMINMAX
@@ -22,8 +22,8 @@
 #else
 #include <dlfcn.h>
 #include <fcntl.h>
-#include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
@@ -86,13 +86,16 @@ GccJitter::GccJitter(State *s) : s_(s) {
 
 void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg) {
     LOG_INFO(s_, "engine", "GCC JIT compile start: {}, {} functions", pr.file_name, gr.function_names.size());
+
     struct Workspace {
         std::string path;
         bool transferred = false;
         bool created = false;
+
         ~Workspace() {
             if (created && !transferred && !path.empty()) {
-                std::error_code ec; std::filesystem::remove_all(path, ec);
+                std::error_code ec;
+                std::filesystem::remove_all(path, ec);
             }
         }
     } workspace;
@@ -165,9 +168,14 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     GccCache cache(s_->GetStateConfig().gcc_config, compiler, gr.c_code, cfg.debug_mode);
     bool cache_hit = cache.Restore(so_file);
     const std::string dep_file = c_file + ".d";
+
     struct DependencyCleanup {
         const std::string &path;
-        ~DependencyCleanup() { std::error_code ec; std::filesystem::remove(path, ec); }
+
+        ~DependencyCleanup() {
+            std::error_code ec;
+            std::filesystem::remove(path, ec);
+        }
     } dependency_cleanup{dep_file};
 
     const auto opt_flag = cfg.debug_mode ? "-O0" : "-O3";
@@ -275,72 +283,72 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     auto compile_image = [&]() {
 #if defined(USE_COV)
-    // Two-step compile so gcov notes/data are named `<stem>.gcno/.gcda` (not
-    // `<stem>.so-<stem>.gcno` from one-shot -shared of a .c file).
-    {
-        std::vector<std::string> compile_args{compiler, "-x", "c", "-c"};
+        // Two-step compile so gcov notes/data are named `<stem>.gcno/.gcda` (not
+        // `<stem>.so-<stem>.gcno` from one-shot -shared of a .c file).
+        {
+            std::vector<std::string> compile_args{compiler, "-x", "c", "-c"};
 #if !defined(_WIN32)
-        compile_args.emplace_back("-fPIC");
+            compile_args.emplace_back("-fPIC");
 #endif
-        compile_args.emplace_back(opt_flag);
-        compile_args.emplace_back("-fprofile-arcs");
-        compile_args.emplace_back("-ftest-coverage");
-        compile_args.emplace_back("-fprofile-update=atomic");
-        compile_args.emplace_back(jit_type_def);
-        append_includes_and_libs(compile_args, false);
-        compile_args.emplace_back("-o");
-        compile_args.emplace_back(obj_file);
-        compile_args.emplace_back(c_file);
-        run_gcc(compile_args);
-    }
-    {
-        std::vector<std::string> link_args{compiler, "-shared"};
+            compile_args.emplace_back(opt_flag);
+            compile_args.emplace_back("-fprofile-arcs");
+            compile_args.emplace_back("-ftest-coverage");
+            compile_args.emplace_back("-fprofile-update=atomic");
+            compile_args.emplace_back(jit_type_def);
+            append_includes_and_libs(compile_args, false);
+            compile_args.emplace_back("-o");
+            compile_args.emplace_back(obj_file);
+            compile_args.emplace_back(c_file);
+            run_gcc(compile_args);
+        }
+        {
+            std::vector<std::string> link_args{compiler, "-shared"};
 #if !defined(_WIN32)
-        link_args.emplace_back("-fPIC");
+            link_args.emplace_back("-fPIC");
 #endif
 #if defined(__APPLE__)
-        link_args.emplace_back("-undefined");
-        link_args.emplace_back("dynamic_lookup");
-        link_args.emplace_back("-Wl,-adhoc_codesign");
+            link_args.emplace_back("-undefined");
+            link_args.emplace_back("dynamic_lookup");
+            link_args.emplace_back("-Wl,-adhoc_codesign");
 #endif
-        link_args.emplace_back("--coverage");
-        append_includes_and_libs(link_args, true);
-        link_args.emplace_back("-o");
-        link_args.emplace_back(so_file);
-        link_args.emplace_back(obj_file);
-        run_gcc(link_args);
-    }
-    {
-        // Object file not needed after link; keep .c/.gcno for lcov.
-        std::error_code ec;
-        std::filesystem::remove(obj_file, ec);
-    }
+            link_args.emplace_back("--coverage");
+            append_includes_and_libs(link_args, true);
+            link_args.emplace_back("-o");
+            link_args.emplace_back(so_file);
+            link_args.emplace_back(obj_file);
+            run_gcc(link_args);
+        }
+        {
+            // Object file not needed after link; keep .c/.gcno for lcov.
+            std::error_code ec;
+            std::filesystem::remove(obj_file, ec);
+        }
 #else
-    {
-        std::vector<std::string> args{compiler, "-x", "c", "-shared"};
+        {
+            std::vector<std::string> args{compiler, "-x", "c", "-shared"};
 #if !defined(_WIN32)
-        args.emplace_back("-fPIC");
+            args.emplace_back("-fPIC");
 #endif
 #if defined(__APPLE__)
-        // macOS 的 .dylib 需要 -undefined dynamic_lookup 选项，
-        // 允许运行时由宿主进程提供未解析的符号。
-        args.emplace_back("-undefined");
-        args.emplace_back("dynamic_lookup");
-        args.emplace_back("-Wl,-adhoc_codesign");
+            // macOS 的 .dylib 需要 -undefined dynamic_lookup 选项，
+            // 允许运行时由宿主进程提供未解析的符号。
+            args.emplace_back("-undefined");
+            args.emplace_back("dynamic_lookup");
+            args.emplace_back("-Wl,-adhoc_codesign");
 #endif
-        args.emplace_back("-MD");
-        args.emplace_back("-MF");
-        args.emplace_back(dep_file);
-        args.emplace_back("-MT");
-        args.emplace_back("flua");
-        args.emplace_back(opt_flag);
-        args.emplace_back(jit_type_def);
-        append_includes_and_libs(args, true);
-        args.emplace_back("-o");
-        args.emplace_back(so_file);
-        args.emplace_back(c_file);
-        run_gcc(args);
-    }
+            args.emplace_back("-MD");
+            args.emplace_back("-MF");
+            args.emplace_back(dep_file);
+            args.emplace_back("-MT");
+            args.emplace_back("flua");
+            args.emplace_back(opt_flag);
+            args.emplace_back(jit_type_def);
+            append_includes_and_libs(args, true);
+            args.emplace_back("-o");
+            args.emplace_back(so_file);
+            args.emplace_back(c_file);
+            run_gcc(args);
+        }
 #endif
     };
     if (!cache_hit) compile_image();
@@ -348,7 +356,8 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 #if defined(_WIN32)
     HMODULE module_handle = LoadLibraryA(so_file.c_str());
     if (!module_handle && cache_hit) {
-        cache.Invalidate(); cache_hit = false;
+        cache.Invalidate();
+        cache_hit = false;
         compile_image();
         module_handle = LoadLibraryA(so_file.c_str());
     }
@@ -367,7 +376,8 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 #else
     void *dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!dl_handle && cache_hit) {
-        cache.Invalidate(); cache_hit = false;
+        cache.Invalidate();
+        cache_hit = false;
         compile_image();
         dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
     }
@@ -393,7 +403,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     handle->SetLuaLoc(BindGeneratedCode(dlsym_lambda("__fakelua_bind"), s_, pr.file_name));
     // Validate before publication/registration. Runtime init executes separately
     // for every private image, including cache hits.
-    for (const auto &[name, info] : gr.function_names) {
+    for (const auto &[name, info]: gr.function_names) {
         const auto &symbol = info.c_symbol_name.empty() ? name : info.c_symbol_name;
         if (!dlsym_lambda(symbol)) {
             cache.Invalidate();
@@ -401,7 +411,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         }
     }
     if (!cache_hit) cache.Publish(so_file, dep_file, c_file);
-    cache.Release(); // init may call native code which recursively compiles Lua
+    cache.Release();// init may call native code which recursively compiles Lua
 
     // ---- Common post-load: register compiled functions + call init ----
     LOG_DEBUG(s_, "engine", "GCC: registering {} functions from {}", gr.function_names.size(), so_file);

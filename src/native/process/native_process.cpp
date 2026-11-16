@@ -172,7 +172,10 @@ struct FileStdio {
     FileStdio() = default;
     FileStdio(const FileStdio &) = delete;
     FileStdio &operator=(const FileStdio &) = delete;
-    ~FileStdio() { Close(); }
+
+    ~FileStdio() {
+        Close();
+    }
 
     void Close() {
         auto close_one = [](HANDLE &h) {
@@ -190,8 +193,7 @@ struct FileStdio {
         SECURITY_ATTRIBUTES sa{};
         sa.nLength = sizeof(sa);
         sa.bInheritHandle = TRUE;
-        HANDLE h = ::CreateFileW(path, for_read ? GENERIC_READ : GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa,
-                                   for_read ? OPEN_EXISTING : OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        HANDLE h = ::CreateFileW(path, for_read ? GENERIC_READ : GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, for_read ? OPEN_EXISTING : OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (h == INVALID_HANDLE_VALUE) {
             ThrowFakeluaException(std::format("process.run: CreateFileW failed ({})", static_cast<unsigned>(::GetLastError())));
         }
@@ -333,9 +335,8 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
         env_ptr.reset();
     }
     std::wstring cwd_w = cwd.empty() ? std::wstring() : boost::nowide::widen(cwd);
-    BOOL ok = ::CreateProcessW(boost::nowide::widen(exe).c_str(), cmd_buf.data(), nullptr, nullptr, TRUE, flags,
-                                env_block.empty() ? nullptr : env_block.data(),
-                                cwd_w.empty() ? nullptr : cwd_w.c_str(), &si, &pi);
+    BOOL ok = ::CreateProcessW(boost::nowide::widen(exe).c_str(), cmd_buf.data(), nullptr, nullptr, TRUE, flags, env_block.empty() ? nullptr : env_block.data(),
+                               cwd_w.empty() ? nullptr : cwd_w.c_str(), &si, &pi);
     stdio.Close();
     if (!ok) {
         ThrowFakeluaException(std::format("process.run: failed to spawn '{}': {}", argv[0], static_cast<unsigned>(::GetLastError())));
@@ -352,7 +353,8 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     }
     DWORD code = 0;
     if (::GetExitCodeProcess(pi.hProcess, &code) && code != STILL_ACTIVE) exit_code = static_cast<int>(code);
-    else if (timed_out) exit_code = 9;
+    else if (timed_out)
+        exit_code = 9;
     ::CloseHandle(pi.hProcess);
     ::CloseHandle(pi.hThread);
 #else
@@ -400,8 +402,10 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
         pid_t r = ::waitpid(pid, &status, WNOHANG);
         if (r == pid) {
             if (WIFEXITED(status)) exit_code = WEXITSTATUS(status);
-            else if (WIFSIGNALED(status)) exit_code = 128 + WTERMSIG(status);
-            else exit_code = -1;
+            else if (WIFSIGNALED(status))
+                exit_code = 128 + WTERMSIG(status);
+            else
+                exit_code = -1;
             break;
         }
         if (r < 0 && errno != EINTR) {
@@ -420,7 +424,8 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
             r = ::waitpid(pid, &status, 0);
             if (r == pid) {
                 if (WIFEXITED(status)) exit_code = WEXITSTATUS(status);
-                else if (WIFSIGNALED(status)) exit_code = 128 + WTERMSIG(status);
+                else if (WIFSIGNALED(status))
+                    exit_code = 128 + WTERMSIG(status);
             }
             break;
         }

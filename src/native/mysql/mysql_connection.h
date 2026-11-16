@@ -40,7 +40,6 @@ struct StmtParam {
     std::string value;
 };
 
-
 // C++ → Lua 异步回调：全局函数名 + 绑定参数。
 // fakelua 没有 GC，运行期闭包活在临时 arena 上，顶层 Call 的 State::Reset() 会回收，
 // 无法安全地跨 tick 持有闭包裸指针。因此异步回调只接受【全局函数名】；脚本需要上下文时
@@ -56,7 +55,9 @@ struct ResultCallback {
     // 回调就执行哪个引擎的编译产物，与内联闭包自带 func_ptr 的语义一致。
     JITType jit = JIT_TCC;
 
-    [[nodiscard]] bool Empty() const { return name.empty(); }
+    [[nodiscard]] bool Empty() const {
+        return name.empty();
+    }
 };
 
 enum class SslMode {
@@ -65,16 +66,7 @@ enum class SslMode {
     Require,
 };
 
-enum class MysqlErrorType {
-    None = 0,
-    Connection,
-    Authentication,
-    Syntax,
-    Timeout,
-    Protocol,
-    Server,
-    Unknown
-};
+enum class MysqlErrorType { None = 0, Connection, Authentication, Syntax, Timeout, Protocol, Server, Unknown };
 
 struct MysqlError {
     MysqlErrorType type = MysqlErrorType::None;
@@ -101,7 +93,8 @@ public:
     MysqlConnection(const MysqlConnection &) = delete;
     MysqlConnection &operator=(const MysqlConnection &) = delete;
 
-    void Connect(const std::string &host, uint16_t port, const std::string &user, const std::string &password, const std::string &database, int timeout_ms = 0, SslMode ssl = SslMode::Disable, std::string ssl_ca = {});
+    void Connect(const std::string &host, uint16_t port, const std::string &user, const std::string &password, const std::string &database, int timeout_ms = 0, SslMode ssl = SslMode::Disable,
+                 std::string ssl_ca = {});
 
     void Query(const std::string &sql);
     void StmtPrepare(const std::string &sql);
@@ -150,6 +143,7 @@ private:
         std::string sql;
         ResultCallback cb;
     };
+
     std::vector<QueuedQuery> queued_queries_;
 
     enum class QueryType { None, Query, StmtPrepare, StmtExecute, Ping };

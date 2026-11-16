@@ -8,15 +8,15 @@
 #include "util/string_util.h"
 #include "var/var.h"
 
-#include <hiredis.h>
-#include <async.h>
 #include <adapters/libevent.h>
+#include <async.h>
+#include <hiredis.h>
 
 #include <algorithm>
 #include <cctype>
 #include <chrono>
-#include <cstring>
 #include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <memory>
 #include <string>
@@ -110,7 +110,11 @@ static CVar ReplyToLua(State *s, const redisReply *r, int depth = 0) {
 
 struct TickDepthGuard {
     int &depth;
-    explicit TickDepthGuard(int &d) : depth(d) { ++depth; }
+
+    explicit TickDepthGuard(int &d) : depth(d) {
+        ++depth;
+    }
+
     ~TickDepthGuard() {
         if (depth > 0) --depth;
     }
@@ -125,9 +129,12 @@ struct CmdOp {
 
 class RedisConnection {
 public:
-    explicit RedisConnection(State *state) : io_(state->GetIoContext()), lua_state_(state) {}
+    explicit RedisConnection(State *state) : io_(state->GetIoContext()), lua_state_(state) {
+    }
 
-    ~RedisConnection() { Teardown(); }
+    ~RedisConnection() {
+        Teardown();
+    }
 
     RedisConnection(const RedisConnection &) = delete;
     RedisConnection &operator=(const RedisConnection &) = delete;
@@ -182,11 +189,8 @@ public:
         // 生命周期订阅上下文；在此之前响亮拒绝，避免堆破坏（FakeLua Phase16 Bug 2）。
         // 参数校验先于连接状态检查，未就绪的连接上也能拿到明确报错。
         std::string verb = parts.front();
-        std::transform(verb.begin(), verb.end(), verb.begin(), [](unsigned char ch) {
-            return static_cast<char>(std::tolower(ch));
-        });
-        if (verb == "subscribe" || verb == "psubscribe" || verb == "unsubscribe" || verb == "punsubscribe" ||
-            verb == "ssubscribe" || verb == "sunsubscribe") {
+        std::transform(verb.begin(), verb.end(), verb.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        if (verb == "subscribe" || verb == "psubscribe" || verb == "unsubscribe" || verb == "punsubscribe" || verb == "ssubscribe" || verb == "sunsubscribe") {
             ThrowFakeluaException("redis: '" + verb + "' is not supported, command() is one-shot RPC and cannot deliver pub/sub pushes");
         }
         if (closed_ || close_pending_ || !ac_ || !ready_) {
@@ -239,15 +243,30 @@ public:
         Teardown();
     }
 
-    int TickDepth() const { return tick_depth_; }
-    bool ClosePending() const { return close_pending_; }
+    int TickDepth() const {
+        return tick_depth_;
+    }
+
+    bool ClosePending() const {
+        return close_pending_;
+    }
+
     void RequestClose() {
         closed_ = true;
         close_pending_ = true;
     }
-    void SetConnectCallback(std::string name) { connect_cb_ = std::move(name); }
-    void SetNativeObject(NativeObject *obj) { native_obj_ = obj; }
-    bool Closed() const { return closed_; }
+
+    void SetConnectCallback(std::string name) {
+        connect_cb_ = std::move(name);
+    }
+
+    void SetNativeObject(NativeObject *obj) {
+        native_obj_ = obj;
+    }
+
+    bool Closed() const {
+        return closed_;
+    }
 
 private:
     static std::string ConnectErr(const std::string &detail) {

@@ -420,9 +420,11 @@ CVar SetValues(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
 NativeField &Nth(boost::container::vector<NativeField> &d, size_t i) {
     return d[i];
 }
+
 NativeField &Nth(SmallVec &d, size_t i) {
     return d[i];
 }
+
 NativeField &Nth(boost::container::list<NativeField> &d, size_t i) {
     auto it = d.begin();
     std::advance(it, static_cast<std::ptrdiff_t>(i));
@@ -505,11 +507,13 @@ boost::container::vector<NativeField> &VecOf(NativeObject *self) {
     if (c->kind != ContainerImpl::Kind::Vector) ThrowFakeluaException("not a vector");
     return c->vec;
 }
+
 SmallVec &SmallOf(NativeObject *self) {
     auto *c = Require(self);
     if (c->kind != ContainerImpl::Kind::SmallVector) ThrowFakeluaException("not a small_vector");
     return c->small;
 }
+
 boost::container::list<NativeField> &ListOf(NativeObject *self) {
     auto *c = Require(self);
     if (c->kind != ContainerImpl::Kind::List) ThrowFakeluaException("not a list");
@@ -521,25 +525,31 @@ CVar VectorPushBack(NativeObject *self, State *s, CVar *args, int n) {
     self->MarkModified();
     return r;
 }
+
 CVar VectorPopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto r = SeqPopBack(VecOf(self), s);
     self->MarkModified();
     return r;
 }
+
 CVar VectorFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqFront(VecOf(self), s);
 }
+
 CVar VectorBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqBack(VecOf(self), s);
 }
+
 CVar VectorAt(NativeObject *self, State *s, CVar *args, int n) {
     return SeqAt(VecOf(self), s, args, n, "vector:at");
 }
+
 CVar VectorSet(NativeObject *self, State *s, CVar *args, int n) {
     auto r = SeqSet(VecOf(self), s, args, n, "vector:set");
     self->MarkModified();
     return r;
 }
+
 CVar VectorToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqToTable(VecOf(self), s);
 }
@@ -549,25 +559,31 @@ CVar SmallPushBack(NativeObject *self, State *s, CVar *args, int n) {
     self->MarkModified();
     return r;
 }
+
 CVar SmallPopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto r = SeqPopBack(SmallOf(self), s);
     self->MarkModified();
     return r;
 }
+
 CVar SmallFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqFront(SmallOf(self), s);
 }
+
 CVar SmallBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqBack(SmallOf(self), s);
 }
+
 CVar SmallAt(NativeObject *self, State *s, CVar *args, int n) {
     return SeqAt(SmallOf(self), s, args, n, "small_vector:at");
 }
+
 CVar SmallSet(NativeObject *self, State *s, CVar *args, int n) {
     auto r = SeqSet(SmallOf(self), s, args, n, "small_vector:set");
     self->MarkModified();
     return r;
 }
+
 CVar SmallToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqToTable(SmallOf(self), s);
 }
@@ -577,41 +593,48 @@ CVar ListPushBack(NativeObject *self, State *s, CVar *args, int n) {
     self->MarkModified();
     return r;
 }
+
 CVar ListPushFront(NativeObject *self, State *s, CVar *args, int n) {
     auto r = SeqPushFront(ListOf(self), s, args, n, "list:push_front");
     self->MarkModified();
     return r;
 }
+
 CVar ListPopBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto r = SeqPopBack(ListOf(self), s);
     self->MarkModified();
     return r;
 }
+
 CVar ListPopFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto r = SeqPopFront(ListOf(self), s);
     self->MarkModified();
     return r;
 }
+
 CVar ListFront(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqFront(ListOf(self), s);
 }
+
 CVar ListBack(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqBack(ListOf(self), s);
 }
+
 CVar ListAt(NativeObject *self, State *s, CVar *args, int n) {
     return SeqAt(ListOf(self), s, args, n, "list:at");
 }
+
 CVar ListSet(NativeObject *self, State *s, CVar *args, int n) {
     auto r = SeqSet(ListOf(self), s, args, n, "list:set");
     self->MarkModified();
     return r;
 }
+
 CVar ListToTable(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     return SeqToTable(ListOf(self), s);
 }
 
-void RegisterSeqBack(NativeObject *nat, NativeMethod push, NativeMethod pop, NativeMethod front, NativeMethod back, NativeMethod at,
-                     NativeMethod set, NativeMethod to_table) {
+void RegisterSeqBack(NativeObject *nat, NativeMethod push, NativeMethod pop, NativeMethod front, NativeMethod back, NativeMethod at, NativeMethod set, NativeMethod to_table) {
     nat->RegisterMethod("push_back", push);
     nat->RegisterMethod("pop_back", pop);
     nat->RegisterMethod("front", front);

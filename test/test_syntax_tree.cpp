@@ -1,8 +1,8 @@
 #include "compile/compiler.h"
-#include "fakelua.h"
-#include "gtest/gtest.h"
 #include "compile/semantic_analysis.h"
 #include "compile/syntax_tree.h"
+#include "fakelua.h"
+#include "gtest/gtest.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -2064,8 +2064,7 @@ TEST(syntax_tree, semantic_native_function_as_value_dotted) {
     Compiler c(s);
     // 点号原生库函数：local f = table.concat / pcall(table.concat, t) / { cb = string.format }
     ExpectNativeValueError(c, "function f()\n    local g = table.concat\n    return g\nend\n", "native function 'table.concat'");
-    ExpectNativeValueError(c, "function f()\n    local t = { 1, 2 }\n    return pcall(table.concat, t, \"-\")\nend\n",
-                           "native function 'table.concat'");
+    ExpectNativeValueError(c, "function f()\n    local t = { 1, 2 }\n    return pcall(table.concat, t, \"-\")\nend\n", "native function 'table.concat'");
     ExpectNativeValueError(c, "function f()\n    return { cb = string.format }\nend\n", "native function 'string.format'");
     ExpectNativeValueError(c, "function f()\n    return math.floor\nend\n", "native function 'math.floor'");
 }
@@ -2215,7 +2214,7 @@ TEST(syntax_tree, getters_setters_coverage) {
     EXPECT_EQ(empty->Type(), SyntaxTreeType::Empty);
     EXPECT_FALSE(empty->Dump(1).empty());
     empty->SetLoc(StCovLoc());
-    (void)empty->Loc();
+    (void) empty->Loc();
 
     auto label = std::make_shared<SyntaxTreeLabel>(StCovLoc());
     label->SetName("L");
@@ -2352,7 +2351,7 @@ end
     sa.CollectReturnsForBlock(pr.chunk, returns);
     EXPECT_GE(returns.size(), 5u);
     // Descend into function bodies via Function/LocalFunction case (no nested returns collected).
-    for (const auto &stmt : std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk)->Stmts()) {
+    for (const auto &stmt: std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk)->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::Function || stmt->Type() == SyntaxTreeType::LocalFunction) {
             sa.CollectReturnsForBlock(stmt, returns);
         }

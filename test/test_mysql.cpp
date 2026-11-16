@@ -8,7 +8,6 @@
 using namespace fakelua;
 using namespace fakelua::mysql;
 
-
 // MySQL 模块测试
 
 // 测试 1: 连接失败时 pcall 能捕获错误（无需真实 MySQL 服务器）
@@ -188,6 +187,7 @@ TEST(test_mysql, bad_port) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
 // 回归（P0-1/P0-2/P1-4）：连接未就绪时用闭包发起 query，
 // 连接失败后回调应恰好收到一次错误（曾被静默吞掉或报错丢失）。
 TEST(test_mysql, query_closure_callback_exactly_once) {

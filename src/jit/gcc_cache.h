@@ -10,16 +10,15 @@ namespace fakelua {
 // the cache inode itself: generated code contains State-local mutable statics.
 class GccCache {
 public:
-    GccCache(const StateGCCConfig &config, const std::string &compiler,
-             const std::string &code, bool debug);
+    GccCache(const StateGCCConfig &config, const std::string &compiler, const std::string &code, bool debug);
     ~GccCache();
     bool Restore(const std::string &destination);
-    void Publish(const std::string &binary, const std::string &dependencies,
-                 const std::string &source);
+    void Publish(const std::string &binary, const std::string &dependencies, const std::string &source);
     void Invalidate();
     void Release();
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
-} // namespace fakelua
+}// namespace fakelua

@@ -2044,7 +2044,7 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
     // 否则 optional FL_SET_SPEC 会写到错误的 struct 字段。
     for (const auto &frame_ptr: frames) {
         for (auto &[name, fields]: frame_ptr->var_fields) {
-            (void)name;
+            (void) name;
             UniquifySpecFieldCNames(fields);
         }
     }

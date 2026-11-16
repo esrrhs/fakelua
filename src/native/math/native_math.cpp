@@ -54,8 +54,7 @@ static int CompareNumbers(CVar lhs, double lhs_value, CVar rhs, double rhs_value
 static double CheckMathNumberArg(const CVar &arg, int argno, const char *fname) {
     CheckNumberArg(arg, argno, fname);
     const double value = inter::CVarToNumber(arg, std::numeric_limits<double>::quiet_NaN());
-    if ((arg.type_ == static_cast<int>(VarType::String) || arg.type_ == static_cast<int>(VarType::StringId)) &&
-        std::isnan(value)) {
+    if ((arg.type_ == static_cast<int>(VarType::String) || arg.type_ == static_cast<int>(VarType::StringId)) && std::isnan(value)) {
         ThrowBadArgument(argno, fname, "number expected");
     }
     return value;
@@ -507,8 +506,7 @@ void RegisterMathLibraryApi(State *s) {
         CheckMathNumberArg(ax, 1, "math.clamp");
         CheckMathNumberArg(alo, 2, "math.clamp");
         CheckMathNumberArg(ahi, 3, "math.clamp");
-        if (ax.type_ == static_cast<int>(VarType::Int) && alo.type_ == static_cast<int>(VarType::Int) &&
-            ahi.type_ == static_cast<int>(VarType::Int)) {
+        if (ax.type_ == static_cast<int>(VarType::Int) && alo.type_ == static_cast<int>(VarType::Int) && ahi.type_ == static_cast<int>(VarType::Int)) {
             if (alo.data_.i > ahi.data_.i) {
                 ThrowBadArgument(2, "math.clamp", "low bound must not exceed high bound");
             }

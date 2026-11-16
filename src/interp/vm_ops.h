@@ -411,27 +411,25 @@ FL_VM_INLINE bool ForPrep(CVar &idx, CVar &limit, CVar &step, CVar &loopvar) {
 #define FL_VM_INT_OP_add(a, b) ((a) + (b))
 #define FL_VM_INT_OP_sub(a, b) ((a) - (b))
 #define FL_VM_INT_OP_mul(a, b) ((a) * (b))
-#define FL_VM_ARITH_INT(HAS, stk, box, ra, rb, rc, OPNAME, SLOWFN)                                                                         \
-    do {                                                                                                                                   \
-        const CVar &fl_rb_ = ::fakelua::interp_rt::VmSlot<HAS>(stk, box, rb);                                                               \
-        const CVar &fl_rc_ = ::fakelua::interp_rt::VmSlot<HAS>(stk, box, rc);                                                               \
-        if (FL_VM_LIKELY(fl_rb_.type_ == ::fakelua::interp_rt::kInt && fl_rc_.type_ == ::fakelua::interp_rt::kInt)) {                       \
-            ::fakelua::interp_rt::VmWriteInt<HAS>(stk, box, ra,                                                                            \
-                static_cast<int64_t>(FL_VM_INT_OP_##OPNAME(static_cast<uint64_t>(fl_rb_.data_.i), static_cast<uint64_t>(fl_rc_.data_.i)))); \
-        } else {                                                                                                                           \
-            ::fakelua::interp_rt::VmWrite<HAS>(stk, box, ra, (SLOWFN)(fl_rb_, fl_rc_));                                                     \
-        }                                                                                                                                  \
+#define FL_VM_ARITH_INT(HAS, stk, box, ra, rb, rc, OPNAME, SLOWFN)                                                                                                                                     \
+    do {                                                                                                                                                                                               \
+        const CVar &fl_rb_ = ::fakelua::interp_rt::VmSlot<HAS>(stk, box, rb);                                                                                                                          \
+        const CVar &fl_rc_ = ::fakelua::interp_rt::VmSlot<HAS>(stk, box, rc);                                                                                                                          \
+        if (FL_VM_LIKELY(fl_rb_.type_ == ::fakelua::interp_rt::kInt && fl_rc_.type_ == ::fakelua::interp_rt::kInt)) {                                                                                  \
+            ::fakelua::interp_rt::VmWriteInt<HAS>(stk, box, ra, static_cast<int64_t>(FL_VM_INT_OP_##OPNAME(static_cast<uint64_t>(fl_rb_.data_.i), static_cast<uint64_t>(fl_rc_.data_.i))));            \
+        } else {                                                                                                                                                                                       \
+            ::fakelua::interp_rt::VmWrite<HAS>(stk, box, ra, (SLOWFN) (fl_rb_, fl_rc_));                                                                                                               \
+        }                                                                                                                                                                                              \
     } while (0)
 
-#define FL_VM_BINOP(HAS, stk, box, ra, rb, rc, FN)                                                                                         \
-    do {                                                                                                                                   \
-        ::fakelua::interp_rt::VmWrite<HAS>(stk, box, ra, (FN)(::fakelua::interp_rt::VmSlot<HAS>(stk, box, rb),                              \
-                                                               ::fakelua::interp_rt::VmSlot<HAS>(stk, box, rc)));                          \
+#define FL_VM_BINOP(HAS, stk, box, ra, rb, rc, FN)                                                                                                                                                     \
+    do {                                                                                                                                                                                               \
+        ::fakelua::interp_rt::VmWrite<HAS>(stk, box, ra, (FN) (::fakelua::interp_rt::VmSlot<HAS>(stk, box, rb), ::fakelua::interp_rt::VmSlot<HAS>(stk, box, rc)));                                     \
     } while (0)
 
-#define FL_VM_UNOP(HAS, stk, box, ra, rb, FN)                                                                                              \
-    do {                                                                                                                                   \
-        ::fakelua::interp_rt::VmWrite<HAS>(stk, box, ra, (FN)(::fakelua::interp_rt::VmSlot<HAS>(stk, box, rb)));                             \
+#define FL_VM_UNOP(HAS, stk, box, ra, rb, FN)                                                                                                                                                          \
+    do {                                                                                                                                                                                               \
+        ::fakelua::interp_rt::VmWrite<HAS>(stk, box, ra, (FN) (::fakelua::interp_rt::VmSlot<HAS>(stk, box, rb)));                                                                                      \
     } while (0)
 
 }// namespace fakelua::interp_rt

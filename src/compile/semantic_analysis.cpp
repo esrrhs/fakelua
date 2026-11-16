@@ -1,10 +1,10 @@
 #include "compile/semantic_analysis.h"
 #include "interp/opcode.h"
 #include "interp/runtime.h"
-#include "util/string_util.h"
 #include "state/state.h"
 #include "util/common.h"
 #include "util/exception.h"
+#include "util/string_util.h"
 #include <algorithm>
 #include <functional>
 #include <memory>
@@ -106,11 +106,13 @@ struct ReturnCountGraph {
         bool file_level = false;
         const SyntaxTreeInterface *func = nullptr;
     };
+
     struct Tail {
         int prefix = 0;
         const SyntaxTreeInterface *callee = nullptr;
         bool unknown = false;
     };
+
     struct Info {
         bool has_exact = false;
         int exact = 0;
@@ -121,6 +123,7 @@ struct ReturnCountGraph {
         std::vector<Tail> tails;
         std::vector<std::pair<const SyntaxTreeInterface *, Tail>> sole_calls;
     };
+
     struct FileFunc {
         std::string name;
         const SyntaxTreeInterface *node = nullptr;
@@ -672,8 +675,7 @@ void SemanticAnalysis::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chun
     ValidateConstAssignInBlock(chunk, {});
 }
 
-void SemanticAnalysis::ValidateConstInFuncbody(const SyntaxTreeInterfacePtr &funcbody, std::unordered_set<std::string> const_names,
-                                               const std::unordered_set<std::string> &extra_shadow) {
+void SemanticAnalysis::ValidateConstInFuncbody(const SyntaxTreeInterfacePtr &funcbody, std::unordered_set<std::string> const_names, const std::unordered_set<std::string> &extra_shadow) {
     if (!funcbody) {
         return;
     }
@@ -1050,8 +1052,8 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
                     ThrowError("'continue' jumps over local variable declaration", stmt);
                 }
             }
-        } else if (stmt->Type() == SyntaxTreeType::Block || stmt->Type() == SyntaxTreeType::While || stmt->Type() == SyntaxTreeType::Repeat ||
-                   stmt->Type() == SyntaxTreeType::If || stmt->Type() == SyntaxTreeType::ForLoop || stmt->Type() == SyntaxTreeType::ForIn) {
+        } else if (stmt->Type() == SyntaxTreeType::Block || stmt->Type() == SyntaxTreeType::While || stmt->Type() == SyntaxTreeType::Repeat || stmt->Type() == SyntaxTreeType::If ||
+                   stmt->Type() == SyntaxTreeType::ForLoop || stmt->Type() == SyntaxTreeType::ForIn) {
             std::vector<std::pair<std::string, SyntaxTreeInterfacePtr>> nested;
             CollectGotosInStmt(stmt, nested);
             for (const auto &[target_name, goto_node]: nested) {
@@ -1273,8 +1275,7 @@ void SemanticAnalysis::CheckUndeclaredVars(const SyntaxTreeInterfacePtr &chunk, 
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
             const auto fname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
             if (fname && fname->ColonName().empty()) {
-                if (const auto fnl = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(fname->FuncNameList());
-                    fnl && fnl->Funcnames().size() == 1) {
+                if (const auto fnl = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(fname->FuncNameList()); fnl && fnl->Funcnames().size() == 1) {
                     file_level_names.insert(fnl->Funcnames()[0]);
                 }
             }
@@ -1323,8 +1324,7 @@ void SemanticAnalysis::CheckUndeclaredVars(const SyntaxTreeInterfacePtr &chunk, 
             // 文件首行；预处理会把它搬进 __fakelua_init）：左值 package 是语法关键字位，
             // 不是脚本变量。package("X") 调用形式已由上面的调用链豁免覆盖。
             if (std::string pkg_name; ExtractPackageName(n, pkg_name)) {
-                if (const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(
-                        std::dynamic_pointer_cast<SyntaxTreeAssign>(n)->Varlist())) {
+                if (const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(std::dynamic_pointer_cast<SyntaxTreeAssign>(n)->Varlist())) {
                     for (const auto &var_node: vl->Vars()) {
                         exempt_vars.insert(var_node.get());
                     }
@@ -1356,8 +1356,7 @@ void SemanticAnalysis::CheckUndeclaredVars(const SyntaxTreeInterfacePtr &chunk, 
         while (cur && cur->GetVarKind() == VarKind::kDot) {
             cur = base_var_of(cur);
         }
-        if (cur && cur->GetVarKind() == VarKind::kSimple &&
-            s_->GetVM().HasNativeFunctionWithPrefix(std::string(cur->GetName()) + ".")) {
+        if (cur && cur->GetVarKind() == VarKind::kSimple && s_->GetVM().HasNativeFunctionWithPrefix(std::string(cur->GetName()) + ".")) {
             exempt_vars.insert(cur.get());
         }
     });
@@ -1366,8 +1365,7 @@ void SemanticAnalysis::CheckUndeclaredVars(const SyntaxTreeInterfacePtr &chunk, 
     CheckVarScopes(chunk, scopes, file_level_names, exempt_vars, lvalue_vars);
 }
 
-bool SemanticAnalysis::IsDeclaredSimpleName(const std::string &name, const std::vector<std::unordered_set<std::string>> &scopes,
-                                           const std::unordered_set<std::string> &file_level_names) const {
+bool SemanticAnalysis::IsDeclaredSimpleName(const std::string &name, const std::vector<std::unordered_set<std::string>> &scopes, const std::unordered_set<std::string> &file_level_names) const {
     if (name == "_VERSION") {
         return true;
     }
@@ -1386,10 +1384,8 @@ bool SemanticAnalysis::IsDeclaredSimpleName(const std::string &name, const std::
     return false;
 }
 
-void SemanticAnalysis::CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::vector<std::unordered_set<std::string>> &scopes,
-                                      const std::unordered_set<std::string> &file_level_names,
-                                      const std::unordered_set<const SyntaxTreeInterface *> &exempt_vars,
-                                      const std::unordered_set<const SyntaxTreeInterface *> &lvalue_vars) {
+void SemanticAnalysis::CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::vector<std::unordered_set<std::string>> &scopes, const std::unordered_set<std::string> &file_level_names,
+                                      const std::unordered_set<const SyntaxTreeInterface *> &exempt_vars, const std::unordered_set<const SyntaxTreeInterface *> &lvalue_vars) {
     if (!node) {
         return;
     }
@@ -1511,9 +1507,7 @@ void SemanticAnalysis::CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::v
                 for (auto cur = var; cur && cur->GetVarKind() == VarKind::kDot;) {
                     full = cur->GetName() + (full.empty() ? "" : "." + full);
                     const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(cur->GetPrefixexp());
-                    root = (pe && pe->GetPrefixKind() == PrefixExpKind::kVar)
-                               ? std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue())
-                               : nullptr;
+                    root = (pe && pe->GetPrefixKind() == PrefixExpKind::kVar) ? std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue()) : nullptr;
                     cur = root;
                 }
                 if (root && root->GetVarKind() == VarKind::kSimple && !full.empty()) {
@@ -1573,8 +1567,7 @@ void SemanticAnalysis::CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::v
             break;
         }
         case SyntaxTreeType::TableConstructor: {
-            CheckVarScopes(std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node)->Fieldlist(), scopes, file_level_names, exempt_vars,
-                           lvalue_vars);
+            CheckVarScopes(std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node)->Fieldlist(), scopes, file_level_names, exempt_vars, lvalue_vars);
             break;
         }
         case SyntaxTreeType::FieldList: {
@@ -1634,8 +1627,7 @@ void SemanticAnalysis::CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::v
             break;
         }
         case SyntaxTreeType::PrefixExp: {
-            CheckVarScopes(std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node)->GetValue(), scopes, file_level_names, exempt_vars,
-                           lvalue_vars);
+            CheckVarScopes(std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node)->GetValue(), scopes, file_level_names, exempt_vars, lvalue_vars);
             break;
         }
         default: {
@@ -1644,7 +1636,6 @@ void SemanticAnalysis::CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::v
         }
     }
 }
-
 
 namespace {
 
@@ -1698,6 +1689,7 @@ private:
 
     struct LoopInfo {
         enum Kind { kWhile, kRepeat, kFor, kForIn } kind = kWhile;
+
         int continue_ip = -1;
         std::vector<int> break_jmps;
         std::vector<int> continue_jmps;
@@ -1789,10 +1781,9 @@ private:
         std::unordered_map<std::string, int> defined;
         std::unordered_map<std::string, std::vector<int>> pending;
     };
+
     std::vector<LabelScope> label_scopes_;
 };
-
-
 
 namespace {
 
@@ -1805,9 +1796,11 @@ public:
             cur_ = static_cast<int>(node->Loc().begin.line);
         }
     }
+
     ~LineScope() {
         cur_ = saved_;
     }
+
     LineScope(const LineScope &) = delete;
     LineScope &operator=(const LineScope &) = delete;
 
@@ -1818,7 +1811,8 @@ private:
 
 }// namespace
 
-const std::unordered_set<std::string> RegisterPeakChecker::kStringLibraryMethods = {"len", "sub", "rep", "reverse", "lower", "upper", "byte", "char", "format", "dump", "find", "match", "gmatch", "gsub"};
+const std::unordered_set<std::string> RegisterPeakChecker::kStringLibraryMethods = {"len",  "sub",    "rep",  "reverse", "lower", "upper",  "byte",
+                                                                                    "char", "format", "dump", "find",    "match", "gmatch", "gsub"};
 
 [[noreturn]] void RegisterPeakChecker::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
     ThrowFakeluaException(std::format("Code generate failed, {} at {}", msg, SyntaxTreeLocationStr(file_name_, ptr)));
@@ -1866,23 +1860,23 @@ int RegisterPeakChecker::CodeSize() const {
 }
 
 int64_t RegisterPeakChecker::StringId(const std::string &s) {
-    (void)s;
+    (void) s;
     return 0;
 }
 
 int RegisterPeakChecker::AddConst(const CVar &v) {
-    (void)v;
+    (void) v;
     return 0;
 }
 
 int RegisterPeakChecker::AddStringConst(const std::string &s) {
-    (void)s;
+    (void) s;
     return 0;
 }
 
 int RegisterPeakChecker::Emit(Op op, int a, int b, int c, int sbx) {
-    (void)op;
-    (void)sbx;
+    (void) op;
+    (void) sbx;
     if (a < 0 || a > kMaxFunctionRegisterIndex || b < 0 || b > kMaxFunctionRegisterIndex || c < 0 || c > kMaxFunctionRegisterIndex) {
         ThrowFakeluaException("interpreter: instruction operand out of range");
     }
@@ -1890,10 +1884,9 @@ int RegisterPeakChecker::Emit(Op op, int a, int b, int c, int sbx) {
 }
 
 void RegisterPeakChecker::PatchSbx(int ip, int dest) {
-    (void)ip;
-    (void)dest;
+    (void) ip;
+    (void) dest;
 }
-
 
 int RegisterPeakChecker::LoadConstTo(int dest, const CVar &v) {
     if (v.type_ == static_cast<int>(VarType::Nil)) {
@@ -1982,7 +1975,7 @@ bool RegisterPeakChecker::IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt
 }
 
 int RegisterPeakChecker::ResolveSimpleName(const SyntaxTreeVar *var, const std::string &name, bool as_callee) {
-    (void)as_callee;
+    (void) as_callee;
     if (const auto it = var_to_def_map_.find(var); it != var_to_def_map_.end()) {
         VarDef *def = it->second;
         if (def->defining_func == cur_func_ || def->defining_func != nullptr) {
@@ -2948,7 +2941,7 @@ void RegisterPeakChecker::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         Emit(Op::UNBOX, iter_s, iter_s, 0);
         Emit(Op::UNBOX, iter_var, e2, 0);
         for (size_t i = 3; i < exps.size(); ++i) {
-            (void)CompileExp(exps[i], i + 1 == exps.size());
+            (void) CompileExp(exps[i], i + 1 == exps.size());
         }
     }
 
@@ -3323,8 +3316,7 @@ int RegisterPeakChecker::CompileFunctioncall(const SyntaxTreeInterfacePtr &funct
                 // 函数定义。文件级 local 变量（如 local gv = f）即使 defining_func
                 // 为 nullptr 也不在 named_protos_ 里，必须按闭包调用，否则运行时报
                 // "function 'gv' not found"（C 后端此处按闭包处理，行为一致）。
-                file_level_func = it->second->defining_func == nullptr && it->second->def_node != nullptr &&
-                                  it->second->def_node->Type() == SyntaxTreeType::LocalFunction;
+                file_level_func = it->second->defining_func == nullptr && it->second->def_node != nullptr && it->second->def_node->Type() == SyntaxTreeType::LocalFunction;
             }
         } else if (var && var->GetVarKind() == VarKind::kDot) {
             const auto base_pe = var->GetPrefixexp();
@@ -3505,8 +3497,6 @@ int RegisterPeakChecker::CompileUnop(const SyntaxTreeInterfacePtr &exp, int dest
     }
     return r;
 }
-
-
 
 void RegisterPeakChecker::Walk(const ParseResult &pr, const AnalysisResult &ar) {
     file_name_ = pr.file_name;

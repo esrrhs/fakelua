@@ -40,7 +40,9 @@ public:
         return filename_;
     }
 
-    [[nodiscard]] bool IsString() const { return is_string_; }
+    [[nodiscard]] bool IsString() const {
+        return is_string_;
+    }
 
     void SetState(State *s) {
         state_ = s;
@@ -55,8 +57,8 @@ private:
     std::string GenerateTmpFile(const std::string &str);
 
 private:
-    yy::location location_;       // 记录当前 token 的行列位置
-    int long_comment_level_ = 0;  // 当前长注释的长括号层级，即 --[==[ 里 = 的个数
+    yy::location location_;     // 记录当前 token 的行列位置
+    int long_comment_level_ = 0;// 当前长注释的长括号层级，即 --[==[ 里 = 的个数
     bool is_string_ = false;
     std::string filename_;        // 当前解析的文件名或源标识
     State *state_ = nullptr;      // 所属 State，供 bison 打日志时带上

@@ -120,6 +120,7 @@ struct InterpTailJob {
     int arg_count = 0;
     CVar args[kMaxFunctionInputParams]{};
 };
+
 thread_local InterpTailJob g_interp_tail;
 
 void RequestTailTrampoline(FuncProto *new_proto, VarClosure *new_cl, const CVar *args, int arg_count) {
@@ -218,7 +219,8 @@ int PackNamedCallArgs(State *s, std::string_view name, bool is_vararg, int expec
 // 在本 InterpreterExecuteT 帧内切到新的 INTERP 原型；需要换 HasBoxes 模板或扩容时走 trampoline。
 // 成功且应继续分发返回 true（已更新 proto/cl/ip/stk）；应 return ret 则返回 false。
 template<bool HasBoxes>
-bool ApplyInterpTail(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const stk, CVar **const boxp, size_t saved, const Inst *&ip, FuncProto *new_proto, VarClosure *new_cl, const CVar *args, int arg_count, CVar &ret) {
+bool ApplyInterpTail(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const stk, CVar **const boxp, size_t saved, const Inst *&ip, FuncProto *new_proto, VarClosure *new_cl, const CVar *args,
+                     int arg_count, CVar &ret) {
     if (!new_proto) {
         ThrowFakeluaException("interpreter: null function prototype");
     }
@@ -278,7 +280,6 @@ bool ApplyInterpTail(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const s
     ip = proto->code.data();
     return true;
 }
-
 
 // 精确自尾调用：复用当前帧与 proto/cl，不做查表、装箱、整帧 memset。
 // 参数先拷到 TLS（可能与 R(0..) 重叠），再写形参并清空其余寄存器。
@@ -396,6 +397,7 @@ struct InterpFrame {
     size_t saved;
     CVar *stk;
     CVar **boxp;
+
     InterpFrame(size_t nslots, bool want_boxes) {
         saved = g_interp_top;
         const size_t need = saved + nslots;
@@ -428,6 +430,7 @@ struct InterpFrame {
         }
         g_interp_top = need;
     }
+
     ~InterpFrame() {
         if (boxp) {
             --g_interp_boxed_frames;
@@ -459,433 +462,432 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
     // 所以补位置不需要在热路径上为每个指令先存一份。
     try {
 
-    // GNU/Clang：token-threading（computed goto）。字节码由 codegen 保证以 RETURN
-    // 结尾、跳转落在函数内，热路径不再做 pc 越界 / 未知 opcode 检查。
+        // GNU/Clang：token-threading（computed goto）。字节码由 codegen 保证以 RETURN
+        // 结尾、跳转落在函数内，热路径不再做 pc 越界 / 未知 opcode 检查。
 #if defined(__GNUC__)
 #define FAKELUA_OP_LABEL_ADDR(name) &&L_OP_##name,
-    static const void *const kDispatch[] = {FAKELUA_FOR_EACH_OP(FAKELUA_OP_LABEL_ADDR)};
+        static const void *const kDispatch[] = {FAKELUA_FOR_EACH_OP(FAKELUA_OP_LABEL_ADDR)};
 #undef FAKELUA_OP_LABEL_ADDR
-    static_assert(sizeof(kDispatch) / sizeof(kDispatch[0]) == static_cast<size_t>(Op::COUNT));
-    const void *const *const dispatch = kDispatch;
-#define VM_DISPATCH_NEXT()                                                                                                                 \
-    do {                                                                                                                                   \
-        inst = *ip++;                                                                                                                      \
-        goto *dispatch[static_cast<uint8_t>(inst.op)];                                                                                     \
+        static_assert(sizeof(kDispatch) / sizeof(kDispatch[0]) == static_cast<size_t>(Op::COUNT));
+        const void *const *const dispatch = kDispatch;
+#define VM_DISPATCH_NEXT()                                                                                                                                                                             \
+    do {                                                                                                                                                                                               \
+        inst = *ip++;                                                                                                                                                                                  \
+        goto *dispatch[static_cast<uint8_t>(inst.op)];                                                                                                                                                 \
     } while (0)
 #define VM_CASE(name) L_OP_##name:
-    if (!ip) {
-        return interp_rt::Nil();
-    }
-    VM_DISPATCH_NEXT();
+        if (!ip) {
+            return interp_rt::Nil();
+        }
+        VM_DISPATCH_NEXT();
 #else
 #define VM_DISPATCH_NEXT() goto vm_switch_dispatch
 #define VM_CASE(name) case Op::name:
-vm_switch_dispatch:
-    if (!ip) {
-        return interp_rt::Nil();
-    }
-    inst = *ip++;
-    switch (inst.op) {
+    vm_switch_dispatch:
+        if (!ip) {
+            return interp_rt::Nil();
+        }
+        inst = *ip++;
+        switch (inst.op) {
 #endif
 
-    VM_CASE(MOVE) {
-        VM_W(inst.a, VM_R(inst.b));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(LOADK) {
-        VM_W(inst.a, proto->constants[static_cast<size_t>(inst.sbx)]);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(LOADNIL) {
-        VM_W(inst.a, interp_rt::Nil());
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(LOADBOOL) {
-        VM_W(inst.a, interp_rt::Bool(inst.b != 0));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(GETGLOBAL) {
-        VM_W(inst.a, LookupGlobal(proto, ConstToName(proto->constants[static_cast<size_t>(inst.sbx)])));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(SETGLOBAL) {
-        SetGlobal(proto, ConstToName(proto->constants[static_cast<size_t>(inst.sbx)]), VM_R(inst.a));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(GETUPVAL) {
-        if (!cl || inst.b >= static_cast<uint16_t>(cl->upvalue_count) || !cl->upvalues[inst.b]) {
+        VM_CASE(MOVE) {
+            VM_W(inst.a, VM_R(inst.b));
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(LOADK) {
+            VM_W(inst.a, proto->constants[static_cast<size_t>(inst.sbx)]);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(LOADNIL) {
             VM_W(inst.a, interp_rt::Nil());
-        } else {
-            VM_W(inst.a, *cl->upvalues[inst.b]);
+            VM_DISPATCH_NEXT();
         }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(SETUPVAL) {
-        if (cl && inst.b < static_cast<uint16_t>(cl->upvalue_count) && cl->upvalues[inst.b]) {
-            *cl->upvalues[inst.b] = VM_R(inst.a);
+        VM_CASE(LOADBOOL) {
+            VM_W(inst.a, interp_rt::Bool(inst.b != 0));
+            VM_DISPATCH_NEXT();
         }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(GETTABLE) {
-        const CVar t = VM_R(inst.b);
-        const CVar k = VM_R(inst.c);
-        if (FL_VM_UNLIKELY(t.type_ != interp_rt::kTable)) {
-            ThrowFakeluaException("attempt to index a non-table value");
+        VM_CASE(GETGLOBAL) {
+            VM_W(inst.a, LookupGlobal(proto, ConstToName(proto->constants[static_cast<size_t>(inst.sbx)])));
+            VM_DISPATCH_NEXT();
         }
-        if (FL_VM_UNLIKELY(k.type_ == interp_rt::kNil)) {
-            ThrowFakeluaException("table index is nil");
+        VM_CASE(SETGLOBAL) {
+            SetGlobal(proto, ConstToName(proto->constants[static_cast<size_t>(inst.sbx)]), VM_R(inst.a));
+            VM_DISPATCH_NEXT();
         }
-        if (k.type_ == interp_rt::kInt) {
-            VM_W(inst.a, table::TableHelper::GetTableInt(s, t, k.data_.i));
-        } else {
-            VM_W(inst.a, table::TableHelper::GetTable(s, t, k));
-        }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(SETTABLE) {
-        interp_rt::SetTable(s, VM_R(inst.a), VM_R(inst.b), VM_R(inst.c));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(NEWTABLE) {
-        VM_W(inst.a, interp_rt::NewTable(s));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(NEWBOX) {
-        if constexpr (!HasBoxes) {
-            ThrowFakeluaException("interpreter: NEWBOX without boxes");
-        } else {
-            auto *box = static_cast<CVar *>(interp_rt::Alloc(s, sizeof(CVar)));
-            *box = VM_R(inst.a);
-            boxp[inst.a] = box;
-        }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(ADD) {
-        FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, add, interp_rt::BinAdd);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(SUB) {
-        FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, sub, interp_rt::BinSub);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(MUL) {
-        FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, mul, interp_rt::BinMul);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(DIV) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinDiv);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(IDIV) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinIdiv);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(MOD) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinMod);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(POW) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinPow);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(BAND) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinBand);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(BXOR) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinBxor);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(BOR) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinBor);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(SHL) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinShl);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(SHR) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinShr);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(CONCAT) {
-        VM_W(inst.a, interp_rt::BinConcat(s, VM_R(inst.b), VM_R(inst.c)));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(UNM) {
-        FL_VM_UNOP(HasBoxes, stk, boxp, inst.a, inst.b, interp_rt::UnMinus);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(NOT) {
-        FL_VM_UNOP(HasBoxes, stk, boxp, inst.a, inst.b, interp_rt::UnNot);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(LEN) {
-        FL_VM_UNOP(HasBoxes, stk, boxp, inst.a, inst.b, interp_rt::UnLen);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(BNOT) {
-        FL_VM_UNOP(HasBoxes, stk, boxp, inst.a, inst.b, interp_rt::UnBnot);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(EQ) {
-        const CVar &lb = VM_R(inst.b);
-        const CVar &lc = VM_R(inst.c);
-        if (FL_VM_LIKELY(lb.type_ == interp_rt::kInt && lc.type_ == interp_rt::kInt)) {
-            VM_W(inst.a, interp_rt::Bool(lb.data_.i == lc.data_.i));
-        } else {
-            VM_W(inst.a, interp_rt::Bool(interp_rt::IsEqual(lb, lc)));
-        }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(LT) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::CmpLt);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(LE) {
-        FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::CmpLe);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(TESTJMP) {
-        if (interp_rt::IsTrue(VM_R(inst.a)) == (inst.b != 0)) {
-            ip += inst.sbx;
-        }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(JMP) {
-        ip += inst.sbx;
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(CALL) {
-        CVar fn = VM_R(inst.a);
-        if (fn.type_ != static_cast<int>(VarType::Closure) || !fn.data_.cl) {
-            ThrowFakeluaException("attempt to call a non-function value");
-        }
-        CVar call_args[kMaxFunctionInputParams];
-        const int nargs = inst.b;
-        if (nargs < 0 || nargs > static_cast<int>(kMaxFunctionInputParams)) {
-            ThrowFakeluaException(std::format("interpreter: too many arguments ({}), max is {}", nargs, kMaxFunctionInputParams));
-        }
-        int nflat = 0;
-        for (int i = 0; i < nargs; ++i) {
-            CVar av = VM_R(inst.a + 1 + i);
-            if (i == nargs - 1 && av.type_ == static_cast<int>(VarType::Multi)) {
-                VarMulti *m = av.data_.m;
-                const int extra = m ? static_cast<int>(m->GetCount()) : 0;
-                if (nflat + extra > static_cast<int>(kMaxFunctionInputParams)) {
-                    ThrowFakeluaException(std::format("interpreter: too many arguments ({}), max is {}", nflat + extra, kMaxFunctionInputParams));
-                }
-                for (uint32_t j = 0; j < m->GetCount(); ++j) {
-                    call_args[nflat++] = m->GetVars()[j];
-                }
+        VM_CASE(GETUPVAL) {
+            if (!cl || inst.b >= static_cast<uint16_t>(cl->upvalue_count) || !cl->upvalues[inst.b]) {
+                VM_W(inst.a, interp_rt::Nil());
             } else {
-                call_args[nflat++] = interp_rt::UnboxMulti(av, 0);
+                VM_W(inst.a, *cl->upvalues[inst.b]);
             }
+            VM_DISPATCH_NEXT();
         }
-        CVar ret;
-        VarClosure *callee = fn.data_.cl;
-        // 解释器闭包且非变参、实参个数正好等于形参时，直接 InterpreterExecute，
-        // 跳过 DispatchCallClosure 的再装箱与 LuaLocScope。其余情况（变参、少参/多参、
-        // load() 源码闭包、TCC/GCC 闭包）仍走原来的 DispatchCallClosure。
-        if (IsInterpClosure(callee) && !callee->is_vararg &&
-            callee->expected_arg_count == nflat &&
-            nflat <= static_cast<int>(kMaxFunctionInputParams)) {
-            ret = InterpExecuteInContext(s, AsInterpProto(callee->func_ptr), call_args, nflat, callee);
-        } else {
-            ret = inter::DispatchCallClosure(s, callee, call_args, nflat, JIT_INTERP);
+        VM_CASE(SETUPVAL) {
+            if (cl && inst.b < static_cast<uint16_t>(cl->upvalue_count) && cl->upvalues[inst.b]) {
+                *cl->upvalues[inst.b] = VM_R(inst.a);
+            }
+            VM_DISPATCH_NEXT();
         }
-        VM_W(inst.a, inst.c == 0 ? ret : interp_rt::UnboxMulti(ret, 0));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(CALLNAME) {
-        // ConstToName 返回 string_view（interned，不一定带 NUL）。成功路径不再堆分配
-        // std::string；报错走 std::format 的 string_view，仅在 CallByNameImpl 的失败路径
-        // 才可能分配。
-        {
-            const std::string_view name = ConstToName(proto->constants[static_cast<size_t>(inst.sbx)]);
+        VM_CASE(GETTABLE) {
+            const CVar t = VM_R(inst.b);
+            const CVar k = VM_R(inst.c);
+            if (FL_VM_UNLIKELY(t.type_ != interp_rt::kTable)) {
+                ThrowFakeluaException("attempt to index a non-table value");
+            }
+            if (FL_VM_UNLIKELY(k.type_ == interp_rt::kNil)) {
+                ThrowFakeluaException("table index is nil");
+            }
+            if (k.type_ == interp_rt::kInt) {
+                VM_W(inst.a, table::TableHelper::GetTableInt(s, t, k.data_.i));
+            } else {
+                VM_W(inst.a, table::TableHelper::GetTable(s, t, k));
+            }
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(SETTABLE) {
+            interp_rt::SetTable(s, VM_R(inst.a), VM_R(inst.b), VM_R(inst.c));
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(NEWTABLE) {
+            VM_W(inst.a, interp_rt::NewTable(s));
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(NEWBOX) {
+            if constexpr (!HasBoxes) {
+                ThrowFakeluaException("interpreter: NEWBOX without boxes");
+            } else {
+                auto *box = static_cast<CVar *>(interp_rt::Alloc(s, sizeof(CVar)));
+                *box = VM_R(inst.a);
+                boxp[inst.a] = box;
+            }
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(ADD) {
+            FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, add, interp_rt::BinAdd);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(SUB) {
+            FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, sub, interp_rt::BinSub);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(MUL) {
+            FL_VM_ARITH_INT(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, mul, interp_rt::BinMul);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(DIV) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinDiv);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(IDIV) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinIdiv);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(MOD) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinMod);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(POW) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinPow);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(BAND) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinBand);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(BXOR) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinBxor);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(BOR) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinBor);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(SHL) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinShl);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(SHR) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::BinShr);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(CONCAT) {
+            VM_W(inst.a, interp_rt::BinConcat(s, VM_R(inst.b), VM_R(inst.c)));
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(UNM) {
+            FL_VM_UNOP(HasBoxes, stk, boxp, inst.a, inst.b, interp_rt::UnMinus);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(NOT) {
+            FL_VM_UNOP(HasBoxes, stk, boxp, inst.a, inst.b, interp_rt::UnNot);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(LEN) {
+            FL_VM_UNOP(HasBoxes, stk, boxp, inst.a, inst.b, interp_rt::UnLen);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(BNOT) {
+            FL_VM_UNOP(HasBoxes, stk, boxp, inst.a, inst.b, interp_rt::UnBnot);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(EQ) {
+            const CVar &lb = VM_R(inst.b);
+            const CVar &lc = VM_R(inst.c);
+            if (FL_VM_LIKELY(lb.type_ == interp_rt::kInt && lc.type_ == interp_rt::kInt)) {
+                VM_W(inst.a, interp_rt::Bool(lb.data_.i == lc.data_.i));
+            } else {
+                VM_W(inst.a, interp_rt::Bool(interp_rt::IsEqual(lb, lc)));
+            }
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(LT) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::CmpLt);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(LE) {
+            FL_VM_BINOP(HasBoxes, stk, boxp, inst.a, inst.b, inst.c, interp_rt::CmpLe);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(TESTJMP) {
+            if (interp_rt::IsTrue(VM_R(inst.a)) == (inst.b != 0)) {
+                ip += inst.sbx;
+            }
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(JMP) {
+            ip += inst.sbx;
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(CALL) {
+            CVar fn = VM_R(inst.a);
+            if (fn.type_ != static_cast<int>(VarType::Closure) || !fn.data_.cl) {
+                ThrowFakeluaException("attempt to call a non-function value");
+            }
             CVar call_args[kMaxFunctionInputParams];
             const int nargs = inst.b;
             if (nargs < 0 || nargs > static_cast<int>(kMaxFunctionInputParams)) {
-                ThrowFakeluaException(std::format("interpreter: too many arguments ({}) passed for function '{}', max is {}", nargs, name, kMaxFunctionInputParams));
+                ThrowFakeluaException(std::format("interpreter: too many arguments ({}), max is {}", nargs, kMaxFunctionInputParams));
             }
+            int nflat = 0;
             for (int i = 0; i < nargs; ++i) {
-                call_args[i] = VM_R(inst.a + i);
-            }
-            CVar ret;
-            if (!TryInterpNamedCall(s, name, call_args, nargs, ret)) {
-                ret = CallByNameArgs(s, JIT_INTERP, name, nargs, call_args);
-            }
-            VM_W(inst.a, inst.c == 0 ? ret : interp_rt::UnboxMulti(ret, 0));
-        }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(TAIL) {
-        if (inst.c == kTailSelfExact) {
-            // 本函数精确自尾调用：保持 cl，直接重置 ip。
-            if (ReuseFrameSelfTail<HasBoxes>(proto, stk, boxp, ip, inst.a + 1, inst.b)) {
-                VM_DISPATCH_NEXT();
-            }
-            return interp_rt::Nil();
-        }
-        CVar ret{};
-        const bool cont = InterpDoTail<HasBoxes>(s, proto, cl, stk, boxp, frame.saved, ip, inst, ret);
-        if (cont) {
-            VM_DISPATCH_NEXT();
-        }
-        return ret;
-    }
-    VM_CASE(TAILNAME) {
-        if (inst.c == kTailSelfExact) {
-            if (ReuseFrameSelfTail<HasBoxes>(proto, stk, boxp, ip, inst.a, inst.b)) {
-                VM_DISPATCH_NEXT();
-            }
-            return interp_rt::Nil();
-        }
-        CVar ret{};
-        const bool cont = InterpDoTailName<HasBoxes>(s, proto, cl, stk, boxp, frame.saved, ip, inst, ret);
-        if (cont) {
-            VM_DISPATCH_NEXT();
-        }
-        return ret;
-    }
-    VM_CASE(RETURN) {
-        CVar ret = VM_R(inst.a);
-        return inst.b == 0 ? ret : interp_rt::UnboxMulti(ret, 0);
-    }
-    VM_CASE(CLOSURE) {
-        {
-            FuncProto *child = proto->child_protos[static_cast<size_t>(inst.sbx)];
-            const int nup = static_cast<int>(child->upvalues.size());
-            std::vector<CVar *> upbufs(static_cast<size_t>(nup), nullptr);
-            for (int i = 0; i < nup; ++i) {
-                const auto &uv = child->upvalues[static_cast<size_t>(i)];
-                if (uv.in_stack) {
-                    if constexpr (!HasBoxes) {
-                        ThrowFakeluaException("interpreter: captured local without boxes");
-                    } else {
-                        if (!boxp[uv.idx]) {
-                            auto *box = static_cast<CVar *>(interp_rt::Alloc(s, sizeof(CVar)));
-                            *box = VM_R(uv.idx);
-                            boxp[uv.idx] = box;
-                        }
-                        upbufs[i] = boxp[uv.idx];
+                CVar av = VM_R(inst.a + 1 + i);
+                if (i == nargs - 1 && av.type_ == static_cast<int>(VarType::Multi)) {
+                    VarMulti *m = av.data_.m;
+                    const int extra = m ? static_cast<int>(m->GetCount()) : 0;
+                    if (nflat + extra > static_cast<int>(kMaxFunctionInputParams)) {
+                        ThrowFakeluaException(std::format("interpreter: too many arguments ({}), max is {}", nflat + extra, kMaxFunctionInputParams));
+                    }
+                    for (uint32_t j = 0; j < m->GetCount(); ++j) {
+                        call_args[nflat++] = m->GetVars()[j];
                     }
                 } else {
-                    upbufs[i] = (cl && uv.idx < static_cast<uint16_t>(cl->upvalue_count)) ? cl->upvalues[uv.idx] : nullptr;
+                    call_args[nflat++] = interp_rt::UnboxMulti(av, 0);
                 }
             }
-            VM_W(inst.a, interp_rt::MakeClosure(s, TagInterpProto(child), nup, child->param_count, child->is_vararg, upbufs.empty() ? nullptr : upbufs.data()));
-        }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(SETLIST) {
-        interp_rt::TableExpandMulti(s, VM_R(inst.a), inst.sbx, VM_R(inst.c));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(TABENT) {
-        CVar idxv = VM_R(inst.sbx);
-        uint32_t idx = 0;
-        if (idxv.type_ == static_cast<int>(VarType::Int) && idxv.data_.i >= 0) {
-            idx = static_cast<uint32_t>(idxv.data_.i);
-        }
-        CVar k, v;
-        if (!interp_rt::TableEntry(VM_R(inst.a), idx, k, v)) {
-            k = interp_rt::Nil();
-            v = interp_rt::Nil();
-        }
-        VM_W(inst.b, k);
-        VM_W(inst.c, v);
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(TABCOUNT) {
-        VM_W(inst.a, interp_rt::Int(static_cast<int64_t>(interp_rt::TableEntryCount(VM_R(inst.b)))));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(UNBOX) {
-        VM_W(inst.a, interp_rt::UnboxMulti(VM_R(inst.b), inst.c));
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(MAKEMULTI) {
-        {
-            const int n = inst.b;
-            std::vector<CVar> vals(static_cast<size_t>(n));
-            for (int i = 0; i < n; ++i) {
-                vals[static_cast<size_t>(i)] = VM_R(inst.a + i);
+            CVar ret;
+            VarClosure *callee = fn.data_.cl;
+            // 解释器闭包且非变参、实参个数正好等于形参时，直接 InterpreterExecute，
+            // 跳过 DispatchCallClosure 的再装箱与 LuaLocScope。其余情况（变参、少参/多参、
+            // load() 源码闭包、TCC/GCC 闭包）仍走原来的 DispatchCallClosure。
+            if (IsInterpClosure(callee) && !callee->is_vararg && callee->expected_arg_count == nflat && nflat <= static_cast<int>(kMaxFunctionInputParams)) {
+                ret = InterpExecuteInContext(s, AsInterpProto(callee->func_ptr), call_args, nflat, callee);
+            } else {
+                ret = inter::DispatchCallClosure(s, callee, call_args, nflat, JIT_INTERP);
             }
-            VM_W(inst.a, interp_rt::MakeMulti(s, vals.data(), static_cast<uint32_t>(n)));
+            VM_W(inst.a, inst.c == 0 ? ret : interp_rt::UnboxMulti(ret, 0));
+            VM_DISPATCH_NEXT();
         }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(COMBINE) {
-        {
-            const int nprefix = inst.b;
-            std::vector<CVar> prefix(static_cast<size_t>(nprefix));
-            for (int i = 0; i < nprefix; ++i) {
-                prefix[static_cast<size_t>(i)] = VM_R(inst.a + i);
+        VM_CASE(CALLNAME) {
+            // ConstToName 返回 string_view（interned，不一定带 NUL）。成功路径不再堆分配
+            // std::string；报错走 std::format 的 string_view，仅在 CallByNameImpl 的失败路径
+            // 才可能分配。
+            {
+                const std::string_view name = ConstToName(proto->constants[static_cast<size_t>(inst.sbx)]);
+                CVar call_args[kMaxFunctionInputParams];
+                const int nargs = inst.b;
+                if (nargs < 0 || nargs > static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("interpreter: too many arguments ({}) passed for function '{}', max is {}", nargs, name, kMaxFunctionInputParams));
+                }
+                for (int i = 0; i < nargs; ++i) {
+                    call_args[i] = VM_R(inst.a + i);
+                }
+                CVar ret;
+                if (!TryInterpNamedCall(s, name, call_args, nargs, ret)) {
+                    ret = CallByNameArgs(s, JIT_INTERP, name, nargs, call_args);
+                }
+                VM_W(inst.a, inst.c == 0 ? ret : interp_rt::UnboxMulti(ret, 0));
             }
-            VM_W(inst.a, interp_rt::CombineMulti(s, prefix.data(), static_cast<uint32_t>(nprefix), VM_R(inst.a + nprefix)));
+            VM_DISPATCH_NEXT();
         }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(THROW) {
-        const CVar msg = proto->constants[static_cast<size_t>(inst.sbx)];
-        ThrowFakeluaException(std::string(ConstToName(msg)));
-    }
-    VM_CASE(FORPREP) {
-        const int base = inst.a;
-        CVar ctrl = VM_R(base);
-        CVar limit = VM_R(base + 1);
-        CVar step = VM_R(base + 2);
-        CVar loopv{};
-        if (interp_rt::ForPrep(ctrl, limit, step, loopv)) {
-            stk[base + 3] = loopv;
-            interp_rt::VmClearBox<HasBoxes>(boxp, base + 3);
-            ip += inst.sbx;
-        } else {
-            VM_W(base, ctrl);
-            VM_W(base + 1, limit);
-            VM_W(base + 2, step);
-            stk[base + 3] = loopv;
-            interp_rt::VmClearBox<HasBoxes>(boxp, base + 3);
+        VM_CASE(TAIL) {
+            if (inst.c == kTailSelfExact) {
+                // 本函数精确自尾调用：保持 cl，直接重置 ip。
+                if (ReuseFrameSelfTail<HasBoxes>(proto, stk, boxp, ip, inst.a + 1, inst.b)) {
+                    VM_DISPATCH_NEXT();
+                }
+                return interp_rt::Nil();
+            }
+            CVar ret{};
+            const bool cont = InterpDoTail<HasBoxes>(s, proto, cl, stk, boxp, frame.saved, ip, inst, ret);
+            if (cont) {
+                VM_DISPATCH_NEXT();
+            }
+            return ret;
         }
-        VM_DISPATCH_NEXT();
-    }
-    VM_CASE(FORLOOP) {
-        const int base = inst.a;
-        const CVar &step = VM_R(base + 2);
-        if (FL_VM_LIKELY(step.type_ == interp_rt::kInt)) {
-            const uint64_t count = static_cast<uint64_t>(VM_R(base + 1).data_.i);
-            if (count > 0) {
-                interp_rt::VmWriteInt<HasBoxes>(stk, boxp, base + 1, static_cast<int64_t>(count - 1));
-                const int64_t newidx = static_cast<int64_t>(static_cast<uint64_t>(VM_R(base).data_.i) + static_cast<uint64_t>(step.data_.i));
-                interp_rt::VmWriteInt<HasBoxes>(stk, boxp, base, newidx);
-                stk[base + 3] = stk[base];
+        VM_CASE(TAILNAME) {
+            if (inst.c == kTailSelfExact) {
+                if (ReuseFrameSelfTail<HasBoxes>(proto, stk, boxp, ip, inst.a, inst.b)) {
+                    VM_DISPATCH_NEXT();
+                }
+                return interp_rt::Nil();
+            }
+            CVar ret{};
+            const bool cont = InterpDoTailName<HasBoxes>(s, proto, cl, stk, boxp, frame.saved, ip, inst, ret);
+            if (cont) {
+                VM_DISPATCH_NEXT();
+            }
+            return ret;
+        }
+        VM_CASE(RETURN) {
+            CVar ret = VM_R(inst.a);
+            return inst.b == 0 ? ret : interp_rt::UnboxMulti(ret, 0);
+        }
+        VM_CASE(CLOSURE) {
+            {
+                FuncProto *child = proto->child_protos[static_cast<size_t>(inst.sbx)];
+                const int nup = static_cast<int>(child->upvalues.size());
+                std::vector<CVar *> upbufs(static_cast<size_t>(nup), nullptr);
+                for (int i = 0; i < nup; ++i) {
+                    const auto &uv = child->upvalues[static_cast<size_t>(i)];
+                    if (uv.in_stack) {
+                        if constexpr (!HasBoxes) {
+                            ThrowFakeluaException("interpreter: captured local without boxes");
+                        } else {
+                            if (!boxp[uv.idx]) {
+                                auto *box = static_cast<CVar *>(interp_rt::Alloc(s, sizeof(CVar)));
+                                *box = VM_R(uv.idx);
+                                boxp[uv.idx] = box;
+                            }
+                            upbufs[i] = boxp[uv.idx];
+                        }
+                    } else {
+                        upbufs[i] = (cl && uv.idx < static_cast<uint16_t>(cl->upvalue_count)) ? cl->upvalues[uv.idx] : nullptr;
+                    }
+                }
+                VM_W(inst.a, interp_rt::MakeClosure(s, TagInterpProto(child), nup, child->param_count, child->is_vararg, upbufs.empty() ? nullptr : upbufs.data()));
+            }
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(SETLIST) {
+            interp_rt::TableExpandMulti(s, VM_R(inst.a), inst.sbx, VM_R(inst.c));
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(TABENT) {
+            CVar idxv = VM_R(inst.sbx);
+            uint32_t idx = 0;
+            if (idxv.type_ == static_cast<int>(VarType::Int) && idxv.data_.i >= 0) {
+                idx = static_cast<uint32_t>(idxv.data_.i);
+            }
+            CVar k, v;
+            if (!interp_rt::TableEntry(VM_R(inst.a), idx, k, v)) {
+                k = interp_rt::Nil();
+                v = interp_rt::Nil();
+            }
+            VM_W(inst.b, k);
+            VM_W(inst.c, v);
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(TABCOUNT) {
+            VM_W(inst.a, interp_rt::Int(static_cast<int64_t>(interp_rt::TableEntryCount(VM_R(inst.b)))));
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(UNBOX) {
+            VM_W(inst.a, interp_rt::UnboxMulti(VM_R(inst.b), inst.c));
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(MAKEMULTI) {
+            {
+                const int n = inst.b;
+                std::vector<CVar> vals(static_cast<size_t>(n));
+                for (int i = 0; i < n; ++i) {
+                    vals[static_cast<size_t>(i)] = VM_R(inst.a + i);
+                }
+                VM_W(inst.a, interp_rt::MakeMulti(s, vals.data(), static_cast<uint32_t>(n)));
+            }
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(COMBINE) {
+            {
+                const int nprefix = inst.b;
+                std::vector<CVar> prefix(static_cast<size_t>(nprefix));
+                for (int i = 0; i < nprefix; ++i) {
+                    prefix[static_cast<size_t>(i)] = VM_R(inst.a + i);
+                }
+                VM_W(inst.a, interp_rt::CombineMulti(s, prefix.data(), static_cast<uint32_t>(nprefix), VM_R(inst.a + nprefix)));
+            }
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(THROW) {
+            const CVar msg = proto->constants[static_cast<size_t>(inst.sbx)];
+            ThrowFakeluaException(std::string(ConstToName(msg)));
+        }
+        VM_CASE(FORPREP) {
+            const int base = inst.a;
+            CVar ctrl = VM_R(base);
+            CVar limit = VM_R(base + 1);
+            CVar step = VM_R(base + 2);
+            CVar loopv{};
+            if (interp_rt::ForPrep(ctrl, limit, step, loopv)) {
+                stk[base + 3] = loopv;
+                interp_rt::VmClearBox<HasBoxes>(boxp, base + 3);
+                ip += inst.sbx;
+            } else {
+                VM_W(base, ctrl);
+                VM_W(base + 1, limit);
+                VM_W(base + 2, step);
+                stk[base + 3] = loopv;
+                interp_rt::VmClearBox<HasBoxes>(boxp, base + 3);
+            }
+            VM_DISPATCH_NEXT();
+        }
+        VM_CASE(FORLOOP) {
+            const int base = inst.a;
+            const CVar &step = VM_R(base + 2);
+            if (FL_VM_LIKELY(step.type_ == interp_rt::kInt)) {
+                const uint64_t count = static_cast<uint64_t>(VM_R(base + 1).data_.i);
+                if (count > 0) {
+                    interp_rt::VmWriteInt<HasBoxes>(stk, boxp, base + 1, static_cast<int64_t>(count - 1));
+                    const int64_t newidx = static_cast<int64_t>(static_cast<uint64_t>(VM_R(base).data_.i) + static_cast<uint64_t>(step.data_.i));
+                    interp_rt::VmWriteInt<HasBoxes>(stk, boxp, base, newidx);
+                    stk[base + 3] = stk[base];
+                    interp_rt::VmClearBox<HasBoxes>(boxp, base + 3);
+                    ip += inst.sbx;
+                }
+                VM_DISPATCH_NEXT();
+            }
+            CVar ctrl = VM_R(base);
+            const CVar &limit = VM_R(base + 1);
+            VM_W(base, interp_rt::BinAdd(ctrl, step));
+            if (interp_rt::ForLoopInRange(VM_R(base), limit, step)) {
+                stk[base + 3] = VM_R(base);
                 interp_rt::VmClearBox<HasBoxes>(boxp, base + 3);
                 ip += inst.sbx;
             }
             VM_DISPATCH_NEXT();
         }
-        CVar ctrl = VM_R(base);
-        const CVar &limit = VM_R(base + 1);
-        VM_W(base, interp_rt::BinAdd(ctrl, step));
-        if (interp_rt::ForLoopInRange(VM_R(base), limit, step)) {
-            stk[base + 3] = VM_R(base);
-            interp_rt::VmClearBox<HasBoxes>(boxp, base + 3);
-            ip += inst.sbx;
-        }
-        VM_DISPATCH_NEXT();
-    }
 
 #if !defined(__GNUC__)
-    default:
-        ThrowFakeluaException("interpreter: unknown opcode");
+        default:
+            ThrowFakeluaException("interpreter: unknown opcode");
     }
 #endif
+}
 
-    } catch (FakeluaException &e) {
-        AnnotateInterpLocation(proto, ip, e);
-        throw;
-    }
+catch (FakeluaException &e) {
+    AnnotateInterpLocation(proto, ip, e);
+    throw;
+}
 
 #undef VM_DISPATCH_NEXT
 #undef VM_CASE

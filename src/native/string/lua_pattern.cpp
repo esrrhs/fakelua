@@ -25,8 +25,7 @@ static inline unsigned char U(char c) {
 //   - '-' 惰性量词零宽合法，从「零次 + suffix」开始试。
 class PatternMatcher {
 public:
-    PatternMatcher(const char *src, size_t slen, const char *pat, size_t plen)
-        : src_(src), se_(src + slen), pstart_(pat), pe_(pat + plen) {
+    PatternMatcher(const char *src, size_t slen, const char *pat, size_t plen) : src_(src), se_(src + slen), pstart_(pat), pe_(pat + plen) {
     }
 
     bool RunAt(size_t start, MatchResult &out) {
@@ -78,8 +77,7 @@ private:
         }
         switch (*p) {
             case '(': {
-                const char *r = (p + 1 < pe_ && p[1] == ')') ? StartCapture(s, p + 2, kCapPosition)
-                                                              : StartCapture(s, p + 1, kCapUnfinished);
+                const char *r = (p + 1 < pe_ && p[1] == ')') ? StartCapture(s, p + 2, kCapPosition) : StartCapture(s, p + 1, kCapUnfinished);
                 --depth_;
                 return r;
             }
@@ -134,7 +132,8 @@ private:
                 }
                 goto dflt;
             }
-            default: dflt: {
+            default:
+            dflt: {
                 const char *ep = ClassEnd(p);
                 const bool m = (s < se_) && SingleMatch(s, p);
                 if (!m) {
@@ -286,18 +285,41 @@ private:
     static bool MatchClass(int c, int cl) {
         bool res;
         switch (std::tolower(cl)) {
-            case 'a': res = std::isalpha(c) != 0; break;
-            case 'c': res = std::iscntrl(c) != 0; break;
-            case 'd': res = std::isdigit(c) != 0; break;
-            case 'g': res = std::isgraph(c) != 0; break;
-            case 'l': res = std::islower(c) != 0; break;
-            case 'p': res = std::ispunct(c) != 0; break;
-            case 's': res = std::isspace(c) != 0; break;
-            case 'u': res = std::isupper(c) != 0; break;
-            case 'w': res = std::isalnum(c) != 0; break;
-            case 'x': res = std::isxdigit(c) != 0; break;
-            case 'z': res = (c == 0); break;// Lua 5.1/5.5 保留类：零字节
-            default: return cl == c;
+            case 'a':
+                res = std::isalpha(c) != 0;
+                break;
+            case 'c':
+                res = std::iscntrl(c) != 0;
+                break;
+            case 'd':
+                res = std::isdigit(c) != 0;
+                break;
+            case 'g':
+                res = std::isgraph(c) != 0;
+                break;
+            case 'l':
+                res = std::islower(c) != 0;
+                break;
+            case 'p':
+                res = std::ispunct(c) != 0;
+                break;
+            case 's':
+                res = std::isspace(c) != 0;
+                break;
+            case 'u':
+                res = std::isupper(c) != 0;
+                break;
+            case 'w':
+                res = std::isalnum(c) != 0;
+                break;
+            case 'x':
+                res = std::isxdigit(c) != 0;
+                break;
+            case 'z':
+                res = (c == 0);
+                break;// Lua 5.1/5.5 保留类：零字节
+            default:
+                return cl == c;
         }
         return std::islower(cl) ? res : !res;
     }

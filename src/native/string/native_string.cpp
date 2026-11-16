@@ -162,23 +162,33 @@ static size_t ParsePackAlignOption(const char *&p, const char *end) {
     switch (c) {
         case 'b':
         case 'B':
-        case 'x': return 1;
-        case 'h':
-        case 'H': return sizeof(short);
-        case 'l':
-        case 'L': return sizeof(long);
-        case 'j':
-        case 'J': return sizeof(int64_t);
-        case 'T': return sizeof(size_t);
-        case 'f': return sizeof(float);
-        case 'd': return sizeof(double);
-        case 'i':
-        case 'I': return static_cast<size_t>(ParsePackIntegralSize(p, end));
-        case 'c':
-            (void)ParsePackDecSize(p, end, 1, kMaxPackBlock, 0);
+        case 'x':
             return 1;
-        case 'z': return 1;
-        default: ThrowFakeluaException("invalid next option for option 'X'");
+        case 'h':
+        case 'H':
+            return sizeof(short);
+        case 'l':
+        case 'L':
+            return sizeof(long);
+        case 'j':
+        case 'J':
+            return sizeof(int64_t);
+        case 'T':
+            return sizeof(size_t);
+        case 'f':
+            return sizeof(float);
+        case 'd':
+            return sizeof(double);
+        case 'i':
+        case 'I':
+            return static_cast<size_t>(ParsePackIntegralSize(p, end));
+        case 'c':
+            (void) ParsePackDecSize(p, end, 1, kMaxPackBlock, 0);
+            return 1;
+        case 'z':
+            return 1;
+        default:
+            ThrowFakeluaException("invalid next option for option 'X'");
     }
 }
 
@@ -1408,8 +1418,7 @@ void RegisterStringLibraryApi(State *s) {
         // Lua 模式匹配：在原串上从 init_pos-1 起扫描（位置 1-based 由 BuildFindResult 处理）。
         // 非法模式直接抛错（与 Lua 的 malformed pattern 一致）。
         lua_pattern::MatchResult m;
-        if (!lua_pattern::Search(sv.data(), static_cast<size_t>(len), pat_view.data(), pat_view.size(),
-                                 static_cast<size_t>(init_pos - 1), m)) {
+        if (!lua_pattern::Search(sv.data(), static_cast<size_t>(len), pat_view.data(), pat_view.size(), static_cast<size_t>(init_pos - 1), m)) {
             return inter::NativeToFakeluaNil(state);
         }
         return BuildFindResult(state, sv.data(), m);
@@ -1447,8 +1456,7 @@ void RegisterStringLibraryApi(State *s) {
 
         lua_pattern::MatchResult m;
         // Search 内部会处理前导 '^' 的锚定；无 '^' 时从 init 起逐位搜索。
-        if (!lua_pattern::Search(sv.data(), static_cast<size_t>(len), pat_view.data(), pat_view.size(),
-                                 static_cast<size_t>(init_pos - 1), m)) {
+        if (!lua_pattern::Search(sv.data(), static_cast<size_t>(len), pat_view.data(), pat_view.size(), static_cast<size_t>(init_pos - 1), m)) {
             return inter::NativeToFakeluaNil(state);
         }
         if (m.level > 0) {
@@ -1531,8 +1539,8 @@ void RegisterStringLibraryApi(State *s) {
 
         std::string result;
         result.reserve(slen);
-        size_t copied = 0;    // 已拷进 result 的原文位置
-        size_t src = 0;       // 下一次搜索起点
+        size_t copied = 0;                                   // 已拷进 result 的原文位置
+        size_t src = 0;                                      // 下一次搜索起点
         size_t prev_end = std::numeric_limits<size_t>::max();// 上一次产出匹配的尾后位置
         int64_t count = 0;
 
@@ -1573,8 +1581,7 @@ void RegisterStringLibraryApi(State *s) {
                 VarClosure *cl = repl_var.data_.cl;
                 const int call_arg_count = (m.level > 0) ? m.level : 1;
                 if (call_arg_count > static_cast<int>(kMaxFunctionInputParams)) {
-                    ThrowFakeluaException(std::format("string.gsub: too many capture arguments ({}), max is {}",
-                                                      call_arg_count, kMaxFunctionInputParams));
+                    ThrowFakeluaException(std::format("string.gsub: too many capture arguments ({}), max is {}", call_arg_count, kMaxFunctionInputParams));
                 }
                 std::vector<CVar> call_args(static_cast<size_t>(call_arg_count));
                 if (m.level > 0) {
@@ -1585,11 +1592,9 @@ void RegisterStringLibraryApi(State *s) {
                     call_args[0] = inter::NativeToFakeluaStringView(state, whole);
                 }
                 // 在发起 gsub 的引擎里同步调用替换函数（与 pool:with 同理）。
-                CVar fn_res = (cl->func_ptr != nullptr)
-                                      ? inter::DispatchCallClosure(state, cl, call_args.data(), call_arg_count, state->CurrentJit())
-                                      : FlEvalLoadClosure(state, cl, call_arg_count, call_args.data());
-                if (fn_res.type_ == static_cast<int>(VarType::Nil) ||
-                    (fn_res.type_ == static_cast<int>(VarType::Bool) && !fn_res.data_.b)) {
+                CVar fn_res = (cl->func_ptr != nullptr) ? inter::DispatchCallClosure(state, cl, call_args.data(), call_arg_count, state->CurrentJit())
+                                                        : FlEvalLoadClosure(state, cl, call_arg_count, call_args.data());
+                if (fn_res.type_ == static_cast<int>(VarType::Nil) || (fn_res.type_ == static_cast<int>(VarType::Bool) && !fn_res.data_.b)) {
                     keep_original = true;
                 } else if (fn_res.type_ == static_cast<int>(VarType::Bool)) {
                     ThrowFakeluaException("invalid replacement value (a boolean)");
@@ -1612,8 +1617,7 @@ void RegisterStringLibraryApi(State *s) {
                     std::string key(whole);
                     val = table::TableHelper::GetTableStrId(state, repl_var, key.c_str());
                 }
-                if (val.type_ == static_cast<int>(VarType::Nil) ||
-                    (val.type_ == static_cast<int>(VarType::Bool) && !val.data_.b)) {
+                if (val.type_ == static_cast<int>(VarType::Nil) || (val.type_ == static_cast<int>(VarType::Bool) && !val.data_.b)) {
                     keep_original = true;
                 } else if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
                     ThrowFakeluaException("invalid replacement value (a boolean)");
@@ -1973,9 +1977,7 @@ void RegisterStringLibraryApi(State *s) {
             }
 
             // 对齐处理
-            auto align_up = [&](size_t item_size) {
-                result.append(PackPadding(result.size(), pm.align, item_size), '\0');
-            };
+            auto align_up = [&](size_t item_size) { result.append(PackPadding(result.size(), pm.align, item_size), '\0'); };
 
             if (c == 'i' || c == 'I') {
                 bool is_unsigned = (c == 'I');
@@ -2266,9 +2268,7 @@ void RegisterStringLibraryApi(State *s) {
                 continue;
             }
 
-            auto align_up = [&](size_t item_size) {
-                pos += PackPadding(pos - init_pos, pm.align, item_size);
-            };
+            auto align_up = [&](size_t item_size) { pos += PackPadding(pos - init_pos, pm.align, item_size); };
 
             auto check_available = [&](size_t need) -> bool { return pos + need <= data_len; };
 

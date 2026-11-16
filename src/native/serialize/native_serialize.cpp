@@ -1,6 +1,6 @@
 #include "native/serialize/native_serialize.h"
-#include "native/serialize/wire_codec.h"
 #include "native/native_common.h"
+#include "native/serialize/wire_codec.h"
 #include "native/table/native_table.h"
 #include "util/logging.h"
 #include "var/var.h"
@@ -74,13 +74,13 @@ struct SerNode {
 
     template<class Archive>
     void serialize(Archive &ar, const unsigned int) {
-        ar & BOOST_SERIALIZATION_NVP(kind);
-        ar & BOOST_SERIALIZATION_NVP(b);
-        ar & BOOST_SERIALIZATION_NVP(i);
-        ar & BOOST_SERIALIZATION_NVP(f);
-        ar & BOOST_SERIALIZATION_NVP(s);
-        ar & BOOST_SERIALIZATION_NVP(keys);
-        ar & BOOST_SERIALIZATION_NVP(vals);
+        ar &BOOST_SERIALIZATION_NVP(kind);
+        ar &BOOST_SERIALIZATION_NVP(b);
+        ar &BOOST_SERIALIZATION_NVP(i);
+        ar &BOOST_SERIALIZATION_NVP(f);
+        ar &BOOST_SERIALIZATION_NVP(s);
+        ar &BOOST_SERIALIZATION_NVP(keys);
+        ar &BOOST_SERIALIZATION_NVP(vals);
     }
 };
 

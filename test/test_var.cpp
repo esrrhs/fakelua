@@ -1,14 +1,14 @@
 #include "fakelua.h"
+#include "interp/interpreter.h"
+#include "interp/runtime.h"
+#include "native/table/native_table.h"
 #include "state/state.h"
 #include "var/var.h"
 #include "var/var_closure.h"
-#include "var/var_string.h"
 #include "var/var_multi.h"
-#include "native/table/native_table.h"
-#include "gtest/gtest.h"
-#include "interp/interpreter.h"
-#include "interp/runtime.h"
+#include "var/var_string.h"
 #include "var/var_type.h"
+#include "gtest/gtest.h"
 #include <limits>
 #include <string>
 #include <vector>
@@ -370,7 +370,6 @@ TEST(var, test_true_string) {
     empty_str.SetTempString(s, "");
     ASSERT_TRUE(empty_str.TestTrue());// empty string is still truthy in Lua
 }
-
 
 TEST(var, tostring_hash_equal_table_multi_closure) {
     const FakeluaStateGuard guard;

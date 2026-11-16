@@ -28,12 +28,15 @@ public:
     [[nodiscard]] const std::string &Msg() const noexcept {
         return parts_.msg;
     }
+
     [[nodiscard]] const std::string &Loc() const noexcept {
         return parts_.loc;
     }
+
     [[nodiscard]] const std::string &Stack() const noexcept {
         return parts_.stack;
     }
+
     [[nodiscard]] bool HasLoc() const noexcept {
         return !parts_.loc.empty();
     }

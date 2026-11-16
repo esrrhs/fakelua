@@ -64,8 +64,8 @@ inline int CompareInt64Double(int64_t integer, double floating) {
     if (std::isnan(floating)) {
         return 0;
     }
-    constexpr double kInt64LowerBound = -9223372036854775808.0; // -2^63
-    constexpr double kInt64UpperBound = 9223372036854775808.0;  //  2^63
+    constexpr double kInt64LowerBound = -9223372036854775808.0;// -2^63
+    constexpr double kInt64UpperBound = 9223372036854775808.0; //  2^63
     if (floating >= kInt64UpperBound) {
         return -1;
     }

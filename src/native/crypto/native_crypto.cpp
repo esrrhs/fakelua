@@ -540,8 +540,7 @@ void RegisterCryptoLibraryApi(State *s) {
         if (OSSL_PROVIDER_load(nullptr, "legacy") == nullptr) {
             // Most common cause: libcrypto cannot find its provider modules
             // (ossl-modules/legacy), e.g. a static OpenSSL whose MODULESDIR is wrong.
-            LOG_WARN(s,
-                     "crypto",
+            LOG_WARN(s, "crypto",
                      "failed to load the OpenSSL \"legacy\" provider: crypto.rc4 / blowfish / des "
                      "and the matching crypto.encrypt/decrypt algorithms will fail. "
                      "check OPENSSL_MODULES or the OpenSSL modules directory");

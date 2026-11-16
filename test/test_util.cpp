@@ -1,10 +1,10 @@
 #include "fakelua.h"
 #include "util/common.h"
-#include "util/string_util.h"
-#include "gtest/gtest.h"
 #include "util/file_util.h"
 #include "util/number_util.h"
 #include "util/os.h"
+#include "util/string_util.h"
+#include "gtest/gtest.h"
 #include <cmath>
 #include <filesystem>
 #include <fstream>

@@ -1,8 +1,8 @@
 #include "compile/c_gen.h"
 
-#include <ranges>
-#include <map>
 #include "var/var_string.h"
+#include <map>
+#include <ranges>
 
 #include "compile/c_runtime_header.h"
 #include "state/state.h"
@@ -286,9 +286,8 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
         gr.recorded_c_code = GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls);
     }
     GenerateBindings();
-    gr.c_code = GetSectionStr(Section::Includes) + GetSectionStr(Section::StringDecls) +
-                GetSectionStr(Section::Headers) + GetSectionStr(Section::Globals) +
-                GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls) + GetSectionStr(Section::Bindings);
+    gr.c_code = GetSectionStr(Section::Includes) + GetSectionStr(Section::StringDecls) + GetSectionStr(Section::Headers) + GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) +
+                GetSectionStr(Section::Impls) + GetSectionStr(Section::Bindings);
     return gr;
 }
 
@@ -336,9 +335,9 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
             // old immediate-address switch into N runtime-static comparisons.
             // Always guard by canonical identity, including hash collisions.
             Out() << "        switch (((VarString *)k.data_.i)->hash_) {\n";
-            for (const auto &[hash, indices] : hash_cases) {
+            for (const auto &[hash, indices]: hash_cases) {
                 Out() << "        case " << hash << "u:\n";
-                for (int index : indices) emit_id_match(meta.fields[index], index);
+                for (int index: indices) emit_id_match(meta.fields[index], index);
                 Out() << "            break;\n";
             }
             Out() << "        default: break;\n        }\n";
@@ -349,8 +348,8 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
         for (const auto &f: meta.fields) {
             if (f.key_kind == TableKeyKind::kString) {
                 if (is_get) {
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << EscapeCStringLiteral(f.key) << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->"
-                          << f.c_field_name << "; }\n";
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << EscapeCStringLiteral(f.key) << "\", " << f.key.size()
+                          << ") == 0) { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
                     const auto id = StringId(f.key);
                     Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << EscapeCStringLiteral(f.key) << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name
@@ -421,8 +420,8 @@ void CGen::EmitSpecAccessorBody(const SpecTypeMetadata &meta, bool is_get) {
                 if (is_get) {
                     Out() << "        if ((double)__ival == " << FormatCDoubleLiteral(f.float_value) << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
                 } else {
-                    Out() << "        if ((double)__ival == " << FormatCDoubleLiteral(f.float_value) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx
-                          << "] = k; *__finish = true; return; }\n";
+                    Out() << "        if ((double)__ival == " << FormatCDoubleLiteral(f.float_value) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys["
+                          << f_idx << "] = k; *__finish = true; return; }\n";
                 }
             }
             f_idx++;
@@ -520,9 +519,9 @@ void CGen::GenerateHeader() {
     // 前置发射所有 spec 类型的 typedef + 特化 get/set 函数（读取 TypeInferencer 预计算的
     // ir.spec_type_metadata）。CGen 不再在 CompileTableconstructor 里懒发射这些样板代码。
     std::vector<std::string> spec_types;
-    for (const auto &[name, meta] : ir().spec_type_metadata) spec_types.push_back(name);
+    for (const auto &[name, meta]: ir().spec_type_metadata) spec_types.push_back(name);
     std::sort(spec_types.begin(), spec_types.end());
-    for (const auto &name : spec_types) EmitSpecTypeBoilerplate(name, ir().spec_type_metadata.at(name));
+    for (const auto &name: spec_types) EmitSpecTypeBoilerplate(name, ir().spec_type_metadata.at(name));
 }
 
 void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
@@ -812,7 +811,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
 }
 
 void CGen::GenerateEntryDispatcher(const std::string &c_name, const std::string &lua_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices,
-                                  const std::string &dyn_name) {
+                                   const std::string &dyn_name) {
     const int k = static_cast<int>(math_param_indices.size());
     const int num_specs = 1 << k;
 
@@ -1210,8 +1209,7 @@ std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
 static const std::unordered_map<BinOpKind, std::string_view> kCmpOpMap = {{BinOpKind::kLess, "<"},       {BinOpKind::kLessEqual, "<="}, {BinOpKind::kMore, ">"},
                                                                           {BinOpKind::kMoreEqual, ">="}, {BinOpKind::kEqual, "=="},     {BinOpKind::kNotEqual, "!="}};
 
-static std::string FormatNativeNumericComparison(const std::string &left, const std::string &right, InferredType left_type, InferredType right_type,
-                                                 BinOpKind op_kind) {
+static std::string FormatNativeNumericComparison(const std::string &left, const std::string &right, InferredType left_type, InferredType right_type, BinOpKind op_kind) {
     const auto cmp_it = kCmpOpMap.find(op_kind);
     DEBUG_ASSERT(cmp_it != kCmpOpMap.end());
     if (left_type == right_type) {
@@ -1229,8 +1227,8 @@ static std::string FormatNativeNumericComparison(const std::string &left, const 
     // FlCompareIntDouble compares integer against floating.  Reverse the
     // relation when the source operands are float/int.  NaN makes every
     // ordered comparison false, including <= and >=.
-    const auto relation = left_is_int ? std::format("FlCompareIntDouble(({}), ({})) {} 0", integer, floating, cmp_it->second)
-                                      : std::format("0 {} FlCompareIntDouble(({}), ({}))", cmp_it->second, integer, floating);
+    const auto relation =
+            left_is_int ? std::format("FlCompareIntDouble(({}), ({})) {} 0", integer, floating, cmp_it->second) : std::format("0 {} FlCompareIntDouble(({}), ({}))", cmp_it->second, integer, floating);
     return std::format("(!isnan(({})) && ({}))", floating, relation);
 }
 
@@ -1835,12 +1833,8 @@ std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const s
             if (op) {
                 const auto op_kind = op->GetOpKind();
                 static const std::unordered_map<BinOpKind, std::string> kCmpFunctions = {
-                    {BinOpKind::kLess, "FlCmpLt"},
-                    {BinOpKind::kLessEqual, "FlCmpLe"},
-                    {BinOpKind::kMore, "FlCmpGt"},
-                    {BinOpKind::kMoreEqual, "FlCmpGe"},
-                    {BinOpKind::kEqual, "FlCmpEq"},
-                    {BinOpKind::kNotEqual, "FlCmpNe"},
+                        {BinOpKind::kLess, "FlCmpLt"},      {BinOpKind::kLessEqual, "FlCmpLe"}, {BinOpKind::kMore, "FlCmpGt"},
+                        {BinOpKind::kMoreEqual, "FlCmpGe"}, {BinOpKind::kEqual, "FlCmpEq"},     {BinOpKind::kNotEqual, "FlCmpNe"},
                 };
                 if (auto it = kCmpFunctions.find(op_kind); it != kCmpFunctions.end()) {
                     const auto left_expr = CompileExp(e->Left());
@@ -2135,11 +2129,11 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         if (loop_type == T_INT) {
             Out() << GenTab() << stop_var << " = 0;\n";
             if (step_int_val > 0) {
-                Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << " && !" << stop_var << "; "
-                      << ctrl_var << " >= INT64_MAX - " << (step_int_val - 1) << "LL ? (" << stop_var << " = 1) : (" << ctrl_var << " += " << step_int_val << "LL)) {\n";
+                Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << " && !" << stop_var << "; " << ctrl_var << " >= INT64_MAX - " << (step_int_val - 1) << "LL ? (" << stop_var
+                      << " = 1) : (" << ctrl_var << " += " << step_int_val << "LL)) {\n";
             } else {
-                Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << " && !" << stop_var << "; "
-                      << ctrl_var << " <= INT64_MIN - (" << (step_int_val + 1) << "LL) ? (" << stop_var << " = 1) : (" << ctrl_var << " += " << step_int_val << "LL)) {\n";
+                Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << " && !" << stop_var << "; " << ctrl_var << " <= INT64_MIN - (" << (step_int_val + 1) << "LL) ? (" << stop_var
+                      << " = 1) : (" << ctrl_var << " += " << step_int_val << "LL)) {\n";
             }
         } else if (step_double_val > 0.0) {
             const std::string incr = (step_double_val == 1.0) ? (ctrl_var + "++") : (ctrl_var + " += " + std::to_string(step_double_val));
@@ -2596,7 +2590,8 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_mu
                 return std::format("FlMakeClosure0(_S, (void*){}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false");
             }
             if (func->captured_vars.size() == 1) {
-                return std::format("FlMakeClosure1(_S, (void*){}, {}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false", CompileUpvaluePointer(func->captured_vars[0]));
+                return std::format("FlMakeClosure1(_S, (void*){}, {}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false",
+                                   CompileUpvaluePointer(func->captured_vars[0]));
             }
             std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}", func->unique_c_name, func->captured_vars.size(), func->params.size(), func->is_vararg ? "true" : "false");
             for (VarDef *up: func->captured_vars) {
@@ -3309,8 +3304,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                                 p.push_back('*');
                                 return p;
                             }();
-                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}",
-                                               StringId(kUtf8Pattern));
+                            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", StringId(kUtf8Pattern));
                         }
                     }
                 }
@@ -3715,9 +3709,8 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
     const auto &raw_args = explist_arg_ptr->Exps();
 
-    static const std::unordered_set<std::string> math_builtins = {"abs",        "floor", "ceil",  "max", "min", "sqrt",  "sin",  "cos",  "tan",  "pow",  "deg",  "rad", "random",
-                                                                  "randomseed", "modf",  "frexp", "exp", "log", "log10", "asin", "acos", "atan", "sinh", "cosh", "tanh",
-                                                                  "fmod",      "ldexp", "type",  "tointeger", "ult"};
+    static const std::unordered_set<std::string> math_builtins = {"abs",   "floor", "ceil", "max",   "min",  "sqrt", "sin",  "cos",  "tan",  "pow",  "deg",  "rad",   "random", "randomseed", "modf",
+                                                                  "frexp", "exp",   "log",  "log10", "asin", "acos", "atan", "sinh", "cosh", "tanh", "fmod", "ldexp", "type",   "tointeger",  "ult"};
 
     if (!math_builtins.contains(method_name)) {
         return {};
@@ -3786,8 +3779,8 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
     }
     if (method_name == "ceil" && raw_args.size() == 1) {
         std::string arg = MaterializeArg(raw_args[0]);
-        Out() << GenTab() << tmp << " = ((" << arg << ".type_ == VAR_INT || " << arg << ".type_ == VAR_FLOAT) ? FlMathCeil(" << arg
-              << ") : FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ceil\", 1, " << arg << "));\n";
+        Out() << GenTab() << tmp << " = ((" << arg << ".type_ == VAR_INT || " << arg << ".type_ == VAR_FLOAT) ? FlMathCeil(" << arg << ") : FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.ceil\", 1, "
+              << arg << "));\n";
         return tmp;
     }
     if (method_name == "max" && raw_args.size() == 2) {
@@ -4189,8 +4182,8 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         Out() << GenTab() << dst_tmp << " = " << (has_dst ? dst_arg : src_tmp) << ";\n";
         // 仅当 f/e/t 均为 INT 且 src/dst 为合法 table（或 dst 为 nil）时走 FlTableMove 内联快路径；
         // 其余（如 2.0 精确浮点下标、数字字符串、非法类型报错等）回退到 native 统一处理。
-        Out() << GenTab() << "if (LIKELY(" << src_tmp << ".type_ == VAR_TABLE && (" << dst_tmp << ".type_ == VAR_TABLE || " << dst_tmp << ".type_ == VAR_NIL) && "
-              << f_c << ".type_ == VAR_INT && " << e_c << ".type_ == VAR_INT && " << t_c << ".type_ == VAR_INT)) {\n";
+        Out() << GenTab() << "if (LIKELY(" << src_tmp << ".type_ == VAR_TABLE && (" << dst_tmp << ".type_ == VAR_TABLE || " << dst_tmp << ".type_ == VAR_NIL) && " << f_c << ".type_ == VAR_INT && "
+              << e_c << ".type_ == VAR_INT && " << t_c << ".type_ == VAR_INT)) {\n";
         Out() << GenTab() << "    " << tmp << " = FlTableMove(" << src_tmp << ", " << f_c << ".data_.i, " << e_c << ".data_.i, " << t_c << ".data_.i, " << dst_tmp << ");\n";
         Out() << GenTab() << "} else {\n";
         if (has_dst) {
@@ -4553,8 +4546,8 @@ std::string CGen::TryCompileBuiltinStringCall(const std::shared_ptr<SyntaxTreeFu
             Out() << GenTab() << "if (LIKELY(" << arg_tmp << ".type_ == VAR_INT)) {\n";
             Out() << GenTab() << "    " << tmp << " = FlFormatInt(" << arg_tmp << ".data_.i);\n";
             Out() << GenTab() << "} else {\n";
-            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.format\", 2, " << "(CVar){.type_ = VAR_STRINGID, .data_.i = " << StringId("%d")
-                  << "}, " << arg_tmp << ");\n";
+            Out() << GenTab() << "    " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"string.format\", 2, " << "(CVar){.type_ = VAR_STRINGID, .data_.i = " << StringId("%d") << "}, "
+                  << arg_tmp << ");\n";
             Out() << GenTab() << "}\n";
             return tmp;
         }
@@ -5509,7 +5502,8 @@ void CGen::CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt) {
     if (func->captured_vars.empty()) {
         closure_expr = std::format("FlMakeClosure0(_S, (void*){}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false");
     } else if (func->captured_vars.size() == 1) {
-        closure_expr = std::format("FlMakeClosure1(_S, (void*){}, {}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false", CompileUpvaluePointer(func->captured_vars[0]));
+        closure_expr =
+                std::format("FlMakeClosure1(_S, (void*){}, {}, {}, {})", func->unique_c_name, func->params.size(), func->is_vararg ? "true" : "false", CompileUpvaluePointer(func->captured_vars[0]));
     } else {
         closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}", func->unique_c_name, func->captured_vars.size(), func->params.size(), func->is_vararg ? "true" : "false");
         for (VarDef *up: func->captured_vars) {

@@ -39,8 +39,7 @@ private:
     // 在表达式树中查找匿名 FunctionDef，并按外层词法 const 集合校验其函数体。
     void ValidateConstInExprs(const SyntaxTreeInterfacePtr &node, const std::unordered_set<std::string> &const_names);
     // 进入函数体：继承外层 const，参数名 / extra_shadow 遮蔽同名 const。
-    void ValidateConstInFuncbody(const SyntaxTreeInterfacePtr &funcbody, std::unordered_set<std::string> const_names,
-                                 const std::unordered_set<std::string> &extra_shadow = {});
+    void ValidateConstInFuncbody(const SyntaxTreeInterfacePtr &funcbody, std::unordered_set<std::string> const_names, const std::unordered_set<std::string> &extra_shadow = {});
     void CollectBlockLabels(const SyntaxTreeInterfacePtr &block, std::unordered_map<std::string, SyntaxTreeInterfacePtr> &labels);
     void CheckFunctionCall(const SyntaxTreeInterfacePtr &node);
     void CheckParList(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
@@ -58,13 +57,9 @@ private:
     // 声明（package "X" / package = "X"）的名字。
     void CheckUndeclaredVars(const SyntaxTreeInterfacePtr &chunk, const AnalysisResult &ar);
     // CheckUndeclaredVars 的词法作用域递归，作用域栈语义与 CGen::ResolveScopes 对齐。
-    void CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::vector<std::unordered_set<std::string>> &scopes,
-                        const std::unordered_set<std::string> &file_level_names,
-                        const std::unordered_set<const SyntaxTreeInterface *> &exempt_vars,
-                        const std::unordered_set<const SyntaxTreeInterface *> &lvalue_vars);
-    [[nodiscard]] bool IsDeclaredSimpleName(const std::string &name,
-                                            const std::vector<std::unordered_set<std::string>> &scopes,
-                                            const std::unordered_set<std::string> &file_level_names) const;
+    void CheckVarScopes(const SyntaxTreeInterfacePtr &node, std::vector<std::unordered_set<std::string>> &scopes, const std::unordered_set<std::string> &file_level_names,
+                        const std::unordered_set<const SyntaxTreeInterface *> &exempt_vars, const std::unordered_set<const SyntaxTreeInterface *> &lvalue_vars);
+    [[nodiscard]] bool IsDeclaredSimpleName(const std::string &name, const std::vector<std::unordered_set<std::string>> &scopes, const std::unordered_set<std::string> &file_level_names) const;
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 
     void AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);

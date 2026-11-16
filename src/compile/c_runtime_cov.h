@@ -20,6 +20,7 @@ typedef struct VarClosure VarClosure;
 typedef struct CVar {
     int type_;
     int flag_;
+
     union {
         bool b;
         int64_t i;
@@ -87,7 +88,7 @@ struct VarTable {
 
 typedef struct State State;
 
-#define LIKELY(x)   __builtin_expect(!!(x), 1)
+#define LIKELY(x) __builtin_expect(!!(x), 1)
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
 
 #define STR_SIZE(s) ((s)->size_)
@@ -110,23 +111,29 @@ enum {
 // init 期间 NEWTABLE/SET_TABLE 创建的表直接打 CONST_FLAG（整棵树，含嵌套）；
 // SETTABLE 仅在 init 结束后才因 CONST_FLAG 抛错，以便构造器写字段。
 #define CONST_FLAG 0x1
-#define FL_CHECK_CONST_TABLE(t) do { \
-    if (UNLIKELY(((t).flag_ & CONST_FLAG) && __fakelua_init_flag__)) { \
-        FakeluaThrowError(_S, "attempt to modify a const table"); \
-    } \
-} while(0)
+#define FL_CHECK_CONST_TABLE(t)                                                                                                                                                                        \
+    do {                                                                                                                                                                                               \
+        if (UNLIKELY(((t).flag_ & CONST_FLAG) && __fakelua_init_flag__)) {                                                                                                                             \
+            FakeluaThrowError(_S, "attempt to modify a const table");                                                                                                                                  \
+        }                                                                                                                                                                                              \
+    } while (0)
 
 /* 探测整数键 k 是否存在且值非 nil。查找逻辑与 FlGetTableInt 一致，但直接作用于
    VarTable*，供序列长度计算与缓存维护复用。必须查 spec：特化表的 1..n 只在
    spec 里，不在 quick/nodes。以前从 spec_count 起扫，等于把字段个数当成 #。 */
 static inline bool FlTableHasIntKey(VarTable *t, int64_t k) {
     if (t->spec_get) {
-        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.flag_ = 0; key_cvar.data_.i = k;
+        CVar key_cvar;
+        key_cvar.type_ = VAR_INT;
+        key_cvar.flag_ = 0;
+        key_cvar.data_.i = k;
         bool __finish = false;
         CVar __r = t->spec_get(t, key_cvar, &__finish);
         if (__finish) return __r.type_ != VAR_NIL;
     }
-    if ((uint64_t)k - 1 < (uint64_t)t->arr_size_) { return t->arr_[k - 1].type_ != VAR_NIL; }
+    if ((uint64_t) k - 1 < (uint64_t) t->arr_size_) {
+        return t->arr_[k - 1].type_ != VAR_NIL;
+    }
     if (t->spec_count > 0 && t->spec_keys && t->spec_vals) {
         uint32_t i;
         for (i = 0; i < t->spec_count; ++i) {
@@ -144,7 +151,7 @@ static inline bool FlTableHasIntKey(VarTable *t, int64_t k) {
         }
         return false;
     } else {
-        uint32_t h = (uint32_t)(k ^ (k >> 32));
+        uint32_t h = (uint32_t) (k ^ (k >> 32));
         uint32_t mask = t->bucket_count_ - 1;
         TableNode *curr = &t->nodes_[h & mask];
         while (1) {
@@ -159,7 +166,9 @@ static inline bool FlTableHasIntKey(VarTable *t, int64_t k) {
 
 /* 从 base 起向上数连续存在的整数键，返回前缀长度。*/
 static inline int64_t FlSeqScanFrom(VarTable *t, int64_t base) {
-    while (base < INT64_MAX && FlTableHasIntKey(t, base + 1)) { base++; }
+    while (base < INT64_MAX && FlTableHasIntKey(t, base + 1)) {
+        base++;
+    }
     return base;
 }
 
@@ -187,18 +196,26 @@ static inline int64_t FlGetTableSeqLen(VarTable *t) {
    本函数对同一次写入重复调用是幂等的。 */
 static inline void FlSeqNoteIntSet(VarTable *t, int64_t k, bool is_nil) {
     if (!t || t->seq_len_valid_ == 0) return;
-    if (UNLIKELY(!FlSeqCacheable(t))) { t->seq_len_valid_ = 0; return; }
+    if (UNLIKELY(!FlSeqCacheable(t))) {
+        t->seq_len_valid_ = 0;
+        return;
+    }
     if (is_nil) {
         /* t[k] 变为 nil，前缀在 k-1 处截断；1..k-1 都还在，故新长度恰为 k-1。*/
-        if (k >= 1 && k <= t->seq_len_) { t->seq_len_ = k - 1; }
+        if (k >= 1 && k <= t->seq_len_) {
+            t->seq_len_ = k - 1;
+        }
         return;
     }
     /* 只有正好补上 t[len+1] 才会延长前缀，随后继续吸收先前写入的更高键。*/
-    if (t->seq_len_ < INT64_MAX && k == t->seq_len_ + 1) { t->seq_len_ = FlSeqScanFrom(t, k); }
+    if (t->seq_len_ < INT64_MAX && k == t->seq_len_ + 1) {
+        t->seq_len_ = FlSeqScanFrom(t, k);
+    }
 }
 
 /* NativeObject Wrap 惰性快照：pairs/GET_TABLE_ENTRY 读 spec_count 前调用。非 Native 表 no-op。 */
 extern void FlEnsureNativeSpecSnapshot(VarTable *t);
+
 static inline void FlEnsureNativeSpecSnapshotInline(VarTable *t) {
     if (UNLIKELY(t != NULL && t->spec != NULL)) {
         FlEnsureNativeSpecSnapshot(t);
@@ -217,23 +234,23 @@ typedef struct FlHeapSlot {
     char *end;
 } FlHeapSlot;
 
-extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
+extern void *FakeluaAlloc(State *s, size_t size, bool is_const);
 
-static inline void* FlFastAlloc(State *state, size_t size, bool is_const) {
-    FlHeapSlot *hs = (is_const || !__fakelua_init_flag__) ? (FlHeapSlot *)fl_const_heap : (FlHeapSlot *)fl_temp_heap;
+static inline void *FlFastAlloc(State *state, size_t size, bool is_const) {
+    FlHeapSlot *hs = (is_const || !__fakelua_init_flag__) ? (FlHeapSlot *) fl_const_heap : (FlHeapSlot *) fl_temp_heap;
     if (LIKELY(hs != NULL)) {
-        size_t aligned_size = (size + 15) & ~(size_t)15;
+        size_t aligned_size = (size + 15) & ~(size_t) 15;
         char *c = hs->curr;
         if (LIKELY(c != NULL && aligned_size >= size && c + aligned_size > c && c + aligned_size <= hs->end)) {
             hs->curr = c + aligned_size;
-            return (void *)c;
+            return (void *) c;
         }
     }
     return FakeluaAlloc(state, size, is_const);
 }
 
 static inline CVar FlAllocMulti(State *state, uint32_t count) {
-    VarMulti *m = (VarMulti *)FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
     m->count = count;
     CVar res;
     res.type_ = VAR_MULTI;
@@ -245,13 +262,13 @@ static inline CVar FlAllocMulti(State *state, uint32_t count) {
 // 设置 multi-value 的元素，避免链接 inter::SetMultiCVarElement（Windows TCC 找不到符号）
 static inline void FlSetMultiCVarElement(CVar multi, int idx, CVar val) {
     VarMulti *m = multi.data_.m;
-    if (idx >= 0 && idx < (int)m->count) {
+    if (idx >= 0 && idx < (int) m->count) {
         m->vars[idx] = val;
     }
 }
 
 static inline CVar FlMakeMulti(State *state, uint32_t count, ...) {
-    VarMulti *m = (VarMulti *)FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
     m->count = count;
     va_list args_list;
     va_start(args_list, count);
@@ -276,12 +293,12 @@ static inline CVar FlCombineMulti(State *state, uint32_t prefix_count, const CVa
     }
 
     uint32_t total_count = prefix_count + last_count;
-    VarMulti *m = (VarMulti *)FlFastAlloc(state, sizeof(VarMulti) + total_count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + total_count * sizeof(CVar), !__fakelua_init_flag__);
     m->count = total_count;
 
     for (uint32_t i = 0; i < prefix_count; ++i) {
         if (prefix_vars[i].type_ == VAR_MULTI) {
-            m->vars[i] = prefix_vars[i].data_.m->count > 0 ? prefix_vars[i].data_.m->vars[0] : (CVar){VAR_NIL};
+            m->vars[i] = prefix_vars[i].data_.m->count > 0 ? prefix_vars[i].data_.m->vars[0] : (CVar) {VAR_NIL};
         } else {
             m->vars[i] = prefix_vars[i];
         }
@@ -297,25 +314,24 @@ static inline CVar FlCombineMulti(State *state, uint32_t prefix_count, const CVa
     return res;
 }
 
-
 static inline CVar FlUnboxMulti(CVar v, uint32_t idx) {
     if (LIKELY(v.type_ != VAR_MULTI)) {
-        return (idx == 0) ? v : (CVar){VAR_NIL};
+        return (idx == 0) ? v : (CVar) {VAR_NIL};
     }
     VarMulti *m = v.data_.m;
-    return (idx < m->count) ? m->vars[idx] : (CVar){VAR_NIL};
+    return (idx < m->count) ? m->vars[idx] : (CVar) {VAR_NIL};
 }
 
 static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
     if (v.type_ != VAR_MULTI) {
-        return (start_idx == 0) ? v : (CVar){VAR_NIL};
+        return (start_idx == 0) ? v : (CVar) {VAR_NIL};
     }
     VarMulti *m = v.data_.m;
     if (start_idx >= m->count) {
-        return (CVar){VAR_NIL};
+        return (CVar) {VAR_NIL};
     }
     uint32_t count = m->count - start_idx;
-    VarMulti *nm = (VarMulti *)FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *nm = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
     nm->count = count;
     for (uint32_t i = 0; i < count; ++i) {
         nm->vars[i] = m->vars[start_idx + i];
@@ -327,14 +343,27 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
     return res;
 }
 
-#define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)
-#define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.i = 0; (v).data_.b = (val); } while(0)
-#define SET_INT(v, val) do { (v).type_ = VAR_INT; (v).data_.i = (val); } while(0)
-#define SET_FLOAT(v, val) do { \
-    double __f = (val); \
-    (v).type_ = VAR_FLOAT; \
-    (v).data_.f = __f; \
-} while(0)
+#define SET_NIL(v)                                                                                                                                                                                     \
+    do {                                                                                                                                                                                               \
+        (v).type_ = VAR_NIL;                                                                                                                                                                           \
+    } while (0)
+#define SET_BOOL(v, val)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        (v).type_ = VAR_BOOL;                                                                                                                                                                          \
+        (v).data_.i = 0;                                                                                                                                                                               \
+        (v).data_.b = (val);                                                                                                                                                                           \
+    } while (0)
+#define SET_INT(v, val)                                                                                                                                                                                \
+    do {                                                                                                                                                                                               \
+        (v).type_ = VAR_INT;                                                                                                                                                                           \
+        (v).data_.i = (val);                                                                                                                                                                           \
+    } while (0)
+#define SET_FLOAT(v, val)                                                                                                                                                                              \
+    do {                                                                                                                                                                                               \
+        double __f = (val);                                                                                                                                                                            \
+        (v).type_ = VAR_FLOAT;                                                                                                                                                                         \
+        (v).data_.f = __f;                                                                                                                                                                             \
+    } while (0)
 
 /* 2^63：精确 double，也是第一个无法放入 int64 的整数。
  * (double)INT64_MAX 会向上舍入成这个值，因此不能用 <= (double)INT64_MAX。 */
@@ -344,27 +373,28 @@ static inline int FlDoubleFitsInt64(double d, int64_t *out) {
     double ip;
     if (!isfinite(d)) return 0;
     if (modf(d, &ip) != 0.0) return 0;
-    if (ip < (double)INT64_MIN || ip >= FL_INT64_FLOAT_EXCL) return 0;
-    *out = (int64_t)ip;
+    if (ip < (double) INT64_MIN || ip >= FL_INT64_FLOAT_EXCL) return 0;
+    *out = (int64_t) ip;
     return 1;
 }
 
-#define NORMALIZE_TABLE_KEY(key) ({ \
-    CVar __k = (key); \
-    if (UNLIKELY(__k.type_ == VAR_FLOAT)) { \
-        int64_t __i; \
-        if (FlDoubleFitsInt64(__k.data_.f, &__i)) { \
-            __k.type_ = VAR_INT; \
-            __k.data_.i = __i; \
-        } \
-    } \
-    __k; \
-})
+#define NORMALIZE_TABLE_KEY(key)                                                                                                                                                                       \
+    ({                                                                                                                                                                                                 \
+        CVar __k = (key);                                                                                                                                                                              \
+        if (UNLIKELY(__k.type_ == VAR_FLOAT)) {                                                                                                                                                        \
+            int64_t __i;                                                                                                                                                                               \
+            if (FlDoubleFitsInt64(__k.data_.f, &__i)) {                                                                                                                                                \
+                __k.type_ = VAR_INT;                                                                                                                                                                   \
+                __k.data_.i = __i;                                                                                                                                                                     \
+            }                                                                                                                                                                                          \
+        }                                                                                                                                                                                              \
+        __k;                                                                                                                                                                                           \
+    })
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
+extern void *FakeluaAlloc(State *s, size_t size, bool is_const);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 extern CVar FakeluaAllocMultiCVar(State *s, int count);
@@ -382,11 +412,12 @@ extern void FakeluaRegisterLuaLoc(State *s, int jit_type, FlLuaLoc *loc);
 
 // 记录当前执行的 Lua 语句位置（文件级全局变量 fl_lua_loc 在 __fakelua_init 时把地址传给宿主 State）。
 // C++ 侧的报错拿不到 Lua 栈，直接通过注册的变量地址读取；#line 则负责把编译告警映射回 Lua 源码。
-static FlLuaLoc fl_lua_loc = { 0, 0 };
-#define FL_LOC_SET(f, l) do { \
-    (void)(f); \
-    fl_lua_loc.line = (l); \
-} while (0)
+static FlLuaLoc fl_lua_loc = {0, 0};
+#define FL_LOC_SET(f, l)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        (void) (f);                                                                                                                                                                                    \
+        fl_lua_loc.line = (l);                                                                                                                                                                         \
+    } while (0)
 
 #define kMaxFunctionInputParams 32
 
@@ -394,7 +425,7 @@ static FlLuaLoc fl_lua_loc = { 0, 0 };
 // 具名形参若类型会受默认实参提升影响（bool/_Bool 会被提升为 int），行为未定义。
 // 调用处传入的 true/false 会隐式转换为 int。
 static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count, int expected_arg_count, int is_vararg, ...) {
-    VarClosure *cl = (VarClosure *)FlFastAlloc(state, sizeof(VarClosure) + upvalue_count * sizeof(CVar *), !__fakelua_init_flag__);
+    VarClosure *cl = (VarClosure *) FlFastAlloc(state, sizeof(VarClosure) + upvalue_count * sizeof(CVar *), !__fakelua_init_flag__);
     cl->func_ptr = func_ptr;
     cl->upvalue_count = upvalue_count;
     cl->expected_arg_count = expected_arg_count;
@@ -414,7 +445,7 @@ static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count
 }
 
 static inline CVar FlMakeClosure0(State *state, void *func_ptr, int expected_arg_count, int is_vararg) {
-    VarClosure *cl = (VarClosure *)FlFastAlloc(state, sizeof(VarClosure), !__fakelua_init_flag__);
+    VarClosure *cl = (VarClosure *) FlFastAlloc(state, sizeof(VarClosure), !__fakelua_init_flag__);
     cl->func_ptr = func_ptr;
     cl->upvalue_count = 0;
     cl->expected_arg_count = expected_arg_count;
@@ -428,7 +459,7 @@ static inline CVar FlMakeClosure0(State *state, void *func_ptr, int expected_arg
 }
 
 static inline CVar FlMakeClosure1(State *state, void *func_ptr, int expected_arg_count, int is_vararg, CVar *up0) {
-    VarClosure *cl = (VarClosure *)FlFastAlloc(state, sizeof(VarClosure) + sizeof(CVar *), !__fakelua_init_flag__);
+    VarClosure *cl = (VarClosure *) FlFastAlloc(state, sizeof(VarClosure) + sizeof(CVar *), !__fakelua_init_flag__);
     cl->func_ptr = func_ptr;
     cl->upvalue_count = 1;
     cl->expected_arg_count = expected_arg_count;
@@ -448,20 +479,20 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
     }
     // 与 FakeluaCallByName 一致：先拦超限，再读 varargs。
     // raw_arg_arr 只有 32 槽，arg_num>32 会栈缓冲溢出。
-    if (UNLIKELY(arg_num < 0 || arg_num > (int)kMaxFunctionInputParams)) {
+    if (UNLIKELY(arg_num < 0 || arg_num > (int) kMaxFunctionInputParams)) {
         FakeluaThrowError(state, "too many arguments");
     }
     VarClosure *cl = cl_var.data_.cl;
     void *addr = cl->func_ptr;
     if (UNLIKELY(addr == NULL)) {
-        return FlEvalLoadClosure(state, cl, arg_num, cl_var.type_ == VAR_CLOSURE ? (const CVar *)&cl_var : NULL);
+        return FlEvalLoadClosure(state, cl, arg_num, cl_var.type_ == VAR_CLOSURE ? (const CVar *) &cl_var : NULL);
     }
     const bool is_vararg = cl->is_vararg;
     const int expected_arg_count = cl->expected_arg_count;
     const int fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
     // 形参个数也要限：下面按 expected_arg_count 往 temp_arg_arr（定长 32）里写，
     // 声明了超过上限的形参会栈缓冲溢出（与 vm.cpp 的 CallByNameImpl 一致）。
-    if (UNLIKELY(expected_arg_count < 0 || expected_arg_count > (int)kMaxFunctionInputParams)) {
+    if (UNLIKELY(expected_arg_count < 0 || expected_arg_count > (int) kMaxFunctionInputParams)) {
         FakeluaThrowError(state, "too many arguments");
     }
 
@@ -484,8 +515,8 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
         for (int i = 0; i < arg_num; ++i) {
             if (i == arg_num - 1 && raw_arg_arr[i].type_ == VAR_MULTI) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                const int extra = m ? (int)m->count : 0;
-                if (flat_count + extra > (int)kMaxFunctionInputParams) {
+                const int extra = m ? (int) m->count : 0;
+                if (flat_count + extra > (int) kMaxFunctionInputParams) {
                     FakeluaThrowError(state, "too many arguments");
                 }
                 if (m) {
@@ -495,12 +526,12 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
                 }
             } else if (raw_arg_arr[i].type_ == VAR_MULTI) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                if (flat_count >= (int)kMaxFunctionInputParams) {
+                if (flat_count >= (int) kMaxFunctionInputParams) {
                     FakeluaThrowError(state, "too many arguments");
                 }
-                flat_args_buf[flat_count++] = (m && m->count > 0) ? m->vars[0] : (CVar){VAR_NIL};
+                flat_args_buf[flat_count++] = (m && m->count > 0) ? m->vars[0] : (CVar) {VAR_NIL};
             } else {
-                if (flat_count >= (int)kMaxFunctionInputParams) {
+                if (flat_count >= (int) kMaxFunctionInputParams) {
                     FakeluaThrowError(state, "too many arguments");
                 }
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
@@ -509,10 +540,10 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
 
         if (UNLIKELY(is_vararg)) {
             for (int i = 0; i < fixed_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){VAR_NIL};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {VAR_NIL};
             }
             const int vararg_count = flat_count - fixed_arg_count;
-            VarMulti *m = (VarMulti *)FlFastAlloc(state, sizeof(VarMulti) + (vararg_count > 0 ? vararg_count : 0) * sizeof(CVar), !__fakelua_init_flag__);
+            VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + (vararg_count > 0 ? vararg_count : 0) * sizeof(CVar), !__fakelua_init_flag__);
             m->count = vararg_count > 0 ? vararg_count : 0;
             for (int i = 0; i < vararg_count; ++i) {
                 m->vars[i] = flat_args_buf[fixed_arg_count + i];
@@ -524,13 +555,13 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
             temp_arg_arr[fixed_arg_count] = vararg_cvar;
         } else {
             for (int i = 0; i < expected_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){VAR_NIL};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {VAR_NIL};
             }
         }
         arg_arr = temp_arg_arr;
     }
 
-    if (cl->code_str == (const char *)1) {
+    if (cl->code_str == (const char *) 1) {
         int npass = expected_arg_count;
         if (is_vararg) {
             npass = fixed_arg_count + 1;
@@ -607,11 +638,11 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
 #define FCARG_31 FCARG_30, arg_arr[30]
 #define FCARG_32 FCARG_31, arg_arr[31]
 
-#define FCCASE(N)                                                                                                                                                                                       \
+#define FCCASE(N)                                                                                                                                                                                      \
     case N: {                                                                                                                                                                                          \
         int __fl_saved_line = fl_lua_loc.line;                                                                                                                                                         \
         fl_lua_loc.line = 0;                                                                                                                                                                           \
-        int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);                                                                                                                           \
+        int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);                                                                                                                            \
         CVar __fl_ret = ((CVar (*)(VarClosure * FCCVAR_##N))(addr))(cl FCARG_##N);                                                                                                                     \
         FakeluaJitContextPop(state, __fl_prev_jit);                                                                                                                                                    \
         fl_lua_loc.line = __fl_saved_line;                                                                                                                                                             \
@@ -619,13 +650,32 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
     }
 
     switch (expected_arg_count) {
-        FCCASE(0) FCCASE(1) FCCASE(2) FCCASE(3) FCCASE(4) FCCASE(5)
-        FCCASE(6) FCCASE(7) FCCASE(8) FCCASE(9) FCCASE(10) FCCASE(11)
-        FCCASE(12) FCCASE(13) FCCASE(14) FCCASE(15) FCCASE(16) FCCASE(17)
-        FCCASE(18) FCCASE(19) FCCASE(20) FCCASE(21) FCCASE(22) FCCASE(23)
-        FCCASE(24) FCCASE(25) FCCASE(26) FCCASE(27) FCCASE(28) FCCASE(29)
-        FCCASE(30) FCCASE(31) FCCASE(32)
-        default: FakeluaThrowError(state, "FlCallClosure: expected_arg_count out of range"); return (CVar){VAR_NIL};
+        FCCASE(0)
+        FCCASE(1)
+        FCCASE(2)
+        FCCASE(3)
+        FCCASE(4)
+        FCCASE(5)
+        FCCASE(6)
+        FCCASE(7)
+        FCCASE(8)
+        FCCASE(9)
+        FCCASE(10)
+        FCCASE(11)
+        FCCASE(12)
+        FCCASE(13)
+        FCCASE(14)
+        FCCASE(15)
+        FCCASE(16)
+        FCCASE(17)
+        FCCASE(18)
+        FCCASE(19)
+        FCCASE(20)
+        FCCASE(21)
+        FCCASE(22)
+        FCCASE(23)
+        FCCASE(24) FCCASE(25) FCCASE(26) FCCASE(27) FCCASE(28) FCCASE(29) FCCASE(30) FCCASE(31) FCCASE(32) default : FakeluaThrowError(state, "FlCallClosure: expected_arg_count out of range");
+        return (CVar) {VAR_NIL};
     }
 
 #undef FCCASE
@@ -701,7 +751,7 @@ static inline CVar FlCallClosure0(State *state, CVar cl_var) {
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
-        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 0 && cl->code_str != (const char *)1)) {
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 0 && cl->code_str != (const char *) 1)) {
             int __fl_saved_line = fl_lua_loc.line;
             fl_lua_loc.line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *))(addr))(cl);
@@ -716,7 +766,7 @@ static inline CVar FlCallClosure1(State *state, CVar cl_var, CVar a0) {
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
-        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 1 && a0.type_ != VAR_MULTI && cl->code_str != (const char *)1)) {
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 1 && a0.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
             int __fl_saved_line = fl_lua_loc.line;
             fl_lua_loc.line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar))(addr))(cl, a0);
@@ -731,7 +781,7 @@ static inline CVar FlCallClosure2(State *state, CVar cl_var, CVar a0, CVar a1) {
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
-        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 2 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && cl->code_str != (const char *)1)) {
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 2 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
             int __fl_saved_line = fl_lua_loc.line;
             fl_lua_loc.line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar))(addr))(cl, a0, a1);
@@ -746,7 +796,7 @@ static inline CVar FlCallClosure3(State *state, CVar cl_var, CVar a0, CVar a1, C
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
-        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 3 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && a2.type_ != VAR_MULTI && cl->code_str != (const char *)1)) {
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 3 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && a2.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
             int __fl_saved_line = fl_lua_loc.line;
             fl_lua_loc.line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar, CVar))(addr))(cl, a0, a1, a2);
@@ -769,7 +819,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
     uint32_t hash = 5381;
     int i;
     for (i = 0; i < len; ++i) {
-        hash = ((hash << 5) + hash) + (uint8_t)str[i];
+        hash = ((hash << 5) + hash) + (uint8_t) str[i];
     }
     if (hash == 0) {
         hash = 1;
@@ -777,80 +827,88 @@ static inline uint32_t FlHashString(const char *str, int len) {
     return hash;
 }
 
-#define SET_STRING(v, str, len) do { \
-    int __len = (len); \
-    const char *__s_ptr = (str); \
-    VarString *__vs = (VarString *)FlFastAlloc(_S, sizeof(VarString) + __len, !__fakelua_init_flag__); \
-    __vs->size_ = __len; \
-    __vs->hash_ = 0; \
-    memcpy(__vs->data_, __s_ptr, __len); \
-    (v).type_ = VAR_STRING; \
-    (v).data_.s = __vs; \
-} while(0)
+#define SET_STRING(v, str, len)                                                                                                                                                                        \
+    do {                                                                                                                                                                                               \
+        int __len = (len);                                                                                                                                                                             \
+        const char *__s_ptr = (str);                                                                                                                                                                   \
+        VarString *__vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + __len, !__fakelua_init_flag__);                                                                                            \
+        __vs->size_ = __len;                                                                                                                                                                           \
+        __vs->hash_ = 0;                                                                                                                                                                               \
+        memcpy(__vs->data_, __s_ptr, __len);                                                                                                                                                           \
+        (v).type_ = VAR_STRING;                                                                                                                                                                        \
+        (v).data_.s = __vs;                                                                                                                                                                            \
+    } while (0)
 
-#define SET_TABLE(v) do { \
-    VarTable *__t = (VarTable *)FlFastAlloc(_S, sizeof(VarTable), !__fakelua_init_flag__); \
-    __t->count_ = 0; \
-    __t->bucket_count_ = 0; \
-    __t->nodes_ = NULL; \
-    __t->active_list_ = NULL; \
-    __t->free_list_idx_ = 0xFFFFFFFF; \
-    __t->spec = NULL; \
-    __t->spec_get = NULL; \
-    __t->spec_set = NULL; \
-    __t->spec_keys = NULL; \
-    __t->spec_vals = NULL; \
-    __t->spec_count = 0; \
-    __t->seq_len_valid_ = 1; \
-    __t->seq_len_ = 0; \
-    __t->arr_ = NULL; \
-    __t->arr_size_ = 0; \
-    __t->arr_cap_ = 0; \
-    assert(sizeof(__t->quick_data_) == 8 * sizeof(VarEntry)); \
-    { int __i; for (__i = 0; __i < 8; ++__i) { \
-        __t->quick_data_[__i].key.type_ = VAR_NIL; \
-        __t->quick_data_[__i].val.type_ = VAR_NIL; \
-        __t->quick_data_[__i].hash = 0; \
-    } } \
-    (v).type_ = VAR_TABLE; \
-    /* init 中创建 → CONST_FLAG（嵌套表同样走 SET_TABLE，整树只读）；init 后创建 → 可变 */ \
-    (v).flag_ = __fakelua_init_flag__ ? 0 : CONST_FLAG; \
-    (v).data_.t = __t; \
-} while(0)
+#define SET_TABLE(v)                                                                                                                                                                                   \
+    do {                                                                                                                                                                                               \
+        VarTable *__t = (VarTable *) FlFastAlloc(_S, sizeof(VarTable), !__fakelua_init_flag__);                                                                                                        \
+        __t->count_ = 0;                                                                                                                                                                               \
+        __t->bucket_count_ = 0;                                                                                                                                                                        \
+        __t->nodes_ = NULL;                                                                                                                                                                            \
+        __t->active_list_ = NULL;                                                                                                                                                                      \
+        __t->free_list_idx_ = 0xFFFFFFFF;                                                                                                                                                              \
+        __t->spec = NULL;                                                                                                                                                                              \
+        __t->spec_get = NULL;                                                                                                                                                                          \
+        __t->spec_set = NULL;                                                                                                                                                                          \
+        __t->spec_keys = NULL;                                                                                                                                                                         \
+        __t->spec_vals = NULL;                                                                                                                                                                         \
+        __t->spec_count = 0;                                                                                                                                                                           \
+        __t->seq_len_valid_ = 1;                                                                                                                                                                       \
+        __t->seq_len_ = 0;                                                                                                                                                                             \
+        __t->arr_ = NULL;                                                                                                                                                                              \
+        __t->arr_size_ = 0;                                                                                                                                                                            \
+        __t->arr_cap_ = 0;                                                                                                                                                                             \
+        assert(sizeof(__t->quick_data_) == 8 * sizeof(VarEntry));                                                                                                                                      \
+        {                                                                                                                                                                                              \
+            int __i;                                                                                                                                                                                   \
+            for (__i = 0; __i < 8; ++__i) {                                                                                                                                                            \
+                __t->quick_data_[__i].key.type_ = VAR_NIL;                                                                                                                                             \
+                __t->quick_data_[__i].val.type_ = VAR_NIL;                                                                                                                                             \
+                __t->quick_data_[__i].hash = 0;                                                                                                                                                        \
+            }                                                                                                                                                                                          \
+        }                                                                                                                                                                                              \
+        (v).type_ = VAR_TABLE;                                                                                                                                                                         \
+        /* init 中创建 → CONST_FLAG（嵌套表同样走 SET_TABLE，整树只读）；init 后创建 → 可变 */                                                                                                         \
+        (v).flag_ = __fakelua_init_flag__ ? 0 : CONST_FLAG;                                                                                                                                            \
+        (v).data_.t = __t;                                                                                                                                                                             \
+    } while (0)
 
-#define SET_TABLE_SPEC(v, SpecType, get_fn, set_fn, field_count) do { \
-    SET_TABLE(v); \
-    SpecType *__sp = (SpecType *)FlFastAlloc(_S, sizeof(SpecType), !__fakelua_init_flag__); \
-    (v).data_.t->spec = __sp; \
-    (v).data_.t->spec_get = (get_fn); \
-    (v).data_.t->spec_set = (set_fn); \
-    (v).data_.t->spec_keys = (CVar *)FlFastAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
-    (v).data_.t->spec_vals = (CVar *)FlFastAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
-    (v).data_.t->spec_count = (field_count); \
-    assert(sizeof(SpecType) == (field_count) * sizeof(CVar)); \
-} while(0)
+#define SET_TABLE_SPEC(v, SpecType, get_fn, set_fn, field_count)                                                                                                                                       \
+    do {                                                                                                                                                                                               \
+        SET_TABLE(v);                                                                                                                                                                                  \
+        SpecType *__sp = (SpecType *) FlFastAlloc(_S, sizeof(SpecType), !__fakelua_init_flag__);                                                                                                       \
+        (v).data_.t->spec = __sp;                                                                                                                                                                      \
+        (v).data_.t->spec_get = (get_fn);                                                                                                                                                              \
+        (v).data_.t->spec_set = (set_fn);                                                                                                                                                              \
+        (v).data_.t->spec_keys = (CVar *) FlFastAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__);                                                                                       \
+        (v).data_.t->spec_vals = (CVar *) FlFastAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__);                                                                                       \
+        (v).data_.t->spec_count = (field_count);                                                                                                                                                       \
+        assert(sizeof(SpecType) == (field_count) * sizeof(CVar));                                                                                                                                      \
+    } while (0)
 
-#define FL_SPEC(SpecType, v, field) (((SpecType *)(v).data_.t->spec)->field)
-#define FL_SET_SPEC(SpecType, v, field, index, val) do { \
-    CVar __flsv = (val); \
-    FL_CHECK_CONST_TABLE(v); \
-    FL_SPEC(SpecType, (v), field) = __flsv; \
-    (v).data_.t->spec_vals[(index)] = __flsv; \
-} while(0)
+#define FL_SPEC(SpecType, v, field) (((SpecType *) (v).data_.t->spec)->field)
+#define FL_SET_SPEC(SpecType, v, field, index, val)                                                                                                                                                    \
+    do {                                                                                                                                                                                               \
+        CVar __flsv = (val);                                                                                                                                                                           \
+        FL_CHECK_CONST_TABLE(v);                                                                                                                                                                       \
+        FL_SPEC(SpecType, (v), field) = __flsv;                                                                                                                                                        \
+        (v).data_.t->spec_vals[(index)] = __flsv;                                                                                                                                                      \
+    } while (0)
 
-#define IsTrue(v, result) do { \
-    CVar __tv = (v); \
-    (result) = (LIKELY(__tv.type_ != VAR_NIL) && (__tv.type_ != VAR_BOOL || __tv.data_.b)); \
-} while(0)
+#define IsTrue(v, result)                                                                                                                                                                              \
+    do {                                                                                                                                                                                               \
+        CVar __tv = (v);                                                                                                                                                                               \
+        (result) = (LIKELY(__tv.type_ != VAR_NIL) && (__tv.type_ != VAR_BOOL || __tv.data_.b));                                                                                                        \
+    } while (0)
 
 static inline int FlCompareIntDouble(int64_t integer, double floating) {
     if (isnan(floating)) return 0;
     if (floating >= 9223372036854775808.0) return -1;
     if (floating < -9223372036854775808.0) return 1;
-    int64_t truncated = (int64_t)floating;
+    int64_t truncated = (int64_t) floating;
     if (integer < truncated) return -1;
     if (integer > truncated) return 1;
-    double truncated_as_double = (double)truncated;
+    double truncated_as_double = (double) truncated;
     if (floating > truncated_as_double) return -1;
     if (floating < truncated_as_double) return 1;
     return 0;
@@ -858,102 +916,223 @@ static inline int FlCompareIntDouble(int64_t integer, double floating) {
 
 #define FL_INT_FLOAT_EQUAL(i, f) (!isnan((f)) && FlCompareIntDouble((i), (f)) == 0)
 
-#define VarEqual(_fa, _fb, result) do { \
-    CVar __a = (_fa), __b = (_fb); \
-    if (__a.type_ != __b.type_) { \
-        if ((__a.type_ == VAR_STRING || __a.type_ == VAR_STRINGID) && \
-            (__b.type_ == VAR_STRING || __b.type_ == VAR_STRINGID)) { \
-            VarString *__sa = (__a.type_ == VAR_STRING) ? __a.data_.s : (VarString *)__a.data_.i; \
-            VarString *__sb = (__b.type_ == VAR_STRING) ? __b.data_.s : (VarString *)__b.data_.i; \
-            (result) = (__sa == __sb) || (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0); \
-        } else if (__a.type_ == VAR_INT && __b.type_ == VAR_FLOAT) { \
-            (result) = FL_INT_FLOAT_EQUAL(__a.data_.i, __b.data_.f); \
-        } else if (__a.type_ == VAR_FLOAT && __b.type_ == VAR_INT) { \
-            (result) = FL_INT_FLOAT_EQUAL(__b.data_.i, __a.data_.f); \
-        } else { \
-            (result) = false; \
-        } \
-        break; \
-    } \
-    switch (__a.type_) { \
-        case VAR_NIL: (result) = true; break; \
-        case VAR_BOOL: (result) = (__a.data_.b == __b.data_.b); break; \
-        case VAR_INT: (result) = (__a.data_.i == __b.data_.i); break; \
-        case VAR_FLOAT: (result) = (__a.data_.f == __b.data_.f); break; \
-        case VAR_STRING: { \
-            if (__a.data_.s == __b.data_.s) { (result) = true; break; } \
-            (result) = (__a.data_.s->size_ == __b.data_.s->size_ && memcmp(__a.data_.s->data_, __b.data_.s->data_, __a.data_.s->size_) == 0); \
-            break; \
-        } \
-        case VAR_STRINGID: { \
-            if (__a.data_.i == __b.data_.i) { (result) = true; break; } \
-            VarString *__sa = (VarString *)__a.data_.i; \
-            VarString *__sb = (VarString *)__b.data_.i; \
-            (result) = (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0); \
-            break; \
-        } \
-        case VAR_TABLE: (result) = (__a.data_.t == __b.data_.t); break; \
-        case VAR_CLOSURE: (result) = (__a.data_.cl == __b.data_.cl); break; \
-        default: (result) = false; break; \
-    } \
-} while(0)
+#define VarEqual(_fa, _fb, result)                                                                                                                                                                     \
+    do {                                                                                                                                                                                               \
+        CVar __a = (_fa), __b = (_fb);                                                                                                                                                                 \
+        if (__a.type_ != __b.type_) {                                                                                                                                                                  \
+            if ((__a.type_ == VAR_STRING || __a.type_ == VAR_STRINGID) && (__b.type_ == VAR_STRING || __b.type_ == VAR_STRINGID)) {                                                                    \
+                VarString *__sa = (__a.type_ == VAR_STRING) ? __a.data_.s : (VarString *) __a.data_.i;                                                                                                 \
+                VarString *__sb = (__b.type_ == VAR_STRING) ? __b.data_.s : (VarString *) __b.data_.i;                                                                                                 \
+                (result) = (__sa == __sb) || (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0);                                                                       \
+            } else if (__a.type_ == VAR_INT && __b.type_ == VAR_FLOAT) {                                                                                                                               \
+                (result) = FL_INT_FLOAT_EQUAL(__a.data_.i, __b.data_.f);                                                                                                                               \
+            } else if (__a.type_ == VAR_FLOAT && __b.type_ == VAR_INT) {                                                                                                                               \
+                (result) = FL_INT_FLOAT_EQUAL(__b.data_.i, __a.data_.f);                                                                                                                               \
+            } else {                                                                                                                                                                                   \
+                (result) = false;                                                                                                                                                                      \
+            }                                                                                                                                                                                          \
+            break;                                                                                                                                                                                     \
+        }                                                                                                                                                                                              \
+        switch (__a.type_) {                                                                                                                                                                           \
+            case VAR_NIL:                                                                                                                                                                              \
+                (result) = true;                                                                                                                                                                       \
+                break;                                                                                                                                                                                 \
+            case VAR_BOOL:                                                                                                                                                                             \
+                (result) = (__a.data_.b == __b.data_.b);                                                                                                                                               \
+                break;                                                                                                                                                                                 \
+            case VAR_INT:                                                                                                                                                                              \
+                (result) = (__a.data_.i == __b.data_.i);                                                                                                                                               \
+                break;                                                                                                                                                                                 \
+            case VAR_FLOAT:                                                                                                                                                                            \
+                (result) = (__a.data_.f == __b.data_.f);                                                                                                                                               \
+                break;                                                                                                                                                                                 \
+            case VAR_STRING: {                                                                                                                                                                         \
+                if (__a.data_.s == __b.data_.s) {                                                                                                                                                      \
+                    (result) = true;                                                                                                                                                                   \
+                    break;                                                                                                                                                                             \
+                }                                                                                                                                                                                      \
+                (result) = (__a.data_.s->size_ == __b.data_.s->size_ && memcmp(__a.data_.s->data_, __b.data_.s->data_, __a.data_.s->size_) == 0);                                                      \
+                break;                                                                                                                                                                                 \
+            }                                                                                                                                                                                          \
+            case VAR_STRINGID: {                                                                                                                                                                       \
+                if (__a.data_.i == __b.data_.i) {                                                                                                                                                      \
+                    (result) = true;                                                                                                                                                                   \
+                    break;                                                                                                                                                                             \
+                }                                                                                                                                                                                      \
+                VarString *__sa = (VarString *) __a.data_.i;                                                                                                                                           \
+                VarString *__sb = (VarString *) __b.data_.i;                                                                                                                                           \
+                (result) = (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0);                                                                                         \
+                break;                                                                                                                                                                                 \
+            }                                                                                                                                                                                          \
+            case VAR_TABLE:                                                                                                                                                                            \
+                (result) = (__a.data_.t == __b.data_.t);                                                                                                                                               \
+                break;                                                                                                                                                                                 \
+            case VAR_CLOSURE:                                                                                                                                                                          \
+                (result) = (__a.data_.cl == __b.data_.cl);                                                                                                                                             \
+                break;                                                                                                                                                                                 \
+            default:                                                                                                                                                                                   \
+                (result) = false;                                                                                                                                                                      \
+                break;                                                                                                                                                                                 \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define VarHash(v, hash) do { \
-    CVar __v = (v); \
-    switch (__v.type_) { \
-        case VAR_NIL: (hash) = 0; break; \
-        case VAR_BOOL: (hash) = (__v.data_.b ? 1 : 0); break; \
-        case VAR_INT: (hash) = (uint32_t)(__v.data_.i ^ (__v.data_.i >> 32)); break; \
-        case VAR_FLOAT: { union { double __d; uint64_t __u; } __fu; __fu.__d = __v.data_.f; (hash) = (uint32_t)(__fu.__u ^ (__fu.__u >> 32)); break; } \
-        case VAR_STRING: { if (__v.data_.s->hash_ == 0) { __v.data_.s->hash_ = FlHashString(__v.data_.s->data_, __v.data_.s->size_); } (hash) = __v.data_.s->hash_; break; } \
-        case VAR_STRINGID: { VarString *__vs = (VarString *)__v.data_.i; if (__vs->hash_ == 0) { __vs->hash_ = FlHashString(__vs->data_, __vs->size_); } (hash) = __vs->hash_; break; } \
-        case VAR_TABLE: (hash) = (uint32_t)((uintptr_t)__v.data_.t ^ ((uintptr_t)__v.data_.t >> 32)); break; \
-        case VAR_CLOSURE: (hash) = (uint32_t)((uintptr_t)__v.data_.cl ^ ((uintptr_t)__v.data_.cl >> 32)); break; \
-        default: (hash) = 0; break; \
-    } \
-} while(0)
+#define VarHash(v, hash)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        CVar __v = (v);                                                                                                                                                                                \
+        switch (__v.type_) {                                                                                                                                                                           \
+            case VAR_NIL:                                                                                                                                                                              \
+                (hash) = 0;                                                                                                                                                                            \
+                break;                                                                                                                                                                                 \
+            case VAR_BOOL:                                                                                                                                                                             \
+                (hash) = (__v.data_.b ? 1 : 0);                                                                                                                                                        \
+                break;                                                                                                                                                                                 \
+            case VAR_INT:                                                                                                                                                                              \
+                (hash) = (uint32_t) (__v.data_.i ^ (__v.data_.i >> 32));                                                                                                                               \
+                break;                                                                                                                                                                                 \
+            case VAR_FLOAT: {                                                                                                                                                                          \
+                union {                                                                                                                                                                                \
+                    double __d;                                                                                                                                                                        \
+                    uint64_t __u;                                                                                                                                                                      \
+                } __fu;                                                                                                                                                                                \
+                __fu.__d = __v.data_.f;                                                                                                                                                                \
+                (hash) = (uint32_t) (__fu.__u ^ (__fu.__u >> 32));                                                                                                                                     \
+                break;                                                                                                                                                                                 \
+            }                                                                                                                                                                                          \
+            case VAR_STRING: {                                                                                                                                                                         \
+                if (__v.data_.s->hash_ == 0) {                                                                                                                                                         \
+                    __v.data_.s->hash_ = FlHashString(__v.data_.s->data_, __v.data_.s->size_);                                                                                                         \
+                }                                                                                                                                                                                      \
+                (hash) = __v.data_.s->hash_;                                                                                                                                                           \
+                break;                                                                                                                                                                                 \
+            }                                                                                                                                                                                          \
+            case VAR_STRINGID: {                                                                                                                                                                       \
+                VarString *__vs = (VarString *) __v.data_.i;                                                                                                                                           \
+                if (__vs->hash_ == 0) {                                                                                                                                                                \
+                    __vs->hash_ = FlHashString(__vs->data_, __vs->size_);                                                                                                                              \
+                }                                                                                                                                                                                      \
+                (hash) = __vs->hash_;                                                                                                                                                                  \
+                break;                                                                                                                                                                                 \
+            }                                                                                                                                                                                          \
+            case VAR_TABLE:                                                                                                                                                                            \
+                (hash) = (uint32_t) ((uintptr_t) __v.data_.t ^ ((uintptr_t) __v.data_.t >> 32));                                                                                                       \
+                break;                                                                                                                                                                                 \
+            case VAR_CLOSURE:                                                                                                                                                                          \
+                (hash) = (uint32_t) ((uintptr_t) __v.data_.cl ^ ((uintptr_t) __v.data_.cl >> 32));                                                                                                     \
+                break;                                                                                                                                                                                 \
+            default:                                                                                                                                                                                   \
+                (hash) = 0;                                                                                                                                                                            \
+                break;                                                                                                                                                                                 \
+        }                                                                                                                                                                                              \
+    } while (0)
 
 static inline CVar FlGetTable(CVar t, CVar k) {
     k = NORMALIZE_TABLE_KEY(k);
-    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
-    if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
-    if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) { FakeluaThrowError(_S, "table index is NaN"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) {
+        FakeluaThrowError(_S, "attempt to index a non-table value");
+    }
+    if (UNLIKELY(k.type_ == VAR_NIL)) {
+        FakeluaThrowError(_S, "table index is nil");
+    }
+    if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) {
+        FakeluaThrowError(_S, "table index is NaN");
+    }
     VarTable *tbl = t.data_.t;
     if (tbl->spec_get) {
         bool __finish = false;
         CVar __r = tbl->spec_get(tbl, k, &__finish);
         if (__finish) return __r;
     }
-    if (k.type_ == VAR_INT && (uint64_t)k.data_.i - 1 < (uint64_t)tbl->arr_size_) { return tbl->arr_[k.data_.i - 1]; }
-    if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
-    uint32_t h; VarHash(k, h);
+    if (k.type_ == VAR_INT && (uint64_t) k.data_.i - 1 < (uint64_t) tbl->arr_size_) {
+        return tbl->arr_[k.data_.i - 1];
+    }
+    if (UNLIKELY(tbl->count_ == 0)) {
+        return (CVar) {VAR_NIL};
+    }
+    uint32_t h;
+    VarHash(k, h);
     if (LIKELY(tbl->bucket_count_ == 0)) {
         bool __eq;
-        if (tbl->quick_data_[0].hash == h) { VarEqual(tbl->quick_data_[0].key, k, __eq); if (__eq) { return tbl->quick_data_[0].val; } }
-        if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) { VarEqual(tbl->quick_data_[1].key, k, __eq); if (__eq) { return tbl->quick_data_[1].val; } }
-        if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h) { VarEqual(tbl->quick_data_[2].key, k, __eq); if (__eq) { return tbl->quick_data_[2].val; } }
-        if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h) { VarEqual(tbl->quick_data_[3].key, k, __eq); if (__eq) { return tbl->quick_data_[3].val; } }
-        if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h) { VarEqual(tbl->quick_data_[4].key, k, __eq); if (__eq) { return tbl->quick_data_[4].val; } }
-        if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h) { VarEqual(tbl->quick_data_[5].key, k, __eq); if (__eq) { return tbl->quick_data_[5].val; } }
-        if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h) { VarEqual(tbl->quick_data_[6].key, k, __eq); if (__eq) { return tbl->quick_data_[6].val; } }
-        if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) { VarEqual(tbl->quick_data_[7].key, k, __eq); if (__eq) { return tbl->quick_data_[7].val; } }
+        if (tbl->quick_data_[0].hash == h) {
+            VarEqual(tbl->quick_data_[0].key, k, __eq);
+            if (__eq) {
+                return tbl->quick_data_[0].val;
+            }
+        }
+        if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) {
+            VarEqual(tbl->quick_data_[1].key, k, __eq);
+            if (__eq) {
+                return tbl->quick_data_[1].val;
+            }
+        }
+        if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h) {
+            VarEqual(tbl->quick_data_[2].key, k, __eq);
+            if (__eq) {
+                return tbl->quick_data_[2].val;
+            }
+        }
+        if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h) {
+            VarEqual(tbl->quick_data_[3].key, k, __eq);
+            if (__eq) {
+                return tbl->quick_data_[3].val;
+            }
+        }
+        if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h) {
+            VarEqual(tbl->quick_data_[4].key, k, __eq);
+            if (__eq) {
+                return tbl->quick_data_[4].val;
+            }
+        }
+        if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h) {
+            VarEqual(tbl->quick_data_[5].key, k, __eq);
+            if (__eq) {
+                return tbl->quick_data_[5].val;
+            }
+        }
+        if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h) {
+            VarEqual(tbl->quick_data_[6].key, k, __eq);
+            if (__eq) {
+                return tbl->quick_data_[6].val;
+            }
+        }
+        if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) {
+            VarEqual(tbl->quick_data_[7].key, k, __eq);
+            if (__eq) {
+                return tbl->quick_data_[7].val;
+            }
+        }
     } else {
         uint32_t mask = tbl->bucket_count_ - 1;
         uint32_t idx = h & mask;
         TableNode *curr = &tbl->nodes_[idx];
-        if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) { return (CVar){VAR_NIL}; }
+        if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) {
+            return (CVar) {VAR_NIL};
+        }
         while (1) {
-            if (curr->entry.hash == h) { bool __eq; VarEqual(curr->entry.key, k, __eq); if (__eq) { return curr->entry.val; } }
+            if (curr->entry.hash == h) {
+                bool __eq;
+                VarEqual(curr->entry.key, k, __eq);
+                if (__eq) {
+                    return curr->entry.val;
+                }
+            }
             uint32_t next = curr->next;
-            if (next == 0xFFFFFFFF) { break; }
+            if (next == 0xFFFFFFFF) {
+                break;
+            }
             curr = &tbl->nodes_[next];
         }
     }
-    return (CVar){VAR_NIL};
+    return (CVar) {VAR_NIL};
 }
 
 static inline uint32_t NextPowerOfTwo(uint32_t v) {
-    v--; v |= v >> 1; v |= v >> 2; v |= v >> 4; v |= v >> 8; v |= v >> 16; v++;
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v++;
     return v;
 }
 
@@ -964,25 +1143,46 @@ static inline bool FlTableInsertRaw(VarTable *tbl, CVar key, CVar val, uint32_t 
     uint32_t idx = hash & mask;
     TableNode *main_node = &tbl->nodes_[idx];
     if (LIKELY(main_node->entry.key.type_ == VAR_NIL)) {
-        main_node->entry.key = key; main_node->entry.val = val; main_node->entry.hash = hash; main_node->next = 0xFFFFFFFF;
-        main_node->active_pos = tbl->count_; tbl->active_list_[tbl->count_] = idx;
-        tbl->count_++; return true;
+        main_node->entry.key = key;
+        main_node->entry.val = val;
+        main_node->entry.hash = hash;
+        main_node->next = 0xFFFFFFFF;
+        main_node->active_pos = tbl->count_;
+        tbl->active_list_[tbl->count_] = idx;
+        tbl->count_++;
+        return true;
     }
     uint32_t curr_idx = idx;
     while (1) {
         TableNode *curr = &tbl->nodes_[curr_idx];
-        if (curr->entry.hash == hash) { bool __eq; VarEqual(curr->entry.key, key, __eq); if (__eq) { curr->entry.val = val; return true; } }
-        if (curr->next == 0xFFFFFFFF) { break; }
+        if (curr->entry.hash == hash) {
+            bool __eq;
+            VarEqual(curr->entry.key, key, __eq);
+            if (__eq) {
+                curr->entry.val = val;
+                return true;
+            }
+        }
+        if (curr->next == 0xFFFFFFFF) {
+            break;
+        }
         curr_idx = curr->next;
     }
-    if (UNLIKELY(tbl->free_list_idx_ == 0xFFFFFFFF)) { return false; }
+    if (UNLIKELY(tbl->free_list_idx_ == 0xFFFFFFFF)) {
+        return false;
+    }
     uint32_t new_node_idx = tbl->free_list_idx_;
     TableNode *new_node = &tbl->nodes_[new_node_idx];
     tbl->free_list_idx_ = new_node->next;
-    new_node->entry.key = key; new_node->entry.val = val; new_node->entry.hash = hash;
-    new_node->next = main_node->next; main_node->next = new_node_idx;
-    new_node->active_pos = tbl->count_; tbl->active_list_[tbl->count_] = new_node_idx;
-    tbl->count_++; return true;
+    new_node->entry.key = key;
+    new_node->entry.val = val;
+    new_node->entry.hash = hash;
+    new_node->next = main_node->next;
+    main_node->next = new_node_idx;
+    new_node->active_pos = tbl->count_;
+    tbl->active_list_[tbl->count_] = new_node_idx;
+    tbl->count_++;
+    return true;
 }
 
 static inline void FlTableRehash(VarTable *tbl) {
@@ -990,20 +1190,41 @@ static inline void FlTableRehash(VarTable *tbl) {
     uint32_t old_bucket_count = tbl->bucket_count_;
     TableNode *old_nodes = tbl->nodes_;
     uint32_t new_bucket_count = NextPowerOfTwo(old_count + 1);
-    if (new_bucket_count <= old_bucket_count) { new_bucket_count = old_bucket_count * 2; }
+    if (new_bucket_count <= old_bucket_count) {
+        new_bucket_count = old_bucket_count * 2;
+    }
     while (1) {
         uint32_t overflow_count = new_bucket_count / 2;
         uint32_t total_nodes = new_bucket_count + overflow_count;
         size_t nodes_size = total_nodes * sizeof(TableNode);
         size_t active_list_size = total_nodes * sizeof(uint32_t);
-        char *buffer = (char *)FlFastAlloc(_S, nodes_size + active_list_size, !__fakelua_init_flag__);
-        TableNode *new_nodes = (TableNode *)buffer;
-        uint32_t *new_active_list = (uint32_t *)(buffer + nodes_size);
-        { uint32_t i; for (i = 0; i < total_nodes; ++i) { new_nodes[i].entry.key.type_ = VAR_NIL; new_nodes[i].next = 0xFFFFFFFF; new_nodes[i].active_pos = 0xFFFFFFFF; } }
-        TableNode *prev_nodes = tbl->nodes_; uint32_t *prev_active_list = tbl->active_list_; uint32_t prev_bucket_count = tbl->bucket_count_; uint32_t prev_count = tbl->count_; uint32_t prev_free_list_idx = tbl->free_list_idx_;
-        tbl->nodes_ = new_nodes; tbl->active_list_ = new_active_list; tbl->bucket_count_ = new_bucket_count; tbl->count_ = 0;
+        char *buffer = (char *) FlFastAlloc(_S, nodes_size + active_list_size, !__fakelua_init_flag__);
+        TableNode *new_nodes = (TableNode *) buffer;
+        uint32_t *new_active_list = (uint32_t *) (buffer + nodes_size);
+        {
+            uint32_t i;
+            for (i = 0; i < total_nodes; ++i) {
+                new_nodes[i].entry.key.type_ = VAR_NIL;
+                new_nodes[i].next = 0xFFFFFFFF;
+                new_nodes[i].active_pos = 0xFFFFFFFF;
+            }
+        }
+        TableNode *prev_nodes = tbl->nodes_;
+        uint32_t *prev_active_list = tbl->active_list_;
+        uint32_t prev_bucket_count = tbl->bucket_count_;
+        uint32_t prev_count = tbl->count_;
+        uint32_t prev_free_list_idx = tbl->free_list_idx_;
+        tbl->nodes_ = new_nodes;
+        tbl->active_list_ = new_active_list;
+        tbl->bucket_count_ = new_bucket_count;
+        tbl->count_ = 0;
         if (LIKELY(overflow_count > 0)) {
-            { uint32_t i; for (i = 0; i < overflow_count - 1; ++i) { tbl->nodes_[new_bucket_count + i].next = new_bucket_count + i + 1; } }
+            {
+                uint32_t i;
+                for (i = 0; i < overflow_count - 1; ++i) {
+                    tbl->nodes_[new_bucket_count + i].next = new_bucket_count + i + 1;
+                }
+            }
             tbl->nodes_[new_bucket_count + overflow_count - 1].next = 0xFFFFFFFF;
             tbl->free_list_idx_ = new_bucket_count;
         } else {
@@ -1011,91 +1232,288 @@ static inline void FlTableRehash(VarTable *tbl) {
         }
         bool success = true;
         if (LIKELY(old_bucket_count == 0)) {
-            { uint32_t i; for (i = 0; i < old_count; ++i) { if (!FlTableInsertRaw(tbl, tbl->quick_data_[i].key, tbl->quick_data_[i].val, tbl->quick_data_[i].hash)) { success = false; break; } } }
-        } else {
-            { uint32_t i; for (i = 0; i < old_bucket_count; ++i) {
-                uint32_t curr_idx = i;
-                while (curr_idx != 0xFFFFFFFF) {
-                    TableNode *old_node = &old_nodes[curr_idx];
-                    if (LIKELY(old_node->entry.key.type_ != VAR_NIL)) { if (!FlTableInsertRaw(tbl, old_node->entry.key, old_node->entry.val, old_node->entry.hash)) { success = false; break; } }
-                    curr_idx = old_node->next;
+            {
+                uint32_t i;
+                for (i = 0; i < old_count; ++i) {
+                    if (!FlTableInsertRaw(tbl, tbl->quick_data_[i].key, tbl->quick_data_[i].val, tbl->quick_data_[i].hash)) {
+                        success = false;
+                        break;
+                    }
                 }
-                if (!success) { break; }
-            } }
+            }
+        } else {
+            {
+                uint32_t i;
+                for (i = 0; i < old_bucket_count; ++i) {
+                    uint32_t curr_idx = i;
+                    while (curr_idx != 0xFFFFFFFF) {
+                        TableNode *old_node = &old_nodes[curr_idx];
+                        if (LIKELY(old_node->entry.key.type_ != VAR_NIL)) {
+                            if (!FlTableInsertRaw(tbl, old_node->entry.key, old_node->entry.val, old_node->entry.hash)) {
+                                success = false;
+                                break;
+                            }
+                        }
+                        curr_idx = old_node->next;
+                    }
+                    if (!success) {
+                        break;
+                    }
+                }
+            }
         }
-        if (LIKELY(success)) { break; } else { tbl->nodes_ = prev_nodes; tbl->active_list_ = prev_active_list; tbl->bucket_count_ = prev_bucket_count; tbl->count_ = prev_count; tbl->free_list_idx_ = prev_free_list_idx; new_bucket_count *= 2; }
+        if (LIKELY(success)) {
+            break;
+        } else {
+            tbl->nodes_ = prev_nodes;
+            tbl->active_list_ = prev_active_list;
+            tbl->bucket_count_ = prev_bucket_count;
+            tbl->count_ = prev_count;
+            tbl->free_list_idx_ = prev_free_list_idx;
+            new_bucket_count *= 2;
+        }
     }
 }
 
 static inline bool FlArrResizeInsert(VarTable *tbl, CVar k, CVar v);
 
 static inline void FlHashSet(VarTable *tbl, CVar k, CVar v) {
-    uint32_t h; VarHash(k, h);
+    uint32_t h;
+    VarHash(k, h);
     if (UNLIKELY(v.type_ == VAR_NIL)) {
-        if (UNLIKELY(tbl->count_ == 0)) { return; }
+        if (UNLIKELY(tbl->count_ == 0)) {
+            return;
+        }
         if (LIKELY(tbl->bucket_count_ == 0)) {
             bool __eq;
-            if (tbl->quick_data_[0].hash == h) { VarEqual(tbl->quick_data_[0].key, k, __eq); if (__eq) { if (tbl->count_ > 1) { tbl->quick_data_[0] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
-            if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) { VarEqual(tbl->quick_data_[1].key, k, __eq); if (__eq) { if (tbl->count_ > 2) { tbl->quick_data_[1] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
-            if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h) { VarEqual(tbl->quick_data_[2].key, k, __eq); if (__eq) { if (tbl->count_ > 3) { tbl->quick_data_[2] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
-            if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h) { VarEqual(tbl->quick_data_[3].key, k, __eq); if (__eq) { if (tbl->count_ > 4) { tbl->quick_data_[3] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
-            if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h) { VarEqual(tbl->quick_data_[4].key, k, __eq); if (__eq) { if (tbl->count_ > 5) { tbl->quick_data_[4] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
-            if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h) { VarEqual(tbl->quick_data_[5].key, k, __eq); if (__eq) { if (tbl->count_ > 6) { tbl->quick_data_[5] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
-            if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h) { VarEqual(tbl->quick_data_[6].key, k, __eq); if (__eq) { if (tbl->count_ > 7) { tbl->quick_data_[6] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
-            if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) { VarEqual(tbl->quick_data_[7].key, k, __eq); if (__eq) { tbl->count_--; return; } }
-        } else {
-            uint32_t mask = tbl->bucket_count_ - 1; uint32_t idx = h & mask; TableNode *curr = &tbl->nodes_[idx];
-            if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) { return; }
-            { bool __eq; VarEqual(curr->entry.key, k, __eq); if (curr->entry.hash == h && __eq) {
-                if (curr->next != 0xFFFFFFFF) {
-                    uint32_t next_idx = curr->next; TableNode *next_node = &tbl->nodes_[next_idx];
-                    uint32_t pos = next_node->active_pos; uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
-                    if (next_idx != last_node_idx) { tbl->active_list_[pos] = last_node_idx; tbl->nodes_[last_node_idx].active_pos = pos; }
-                    next_node->active_pos = 0xFFFFFFFF; curr->entry = next_node->entry; curr->next = next_node->next; next_node->next = tbl->free_list_idx_; tbl->free_list_idx_ = next_idx;
-                } else {
-                    uint32_t pos = curr->active_pos; uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
-                    if (idx != last_node_idx) { tbl->active_list_[pos] = last_node_idx; tbl->nodes_[last_node_idx].active_pos = pos; }
-                    curr->active_pos = 0xFFFFFFFF; curr->entry.key.type_ = VAR_NIL;
+            if (tbl->quick_data_[0].hash == h) {
+                VarEqual(tbl->quick_data_[0].key, k, __eq);
+                if (__eq) {
+                    if (tbl->count_ > 1) {
+                        tbl->quick_data_[0] = tbl->quick_data_[tbl->count_ - 1];
+                    }
+                    tbl->count_--;
+                    return;
                 }
-                tbl->count_--; return;
-            } }
-            uint32_t prev_idx = idx; uint32_t curr_idx = curr->next;
+            }
+            if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) {
+                VarEqual(tbl->quick_data_[1].key, k, __eq);
+                if (__eq) {
+                    if (tbl->count_ > 2) {
+                        tbl->quick_data_[1] = tbl->quick_data_[tbl->count_ - 1];
+                    }
+                    tbl->count_--;
+                    return;
+                }
+            }
+            if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h) {
+                VarEqual(tbl->quick_data_[2].key, k, __eq);
+                if (__eq) {
+                    if (tbl->count_ > 3) {
+                        tbl->quick_data_[2] = tbl->quick_data_[tbl->count_ - 1];
+                    }
+                    tbl->count_--;
+                    return;
+                }
+            }
+            if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h) {
+                VarEqual(tbl->quick_data_[3].key, k, __eq);
+                if (__eq) {
+                    if (tbl->count_ > 4) {
+                        tbl->quick_data_[3] = tbl->quick_data_[tbl->count_ - 1];
+                    }
+                    tbl->count_--;
+                    return;
+                }
+            }
+            if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h) {
+                VarEqual(tbl->quick_data_[4].key, k, __eq);
+                if (__eq) {
+                    if (tbl->count_ > 5) {
+                        tbl->quick_data_[4] = tbl->quick_data_[tbl->count_ - 1];
+                    }
+                    tbl->count_--;
+                    return;
+                }
+            }
+            if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h) {
+                VarEqual(tbl->quick_data_[5].key, k, __eq);
+                if (__eq) {
+                    if (tbl->count_ > 6) {
+                        tbl->quick_data_[5] = tbl->quick_data_[tbl->count_ - 1];
+                    }
+                    tbl->count_--;
+                    return;
+                }
+            }
+            if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h) {
+                VarEqual(tbl->quick_data_[6].key, k, __eq);
+                if (__eq) {
+                    if (tbl->count_ > 7) {
+                        tbl->quick_data_[6] = tbl->quick_data_[tbl->count_ - 1];
+                    }
+                    tbl->count_--;
+                    return;
+                }
+            }
+            if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) {
+                VarEqual(tbl->quick_data_[7].key, k, __eq);
+                if (__eq) {
+                    tbl->count_--;
+                    return;
+                }
+            }
+        } else {
+            uint32_t mask = tbl->bucket_count_ - 1;
+            uint32_t idx = h & mask;
+            TableNode *curr = &tbl->nodes_[idx];
+            if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) {
+                return;
+            }
+            {
+                bool __eq;
+                VarEqual(curr->entry.key, k, __eq);
+                if (curr->entry.hash == h && __eq) {
+                    if (curr->next != 0xFFFFFFFF) {
+                        uint32_t next_idx = curr->next;
+                        TableNode *next_node = &tbl->nodes_[next_idx];
+                        uint32_t pos = next_node->active_pos;
+                        uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
+                        if (next_idx != last_node_idx) {
+                            tbl->active_list_[pos] = last_node_idx;
+                            tbl->nodes_[last_node_idx].active_pos = pos;
+                        }
+                        next_node->active_pos = 0xFFFFFFFF;
+                        curr->entry = next_node->entry;
+                        curr->next = next_node->next;
+                        next_node->next = tbl->free_list_idx_;
+                        tbl->free_list_idx_ = next_idx;
+                    } else {
+                        uint32_t pos = curr->active_pos;
+                        uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
+                        if (idx != last_node_idx) {
+                            tbl->active_list_[pos] = last_node_idx;
+                            tbl->nodes_[last_node_idx].active_pos = pos;
+                        }
+                        curr->active_pos = 0xFFFFFFFF;
+                        curr->entry.key.type_ = VAR_NIL;
+                    }
+                    tbl->count_--;
+                    return;
+                }
+            }
+            uint32_t prev_idx = idx;
+            uint32_t curr_idx = curr->next;
             while (curr_idx != 0xFFFFFFFF) {
                 TableNode *node = &tbl->nodes_[curr_idx];
-                { bool __eq; VarEqual(node->entry.key, k, __eq); if (node->entry.hash == h && __eq) {
-                    uint32_t pos = node->active_pos; uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
-                    if (curr_idx != last_node_idx) { tbl->active_list_[pos] = last_node_idx; tbl->nodes_[last_node_idx].active_pos = pos; }
-                    node->active_pos = 0xFFFFFFFF; tbl->nodes_[prev_idx].next = node->next; node->next = tbl->free_list_idx_; tbl->free_list_idx_ = curr_idx; tbl->count_--; return;
-                } }
-                prev_idx = curr_idx; curr_idx = node->next;
+                {
+                    bool __eq;
+                    VarEqual(node->entry.key, k, __eq);
+                    if (node->entry.hash == h && __eq) {
+                        uint32_t pos = node->active_pos;
+                        uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
+                        if (curr_idx != last_node_idx) {
+                            tbl->active_list_[pos] = last_node_idx;
+                            tbl->nodes_[last_node_idx].active_pos = pos;
+                        }
+                        node->active_pos = 0xFFFFFFFF;
+                        tbl->nodes_[prev_idx].next = node->next;
+                        node->next = tbl->free_list_idx_;
+                        tbl->free_list_idx_ = curr_idx;
+                        tbl->count_--;
+                        return;
+                    }
+                }
+                prev_idx = curr_idx;
+                curr_idx = node->next;
             }
         }
         return;
     }
     if (LIKELY(tbl->bucket_count_ == 0)) {
         bool __eq;
-        if (tbl->count_ > 0 && tbl->quick_data_[0].hash == h) { VarEqual(tbl->quick_data_[0].key, k, __eq); if (__eq) { tbl->quick_data_[0].val = v; return; } }
-        if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) { VarEqual(tbl->quick_data_[1].key, k, __eq); if (__eq) { tbl->quick_data_[1].val = v; return; } }
-        if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h) { VarEqual(tbl->quick_data_[2].key, k, __eq); if (__eq) { tbl->quick_data_[2].val = v; return; } }
-        if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h) { VarEqual(tbl->quick_data_[3].key, k, __eq); if (__eq) { tbl->quick_data_[3].val = v; return; } }
-        if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h) { VarEqual(tbl->quick_data_[4].key, k, __eq); if (__eq) { tbl->quick_data_[4].val = v; return; } }
-        if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h) { VarEqual(tbl->quick_data_[5].key, k, __eq); if (__eq) { tbl->quick_data_[5].val = v; return; } }
-        if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h) { VarEqual(tbl->quick_data_[6].key, k, __eq); if (__eq) { tbl->quick_data_[6].val = v; return; } }
-        if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) { VarEqual(tbl->quick_data_[7].key, k, __eq); if (__eq) { tbl->quick_data_[7].val = v; return; } }
-        if (tbl->count_ < 8) { tbl->quick_data_[tbl->count_].key = k; tbl->quick_data_[tbl->count_].val = v; tbl->quick_data_[tbl->count_].hash = h; tbl->count_++; return; }
-        if (k.type_ == VAR_INT && FlArrResizeInsert(tbl, k, v)) { return; }
+        if (tbl->count_ > 0 && tbl->quick_data_[0].hash == h) {
+            VarEqual(tbl->quick_data_[0].key, k, __eq);
+            if (__eq) {
+                tbl->quick_data_[0].val = v;
+                return;
+            }
+        }
+        if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) {
+            VarEqual(tbl->quick_data_[1].key, k, __eq);
+            if (__eq) {
+                tbl->quick_data_[1].val = v;
+                return;
+            }
+        }
+        if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h) {
+            VarEqual(tbl->quick_data_[2].key, k, __eq);
+            if (__eq) {
+                tbl->quick_data_[2].val = v;
+                return;
+            }
+        }
+        if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h) {
+            VarEqual(tbl->quick_data_[3].key, k, __eq);
+            if (__eq) {
+                tbl->quick_data_[3].val = v;
+                return;
+            }
+        }
+        if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h) {
+            VarEqual(tbl->quick_data_[4].key, k, __eq);
+            if (__eq) {
+                tbl->quick_data_[4].val = v;
+                return;
+            }
+        }
+        if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h) {
+            VarEqual(tbl->quick_data_[5].key, k, __eq);
+            if (__eq) {
+                tbl->quick_data_[5].val = v;
+                return;
+            }
+        }
+        if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h) {
+            VarEqual(tbl->quick_data_[6].key, k, __eq);
+            if (__eq) {
+                tbl->quick_data_[6].val = v;
+                return;
+            }
+        }
+        if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) {
+            VarEqual(tbl->quick_data_[7].key, k, __eq);
+            if (__eq) {
+                tbl->quick_data_[7].val = v;
+                return;
+            }
+        }
+        if (tbl->count_ < 8) {
+            tbl->quick_data_[tbl->count_].key = k;
+            tbl->quick_data_[tbl->count_].val = v;
+            tbl->quick_data_[tbl->count_].hash = h;
+            tbl->count_++;
+            return;
+        }
+        if (k.type_ == VAR_INT && FlArrResizeInsert(tbl, k, v)) {
+            return;
+        }
         FlTableRehash(tbl);
     }
     if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) {
-        if (k.type_ == VAR_INT && FlArrResizeInsert(tbl, k, v)) { return; }
+        if (k.type_ == VAR_INT && FlArrResizeInsert(tbl, k, v)) {
+            return;
+        }
         FlTableRehash(tbl);
     }
     FlTableInsertRaw(tbl, k, v, h);
 }
 
 static inline CVar FlHashGetInt(VarTable *tbl, int64_t k) {
-    if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
-    uint32_t h = (uint32_t)(k ^ (k >> 32));
+    if (UNLIKELY(tbl->count_ == 0)) {
+        return (CVar) {VAR_NIL};
+    }
+    uint32_t h = (uint32_t) (k ^ (k >> 32));
     if (LIKELY(tbl->bucket_count_ == 0)) {
         for (uint32_t i = 0; i < tbl->count_; ++i) {
             if (tbl->quick_data_[i].hash == h && tbl->quick_data_[i].key.type_ == VAR_INT && tbl->quick_data_[i].key.data_.i == k) {
@@ -1106,23 +1524,29 @@ static inline CVar FlHashGetInt(VarTable *tbl, int64_t k) {
         uint32_t mask = tbl->bucket_count_ - 1;
         uint32_t idx = h & mask;
         TableNode *curr = &tbl->nodes_[idx];
-        if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) { return (CVar){VAR_NIL}; }
+        if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) {
+            return (CVar) {VAR_NIL};
+        }
         while (1) {
             if (curr->entry.hash == h && curr->entry.key.type_ == VAR_INT && curr->entry.key.data_.i == k) {
                 return curr->entry.val;
             }
             uint32_t next = curr->next;
-            if (next == 0xFFFFFFFF) { break; }
+            if (next == 0xFFFFFFFF) {
+                break;
+            }
             curr = &tbl->nodes_[next];
         }
     }
-    return (CVar){VAR_NIL};
+    return (CVar) {VAR_NIL};
 }
 
 __attribute__((noinline)) static void FlArrGrow(VarTable *tbl) {
     uint32_t cap = tbl->arr_cap_ ? tbl->arr_cap_ * 2 : 4;
-    CVar *na = (CVar *)FlFastAlloc(_S, (size_t)cap * sizeof(CVar), !__fakelua_init_flag__);
-    if (tbl->arr_size_ > 0) { memcpy(na, tbl->arr_, (size_t)tbl->arr_size_ * sizeof(CVar)); }
+    CVar *na = (CVar *) FlFastAlloc(_S, (size_t) cap * sizeof(CVar), !__fakelua_init_flag__);
+    if (tbl->arr_size_ > 0) {
+        memcpy(na, tbl->arr_, (size_t) tbl->arr_size_ * sizeof(CVar));
+    }
     tbl->arr_ = na;
     tbl->arr_cap_ = cap;
 }
@@ -1130,24 +1554,38 @@ __attribute__((noinline)) static void FlArrGrow(VarTable *tbl) {
 /* 数组末尾追加后，把哈希部分中紧随其后的整数键迁入数组，维持「哈希不含 [1, arr_size_+1]」。*/
 __attribute__((noinline)) static void FlArrMigrate(VarTable *tbl) {
     while (tbl->count_ != 0) {
-        int64_t nk = (int64_t)tbl->arr_size_ + 1;
+        int64_t nk = (int64_t) tbl->arr_size_ + 1;
         CVar hv = FlHashGetInt(tbl, nk);
-        if (hv.type_ == VAR_NIL) { break; }
-        CVar key; key.type_ = VAR_INT; key.flag_ = 0; key.data_.i = nk;
-        FlHashSet(tbl, key, (CVar){VAR_NIL});
-        if (UNLIKELY(tbl->arr_size_ == tbl->arr_cap_)) { FlArrGrow(tbl); }
+        if (hv.type_ == VAR_NIL) {
+            break;
+        }
+        CVar key;
+        key.type_ = VAR_INT;
+        key.flag_ = 0;
+        key.data_.i = nk;
+        FlHashSet(tbl, key, (CVar) {VAR_NIL});
+        if (UNLIKELY(tbl->arr_size_ == tbl->arr_cap_)) {
+            FlArrGrow(tbl);
+        }
         tbl->arr_[tbl->arr_size_++] = hv;
     }
 }
 
 /* 整数键写入的数组部分快路径。返回 true 表示已处理。*/
 static inline bool FlArrSetInt(VarTable *tbl, int64_t k, CVar v) {
-    uint64_t idx = (uint64_t)k - 1;
-    if (LIKELY(idx < (uint64_t)tbl->arr_size_)) { tbl->arr_[idx] = v; return true; }
-    if (idx == (uint64_t)tbl->arr_size_ && v.type_ != VAR_NIL && !tbl->spec_set) {
-        if (UNLIKELY(tbl->arr_size_ == tbl->arr_cap_)) { FlArrGrow(tbl); }
+    uint64_t idx = (uint64_t) k - 1;
+    if (LIKELY(idx < (uint64_t) tbl->arr_size_)) {
+        tbl->arr_[idx] = v;
+        return true;
+    }
+    if (idx == (uint64_t) tbl->arr_size_ && v.type_ != VAR_NIL && !tbl->spec_set) {
+        if (UNLIKELY(tbl->arr_size_ == tbl->arr_cap_)) {
+            FlArrGrow(tbl);
+        }
         tbl->arr_[tbl->arr_size_++] = v;
-        if (UNLIKELY(tbl->count_ != 0)) { FlArrMigrate(tbl); }
+        if (UNLIKELY(tbl->count_ != 0)) {
+            FlArrMigrate(tbl);
+        }
         return true;
     }
     return false;
@@ -1160,19 +1598,31 @@ __attribute__((noinline)) static bool FlArrTryResize(VarTable *tbl, int64_t nk) 
     uint64_t total = 0;
     uint32_t i;
     memset(nums, 0, sizeof(nums));
-#define FL_COUNT_INT_KEY(kk) do { \
-    int64_t __ck = (kk); \
-    if (__ck >= 1 && __ck <= (1LL << 30)) { nums[__ck == 1 ? 0 : 64 - __builtin_clzll((uint64_t)__ck - 1)]++; total++; } \
-} while(0)
-    for (i = 0; i < tbl->arr_size_; ++i) { if (tbl->arr_[i].type_ != VAR_NIL) { FL_COUNT_INT_KEY((int64_t)i + 1); } }
+#define FL_COUNT_INT_KEY(kk)                                                                                                                                                                           \
+    do {                                                                                                                                                                                               \
+        int64_t __ck = (kk);                                                                                                                                                                           \
+        if (__ck >= 1 && __ck <= (1LL << 30)) {                                                                                                                                                        \
+            nums[__ck == 1 ? 0 : 64 - __builtin_clzll((uint64_t) __ck - 1)]++;                                                                                                                         \
+            total++;                                                                                                                                                                                   \
+        }                                                                                                                                                                                              \
+    } while (0)
+    for (i = 0; i < tbl->arr_size_; ++i) {
+        if (tbl->arr_[i].type_ != VAR_NIL) {
+            FL_COUNT_INT_KEY((int64_t) i + 1);
+        }
+    }
     if (tbl->bucket_count_ == 0) {
         for (i = 0; i < tbl->count_; ++i) {
-            if (tbl->quick_data_[i].key.type_ == VAR_INT) { FL_COUNT_INT_KEY(tbl->quick_data_[i].key.data_.i); }
+            if (tbl->quick_data_[i].key.type_ == VAR_INT) {
+                FL_COUNT_INT_KEY(tbl->quick_data_[i].key.data_.i);
+            }
         }
     } else {
         for (i = 0; i < tbl->count_; ++i) {
             VarEntry *e = &tbl->nodes_[tbl->active_list_[i]].entry;
-            if (e->key.type_ == VAR_INT) { FL_COUNT_INT_KEY(e->key.data_.i); }
+            if (e->key.type_ == VAR_INT) {
+                FL_COUNT_INT_KEY(e->key.data_.i);
+            }
         }
     }
     FL_COUNT_INT_KEY(nk);
@@ -1180,24 +1630,35 @@ __attribute__((noinline)) static bool FlArrTryResize(VarTable *tbl, int64_t nk) 
     uint64_t a = 0, optimal = 0, two = 1;
     for (i = 0; i < 31 && total > two / 2; ++i, two <<= 1) {
         a += nums[i];
-        if (a > two / 2) { optimal = two; }
+        if (a > two / 2) {
+            optimal = two;
+        }
     }
-    if (optimal <= (uint64_t)tbl->arr_size_) { return false; }
+    if (optimal <= (uint64_t) tbl->arr_size_) {
+        return false;
+    }
     {
         uint32_t old_size = tbl->arr_size_;
-        CVar *na = (CVar *)FlFastAlloc(_S, (size_t)optimal * sizeof(CVar), !__fakelua_init_flag__);
-        if (old_size > 0) { memcpy(na, tbl->arr_, (size_t)old_size * sizeof(CVar)); }
-        memset(na + old_size, 0, (size_t)(optimal - old_size) * sizeof(CVar));
+        CVar *na = (CVar *) FlFastAlloc(_S, (size_t) optimal * sizeof(CVar), !__fakelua_init_flag__);
+        if (old_size > 0) {
+            memcpy(na, tbl->arr_, (size_t) old_size * sizeof(CVar));
+        }
+        memset(na + old_size, 0, (size_t) (optimal - old_size) * sizeof(CVar));
         tbl->arr_ = na;
-        tbl->arr_cap_ = (uint32_t)optimal;
-        tbl->arr_size_ = (uint32_t)optimal;
+        tbl->arr_cap_ = (uint32_t) optimal;
+        tbl->arr_size_ = (uint32_t) optimal;
         if (tbl->count_ != 0) {
             uint64_t j;
             for (j = old_size + 1; j <= optimal && tbl->count_ != 0; ++j) {
-                CVar hv = FlHashGetInt(tbl, (int64_t)j);
-                if (hv.type_ == VAR_NIL) { continue; }
-                CVar key; key.type_ = VAR_INT; key.flag_ = 0; key.data_.i = (int64_t)j;
-                FlHashSet(tbl, key, (CVar){VAR_NIL});
+                CVar hv = FlHashGetInt(tbl, (int64_t) j);
+                if (hv.type_ == VAR_NIL) {
+                    continue;
+                }
+                CVar key;
+                key.type_ = VAR_INT;
+                key.flag_ = 0;
+                key.data_.i = (int64_t) j;
+                FlHashSet(tbl, key, (CVar) {VAR_NIL});
                 tbl->arr_[j - 1] = hv;
             }
             FlArrMigrate(tbl);
@@ -1208,10 +1669,16 @@ __attribute__((noinline)) static bool FlArrTryResize(VarTable *tbl, int64_t nk) 
 
 /* 整数键 k 要插入已写满的哈希部分前调用；返回 true 表示 k 已写入数组或哈希空位，调用方直接返回。*/
 static inline bool FlArrResizeInsert(VarTable *tbl, CVar k, CVar v) {
-    if (k.type_ != VAR_INT || tbl->spec_set) { return false; }
-    if (!FlArrTryResize(tbl, k.data_.i)) { return false; }
-    if (FlArrSetInt(tbl, k.data_.i, v)) { return true; }
-    uint32_t h = (uint32_t)(k.data_.i ^ (k.data_.i >> 32));
+    if (k.type_ != VAR_INT || tbl->spec_set) {
+        return false;
+    }
+    if (!FlArrTryResize(tbl, k.data_.i)) {
+        return false;
+    }
+    if (FlArrSetInt(tbl, k.data_.i, v)) {
+        return true;
+    }
+    uint32_t h = (uint32_t) (k.data_.i ^ (k.data_.i >> 32));
     if (tbl->bucket_count_ == 0) {
         if (tbl->count_ < 8) {
             tbl->quick_data_[tbl->count_].key = k;
@@ -1231,17 +1698,25 @@ static inline bool FlArrResizeInsert(VarTable *tbl, CVar k, CVar v) {
 
 static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
     k = NORMALIZE_TABLE_KEY(k);
-    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) {
+        FakeluaThrowError(_S, "attempt to index a non-table value");
+    }
     FL_CHECK_CONST_TABLE(t);
-    if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
-    if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) { FakeluaThrowError(_S, "table index is NaN"); }
+    if (UNLIKELY(k.type_ == VAR_NIL)) {
+        FakeluaThrowError(_S, "table index is nil");
+    }
+    if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) {
+        FakeluaThrowError(_S, "table index is NaN");
+    }
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_set)) {
         bool __finish = false;
         tbl->spec_set(tbl, k, v, &__finish);
         if (__finish) return;
     }
-    if (k.type_ == VAR_INT && FlArrSetInt(tbl, k.data_.i, v)) { return; }
+    if (k.type_ == VAR_INT && FlArrSetInt(tbl, k.data_.i, v)) {
+        return;
+    }
     FlHashSet(tbl, k, v);
 }
 
@@ -1249,16 +1724,25 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     k = NORMALIZE_TABLE_KEY(k);
     FlSetTableImpl(t, k, v);
     if (LIKELY(t.type_ == VAR_TABLE)) {
-        if (k.type_ == VAR_INT) { FlSeqNoteIntSet(t.data_.t, k.data_.i, v.type_ == VAR_NIL); }
+        if (k.type_ == VAR_INT) {
+            FlSeqNoteIntSet(t.data_.t, k.data_.i, v.type_ == VAR_NIL);
+        }
     }
 }
 
 static inline CVar FlGetTableInt(CVar t, int64_t k) {
-    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) {
+        FakeluaThrowError(_S, "attempt to index a non-table value");
+    }
     VarTable *tbl = t.data_.t;
-    if (LIKELY((uint64_t)k - 1 < (uint64_t)tbl->arr_size_)) { return tbl->arr_[k - 1]; }
+    if (LIKELY((uint64_t) k - 1 < (uint64_t) tbl->arr_size_)) {
+        return tbl->arr_[k - 1];
+    }
     if (UNLIKELY(tbl->spec_get)) {
-        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.flag_ = 0; key_cvar.data_.i = k;
+        CVar key_cvar;
+        key_cvar.type_ = VAR_INT;
+        key_cvar.flag_ = 0;
+        key_cvar.data_.i = k;
         bool __finish = false;
         CVar __r = tbl->spec_get(tbl, key_cvar, &__finish);
         if (__finish) return __r;
@@ -1267,18 +1751,28 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
 }
 
 static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
-    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) {
+        FakeluaThrowError(_S, "attempt to index a non-table value");
+    }
     FL_CHECK_CONST_TABLE(t);
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_set)) {
-        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.flag_ = 0; key_cvar.data_.i = k;
+        CVar key_cvar;
+        key_cvar.type_ = VAR_INT;
+        key_cvar.flag_ = 0;
+        key_cvar.data_.i = k;
         bool __finish = false;
         tbl->spec_set(tbl, key_cvar, v, &__finish);
         if (__finish) return;
     }
-    if (FlArrSetInt(tbl, k, v)) { return; }
-    uint32_t h = (uint32_t)(k ^ (k >> 32));
-    CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.flag_ = 0; key_cvar.data_.i = k;
+    if (FlArrSetInt(tbl, k, v)) {
+        return;
+    }
+    uint32_t h = (uint32_t) (k ^ (k >> 32));
+    CVar key_cvar;
+    key_cvar.type_ = VAR_INT;
+    key_cvar.flag_ = 0;
+    key_cvar.data_.i = k;
     if (UNLIKELY(v.type_ == VAR_NIL)) {
         FlHashSet(tbl, key_cvar, v);
         return;
@@ -1286,20 +1780,26 @@ static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
     if (LIKELY(tbl->bucket_count_ == 0)) {
         for (uint32_t i = 0; i < tbl->count_; ++i) {
             if (tbl->quick_data_[i].hash == h && tbl->quick_data_[i].key.type_ == VAR_INT && tbl->quick_data_[i].key.data_.i == k) {
-                tbl->quick_data_[i].val = v; return;
+                tbl->quick_data_[i].val = v;
+                return;
             }
         }
         if (tbl->count_ < 8) {
             tbl->quick_data_[tbl->count_].key = key_cvar;
             tbl->quick_data_[tbl->count_].val = v;
             tbl->quick_data_[tbl->count_].hash = h;
-            tbl->count_++; return;
+            tbl->count_++;
+            return;
         }
-        if (FlArrResizeInsert(tbl, key_cvar, v)) { return; }
+        if (FlArrResizeInsert(tbl, key_cvar, v)) {
+            return;
+        }
         FlTableRehash(tbl);
     }
     if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) {
-        if (FlArrResizeInsert(tbl, key_cvar, v)) { return; }
+        if (FlArrResizeInsert(tbl, key_cvar, v)) {
+            return;
+        }
         FlTableRehash(tbl);
     }
     FlTableInsertRaw(tbl, key_cvar, v, h);
@@ -1308,88 +1808,118 @@ static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
 static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
     if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
         VarTable *tbl = t.data_.t;
-        uint64_t idx = (uint64_t)k - 1;
+        uint64_t idx = (uint64_t) k - 1;
         /* 新旧值都非 nil 时序列长度不变，可跳过缓存维护。*/
-        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && v.type_ != VAR_NIL && tbl->arr_[idx].type_ != VAR_NIL)) {
+        if (LIKELY(idx < (uint64_t) tbl->arr_size_ && v.type_ != VAR_NIL && tbl->arr_[idx].type_ != VAR_NIL)) {
             tbl->arr_[idx] = v;
             return;
         }
     }
     FlSetTableIntImpl(t, k, v);
-    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, v.type_ == VAR_NIL); }
+    if (LIKELY(t.type_ == VAR_TABLE)) {
+        FlSeqNoteIntSet(t.data_.t, k, v.type_ == VAR_NIL);
+    }
 }
 
 static inline void FlSetTableInt_Int(CVar t, int64_t k, int64_t v) {
     if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
         VarTable *tbl = t.data_.t;
-        uint64_t idx = (uint64_t)k - 1;
-        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
+        uint64_t idx = (uint64_t) k - 1;
+        if (LIKELY(idx < (uint64_t) tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
             tbl->arr_[idx].type_ = VAR_INT;
             tbl->arr_[idx].flag_ = 0;
             tbl->arr_[idx].data_.i = v;
             return;
         }
     }
-    CVar cv; cv.type_ = VAR_INT; cv.flag_ = 0; cv.data_.i = v;
+    CVar cv;
+    cv.type_ = VAR_INT;
+    cv.flag_ = 0;
+    cv.data_.i = v;
     FlSetTableIntImpl(t, k, cv);
-    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, false); }
+    if (LIKELY(t.type_ == VAR_TABLE)) {
+        FlSeqNoteIntSet(t.data_.t, k, false);
+    }
 }
 
 static inline void FlSetTableInt_Float(CVar t, int64_t k, double v) {
     if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
         VarTable *tbl = t.data_.t;
-        uint64_t idx = (uint64_t)k - 1;
-        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
+        uint64_t idx = (uint64_t) k - 1;
+        if (LIKELY(idx < (uint64_t) tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
             tbl->arr_[idx].type_ = VAR_FLOAT;
             tbl->arr_[idx].flag_ = 0;
             tbl->arr_[idx].data_.f = v;
             return;
         }
     }
-    CVar cv; cv.type_ = VAR_FLOAT; cv.flag_ = 0; cv.data_.f = v;
+    CVar cv;
+    cv.type_ = VAR_FLOAT;
+    cv.flag_ = 0;
+    cv.data_.f = v;
     FlSetTableIntImpl(t, k, cv);
-    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, false); }
+    if (LIKELY(t.type_ == VAR_TABLE)) {
+        FlSeqNoteIntSet(t.data_.t, k, false);
+    }
 }
 
 static inline void FlSetTableInt_Bool(CVar t, int64_t k, bool b) {
     if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
         VarTable *tbl = t.data_.t;
-        uint64_t idx = (uint64_t)k - 1;
-        if (LIKELY(idx < (uint64_t)tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
+        uint64_t idx = (uint64_t) k - 1;
+        if (LIKELY(idx < (uint64_t) tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
             tbl->arr_[idx].type_ = VAR_BOOL;
             tbl->arr_[idx].flag_ = 0;
             tbl->arr_[idx].data_.b = b;
             return;
         }
     }
-    CVar cv; cv.type_ = VAR_BOOL; cv.flag_ = 0; cv.data_.b = b;
+    CVar cv;
+    cv.type_ = VAR_BOOL;
+    cv.flag_ = 0;
+    cv.data_.b = b;
     FlSetTableIntImpl(t, k, cv);
-    if (LIKELY(t.type_ == VAR_TABLE)) { FlSeqNoteIntSet(t.data_.t, k, false); }
+    if (LIKELY(t.type_ == VAR_TABLE)) {
+        FlSeqNoteIntSet(t.data_.t, k, false);
+    }
 }
 
 static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
-    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) {
+        FakeluaThrowError(_S, "attempt to index a non-table value");
+    }
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_get)) {
-        CVar k; k.type_ = VAR_STRINGID; k.flag_ = 0; k.data_.i = str_id;
+        CVar k;
+        k.type_ = VAR_STRINGID;
+        k.flag_ = 0;
+        k.data_.i = str_id;
         bool __finish = false;
         CVar __r = tbl->spec_get(tbl, k, &__finish);
         if (__finish) return __r;
     }
     // hash fallback
-    if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
-    VarString *vs = (VarString *)str_id;
+    if (UNLIKELY(tbl->count_ == 0)) {
+        return (CVar) {VAR_NIL};
+    }
+    VarString *vs = (VarString *) str_id;
     uint32_t h = LIKELY(vs->hash_ != 0) ? vs->hash_ : (vs->hash_ = FlHashString(vs->data_, vs->size_));
     if (LIKELY(tbl->bucket_count_ == 0)) {
         for (uint32_t i = 0; i < tbl->count_; ++i) {
             if (tbl->quick_data_[i].hash == h) {
                 CVar ek = tbl->quick_data_[i].key;
                 if (LIKELY(ek.type_ == VAR_STRINGID)) {
-                    if (ek.data_.i == str_id) { return tbl->quick_data_[i].val; }
-                    VarString *evs = (VarString *)ek.data_.i;
-                    if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) { return tbl->quick_data_[i].val; }
+                    if (ek.data_.i == str_id) {
+                        return tbl->quick_data_[i].val;
+                    }
+                    VarString *evs = (VarString *) ek.data_.i;
+                    if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) {
+                        return tbl->quick_data_[i].val;
+                    }
                 } else if (UNLIKELY(ek.type_ == VAR_STRING)) {
-                    if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) { return tbl->quick_data_[i].val; }
+                    if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) {
+                        return tbl->quick_data_[i].val;
+                    }
                 }
             }
         }
@@ -1397,42 +1927,60 @@ static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
         uint32_t mask = tbl->bucket_count_ - 1;
         uint32_t idx = h & mask;
         TableNode *curr = &tbl->nodes_[idx];
-        if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) { return (CVar){VAR_NIL}; }
+        if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) {
+            return (CVar) {VAR_NIL};
+        }
         while (1) {
             if (curr->entry.hash == h) {
                 CVar ek = curr->entry.key;
                 if (LIKELY(ek.type_ == VAR_STRINGID)) {
-                    if (ek.data_.i == str_id) { return curr->entry.val; }
-                    VarString *evs = (VarString *)ek.data_.i;
-                    if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) { return curr->entry.val; }
+                    if (ek.data_.i == str_id) {
+                        return curr->entry.val;
+                    }
+                    VarString *evs = (VarString *) ek.data_.i;
+                    if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) {
+                        return curr->entry.val;
+                    }
                 } else if (UNLIKELY(ek.type_ == VAR_STRING)) {
-                    if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) { return curr->entry.val; }
+                    if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) {
+                        return curr->entry.val;
+                    }
                 }
             }
             uint32_t next = curr->next;
-            if (next == 0xFFFFFFFF) { break; }
+            if (next == 0xFFFFFFFF) {
+                break;
+            }
             curr = &tbl->nodes_[next];
         }
     }
-    return (CVar){VAR_NIL};
+    return (CVar) {VAR_NIL};
 }
 
 static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
-    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) {
+        FakeluaThrowError(_S, "attempt to index a non-table value");
+    }
     FL_CHECK_CONST_TABLE(t);
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_set)) {
-        CVar k; k.type_ = VAR_STRINGID; k.flag_ = 0; k.data_.i = str_id;
+        CVar k;
+        k.type_ = VAR_STRINGID;
+        k.flag_ = 0;
+        k.data_.i = str_id;
         bool __finish = false;
         tbl->spec_set(tbl, k, v, &__finish);
         if (__finish) return;
     }
     // hash fallback
-    VarString *vs = (VarString *)str_id;
+    VarString *vs = (VarString *) str_id;
     uint32_t h = LIKELY(vs->hash_ != 0) ? vs->hash_ : (vs->hash_ = FlHashString(vs->data_, vs->size_));
-    CVar key_cvar; key_cvar.type_ = VAR_STRINGID; key_cvar.flag_ = 0; key_cvar.data_.i = str_id;
+    CVar key_cvar;
+    key_cvar.type_ = VAR_STRINGID;
+    key_cvar.flag_ = 0;
+    key_cvar.data_.i = str_id;
     if (UNLIKELY(v.type_ == VAR_NIL)) {
-        FlSetTable((CVar){.type_ = VAR_TABLE, .data_.t = tbl}, key_cvar, v);
+        FlSetTable((CVar) {.type_ = VAR_TABLE, .data_.t = tbl}, key_cvar, v);
         return;
     }
     if (LIKELY(tbl->bucket_count_ == 0)) {
@@ -1440,11 +1988,20 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
             if (tbl->quick_data_[i].hash == h) {
                 CVar ek = tbl->quick_data_[i].key;
                 if (LIKELY(ek.type_ == VAR_STRINGID)) {
-                    if (ek.data_.i == str_id) { tbl->quick_data_[i].val = v; return; }
-                    VarString *evs = (VarString *)ek.data_.i;
-                    if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) { tbl->quick_data_[i].val = v; return; }
+                    if (ek.data_.i == str_id) {
+                        tbl->quick_data_[i].val = v;
+                        return;
+                    }
+                    VarString *evs = (VarString *) ek.data_.i;
+                    if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) {
+                        tbl->quick_data_[i].val = v;
+                        return;
+                    }
                 } else if (UNLIKELY(ek.type_ == VAR_STRING)) {
-                    if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) { tbl->quick_data_[i].val = v; return; }
+                    if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) {
+                        tbl->quick_data_[i].val = v;
+                        return;
+                    }
                 }
             }
         }
@@ -1452,11 +2009,14 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
             tbl->quick_data_[tbl->count_].key = key_cvar;
             tbl->quick_data_[tbl->count_].val = v;
             tbl->quick_data_[tbl->count_].hash = h;
-            tbl->count_++; return;
+            tbl->count_++;
+            return;
         }
         FlTableRehash(tbl);
     }
-    if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) { FlTableRehash(tbl); }
+    if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) {
+        FlTableRehash(tbl);
+    }
     FlTableInsertRaw(tbl, key_cvar, v, h);
 }
 
@@ -1471,135 +2031,222 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
     }
 }
 
+#define CheckNum(v)                                                                                                                                                                                    \
+    do {                                                                                                                                                                                               \
+        if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) {                                                                                                                                \
+            FakeluaThrowError(_S, "attempt to perform arithmetic on non-numeric value");                                                                                                               \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define CheckNum(v) do { \
-    if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) { \
-        FakeluaThrowError(_S, "attempt to perform arithmetic on non-numeric value"); \
-    } \
-} while(0)
+#define CheckInt(v, result)                                                                                                                                                                            \
+    do {                                                                                                                                                                                               \
+        if (LIKELY((v).type_ == VAR_INT)) {                                                                                                                                                            \
+            (result) = (v).data_.i;                                                                                                                                                                    \
+        } else if (UNLIKELY((v).type_ == VAR_FLOAT)) {                                                                                                                                                 \
+            if (!FlDoubleFitsInt64((v).data_.f, &(result))) {                                                                                                                                          \
+                FakeluaThrowError(_S, "number has no integer representation");                                                                                                                         \
+            }                                                                                                                                                                                          \
+        } else {                                                                                                                                                                                       \
+            FakeluaThrowError(_S, "attempt to perform bitwise operation on non-numeric value");                                                                                                        \
+            (result) = 0;                                                                                                                                                                              \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define CheckInt(v, result) do { \
-    if (LIKELY((v).type_ == VAR_INT)) { (result) = (v).data_.i; } \
-    else if (UNLIKELY((v).type_ == VAR_FLOAT)) { \
-        if (!FlDoubleFitsInt64((v).data_.f, &(result))) { \
-            FakeluaThrowError(_S, "number has no integer representation"); \
-        } \
-    } else { \
-        FakeluaThrowError(_S, "attempt to perform bitwise operation on non-numeric value"); \
-        (result) = 0; \
-    } \
-} while(0)
+#define CVAR_TO_DOUBLE(v) ((v).type_ == VAR_INT ? (double) (v).data_.i : (v).data_.f)
 
-#define CVAR_TO_DOUBLE(v) ((v).type_ == VAR_INT ? (double)(v).data_.i : (v).data_.f)
+#define FL_INT_ADD(a, b) ((int64_t) ((uint64_t) (int64_t) (a) + (uint64_t) (int64_t) (b)))
+#define FL_INT_SUB(a, b) ((int64_t) ((uint64_t) (int64_t) (a) - (uint64_t) (int64_t) (b)))
+#define FL_INT_MUL(a, b) ((int64_t) ((uint64_t) (int64_t) (a) * (uint64_t) (int64_t) (b)))
 
-#define FL_INT_ADD(a, b) ((int64_t)((uint64_t)(int64_t)(a) + (uint64_t)(int64_t)(b)))
-#define FL_INT_SUB(a, b) ((int64_t)((uint64_t)(int64_t)(a) - (uint64_t)(int64_t)(b)))
-#define FL_INT_MUL(a, b) ((int64_t)((uint64_t)(int64_t)(a) * (uint64_t)(int64_t)(b)))
+#define OP_ARITH_IMPL(a, b, res, op)                                                                                                                                                                   \
+    do {                                                                                                                                                                                               \
+        CVar _ra = (a);                                                                                                                                                                                \
+        CVar _rb = (b);                                                                                                                                                                                \
+        if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) {                                                                                                                                    \
+            SET_INT(res, _ra.data_.i op _rb.data_.i);                                                                                                                                                  \
+        } else {                                                                                                                                                                                       \
+            CheckNum(_ra);                                                                                                                                                                             \
+            CheckNum(_rb);                                                                                                                                                                             \
+            SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb));                                                                                                                                \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define OP_ARITH_IMPL(a, b, res, op) do { \
-    CVar _ra = (a); CVar _rb = (b); \
-    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, _ra.data_.i op _rb.data_.i); } \
-    else { CheckNum(_ra); CheckNum(_rb); SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
-} while(0)
+#define OpAdd(a, b, res)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        CVar _ra = (a);                                                                                                                                                                                \
+        CVar _rb = (b);                                                                                                                                                                                \
+        if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) {                                                                                                                                    \
+            SET_INT(res, FL_INT_ADD(_ra.data_.i, _rb.data_.i));                                                                                                                                        \
+        } else {                                                                                                                                                                                       \
+            CheckNum(_ra);                                                                                                                                                                             \
+            CheckNum(_rb);                                                                                                                                                                             \
+            SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) + CVAR_TO_DOUBLE(_rb));                                                                                                                                 \
+        }                                                                                                                                                                                              \
+    } while (0)
+#define OpSub(a, b, res)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        CVar _ra = (a);                                                                                                                                                                                \
+        CVar _rb = (b);                                                                                                                                                                                \
+        if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) {                                                                                                                                    \
+            SET_INT(res, FL_INT_SUB(_ra.data_.i, _rb.data_.i));                                                                                                                                        \
+        } else {                                                                                                                                                                                       \
+            CheckNum(_ra);                                                                                                                                                                             \
+            CheckNum(_rb);                                                                                                                                                                             \
+            SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) - CVAR_TO_DOUBLE(_rb));                                                                                                                                 \
+        }                                                                                                                                                                                              \
+    } while (0)
+#define OpMul(a, b, res)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        CVar _ra = (a);                                                                                                                                                                                \
+        CVar _rb = (b);                                                                                                                                                                                \
+        if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) {                                                                                                                                    \
+            SET_INT(res, FL_INT_MUL(_ra.data_.i, _rb.data_.i));                                                                                                                                        \
+        } else {                                                                                                                                                                                       \
+            CheckNum(_ra);                                                                                                                                                                             \
+            CheckNum(_rb);                                                                                                                                                                             \
+            SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) * CVAR_TO_DOUBLE(_rb));                                                                                                                                 \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define OpAdd(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); \
-    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_ADD(_ra.data_.i, _rb.data_.i)); } \
-    else { CheckNum(_ra); CheckNum(_rb); SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) + CVAR_TO_DOUBLE(_rb)); } \
-} while(0)
-#define OpSub(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); \
-    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_SUB(_ra.data_.i, _rb.data_.i)); } \
-    else { CheckNum(_ra); CheckNum(_rb); SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) - CVAR_TO_DOUBLE(_rb)); } \
-} while(0)
-#define OpMul(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); \
-    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, FL_INT_MUL(_ra.data_.i, _rb.data_.i)); } \
-    else { CheckNum(_ra); CheckNum(_rb); SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) * CVAR_TO_DOUBLE(_rb)); } \
-} while(0)
+#define OpDiv(a, b, res)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        CVar _ra = (a);                                                                                                                                                                                \
+        CVar _rb = (b);                                                                                                                                                                                \
+        CheckNum(_ra);                                                                                                                                                                                 \
+        CheckNum(_rb);                                                                                                                                                                                 \
+        SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) / CVAR_TO_DOUBLE(_rb));                                                                                                                                     \
+    } while (0)
 
-#define OpDiv(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) / CVAR_TO_DOUBLE(_rb)); \
-} while(0)
+#define OpFloorDiv(a, b, res)                                                                                                                                                                          \
+    do {                                                                                                                                                                                               \
+        CVar _ra = (a);                                                                                                                                                                                \
+        CVar _rb = (b);                                                                                                                                                                                \
+        if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) {                                                                                                                                    \
+            int64_t _q;                                                                                                                                                                                \
+            FlFloorDivInt(_ra.data_.i, _rb.data_.i, _q);                                                                                                                                               \
+            SET_INT(res, _q);                                                                                                                                                                          \
+        } else {                                                                                                                                                                                       \
+            CheckNum(_ra);                                                                                                                                                                             \
+            CheckNum(_rb);                                                                                                                                                                             \
+            SET_FLOAT(res, floor(CVAR_TO_DOUBLE(_ra) / CVAR_TO_DOUBLE(_rb)));                                                                                                                          \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define OpFloorDiv(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); \
-    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { \
-        int64_t _q; \
-        FlFloorDivInt(_ra.data_.i, _rb.data_.i, _q); \
-        SET_INT(res, _q); \
-    } else { \
-        CheckNum(_ra); CheckNum(_rb); \
-        SET_FLOAT(res, floor(CVAR_TO_DOUBLE(_ra) / CVAR_TO_DOUBLE(_rb))); \
-    } \
-} while(0)
+#define OpPow(a, b, res)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        CVar _ra = (a);                                                                                                                                                                                \
+        CVar _rb = (b);                                                                                                                                                                                \
+        CheckNum(_ra);                                                                                                                                                                                 \
+        CheckNum(_rb);                                                                                                                                                                                 \
+        SET_FLOAT(res, pow(CVAR_TO_DOUBLE(_ra), CVAR_TO_DOUBLE(_rb)));                                                                                                                                 \
+    } while (0)
 
-#define OpPow(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    SET_FLOAT(res, pow(CVAR_TO_DOUBLE(_ra), CVAR_TO_DOUBLE(_rb))); \
-} while(0)
+#define OpMod(a, b, res)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        CVar _ra = (a);                                                                                                                                                                                \
+        CVar _rb = (b);                                                                                                                                                                                \
+        if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) {                                                                                                                                    \
+            int64_t _r;                                                                                                                                                                                \
+            FlModInt(_ra.data_.i, _rb.data_.i, _r);                                                                                                                                                    \
+            SET_INT(res, _r);                                                                                                                                                                          \
+        } else {                                                                                                                                                                                       \
+            CheckNum(_ra);                                                                                                                                                                             \
+            CheckNum(_rb);                                                                                                                                                                             \
+            double _fa = CVAR_TO_DOUBLE(_ra);                                                                                                                                                          \
+            double _fb = CVAR_TO_DOUBLE(_rb);                                                                                                                                                          \
+            SET_FLOAT(res, _fa - _fb * floor(_fa / _fb));                                                                                                                                              \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define OpMod(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); \
-    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { \
-        int64_t _r; \
-        FlModInt(_ra.data_.i, _rb.data_.i, _r); \
-        SET_INT(res, _r); \
-    } else { \
-        CheckNum(_ra); CheckNum(_rb); \
-        double _fa = CVAR_TO_DOUBLE(_ra); \
-        double _fb = CVAR_TO_DOUBLE(_rb); \
-        SET_FLOAT(res, _fa - _fb * floor(_fa / _fb)); \
-    } \
-} while(0)
-
-#define OP_BIT_IMPL(a, b, res, op) do { int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); SET_INT(res, _ai op _bi); } while(0)
+#define OP_BIT_IMPL(a, b, res, op)                                                                                                                                                                     \
+    do {                                                                                                                                                                                               \
+        int64_t _ai;                                                                                                                                                                                   \
+        int64_t _bi;                                                                                                                                                                                   \
+        CheckInt(a, _ai);                                                                                                                                                                              \
+        CheckInt(b, _bi);                                                                                                                                                                              \
+        SET_INT(res, _ai op _bi);                                                                                                                                                                      \
+    } while (0)
 
 #define OpBitAnd(a, b, res) OP_BIT_IMPL(a, b, res, &)
 #define OpBitXor(a, b, res) OP_BIT_IMPL(a, b, res, ^)
 #define OpBitOr(a, b, res) OP_BIT_IMPL(a, b, res, |)
 
-#define OP_SHIFT_IMPL(a, b, res, _right) do { \
-    int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); \
-    if (_bi >= 64 || _bi <= -64) { SET_INT(res, 0); } \
-    else if (_bi >= 0) { SET_INT(res, (int64_t)((_right) ? ((uint64_t)_ai >> _bi) : ((uint64_t)_ai << _bi))); } \
-    else { SET_INT(res, (int64_t)((_right) ? ((uint64_t)_ai << (-_bi)) : ((uint64_t)_ai >> (-_bi)))); } \
-} while(0)
+#define OP_SHIFT_IMPL(a, b, res, _right)                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        int64_t _ai;                                                                                                                                                                                   \
+        int64_t _bi;                                                                                                                                                                                   \
+        CheckInt(a, _ai);                                                                                                                                                                              \
+        CheckInt(b, _bi);                                                                                                                                                                              \
+        if (_bi >= 64 || _bi <= -64) {                                                                                                                                                                 \
+            SET_INT(res, 0);                                                                                                                                                                           \
+        } else if (_bi >= 0) {                                                                                                                                                                         \
+            SET_INT(res, (int64_t) ((_right) ? ((uint64_t) _ai >> _bi) : ((uint64_t) _ai << _bi)));                                                                                                    \
+        } else {                                                                                                                                                                                       \
+            SET_INT(res, (int64_t) ((_right) ? ((uint64_t) _ai << (-_bi)) : ((uint64_t) _ai >> (-_bi))));                                                                                              \
+        }                                                                                                                                                                                              \
+    } while (0)
 
 #define OpRightShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 1)
 #define OpLeftShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 0)
 
 static inline bool FlCmpLt(CVar a, CVar b) {
-    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) { return a.data_.i < b.data_.i; }
-    CheckNum(a); CheckNum(b);
-    if (a.type_ == VAR_INT) { return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) < 0; }
-    else if (b.type_ == VAR_INT) { return !isnan(a.data_.f) && 0 < FlCompareIntDouble(b.data_.i, a.data_.f); }
-    else { return a.data_.f < b.data_.f; }
+    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) {
+        return a.data_.i < b.data_.i;
+    }
+    CheckNum(a);
+    CheckNum(b);
+    if (a.type_ == VAR_INT) {
+        return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) < 0;
+    } else if (b.type_ == VAR_INT) {
+        return !isnan(a.data_.f) && 0 < FlCompareIntDouble(b.data_.i, a.data_.f);
+    } else {
+        return a.data_.f < b.data_.f;
+    }
 }
 
 static inline bool FlCmpGt(CVar a, CVar b) {
-    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) { return a.data_.i > b.data_.i; }
-    CheckNum(a); CheckNum(b);
-    if (a.type_ == VAR_INT) { return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) > 0; }
-    else if (b.type_ == VAR_INT) { return !isnan(a.data_.f) && 0 > FlCompareIntDouble(b.data_.i, a.data_.f); }
-    else { return a.data_.f > b.data_.f; }
+    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) {
+        return a.data_.i > b.data_.i;
+    }
+    CheckNum(a);
+    CheckNum(b);
+    if (a.type_ == VAR_INT) {
+        return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) > 0;
+    } else if (b.type_ == VAR_INT) {
+        return !isnan(a.data_.f) && 0 > FlCompareIntDouble(b.data_.i, a.data_.f);
+    } else {
+        return a.data_.f > b.data_.f;
+    }
 }
 
 static inline bool FlCmpLe(CVar a, CVar b) {
-    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) { return a.data_.i <= b.data_.i; }
-    CheckNum(a); CheckNum(b);
-    if (a.type_ == VAR_INT) { return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) <= 0; }
-    else if (b.type_ == VAR_INT) { return !isnan(a.data_.f) && 0 <= FlCompareIntDouble(b.data_.i, a.data_.f); }
-    else { return a.data_.f <= b.data_.f; }
+    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) {
+        return a.data_.i <= b.data_.i;
+    }
+    CheckNum(a);
+    CheckNum(b);
+    if (a.type_ == VAR_INT) {
+        return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) <= 0;
+    } else if (b.type_ == VAR_INT) {
+        return !isnan(a.data_.f) && 0 <= FlCompareIntDouble(b.data_.i, a.data_.f);
+    } else {
+        return a.data_.f <= b.data_.f;
+    }
 }
 
 static inline bool FlCmpGe(CVar a, CVar b) {
-    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) { return a.data_.i >= b.data_.i; }
-    CheckNum(a); CheckNum(b);
-    if (a.type_ == VAR_INT) { return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) >= 0; }
-    else if (b.type_ == VAR_INT) { return !isnan(a.data_.f) && 0 >= FlCompareIntDouble(b.data_.i, a.data_.f); }
-    else { return a.data_.f >= b.data_.f; }
+    if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) {
+        return a.data_.i >= b.data_.i;
+    }
+    CheckNum(a);
+    CheckNum(b);
+    if (a.type_ == VAR_INT) {
+        return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) >= 0;
+    } else if (b.type_ == VAR_INT) {
+        return !isnan(a.data_.f) && 0 >= FlCompareIntDouble(b.data_.i, a.data_.f);
+    } else {
+        return a.data_.f >= b.data_.f;
+    }
 }
 
 static inline bool FlCmpEq(CVar a, CVar b) {
@@ -1623,25 +2270,49 @@ static inline bool FlCmpNe(CVar a, CVar b) {
 
 #define OpNe(a, b, res) SET_BOOL(res, FlCmpNe(a, b))
 
-#define OpNot(a, res) do { bool _bt; IsTrue(a, _bt); SET_BOOL(res, !_bt); } while(0)
+#define OpNot(a, res)                                                                                                                                                                                  \
+    do {                                                                                                                                                                                               \
+        bool _bt;                                                                                                                                                                                      \
+        IsTrue(a, _bt);                                                                                                                                                                                \
+        SET_BOOL(res, !_bt);                                                                                                                                                                           \
+    } while (0)
 
-#define OpUnaryMinus(a, res) do { \
-    CVar _ra = (a); \
-    if (LIKELY(_ra.type_ == VAR_INT)) { SET_INT(res, FL_INT_SUB(0, _ra.data_.i)); } \
-    else { CheckNum(_ra); SET_FLOAT(res, -_ra.data_.f); } \
-} while(0)
+#define OpUnaryMinus(a, res)                                                                                                                                                                           \
+    do {                                                                                                                                                                                               \
+        CVar _ra = (a);                                                                                                                                                                                \
+        if (LIKELY(_ra.type_ == VAR_INT)) {                                                                                                                                                            \
+            SET_INT(res, FL_INT_SUB(0, _ra.data_.i));                                                                                                                                                  \
+        } else {                                                                                                                                                                                       \
+            CheckNum(_ra);                                                                                                                                                                             \
+            SET_FLOAT(res, -_ra.data_.f);                                                                                                                                                              \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define OpBitNot(a, res) do { int64_t _ai; CheckInt(a, _ai); SET_INT(res, ~_ai); } while(0)
+#define OpBitNot(a, res)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        int64_t _ai;                                                                                                                                                                                   \
+        CheckInt(a, _ai);                                                                                                                                                                              \
+        SET_INT(res, ~_ai);                                                                                                                                                                            \
+    } while (0)
 
-#define OpLen(a, res) do { \
-    CVar _lv = (a); \
-    if (LIKELY(_lv.type_ == VAR_STRING)) { SET_INT(res, STR_SIZE(_lv.data_.s)); } \
-    else if (_lv.type_ == VAR_STRINGID) { SET_INT(res, STR_SIZE((VarString *)_lv.data_.i)); } \
-    else if (_lv.type_ == VAR_TABLE) { SET_INT(res, FlGetTableSeqLen(_lv.data_.t)); } \
-    else { FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); } \
-} while(0)
+#define OpLen(a, res)                                                                                                                                                                                  \
+    do {                                                                                                                                                                                               \
+        CVar _lv = (a);                                                                                                                                                                                \
+        if (LIKELY(_lv.type_ == VAR_STRING)) {                                                                                                                                                         \
+            SET_INT(res, STR_SIZE(_lv.data_.s));                                                                                                                                                       \
+        } else if (_lv.type_ == VAR_STRINGID) {                                                                                                                                                        \
+            SET_INT(res, STR_SIZE((VarString *) _lv.data_.i));                                                                                                                                         \
+        } else if (_lv.type_ == VAR_TABLE) {                                                                                                                                                           \
+            SET_INT(res, FlGetTableSeqLen(_lv.data_.t));                                                                                                                                               \
+        } else {                                                                                                                                                                                       \
+            FakeluaThrowError(_S, "attempt to get length of a non-string/table value");                                                                                                                \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define OpConcat(a, b, res) do { res = FlConcat(a, b); } while(0)
+#define OpConcat(a, b, res)                                                                                                                                                                            \
+    do {                                                                                                                                                                                               \
+        res = FlConcat(a, b);                                                                                                                                                                          \
+    } while (0)
 
 static inline int FlFastItoA(int64_t v, char *buf) {
     if (v == 0) {
@@ -1654,12 +2325,12 @@ static inline int FlFastItoA(int64_t v, char *buf) {
     uint64_t u;
     if (v < 0) {
         neg = true;
-        u = 0ULL - (uint64_t)v;
+        u = 0ULL - (uint64_t) v;
     } else {
-        u = (uint64_t)v;
+        u = (uint64_t) v;
     }
     while (u > 0) {
-        tmp[i++] = (char)('0' + (u % 10));
+        tmp[i++] = (char) ('0' + (u % 10));
         u /= 10;
     }
     int len = 0;
@@ -1674,9 +2345,22 @@ static inline int FlFastItoA(int64_t v, char *buf) {
 
 static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
     switch (v.type_) {
-        case VAR_NIL: memcpy(buf, "nil", 3); buf[3] = '\0'; return 3;
-        case VAR_BOOL: if (v.data_.b) { memcpy(buf, "true", 4); buf[4] = '\0'; return 4; } else { memcpy(buf, "false", 5); buf[5] = '\0'; return 5; }
-        case VAR_INT: return FlFastItoA(v.data_.i, buf);
+        case VAR_NIL:
+            memcpy(buf, "nil", 3);
+            buf[3] = '\0';
+            return 3;
+        case VAR_BOOL:
+            if (v.data_.b) {
+                memcpy(buf, "true", 4);
+                buf[4] = '\0';
+                return 4;
+            } else {
+                memcpy(buf, "false", 5);
+                buf[5] = '\0';
+                return 5;
+            }
+        case VAR_INT:
+            return FlFastItoA(v.data_.i, buf);
         case VAR_FLOAT: {
             /* Lua 5.4 tostringbuff: %.14g，结果只含数字和符号时补 .0 */
             int flen = snprintf(buf, buf_size, "%.14g", v.data_.f);
@@ -1695,37 +2379,82 @@ static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
             return flen;
         }
         case VAR_STRING:
-        case VAR_STRINGID: FakeluaThrowError(_S, "FlVarToStr: string type should be handled by caller"); return 0;
-        case VAR_TABLE: { int __n = snprintf(buf, buf_size - 1, "table(0x%llx", (unsigned long long)(uintptr_t)v.data_.t); if (__n > 0 && __n < buf_size - 1) { buf[__n] = ')'; buf[__n + 1] = '\0'; return __n + 1; } return __n; }
-        case VAR_CLOSURE: { int __n = snprintf(buf, buf_size - 1, "function(0x%llx", (unsigned long long)(uintptr_t)v.data_.cl); if (__n > 0 && __n < buf_size - 1) { buf[__n] = ')'; buf[__n + 1] = '\0'; return __n + 1; } return __n; }
-        default: return 0;
+        case VAR_STRINGID:
+            FakeluaThrowError(_S, "FlVarToStr: string type should be handled by caller");
+            return 0;
+        case VAR_TABLE: {
+            int __n = snprintf(buf, buf_size - 1, "table(0x%llx", (unsigned long long) (uintptr_t) v.data_.t);
+            if (__n > 0 && __n < buf_size - 1) {
+                buf[__n] = ')';
+                buf[__n + 1] = '\0';
+                return __n + 1;
+            }
+            return __n;
+        }
+        case VAR_CLOSURE: {
+            int __n = snprintf(buf, buf_size - 1, "function(0x%llx", (unsigned long long) (uintptr_t) v.data_.cl);
+            if (__n > 0 && __n < buf_size - 1) {
+                buf[__n] = ')';
+                buf[__n + 1] = '\0';
+                return __n + 1;
+            }
+            return __n;
+        }
+        default:
+            return 0;
     }
 }
 
 // Lua 的 .. 只接受字符串和数字，nil / bool / table / function 一律报错。
 // 检查放在非字符串分支里，字符串拼接的快路径不受影响。
-#define CONCAT_CHECK_NUMERIC(v) \
-    if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) { FakeluaThrowError(_S, "attempt to concatenate a non-string value"); }
+#define CONCAT_CHECK_NUMERIC(v)                                                                                                                                                                        \
+    if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) {                                                                                                                                    \
+        FakeluaThrowError(_S, "attempt to concatenate a non-string value");                                                                                                                            \
+    }
 
 static inline CVar FlConcat(CVar a, CVar b) {
     char buf_a[64], buf_b[64];
-    const char *sa = buf_a; int la;
-    const char *sb = buf_b; int lb;
-    if (LIKELY(a.type_ == VAR_STRING)) { sa = STR_DATA(a.data_.s); la = STR_SIZE(a.data_.s); }
-    else if (a.type_ == VAR_STRINGID) { VarString *vs = (VarString *)a.data_.i; sa = STR_DATA(vs); la = STR_SIZE(vs); }
-    else if (a.type_ == VAR_INT) { la = FlFastItoA(a.data_.i, buf_a); }
-    else if (a.type_ == VAR_FLOAT) { la = FlVarToStr(a, buf_a, sizeof(buf_a)); }
-    else { FakeluaThrowError(_S, "attempt to concatenate a non-string value"); return (CVar){VAR_NIL}; }
+    const char *sa = buf_a;
+    int la;
+    const char *sb = buf_b;
+    int lb;
+    if (LIKELY(a.type_ == VAR_STRING)) {
+        sa = STR_DATA(a.data_.s);
+        la = STR_SIZE(a.data_.s);
+    } else if (a.type_ == VAR_STRINGID) {
+        VarString *vs = (VarString *) a.data_.i;
+        sa = STR_DATA(vs);
+        la = STR_SIZE(vs);
+    } else if (a.type_ == VAR_INT) {
+        la = FlFastItoA(a.data_.i, buf_a);
+    } else if (a.type_ == VAR_FLOAT) {
+        la = FlVarToStr(a, buf_a, sizeof(buf_a));
+    } else {
+        FakeluaThrowError(_S, "attempt to concatenate a non-string value");
+        return (CVar) {VAR_NIL};
+    }
 
-    if (LIKELY(b.type_ == VAR_STRING)) { sb = STR_DATA(b.data_.s); lb = STR_SIZE(b.data_.s); }
-    else if (b.type_ == VAR_STRINGID) { VarString *vs = (VarString *)b.data_.i; sb = STR_DATA(vs); lb = STR_SIZE(vs); }
-    else if (b.type_ == VAR_INT) { lb = FlFastItoA(b.data_.i, buf_b); }
-    else if (b.type_ == VAR_FLOAT) { lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
-    else { FakeluaThrowError(_S, "attempt to concatenate a non-string value"); return (CVar){VAR_NIL}; }
+    if (LIKELY(b.type_ == VAR_STRING)) {
+        sb = STR_DATA(b.data_.s);
+        lb = STR_SIZE(b.data_.s);
+    } else if (b.type_ == VAR_STRINGID) {
+        VarString *vs = (VarString *) b.data_.i;
+        sb = STR_DATA(vs);
+        lb = STR_SIZE(vs);
+    } else if (b.type_ == VAR_INT) {
+        lb = FlFastItoA(b.data_.i, buf_b);
+    } else if (b.type_ == VAR_FLOAT) {
+        lb = FlVarToStr(b, buf_b, sizeof(buf_b));
+    } else {
+        FakeluaThrowError(_S, "attempt to concatenate a non-string value");
+        return (CVar) {VAR_NIL};
+    }
 
     int total = la + lb;
-    if (UNLIKELY(total < la || total < lb)) { FakeluaThrowError(_S, "string concatenation result too long"); }
-    VarString *vs = (VarString *)FlFastAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
+    if (UNLIKELY(total < la || total < lb)) {
+        FakeluaThrowError(_S, "string concatenation result too long");
+    }
+    VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
     vs->size_ = total;
     vs->hash_ = 0;
     memcpy(vs->data_, sa, la);
@@ -1742,10 +2471,10 @@ static inline CVar FlStringChar1(int64_t c) {
     if (UNLIKELY(c < 0 || c > 255)) {
         FakeluaThrowError(_S, "bad argument to string.char: value out of range");
     }
-    VarString *vs = (VarString *)FlFastAlloc(_S, sizeof(VarString) + 1, !__fakelua_init_flag__);
+    VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + 1, !__fakelua_init_flag__);
     vs->size_ = 1;
     vs->hash_ = 0;
-    vs->data_[0] = (char)c;
+    vs->data_[0] = (char) c;
     CVar r;
     r.type_ = VAR_STRING;
     r.flag_ = 0;
@@ -1757,34 +2486,54 @@ static inline CVar FlStringChar1(int64_t c) {
 static inline CVar FlStringLower(CVar s) {
     const char *src = 0;
     int len = 0;
-    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
-    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
-    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.lower", 1, s); }
-    VarString *out = (VarString *)FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    if (LIKELY(s.type_ == VAR_STRING)) {
+        src = STR_DATA(s.data_.s);
+        len = STR_SIZE(s.data_.s);
+    } else if (s.type_ == VAR_STRINGID) {
+        VarString *vs = (VarString *) s.data_.i;
+        src = STR_DATA(vs);
+        len = STR_SIZE(vs);
+    } else {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.lower", 1, s);
+    }
+    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
     out->size_ = len;
     out->hash_ = 0;
     for (int i = 0; i < len; ++i) {
-        unsigned char c = (unsigned char)src[i];
-        out->data_[i] = (c >= 'A' && c <= 'Z') ? (char)(c + 32) : (char)c;
+        unsigned char c = (unsigned char) src[i];
+        out->data_[i] = (c >= 'A' && c <= 'Z') ? (char) (c + 32) : (char) c;
     }
-    CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = out;
+    CVar r;
+    r.type_ = VAR_STRING;
+    r.flag_ = 0;
+    r.data_.s = out;
     return r;
 }
 
 static inline CVar FlStringUpper(CVar s) {
     const char *src = 0;
     int len = 0;
-    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
-    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
-    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.upper", 1, s); }
-    VarString *out = (VarString *)FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    if (LIKELY(s.type_ == VAR_STRING)) {
+        src = STR_DATA(s.data_.s);
+        len = STR_SIZE(s.data_.s);
+    } else if (s.type_ == VAR_STRINGID) {
+        VarString *vs = (VarString *) s.data_.i;
+        src = STR_DATA(vs);
+        len = STR_SIZE(vs);
+    } else {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.upper", 1, s);
+    }
+    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
     out->size_ = len;
     out->hash_ = 0;
     for (int i = 0; i < len; ++i) {
-        unsigned char c = (unsigned char)src[i];
-        out->data_[i] = (c >= 'a' && c <= 'z') ? (char)(c - 32) : (char)c;
+        unsigned char c = (unsigned char) src[i];
+        out->data_[i] = (c >= 'a' && c <= 'z') ? (char) (c - 32) : (char) c;
     }
-    CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = out;
+    CVar r;
+    r.type_ = VAR_STRING;
+    r.flag_ = 0;
+    r.data_.s = out;
     return r;
 }
 
@@ -1792,32 +2541,52 @@ static inline CVar FlStringUpper(CVar s) {
 static inline CVar FlStringByte1(CVar s, int64_t i) {
     const char *src = 0;
     int len = 0;
-    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
-    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
-    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.byte", 2, s, (CVar){.type_ = VAR_INT, .data_.i = i}); }
+    if (LIKELY(s.type_ == VAR_STRING)) {
+        src = STR_DATA(s.data_.s);
+        len = STR_SIZE(s.data_.s);
+    } else if (s.type_ == VAR_STRINGID) {
+        VarString *vs = (VarString *) s.data_.i;
+        src = STR_DATA(vs);
+        len = STR_SIZE(vs);
+    } else {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.byte", 2, s, (CVar) {.type_ = VAR_INT, .data_.i = i});
+    }
     if (i < 0) i = len + i + 1;
-    if (i < 1 || i > len) return (CVar){VAR_NIL};
-    return (CVar){.type_ = VAR_INT, .data_.i = (unsigned char)src[i - 1]};
+    if (i < 1 || i > len) return (CVar) {VAR_NIL};
+    return (CVar) {.type_ = VAR_INT, .data_.i = (unsigned char) src[i - 1]};
 }
 
 // string.rep(s, n)：s 重复 n 次（无分隔符，最常见形式）
 static inline CVar FlStringRep(CVar s, int64_t n) {
     const char *src = 0;
     int len = 0;
-    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
-    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
-    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar){.type_ = VAR_INT, .data_.i = n}); }
+    if (LIKELY(s.type_ == VAR_STRING)) {
+        src = STR_DATA(s.data_.s);
+        len = STR_SIZE(s.data_.s);
+    } else if (s.type_ == VAR_STRINGID) {
+        VarString *vs = (VarString *) s.data_.i;
+        src = STR_DATA(vs);
+        len = STR_SIZE(vs);
+    } else {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar) {.type_ = VAR_INT, .data_.i = n});
+    }
     if (n <= 0 || len == 0) {
-        VarString *vs = (VarString *)FlFastAlloc(_S, sizeof(VarString), !__fakelua_init_flag__);
-        vs->size_ = 0; vs->hash_ = 0; vs->data_[0] = '\0';
-        CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = vs; return r;
+        VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString), !__fakelua_init_flag__);
+        vs->size_ = 0;
+        vs->hash_ = 0;
+        vs->data_[0] = '\0';
+        CVar r;
+        r.type_ = VAR_STRING;
+        r.flag_ = 0;
+        r.data_.s = vs;
+        return r;
     }
     // 防溢出：总长度超过 1G 回退 native。(n, len) 均转为 uint64_t 避免截断
-    if ((uint64_t)n > (1073741824ULL / (uint64_t)len)) {
-        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar){.type_ = VAR_INT, .data_.i = n});
+    if ((uint64_t) n > (1073741824ULL / (uint64_t) len)) {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar) {.type_ = VAR_INT, .data_.i = n});
     }
-    int64_t total = (int64_t)len * n;
-    VarString *out = (VarString *)FlFastAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
+    int64_t total = (int64_t) len * n;
+    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
     out->size_ = total;
     out->hash_ = 0;
     char *dst = out->data_;
@@ -1825,7 +2594,10 @@ static inline CVar FlStringRep(CVar s, int64_t n) {
         memcpy(dst, src, len);
         dst += len;
     }
-    CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = out;
+    CVar r;
+    r.type_ = VAR_STRING;
+    r.flag_ = 0;
+    r.data_.s = out;
     return r;
 }
 
@@ -1833,16 +2605,26 @@ static inline CVar FlStringRep(CVar s, int64_t n) {
 static inline CVar FlStringReverse(CVar s) {
     const char *src = 0;
     int len = 0;
-    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); len = STR_SIZE(s.data_.s); }
-    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); len = STR_SIZE(vs); }
-    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.reverse", 1, s); }
-    VarString *out = (VarString *)FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    if (LIKELY(s.type_ == VAR_STRING)) {
+        src = STR_DATA(s.data_.s);
+        len = STR_SIZE(s.data_.s);
+    } else if (s.type_ == VAR_STRINGID) {
+        VarString *vs = (VarString *) s.data_.i;
+        src = STR_DATA(vs);
+        len = STR_SIZE(vs);
+    } else {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.reverse", 1, s);
+    }
+    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
     out->size_ = len;
     out->hash_ = 0;
     for (int i = 0; i < len; ++i) {
         out->data_[i] = src[len - 1 - i];
     }
-    CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = out;
+    CVar r;
+    r.type_ = VAR_STRING;
+    r.flag_ = 0;
+    r.data_.s = out;
     return r;
 }
 
@@ -1850,34 +2632,51 @@ static inline CVar FlStringReverse(CVar s) {
 static inline CVar FlStringFindPlain(CVar s, CVar pat) {
     const char *src = 0;
     int slen = 0;
-    if (LIKELY(s.type_ == VAR_STRING)) { src = STR_DATA(s.data_.s); slen = STR_SIZE(s.data_.s); }
-    else if (s.type_ == VAR_STRINGID) { VarString *vs = (VarString *)s.data_.i; src = STR_DATA(vs); slen = STR_SIZE(vs); }
-    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.find", 4, s, pat, (CVar){.type_ = VAR_INT, .data_.i = 1}, (CVar){.type_ = VAR_BOOL, .data_.b = true}); }
+    if (LIKELY(s.type_ == VAR_STRING)) {
+        src = STR_DATA(s.data_.s);
+        slen = STR_SIZE(s.data_.s);
+    } else if (s.type_ == VAR_STRINGID) {
+        VarString *vs = (VarString *) s.data_.i;
+        src = STR_DATA(vs);
+        slen = STR_SIZE(vs);
+    } else {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.find", 4, s, pat, (CVar) {.type_ = VAR_INT, .data_.i = 1}, (CVar) {.type_ = VAR_BOOL, .data_.b = true});
+    }
     const char *psrc = 0;
     int plen = 0;
-    if (LIKELY(pat.type_ == VAR_STRING)) { psrc = STR_DATA(pat.data_.s); plen = STR_SIZE(pat.data_.s); }
-    else if (pat.type_ == VAR_STRINGID) { VarString *vs = (VarString *)pat.data_.i; psrc = STR_DATA(vs); plen = STR_SIZE(vs); }
-    else { return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.find", 4, s, pat, (CVar){.type_ = VAR_INT, .data_.i = 1}, (CVar){.type_ = VAR_BOOL, .data_.b = true}); }
-    if (plen == 0) return (CVar){.type_ = VAR_INT, .data_.i = 1};
-    if (plen > slen) return (CVar){VAR_NIL};
+    if (LIKELY(pat.type_ == VAR_STRING)) {
+        psrc = STR_DATA(pat.data_.s);
+        plen = STR_SIZE(pat.data_.s);
+    } else if (pat.type_ == VAR_STRINGID) {
+        VarString *vs = (VarString *) pat.data_.i;
+        psrc = STR_DATA(vs);
+        plen = STR_SIZE(vs);
+    } else {
+        return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.find", 4, s, pat, (CVar) {.type_ = VAR_INT, .data_.i = 1}, (CVar) {.type_ = VAR_BOOL, .data_.b = true});
+    }
+    if (plen == 0) return (CVar) {.type_ = VAR_INT, .data_.i = 1};
+    if (plen > slen) return (CVar) {VAR_NIL};
     int limit = slen - plen;
     for (int i = 0; i <= limit; ++i) {
         if (src[i] == psrc[0] && memcmp(src + i, psrc, plen) == 0) {
-            return (CVar){.type_ = VAR_INT, .data_.i = i + 1};
+            return (CVar) {.type_ = VAR_INT, .data_.i = i + 1};
         }
     }
-    return (CVar){VAR_NIL};
+    return (CVar) {VAR_NIL};
 }
 
 // string.format("%d", int)
 static inline CVar FlFormatInt(int64_t v) {
     char buf[32];
     int n = FlFastItoA(v, buf);
-    VarString *vs = (VarString *)FlFastAlloc(_S, sizeof(VarString) + n, !__fakelua_init_flag__);
+    VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + n, !__fakelua_init_flag__);
     vs->size_ = n;
     vs->hash_ = 0;
-    memcpy(vs->data_, buf, (size_t)n);
-    CVar r; r.type_ = VAR_STRING; r.flag_ = 0; r.data_.s = vs;
+    memcpy(vs->data_, buf, (size_t) n);
+    CVar r;
+    r.type_ = VAR_STRING;
+    r.flag_ = 0;
+    r.data_.s = vs;
     return r;
 }
 
@@ -1886,24 +2685,24 @@ static inline CVar FlFormatInt(int64_t v) {
 // 其它单个值是 1 个值。
 static inline CVar FlSelectHash(CVar vararg) {
     if (vararg.type_ == VAR_MULTI) {
-        if (vararg.data_.m == NULL) return (CVar){.type_ = VAR_INT, .data_.i = 0};
-        return (CVar){.type_ = VAR_INT, .data_.i = (int64_t)vararg.data_.m->count};
+        if (vararg.data_.m == NULL) return (CVar) {.type_ = VAR_INT, .data_.i = 0};
+        return (CVar) {.type_ = VAR_INT, .data_.i = (int64_t) vararg.data_.m->count};
     }
-    if (vararg.type_ == VAR_NIL) return (CVar){.type_ = VAR_INT, .data_.i = 0};
-    return (CVar){.type_ = VAR_INT, .data_.i = 1};
+    if (vararg.type_ == VAR_NIL) return (CVar) {.type_ = VAR_INT, .data_.i = 0};
+    return (CVar) {.type_ = VAR_INT, .data_.i = 1};
 }
 
 static inline CVar FlSelectIndex(int64_t idx, CVar vararg) {
     if (vararg.type_ == VAR_MULTI) {
         VarMulti *m = vararg.data_.m;
-        int64_t count = (m != NULL) ? (int64_t)m->count : 0;
+        int64_t count = (m != NULL) ? (int64_t) m->count : 0;
         if (idx < 0) {
             if (idx < -count - 1) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
             idx = count + idx + 1;
         }
         if (idx < 1) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
         if (idx > count || m == NULL) return FlAllocMulti(_S, 0);
-        uint32_t start = (uint32_t)(idx - 1);
+        uint32_t start = (uint32_t) (idx - 1);
         uint32_t nret = m->count - start;
         if (nret == 1) return m->vars[start];
         return FlSliceMulti(_S, vararg, start);
@@ -1933,12 +2732,24 @@ static inline CVar FlTonumber(CVar v) {
     if (LIKELY(v.type_ == VAR_INT || v.type_ == VAR_FLOAT)) return v;
     const char *p = 0;
     int len = 0;
-    if (LIKELY(v.type_ == VAR_STRING)) { p = STR_DATA(v.data_.s); len = STR_SIZE(v.data_.s); }
-    else if (v.type_ == VAR_STRINGID) { VarString *vs = (VarString *)v.data_.i; p = STR_DATA(vs); len = STR_SIZE(vs); }
-    else { return (CVar){VAR_NIL}; }
-    while (len > 0 && FlIsSpaceByte((unsigned char)p[0])) { ++p; --len; }
-    while (len > 0 && FlIsSpaceByte((unsigned char)p[len - 1])) { --len; }
-    if (len <= 0) return (CVar){VAR_NIL};
+    if (LIKELY(v.type_ == VAR_STRING)) {
+        p = STR_DATA(v.data_.s);
+        len = STR_SIZE(v.data_.s);
+    } else if (v.type_ == VAR_STRINGID) {
+        VarString *vs = (VarString *) v.data_.i;
+        p = STR_DATA(vs);
+        len = STR_SIZE(vs);
+    } else {
+        return (CVar) {VAR_NIL};
+    }
+    while (len > 0 && FlIsSpaceByte((unsigned char) p[0])) {
+        ++p;
+        --len;
+    }
+    while (len > 0 && FlIsSpaceByte((unsigned char) p[len - 1])) {
+        --len;
+    }
+    if (len <= 0) return (CVar) {VAR_NIL};
     // 0x 十六进制等复杂形式走 native
     if (len >= 2 && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
         return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "tonumber", 1, v);
@@ -1948,17 +2759,24 @@ static inline CVar FlTonumber(CVar v) {
     }
     int neg = 0;
     int i = 0;
-    if (p[0] == '+') { i = 1; }
-    else if (p[0] == '-') { neg = 1; i = 1; }
-    if (i >= len) return (CVar){VAR_NIL};
+    if (p[0] == '+') {
+        i = 1;
+    } else if (p[0] == '-') {
+        neg = 1;
+        i = 1;
+    }
+    if (i >= len) return (CVar) {VAR_NIL};
     // 含小数点/指数 → native
-    { int j; for (j = i; j < len; ++j) {
-        unsigned char c = (unsigned char)p[j];
-        if (c == '.' || c == 'e' || c == 'E') {
-            return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "tonumber", 1, v);
+    {
+        int j;
+        for (j = i; j < len; ++j) {
+            unsigned char c = (unsigned char) p[j];
+            if (c == '.' || c == 'e' || c == 'E') {
+                return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "tonumber", 1, v);
+            }
+            if (c < '0' || c > '9') return (CVar) {VAR_NIL};
         }
-        if (c < '0' || c > '9') return (CVar){VAR_NIL};
-    } }
+    }
     int64_t val = 0;
     for (; i < len; ++i) {
         // 溢出检查：val * 10 + digit > INT64_MAX 时回退到 native（返回 float）
@@ -1970,15 +2788,19 @@ static inline CVar FlTonumber(CVar v) {
         val = val * 10 + digit;
     }
     if (neg) val = -val;
-    return (CVar){.type_ = VAR_INT, .data_.i = val};
+    return (CVar) {.type_ = VAR_INT, .data_.i = val};
 }
 
 // 空表预扩到至少 need 个桶（反复 FlTableRehash，空表拷贝成本可忽略）
 static inline void FlEnsureTableBuckets(VarTable *tbl, uint32_t need) {
     if (need < 1) need = 1;
     uint32_t target = need - 1;
-    target |= target >> 1; target |= target >> 2; target |= target >> 4;
-    target |= target >> 8; target |= target >> 16; target += 1;
+    target |= target >> 1;
+    target |= target >> 2;
+    target |= target >> 4;
+    target |= target >> 8;
+    target |= target >> 16;
+    target += 1;
     while (tbl->bucket_count_ < target) {
         FlTableRehash(tbl);
         if (UNLIKELY(tbl->bucket_count_ == 0)) break;
@@ -1988,12 +2810,16 @@ static inline void FlEnsureTableBuckets(VarTable *tbl, uint32_t need) {
 // 空表预扩容的节点数组必须能一次分配出来（与 native_table.cpp 的 MovePresizeFits 一致）。
 static inline int FlMovePresizeFits(uint64_t count) {
     if (count == 0 || count > 0xFFFFFFFFULL) return 0;
-    uint32_t min_buckets = (uint32_t)count;
+    uint32_t min_buckets = (uint32_t) count;
     uint32_t buckets = min_buckets - 1;
-    buckets |= buckets >> 1; buckets |= buckets >> 2; buckets |= buckets >> 4;
-    buckets |= buckets >> 8; buckets |= buckets >> 16; buckets += 1;
+    buckets |= buckets >> 1;
+    buckets |= buckets >> 2;
+    buckets |= buckets >> 4;
+    buckets |= buckets >> 8;
+    buckets |= buckets >> 16;
+    buckets += 1;
     if (buckets < min_buckets) return 0;
-    uint64_t total = (uint64_t)buckets + (uint64_t)(buckets / 2);
+    uint64_t total = (uint64_t) buckets + (uint64_t) (buckets / 2);
     uint64_t bytes = total * sizeof(TableNode) + total * sizeof(uint32_t);
     return bytes <= (1024ULL * 1024ULL);
 }
@@ -2006,30 +2832,30 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
     }
     FL_CHECK_CONST_TABLE(dst);
     if (e >= f) {
-        uint64_t count = (uint64_t)e - (uint64_t)f + 1;
-        if (UNLIKELY(count == 0 || count > (uint64_t)INT64_MAX)) {
+        uint64_t count = (uint64_t) e - (uint64_t) f + 1;
+        if (UNLIKELY(count == 0 || count > (uint64_t) INT64_MAX)) {
             FakeluaThrowError(_S, "bad argument #3 to 'table.move' (too many elements to move)");
         }
         uint64_t last_off = count - 1;
-        if (UNLIKELY(t > 0 && (uint64_t)t > (uint64_t)INT64_MAX - last_off)) {
+        if (UNLIKELY(t > 0 && (uint64_t) t > (uint64_t) INT64_MAX - last_off)) {
             FakeluaThrowError(_S, "bad argument #4 to 'table.move' (destination wrap around)");
         }
-        int64_t icount = (int64_t)count;
+        int64_t icount = (int64_t) count;
         int same = (src.data_.t == dst.data_.t);
-        if (!same && dst.data_.t->count_ == 0 && icount > 8 && t != (int64_t)dst.data_.t->arr_size_ + 1 && FlMovePresizeFits(count)) {
-            FlEnsureTableBuckets(dst.data_.t, (uint32_t)icount);
+        if (!same && dst.data_.t->count_ == 0 && icount > 8 && t != (int64_t) dst.data_.t->arr_size_ + 1 && FlMovePresizeFits(count)) {
+            FlEnsureTableBuckets(dst.data_.t, (uint32_t) icount);
         }
         if (!same || t <= f || t > e) {
             int64_t i;
             for (i = 0; i < icount; ++i) {
-                CVar val = FlGetTableInt(src, (int64_t)((uint64_t)f + (uint64_t)i));
-                FlSetTableInt(dst, (int64_t)((uint64_t)t + (uint64_t)i), val);
+                CVar val = FlGetTableInt(src, (int64_t) ((uint64_t) f + (uint64_t) i));
+                FlSetTableInt(dst, (int64_t) ((uint64_t) t + (uint64_t) i), val);
             }
         } else {
             int64_t i;
             for (i = icount - 1; i >= 0; --i) {
-                CVar val = FlGetTableInt(src, (int64_t)((uint64_t)f + (uint64_t)i));
-                FlSetTableInt(dst, (int64_t)((uint64_t)t + (uint64_t)i), val);
+                CVar val = FlGetTableInt(src, (int64_t) ((uint64_t) f + (uint64_t) i));
+                FlSetTableInt(dst, (int64_t) ((uint64_t) t + (uint64_t) i), val);
             }
         }
     }
@@ -2039,80 +2865,98 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
 // table.unpack 内联实现（完整对齐 Lua 5.4 区间回绕与单块分配上限检查）
 static inline CVar FlTableUnpack(CVar tbl, int64_t start_i, int64_t end_j) {
     if (start_i > end_j) return FlAllocMulti(_S, 0);
-    uint64_t count64 = (uint64_t)end_j - (uint64_t)start_i + 1;
+    uint64_t count64 = (uint64_t) end_j - (uint64_t) start_i + 1;
     uint64_t max_unpack = (1024ULL * 1024ULL - sizeof(VarMulti)) / sizeof(CVar);
     if (UNLIKELY(count64 == 0 || count64 > 2147483647ULL || count64 > max_unpack)) {
         FakeluaThrowError(_S, "too many results to unpack");
     }
-    uint32_t count = (uint32_t)count64;
+    uint32_t count = (uint32_t) count64;
     CVar multi = FlAllocMulti(_S, count);
     uint32_t i;
     for (i = 0; i < count; ++i) {
-        multi.data_.m->vars[i] = FlGetTableInt(tbl, (int64_t)((uint64_t)start_i + (uint64_t)i));
+        multi.data_.m->vars[i] = FlGetTableInt(tbl, (int64_t) ((uint64_t) start_i + (uint64_t) i));
     }
     return multi;
 }
 
-#define GET_TABLE_ENTRY(tbl, idx, k, v) do { \
-    VarTable *__gt = (tbl).data_.t; \
-    uint32_t __gi = (idx); \
-    uint32_t __spec_cnt = __gt->spec_count; \
-    if (LIKELY(__gi < __spec_cnt)) { \
-        (k) = __gt->spec_keys[__gi]; \
-        (v) = __gt->spec_vals[__gi]; \
-    } else { \
-        __gi -= __spec_cnt; \
-        if (__gi < __gt->arr_size_) { \
-            (k).type_ = VAR_INT; (k).flag_ = 0; (k).data_.i = (int64_t)__gi + 1; \
-            (v) = __gt->arr_[__gi]; \
-        } else { \
-            __gi -= __gt->arr_size_; \
-            if (UNLIKELY(__gi >= __gt->count_)) { \
-                (k).type_ = VAR_NIL; (v).type_ = VAR_NIL; \
-            } else if (LIKELY(__gt->bucket_count_ == 0)) { \
-                (k) = __gt->quick_data_[__gi].key; \
-                (v) = __gt->quick_data_[__gi].val; \
-            } else { \
-                uint32_t __gti_node_idx = __gt->active_list_[__gi]; \
-                (k) = __gt->nodes_[__gti_node_idx].entry.key; \
-                (v) = __gt->nodes_[__gti_node_idx].entry.val; \
-            } \
-        } \
-    } \
-} while(0)
+#define GET_TABLE_ENTRY(tbl, idx, k, v)                                                                                                                                                                \
+    do {                                                                                                                                                                                               \
+        VarTable *__gt = (tbl).data_.t;                                                                                                                                                                \
+        uint32_t __gi = (idx);                                                                                                                                                                         \
+        uint32_t __spec_cnt = __gt->spec_count;                                                                                                                                                        \
+        if (LIKELY(__gi < __spec_cnt)) {                                                                                                                                                               \
+            (k) = __gt->spec_keys[__gi];                                                                                                                                                               \
+            (v) = __gt->spec_vals[__gi];                                                                                                                                                               \
+        } else {                                                                                                                                                                                       \
+            __gi -= __spec_cnt;                                                                                                                                                                        \
+            if (__gi < __gt->arr_size_) {                                                                                                                                                              \
+                (k).type_ = VAR_INT;                                                                                                                                                                   \
+                (k).flag_ = 0;                                                                                                                                                                         \
+                (k).data_.i = (int64_t) __gi + 1;                                                                                                                                                      \
+                (v) = __gt->arr_[__gi];                                                                                                                                                                \
+            } else {                                                                                                                                                                                   \
+                __gi -= __gt->arr_size_;                                                                                                                                                               \
+                if (UNLIKELY(__gi >= __gt->count_)) {                                                                                                                                                  \
+                    (k).type_ = VAR_NIL;                                                                                                                                                               \
+                    (v).type_ = VAR_NIL;                                                                                                                                                               \
+                } else if (LIKELY(__gt->bucket_count_ == 0)) {                                                                                                                                         \
+                    (k) = __gt->quick_data_[__gi].key;                                                                                                                                                 \
+                    (v) = __gt->quick_data_[__gi].val;                                                                                                                                                 \
+                } else {                                                                                                                                                                               \
+                    uint32_t __gti_node_idx = __gt->active_list_[__gi];                                                                                                                                \
+                    (k) = __gt->nodes_[__gti_node_idx].entry.key;                                                                                                                                      \
+                    (v) = __gt->nodes_[__gti_node_idx].entry.val;                                                                                                                                      \
+                }                                                                                                                                                                                      \
+            }                                                                                                                                                                                          \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define FlFloorDivQuotient(a, b, q) do { \
-    if (UNLIKELY((b) == (int64_t)-1)) { \
-        (q) = (int64_t)((uint64_t)0 - (uint64_t)(int64_t)(a)); \
-    } else { \
-        (q) = (a) / (b); \
-        if (((a) ^ (b)) < 0 && (a) % (b) != 0) { (q) -= 1; } \
-    } \
-} while(0)
+#define FlFloorDivQuotient(a, b, q)                                                                                                                                                                    \
+    do {                                                                                                                                                                                               \
+        if (UNLIKELY((b) == (int64_t) -1)) {                                                                                                                                                           \
+            (q) = (int64_t) ((uint64_t) 0 - (uint64_t) (int64_t) (a));                                                                                                                                 \
+        } else {                                                                                                                                                                                       \
+            (q) = (a) / (b);                                                                                                                                                                           \
+            if (((a) ^ (b)) < 0 && (a) % (b) != 0) {                                                                                                                                                   \
+                (q) -= 1;                                                                                                                                                                              \
+            }                                                                                                                                                                                          \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define FlFloorDivInt(a, b, result) do { \
-    int64_t __fl_a = (a); int64_t __fl_b = (b); \
-    if (UNLIKELY(__fl_b == 0)) { FakeluaThrowError(_S, "floor division by zero"); } \
-    int64_t __fl_q; \
-    FlFloorDivQuotient(__fl_a, __fl_b, __fl_q); \
-    (result) = __fl_q; \
-} while(0)
+#define FlFloorDivInt(a, b, result)                                                                                                                                                                    \
+    do {                                                                                                                                                                                               \
+        int64_t __fl_a = (a);                                                                                                                                                                          \
+        int64_t __fl_b = (b);                                                                                                                                                                          \
+        if (UNLIKELY(__fl_b == 0)) {                                                                                                                                                                   \
+            FakeluaThrowError(_S, "floor division by zero");                                                                                                                                           \
+        }                                                                                                                                                                                              \
+        int64_t __fl_q;                                                                                                                                                                                \
+        FlFloorDivQuotient(__fl_a, __fl_b, __fl_q);                                                                                                                                                    \
+        (result) = __fl_q;                                                                                                                                                                             \
+    } while (0)
 
-#define FlModInt(a, b, result) do { \
-    int64_t __fm_a = (a); int64_t __fm_b = (b); \
-    if (UNLIKELY(__fm_b == 0)) { FakeluaThrowError(_S, "modulo by zero"); } \
-    if (UNLIKELY(__fm_b == (int64_t)-1)) { (result) = 0; } \
-    else { \
-        int64_t __fm_q; \
-        FlFloorDivQuotient(__fm_a, __fm_b, __fm_q); \
-        (result) = __fm_a - __fm_b * __fm_q; \
-    } \
-} while(0)
+#define FlModInt(a, b, result)                                                                                                                                                                         \
+    do {                                                                                                                                                                                               \
+        int64_t __fm_a = (a);                                                                                                                                                                          \
+        int64_t __fm_b = (b);                                                                                                                                                                          \
+        if (UNLIKELY(__fm_b == 0)) {                                                                                                                                                                   \
+            FakeluaThrowError(_S, "modulo by zero");                                                                                                                                                   \
+        }                                                                                                                                                                                              \
+        if (UNLIKELY(__fm_b == (int64_t) -1)) {                                                                                                                                                        \
+            (result) = 0;                                                                                                                                                                              \
+        } else {                                                                                                                                                                                       \
+            int64_t __fm_q;                                                                                                                                                                            \
+            FlFloorDivQuotient(__fm_a, __fm_b, __fm_q);                                                                                                                                                \
+            (result) = __fm_a - __fm_b * __fm_q;                                                                                                                                                       \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define FlModFloat(a, b, result) do { \
-    double __fmf_a = (a); double __fmf_b = (b); \
-    (result) = __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
-} while(0)
+#define FlModFloat(a, b, result)                                                                                                                                                                       \
+    do {                                                                                                                                                                                               \
+        double __fmf_a = (a);                                                                                                                                                                          \
+        double __fmf_b = (b);                                                                                                                                                                          \
+        (result) = __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b);                                                                                                                                       \
+    } while (0)
 
 // Lua 5.4 pushnumint：d 能无损落进 int64 时返回 integer，否则保留 float
 // （inf/-inf/nan/超出 [-2^63, 2^63) 均不报错，仍是 float）。
@@ -2120,7 +2964,7 @@ static inline CVar FlPushNumInt(double d) {
     CVar r;
     if (isfinite(d) && d >= -9223372036854775808.0 && d < 9223372036854775808.0) {
         r.type_ = VAR_INT;
-        r.data_.i = (int64_t)d;
+        r.data_.i = (int64_t) d;
     } else {
         r.type_ = VAR_FLOAT;
         r.data_.f = d;
@@ -2130,12 +2974,12 @@ static inline CVar FlPushNumInt(double d) {
 
 static inline CVar FlMathFloor(CVar v) {
     if (v.type_ == VAR_INT) return v;
-    return FlPushNumInt(floor((double)v.data_.f));
+    return FlPushNumInt(floor((double) v.data_.f));
 }
 
 static inline CVar FlMathCeil(CVar v) {
     if (v.type_ == VAR_INT) return v;
-    return FlPushNumInt(ceil((double)v.data_.f));
+    return FlPushNumInt(ceil((double) v.data_.f));
 }
 
 // Lua 5.4 math.fmod：两整数走整数取模（0 报错、-1 特判为 0 避开溢出），
@@ -2168,36 +3012,36 @@ static inline CVar FlMathModf(CVar v) {
     r = FlAllocMulti(_S, 2);
     if (v.type_ == VAR_INT) {
         r.data_.m->vars[0] = v;
-        r.data_.m->vars[1] = (CVar){.type_ = VAR_FLOAT, .data_.f = 0.0};
+        r.data_.m->vars[1] = (CVar) {.type_ = VAR_FLOAT, .data_.f = 0.0};
         return r;
     }
-    n = (double)v.data_.f;
+    n = (double) v.data_.f;
     ip = (n < 0) ? ceil(n) : floor(n);
     fp = (n == ip) ? 0.0 : n - ip;
     r.data_.m->vars[0] = FlPushNumInt(ip);
-    r.data_.m->vars[1] = (CVar){.type_ = VAR_FLOAT, .data_.f = fp};
+    r.data_.m->vars[1] = (CVar) {.type_ = VAR_FLOAT, .data_.f = fp};
     return r;
 }
 
 static inline double FlMathLdexp(double value, int64_t exponent) {
     if (exponent > 2147483647LL) exponent = 2147483647LL;
     if (exponent < (-2147483647LL - 1)) exponent = (-2147483647LL - 1);
-    return ldexp(value, (int)exponent);
+    return ldexp(value, (int) exponent);
 }
 
 static inline int64_t FlRandomInt64(void) {
     uint64_t value = 0;
     for (int i = 0; i < 5; ++i) {
-        value = (value << 15) | (uint64_t)(rand() & 0x7fff);
+        value = (value << 15) | (uint64_t) (rand() & 0x7fff);
     }
-    return (int64_t)value;
+    return (int64_t) value;
 }
 
 // 整数 for 步进：用无符号加法探测有符号溢出。溢出返回 0 且不改 *ctrl
 //（避免 maxinteger++ 变成 mininteger 后死循环）。continue 仍走 for 的 incr 子句。
 static inline int FlForIntAdvance(int64_t *ctrl, int64_t step) {
     int64_t cur = *ctrl;
-    int64_t next = (int64_t)((uint64_t)cur + (uint64_t)step);
+    int64_t next = (int64_t) ((uint64_t) cur + (uint64_t) step);
     if ((cur ^ step) >= 0 && (next ^ cur) < 0) return 0;
     *ctrl = next;
     return 1;
@@ -2226,49 +3070,53 @@ static inline int FlForLimitToInt(double flim, int64_t step, int64_t *out) {
         *out = INT64_MAX;
         return 0;
     }
-    if (flim < (double)INT64_MIN) {
+    if (flim < (double) INT64_MIN) {
         if (step > 0) return 1;
         *out = INT64_MIN;
         return 0;
     }
-    *out = step > 0 ? (int64_t)floor(flim) : (int64_t)ceil(flim);
+    *out = step > 0 ? (int64_t) floor(flim) : (int64_t) ceil(flim);
     return 0;
 }
 
-#define FlToIntChecked(v, result) do { \
-    if (!FlDoubleFitsInt64((double)(v), &(result))) { \
-        FakeluaThrowError(_S, "number has no integer representation"); \
-    } \
-} while(0)
+#define FlToIntChecked(v, result)                                                                                                                                                                      \
+    do {                                                                                                                                                                                               \
+        if (!FlDoubleFitsInt64((double) (v), &(result))) {                                                                                                                                             \
+            FakeluaThrowError(_S, "number has no integer representation");                                                                                                                             \
+        }                                                                                                                                                                                              \
+    } while (0)
 
-#define FlShiftIntImpl(a, b, result, _right) do { \
-    int64_t __sh_a = (a); int64_t __sh_b = (b); \
-    if (UNLIKELY(__sh_b >= 64 || __sh_b <= -64)) { \
-        (result) = (int64_t)0; \
-    } else if (__sh_b >= 0) { \
-        (result) = (int64_t)((_right) ? ((uint64_t)__sh_a >> __sh_b) : ((uint64_t)__sh_a << __sh_b)); \
-    } else { \
-        (result) = (int64_t)((_right) ? ((uint64_t)__sh_a << (-__sh_b)) : ((uint64_t)__sh_a >> (-__sh_b))); \
-    } \
-} while(0)
+#define FlShiftIntImpl(a, b, result, _right)                                                                                                                                                           \
+    do {                                                                                                                                                                                               \
+        int64_t __sh_a = (a);                                                                                                                                                                          \
+        int64_t __sh_b = (b);                                                                                                                                                                          \
+        if (UNLIKELY(__sh_b >= 64 || __sh_b <= -64)) {                                                                                                                                                 \
+            (result) = (int64_t) 0;                                                                                                                                                                    \
+        } else if (__sh_b >= 0) {                                                                                                                                                                      \
+            (result) = (int64_t) ((_right) ? ((uint64_t) __sh_a >> __sh_b) : ((uint64_t) __sh_a << __sh_b));                                                                                           \
+        } else {                                                                                                                                                                                       \
+            (result) = (int64_t) ((_right) ? ((uint64_t) __sh_a << (-__sh_b)) : ((uint64_t) __sh_a >> (-__sh_b)));                                                                                     \
+        }                                                                                                                                                                                              \
+    } while (0)
 
 #define FlLShiftInt(a, b, result) FlShiftIntImpl(a, b, result, 0)
 
 #define FlRShiftInt(a, b, result) FlShiftIntImpl(a, b, result, 1)
 
-#define FlLenInt(v, result) do { \
-    CVar __fl_v = (v); \
-    if (LIKELY(__fl_v.type_ == VAR_STRING)) { \
-        (result) = (int64_t)STR_SIZE(__fl_v.data_.s); \
-    } else if (UNLIKELY(__fl_v.type_ == VAR_STRINGID)) { \
-        (result) = (int64_t)STR_SIZE((VarString *)__fl_v.data_.i); \
-    } else if (UNLIKELY(__fl_v.type_ == VAR_TABLE)) { \
-        (result) = (int64_t)FlGetTableSeqLen(__fl_v.data_.t); \
-    } else { \
-        FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); \
-        (result) = 0; \
-    } \
-} while(0)
+#define FlLenInt(v, result)                                                                                                                                                                            \
+    do {                                                                                                                                                                                               \
+        CVar __fl_v = (v);                                                                                                                                                                             \
+        if (LIKELY(__fl_v.type_ == VAR_STRING)) {                                                                                                                                                      \
+            (result) = (int64_t) STR_SIZE(__fl_v.data_.s);                                                                                                                                             \
+        } else if (UNLIKELY(__fl_v.type_ == VAR_STRINGID)) {                                                                                                                                           \
+            (result) = (int64_t) STR_SIZE((VarString *) __fl_v.data_.i);                                                                                                                               \
+        } else if (UNLIKELY(__fl_v.type_ == VAR_TABLE)) {                                                                                                                                              \
+            (result) = (int64_t) FlGetTableSeqLen(__fl_v.data_.t);                                                                                                                                     \
+        } else {                                                                                                                                                                                       \
+            FakeluaThrowError(_S, "attempt to get length of a non-string/table value");                                                                                                                \
+            (result) = 0;                                                                                                                                                                              \
+        }                                                                                                                                                                                              \
+    } while (0)
 
 // 获取本 State 的日志级别（由 C++ 侧初始化和设置）
 // 返回值: 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Critical, 6=Off
@@ -2295,16 +3143,27 @@ enum {
 
 // 日志宏：级别检查 + 调用 C++ 日志函数
 // 参数 msg 只在级别启用时才会被求值
-#define FAKELUA_LOG_TRACE(msg, file, line, fname) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_TRACE)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_TRACE, msg, file, line, fname); } while (0)
-#define FAKELUA_LOG_DEBUG(msg, file, line, fname) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_DEBUG)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_DEBUG, msg, file, line, fname); } while (0)
-#define FAKELUA_LOG_INFO(msg, file, line, fname) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_INFO)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_INFO, msg, file, line, fname); } while (0)
-#define FAKELUA_LOG_WARN(msg, file, line, fname) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_WARN)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_WARN, msg, file, line, fname); } while (0)
-#define FAKELUA_LOG_ERROR(msg, file, line, fname) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_ERROR)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_ERROR, msg, file, line, fname); } while (0)
-#define FAKELUA_LOG_CRITICAL(msg, file, line, fname) \
-    do { if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_CRITICAL)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_CRITICAL, msg, file, line, fname); } while (0)
-
+#define FAKELUA_LOG_TRACE(msg, file, line, fname)                                                                                                                                                      \
+    do {                                                                                                                                                                                               \
+        if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_TRACE)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_TRACE, msg, file, line, fname);                                                                              \
+    } while (0)
+#define FAKELUA_LOG_DEBUG(msg, file, line, fname)                                                                                                                                                      \
+    do {                                                                                                                                                                                               \
+        if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_DEBUG)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_DEBUG, msg, file, line, fname);                                                                              \
+    } while (0)
+#define FAKELUA_LOG_INFO(msg, file, line, fname)                                                                                                                                                       \
+    do {                                                                                                                                                                                               \
+        if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_INFO)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_INFO, msg, file, line, fname);                                                                                \
+    } while (0)
+#define FAKELUA_LOG_WARN(msg, file, line, fname)                                                                                                                                                       \
+    do {                                                                                                                                                                                               \
+        if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_WARN)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_WARN, msg, file, line, fname);                                                                                \
+    } while (0)
+#define FAKELUA_LOG_ERROR(msg, file, line, fname)                                                                                                                                                      \
+    do {                                                                                                                                                                                               \
+        if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_ERROR)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_ERROR, msg, file, line, fname);                                                                              \
+    } while (0)
+#define FAKELUA_LOG_CRITICAL(msg, file, line, fname)                                                                                                                                                   \
+    do {                                                                                                                                                                                               \
+        if (FAKELUA_LOG_CHECK(FAKELUA_LOGLEVEL_CRITICAL)) FakeluaLogLua(_S, FAKELUA_LOGLEVEL_CRITICAL, msg, file, line, fname);                                                                        \
+    } while (0)

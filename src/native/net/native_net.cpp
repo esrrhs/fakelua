@@ -50,11 +50,12 @@ struct NetObject {
     // 泵出——消除"回调里 send 是否生效"的平台相关行为（事件驱动改轮询驱动）。
     struct PendingSend {
         enum class Kind { Server, Client, UdpPeer, UdpTo } kind;
-        int connid = -1;        // Server: 目标连接
+        int connid = -1;// Server: 目标连接
         std::string data;
-        std::string ip;         // UdpTo: 目标地址
-        uint16_t port = 0;      // UdpTo: 目标端口
+        std::string ip;   // UdpTo: 目标地址
+        uint16_t port = 0;// UdpTo: 目标端口
     };
+
     std::vector<PendingSend> pending_sends;
 
     static constexpr size_t kMaxEvents = 1024;

@@ -51,7 +51,9 @@ public:
     bool Send(int conn_id, const char *data, size_t len);
     bool CloseConnection(int conn_id);
 
-    [[nodiscard]] bool Running() const { return listener_ != nullptr; }
+    [[nodiscard]] bool Running() const {
+        return listener_ != nullptr;
+    }
 
 private:
     void EmitEvent(ConnEvent ev);
@@ -101,9 +103,17 @@ public:
     bool Send(const char *data, size_t len);
     bool SendTo(const char *data, size_t len, const std::string &ip, uint16_t port);
 
-    [[nodiscard]] bool Running() const { return open_; }
-    [[nodiscard]] bool Connected() const { return connected_; }
-    [[nodiscard]] uint16_t BoundPort() const { return bound_port_; }
+    [[nodiscard]] bool Running() const {
+        return open_;
+    }
+
+    [[nodiscard]] bool Connected() const {
+        return connected_;
+    }
+
+    [[nodiscard]] uint16_t BoundPort() const {
+        return bound_port_;
+    }
 
 private:
     void OnRecv();

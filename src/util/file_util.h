@@ -7,4 +7,4 @@ std::string GetTmpDirectory();
 
 std::string GenerateTmpFilename(const std::string &head, const std::string &tail);
 
-}
+}// namespace fakelua

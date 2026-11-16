@@ -161,7 +161,7 @@ static CVar CallByNameImpl(State *state, int jit_type, std::string_view name, in
                 if (flat_count >= static_cast<int>(kMaxFunctionInputParams)) {
                     ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments, max is {}", kMaxFunctionInputParams));
                 }
-                flat_args_buf[flat_count++] = (m && m->GetCount() > 0) ? m->GetVars()[0] : (CVar){static_cast<int>(VarType::Nil)};
+                flat_args_buf[flat_count++] = (m && m->GetCount() > 0) ? m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)};
             } else {
                 if (flat_count >= static_cast<int>(kMaxFunctionInputParams)) {
                     ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments, max is {}", kMaxFunctionInputParams));
@@ -172,7 +172,7 @@ static CVar CallByNameImpl(State *state, int jit_type, std::string_view name, in
 
         if (UNLIKELY(is_vararg)) {
             for (int i = 0; i < fixed_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
             }
             const int vararg_count = std::max(0, flat_count - fixed_arg_count);
             VarMulti *m = VarMulti::AllocTemp(state, vararg_count);
@@ -189,7 +189,7 @@ static CVar CallByNameImpl(State *state, int jit_type, std::string_view name, in
                 ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, flat_count));
             }
             for (int i = 0; i < expected_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
             }
         }
         arg_arr = temp_arg_arr;
@@ -217,7 +217,7 @@ static CVar CallByNameImpl(State *state, int jit_type, std::string_view name, in
                 if (flat_count >= static_cast<int>(kMaxFunctionInputParams)) {
                     ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments, max is {}", kMaxFunctionInputParams));
                 }
-                flat_args_buf[flat_count++] = (m && m->GetCount() > 0) ? m->GetVars()[0] : (CVar){static_cast<int>(VarType::Nil)};
+                flat_args_buf[flat_count++] = (m && m->GetCount() > 0) ? m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)};
             } else {
                 if (flat_count >= static_cast<int>(kMaxFunctionInputParams)) {
                     ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments, max is {}", kMaxFunctionInputParams));

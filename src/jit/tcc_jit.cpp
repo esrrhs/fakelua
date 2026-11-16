@@ -1,6 +1,6 @@
 #include "jit/tcc_jit.h"
-#include "jit/tcc_handle.h"
 #include "jit/code_binding.h"
+#include "jit/tcc_handle.h"
 #include "state/state.h"
 #include "util/logging.h"
 
