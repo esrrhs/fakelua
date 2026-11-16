@@ -18,7 +18,9 @@ jobs:
         build_type: [debug, release, asan, cov]
 
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # Cold ASAN builds plus the full instrumented suite can exceed one hour.
+    # Keep other variants unchanged and retain separate bounded build/test steps.
+    timeout-minutes: ${{ matrix.build_type == 'asan' && 120 || 60 }}
 
     services:
       mysql:
@@ -173,6 +175,17 @@ jobs:
           cmake ${CMAKE_FLAGS} ..
           make -j$(nproc)
           ccache -s
+
+      - name: Test (${{ matrix.build_type }})
+        timeout-minutes: 60
+        working-directory: build
+        run: |
+          set -x
+          # Step-local exports from Build do not carry over to this step.
+          export CPM_SOURCE_CACHE=$HOME/.cache/CPM
+          if [ "${{ matrix.build_type }}" = asan ]; then
+            export ASAN_OPTIONS=detect_leaks=0
+          fi
           # Run all tests (including MySQL / Redis integration tests)
           # Must run from test/lua so relative Lua file paths resolve correctly
           (cd $GITHUB_WORKSPACE/test/lua && $GITHUB_WORKSPACE/build/bin/unit_tests)
