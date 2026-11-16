@@ -46,9 +46,26 @@ std::string Digest(const std::string &data) {
     for (auto c : hash) out << std::hex << std::setw(2) << std::setfill('0') << unsigned(c);
     return out.str();
 }
+// libc++ file_clock ticks may use __int128, which has no ostream operator.
+template <typename T>
+void AppendInteger(std::ostream &out, T value) {
+    char buf[80];
+    char *p = buf + sizeof(buf);
+    *--p = '\0';
+    const bool negative = value < T{0};
+    do {
+        T digit = value % 10;
+        if (digit < T{0}) digit = -digit;
+        *--p = static_cast<char>('0' + static_cast<int>(digit));
+        value /= 10;
+    } while (value != T{0});
+    if (negative) *--p = '-';
+    out << p;
+}
 std::string FileStamp(const fs::path &path) {
     std::ostringstream stamp;
-    stamp << (fs::is_directory(path) ? 0 : fs::file_size(path)) << ':' << fs::last_write_time(path).time_since_epoch().count();
+    stamp << (fs::is_directory(path) ? 0 : fs::file_size(path)) << ':';
+    AppendInteger(stamp, fs::last_write_time(path).time_since_epoch().count());
 #if !defined(_WIN32)
     struct stat st{};
     if (stat(path.c_str(), &st)) throw std::runtime_error("cache dependency stat");
