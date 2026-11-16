@@ -14,6 +14,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <system_error>
 #include <vector>
 #if defined(_WIN32)
 #define NOMINMAX
@@ -30,6 +31,101 @@ namespace fakelua {
 namespace {
 namespace fs = std::filesystem;
 
+#if defined(_WIN32)
+constexpr DWORD kShareAll = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+
+class WinHandle {
+public:
+    HANDLE h = INVALID_HANDLE_VALUE;
+    WinHandle() = default;
+    explicit WinHandle(HANDLE handle) : h(handle) {}
+    ~WinHandle() { reset(); }
+    WinHandle(const WinHandle &) = delete;
+    WinHandle &operator=(const WinHandle &) = delete;
+    WinHandle(WinHandle &&other) noexcept : h(other.h) { other.h = INVALID_HANDLE_VALUE; }
+    void reset() {
+        if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
+        h = INVALID_HANDLE_VALUE;
+    }
+    explicit operator bool() const { return h != INVALID_HANDLE_VALUE; }
+};
+
+// One-pass POSIX unlink: never retries, and does not block on a share-delete open handle.
+bool UnlinkPath(const fs::path &p) {
+    WinHandle handle(CreateFileW(p.wstring().c_str(), DELETE, kShareAll, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+    if (!handle) {
+        const auto err = GetLastError();
+        return err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND;
+    }
+    struct DispositionEx {
+        DWORD Flags;
+    } posix{0x00000001 | 0x00000002};// FILE_DISPOSITION_FLAG_DELETE | POSIX_SEMANTICS
+    if (SetFileInformationByHandle(handle.h, static_cast<FILE_INFO_BY_HANDLE_CLASS>(21), &posix, sizeof(posix))) return true;
+    FILE_DISPOSITION_INFO info{};
+    info.DeleteFile = TRUE;
+    return SetFileInformationByHandle(handle.h, FileDispositionInfo, &info, sizeof(info));
+}
+
+void RemoveTree(const fs::path &p, std::error_code &ec) {
+    WIN32_FILE_ATTRIBUTE_DATA attrs{};
+    if (!GetFileAttributesExW(p.wstring().c_str(), GetFileExInfoStandard, &attrs)) {
+        const auto err = GetLastError();
+        if (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) ec.clear();
+        else
+            ec.assign(err, std::system_category());
+        return;
+    }
+    if (attrs.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+        WIN32_FIND_DATAW data{};
+        HANDLE find = FindFirstFileW((p / "*").wstring().c_str(), &data);
+        if (find != INVALID_HANDLE_VALUE) {
+            do {
+                if (data.cFileName[0] == L'.' && (data.cFileName[1] == L'\0' || (data.cFileName[1] == L'.' && data.cFileName[2] == L'\0'))) continue;
+                std::error_code child;
+                RemoveTree(p / data.cFileName, child);
+            } while (FindNextFileW(find, &data));
+            FindClose(find);
+        }
+    }
+    if (UnlinkPath(p)) {
+        ec.clear();
+        return;
+    }
+    const auto err = GetLastError();
+    if (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) ec.clear();
+    else
+        ec.assign(err, std::system_category());
+}
+
+std::string ReadBytes(const fs::path &p) {
+    WinHandle handle(CreateFileW(p.wstring().c_str(), GENERIC_READ, kShareAll, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+    if (!handle) throw std::runtime_error("cache read");
+    LARGE_INTEGER size{};
+    if (!GetFileSizeEx(handle.h, &size) || size.QuadPart < 0) throw std::runtime_error("cache size");
+    std::string data(static_cast<size_t>(size.QuadPart), '\0');
+    size_t offset = 0;
+    while (offset < data.size()) {
+        DWORD chunk = 0;
+        const DWORD want = static_cast<DWORD>(std::min(data.size() - offset, size_t(1 << 20)));
+        if (!ReadFile(handle.h, data.data() + offset, want, &chunk, nullptr) || !chunk) throw std::runtime_error("cache read");
+        offset += chunk;
+    }
+    return data;
+}
+
+void WriteBytes(const fs::path &p, const std::string &data) {
+    WinHandle handle(CreateFileW(p.wstring().c_str(), GENERIC_WRITE, kShareAll, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
+    if (!handle) throw std::runtime_error("cache write");
+    size_t offset = 0;
+    while (offset < data.size()) {
+        DWORD chunk = 0;
+        const DWORD want = static_cast<DWORD>(std::min(data.size() - offset, size_t(1 << 20)));
+        if (!WriteFile(handle.h, data.data() + offset, want, &chunk, nullptr) || !chunk) throw std::runtime_error("cache write");
+        offset += chunk;
+    }
+    if (!FlushFileBuffers(handle.h)) throw std::runtime_error("cache write");
+}
+#else
 std::string ReadBytes(const fs::path &p) {
     std::ifstream in(p, std::ios::binary | std::ios::ate);
     if (!in) throw std::runtime_error("cache read");
@@ -40,6 +136,16 @@ std::string ReadBytes(const fs::path &p) {
     if (!data.empty() && !in.read(data.data(), static_cast<std::streamsize>(data.size()))) throw std::runtime_error("cache read");
     return data;
 }
+
+void WriteBytes(const fs::path &p, const std::string &data) {
+    std::ofstream out(p, std::ios::binary | std::ios::trunc);
+    out.write(data.data(), static_cast<std::streamsize>(data.size()));
+    out.close();
+    if (!out) throw std::runtime_error("cache write");
+}
+
+void RemoveTree(const fs::path &p, std::error_code &ec) { fs::remove_all(p, ec); }
+#endif
 
 std::string Digest(const std::string &data) {
     std::array<unsigned char, SHA256_DIGEST_LENGTH> hash{};
@@ -121,13 +227,6 @@ std::string FileDigest(const fs::path &path) {
         entry = {stamp, std::move(digest)};
     }
     return entry.digest;
-}
-
-void WriteBytes(const fs::path &p, const std::string &data) {
-    std::ofstream out(p, std::ios::binary | std::ios::trunc);
-    out.write(data.data(), static_cast<std::streamsize>(data.size()));
-    out.close();
-    if (!out) throw std::runtime_error("cache write");
 }
 
 fs::path CompilerPath(const std::string &compiler) {
@@ -271,7 +370,7 @@ class CacheFileLock {
 public:
     explicit CacheFileLock(const fs::path &path) : path_(path), mutex_(KeyMutex(path.string())), thread_lock_(*mutex_) {
 #if defined(_WIN32)
-        handle_ = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        handle_ = CreateFileW(path.wstring().c_str(), GENERIC_READ | GENERIC_WRITE, kShareAll, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (handle_ == INVALID_HANDLE_VALUE) throw std::runtime_error("cache lock open");
         OVERLAPPED overlap{};
         if (!LockFileEx(handle_, LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, &overlap)) {
@@ -304,8 +403,16 @@ public:
 
     bool StillLinked() const {
 #if defined(_WIN32)
-        // Open handles deny deletion/replacement until released on Windows.
-        return handle_ != INVALID_HANDLE_VALUE;
+        // Share-delete opens allow an external cleaner to unlink the lock name.
+        if (handle_ == INVALID_HANDLE_VALUE) return false;
+        FILE_STANDARD_INFO standard{};
+        if (GetFileInformationByHandleEx(handle_, FileStandardInfo, &standard, sizeof(standard)) && (standard.DeletePending || standard.NumberOfLinks == 0)) return false;
+        BY_HANDLE_FILE_INFORMATION held{};
+        if (!GetFileInformationByHandle(handle_, &held)) return false;
+        WinHandle named(CreateFileW(path_.wstring().c_str(), 0, kShareAll, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+        if (!named) return false;
+        BY_HANDLE_FILE_INFORMATION info{};
+        return GetFileInformationByHandle(named.h, &info) && held.dwVolumeSerialNumber == info.dwVolumeSerialNumber && held.nFileIndexHigh == info.nFileIndexHigh && held.nFileIndexLow == info.nFileIndexLow;
 #else
         struct stat held{}, named{};
 
@@ -343,7 +450,7 @@ void TrimEntries(const fs::path &root, size_t limit) {
     for (const auto &entry: entries) {
         if (count <= limit) break;
         std::error_code ec;
-        fs::remove_all(entry.path, ec);
+        RemoveTree(entry.path, ec);
         if (!ec) --count;// permission/cleanup races are best effort, never Lua errors
     }
 }
@@ -529,7 +636,7 @@ void GccCache::Invalidate() {
         auto index_lock = impl_->IndexLock();
         if (!index_lock.StillLinked()) return;
         std::error_code ec;
-        fs::remove_all(impl_->entry, ec);
+        RemoveTree(impl_->entry, ec);
     } catch (...) { /* An externally removed cache is just a miss. */
     }
 }
@@ -570,21 +677,21 @@ void GccCache::Publish(const std::string &binary, const std::string &dependencie
         // unlinks a lock inode and another process acquires a replacement lock.
         staging = impl_->entry.string() + ".tmp." + fs::path(GenerateTmpFilename("", "")).filename().string();
         std::error_code stale;
-        fs::remove_all(impl_->entry.string() + ".tmp", stale);// old-format abandoned staging only
+        RemoveTree(impl_->entry.string() + ".tmp", stale);// old-format abandoned staging only
         if (!fs::create_directory(staging)) return;
         WriteBytes(staging / "image", bytes);
         WriteBytes(staging / "manifest", manifest.str());
         WriteBytes(staging / "published", std::to_string(order));
         if (!index_lock.StillLinked() || !impl_->key_lock->StillLinked()) {
-            fs::remove_all(staging, stale);
+            RemoveTree(staging, stale);
             return;
         }
-        fs::remove_all(impl_->entry, stale);
+        RemoveTree(impl_->entry, stale);
         fs::rename(staging, impl_->entry);// only complete, validated images become visible
         TrimEntries(root, impl_->max_entries);
     } catch (...) {
         std::error_code ec;
-        if (!staging.empty()) fs::remove_all(staging, ec);
+        if (!staging.empty()) RemoveTree(staging, ec);
     }
 }
 }// namespace fakelua

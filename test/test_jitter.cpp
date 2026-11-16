@@ -15,7 +15,10 @@
 #include <fstream>
 #include <string>
 #include <thread>
-#if !defined(_WIN32)
+#if defined(_WIN32)
+#define NOMINMAX
+#include <windows.h>
+#else
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -3163,6 +3166,43 @@ TEST(jitter, tcc_libraries_config_path) {
 }
 
 namespace {
+// MinGW libstdc++ remove_all can livelock in recursive_directory_iterator::__erase
+// when a child is open or delete-pending and fs::remove returns failure without an
+// error_code (while (!ec) retries the same entry). External cleanup in these tests
+// therefore uses a one-pass, share-delete/POSIX unlink that never retries.
+void RemoveTreeBestEffort(const std::filesystem::path &path) {
+#if defined(_WIN32)
+    WIN32_FILE_ATTRIBUTE_DATA attrs{};
+    if (!GetFileAttributesExW(path.wstring().c_str(), GetFileExInfoStandard, &attrs)) return;
+    if (attrs.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+        WIN32_FIND_DATAW data{};
+        HANDLE find = FindFirstFileW((path / "*").wstring().c_str(), &data);
+        if (find != INVALID_HANDLE_VALUE) {
+            do {
+                if (data.cFileName[0] == L'.' && (data.cFileName[1] == L'\0' || (data.cFileName[1] == L'.' && data.cFileName[2] == L'\0'))) continue;
+                RemoveTreeBestEffort(path / data.cFileName);
+            } while (FindNextFileW(find, &data));
+            FindClose(find);
+        }
+    }
+    HANDLE handle = CreateFileW(path.wstring().c_str(), DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+                               FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) return;
+    struct DispositionEx {
+        DWORD Flags;
+    } posix{0x00000001 | 0x00000002};// FILE_DISPOSITION_FLAG_DELETE | POSIX_SEMANTICS
+    if (!SetFileInformationByHandle(handle, static_cast<FILE_INFO_BY_HANDLE_CLASS>(21), &posix, sizeof(posix))) {
+        FILE_DISPOSITION_INFO info{};
+        info.DeleteFile = TRUE;
+        SetFileInformationByHandle(handle, FileDispositionInfo, &info, sizeof(info));
+    }
+    CloseHandle(handle);
+#else
+    std::error_code ec;
+    std::filesystem::remove_all(path, ec);
+#endif
+}
+
 struct JitCacheTestDir {
     std::filesystem::path path = GenerateTmpFilename("jit_cache_test_", ".dir");
 
@@ -3171,10 +3211,7 @@ struct JitCacheTestDir {
         std::filesystem::permissions(path, std::filesystem::perms::owner_all);
     }
 
-    ~JitCacheTestDir() {
-        std::error_code ec;
-        std::filesystem::remove_all(path, ec);
-    }
+    ~JitCacheTestDir() { RemoveTreeBestEffort(path); }
 
     StateConfig Config() const {
         StateConfig cfg;
@@ -3535,8 +3572,7 @@ TEST(jitter, gcc_cache_external_cleanup_races_restore_without_partial_copy) {
         std::atomic<bool> started{false};
         std::thread cleaner([&] {
             while (!started.load()) std::this_thread::yield();
-            std::error_code ec;
-            std::filesystem::remove_all(entry, ec);
+            RemoveTreeBestEffort(entry);
         });
         started = true;
         bool restored = cache.Restore(f.restored);
@@ -3556,9 +3592,8 @@ TEST(jitter, gcc_cache_removed_entry_and_root_are_recoverable) {
     auto cfg = f.dir.Config().gcc_config;
     {
         GccCache cache(cfg, f.compiler, "removed while compiling", false);
-        // Windows denies deleting open lock handles, but other cache files may vanish.
-        std::error_code ec;
-        std::filesystem::remove_all(f.dir.path, ec);
+        // External cleanup may unlink cache files and, on Windows, share-deleted lock names.
+        RemoveTreeBestEffort(f.dir.path);
         EXPECT_FALSE(cache.Restore(f.restored));
         EXPECT_NO_THROW(cache.Publish(f.binary, f.deps, f.source));
     }
@@ -3592,8 +3627,7 @@ TEST(jitter, gcc_cache_external_cleanup_during_compile_and_live_execution) {
     std::atomic<bool> stop{false};
     std::thread cleaner([&] {
         while (!stop.load()) {
-            std::error_code ec;
-            std::filesystem::remove_all(dir.path, ec);
+            RemoveTreeBestEffort(dir.path);
             std::this_thread::yield();
         }
     });
