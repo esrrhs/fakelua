@@ -185,3 +185,10 @@ TEST(util, generate_tmp_filename_collision) {
     std::filesystem::remove(first, ec);
     std::filesystem::remove(second, ec);
 }
+
+TEST(util, temporary_directory_shared_with_generated_filenames) {
+    const auto dir = std::filesystem::path(GetTmpDirectory());
+    EXPECT_EQ(dir.filename(), "fakelua");
+    EXPECT_TRUE(std::filesystem::is_directory(dir));
+    EXPECT_EQ(std::filesystem::path(GenerateTmpFilename("directory_probe_", ".tmp")).parent_path(), dir);
+}

@@ -401,9 +401,13 @@ struct StateGCCConfig {
     std::vector<std::string> library_paths;
     std::vector<std::string> libraries;
     // Best-effort persistent shared-library cache. Empty directory uses the
-    // per-user OS cache directory. Custom include/library configs bypass it.
+    // system-temp/fakelua/cache (POSIX: /uid-<uid>), not a home cache.
+    // System cleanup is policy-dependent. Custom include/library configs bypass it.
     bool enable_cache = true;
     std::string cache_directory;
+    // Maximum complete entries per directory, evicted in publication order (FIFO).
+    // Zero means unlimited; enable_cache=false disables caching entirely.
+    size_t cache_max_entries = 256;
 };
 
 struct StateConfig {

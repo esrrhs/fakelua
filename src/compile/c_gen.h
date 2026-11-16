@@ -26,7 +26,7 @@ public:
 
 private:
     // 当前写入的输出 section
-    enum class Section { Headers, Globals, Decls, Impls, Body, Count };
+    enum class Section { Includes, StringDecls, Headers, Globals, Decls, Impls, Bindings, Body, Count };
 
     // RAII guard：临时切换 section，析构时自动恢复，天然异常安全
     struct SectionGuard {
@@ -58,6 +58,8 @@ private:
     void GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
     // 生成所有函数具体的 C 语言代码实现
     void GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
+    // 加载时一次性绑定 State、堆槽及字符串驻留 ID。
+    void GenerateBindings();
 
     // 根据 AST 节点生成符合规范的 C 函数名称
     std::string CompileFuncName(const SyntaxTreeInterfacePtr &ptr);
@@ -289,7 +291,6 @@ private:
     std::string StringId(const std::string_view &value);
     std::vector<std::string> string_literals_;
     std::unordered_map<std::string, size_t> string_indices_;
-    std::ostringstream string_decls_;
     std::ostringstream global_initializers_;
     std::string code_file_name_;
     State *s_;                                                      // 全局虚拟机状态 State 引用

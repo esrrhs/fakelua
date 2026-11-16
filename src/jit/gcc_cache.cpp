@@ -1,7 +1,9 @@
 #include "jit/gcc_cache.h"
 #include "jit_build_identity.h"
+#include "util/file_util.h"
 #include <openssl/sha.h>
 #include <array>
+#include <algorithm>
 #include <cstdlib>
 #include <cerrno>
 #include <cctype>
@@ -232,20 +234,94 @@ std::shared_ptr<std::mutex> KeyMutex(const std::string &key) {
     if (!ret) weak = ret = std::make_shared<std::mutex>();
     return ret;
 }
+// Fixed lock stripes bound synchronization metadata independently of entry count.
+// Lock files are never unlinked by eviction; key -> index is the only lock order.
+class CacheFileLock {
+    fs::path path_;
+    std::shared_ptr<std::mutex> mutex_;
+    std::unique_lock<std::mutex> thread_lock_;
+#if defined(_WIN32)
+    HANDLE handle_ = INVALID_HANDLE_VALUE;
+#else
+    int fd_ = -1;
+#endif
+public:
+    explicit CacheFileLock(const fs::path &path)
+        : path_(path), mutex_(KeyMutex(path.string())), thread_lock_(*mutex_) {
+#if defined(_WIN32)
+        handle_ = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE,
+                             FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
+                             FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (handle_ == INVALID_HANDLE_VALUE) throw std::runtime_error("cache lock open");
+        OVERLAPPED overlap{};
+        if (!LockFileEx(handle_, LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, &overlap)) {
+            CloseHandle(handle_); handle_ = INVALID_HANDLE_VALUE;
+            throw std::runtime_error("cache lock");
+        }
+#else
+        fd_ = open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
+        if (fd_ < 0) throw std::runtime_error("cache lock open");
+        int status;
+        do { status = flock(fd_, LOCK_EX); } while (status < 0 && errno == EINTR);
+        if (status < 0) { close(fd_); fd_ = -1; throw std::runtime_error("cache lock"); }
+#endif
+    }
+    ~CacheFileLock() {
+#if defined(_WIN32)
+        if (handle_ != INVALID_HANDLE_VALUE) CloseHandle(handle_);
+#else
+        if (fd_ >= 0) close(fd_);
+#endif
+    }
+    bool StillLinked() const {
+#if defined(_WIN32)
+        // Open handles deny deletion/replacement until released on Windows.
+        return handle_ != INVALID_HANDLE_VALUE;
+#else
+        struct stat held{}, named{};
+        return fstat(fd_, &held) == 0 && lstat(path_.c_str(), &named) == 0 &&
+               held.st_dev == named.st_dev && held.st_ino == named.st_ino;
+#endif
+    }
+};
+bool IsCacheKey(const std::string &name) {
+    return name.size() == 64 && name.find_first_not_of("0123456789abcdef") == std::string::npos;
+}
+struct CacheEntry { fs::path path; uint64_t order = 0; };
+std::vector<CacheEntry> CompleteEntries(const fs::path &root) {
+    std::vector<CacheEntry> result;
+    for (const auto &item : fs::directory_iterator(root)) {
+        if (!IsCacheKey(item.path().filename().string()) ||
+            !fs::is_directory(item.symlink_status())) continue;
+        if (!fs::is_regular_file(fs::symlink_status(item.path() / "image")) ||
+            !fs::is_regular_file(fs::symlink_status(item.path() / "manifest"))) continue;
+        uint64_t order = 0;
+        std::ifstream(item.path() / "published") >> order; // pre-FIFO entries are oldest
+        result.push_back({item.path(), order});
+    }
+    std::sort(result.begin(), result.end(), [](const auto &a, const auto &b) {
+        return a.order != b.order ? a.order < b.order : a.path < b.path;
+    });
+    return result;
+}
+void TrimEntries(const fs::path &root, size_t limit) {
+    if (!limit) return; // zero explicitly means unlimited
+    auto entries = CompleteEntries(root);
+    auto count = entries.size();
+    for (const auto &entry : entries) {
+        if (count <= limit) break;
+        std::error_code ec;
+        fs::remove_all(entry.path, ec);
+        if (!ec) --count; // permission/cleanup races are best effort, never Lua errors
+    }
+}
 fs::path CacheRoot(const StateGCCConfig &cfg) {
     fs::path root = cfg.cache_directory;
     if (root.empty()) {
-#if defined(_WIN32)
-        auto home = std::getenv("LOCALAPPDATA");
-        if (!home || !*home) throw std::runtime_error("cache home");
-        root = fs::path(home) / "fakelua" / "jit";
-#else
-        if (auto xdg = std::getenv("XDG_CACHE_HOME"); xdg && *xdg)
-            root = fs::path(xdg) / "fakelua" / "jit";
-        else if (auto home = std::getenv("HOME"); home && *home)
-            root = fs::path(home) / ".cache" / "fakelua" / "jit";
-        else
-            root = fs::temp_directory_path() / ("fakelua-jit-" + std::to_string(getuid()));
+        root = fs::path(GetTmpDirectory()) / "cache";
+#if !defined(_WIN32)
+        // System temporary directories may be shared by several accounts.
+        root /= "uid-" + std::to_string(getuid());
 #endif
     }
     root = fs::absolute(root);
@@ -253,6 +329,17 @@ fs::path CacheRoot(const StateGCCConfig &cfg) {
     // Never execute artifacts in a shared/writable-by-others cache. mkdir with
     // 0700 from the outset, and reject symlinks instead of chmod'ing user paths.
     fs::create_directories(root.parent_path());
+    // A private leaf is insufficient if another account can replace it through
+    // a writable/foreign-owned ancestor. Resolve platform symlinks (/var on
+    // macOS), then trust only our account/root and sticky shared temp parents.
+    for (auto parent = fs::canonical(root.parent_path());; parent = parent.parent_path()) {
+        struct stat ancestor{};
+        if (stat(parent.c_str(), &ancestor) ||
+            (ancestor.st_uid != getuid() && ancestor.st_uid != 0) ||
+            ((ancestor.st_mode & 0022) && !(ancestor.st_mode & S_ISVTX)))
+            throw std::runtime_error("cache parent directory is not trusted");
+        if (parent == parent.root_path()) break;
+    }
     if (::mkdir(root.c_str(), 0700) != 0 && errno != EEXIST)
         throw std::runtime_error("cache mkdir");
     struct stat st{};
@@ -290,15 +377,12 @@ std::vector<fs::path> Dependencies(const std::string &text) {
 struct GccCache::Impl {
     fs::path entry;
     fs::path compiler;
-    std::shared_ptr<std::mutex> mutex;
-    std::unique_lock<std::mutex> thread_lock;
-#if defined(_WIN32)
-    HANDLE lock_handle = INVALID_HANDLE_VALUE;
-    ~Impl() { if (lock_handle != INVALID_HANDLE_VALUE) CloseHandle(lock_handle); }
-#else
-    int lock_fd = -1;
-    ~Impl() { if (lock_fd >= 0) close(lock_fd); }
-#endif
+    size_t max_entries = 256;
+    std::unique_ptr<CacheFileLock> key_lock;
+    CacheFileLock IndexLock() const {
+        if (!key_lock->StillLinked()) throw std::runtime_error("cache lock removed");
+        return CacheFileLock(entry.parent_path() / "index.lock");
+    }
 };
 GccCache::~GccCache() = default;
 void GccCache::Release() { impl_.reset(); }
@@ -343,23 +427,8 @@ GccCache::GccCache(const StateGCCConfig &cfg, const std::string &compiler,
         auto p = std::make_unique<Impl>();
         p->entry = root / hash;
         p->compiler = cc;
-        p->mutex = KeyMutex(p->entry.string());
-        p->thread_lock = std::unique_lock(*p->mutex);
-        const auto lock_path = root / (hash + ".lock");
-#if defined(_WIN32)
-        p->lock_handle = CreateFileA(lock_path.string().c_str(), GENERIC_READ | GENERIC_WRITE,
-                                    FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
-                                    FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (p->lock_handle == INVALID_HANDLE_VALUE) return;
-        OVERLAPPED overlap{};
-        if (!LockFileEx(p->lock_handle, LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, &overlap)) return;
-#else
-        p->lock_fd = open(lock_path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
-        if (p->lock_fd < 0) return;
-        int status;
-        do { status = flock(p->lock_fd, LOCK_EX); } while (status < 0 && errno == EINTR);
-        if (status < 0) return;
-#endif
+        p->max_entries = cfg.cache_max_entries;
+        p->key_lock = std::make_unique<CacheFileLock>(root / ("key-" + hash.substr(0, 2) + ".lock"));
         impl_ = std::move(p);
     } catch (...) { /* Caching is an optimization, never a compile requirement. */ }
 #endif
@@ -367,6 +436,9 @@ GccCache::GccCache(const StateGCCConfig &cfg, const std::string &compiler,
 bool GccCache::Restore(const std::string &destination) {
     if (!impl_) return false;
     try {
+        auto index_lock = impl_->IndexLock();
+        if (!index_lock.StillLinked()) return false;
+        TrimEntries(impl_->entry.parent_path(), impl_->max_entries);
         std::istringstream meta(ReadBytes(impl_->entry / "manifest"));
         std::string binary_hash, path, hash;
         if (!(meta >> binary_hash) || binary_hash.size() != 64) throw std::runtime_error("cache manifest");
@@ -388,8 +460,12 @@ bool GccCache::Restore(const std::string &destination) {
 }
 void GccCache::Invalidate() {
     if (!impl_) return;
-    std::error_code ec;
-    fs::remove_all(impl_->entry, ec);
+    try {
+        auto index_lock = impl_->IndexLock();
+        if (!index_lock.StillLinked()) return;
+        std::error_code ec;
+        fs::remove_all(impl_->entry, ec);
+    } catch (...) { /* An externally removed cache is just a miss. */ }
 }
 void GccCache::Publish(const std::string &binary, const std::string &dependencies, const std::string &source) {
     if (!impl_) return;
@@ -413,15 +489,32 @@ void GccCache::Publish(const std::string &binary, const std::string &dependencie
         std::ostringstream manifest;
         manifest << Digest(bytes) << '\n' << deps.size() << '\n';
         for (const auto &[p, h] : deps) manifest << std::quoted(p) << ' ' << h << '\n';
-        // Same-filesystem rename publishes a complete entry. OS file locks are
-        // released on crashes; abandoned staging dirs are harmless cache misses.
-        staging = impl_->entry.string() + ".tmp";
-        std::error_code stale; fs::remove_all(staging, stale);
-        fs::create_directory(staging);
+        auto index_lock = impl_->IndexLock();
+        if (!index_lock.StillLinked()) return;
+        const auto root = impl_->entry.parent_path();
+        auto entries = CompleteEntries(root);
+        uint64_t order = entries.empty() ? 1 : entries.back().order + 1;
+        if (!order) {
+            // Recover a corrupt/overflowed age without poisoning future writes.
+            order = 1;
+            for (const auto &entry : entries)
+                WriteBytes(entry.path / "published", std::to_string(order++));
+        }
+        // Each writer owns its staging directory, even if an external cleaner
+        // unlinks a lock inode and another process acquires a replacement lock.
+        staging = impl_->entry.string() + ".tmp." + fs::path(GenerateTmpFilename("", "")).filename().string();
+        std::error_code stale;
+        fs::remove_all(impl_->entry.string() + ".tmp", stale); // old-format abandoned staging only
+        if (!fs::create_directory(staging)) return;
         WriteBytes(staging / "image", bytes);
         WriteBytes(staging / "manifest", manifest.str());
-        Invalidate();
-        fs::rename(staging, impl_->entry);
+        WriteBytes(staging / "published", std::to_string(order));
+        if (!index_lock.StillLinked() || !impl_->key_lock->StillLinked()) {
+            fs::remove_all(staging, stale); return;
+        }
+        fs::remove_all(impl_->entry, stale);
+        fs::rename(staging, impl_->entry); // only complete, validated images become visible
+        TrimEntries(root, impl_->max_entries);
     } catch (...) {
         std::error_code ec;
         if (!staging.empty()) fs::remove_all(staging, ec);

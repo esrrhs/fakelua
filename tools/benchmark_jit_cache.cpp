@@ -1,4 +1,4 @@
-// Standalone release harness; see tools/README.jit-cache.md.
+// Standalone release harness for GCC JIT compilation and execution timings.
 #include "fakelua.h"
 #include <chrono>
 #include <filesystem>

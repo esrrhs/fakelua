@@ -3211,6 +3211,297 @@ TEST(jitter, gcc_cache_coverage_bypass) {
     EXPECT_TRUE(dir.Entries().empty());
 }
 #else
+namespace {
+struct CacheTestEnvironment {
+    struct Value { std::string name, value; bool present; };
+    std::vector<Value> values;
+    void Set(const char *name, const std::string &value) {
+        const char *old = std::getenv(name);
+        values.push_back({name, old ? old : "", old != nullptr});
+        SetTestEnv(name, value.c_str());
+    }
+    ~CacheTestEnvironment() {
+        for (auto it = values.rbegin(); it != values.rend(); ++it)
+            SetTestEnv(it->name.c_str(), it->present ? it->value.c_str() : nullptr);
+    }
+};
+struct CacheArtifactFixture {
+    JitCacheTestDir dir;
+    std::string source = (dir.path / "input.c").string();
+    std::string binary = (dir.path / "output.so").string();
+    std::string deps = (dir.path / "input.d").string();
+    std::string restored = (dir.path / "restored.so").string();
+#if defined(__APPLE__)
+    const char *compiler = "clang";
+#else
+    const char *compiler = "gcc";
+#endif
+    CacheArtifactFixture() {
+        std::ofstream(source) << "source";
+        std::ofstream(binary) << "test artifact bytes";
+        // Use only the basename; the source itself is excluded from dependencies.
+        std::string escaped;
+        for (char c : source) {
+            if (c == ' ' || c == '#' || c == '\\') escaped += '\\';
+            if (c == '$') escaped += '$';
+            escaped += c;
+        }
+        std::ofstream(deps) << "flua: " << escaped << "\n";
+    }
+    void Publish(const std::string &key, size_t limit) {
+        auto cfg = dir.Config().gcc_config; cfg.cache_max_entries = limit;
+        GccCache cache(cfg, compiler, key, false);
+        cache.Publish(binary, deps, source);
+    }
+    bool Restore(const std::string &key, size_t limit) {
+        auto cfg = dir.Config().gcc_config; cfg.cache_max_entries = limit;
+        GccCache cache(cfg, compiler, key, false);
+        return cache.Restore(restored);
+    }
+};
+}
+TEST(jitter, gcc_cache_default_temp_root_and_custom_override) {
+    JitCacheTestDir temp; CacheTestEnvironment env;
+    for (auto name : {"TMPDIR", "TMP", "TEMP"}) env.Set(name, temp.path.string());
+    env.Set("XDG_CACHE_HOME", (temp.path / "unused-xdg").string());
+    env.Set("LOCALAPPDATA", (temp.path / "unused-localappdata").string());
+    auto root = temp.path / "fakelua" / "cache";
+#if !defined(_WIN32)
+    root /= "uid-" + std::to_string(getuid());
+#endif
+    EXPECT_EQ(std::filesystem::path(GetTmpDirectory()), temp.path / "fakelua");
+    StateConfig config; config.log_level = LogLevel::Off;
+    {
+        FakeluaStateGuard s(config);
+        CompileString(s.GetState(), "function cache_default_path() return 37 end", CacheCompileConfig());
+        int64_t n = 0; Call(s.GetState(), JIT_GCC, "cache_default_path", n); EXPECT_EQ(n, 37);
+    }
+    ASSERT_TRUE(std::filesystem::exists(root));
+    size_t entries = 0;
+    for (const auto &item : std::filesystem::directory_iterator(root))
+        if (item.is_directory() && std::filesystem::exists(item.path() / "image")) ++entries;
+    EXPECT_EQ(entries, 1u);
+#if !defined(_WIN32)
+    EXPECT_EQ(std::filesystem::status(root).permissions() & std::filesystem::perms::all,
+              std::filesystem::perms::owner_all);
+#endif
+    EXPECT_FALSE(std::filesystem::exists(temp.path / "unused-xdg"));
+    EXPECT_FALSE(std::filesystem::exists(temp.path / "unused-localappdata"));
+    JitCacheTestDir custom;
+    {
+        FakeluaStateGuard s(custom.Config());
+        CompileString(s.GetState(), "function cache_default_path() return 37 end", CacheCompileConfig());
+    }
+    EXPECT_EQ(custom.Entries().size(), 1u);
+}
+TEST(jitter, gcc_cache_fifo_limit_and_hits_do_not_reorder) {
+    CacheArtifactFixture f;
+    EXPECT_EQ(StateGCCConfig{}.cache_max_entries, 256u);
+    f.Publish("first C", 2); f.Publish("second C", 2);
+    ASSERT_EQ(f.dir.Entries().size(), 2u);
+    EXPECT_TRUE(f.Restore("first C", 2)); // FIFO, not LRU
+    f.Publish("third C", 2);
+    ASSERT_EQ(f.dir.Entries().size(), 2u);
+    EXPECT_FALSE(f.Restore("first C", 2));
+    EXPECT_TRUE(f.Restore("second C", 2)); EXPECT_TRUE(f.Restore("third C", 2));
+    // Lowering the limit takes effect even on the next lookup, not only writes.
+    EXPECT_TRUE(f.Restore("third C", 1));
+    EXPECT_EQ(f.dir.Entries().size(), 1u);
+    EXPECT_FALSE(f.Restore("second C", 1));
+}
+TEST(jitter, gcc_cache_zero_unlimited_and_unrelated_files_preserved) {
+    CacheArtifactFixture f;
+    std::filesystem::create_directory(f.dir.path / "user-data");
+    std::ofstream(f.dir.path / "user-data" / "image") << "not a cache entry";
+    auto partial = f.dir.path / std::string(64, 'f');
+    std::filesystem::create_directory(partial); std::ofstream(partial / "image") << "partial";
+    for (int i = 0; i < 4; ++i) f.Publish("unlimited " + std::to_string(i), 0);
+    EXPECT_EQ(f.dir.Entries().size(), 6u); // includes intentionally unrelated/partial fixtures
+    f.Publish("bounded", 1);
+    EXPECT_EQ(f.dir.Entries().size(), 3u);
+    EXPECT_TRUE(std::filesystem::exists(f.dir.path / "user-data" / "image"));
+    EXPECT_TRUE(std::filesystem::exists(partial / "image"));
+    EXPECT_TRUE(f.Restore("bounded", 1));
+}
+TEST(jitter, gcc_cache_corrupt_fifo_metadata_does_not_poison_writes) {
+    CacheArtifactFixture f;
+    f.Publish("old metadata", 2);
+    auto entry = f.dir.Entries().at(0);
+    { std::ofstream out(entry / "published", std::ios::trunc); out << "18446744073709551615"; }
+    f.Publish("after overflow", 2);
+    EXPECT_EQ(f.dir.Entries().size(), 2u); EXPECT_TRUE(f.Restore("after overflow", 2));
+    { std::ofstream out(entry / "published", std::ios::trunc); out << "damaged"; }
+    f.Publish("after malformed", 2);
+    EXPECT_EQ(f.dir.Entries().size(), 2u); EXPECT_TRUE(f.Restore("after malformed", 2));
+}
+TEST(jitter, gcc_cache_eviction_preserves_loaded_modules) {
+    JitCacheTestDir dir; auto config = dir.Config(); config.gcc_config.cache_max_entries = 1;
+    FakeluaStateGuard live(config);
+    CompileString(live.GetState(), kCacheSource, CacheCompileConfig()); CheckCacheState(live.GetState());
+    auto old = dir.Entries().at(0);
+    {
+        FakeluaStateGuard other(config);
+        CompileString(other.GetState(), "function cache_other() return 93 end", CacheCompileConfig());
+        CheckCacheState(live.GetState());
+    }
+    EXPECT_FALSE(std::filesystem::exists(old)); EXPECT_EQ(dir.Entries().size(), 1u);
+    CheckCacheState(live.GetState());
+}
+TEST(jitter, gcc_cache_fifo_concurrent_publishers_and_readers) {
+    CacheArtifactFixture f; std::atomic<int> ready{0}, failures{0};
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 8; ++i) threads.emplace_back([&, i] {
+        ++ready; while (ready.load() != 8) std::this_thread::yield();
+        try {
+            auto cfg = f.dir.Config().gcc_config; cfg.cache_max_entries = 2;
+            auto key = "parallel C " + std::to_string(i);
+            GccCache cache(cfg, f.compiler, key, false);
+            cache.Publish(f.binary, f.deps, f.source);
+            // Another publisher may evict us before Restore; either outcome is valid.
+            if (cache.Restore(f.restored + std::to_string(i))) {
+                std::ifstream in(f.restored + std::to_string(i)); std::string bytes;
+                std::getline(in, bytes); if (bytes != "test artifact bytes") ++failures;
+            }
+        } catch (...) { ++failures; }
+    });
+    for (auto &thread : threads) thread.join();
+    EXPECT_EQ(failures.load(), 0); EXPECT_EQ(f.dir.Entries().size(), 2u);
+    size_t locks = 0;
+    for (const auto &item : std::filesystem::directory_iterator(f.dir.path))
+        if (item.path().extension() == ".lock") ++locks;
+    EXPECT_LE(locks, 257u);
+}
+#if !defined(_WIN32)
+TEST(jitter, gcc_cache_fifo_process_publishers) {
+    CacheArtifactFixture f; std::vector<pid_t> children;
+    for (int i = 0; i < 4; ++i) {
+        auto pid = fork(); ASSERT_GE(pid, 0);
+        if (!pid) { f.Publish("process C " + std::to_string(i), 2); _exit(0); }
+        children.push_back(pid);
+    }
+    for (auto pid : children) {
+        int status = 0; ASSERT_EQ(waitpid(pid, &status, 0), pid);
+        ASSERT_TRUE(WIFEXITED(status)); EXPECT_EQ(WEXITSTATUS(status), 0);
+    }
+    EXPECT_EQ(f.dir.Entries().size(), 2u);
+}
+TEST(jitter, gcc_cache_unlinked_live_lock_does_not_replace_new_publication) {
+    CacheArtifactFixture f; auto cfg = f.dir.Config().gcc_config;
+    int signal[2]; ASSERT_EQ(pipe(signal), 0);
+    // Fork before acquiring the parent's in-process mutex; the child represents
+    // an independently started process with no inherited held synchronization.
+    auto child = fork(); ASSERT_GE(child, 0);
+    if (!child) {
+        close(signal[1]); char mark = 0;
+        if (read(signal[0], &mark, 1) != 1) _exit(2);
+        close(signal[0]);
+        f.Publish("unlinked lock C", 2); _exit(0);
+    }
+    close(signal[0]);
+    {
+        GccCache original(cfg, f.compiler, "unlinked lock C", false);
+        for (const auto &item : std::filesystem::directory_iterator(f.dir.path))
+            if (item.path().extension() == ".lock") std::filesystem::remove(item.path());
+        const char mark = 'x'; ASSERT_EQ(write(signal[1], &mark, 1), 1); close(signal[1]);
+        int status = 0; ASSERT_EQ(waitpid(child, &status, 0), child);
+        ASSERT_TRUE(WIFEXITED(status)); ASSERT_EQ(WEXITSTATUS(status), 0);
+        ASSERT_EQ(f.dir.Entries().size(), 1u);
+        auto image = f.dir.Entries()[0] / "image";
+        auto stamp = std::filesystem::last_write_time(image);
+        EXPECT_FALSE(original.Restore(f.restored));
+        original.Publish(f.binary, f.deps, f.source);
+        EXPECT_EQ(std::filesystem::last_write_time(image), stamp);
+    }
+    EXPECT_TRUE(f.Restore("unlinked lock C", 2));
+}
+TEST(jitter, gcc_cache_private_root_and_symlink_rejection) {
+    CacheArtifactFixture f; auto config = f.dir.Config().gcc_config;
+    auto shared = f.dir.path / "shared"; std::filesystem::create_directory(shared);
+    std::filesystem::permissions(shared, std::filesystem::perms::all);
+    config.cache_directory = (shared / "cache").string();
+    { GccCache cache(config, f.compiler, "unsafe parent", false); cache.Publish(f.binary, f.deps, f.source); }
+    EXPECT_FALSE(std::filesystem::exists(shared / "cache"));
+    auto target = f.dir.path / "target"; std::filesystem::create_directory(target);
+    auto link = f.dir.path / "link"; std::filesystem::create_directory_symlink(target, link);
+    config.cache_directory = link.string();
+    { GccCache cache(config, f.compiler, "unsafe link", false); cache.Publish(f.binary, f.deps, f.source); }
+    EXPECT_TRUE(std::filesystem::is_empty(target));
+}
+#endif
+TEST(jitter, gcc_cache_external_cleanup_races_restore_without_partial_copy) {
+    CacheArtifactFixture f;
+    const std::string bytes(8 * 1024 * 1024, 'x');
+    { std::ofstream out(f.binary, std::ios::binary | std::ios::trunc); out << bytes; }
+    auto cfg = f.dir.Config().gcc_config;
+    GccCache cache(cfg, f.compiler, "cleanup racing image read", false);
+    for (int i = 0; i < 3; ++i) {
+        cache.Publish(f.binary, f.deps, f.source);
+        ASSERT_EQ(f.dir.Entries().size(), 1u);
+        auto entry = f.dir.Entries()[0]; std::atomic<bool> started{false};
+        std::thread cleaner([&] {
+            while (!started.load()) std::this_thread::yield();
+            std::error_code ec; std::filesystem::remove_all(entry, ec);
+        });
+        started = true;
+        bool restored = cache.Restore(f.restored);
+        cleaner.join();
+        if (restored) {
+            std::ifstream in(f.restored, std::ios::binary);
+            std::string actual((std::istreambuf_iterator<char>(in)), {});
+            EXPECT_EQ(actual, bytes);
+        }
+    }
+    cache.Publish(f.binary, f.deps, f.source);
+    EXPECT_TRUE(cache.Restore(f.restored));
+}
+TEST(jitter, gcc_cache_removed_entry_and_root_are_recoverable) {
+    CacheArtifactFixture f; auto cfg = f.dir.Config().gcc_config;
+    {
+        GccCache cache(cfg, f.compiler, "removed while compiling", false);
+        // Windows denies deleting open lock handles, but other cache files may vanish.
+        std::error_code ec; std::filesystem::remove_all(f.dir.path, ec);
+        EXPECT_FALSE(cache.Restore(f.restored));
+        EXPECT_NO_THROW(cache.Publish(f.binary, f.deps, f.source));
+    }
+    // Restore our compile inputs outside the deleted cache root.
+    std::filesystem::create_directories(f.dir.path);
+    std::filesystem::permissions(f.dir.path, std::filesystem::perms::owner_all);
+    std::ofstream(f.source) << "source"; std::ofstream(f.binary) << "test artifact bytes";
+    std::string escaped;
+    for (char c : f.source) {
+        if (c == ' ' || c == '#' || c == '\\') escaped += '\\';
+        if (c == '$') escaped += '$'; escaped += c;
+    }
+    std::ofstream(f.deps) << "flua: " << escaped << "\n";
+    f.Publish("recreated root", 2); EXPECT_TRUE(f.Restore("recreated root", 2));
+    auto entry = f.dir.Entries().at(0); std::filesystem::remove_all(entry);
+    EXPECT_FALSE(f.Restore("recreated root", 2));
+    f.Publish("recreated root", 2); EXPECT_TRUE(f.Restore("recreated root", 2));
+}
+TEST(jitter, gcc_cache_external_cleanup_during_compile_and_live_execution) {
+    JitCacheTestDir dir; auto config = dir.Config(); config.gcc_config.cache_max_entries = 2;
+    FakeluaStateGuard live(config);
+    CompileString(live.GetState(), kCacheSource, CacheCompileConfig());
+    std::atomic<bool> stop{false};
+    std::thread cleaner([&] {
+        while (!stop.load()) {
+            std::error_code ec; std::filesystem::remove_all(dir.path, ec);
+            std::this_thread::yield();
+        }
+    });
+    // Always join even when compilation throws, so failures remain diagnostic.
+    try {
+        for (int i = 0; i < 2; ++i) {
+            FakeluaStateGuard other(config);
+            CompileString(other.GetState(), kCacheSource + "\nfunction cache_cleanup_extra() return " + std::to_string(i) + " end", CacheCompileConfig());
+            CheckCacheState(other.GetState()); CheckCacheState(live.GetState());
+        }
+    } catch (...) { stop = true; cleaner.join(); throw; }
+    stop = true; cleaner.join();
+    CheckCacheState(live.GetState());
+    { FakeluaStateGuard recovered(config); CompileString(recovered.GetState(), kCacheSource, CacheCompileConfig()); CheckCacheState(recovered.GetState()); }
+    EXPECT_EQ(dir.Entries().size(), 1u);
+}
 TEST(jitter, gcc_cache_states_strings_closures_and_lifetime) {
     JitCacheTestDir dir;
     auto cfg = CacheCompileConfig(); cfg.record_c_code = true;
@@ -3468,12 +3759,10 @@ TEST(jitter, gcc_cache_dependency_and_compiler_invalidation) {
         close(ready[0]);
         try {
             GccCache cache(config, compiler, "the generated C", false);
-            for (const auto &entry : std::filesystem::directory_iterator(dir.path)) {
-                if (entry.path().extension() != ".lock") continue;
-                auto key = dir.path / entry.path().stem();
-                std::filesystem::create_directory(key);
-                { std::ofstream partial(key / "image"); partial << "partial"; }
-                std::filesystem::create_directory(key.string() + ".tmp");
+            cache.Publish(binary, deps, source);
+            for (const auto &entry : dir.Entries()) {
+                std::filesystem::remove(entry / "manifest");
+                std::filesystem::create_directory(entry.string() + ".tmp");
             }
             const char mark = 'x'; (void)write(ready[1], &mark, 1);
             _exit(0);
