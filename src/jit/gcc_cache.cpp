@@ -64,9 +64,38 @@ void AppendInteger(std::ostream &out, T value) {
 }
 std::string FileStamp(const fs::path &path) {
     std::ostringstream stamp;
+#if defined(_WIN32)
+    // MinGW last_write_time often comes from stat() and is only 1-second
+    // resolution, so a same-size rewrite in the same second would reuse a
+    // stale FileDigest. Use the 100ns FILETIME plus volume/file identity.
+    WIN32_FILE_ATTRIBUTE_DATA info{};
+    if (!GetFileAttributesExW(path.wstring().c_str(), GetFileExInfoStandard, &info))
+        throw std::runtime_error("cache dependency stat");
+    const auto size = (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        ? 0ull
+        : ((static_cast<unsigned long long>(info.nFileSizeHigh) << 32) | info.nFileSizeLow);
+    stamp << size << ':';
+    const auto filetime = [](const FILETIME &t) {
+        return (static_cast<unsigned long long>(t.dwHighDateTime) << 32) | t.dwLowDateTime;
+    };
+    AppendInteger(stamp, filetime(info.ftLastWriteTime));
+    stamp << ':';
+    AppendInteger(stamp, filetime(info.ftCreationTime));
+    BY_HANDLE_FILE_INFORMATION ident{};
+    HANDLE handle = CreateFileW(path.wstring().c_str(), 0,
+                                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                nullptr, OPEN_EXISTING,
+                                FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (handle != INVALID_HANDLE_VALUE) {
+        if (GetFileInformationByHandle(handle, &ident)) {
+            stamp << ':' << ident.dwVolumeSerialNumber << ':'
+                  << ident.nFileIndexHigh << ':' << ident.nFileIndexLow;
+        }
+        CloseHandle(handle);
+    }
+#else
     stamp << (fs::is_directory(path) ? 0 : fs::file_size(path)) << ':';
     AppendInteger(stamp, fs::last_write_time(path).time_since_epoch().count());
-#if !defined(_WIN32)
     struct stat st{};
     if (stat(path.c_str(), &st)) throw std::runtime_error("cache dependency stat");
     stamp << ':' << st.st_dev << ':' << st.st_ino << ':' << st.st_ctime;
