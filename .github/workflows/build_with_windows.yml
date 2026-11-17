@@ -37,7 +37,24 @@ jobs:
 
       - name: Install MySQL
         run: |
-          choco install mysql -y
+          # Unpinned `choco install mysql` follows latest. 26.10.0 (current
+          # latest) aborted mid-download from cdn.mysql.com on this PR with
+          # 404 / connection reset, even though the zip is published. Pin the
+          # last Approved 9.x package that still serves a live zip, and retry
+          # transient CDN failures. Start/Configure MySQL steps stay the same.
+          $version = "9.6.0"
+          $installed = $false
+          for ($i = 1; $i -le 3; $i++) {
+            Write-Host "Installing MySQL $version (attempt $i/3)"
+            choco install mysql --version=$version -y --no-progress
+            if ($LASTEXITCODE -eq 0) {
+              $installed = $true
+              break
+            }
+            Write-Host "MySQL install failed with exit $LASTEXITCODE"
+            if ($i -lt 3) { Start-Sleep -Seconds (15 * $i) }
+          }
+          if (-not $installed) { throw "Failed to install MySQL $version after 3 attempts" }
           echo "MySQL installed"
 
       - name: Start MySQL
