@@ -1,4 +1,5 @@
 #include "native/utf8/native_utf8.h"
+#include "jit/jit_error_boundary.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
@@ -247,19 +248,23 @@ extern "C" CVar Utf8CodesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     if (!iter_state || !gs) {
         return inter::NativeToFakeluaNil(iter_state);
     }
-    if (gs->pos >= gs->text.size()) {
-        return inter::NativeToFakeluaNil(iter_state);
-    }
-    const size_t start = gs->pos;
-    std::string_view sv = gs->text;
-    int64_t cp = DecodeUtf8(sv, gs->pos);
-    if (cp < 0) {
-        ThrowFakeluaException("invalid UTF-8 code");
-    }
-    CVar multi = inter::AllocMultiCVar(iter_state, 2);
-    inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaLonglong(iter_state, static_cast<int64_t>(start + 1)));
-    inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaLonglong(iter_state, cp));
-    return multi;
+    // This closure is called directly by generated C, bypassing the native
+    // function bridge. Do not unwind a C++ exception through a TCC frame.
+    return GuardJitEntry(iter_state, [&]() -> CVar {
+        if (gs->pos >= gs->text.size()) {
+            return inter::NativeToFakeluaNil(iter_state);
+        }
+        const size_t start = gs->pos;
+        std::string_view sv = gs->text;
+        int64_t cp = DecodeUtf8(sv, gs->pos);
+        if (cp < 0) {
+            ThrowFakeluaException("invalid UTF-8 code");
+        }
+        CVar multi = inter::AllocMultiCVar(iter_state, 2);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaLonglong(iter_state, static_cast<int64_t>(start + 1)));
+        inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaLonglong(iter_state, cp));
+        return multi;
+    });
 }
 
 static CVar Utf8Codes(State *state, CVar *args, int n) {

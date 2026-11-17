@@ -278,8 +278,7 @@ CVar ConnQuery(NativeObject *self, State *s, CVar *args, int n) {
     // 连接未就绪（握手中/重连中/上一条 query 仍在飞行）不再抛错：
     // 回调随 query 入队，由连接的 tick 在可用时自动启动（见 MysqlConnection::Query）。
     conn->SetState(s);
-    conn->SetResultCallback(cb);
-    conn->Query(sql);
+    conn->Query(sql, cb);
     MaybeReleaseOwnedConn(self);
 
     return inter::NativeToFakeluaNil(s);

@@ -75,3 +75,36 @@ TEST(test_process, output_over_8mb) {
     CallThrow(s, "ProcessTest.test_output_over_8mb", ret);
     FakeluaDeleteState(s);
 }
+
+TEST(test_process, argument_validation_environment_override_and_working_directory) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./process/test_process_options.lua", {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_process_options", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+
+
+#if !defined(_WIN32)
+TEST(test_process, completed_and_signaled_children_with_and_without_deadlines) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), R"(
+        function child_exit_contracts()
+            local output, errors, code = process.run({"sh", "-c", "exit 7"}, {timeout_ms = 1000})
+            assert(output == "" and errors == "" and code == 7)
+            output, errors, code = process.run({"sh", "-c", "kill -TERM $$"}, {timeout_ms = 1000})
+            assert(output == "" and errors == "" and code == 143)
+            output, errors, code = process.run({"sh", "-c", "sleep 0.05; kill -TERM $$"}, {timeout_ms = 0})
+            assert(output == "" and errors == "" and code == 143)
+            return 1
+        end
+    )",
+                  {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "child_exit_contracts", result);
+    EXPECT_EQ(result, 1);
+}
+#endif

@@ -1,5 +1,7 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
+#include "jit/vm.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 #include <functional>
@@ -174,4 +176,75 @@ TEST(closure, test_closure_tail_deep_interp) {
     Call(s, JIT_INTERP, "test", ret, 100000);
     ASSERT_EQ(ret, 100000);
     FakeluaDeleteState(s);
+}
+
+TEST(closure, opaque_fixed_arity_dispatch_four_through_thirty_two) {
+    FakeluaStateGuard state;
+    RegisterNativeFunction(state.GetState(), "opaque_closure", 1, false, [](State *, CVar *args, int) { return args[0]; });
+    CompileFile(state.GetState(), "./closure/test_closure_fixed_arity_dispatch.lua", {});
+    for (int arity = 4; arity <= 32; ++arity) {
+        SCOPED_TRACE(arity);
+        for (auto backend: AllJitTypes()) {
+            SCOPED_TRACE(JitTypeName(backend));
+            int64_t result = 0;
+            Call(state.GetState(), backend, "dispatch_arity_" + std::to_string(arity), result);
+            EXPECT_EQ(result, arity * (arity + 1) / 2);
+        }
+    }
+}
+
+TEST(closure, callbacks_preserve_arguments_across_backends) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), R"lua(
+        function make_fixed_callback()
+            return function(a, b) return a + b end
+        end
+        function make_vararg_callback()
+            return function(a, ...) return a + select("#", ...) end
+        end
+        function invoke_fixed_callback(fn) return fn(2, 3) end
+        function invoke_vararg_callback(fn) return fn(2, 3, 4, 5) end
+    )lua",
+                  {});
+    // Keep the closure alive in the same arena across the two low-level entry
+    // calls; the convenience Call API intentionally resets temporary storage.
+    for (auto producer: AllJitTypes()) {
+        for (auto consumer: AllJitTypes()) {
+            SCOPED_TRACE(::testing::Message() << "producer=" << JitTypeName(producer) << " consumer=" << JitTypeName(consumer));
+            for (bool vararg: {false, true}) {
+                SCOPED_TRACE(vararg);
+                CVar callback = CallByNameArgs(state.GetState(), producer, vararg ? "make_vararg_callback" : "make_fixed_callback", 0, nullptr);
+                CVar result = CallByNameArgs(state.GetState(), consumer, vararg ? "invoke_vararg_callback" : "invoke_fixed_callback", 1, &callback);
+                EXPECT_EQ(inter::CVarToInteger(result, -1), 5);
+            }
+        }
+    }
+}
+
+TEST(closure, captured_loop_values_survive_continue_and_multireturn_assignment) {
+    FakeluaStateGuard state;
+    RegisterNativeFunction(state.GetState(), "opaque_loop_value", 1, false, [](State *, CVar *args, int) { return args[0]; });
+    CompileFile(state.GetState(), "./closure/test_closure_loop_capture.lua", {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_loop_capture_contracts", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+
+TEST(test_closure, mutable_generic_loop_capture_continue_break_and_nested_forward_goto) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./closure/test_closure_mutable_generic_loop.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_mutable_generic_loop", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_closure, generic_iterator_capture_and_multivalue_prefix_declarations) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./closure/test_closure_mutable_generic_loop.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_generic_iterator_capture_and_multivalue_prefix_declarations", result);
+    EXPECT_EQ(result, 1);
 }

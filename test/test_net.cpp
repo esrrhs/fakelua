@@ -1,6 +1,15 @@
 #include "fakelua.h"
+#include "jit/vm.h"
+#include "native/net/net_buffer.h"
+#include "native/net/net_event.h"
+#include "native/object/native_object.h"
+#include "state/state.h"
 #include "test_jit.h"
+#include "var/var.h"
 #include "gtest/gtest.h"
+#include <chrono>
+#include <cstring>
+#include <thread>
 
 using namespace fakelua;
 
@@ -401,4 +410,522 @@ TEST(test_net, test_send_in_callback) {
     EXPECT_EQ(ret, 1);
 
     FakeluaDeleteState(s);
+}
+
+TEST(test_net, circular_buffer_wrap_regions_and_zero_capacity) {
+    using namespace fakelua::net;
+    CircularBuffer buffer(8);
+    EXPECT_TRUE(buffer.Empty());
+    EXPECT_EQ(buffer.ReadableRegion().second, 0u);
+    EXPECT_EQ(buffer.Write("abcdef", 6), 6u);
+    char bytes[8]{};
+    ASSERT_EQ(buffer.Read(bytes, 3), 3u);
+    EXPECT_EQ(std::string(bytes, 3), "abc");
+    ASSERT_EQ(buffer.Write("GHIJK", 5), 5u);
+    EXPECT_TRUE(buffer.Full());
+    EXPECT_EQ(buffer.WritableRegion().second, 0u);
+    EXPECT_EQ(buffer.Write("x", 1), 0u);
+    ASSERT_EQ(buffer.Peek(bytes, sizeof(bytes)), 8u);
+    EXPECT_EQ(std::string(bytes, 8), "defGHIJK");
+    EXPECT_EQ(buffer.Size(), 8u);
+    ASSERT_EQ(buffer.Read(bytes, sizeof(bytes)), 8u);
+    EXPECT_EQ(std::string(bytes, 8), "defGHIJK");
+    EXPECT_EQ(buffer.Read(bytes, sizeof(bytes)), 0u);
+    auto writable = buffer.WritableRegion();
+    ASSERT_GE(writable.second, 5u);
+    std::memcpy(writable.first, "12345", 5);
+    buffer.CommitWrite(5);
+    auto readable = buffer.ReadableRegion();
+    ASSERT_EQ(readable.second, 5u);
+    EXPECT_EQ(std::string(readable.first, readable.second), "12345");
+    buffer.CommitRead(readable.second);
+    EXPECT_TRUE(buffer.Empty());
+    buffer.Clear();
+    EXPECT_EQ(buffer.WritableRegion().second, buffer.Capacity());
+    EXPECT_EQ(buffer.Peek(bytes, 1), 0u);
+    CircularBuffer zero(0);
+    EXPECT_EQ(zero.Write("x", 1), 0u);
+    EXPECT_EQ(zero.Read(bytes, 1), 0u);
+    EXPECT_EQ(zero.Peek(bytes, 1), 0u);
+    EXPECT_EQ(zero.WritableRegion().second, 0u);
+    EXPECT_EQ(zero.ReadableRegion().second, 0u);
+}
+
+TEST(test_net, packet_framers_partial_input_and_binary_roundtrip) {
+    using namespace fakelua::net;
+    const std::string payload("a\0b\0c", 5);
+    for (auto framer:
+         {FramerType::Header4BigEndian, FramerType::Header4LittleEndian, FramerType::Header2BigEndian, FramerType::Header2LittleEndian, FramerType::LineDelimiter, FramerType::FixedLength}) {
+        SCOPED_TRACE(static_cast<int>(framer));
+        NetConfig config;
+        config.framer = framer;
+        config.fixed_packet_len = payload.size();
+        config.max_packet_len = 64;
+        CircularBuffer output(64), input(64);
+        ASSERT_TRUE(WritePacket(output, config, payload.data(), payload.size()));
+        std::string encoded(output.Size(), '\0');
+        ASSERT_EQ(output.Read(encoded.data(), encoded.size()), encoded.size());
+        const char *data = nullptr;
+        uint32_t length = 0;
+        bool error = true;
+        EXPECT_FALSE(TryParsePacket(input, config, data, length, error));
+        EXPECT_FALSE(error);
+        ASSERT_EQ(input.Write(encoded.data(), encoded.size() - 1), encoded.size() - 1);
+        EXPECT_FALSE(TryParsePacket(input, config, data, length, error));
+        EXPECT_FALSE(error);
+        ASSERT_EQ(input.Write(encoded.data() + encoded.size() - 1, 1), 1u);
+        ASSERT_TRUE(TryParsePacket(input, config, data, length, error));
+        EXPECT_FALSE(error);
+        EXPECT_EQ(std::string(data, length), payload);
+        EXPECT_TRUE(input.Empty());
+    }
+}
+
+TEST(test_net, packet_header_rejects_lengths_larger_than_limit_or_capacity) {
+    using namespace fakelua::net;
+    for (auto framer: {FramerType::Header4BigEndian, FramerType::Header4LittleEndian, FramerType::Header2BigEndian, FramerType::Header2LittleEndian}) {
+        NetConfig config;
+        config.framer = framer;
+        config.max_packet_len = 64;
+        CircularBuffer output(64);
+        ASSERT_TRUE(WritePacket(output, config, "12345678", 8));
+        const size_t header = (framer == FramerType::Header4BigEndian || framer == FramerType::Header4LittleEndian) ? 4 : 2;
+        char bytes[4]{};
+        ASSERT_EQ(output.Read(bytes, header), header);
+        for (const auto capacity: {size_t{4}, size_t{64}}) {
+            CircularBuffer input(capacity);
+            config.max_packet_len = capacity == 64 ? 3 : 64;
+            input.Write(bytes, header);
+            const char *data = nullptr;
+            uint32_t length = 0;
+            bool error = false;
+            EXPECT_FALSE(TryParsePacket(input, config, data, length, error));
+            EXPECT_TRUE(error);
+            EXPECT_EQ(input.Size(), header);
+        }
+    }
+}
+
+TEST(test_net, packet_line_fixed_and_raw_limits) {
+    using namespace fakelua::net;
+    NetConfig config;
+    config.framer = FramerType::LineDelimiter;
+    config.max_packet_len = 3;
+    const char *data = nullptr;
+    uint32_t length = 0;
+    bool error = false;
+    CircularBuffer input(64);
+    input.Write("a\r\n12345678", 11);
+    ASSERT_TRUE(TryParsePacket(input, config, data, length, error));
+    EXPECT_EQ(std::string(data, length), "a");
+    EXPECT_FALSE(TryParsePacket(input, config, data, length, error));
+    EXPECT_TRUE(error);
+    input.Clear();
+    config.framer = FramerType::FixedLength;
+    config.fixed_packet_len = 0;
+    EXPECT_FALSE(TryParsePacket(input, config, data, length, error));
+    EXPECT_FALSE(error);
+    config.fixed_packet_len = 65;
+    EXPECT_FALSE(TryParsePacket(input, config, data, length, error));
+    EXPECT_TRUE(error);
+    config.fixed_packet_len = 4;
+    config.max_packet_len = 64;
+    ASSERT_TRUE(WritePacket(input, config, "xy", 2));
+    ASSERT_TRUE(TryParsePacket(input, config, data, length, error));
+    EXPECT_EQ(std::string(data, length), std::string("xy\0\0", 4));
+    ASSERT_TRUE(WritePacket(input, config, "abcdef", 6));
+    ASSERT_TRUE(TryParsePacket(input, config, data, length, error));
+    EXPECT_EQ(std::string(data, length), "abcd");
+    config.framer = FramerType::RawStream;
+    config.max_packet_len = 2;
+    input.Write("123", 3);
+    ASSERT_TRUE(TryParsePacket(input, config, data, length, error));
+    EXPECT_EQ(std::string(data, length), "12");
+    ASSERT_TRUE(TryParsePacket(input, config, data, length, error));
+    EXPECT_EQ(std::string(data, length), "3");
+    EXPECT_FALSE(TryParsePacket(input, config, data, length, error));
+}
+
+TEST(test_net, custom_packet_encoder_atomicity_and_parser_progress) {
+    using namespace fakelua::net;
+    NetConfig config;
+    config.framer = FramerType::Custom;
+    config.custom_encoder_fn = [](CircularBuffer &buffer, const char *data, size_t length) {
+        buffer.Write("[", 1);
+        buffer.Write(data, length);
+        buffer.Write("]", 1);
+    };
+    CircularBuffer too_small(3), enough(8);
+    EXPECT_FALSE(WritePacket(too_small, config, "abc", 3));
+    EXPECT_TRUE(too_small.Empty());
+    EXPECT_TRUE(WritePacket(enough, config, "abc", 3));
+    char bytes[8]{};
+    ASSERT_EQ(enough.Read(bytes, sizeof(bytes)), 5u);
+    EXPECT_EQ(std::string(bytes, 5), "[abc]");
+    config.custom_parser_fn = [](CircularBuffer &, const char *&data, uint32_t &length) {
+        data = "x";
+        length = 1;
+        return true;
+    };
+    enough.Write("x", 1);
+    const char *data = nullptr;
+    uint32_t length = 0;
+    bool error = false;
+    EXPECT_FALSE(TryParsePacket(enough, config, data, length, error));
+    EXPECT_TRUE(error);
+    EXPECT_EQ(enough.Size(), 1u);
+    config.custom_parser_fn = [](CircularBuffer &buffer, const char *&data, uint32_t &length) {
+        buffer.Skip(1);
+        data = "x";
+        length = 1;
+        return true;
+    };
+    EXPECT_TRUE(TryParsePacket(enough, config, data, length, error));
+    EXPECT_FALSE(error);
+    EXPECT_EQ(std::string(data, length), "x");
+    EXPECT_TRUE(enough.Empty());
+}
+
+TEST(test_net, native_udp_callbacks_and_explicit_destination) {
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        FakeluaStateGuard state;
+        int server_receives = 0;
+        int client_receives = 0;
+        RegisterNativeFunction(state.GetState(), "cpp_udp_echo", 5, false, [&](State *s, CVar *args, int n) {
+            EXPECT_EQ(n, 5);
+            if (inter::CVarToString(args[0], "") != "recv") return inter::NativeToFakeluaNil(s);
+            ++server_receives;
+            EXPECT_EQ(inter::CVarToString(args[2], ""), std::string("a\0b", 3));
+            EXPECT_EQ(inter::CVarToInteger(args[3]), 3);
+            CVar response = inter::AllocMultiCVar(s, 2);
+            inter::SetMultiCVarElement(response, 0, inter::NativeToFakeluaString(s, "echo"));
+            inter::SetMultiCVarElement(response, 1, args[2]);
+            return response;
+        });
+        RegisterNativeFunction(state.GetState(), "cpp_udp_receive", 5, false, [&](State *s, CVar *args, int) {
+            if (inter::CVarToString(args[0], "") == "recv") {
+                ++client_receives;
+                EXPECT_EQ(inter::CVarToString(args[2], ""), std::string("a\0b", 3));
+            }
+            return inter::NativeToFakeluaNil(s);
+        });
+        CompileFile(state.GetState(), "./net/test_net_native_udp_callbacks.lua", {});
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_native_udp_callbacks", result);
+        EXPECT_EQ(result, 1);
+        EXPECT_EQ(server_receives, 1);
+        EXPECT_EQ(client_receives, 1);
+    }
+}
+
+TEST(test_net, configuration_ranges_tls_spellings_and_dispatch_contracts) {
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        FakeluaStateGuard state;
+        CompileFile(state.GetState(), "./net/test_net_configuration_contracts.lua", {});
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_net_configuration_contracts", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+
+TEST(test_net, native_custom_parser_gcc_callback_and_dispatch_failure_recovery) {
+    FakeluaStateGuard state;
+    std::vector<std::string> received;
+    RegisterNativeFunction(state.GetState(), "native_three_byte_parser", 1, false, [](State *s, CVar *args, int) {
+        const std::string input = inter::CVarToString(args[0], "");
+        if (input.size() < 3) return inter::NativeToFakeluaNil(s);
+        return inter::NativeToFakeluaString(s, input.substr(0, 3));
+    });
+    RegisterNativeFunction(state.GetState(), "native_parser_host_check", 1, false, [](State *s, CVar *args, int) {
+        if (inter::CVarToString(args[0], "") == "err") throw std::runtime_error("network dispatch failure");
+        return inter::NativeToFakeluaNil(s);
+    });
+    RegisterNativeFunction(state.GetState(), "native_parser_client_event", 5, false, [&](State *s, CVar *args, int) {
+        if (inter::CVarToString(args[0], "") == "recv") received.push_back(inter::CVarToString(args[2], ""));
+        else {
+            EXPECT_EQ(args[2].type_, static_cast<int>(VarType::Nil));
+            EXPECT_EQ(args[3].type_, static_cast<int>(VarType::Nil));
+        }
+        return inter::NativeToFakeluaNil(s);
+    });
+    RegisterNativeFunction(state.GetState(), "native_parser_received_count", 0, false, [&](State *s, CVar *, int) { return inter::NativeToFakeluaInt(s, received.size()); });
+    CompileConfig config;
+    config.disable_jit[JIT_TCC] = true;
+    CompileFile(state.GetState(), "./net/test_net_native_parser.lua", config);
+    int64_t result = 0;
+    Call(state.GetState(), JIT_GCC, "test_native_parser_and_dispatch_recovery", result);
+    EXPECT_EQ(result, 1);
+    EXPECT_EQ(received, (std::vector<std::string>{"abc", "def", "ghi"}));
+}
+
+namespace {
+bool PollNetPair(net::TcpServer &server, net::TcpClient &client, std::vector<net::ConnEvent> &server_events, std::vector<net::ConnEvent> &client_events, const std::function<bool()> &done) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    do {
+        server.DrainEventsWith([&](const auto &event) { server_events.push_back(event); });
+        client.DrainEventsWith([&](const auto &event) { client_events.push_back(event); });
+        if (done()) return true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    } while (std::chrono::steady_clock::now() < deadline);
+    return false;
+}
+
+bool HasNetEvent(const std::vector<net::ConnEvent> &events, net::EventKind kind) {
+    return std::any_of(events.begin(), events.end(), [&](const auto &event) { return event.kind == kind; });
+}
+
+const std::string kWebSocketRequest =
+        "GET /socket HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: keep-alive, Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n";
+}// namespace
+
+TEST(test_net, websocket_rejects_invalid_upgrade_path_key_tokens_and_version) {
+    const std::vector<std::pair<std::string, std::string>> replacements{{"/socket", "/wrong"},
+                                                                        {"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n", ""},
+                                                                        {"Upgrade: websocket", "Upgrade: h2c"},
+                                                                        {"Connection: keep-alive, Upgrade", "Connection: keep-alive, invalid"},
+                                                                        {"Version: 13", "Version: 12"}};
+    for (const auto &[from, to]: replacements) {
+        SCOPED_TRACE(from);
+        FakeluaStateGuard state;
+        net::NetConfig server_config;
+        server_config.port = 19972;
+        server_config.framer = net::FramerType::WebSocket;
+        server_config.ws_path = "/socket";
+        net::TcpServer server(server_config, state.GetState());
+        server.Start();
+        ASSERT_TRUE(server.Running());
+        auto client_config = server_config;
+        client_config.framer = net::FramerType::RawStream;
+        net::TcpClient client(client_config, state.GetState());
+        EXPECT_FALSE(client.Connected());
+        client.Connect();
+        std::vector<net::ConnEvent> server_events, client_events;
+        ASSERT_TRUE(PollNetPair(server, client, server_events, client_events, [&] { return client.Connected(); }));
+        std::string request = kWebSocketRequest;
+        request.replace(request.find(from), from.size(), to);
+        ASSERT_TRUE(client.Send(request.data(), request.size()));
+        ASSERT_TRUE(PollNetPair(server, client, server_events, client_events, [&] { return HasNetEvent(client_events, net::EventKind::Close); }));
+        EXPECT_FALSE(HasNetEvent(server_events, net::EventKind::Connect));
+        EXPECT_FALSE(client.Connected());
+    }
+}
+
+TEST(test_net, websocket_fragmented_extended_frame_control_frame_and_close) {
+    FakeluaStateGuard state;
+    net::NetConfig server_config;
+    server_config.port = 19973;
+    server_config.framer = net::FramerType::WebSocket;
+    server_config.ws_path = "/socket";
+    net::TcpServer server(server_config, state.GetState());
+    server.Start();
+    ASSERT_TRUE(server.Running());
+    auto client_config = server_config;
+    client_config.framer = net::FramerType::RawStream;
+    net::TcpClient client(client_config, state.GetState());
+    client.Connect();
+    std::vector<net::ConnEvent> server_events, client_events;
+    ASSERT_TRUE(PollNetPair(server, client, server_events, client_events, [&] { return client.Connected(); }));
+    ASSERT_TRUE(client.Send(kWebSocketRequest.data(), kWebSocketRequest.size()));
+    ASSERT_TRUE(PollNetPair(server, client, server_events, client_events, [&] { return HasNetEvent(server_events, net::EventKind::Connect) && HasNetEvent(client_events, net::EventKind::Recv); }));
+    std::string handshake;
+    for (const auto &event: client_events)
+        if (event.kind == net::EventKind::Recv) handshake += event.data;
+    ASSERT_NE(handshake.find("HTTP/1.1 101"), std::string::npos);
+    client_events.clear();
+    server_events.clear();
+    const std::string ping("\x89\x80\x01\x02\x03\x04", 6);
+    const std::string payload(300, 'x');
+    std::string frame("\x81\xfe\x01\x2c\x01\x02\x03\x04", 8);
+    for (size_t i = 0; i < payload.size(); ++i) frame.push_back(payload[i] ^ static_cast<char>(i % 4 + 1));
+    ASSERT_TRUE(client.Send(ping.data(), ping.size()));
+    ASSERT_TRUE(client.Send(frame.data(), 2));
+    // No complete data frame is available yet; polling must retain its prefix.
+    for (int i = 0; i < 3; ++i) {
+        server.DrainEventsWith([&](const auto &event) { server_events.push_back(event); });
+        client.DrainEventsWith([&](const auto &event) { client_events.push_back(event); });
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    EXPECT_FALSE(HasNetEvent(server_events, net::EventKind::Recv));
+    ASSERT_TRUE(client.Send(frame.data() + 2, frame.size() - 2));
+    ASSERT_TRUE(PollNetPair(server, client, server_events, client_events, [&] { return HasNetEvent(server_events, net::EventKind::Recv); }));
+    for (const auto &event: server_events)
+        if (event.kind == net::EventKind::Recv) EXPECT_EQ(event.data, payload);
+    ASSERT_TRUE(server.Send(0, payload.data(), payload.size()));
+    ASSERT_TRUE(PollNetPair(server, client, server_events, client_events, [&] {
+        size_t bytes = 0;
+        for (const auto &event: client_events)
+            if (event.kind == net::EventKind::Recv) bytes += event.data.size();
+        return bytes >= payload.size() + 4;
+    }));
+    std::string response;
+    for (const auto &event: client_events)
+        if (event.kind == net::EventKind::Recv) response += event.data;
+    EXPECT_EQ(response, std::string("\x81\x7e\x01\x2c", 4) + payload);
+    std::string too_large(65536, 'x');
+    EXPECT_FALSE(server.Send(0, too_large.data(), too_large.size()));
+    const std::string close("\x88\x80\x01\x02\x03\x04", 6);
+    ASSERT_TRUE(client.Send(close.data(), close.size()));
+    ASSERT_TRUE(PollNetPair(server, client, server_events, client_events, [&] { return HasNetEvent(client_events, net::EventKind::Close); }));
+    EXPECT_FALSE(client.Connected());
+}
+
+TEST(test_net, websocket_client_rejects_status_and_missing_accept_header) {
+    for (const std::string response: {"HTTP/1.1 400 Bad Request\r\n\r\n", "HTTP/1.1 101 Switching Protocols\r\n\r\n"}) {
+        FakeluaStateGuard state;
+        net::NetConfig server_config;
+        server_config.port = 19974;
+        server_config.framer = net::FramerType::RawStream;
+        net::TcpServer server(server_config, state.GetState());
+        server.Start();
+        ASSERT_TRUE(server.Running());
+        auto client_config = server_config;
+        client_config.framer = net::FramerType::WebSocket;
+        net::TcpClient client(client_config, state.GetState());
+        client.Connect();
+        std::vector<net::ConnEvent> server_events, client_events;
+        ASSERT_TRUE(PollNetPair(server, client, server_events, client_events, [&] { return HasNetEvent(server_events, net::EventKind::Recv); }));
+        ASSERT_TRUE(server.Send(0, response.data(), response.size()));
+        ASSERT_TRUE(PollNetPair(server, client, server_events, client_events, [&] { return HasNetEvent(client_events, net::EventKind::Close); }));
+        EXPECT_FALSE(client.Connected());
+        EXPECT_FALSE(HasNetEvent(client_events, net::EventKind::Connect));
+    }
+}
+
+TEST(test_net, tls_client_reports_invalid_ca_without_starting_connection) {
+    FakeluaStateGuard state;
+    net::NetConfig config;
+    config.tls = true;
+    config.tls_ca = "./tls/nonexistent_validation_ca.pem";
+    net::TcpClient client(config, state.GetState());
+    client.Connect();
+    int closed = 0;
+    client.DrainEventsWith([&](const auto &event) {
+        if (event.kind == net::EventKind::Close) ++closed;
+    });
+    EXPECT_EQ(closed, 1);
+    EXPECT_FALSE(client.Connected());
+}
+
+TEST(test_net, explicit_group_destruction_unregisters_live_wrapper) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), R"(function live_wrapper_factory() return net.server({ip = "127.0.0.1", port = 19979}) end)", {});
+    CVar value = CallByNameArgs(state.GetState(), JIT_INTERP, "live_wrapper_factory", 0, nullptr);
+    auto *object = NativeObject::Unwrap(value);
+    ASSERT_NE(object, nullptr);
+    const auto group = object->GetGroupId();
+    EXPECT_EQ(state.GetState()->GetNativeObjectManager().DestroyGroup(group), 1u);
+    EXPECT_EQ(state.GetState()->GetNativeObjectManager().DestroyGroup(group), 0u);
+}
+
+TEST(test_net, custom_parser_return_contracts_and_multivalue_close_with_gcc_callbacks) {
+    FakeluaStateGuard state;
+    int received = 0;
+    RegisterNativeFunction(state.GetState(), "custom_contract_seen", 1, false, [&](State *s, CVar *args, int) {
+        EXPECT_EQ(inter::CVarToString(args[0], ""), "abc");
+        ++received;
+        return inter::NativeToFakeluaNil(s);
+    });
+    RegisterNativeFunction(state.GetState(), "custom_contract_received", 0, false, [&](State *s, CVar *, int) { return inter::NativeToFakeluaInt(s, received); });
+    CompileConfig config;
+    config.disable_jit[JIT_TCC] = true;
+    CompileFile(state.GetState(), "./net/test_net_native_parser.lua", config);
+    int64_t result = 0;
+    Call(state.GetState(), JIT_GCC, "test_custom_parser_return_contracts", result);
+    EXPECT_EQ(result, 1);
+    EXPECT_EQ(received, 2);
+}
+
+TEST(test_net, callback_send_queue_limit_and_deferred_invalid_destination) {
+    FakeluaStateGuard state;
+    CVar server;
+    bool dispatched = false;
+    RegisterNativeFunction(state.GetState(), "cpp_queue_pressure", 5, false, [&](State *s, CVar *args, int) {
+        if (inter::CVarToString(args[0], "") == "conn") {
+            CVar parameters[] = {server, args[1]};
+            CallByNameArgs(s, JIT_INTERP, "queue_limit_contract", 2, parameters);
+            dispatched = true;
+        }
+        return inter::NativeToFakeluaNil(s);
+    });
+    RegisterNativeFunction(state.GetState(), "queue_pressure_done", 0, false, [&](State *s, CVar *, int) { return inter::NativeToFakeluaBool(s, dispatched); });
+    CompileString(state.GetState(), R"(
+        function queue_limit_contract(server, connid)
+            assert(server:send(999999, "invalid destination"))
+            for i = 1, 4095 do assert(server:send(connid, "")) end
+            assert(not server:send(connid, "queue is bounded"))
+        end
+        function queue_server_factory()
+            local server = net.server({ip = "127.0.0.1", port = 19989, framer = "raw"})
+            server:dispatch("cpp_queue_pressure")
+            return server
+        end
+        function queue_client_contract()
+            local client = net.client({ip = "127.0.0.1", port = 19989, framer = "raw"})
+            for i = 1, 1000 do
+                runtime.tick()
+                if queue_pressure_done() then break end
+                os.sleep(1)
+            end
+            client:close()
+            assert(queue_pressure_done())
+            return 1
+        end
+    )",
+                  {});
+    server = CallByNameArgs(state.GetState(), JIT_INTERP, "queue_server_factory", 0, nullptr);
+    int64_t result = 0;
+    Call(state.GetState(), JIT_INTERP, "queue_client_contract", result);
+    EXPECT_EQ(result, 1);
+    EXPECT_TRUE(dispatched);
+}
+
+TEST(test_net, connected_udp_callback_echo_directive) {
+    FakeluaStateGuard state;
+    bool received = false;
+    RegisterNativeFunction(state.GetState(), "connected_udp_seen", 0, false, [&](State *s, CVar *, int) {
+        received = true;
+        return inter::NativeToFakeluaNil(s);
+    });
+    RegisterNativeFunction(state.GetState(), "connected_udp_done", 0, false, [&](State *s, CVar *, int) { return inter::NativeToFakeluaBool(s, received); });
+    CompileString(state.GetState(), R"(
+        function udp_server_directive(kind, connid, data, length, reason)
+            if kind == "recv" then
+                if data == "start" then return "echo", "server-reply" end
+                assert(data == "client-echo")
+                connected_udp_seen()
+                return "close", nil
+            end
+            return nil
+        end
+        function udp_client_directive(kind, connid, data, length, reason)
+            if kind == "recv" then
+                assert(data == "server-reply")
+                return "echo", "client-echo"
+            end
+            return nil
+        end
+        function connected_udp_directive_contract()
+            local server = net.udp_server({ip = "127.0.0.1", port = 0})
+            local client = net.udp_client({ip = "127.0.0.1", port = server:get_port()})
+            server:dispatch("udp_server_directive")
+            client:dispatch("udp_client_directive")
+            assert(client:send("start"))
+            for i = 1, 1000 do
+                runtime.tick()
+                if connected_udp_done() then break end
+                os.sleep(1)
+            end
+            client:close()
+            server:close()
+            assert(connected_udp_done())
+            return 1
+        end
+    )",
+                  {});
+    int64_t result = 0;
+    Call(state.GetState(), JIT_INTERP, "connected_udp_directive_contract", result);
+    EXPECT_EQ(result, 1);
+    EXPECT_TRUE(received);
 }

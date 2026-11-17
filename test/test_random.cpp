@@ -91,3 +91,12 @@ TEST(test_random, destroy) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_random, full_signed_range_state_spelling_and_overflow_validation) {
+    FakeluaStateGuard state;
+    CompileConfig config;
+    CompileFile(state.GetState(), "./random/test_random_additional_contracts.lua", config);
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_random_contracts", result);
+    EXPECT_EQ(result, 1);
+}

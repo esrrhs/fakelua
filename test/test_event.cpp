@@ -113,3 +113,13 @@ TEST(test_event, reentrant) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_event, once_removal_empty_names_and_gcc_callback_fallback) {
+    FakeluaStateGuard state;
+    CompileConfig config;
+    config.disable_jit[JIT_TCC] = true;
+    CompileFile(state.GetState(), "./event/test_event_additional_contracts.lua", config);
+    int64_t result = 0;
+    Call(state.GetState(), JIT_GCC, "test_event_contracts", result);
+    EXPECT_EQ(result, 1);
+}

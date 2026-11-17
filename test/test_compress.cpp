@@ -1,6 +1,8 @@
 #include "fakelua.h"
+#include "native/compress/compress_lz4.h"
 #include "test_jit.h"
 #include "gtest/gtest.h"
+#include <lz4frame.h>
 
 using namespace fakelua;
 
@@ -441,4 +443,25 @@ TEST(test_compress, zstd_edge_cases) {
     CallAll(s, "CompressZstdEdge.test_zstd_binary_with_nulls", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
+}
+
+TEST(test_compress, lz4_unknown_size_growth_checksum_failure_and_declared_limit) {
+    const std::vector<uint8_t> plain(100000, 'x');
+    LZ4F_preferences_t prefs{};
+    prefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled;
+    std::vector<uint8_t> frame(LZ4F_compressFrameBound(plain.size(), &prefs));
+    const size_t size = LZ4F_compressFrame(frame.data(), frame.size(), plain.data(), plain.size(), &prefs);
+    ASSERT_FALSE(LZ4F_isError(size));
+    frame.resize(size);
+    EXPECT_EQ(compress::Lz4Decompress(frame.data(), frame.size()), plain);
+    frame.back() ^= 1;
+    EXPECT_THROW(compress::Lz4Decompress(frame.data(), frame.size()), std::exception);
+    LZ4F_cctx *raw = nullptr;
+    ASSERT_FALSE(LZ4F_isError(LZ4F_createCompressionContext(&raw, LZ4F_VERSION)));
+    std::unique_ptr<LZ4F_cctx, decltype(&LZ4F_freeCompressionContext)> context(raw, LZ4F_freeCompressionContext);
+    prefs.frameInfo.contentSize = 64ull * 1024 * 1024 + 1;
+    std::vector<uint8_t> header(LZ4F_HEADER_SIZE_MAX);
+    const size_t header_size = LZ4F_compressBegin(context.get(), header.data(), header.size(), &prefs);
+    ASSERT_FALSE(LZ4F_isError(header_size));
+    EXPECT_THROW(compress::Lz4Decompress(header.data(), header_size), std::exception);
 }

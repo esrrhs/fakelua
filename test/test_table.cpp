@@ -1,4 +1,11 @@
+#include "jit/vm.h"
+#include "state/const_string.h"
+#include "state/state.h"
+#include "var/var_string.h"
+#include "var/var_table.h"
+#include <array>
 #include <gtest/gtest.h>
+#include <limits>
 
 #include "fakelua.h"
 #include "native/table/native_table.h"
@@ -505,4 +512,204 @@ TEST(test_table, test_table_move_unpack_limits) {
     }
 
     FakeluaDeleteState(s);
+}
+
+namespace {
+void RegisterOpaqueTableKeys(State *s) {
+    RegisterNativeFunction(s, "opaque_table_key", 1, false, [](State *, CVar *args, int) { return args[0]; });
+    RegisterNativeFunction(s, "opaque_string_key", 1, false, [](State *state, CVar *args, int) { return inter::NativeToFakeluaStringView(state, AsVar(args[0]).ToString(false, false)); });
+}
+}// namespace
+
+TEST(test_table, dynamic_quick_keys_and_cross_string_representations) {
+    FakeluaStateGuard state;
+    RegisterOpaqueTableKeys(state.GetState());
+    CompileFile(state.GetState(), "./table/test_table_dynamic_keys.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_dynamic_quick_keys", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_table, dynamic_hash_collision_insert_update_remove) {
+    FakeluaStateGuard state;
+    RegisterOpaqueTableKeys(state.GetState());
+    CompileFile(state.GetState(), "./table/test_table_dynamic_keys.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_dynamic_collision_chains", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_table, host_sparse_hash_promotes_dense_prefix_without_losing_keys) {
+    FakeluaStateGuard state;
+    auto *s = state.GetState();
+    CVar value = table::TableHelper::CreateTable(s);
+    for (int64_t key: {2, 3, 4, 5, 50, 60, 70, 80, 100}) table::TableHelper::SetTableInt(s, value, key, inter::NativeToFakeluaInt(s, key * 10));
+    for (int64_t key: {2, 3, 4, 5, 50, 60, 70, 80, 100}) EXPECT_EQ(inter::CVarToInteger(table::TableHelper::GetTableInt(s, value, key)), key * 10);
+    EXPECT_EQ(table::TableHelper::GetTableLen(value), 0);
+    table::TableHelper::SetTableInt(s, value, 1, inter::NativeToFakeluaInt(s, 10));
+    EXPECT_EQ(table::TableHelper::GetTableLen(value), 5);
+    EXPECT_EQ(table::TableHelper::CollectKVPairs(value).size(), 10u);
+    CVar nan{};
+    nan.type_ = static_cast<int>(VarType::Float);
+    nan.data_.f = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_THROW(table::TableHelper::SetTable(s, value, nan, inter::NativeToFakeluaInt(s, 1)), std::exception);
+}
+
+TEST(test_table, host_table_and_closure_keys_use_reference_identity) {
+    FakeluaStateGuard state;
+    auto *s = state.GetState();
+    CompileString(s, "function table_key_factory() return function() return 1 end end", {});
+    CVar value = table::TableHelper::CreateTable(s);
+    std::vector<CVar> keys;
+    for (int i = 0; i < 12; ++i) {
+        keys.push_back(table::TableHelper::CreateTable(s));
+        keys.push_back(CallByNameArgs(s, JIT_INTERP, "table_key_factory", 0, nullptr));
+    }
+    for (size_t i = 0; i < keys.size(); ++i) table::TableHelper::SetTable(s, value, keys[i], inter::NativeToFakeluaInt(s, i + 10));
+    for (size_t i = 0; i < keys.size(); ++i) EXPECT_EQ(inter::CVarToInteger(table::TableHelper::GetTable(s, value, keys[i])), i + 10);
+    for (size_t i = 0; i < keys.size(); i += 3) table::TableHelper::SetTable(s, value, keys[i], inter::NativeToFakeluaNil(s));
+    for (size_t i = 0; i < keys.size(); ++i) {
+        const auto found = table::TableHelper::GetTable(s, value, keys[i]);
+        if (i % 3 == 0) EXPECT_EQ(found.type_, static_cast<int>(VarType::Nil));
+        else
+            EXPECT_EQ(inter::CVarToInteger(found), i + 10);
+    }
+    EXPECT_EQ(table::TableHelper::CollectKVPairs(value).size(), 16u);
+}
+
+TEST(test_table, abi_spec_key_fallback_read_write_and_length) {
+    FakeluaStateGuard state;
+    auto *s = state.GetState();
+    CVar value = table::TableHelper::CreateTable(s);
+    std::array<CVar, 3> keys{inter::NativeToFakeluaDouble(s, 1.0), inter::NativeToFakeluaInt(s, 2), inter::NativeToFakeluaString(s, "label")};
+    std::array<CVar, 3> values{inter::NativeToFakeluaInt(s, 10), inter::NativeToFakeluaInt(s, 20), inter::NativeToFakeluaInt(s, 30)};
+    value.data_.t->spec_keys = keys.data();
+    value.data_.t->spec_vals = values.data();
+    value.data_.t->spec_count = keys.size();
+    value.data_.t->seq_len_valid_ = 0;
+    EXPECT_EQ(inter::CVarToInteger(table::TableHelper::GetTableInt(s, value, 1)), 10);
+    EXPECT_EQ(inter::CVarToInteger(table::TableHelper::GetTable(s, value, keys[2])), 30);
+    EXPECT_EQ(inter::CVarToInteger(table::TableHelper::GetTableStrId(s, value, "label")), 30);
+    EXPECT_EQ(table::TableHelper::GetTableLen(value), 2);
+    table::TableHelper::SetTableInt(s, value, 2, inter::NativeToFakeluaInt(s, 99));
+    EXPECT_EQ(inter::CVarToInteger(values[1]), 99);
+    EXPECT_EQ(table::TableHelper::GetTableInt(s, value, 4).type_, static_cast<int>(VarType::Nil));
+    EXPECT_TRUE(table::TableHelper::VarKeyEqualInt(keys[0], 1));
+    EXPECT_FALSE(table::TableHelper::VarKeyEqualInt(keys[2], 1));
+}
+
+TEST(test_table, presized_move_and_mixed_numeric_sort_contracts) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./table/test_table_dynamic_keys.lua", {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_presized_move_and_mixed_sort", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}
+
+TEST(test_table, zero_initialized_abi_table_rebuilds_sequence_cache) {
+    FakeluaStateGuard state;
+    auto *s = state.GetState();
+    // Generated C also allocates zero-initialized ABI tables without calling
+    // TableHelper::CreateTable; their initial sequence cache is invalid.
+    VarTable raw{};
+    raw.free_list_idx_ = VarTable::INVALID_INDEX;
+    CVar value{};
+    value.type_ = static_cast<int>(VarType::Table);
+    value.data_.t = &raw;
+    table::TableHelper::SetTableInt(s, value, 1, inter::NativeToFakeluaInt(s, 10));
+    table::TableHelper::SetTableInt(s, value, 2, inter::NativeToFakeluaInt(s, 20));
+    EXPECT_EQ(table::TableHelper::GetTableLen(value), 2);
+    EXPECT_EQ(raw.seq_len_valid_, 1u);
+    table::TableHelper::SetTableInt(s, value, 1, inter::NativeToFakeluaNil(s));
+    EXPECT_EQ(table::TableHelper::GetTableLen(value), 0);
+    table::TableHelper::SetTableInt(s, value, 1, inter::NativeToFakeluaInt(s, 30));
+    EXPECT_EQ(table::TableHelper::GetTableLen(value), 2);
+}
+
+TEST(test_table, abi_string_keys_use_bytes_across_quick_and_bucket_storage) {
+    FakeluaStateGuard string_owner;
+    const int64_t string_id = string_owner.GetState()->GetConstString().Alloc("ab");
+    for (bool bucketed: {false, true}) {
+        for (auto representation: {VarType::String, VarType::StringId}) {
+            for (auto backend: AllJitTypes()) {
+                SCOPED_TRACE(::testing::Message() << bucketed << " " << static_cast<int>(representation) << " " << JitTypeName(backend));
+                FakeluaStateGuard state;
+                VarTable raw{};
+                raw.count_ = 1;
+                raw.free_list_idx_ = VarTable::INVALID_INDEX;
+                std::array<VarTable::TableNode, 3> nodes{};
+                std::array<uint32_t, 3> active{};
+                const auto hash = VarString::HashOf("ab");
+                auto *entry = &raw.quick_data_[0];
+                if (bucketed) {
+                    raw.bucket_count_ = 2;
+                    raw.nodes_ = nodes.data();
+                    raw.active_list_ = active.data();
+                    active[0] = hash & (raw.bucket_count_ - 1);
+                    entry = &nodes[active[0]].entry;
+                    for (auto &node: nodes) {
+                        node.next = VarTable::INVALID_INDEX;
+                        node.active_pos = VarTable::INVALID_INDEX;
+                    }
+                    nodes[active[0]].active_pos = 0;
+                    raw.free_list_idx_ = 2;
+                }
+                // Host-provided ABI tables can retain their own string storage.
+                // The owning State outlives every consumer and owns the bytes.
+                entry->key.type_ = static_cast<int>(representation);
+                if (representation == VarType::String) entry->key.data_.s = reinterpret_cast<VarString *>(string_id);
+                else
+                    entry->key.data_.i = string_id;
+                entry->val.SetInt(42);
+                entry->hash = hash;
+                CVar wrapped{};
+                wrapped.type_ = static_cast<int>(VarType::Table);
+                wrapped.data_.t = &raw;
+                EXPECT_EQ(inter::CVarToInteger(table::TableHelper::GetTableStrId(state.GetState(), wrapped, "ab")), 42);
+                RegisterNativeFunction(state.GetState(), "legacy_abi_table", 0, false, [wrapped](State *, CVar *, int) { return wrapped; });
+                CompileString(state.GetState(), R"(
+                    function test_legacy_abi_table()
+                        local value = legacy_abi_table()
+                        assert(value.ab == 42)
+                        assert(value.bA == nil and value.zz == nil)
+                        value.ab = 99
+                        assert(value.ab == 99)
+                        return 1
+                    end
+                )",
+                              {});
+                int64_t result = 0;
+                Call(state.GetState(), backend, "test_legacy_abi_table", result);
+                EXPECT_EQ(result, 1);
+                EXPECT_EQ(entry->val.GetInt(), 99);
+                EXPECT_EQ(inter::CVarToInteger(table::TableHelper::GetTableStrId(state.GetState(), wrapped, "ab")), 99);
+            }
+        }
+    }
+}
+
+TEST(test_table, sparse_prefix_hash_resize_keeps_integer_and_string_entries) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./table/test_table_sparse_prefix_resize.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_sparse_prefix_resize", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_table, mixed_constructor_and_dynamic_store_contracts) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./table/test_table_dynamic_keys.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_mixed_constructor_and_dynamic_store_contracts", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_table, loaded_source_comparator_and_unpack_type_contract) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./table/test_table_dynamic_keys.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_loaded_sort_comparator", result);
+    EXPECT_EQ(result, 1);
 }

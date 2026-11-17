@@ -178,3 +178,13 @@ TEST(test_csv, unterminated_quote) {
     CallThrow(s, "CsvTest.test_unterminated_quote", ret);
     FakeluaDeleteState(s);
 }
+
+TEST(test_csv, bom_blank_lines_postquote_and_scalar_rows) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./csv/test_csv_parser_contracts.lua", {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_csv_parser_contracts", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}

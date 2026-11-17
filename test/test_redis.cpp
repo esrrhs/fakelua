@@ -1,4 +1,7 @@
 #include "fakelua.h"
+#include "jit/vm.h"
+#include "native/object/native_object.h"
+#include "state/state.h"
 #include "test_jit.h"
 #include "gtest/gtest.h"
 
@@ -133,4 +136,35 @@ TEST(test_redis, subscribe_rejected) {
     CallAll(s, "RedisTest.test_subscribe_rejected", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
+}
+
+TEST(test_redis, authentication_errors_database_selection_and_resp3_scalars) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./redis/test_redis_handshake_contracts.lua", {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "RedisHandshake.test_handshake_contracts", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}
+
+TEST(test_redis, pending_connection_and_deep_reply_contracts) {
+    CompileConfig config;
+    config.disable_jit[JIT_TCC] = true;
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./redis/test_redis_handshake_contracts.lua", config);
+    int64_t result = 0;
+    Call(state.GetState(), JIT_GCC, "RedisHandshake.test_pending_connection_and_deep_reply_contracts", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_redis, explicit_group_destruction_unregisters_live_wrapper) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), R"(function live_wrapper_factory() return redis.connect({host = "127.0.0.1", port = 6379}, "unused_callback") end)", {});
+    CVar value = CallByNameArgs(state.GetState(), JIT_INTERP, "live_wrapper_factory", 0, nullptr);
+    auto *object = NativeObject::Unwrap(value);
+    ASSERT_NE(object, nullptr);
+    const auto group = object->GetGroupId();
+    EXPECT_EQ(state.GetState()->GetNativeObjectManager().DestroyGroup(group), 1u);
+    EXPECT_EQ(state.GetState()->GetNativeObjectManager().DestroyGroup(group), 0u);
 }

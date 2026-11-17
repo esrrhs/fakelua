@@ -93,3 +93,13 @@ TEST(test_ini, encode_value_newline) {
         FakeluaDeleteState(s);
     }
 }
+
+TEST(test_ini, scalar_array_encoding_and_invalid_input) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./ini/test_ini_encoding_contracts.lua", {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_ini_encoding_contracts", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}
