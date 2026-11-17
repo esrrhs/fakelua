@@ -59,10 +59,22 @@ end
 function test_additional_format_and_capture_contracts()
     assert(not pcall(function() return string.char("1.5") end))
     assert(not pcall(function() return string.char("9223372036854775808") end))
-    assert(string.packsize("!8bXhh") == 4)
-    assert(string.packsize("!8bXll") == 16)
-    assert(string.packsize("!8bXjj") == 16)
-    assert(string.packsize("!8bXTT") == 16)
+    -- X alignment and item size for l follow sizeof(long): 8 on LP64, 4 on Windows LLP64.
+    local function size_after_byte(item)
+        local align = item
+        if align > 8 then
+            align = 8
+        end
+        local pos = 1
+        if pos % align ~= 0 then
+            pos = pos + (align - pos % align)
+        end
+        return pos + item
+    end
+    assert(string.packsize("!8bXhh") == size_after_byte(string.packsize("h")))
+    assert(string.packsize("!8bXll") == size_after_byte(string.packsize("l")))
+    assert(string.packsize("!8bXjj") == size_after_byte(string.packsize("j")))
+    assert(string.packsize("!8bXTT") == size_after_byte(string.packsize("T")))
     assert(string.packsize("!8bXff") == 8)
     assert(not pcall(function() return string.packsize("i0") end))
     assert(not pcall(function() return string.packsize("i17") end))

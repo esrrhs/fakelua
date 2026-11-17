@@ -13,7 +13,10 @@ inline SSL_CTX *MakeClientContext(bool verify, const std::string &ca) {
     if (verify) {
         SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, nullptr);
         if (!ca.empty()) {
-            SSL_CTX_load_verify_locations(ctx, ca.c_str(), nullptr);
+            if (SSL_CTX_load_verify_locations(ctx, ca.c_str(), nullptr) != 1) {
+                SSL_CTX_free(ctx);
+                return nullptr;
+            }
         } else {
             SSL_CTX_set_default_verify_paths(ctx);
         }
