@@ -343,6 +343,11 @@ if (WIN32 AND NOT OPENSSL_ROOT_DIR)
     endif()
 endif()
 find_package(OpenSSL REQUIRED)
+# Imported OpenSSL targets live in this directory scope. Mark them global so
+# test/ can link them without a second find_package (which would miss the
+# MinGW OPENSSL_ROOT_DIR / static-vs-shared policy set above).
+set_property(TARGET OpenSSL::SSL PROPERTY IMPORTED_GLOBAL TRUE)
+set_property(TARGET OpenSSL::Crypto PROPERTY IMPORTED_GLOBAL TRUE)
 find_package(Threads REQUIRED)
 
 if (OPENSSL_USE_STATIC_LIBS)

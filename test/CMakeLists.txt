@@ -93,7 +93,9 @@ if (NOT WIN32 AND NOT APPLE)
     target_link_libraries(unit_tests PRIVATE dl)
 endif ()
 find_package(Threads REQUIRED)
-target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${LUA_LIBRARIES} Threads::Threads Boost::container lz4_static)
+# test_crypto calls OpenSSL APIs directly; Windows fakelua.dll does not
+# re-export them (--exclude-libs,ALL), so unit_tests must link OpenSSL itself.
+target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${LUA_LIBRARIES} Threads::Threads Boost::container lz4_static OpenSSL::SSL OpenSSL::Crypto)
 
 add_test(NAME unit COMMAND ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/unit_tests
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
