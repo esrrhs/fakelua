@@ -97,6 +97,7 @@ public:
                  std::string ssl_ca = {});
 
     void Query(const std::string &sql);
+    void Query(const std::string &sql, const ResultCallback &callback);
     void StmtPrepare(const std::string &sql);
     void StmtExecute(uint32_t stmt_id, const std::vector<StmtParam> &params);
     void StmtClose(uint32_t stmt_id);

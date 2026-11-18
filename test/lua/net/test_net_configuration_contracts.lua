@@ -1,0 +1,35 @@
+function test_net_configuration_contracts()
+    local function rejects(cfg, text)
+        local ok, message = pcall(function() net.server(cfg) end)
+        assert(not ok and string.find(message, text, 1, true))
+    end
+    rejects({port = -1}, "port")
+    rejects({port = 65536}, "port")
+    rejects({port = 19970, maxconn = 0}, "maxconn")
+    rejects({port = 19970, maxconn = 100001}, "maxconn")
+    rejects({port = 19970, send_buf_size = 2147483648}, "send_buf_size")
+    rejects({port = 19970, recv_buf_size = 2147483648}, "recv_buf_size")
+    rejects({port = 19970, max_packet_len = 2147483648}, "max_packet_len")
+    rejects({port = 19970, tls = true}, "cert and key")
+    rejects({port = 19970, tls = 1, tls_verify = 1}, "cert and key")
+    rejects({port = 19970, tls = "require", tls_verify = "false"}, "cert and key")
+    rejects({port = 19970, ip = "not-an-address"}, "failed to listen")
+    for _, tls in ipairs({false, 0, "false", "disable"}) do
+        local server = net.server({port = 19970, tls = tls, tls_verify = "false",
+            recv_buf_size = 1024, max_packet_len = 512, framer = "unknown"})
+        assert(not pcall(function() server:dispatch(false) end))
+        assert(not server:close_connection(-1))
+        assert(not server:close_connection(1000000))
+        server:close()
+        assert(not server:close_connection(0))
+    end
+    assert(not pcall(function() net.udp_client(false) end))
+    assert(not pcall(function() net.udp_server(false) end))
+    assert(not pcall(function() net.udp_client({port = 0}) end))
+    assert(not pcall(function() net.udp_server({port = 65536}) end))
+    assert(not pcall(function() net.udp_server({ip = "not-an-address", port = 0}) end))
+    local socket = net.udp_server({port = 0})
+    assert(not pcall(function() socket:sendto("x", "127.0.0.1", 65536) end))
+    socket:close()
+    return 1
+end

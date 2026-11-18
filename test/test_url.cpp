@@ -47,3 +47,12 @@ TEST(test_url, format_bad_port) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_url, authority_optional_query_values_and_malformed_escapes) {
+    FakeluaStateGuard state;
+    CompileConfig config;
+    CompileFile(state.GetState(), "./url/test_url_additional_contracts.lua", config);
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_url_contracts", result);
+    EXPECT_EQ(result, 1);
+}

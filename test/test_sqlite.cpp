@@ -1,6 +1,8 @@
 #include "fakelua.h"
 #include "test_jit.h"
 #include "gtest/gtest.h"
+#include <chrono>
+#include <filesystem>
 
 using namespace fakelua;
 
@@ -277,4 +279,17 @@ TEST(test_sqlite, exec_nul) {
     CallAll(s, "SqliteTest.test_exec_nul", ret);
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
+}
+
+TEST(test_sqlite, constraint_bind_reset_and_open_error_contracts) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./sqlite/test_sqlite_error_contracts.lua", {});
+    const auto missing = std::filesystem::temp_directory_path() / ("fakelua-sqlite-missing-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())) / "db.sqlite";
+    ASSERT_FALSE(std::filesystem::exists(missing.parent_path()));
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_sqlite_error_contracts", result, missing.string());
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+        EXPECT_FALSE(std::filesystem::exists(missing));
+    }
 }

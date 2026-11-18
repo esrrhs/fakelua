@@ -637,10 +637,12 @@ public:
 
     void Reply(int status, std::string reason, HeaderList headers, std::string body) {
         if (closed_ || writing_ || !bev_) return;
-        writing_ = true;
         HeaderSet(headers, "Server", "fakelua");
         HeaderSet(headers, "Connection", "close");
         std::string wire = FormatResponse(status, std::move(reason), std::move(headers), body, req_.version);
+        // Validation can throw. A rejected reply must not prevent a corrected
+        // reply from being sent on this still-open connection.
+        writing_ = true;
         bufferevent_write(bev_, wire.data(), wire.size());
         ArmTimeout();
     }

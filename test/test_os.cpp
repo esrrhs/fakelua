@@ -367,3 +367,22 @@ TEST(test_os, test_os_filesystem) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+#if !defined(_WIN32)
+TEST(test_os, execute_reports_shell_termination_signal) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), R"(
+        function test_shell_signal_status()
+            local success, reason, signal = os.execute("kill -TERM $$")
+            assert(success == nil and reason == "signal" and signal == 15)
+            return 1
+        end
+    )",
+                  {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_shell_signal_status", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+#endif

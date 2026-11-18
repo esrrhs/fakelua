@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "native/native_common.h"
 #include "native/string/lua_pattern.h"
 #include "test_jit.h"
 
@@ -974,4 +975,70 @@ TEST(test_string, cov_string_escapes_and_ops) {
         EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
     }
     FakeluaDeleteState(s);
+}
+
+TEST(test_string, argument_arity_contracts) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./string/test_string_argument_contracts.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_string_missing_arguments", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_string, integer_and_format_contracts) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./string/test_string_argument_contracts.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_string_integer_and_format_contracts", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_string, binary_roundtrips_all_integer_widths) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./string/test_string_binary_boundaries.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_string_binary_roundtrips", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_string, binary_format_validation) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./string/test_string_binary_boundaries.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_string_binary_rejects_invalid_formats", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_string, runtime_string_intrinsics_accept_host_strings_and_numeric_coercion) {
+    FakeluaStateGuard state;
+    RegisterNativeFunction(state.GetState(), "runtime_string_value", 1, false, [](State *s, CVar *args, int) {
+        if (args[0].type_ == static_cast<int>(VarType::String) || args[0].type_ == static_cast<int>(VarType::StringId)) return inter::NativeToFakeluaString(s, inter::CVarToString(args[0], ""));
+        return args[0];
+    });
+    CompileFile(state.GetState(), "./string/test_string_runtime_intrinsics.lua", {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_runtime_string_intrinsics", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+
+TEST(test_string, dump_load_preserves_scalar_captures_and_loaded_error_handlers) {
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        FakeluaStateGuard state;
+        CompileFile(state.GetState(), "./string/test_string_dump_scalar_captures.lua", {});
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_dump_scalar_captures", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+
+TEST(test_string, alignment_lookahead_zero_hex_and_position_capture_replacements) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./string/test_string_binary_boundaries.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_additional_format_and_capture_contracts", result);
+    EXPECT_EQ(result, 1);
 }

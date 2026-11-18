@@ -184,3 +184,23 @@ TEST(test_yaml, decode_too_deep) {
         FakeluaDeleteState(s);
     }
 }
+
+TEST(test_yaml, scalar_encoding_and_quoted_nesting_tokens) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./yaml/test_yaml_encoding_boundaries.lua", {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_yaml_scalar_encoding", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}
+
+TEST(test_yaml, encode_cycles_depth_and_unsupported_values) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./yaml/test_yaml_encoding_boundaries.lua", {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_yaml_encoding_rejections", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}

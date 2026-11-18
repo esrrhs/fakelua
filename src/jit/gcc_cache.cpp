@@ -38,16 +38,29 @@ class WinHandle {
 public:
     HANDLE h = INVALID_HANDLE_VALUE;
     WinHandle() = default;
-    explicit WinHandle(HANDLE handle) : h(handle) {}
-    ~WinHandle() { reset(); }
+
+    explicit WinHandle(HANDLE handle) : h(handle) {
+    }
+
+    ~WinHandle() {
+        reset();
+    }
+
     WinHandle(const WinHandle &) = delete;
     WinHandle &operator=(const WinHandle &) = delete;
-    WinHandle(WinHandle &&other) noexcept : h(other.h) { other.h = INVALID_HANDLE_VALUE; }
+
+    WinHandle(WinHandle &&other) noexcept : h(other.h) {
+        other.h = INVALID_HANDLE_VALUE;
+    }
+
     void reset() {
         if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
         h = INVALID_HANDLE_VALUE;
     }
-    explicit operator bool() const { return h != INVALID_HANDLE_VALUE; }
+
+    explicit operator bool() const {
+        return h != INVALID_HANDLE_VALUE;
+    }
 };
 
 // One-pass POSIX unlink: never retries, and does not block on a share-delete open handle.
@@ -57,9 +70,11 @@ bool UnlinkPath(const fs::path &p) {
         const auto err = GetLastError();
         return err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND;
     }
+
     struct DispositionEx {
         DWORD Flags;
     } posix{0x00000001 | 0x00000002};// FILE_DISPOSITION_FLAG_DELETE | POSIX_SEMANTICS
+
     if (SetFileInformationByHandle(handle.h, static_cast<FILE_INFO_BY_HANDLE_CLASS>(21), &posix, sizeof(posix))) return true;
     FILE_DISPOSITION_INFO info{};
     info.DeleteFile = TRUE;
@@ -144,7 +159,9 @@ void WriteBytes(const fs::path &p, const std::string &data) {
     if (!out) throw std::runtime_error("cache write");
 }
 
-void RemoveTree(const fs::path &p, std::error_code &ec) { fs::remove_all(p, ec); }
+void RemoveTree(const fs::path &p, std::error_code &ec) {
+    fs::remove_all(p, ec);
+}
 #endif
 
 std::string Digest(const std::string &data) {
@@ -412,7 +429,8 @@ public:
         WinHandle named(CreateFileW(path_.wstring().c_str(), 0, kShareAll, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
         if (!named) return false;
         BY_HANDLE_FILE_INFORMATION info{};
-        return GetFileInformationByHandle(named.h, &info) && held.dwVolumeSerialNumber == info.dwVolumeSerialNumber && held.nFileIndexHigh == info.nFileIndexHigh && held.nFileIndexLow == info.nFileIndexLow;
+        return GetFileInformationByHandle(named.h, &info) && held.dwVolumeSerialNumber == info.dwVolumeSerialNumber && held.nFileIndexHigh == info.nFileIndexHigh &&
+               held.nFileIndexLow == info.nFileIndexLow;
 #else
         struct stat held{}, named{};
 
@@ -548,9 +566,8 @@ void GccCache::Release() {
 }
 
 GccCache::GccCache(const StateGCCConfig &cfg, const std::string &compiler, const std::string &code, bool debug) {
-    // Arbitrary user headers/libraries (and coverage files) cannot be reliably
-    // fingerprinted as a closed toolchain. Retain the uncached behavior there.
-#if !defined(USE_COV)
+    // Arbitrary user headers/libraries cannot be reliably fingerprinted as a
+    // closed toolchain. Retain the uncached behavior there.
     if (!cfg.enable_cache || !cfg.include_paths.empty() || !cfg.library_paths.empty() || !cfg.libraries.empty()) return;
     // Search-path overrides can add a newly shadowing header/library without
     // changing any previously recorded dependency. Such open-ended toolchains
@@ -599,7 +616,6 @@ GccCache::GccCache(const StateGCCConfig &cfg, const std::string &compiler, const
         impl_ = std::move(p);
     } catch (...) { /* Caching is an optimization, never a compile requirement. */
     }
-#endif
 }
 
 bool GccCache::Restore(const std::string &destination) {

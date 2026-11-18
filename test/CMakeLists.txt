@@ -78,6 +78,12 @@ ELSE ()
 ENDIF ()
 
 add_executable(unit_tests ${TEST_SRC_LIST})
+# Direct MySQL connection/pool unit tests use their internal dependency headers.
+foreach (_fl_test_dependency event_core mariadbclient libmariadb)
+    if (TARGET ${_fl_test_dependency})
+        target_include_directories(unit_tests PRIVATE $<TARGET_PROPERTY:${_fl_test_dependency},INCLUDE_DIRECTORIES>)
+    endif ()
+endforeach ()
 if (USE_COV)
     target_compile_definitions(unit_tests PRIVATE FAKELUA_TEST_NO_GCC_CACHE=1)
 endif ()
@@ -87,7 +93,9 @@ if (NOT WIN32 AND NOT APPLE)
     target_link_libraries(unit_tests PRIVATE dl)
 endif ()
 find_package(Threads REQUIRED)
-target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${LUA_LIBRARIES} Threads::Threads)
+# test_crypto calls OpenSSL APIs directly; Windows fakelua.dll does not
+# re-export them (--exclude-libs,ALL), so unit_tests must link OpenSSL itself.
+target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${LUA_LIBRARIES} Threads::Threads Boost::container lz4_static OpenSSL::SSL OpenSSL::Crypto)
 
 add_test(NAME unit COMMAND ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/unit_tests
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})

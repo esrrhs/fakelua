@@ -1,3 +1,6 @@
+#include "jit/vm.h"
+#include "native/object/native_object.h"
+#include "state/state.h"
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
@@ -1029,3 +1032,64 @@ TEST(test_io, file_read_multi_nil_count) {
     EXPECT_EQ(ret, 1);
     FakeluaDeleteState(s);
 }
+
+TEST(test_io, numeric_read_formats_default_input_and_current_lines) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./io/test_io_numeric_read_contracts.lua", {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_numeric_read_contracts", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}
+
+TEST(test_io, iterator_after_group_destruction_and_standard_handle_close_contracts) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), R"(
+        function io_iterator_factory()
+            local file = io.tmpfile()
+            assert(file:write("line\n"))
+            assert(file:seek("set", -1) == nil)
+            file:seek("set", 0)
+            io.input(file)
+            return file, file:lines()
+        end
+        function io_standard_close_contracts()
+            assert(io.stdin():close() and io.stdout():close() and io.stderr():close())
+            assert(not pcall(function() return io.read("invalid-format") end))
+            local pending = io.popen("echo io_lifecycle", "r")
+            assert(pending ~= nil)
+            return 1
+        end
+    )",
+                  {});
+    CVar result = CallByNameArgs(state.GetState(), JIT_INTERP, "io_iterator_factory", 0, nullptr);
+    CVar file = inter::GetMultiCVarElement(result, 0);
+    CVar iterator = inter::GetMultiCVarElement(result, 1);
+    auto *object = NativeObject::Unwrap(file);
+    ASSERT_NE(object, nullptr);
+    ASSERT_EQ(iterator.type_, static_cast<int>(VarType::Closure));
+    EXPECT_EQ(state.GetState()->GetNativeObjectManager().DestroyGroup(object->GetGroupId()), 1u);
+    EXPECT_EQ(inter::DispatchCallClosure(state.GetState(), iterator.data_.cl, nullptr, 0, JIT_GCC).type_, static_cast<int>(VarType::Nil));
+    int64_t success = 0;
+    Call(state.GetState(), JIT_INTERP, "io_standard_close_contracts", success);
+    EXPECT_EQ(success, 1);
+}
+
+
+#if !defined(_WIN32)
+TEST(test_io, popen_rejects_invalid_mode_without_spawning) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), R"(
+        function invalid_pipe_mode_contract()
+            local file, message = io.popen("unused_command", "invalid-mode")
+            assert(file == nil and type(message) == "string" and #message > 0)
+            return 1
+        end
+    )",
+                  {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "invalid_pipe_mode_contract", result);
+    EXPECT_EQ(result, 1);
+}
+#endif

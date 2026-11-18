@@ -1,9 +1,12 @@
 #include "fakelua.h"
+#include "jit/vm.h"
+#include "native/object/native_object.h"
 #include "state/state.h"
 #include "test_jit.h"
 #include "var/var_table.h"
 #include "var/var_type.h"
 #include "gtest/gtest.h"
+#include <limits>
 #include <string>
 #include <unordered_map>
 
@@ -1144,4 +1147,111 @@ TEST(native, gcc_cache_binds_native_callbacks_per_state) {
     EXPECT_EQ(value, 23);
     Call(first.GetState(), JIT_GCC, "cache_native", value, 4);
     EXPECT_EQ(value, 14);
+}
+
+TEST(test_native, large_snapshot_growth_and_nil_removal) {
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        FakeluaStateGuard state;
+        auto &manager = GetNativeObjectManager(state.GetState());
+        auto *object = manager.Create(manager.CreateGroup(), "Snapshot", 701);
+        for (int i = 1; i <= 24; ++i) object->SetInt("field_" + std::to_string(i), i);
+        EXPECT_EQ(object->GetString("field_1", "fallback"), "fallback");
+        RegisterNativeFunction(state.GetState(), "snapshot_object", 0, false, [object](State *s, CVar *, int) { return object->Wrap(s); });
+        CompileFile(state.GetState(), "./native/test_native_snapshot_removal.lua", {});
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_snapshot_removal", result);
+        EXPECT_EQ(result, 1);
+        EXPECT_EQ(object->Size(), 21);
+        EXPECT_FALSE(object->Has("field_1"));
+        EXPECT_FALSE(object->Has("field_12"));
+        EXPECT_FALSE(object->Has("field_24"));
+    }
+}
+
+TEST(test_native, destroy_single_unlinks_global_index_and_empty_group) {
+    FakeluaStateGuard state;
+    auto &manager = GetNativeObjectManager(state.GetState());
+    auto *first = manager.GlobalCreate("first", "Global", 401);
+    auto *second = manager.GlobalCreate("second", "Global", 402);
+    ASSERT_TRUE(manager.DestroySingle("Global", first->GetId()));
+    EXPECT_EQ(manager.GlobalGet("first"), nullptr);
+    EXPECT_EQ(manager.GlobalGet("second"), second);
+    EXPECT_EQ(manager.Get("Global", 401), nullptr);
+    EXPECT_FALSE(first->Alive());
+    auto group = manager.CreateGroup();
+    manager.Create(group, "Grouped", 403);
+    EXPECT_TRUE(manager.DestroySingle("Grouped", 403));
+    EXPECT_EQ(manager.DestroyGroup(group), 0);
+    EXPECT_TRUE(manager.GlobalDestroy("second"));
+}
+
+TEST(test_native, field_conversion_nullable_values_and_typed_fallbacks) {
+    FakeluaStateGuard state;
+    auto *s = state.GetState();
+    NativeField field;
+    EXPECT_EQ(NativeFieldToCVar(field, s).type_, static_cast<int>(VarType::Nil));
+    field.kind = NativeField::Kind::Object;
+    EXPECT_EQ(NativeFieldToCVar(field, s).type_, static_cast<int>(VarType::Nil));
+    field.kind = NativeField::Kind::Table;
+    EXPECT_EQ(NativeFieldToCVar(field, s).type_, static_cast<int>(VarType::Nil));
+    EXPECT_EQ(CVarToNativeField(inter::NativeToFakeluaNil(s)).kind, NativeField::Kind::Nil);
+    for (auto type: {VarType::String, VarType::StringId}) {
+        CVar nullable{};
+        nullable.type_ = static_cast<int>(type);
+        EXPECT_EQ(CVarToNativeField(nullable).kind, NativeField::Kind::Nil);
+    }
+    auto &manager = GetNativeObjectManager(s);
+    auto group = manager.CreateGroup();
+    auto *object = manager.Create(group, "TypedFallback");
+    object->SetString("text", "not a number");
+    EXPECT_EQ(object->GetInt("text", 71), 71);
+    EXPECT_EQ(object->GetFloat("text", 2.5), 2.5);
+    EXPECT_TRUE(object->GetBool("text", true));
+    EXPECT_EQ(object->GetObject("missing"), nullptr);
+    EXPECT_EQ(object->GetString("missing", "absent"), "absent");
+    manager.DestroyGroup(group);
+    EXPECT_EQ(object->GetInt("text", 81), 81);
+    EXPECT_DOUBLE_EQ(object->GetFloat("text", 3.5), 3.5);
+    EXPECT_TRUE(object->GetBool("text", true));
+    EXPECT_EQ(object->GetObject("text"), nullptr);
+}
+
+TEST(test_native, extracted_method_calls_and_destroyed_wrapper_contracts) {
+    FakeluaStateGuard state;
+    auto &manager = state.GetState()->GetNativeObjectManager();
+    auto *object = manager.GlobalCreate("extracted_method_owner", "method_owner");
+    ASSERT_NE(object, nullptr);
+    object->SetFloat("not_finite", std::numeric_limits<double>::infinity());
+    object->SetString("not_an_object", "text");
+    EXPECT_EQ(object->GetInt("not_finite", 27), 27);
+    EXPECT_EQ(object->GetObject("not_an_object"), nullptr);
+    object->RegisterMethod("echo", [](NativeObject *, State *s, CVar *args, int n) {
+        EXPECT_EQ(n, 1);
+        return inter::GetNativeArg(s, args, n, 0);
+    });
+    CompileString(state.GetState(), R"(
+        function extracted_method_contracts()
+            local owner = get_global_obj("extracted_method_owner")
+            local method = owner.echo
+            assert(method(17) == 17)
+            assert(method(owner, 19) == 19)
+            owner[2] = nil
+            assert(owner[2] == nil)
+            del_global_obj("extracted_method_owner")
+            assert(not pcall(function() return method(21) end))
+            assert(owner.not_an_object == nil)
+            owner.new_field = 1
+            assert(owner.new_field == nil)
+            local count = 0
+            for key, value in pairs(owner) do count = count + 1 end
+            assert(count == 0)
+            assert(not pcall(function() new_native_obj(nil, "invalid", "invalid") end))
+            return 1
+        end
+    )",
+                  {});
+    int64_t result = 0;
+    Call(state.GetState(), JIT_INTERP, "extracted_method_contracts", result);
+    EXPECT_EQ(result, 1);
 }

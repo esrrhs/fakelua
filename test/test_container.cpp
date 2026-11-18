@@ -140,3 +140,14 @@ TEST(test_container, bad_fn_value) {
     CallThrow(s, "ContainerTest.test_bad_fn_value", ret);
     FakeluaDeleteState(s);
 }
+
+TEST(test_container, ordered_scalar_keys_normalize_floats_and_reject_references) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./container/test_container_scalar_keys.lua", {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_ordered_scalar_keys", result);
+        EXPECT_EQ(result, 1);
+    }
+}

@@ -165,7 +165,13 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     }
 #endif
 
-    GccCache cache(s_->GetStateConfig().gcc_config, compiler, gr.c_code, cfg.debug_mode);
+    auto cache_config = s_->GetStateConfig().gcc_config;
+#if defined(USE_COV)
+    // Instrumented images own per-compilation gcno/gcda paths. Never reuse them;
+    // keep the filesystem cache itself instrumented and directly testable.
+    cache_config.enable_cache = false;
+#endif
+    GccCache cache(cache_config, compiler, gr.c_code, cfg.debug_mode);
     bool cache_hit = cache.Restore(so_file);
     const std::string dep_file = c_file + ".d";
 

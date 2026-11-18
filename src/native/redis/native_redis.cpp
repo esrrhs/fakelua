@@ -361,13 +361,18 @@ private:
             op->err = std::string(reply->str, reply->len);
             return;
         }
-        op->reply = reply;
         // hiredis frees reply after callback unless we take it. Copy by keeping?
         // Default: hiredis frees reply after callback returns. We must copy now.
         // We'll convert later in Tick — so duplicate via redisReply isn't easy.
         // Convert immediately into Lua? Can't, might be inside poll.
         // Duplicate the reply tree:
-        op->reply = CloneReply(reply);
+        try {
+            op->reply = CloneReply(reply);
+        } catch (const std::exception &e) {
+            // Never unwind through hiredis: it still owns the original reply and
+            // must finish its callback cleanup even when a depth limit is hit.
+            op->err = e.what();
+        }
     }
 
     static redisReply *CloneReply(const redisReply *r, int depth = 0) {

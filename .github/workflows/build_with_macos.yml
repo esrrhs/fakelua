@@ -59,15 +59,32 @@ jobs:
             echo "Waiting for MySQL... ($i)"
             sleep 2
           done
-          # Set root password (Homebrew MySQL starts with empty password)
-          # Try without password first, then with 'root' if already set
-          MYSQL_PWD="" mysql -h 127.0.0.1 -uroot -e "SELECT 1" 2>/dev/null && echo "MYSQL_AUTH=empty" >> $GITHUB_ENV || {
-            MYSQL_PWD="root" mysql -h 127.0.0.1 -uroot -e "SELECT 1" 2>/dev/null && echo "MYSQL_AUTH=root" >> $GITHUB_ENV || {
-              echo "MYSQL_AUTH=failed" >> $GITHUB_ENV
-            }
-          }
-          # Create test database (required for integration tests)
-          MYSQL_PWD="" mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE IF NOT EXISTS test" 2>/dev/null || true
+          # Homebrew MySQL starts with an empty root password. The workflow
+          # comment previously claimed to set it, but it only detected auth and
+          # created the database with MYSQL_PWD="". Tests require root/root on
+          # 127.0.0.1:3306 and database test (same contract as Linux/Windows).
+          SQL="
+          CREATE DATABASE IF NOT EXISTS test;
+          CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY 'root';
+          ALTER USER 'root'@'127.0.0.1' IDENTIFIED BY 'root';
+          ALTER USER 'root'@'localhost' IDENTIFIED BY 'root';
+          GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;
+          GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
+          FLUSH PRIVILEGES;
+          "
+          configured=0
+          for pwd in "" "root"; do
+            if MYSQL_PWD="$pwd" mysql -h 127.0.0.1 -uroot --protocol=tcp -e "$SQL"; then
+              configured=1
+              break
+            fi
+          done
+          if [ "$configured" -ne 1 ]; then
+            echo "Failed to configure MySQL test user (root/root) and database"
+            exit 1
+          fi
+          MYSQL_PWD="root" mysql -h 127.0.0.1 -uroot --protocol=tcp -e "SELECT 1"
+          echo "MySQL configured (root/root, database test)"
 
       - name: Setup Redis
         run: |

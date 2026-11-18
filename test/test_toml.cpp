@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "test_jit.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -235,4 +236,13 @@ TEST(test_toml, encode_cyclic) {
         EXPECT_EQ(ret, 1);
         FakeluaDeleteState(s);
     }
+}
+
+TEST(test_toml, unsupported_fields_are_skipped_and_nested_depth_is_bounded) {
+    FakeluaStateGuard state;
+    CompileConfig config;
+    CompileFile(state.GetState(), "./toml/test_toml_additional_contracts.lua", config);
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_toml_contracts", result);
+    EXPECT_EQ(result, 1);
 }

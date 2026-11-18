@@ -1600,3 +1600,35 @@ TEST(test_basic, reg_limit_jit_only_execution) {
     FakeluaStateGuard guard;
     EXPECT_THROW(CompileFile(guard.GetState(), "./basic/test_reg_limit_nested_over.lua", cfg), std::exception);
 }
+
+TEST(basic, first_class_pairs_and_ipairs_iterator_contracts) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./basic/test_basic_iterator_values.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "test_iterator_values", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(basic, host_exceptions_and_failing_xpcall_handlers_are_contained) {
+    FakeluaStateGuard state;
+    RegisterNativeFunction(state.GetState(), "host_standard_error", 0, false, [](State *, CVar *, int) -> CVar { throw std::runtime_error("host failure"); });
+    RegisterNativeFunction(state.GetState(), "host_unknown_error", 0, false, [](State *, CVar *, int) -> CVar { throw 7; });
+    CompileFile(state.GetState(), "./basic/test_basic_host_exceptions.lua", {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_host_exception_boundaries", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+
+TEST(basic, tonumber_rejects_fractional_bases_and_overflowing_custom_hex) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./basic/test_basic_tonumber_edge.lua", {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_tonumber_base_and_hex_bounds", result);
+        EXPECT_EQ(result, 1);
+    }
+}

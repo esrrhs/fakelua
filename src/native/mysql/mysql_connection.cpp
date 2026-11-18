@@ -213,6 +213,17 @@ void MysqlConnection::FinishConnect(MYSQL *ret) {
     pending_connect_ = true;
 }
 
+void MysqlConnection::Query(const std::string &sql, const ResultCallback &callback) {
+    // A queued submission must not replace the callback of the query already
+    // in flight. Store its callback together with its SQL until it starts.
+    if (mysql_ && !close_pending_ && (state_ != ConnState::Ready || !ready_)) {
+        queued_queries_.push_back(QueuedQuery{sql, callback});
+        return;
+    }
+    result_cb_ = callback;
+    Query(sql);
+}
+
 void MysqlConnection::Query(const std::string &sql) {
     // 契约：conn:query 一旦被调用，回调恰好被调用一次。
     //  - 连接已死（mysql_ 释放 / 已请求关闭）：下一轮 tick 给回调派发错误；
@@ -395,6 +406,11 @@ void MysqlConnection::StmtExecute(uint32_t stmt_id, const std::vector<StmtParam>
     auto it = prepared_statements_.find(stmt_id);
     if (it == prepared_statements_.end() || !it->second) {
         pending_result_err_ = "statement not prepared";
+        pending_result_ = true;
+        return;
+    }
+    if (params.size() != mysql_stmt_param_count(it->second)) {
+        pending_result_err_ = "statement parameter count mismatch";
         pending_result_ = true;
         return;
     }

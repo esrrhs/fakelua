@@ -3186,11 +3186,13 @@ void RemoveTreeBestEffort(const std::filesystem::path &path) {
         }
     }
     HANDLE handle = CreateFileW(path.wstring().c_str(), DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
-                               FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+                                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
     if (handle == INVALID_HANDLE_VALUE) return;
+
     struct DispositionEx {
         DWORD Flags;
     } posix{0x00000001 | 0x00000002};// FILE_DISPOSITION_FLAG_DELETE | POSIX_SEMANTICS
+
     if (!SetFileInformationByHandle(handle, static_cast<FILE_INFO_BY_HANDLE_CLASS>(21), &posix, sizeof(posix))) {
         FILE_DISPOSITION_INFO info{};
         info.DeleteFile = TRUE;
@@ -3211,7 +3213,9 @@ struct JitCacheTestDir {
         std::filesystem::permissions(path, std::filesystem::perms::owner_all);
     }
 
-    ~JitCacheTestDir() { RemoveTreeBestEffort(path); }
+    ~JitCacheTestDir() {
+        RemoveTreeBestEffort(path);
+    }
 
     StateConfig Config() const {
         StateConfig cfg;
@@ -3267,7 +3271,7 @@ TEST(jitter, gcc_cache_coverage_bypass) {
     CheckCacheState(s.GetState());
     EXPECT_TRUE(dir.Entries().empty());
 }
-#else
+#endif
 namespace {
 struct CacheTestEnvironment {
     struct Value {
@@ -3328,6 +3332,7 @@ struct CacheArtifactFixture {
 };
 }// namespace
 
+#if !defined(FAKELUA_TEST_NO_GCC_CACHE)
 TEST(jitter, gcc_cache_default_temp_root_and_custom_override) {
     JitCacheTestDir temp;
     CacheTestEnvironment env;
@@ -3365,6 +3370,8 @@ TEST(jitter, gcc_cache_default_temp_root_and_custom_override) {
     }
     EXPECT_EQ(custom.Entries().size(), 1u);
 }
+
+#endif
 
 TEST(jitter, gcc_cache_fifo_limit_and_hits_do_not_reorder) {
     CacheArtifactFixture f;
@@ -3420,6 +3427,7 @@ TEST(jitter, gcc_cache_corrupt_fifo_metadata_does_not_poison_writes) {
     EXPECT_TRUE(f.Restore("after malformed", 2));
 }
 
+#if !defined(FAKELUA_TEST_NO_GCC_CACHE)
 TEST(jitter, gcc_cache_eviction_preserves_loaded_modules) {
     JitCacheTestDir dir;
     auto config = dir.Config();
@@ -3437,6 +3445,8 @@ TEST(jitter, gcc_cache_eviction_preserves_loaded_modules) {
     EXPECT_EQ(dir.Entries().size(), 1u);
     CheckCacheState(live.GetState());
 }
+
+#endif
 
 TEST(jitter, gcc_cache_fifo_concurrent_publishers_and_readers) {
     CacheArtifactFixture f;
@@ -3618,6 +3628,7 @@ TEST(jitter, gcc_cache_removed_entry_and_root_are_recoverable) {
     EXPECT_TRUE(f.Restore("recreated root", 2));
 }
 
+#if !defined(FAKELUA_TEST_NO_GCC_CACHE)
 TEST(jitter, gcc_cache_external_cleanup_during_compile_and_live_execution) {
     JitCacheTestDir dir;
     auto config = dir.Config();
@@ -3971,6 +3982,8 @@ TEST(jitter, gcc_cache_process_race_and_reuse) {
 }
 #endif
 
+#endif
+
 TEST(jitter, gcc_cache_dependency_and_compiler_invalidation) {
     JitCacheTestDir dir;
     auto config = dir.Config().gcc_config;
@@ -4067,6 +4080,7 @@ TEST(jitter, gcc_cache_dependency_and_compiler_invalidation) {
     EXPECT_EQ(dir.Entries().size(), 0u);
 }
 
+#if !defined(FAKELUA_TEST_NO_GCC_CACHE)
 TEST(jitter, gcc_cache_failed_compile_does_not_publish) {
     JitCacheTestDir dir;
 
@@ -4093,6 +4107,123 @@ TEST(jitter, gcc_cache_failed_compile_does_not_publish) {
 }
 
 #endif// FAKELUA_TEST_NO_GCC_CACHE
+
+
+TEST(jitter, gcc_cache_rejects_open_toolchains_and_disabled_configuration) {
+    CacheArtifactFixture f;
+    auto original = f.dir.Config().gcc_config;
+    for (int policy = 0; policy < 4; ++policy) {
+        SCOPED_TRACE(policy);
+        auto cfg = original;
+        if (policy == 0) cfg.enable_cache = false;
+        if (policy == 1) cfg.include_paths.push_back(f.dir.path.string());
+        if (policy == 2) cfg.library_paths.push_back(f.dir.path.string());
+        if (policy == 3) cfg.libraries.push_back("user_library");
+        GccCache cache(cfg, f.compiler, "configuration policy", false);
+        cache.Publish(f.binary, f.deps, f.source);
+        EXPECT_FALSE(cache.Restore(f.restored));
+        cache.Invalidate();
+        cache.Release();
+        EXPECT_FALSE(cache.Restore(f.restored));
+    }
+    EXPECT_TRUE(f.dir.Entries().empty());
+    for (auto name: {"CPATH", "C_INCLUDE_PATH", "LIBRARY_PATH", "COMPILER_PATH", "GCC_EXEC_PREFIX", "CCC_OVERRIDE_OPTIONS", "CLANG_CONFIG_FILE_SYSTEM_DIR", "CLANG_CONFIG_FILE_USER_DIR"}) {
+        SCOPED_TRACE(name);
+        CacheTestEnvironment env;
+        env.Set(name, f.dir.path.string());
+        GccCache cache(original, f.compiler, "search path policy", false);
+        cache.Publish(f.binary, f.deps, f.source);
+        EXPECT_FALSE(cache.Restore(f.restored));
+        EXPECT_TRUE(f.dir.Entries().empty());
+    }
+}
+
+TEST(jitter, gcc_cache_manifest_validation_and_republication) {
+    CacheArtifactFixture f;
+    const std::vector<std::string> manifests{
+            "", "short\n1\n", std::string(64, '0') + "\n0\n", std::string(64, '0') + "\n10001\n", std::string(64, '0') + "\n1\n", std::string(64, '0') + "\n1\n\"missing-header\" missing-hash\n"};
+    for (const auto &manifest: manifests) {
+        SCOPED_TRACE(manifest);
+        f.Publish("manifest validation", 0);
+        ASSERT_EQ(f.dir.Entries().size(), 1u);
+        const auto entry = f.dir.Entries().at(0);
+        std::ofstream(entry / "manifest", std::ios::binary | std::ios::trunc) << manifest;
+        EXPECT_FALSE(f.Restore("manifest validation", 0));
+        EXPECT_FALSE(std::filesystem::exists(entry));
+        EXPECT_FALSE(std::filesystem::exists(f.restored));
+    }
+    f.Publish("manifest validation", 0);
+    ASSERT_TRUE(f.Restore("manifest validation", 0));
+    std::ifstream restored(f.restored, std::ios::binary);
+    EXPECT_EQ(std::string(std::istreambuf_iterator<char>(restored), {}), "test artifact bytes");
+}
+
+TEST(jitter, gcc_cache_publish_io_failures_do_not_leave_partial_entries) {
+    CacheArtifactFixture f;
+    std::ifstream original_deps(f.deps);
+    const std::string dependency_rule(std::istreambuf_iterator<char>(original_deps), {});
+    original_deps.close();
+    auto cfg = f.dir.Config().gcc_config;
+    {
+        GccCache cache(cfg, f.compiler, "publication failures", false);
+        cache.Publish(f.binary + ".missing", f.deps, f.source);
+        cache.Publish(f.binary, f.deps + ".missing", f.source);
+        cache.Publish(f.binary, f.deps, f.source + ".missing");
+        std::ofstream(f.deps, std::ios::trunc) << "not a dependency rule";
+        cache.Publish(f.binary, f.deps, f.source);
+        EXPECT_FALSE(cache.Restore(f.restored));
+    }
+    EXPECT_TRUE(f.dir.Entries().empty());
+    // A failed destination write is a miss, never a half-successful restore.
+    std::ofstream(f.deps, std::ios::trunc) << dependency_rule;
+    f.Publish("write failure", 0);
+    ASSERT_EQ(f.dir.Entries().size(), 1u);
+    std::filesystem::create_directory(f.restored);
+    {
+        GccCache cache(cfg, f.compiler, "write failure", false);
+        EXPECT_FALSE(cache.Restore(f.restored));
+    }
+    EXPECT_TRUE(f.dir.Entries().empty());
+    std::filesystem::remove(f.restored);
+    f.Publish("write failure", 0);
+    EXPECT_TRUE(f.Restore("write failure", 0));
+}
+
+TEST(jitter, gcc_cache_environment_and_debug_mode_separate_keys) {
+    CacheArtifactFixture f;
+    CacheTestEnvironment original_environment;
+    original_environment.Set("SOURCE_DATE_EPOCH", "111111111");
+    f.Publish("key separation", 0);
+    ASSERT_TRUE(f.Restore("key separation", 0));
+    {
+        CacheTestEnvironment env;
+        env.Set("SOURCE_DATE_EPOCH", "123456789");
+        EXPECT_FALSE(f.Restore("key separation", 0));
+    }
+    auto cfg = f.dir.Config().gcc_config;
+    {
+        GccCache debug(cfg, f.compiler, "key separation", true);
+        EXPECT_FALSE(debug.Restore(f.restored));
+    }
+    EXPECT_TRUE(f.Restore("key separation", 0));
+}
+
+#if !defined(_WIN32)
+TEST(jitter, gcc_cache_noncompiler_and_wrapper_are_not_persisted) {
+    CacheArtifactFixture f;
+    auto cfg = f.dir.Config().gcc_config;
+    const auto wrapper = f.dir.path / "gcc-wrapper";
+    std::ofstream(wrapper) << "#!/bin/sh\nexit 99\n";
+    std::filesystem::permissions(wrapper, std::filesystem::perms::owner_all);
+    for (const auto &compiler: {wrapper.string(), std::string("/bin/true")}) {
+        SCOPED_TRACE(compiler);
+        GccCache cache(cfg, compiler, "untrusted compiler", false);
+        cache.Publish(f.binary, f.deps, f.source);
+        EXPECT_FALSE(cache.Restore(f.restored));
+    }
+    EXPECT_TRUE(f.dir.Entries().empty());
+}
+#endif
 
 TEST(jitter, gcc_cache_binary_literal_strings_all_backends) {
     JitCacheTestDir dir;
@@ -4133,3 +4264,99 @@ function cache_collisions() return cache_collision("ab")*100+cache_collision("bA
         }
     }
 }
+
+TEST(jitter, fixed_prefix_vararg_expansion_and_missing_parameters) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./jit/test_vararg_expansion_boundaries.lua", {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_vararg_expansion_boundaries", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}
+
+TEST(jitter, nested_multivalue_returns_preserve_arity_when_math_specialization_is_ineligible) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), R"(
+        function nested_multi_elseif(n)
+            if n < 0 then return 0 elseif n > 0 then return n, n + 1 end
+            return 0
+        end
+        function nested_multi_else(n)
+            if n < 0 then return 0 else return n, n + 1 end
+        end
+        function nested_multi_while(n)
+            while n > 0 do return n, n + 1 end
+            return 0
+        end
+        function nested_multi_repeat(n)
+            repeat return n, n + 1 until true
+        end
+        function nested_multi_numeric_for(n)
+            for i = 1, n do return n, n + 1 end
+            return 0
+        end
+        function nested_multi_generic_for(n)
+            for _, value in ipairs({n}) do return value, value + 1 end
+            return 0
+        end
+        function nested_multi_do(n)
+            do return n, n + 1 end
+        end
+        function nested_multivalue_contracts()
+            local a, b = nested_multi_elseif(1) assert(a == 1 and b == 2)
+            a, b = nested_multi_else(1) assert(a == 1 and b == 2)
+            a, b = nested_multi_while(1) assert(a == 1 and b == 2)
+            a, b = nested_multi_repeat(1) assert(a == 1 and b == 2)
+            a, b = nested_multi_numeric_for(1) assert(a == 1 and b == 2)
+            a, b = nested_multi_generic_for(1) assert(a == 1 and b == 2)
+            a, b = nested_multi_do(1) assert(a == 1 and b == 2)
+            local x, y = table.unpack({3, 4, 5}, 2)
+            assert(x == 4 and y == 5)
+            repeat until true
+            return 1
+        end
+    )",
+                  {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "nested_multivalue_contracts", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}
+
+
+#if !defined(_WIN32)
+TEST(jitter, gcc_cache_makefile_dependencies_with_escaped_names_and_line_endings) {
+    CacheArtifactFixture fixture;
+    std::vector<std::filesystem::path> headers;
+    for (const std::string name: {"space header.h", "tab\theader.h", "hash#header.h", "colon:header.h", "back\\slash.h"}) {
+        headers.push_back(fixture.dir.path / name);
+        std::ofstream(headers.back()) << "original dependency";
+    }
+    auto escape = [](const std::string &path) {
+        std::string result;
+        for (char ch: path) {
+            if (ch == ' ' || ch == '\t' || ch == '#' || ch == ':' || ch == '\\') result += '\\';
+            result += ch;
+        }
+        return result;
+    };
+    {
+        std::ofstream dependencies(fixture.deps, std::ios::binary);
+        dependencies << "image: " << escape(fixture.source);
+        for (size_t i = 0; i < headers.size(); ++i) {
+            dependencies << (i % 2 ? " \\\r\n " : " \\\n ") << escape(headers[i].string());
+        }
+        dependencies << '\n';
+    }
+    for (size_t i = 0; i < headers.size(); ++i) {
+        const std::string key = "escaped-dependency-" + std::to_string(i);
+        fixture.Publish(key, 0);
+        ASSERT_TRUE(fixture.Restore(key, 0));
+        std::ofstream(headers[i], std::ios::trunc) << "changed dependency";
+        EXPECT_FALSE(fixture.Restore(key, 0));
+        std::ofstream(headers[i], std::ios::trunc) << "original dependency";
+    }
+}
+#endif

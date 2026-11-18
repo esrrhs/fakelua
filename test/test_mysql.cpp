@@ -1,9 +1,17 @@
 #include "fakelua.h"
+#include "jit/vm.h"
+#include "native/mysql/mysql_connection_pool.h"
 #include "native/mysql/mysql_field_convert.h"
 #include "native/mysql/native_mysql.h"
 #include "native/native_common.h"
+#include "native/net/net_event.h"
+#include "native/object/native_object.h"
+#include "native/table/native_table.h"
+#include "state/state.h"
 #include "test_jit.h"
 #include "gtest/gtest.h"
+#include <chrono>
+#include <thread>
 
 using namespace fakelua;
 using namespace fakelua::mysql;
@@ -392,4 +400,338 @@ TEST(test_mysql, field_cell_to_cvar_type_conversion) {
     }
 
     FakeluaDeleteState(s);
+}
+
+TEST(test_mysql, large_multi_results_and_queued_query_callbacks) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./mysql/test_mysql_streamed_results.lua", {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "MysqlStream.test_large_and_queued_results", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}
+
+TEST(test_mysql, pool_heartbeat_recovers_a_closed_idle_connection) {
+    FakeluaStateGuard state;
+    PoolConfig config;
+    config.host = "127.0.0.1";
+    config.port = 3306;
+    config.user = "root";
+    config.password = "root";
+    config.database = "test";
+    config.pool_size = 1;
+    config.connect_timeout_ms = 1000;
+    config.heartbeat_interval_ms = 1;
+    config.retry_base_ms = 1;
+    config.max_retries = 2;
+    MysqlConnectionPool pool(config, state.GetState());
+    pool.Initialize();
+    auto wait_healthy = [&] {
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        do {
+            pool.Tick();
+            if (pool.HealthyCount() == 1) return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        } while (std::chrono::steady_clock::now() < deadline);
+        return false;
+    };
+    ASSERT_TRUE(wait_healthy());
+    // Drive several real heartbeat request/response cycles before borrowing.
+    for (int i = 0; i < 20; ++i) {
+        pool.Tick();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    auto *connection = pool.Acquire();
+    ASSERT_NE(connection, nullptr);
+    connection->Close();
+    pool.Release(connection);
+    ASSERT_TRUE(wait_healthy());
+    auto *reconnected = pool.Acquire();
+    ASSERT_NE(reconnected, nullptr);
+    EXPECT_TRUE(reconnected->Connected());
+    pool.Release(reconnected);
+    pool.Close();
+    pool.Tick();
+    EXPECT_EQ(pool.TotalCount(), 0u);
+    EXPECT_EQ(pool.Acquire(), nullptr);
+}
+
+TEST(test_mysql, pool_close_inside_result_callback_defers_connection_destruction) {
+    FakeluaStateGuard state;
+    PoolConfig config;
+    config.host = "127.0.0.1";
+    config.port = 3306;
+    config.user = "root";
+    config.password = "root";
+    config.database = "test";
+    config.pool_size = 1;
+    config.connect_timeout_ms = 1000;
+    config.heartbeat_interval_ms = 0;
+    MysqlConnectionPool pool(config, state.GetState());
+    bool callback_ran = false;
+    RegisterNativeFunction(state.GetState(), "close_pool_from_callback", 0, false, [&](State *s, CVar *, int) {
+        callback_ran = true;
+        pool.Close();
+        // The active Tick frame still owns the connection until it unwinds.
+        EXPECT_EQ(pool.TotalCount(), 1u);
+        EXPECT_EQ(pool.Acquire(), nullptr);
+        return inter::NativeToFakeluaNil(s);
+    });
+    CompileConfig compile;
+    DisableAllJit(compile);
+    compile.disable_jit[JIT_INTERP] = false;
+    compile.debug_mode = false;
+    CompileString(state.GetState(), R"(
+        function pool_close_on_result(conn, err, result)
+            assert(err == nil)
+            assert(result[3][1][1] == 42)
+            close_pool_from_callback()
+        end
+    )",
+                  compile);
+    pool.Initialize();
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (pool.HealthyCount() != 1 && std::chrono::steady_clock::now() < deadline) {
+        pool.Tick();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    auto *connection = pool.Acquire();
+    ASSERT_NE(connection, nullptr);
+    ResultCallback callback;
+    callback.name = "pool_close_on_result";
+    callback.jit = JIT_INTERP;
+    connection->Query("SELECT 42", callback);
+    deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!callback_ran && std::chrono::steady_clock::now() < deadline) {
+        pool.Tick();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    EXPECT_TRUE(callback_ran);
+    EXPECT_EQ(pool.TotalCount(), 0u);
+    pool.Reap();
+    pool.Close();
+    EXPECT_EQ(pool.HealthyCount(), 0u);
+}
+
+TEST(test_mysql, pool_ssl_options_and_outstanding_wrapper_invalidation) {
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        FakeluaStateGuard state;
+        CompileFile(state.GetState(), "./mysql/test_mysql_pool_lifecycle.lua", {});
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_pool_lifecycle_contracts", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+
+TEST(test_mysql, statement_and_late_multi_result_errors_preserve_callback_and_connection) {
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        FakeluaStateGuard state;
+        CompileFile(state.GetState(), "./mysql/test_mysql_streamed_results.lua", {});
+        int64_t result = 0;
+        Call(state.GetState(), backend, "MysqlStream.test_statement_and_late_multi_result_errors", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+
+TEST(test_mysql, retryable_error_classification) {
+    for (auto type: {MysqlErrorType::None, MysqlErrorType::Connection, MysqlErrorType::Authentication, MysqlErrorType::Syntax, MysqlErrorType::Timeout, MysqlErrorType::Protocol,
+                     MysqlErrorType::Server, MysqlErrorType::Unknown}) {
+        EXPECT_EQ(MysqlConnection::IsRetryable(type), type == MysqlErrorType::Connection || type == MysqlErrorType::Timeout);
+    }
+}
+
+TEST(test_mysql, closed_cpp_statement_apis_report_errors_through_gcc_callback_fallback) {
+    FakeluaStateGuard state;
+    State *s = state.GetState();
+    int callbacks = 0;
+    RegisterNativeFunction(s, "record_closed_mysql", 3, false, [&](State *st, CVar *args, int n) {
+        EXPECT_EQ(n, 3);
+        EXPECT_EQ(args[0].type_, static_cast<int>(VarType::Nil));
+        EXPECT_EQ(inter::CVarToString(args[1], ""), "connection closed");
+        EXPECT_EQ(args[2].type_, static_cast<int>(VarType::Nil));
+        ++callbacks;
+        return inter::NativeToFakeluaNil(st);
+    });
+    CompileConfig config;
+    config.disable_jit[JIT_TCC] = true;
+    CompileString(s, "function closed_mysql_result(conn, err, result) record_closed_mysql(conn, err, result) end", config);
+    MysqlConnection conn(s);
+    conn.SetResultCallback(ResultCallback{"closed_mysql_result"});
+    conn.Query("SELECT 1");
+    EXPECT_TRUE(conn.HasPendingWork());
+    conn.Tick();
+    conn.StmtPrepare("SELECT ?");
+    EXPECT_TRUE(conn.HasPendingWork());
+    conn.Tick();
+    conn.StmtExecute(1, {});
+    EXPECT_TRUE(conn.HasPendingWork());
+    conn.Tick();
+    EXPECT_EQ(callbacks, 3);
+    EXPECT_FALSE(conn.HasPendingWork());
+    EXPECT_FALSE(conn.Connected());
+}
+
+TEST(test_mysql, streamed_rows_continue_between_packets_and_preserve_all_results) {
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        FakeluaStateGuard state;
+        CompileFile(state.GetState(), "./mysql/test_mysql_streamed_results.lua", {});
+        int64_t result = 0;
+        Call(state.GetState(), backend, "MysqlStream.test_row_stream_continuations", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+
+TEST(test_mysql, configuration_statement_parameters_and_single_stream) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./mysql/test_mysql_streamed_results.lua", {});
+    int64_t result = 0;
+    CallAll(state.GetState(), "MysqlStream.test_configuration_and_statement_parameter_contracts", result);
+    EXPECT_EQ(result, 1);
+}
+
+TEST(test_mysql, explicit_group_destruction_unregisters_live_wrapper) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), R"(function live_wrapper_factory() return mysql.connect({host = "127.0.0.1", user = "root"}, "unused_callback") end)", {});
+    CVar value = CallByNameArgs(state.GetState(), JIT_INTERP, "live_wrapper_factory", 0, nullptr);
+    auto *object = NativeObject::Unwrap(value);
+    ASSERT_NE(object, nullptr);
+    const auto group = object->GetGroupId();
+    EXPECT_EQ(state.GetState()->GetNativeObjectManager().DestroyGroup(group), 1u);
+    EXPECT_EQ(state.GetState()->GetNativeObjectManager().DestroyGroup(group), 0u);
+}
+
+TEST(test_mysql, cpp_legacy_queued_queries_and_connecting_statement_guards) {
+    FakeluaStateGuard state;
+    std::vector<std::string> errors;
+    std::vector<int64_t> rows;
+    RegisterNativeFunction(state.GetState(), "record_cpp_mysql_result", 2, false, [&](State *s, CVar *args, int) {
+        if (args[0].type_ != static_cast<int>(VarType::Nil)) {
+            errors.push_back(inter::CVarToString(args[0], ""));
+        } else {
+            auto all_rows = table::TableHelper::GetTableInt(s, args[1], 3);
+            auto row = table::TableHelper::GetTableInt(s, all_rows, 1);
+            rows.push_back(inter::CVarToInteger(table::TableHelper::GetTableInt(s, row, 1)));
+        }
+        return inter::NativeToFakeluaNil(s);
+    });
+    CompileConfig config;
+    DisableAllJit(config);
+    config.disable_jit[JIT_INTERP] = false;
+    CompileString(state.GetState(), R"(function cpp_mysql_result(conn, err, result) record_cpp_mysql_result(err, result) end)", config);
+    ResultCallback callback;
+    callback.name = "cpp_mysql_result";
+    callback.jit = JIT_INTERP;
+    for (bool prepare: {true, false}) {
+        MysqlConnection opening(state.GetState());
+        opening.SetResultCallback(callback);
+        opening.Connect("127.0.0.1", 3306, "root", "root", "test", 1000);
+        ASSERT_TRUE(opening.Connecting());
+        if (prepare) opening.StmtPrepare("SELECT 1");
+        else
+            opening.StmtExecute(1, {});
+        const auto expected = errors.size() + 1;
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        while (errors.size() < expected && std::chrono::steady_clock::now() < deadline) {
+            opening.Tick();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        ASSERT_EQ(errors.size(), expected);
+        EXPECT_NE(errors.back().find(prepare ? "not ready for prepare" : "not ready for execute"), std::string::npos);
+        opening.Close();
+    }
+    MysqlConnection connection(state.GetState());
+    connection.SetResultCallback(callback);
+    connection.Connect("127.0.0.1", 3306, "root", "root", "test", 1000);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (!connection.Connected() && std::chrono::steady_clock::now() < deadline) {
+        connection.Tick();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    ASSERT_TRUE(connection.Connected());
+    connection.Query("SELECT 41 AS value, SLEEP(0.02)");
+    connection.Query("SELECT 42 AS value");
+    deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (rows.size() < 2 && std::chrono::steady_clock::now() < deadline) {
+        connection.Tick();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    EXPECT_EQ(rows, (std::vector<int64_t>{41, 42}));
+    connection.RequestClose();
+    connection.Query("SELECT 43");
+    connection.Tick();
+    ASSERT_EQ(errors.size(), 3u);
+    EXPECT_NE(errors.back().find("closing"), std::string::npos);
+    connection.Close();
+}
+
+TEST(test_mysql, handshake_deadline_with_silent_local_tcp_peer) {
+    FakeluaStateGuard state;
+    net::NetConfig peer_config;
+    peer_config.ip = "127.0.0.1";
+    peer_config.port = 19990;
+    peer_config.framer = net::FramerType::RawStream;
+    net::TcpServer peer(peer_config, state.GetState());
+    peer.Start();
+    ASSERT_TRUE(peer.Running());
+    std::string error;
+    RegisterNativeFunction(state.GetState(), "record_mysql_deadline", 1, false, [&](State *s, CVar *args, int) {
+        error = inter::CVarToString(args[0], "");
+        return inter::NativeToFakeluaNil(s);
+    });
+    CompileConfig config;
+    DisableAllJit(config);
+    config.disable_jit[JIT_INTERP] = false;
+    CompileString(state.GetState(), "function mysql_deadline_callback(conn, err, success) record_mysql_deadline(err) end", config);
+    MysqlConnection connection(state.GetState());
+    ResultCallback callback;
+    callback.name = "mysql_deadline_callback";
+    callback.jit = JIT_INTERP;
+    connection.SetConnectCallback(callback);
+    connection.Connect("127.0.0.1", peer_config.port, "root", "root", "test", 10);
+    ASSERT_TRUE(connection.Connecting());
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    connection.Tick();
+    EXPECT_FALSE(connection.Connected());
+    EXPECT_FALSE(connection.Connecting());
+    EXPECT_NE(error.find("timeout"), std::string::npos);
+    connection.Close();
+    peer.Stop();
+}
+
+TEST(test_mysql, destroying_pool_group_invalidates_borrowed_wrapper_before_finalizer) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), R"(
+        function pool_group_factory()
+            local pool = mysql_pool.create({host = "127.0.0.1", port = 3306,
+                user = "root", password = "root", db = "test", pool_size = 1, heartbeat_ms = 0})
+            local conn = nil
+            for i = 1, 3000 do
+                runtime.tick()
+                conn = pool:acquire()
+                if conn then break end
+                os.sleep(1)
+            end
+            assert(conn ~= nil)
+            return pool, conn
+        end
+        function borrowed_after_pool_destruction(conn)
+            assert(conn:error() == nil)
+            assert(not pcall(function() conn:query("SELECT 1", "unused_pool_callback") end))
+            conn:close()
+            return 1
+        end
+    )",
+                  {});
+    CVar result = CallByNameArgs(state.GetState(), JIT_INTERP, "pool_group_factory", 0, nullptr);
+    auto *pool = NativeObject::Unwrap(inter::GetMultiCVarElement(result, 0));
+    CVar borrowed = inter::GetMultiCVarElement(result, 1);
+    ASSERT_NE(pool, nullptr);
+    ASSERT_NE(NativeObject::Unwrap(borrowed), nullptr);
+    EXPECT_EQ(state.GetState()->GetNativeObjectManager().DestroyGroup(pool->GetGroupId()), 1u);
+    CVar success = CallByNameArgs(state.GetState(), JIT_INTERP, "borrowed_after_pool_destruction", 1, &borrowed);
+    EXPECT_EQ(inter::CVarToInteger(success), 1);
 }

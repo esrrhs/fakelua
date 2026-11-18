@@ -1,5 +1,6 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
+#include "interp/func_proto.h"
 #include "interp/runtime.h"
 #include "interp/vm_ops.h"
 #include "jit/vm.h"
@@ -829,4 +830,194 @@ TEST(runtime, vm_ops_for_and_arith_edges) {
     limit = Float(3.0);
     step = Float(0.0);
     EXPECT_THROW(ForPrep(idx, limit, step, loopvar), std::exception);
+}
+
+TEST(runtime, multireturn_argument_limit_is_checked_for_named_and_closure_calls) {
+    FakeluaStateGuard state;
+    auto *s = state.GetState();
+    RegisterNativeFunction(s, "runtime_opaque_closure", 1, false, [](State *, CVar *args, int) { return args[0]; });
+    RegisterNativeFunction(s, "runtime_arg_count", 0, true, [](State *s, CVar *, int n) { return inter::NativeToFakeluaInt(s, n); });
+    RegisterNativeFunction(s, "runtime_expanded_values", 1, false, [](State *s, CVar *args, int) {
+        const int count = static_cast<int>(inter::CVarToInteger(args[0]));
+        CVar result = inter::AllocMultiCVar(s, count);
+        for (int i = 0; i < count; ++i) inter::SetMultiCVarElement(result, i, inter::NativeToFakeluaInt(s, 1));
+        return result;
+    });
+    std::string prefix;
+    for (size_t i = 1; i < kMaxFunctionInputParams; ++i) prefix += "1,";
+    std::string source = "function named_arity_target(...) return runtime_arg_count(...) end\n";
+    for (bool closure: {false, true}) {
+        for (bool tail: {false, true}) {
+            const std::string name = std::string(closure ? "closure" : "named") + (tail ? "_tail" : "_regular");
+            source += "function limit_" + name + "(count)\n";
+            if (closure) source += "local target = runtime_opaque_closure(function(...) return runtime_arg_count(...) end)\n";
+            const std::string call = (closure ? "target(" : "named_arity_target(") + prefix + "runtime_expanded_values(count))";
+            source += tail ? "return " + call + "\n" : "local result = " + call + "\nreturn result\n";
+            source += "end\n";
+        }
+    }
+    CompileString(s, source, {});
+    for (auto backend: AllJitTypes()) {
+        for (const char *suffix: {"named_regular", "named_tail", "closure_regular", "closure_tail"}) {
+            SCOPED_TRACE(::testing::Message() << JitTypeName(backend) << " " << suffix);
+            const std::string name = std::string("limit_") + suffix;
+            int64_t result = 0;
+            Call(s, backend, name, result, 1);
+            EXPECT_EQ(result, kMaxFunctionInputParams);
+            EXPECT_THROW(Call(s, backend, name, result, 2), std::exception);
+        }
+    }
+}
+
+TEST(runtime, interpreter_bytecode_globals_and_explicit_throw_locations) {
+    FakeluaStateGuard state;
+    auto *s = state.GetState();
+    InterpUnit unit;
+    unit.state = s;
+    unit.file_name = "bytecode-contract.lua";
+    FuncProto function;
+    function.unit = &unit;
+    function.max_stack = 1;
+    // Constant-pool names may use ordinary runtime strings as well as intern IDs.
+    function.constants = {inter::NativeToFakeluaString(s, "_VERSION")};
+    function.code = {{Op::GETGLOBAL, 0, 0, 0, 0}, {Op::RETURN, 0, 1}};
+    EXPECT_TRUE(inter::CVarToString(InterpreterExecute(s, &function, nullptr, 0, nullptr), "").starts_with("Fakelua "));
+    function.constants[0] = inter::NativeToFakeluaString(s, "missing_global");
+    EXPECT_EQ(InterpreterExecute(s, &function, nullptr, 0, nullptr).type_, static_cast<int>(VarType::Nil));
+    function.constants.push_back(inter::NativeToFakeluaInt(s, 19));
+    function.code = {{Op::LOADK, 0, 0, 0, 1}, {Op::SETGLOBAL, 0, 0, 0, 0}, {Op::GETGLOBAL, 0, 0, 0, 0}, {Op::RETURN, 0, 1}};
+    EXPECT_EQ(inter::CVarToInteger(InterpreterExecute(s, &function, nullptr, 0, nullptr)), 19);
+    EXPECT_EQ(inter::CVarToInteger(unit.globals.at("missing_global")), 19);
+    function.constants[0] = inter::NativeToFakeluaString(s, "explicit bytecode error");
+    function.code = {{Op::THROW, 0, 0, 0, 0}};
+    function.lineinfo = {41};
+    try {
+        (void) InterpreterExecute(s, &function, nullptr, 0, nullptr);
+        FAIL() << "THROW opcode did not throw";
+    } catch (const std::exception &error) {
+        EXPECT_NE(std::string(error.what()).find("explicit bytecode error"), std::string::npos);
+        EXPECT_NE(std::string(error.what()).find("bytecode-contract.lua:41"), std::string::npos);
+    }
+}
+
+TEST(runtime, interpreter_bytecode_empty_table_entry_returns_nil_pair) {
+    FakeluaStateGuard state;
+    InterpUnit unit;
+    unit.state = state.GetState();
+    FuncProto function;
+    function.unit = &unit;
+    function.max_stack = 4;
+    function.constants = {inter::NativeToFakeluaInt(state.GetState(), 0)};
+    function.code = {{Op::NEWTABLE, 0}, {Op::LOADK, 3, 0, 0, 0}, {Op::TABENT, 0, 1, 2, 3}, {Op::MAKEMULTI, 1, 2}, {Op::RETURN, 1}};
+    CVar result = InterpreterExecute(state.GetState(), &function, nullptr, 0, nullptr);
+    ASSERT_EQ(result.type_, static_cast<int>(VarType::Multi));
+    ASSERT_EQ(inter::GetMultiCVarCount(result), 2);
+    EXPECT_EQ(inter::GetMultiCVarElement(result, 0).type_, static_cast<int>(VarType::Nil));
+    EXPECT_EQ(inter::GetMultiCVarElement(result, 1).type_, static_cast<int>(VarType::Nil));
+}
+
+TEST(runtime, interpreter_bytecode_lazy_capture_cell_remains_shared) {
+    FakeluaStateGuard state;
+    InterpUnit unit;
+    unit.state = state.GetState();
+    FuncProto child;
+    child.unit = &unit;
+    child.max_stack = 1;
+    child.upvalues = {{true, 0}};
+    child.code = {{Op::GETUPVAL, 0, 0}, {Op::RETURN, 0, 1}};
+    FuncProto parent;
+    parent.unit = &unit;
+    parent.max_stack = 2;
+    parent.uses_boxes = true;
+    parent.constants = {inter::NativeToFakeluaInt(state.GetState(), 42), inter::NativeToFakeluaInt(state.GetState(), 7)};
+    parent.child_protos = {&child};
+    parent.code = {{Op::LOADK, 0, 0, 0, 0}, {Op::CLOSURE, 1, 0, 0, 0}, {Op::LOADK, 0, 0, 0, 1}, {Op::RETURN, 1, 1}};
+    CVar closure = InterpreterExecute(state.GetState(), &parent, nullptr, 0, nullptr);
+    ASSERT_EQ(closure.type_, static_cast<int>(VarType::Closure));
+    EXPECT_EQ(inter::CVarToInteger(InterpreterExecute(state.GetState(), &child, nullptr, 0, closure.data_.cl)), 7);
+    // A bytecode producer that forgets the capture-storage flag must get a
+    // deterministic validation error, not an invalid box-pointer dereference.
+    parent.uses_boxes = false;
+    EXPECT_THROW(InterpreterExecute(state.GetState(), &parent, nullptr, 0, nullptr), std::exception);
+}
+
+TEST(runtime, interpreter_bytecode_empty_functions_upvalues_and_box_validation) {
+    FakeluaStateGuard state;
+    InterpUnit unit;
+    unit.state = state.GetState();
+    FuncProto function;
+    function.unit = &unit;
+    function.max_stack = 1;
+    EXPECT_EQ(InterpreterExecute(state.GetState(), &function, nullptr, 0, nullptr).type_, static_cast<int>(VarType::Nil));
+    function.code = {{Op::GETUPVAL, 0, 0}, {Op::RETURN, 0, 1}};
+    EXPECT_EQ(InterpreterExecute(state.GetState(), &function, nullptr, 0, nullptr).type_, static_cast<int>(VarType::Nil));
+    function.code = {{Op::NEWBOX, 0}, {Op::RETURN, 0, 1}};
+    EXPECT_THROW(InterpreterExecute(state.GetState(), &function, nullptr, 0, nullptr), std::exception);
+    function.uses_boxes = true;
+    EXPECT_EQ(InterpreterExecute(state.GetState(), &function, nullptr, 0, nullptr).type_, static_cast<int>(VarType::Nil));
+    function.uses_boxes = false;
+    function.constants = {inter::NativeToFakeluaString(state.GetState(), "unresolved_bytecode_target")};
+    for (const auto operation: {Op::CALLNAME, Op::TAILNAME, Op::TAIL}) {
+        function.code = {{operation, 0, 33}};
+        EXPECT_THROW(InterpreterExecute(state.GetState(), &function, nullptr, 0, nullptr), std::exception);
+    }
+}
+
+TEST(runtime, interpreter_tail_call_flattens_nonfinal_multi_and_missing_named_backend) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), "function tail_abi_target(first, second) return first, second end", {});
+    InterpUnit unit;
+    unit.state = state.GetState();
+    FuncProto function;
+    function.unit = &unit;
+    function.param_count = 2;
+    function.max_stack = 2;
+    function.constants = {inter::NativeToFakeluaString(state.GetState(), "tail_abi_target")};
+    function.code = {{Op::TAILNAME, 0, 2, 0, 0}};
+    CVar values[] = {inter::AllocMultiCVar(state.GetState(), 2), inter::NativeToFakeluaInt(state.GetState(), 9)};
+    inter::SetMultiCVarElement(values[0], 0, inter::NativeToFakeluaInt(state.GetState(), 7));
+    inter::SetMultiCVarElement(values[0], 1, inter::NativeToFakeluaInt(state.GetState(), 8));
+    CVar result = InterpreterExecute(state.GetState(), &function, values, 2, nullptr);
+    EXPECT_EQ(inter::CVarToInteger(inter::GetMultiCVarElement(result, 0)), 7);
+    EXPECT_EQ(inter::CVarToInteger(inter::GetMultiCVarElement(result, 1)), 9);
+    values[0] = inter::AllocMultiCVar(state.GetState(), 0);
+    result = InterpreterExecute(state.GetState(), &function, values, 2, nullptr);
+    EXPECT_EQ(inter::GetMultiCVarElement(result, 0).type_, static_cast<int>(VarType::Nil));
+    EXPECT_EQ(inter::CVarToInteger(inter::GetMultiCVarElement(result, 1)), 9);
+    values[0] = inter::NativeToFakeluaInt(state.GetState(), 7);
+    function.code[0].b = 1;
+    EXPECT_THROW(InterpreterExecute(state.GetState(), &function, values, 2, nullptr), std::exception);
+    CompileConfig config;
+    DisableAllJit(config);
+    config.disable_jit[JIT_GCC] = false;
+    CompileString(state.GetState(), "function gcc_only_tail_target(value) return value end", config);
+    function.constants[0] = inter::NativeToFakeluaString(state.GetState(), "gcc_only_tail_target");
+    EXPECT_THROW(InterpreterExecute(state.GetState(), &function, values, 2, nullptr), std::exception);
+}
+
+TEST(runtime, generated_call_abi_rejects_out_of_range_argument_metadata) {
+    FakeluaStateGuard state;
+    CompileString(state.GetState(), "function host_abi_target() return 7 end", {});
+    void *address = state.GetState()->GetVM().GetFunction("host_abi_target").GetAddr(JIT_GCC);
+    ASSERT_NE(address, nullptr);
+    EXPECT_THROW(inter::DispatchCall(state.GetState(), address, nullptr, 33, JIT_GCC), std::exception);
+    CVar closure = interp_rt::MakeClosure(state.GetState(), address, 0, 33, false, nullptr);
+    EXPECT_THROW(inter::DispatchCallClosure(state.GetState(), closure.data_.cl, nullptr, 0, JIT_GCC), std::exception);
+}
+
+TEST(runtime, host_native_call_flattens_nonfinal_multi_and_nested_empty_values) {
+    FakeluaStateGuard state;
+    RegisterNativeFunction(state.GetState(), "host_multi_pair", 2, false, [](State *s, CVar *args, int count) {
+        EXPECT_EQ(count, 2);
+        EXPECT_EQ(inter::CVarToInteger(args[1]), 9);
+        return args[0];
+    });
+    CVar args[] = {inter::AllocMultiCVar(state.GetState(), 2), inter::NativeToFakeluaInt(state.GetState(), 9)};
+    inter::SetMultiCVarElement(args[0], 0, inter::NativeToFakeluaInt(state.GetState(), 7));
+    inter::SetMultiCVarElement(args[0], 1, inter::NativeToFakeluaInt(state.GetState(), 8));
+    EXPECT_EQ(inter::CVarToInteger(CallByNameArgs(state.GetState(), JIT_INTERP, "host_multi_pair", 2, args)), 7);
+    args[0] = inter::AllocMultiCVar(state.GetState(), 0);
+    EXPECT_EQ(CallByNameArgs(state.GetState(), JIT_INTERP, "host_multi_pair", 2, args).type_, static_cast<int>(VarType::Nil));
+    CVar nested[] = {inter::NativeToFakeluaInt(state.GetState(), 1), args[0]};
+    EXPECT_EQ(inter::GetNativeArg(state.GetState(), nested, 2, 1).type_, static_cast<int>(VarType::Nil));
 }

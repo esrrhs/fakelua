@@ -49,3 +49,21 @@ function test_for_int64_overflow()
 
     return 100
 end
+
+local function count_clamped_for(start, limit, step)
+    local count = 0
+    for value = start, limit, step do
+        count = count + 1
+        if count > 4 then break end
+    end
+    return count
+end
+
+function test_for_clamped_float_limits()
+    assert(count_clamped_for(0, math.huge, -1) == 0)
+    assert(count_clamped_for(math.maxinteger, math.huge, 1) == 1)
+    assert(count_clamped_for(math.maxinteger, 1e30, 1) == 1)
+    assert(count_clamped_for(math.mininteger, -1e30, -1) == 1)
+    assert(count_clamped_for(0, -math.huge, 1) == 0)
+    return 1
+end

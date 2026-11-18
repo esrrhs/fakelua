@@ -216,3 +216,14 @@ TEST(test_utf8, test_utf8_bounds) {
 
     FakeluaDeleteState(s);
 }
+
+TEST(test_utf8, rejects_overlong_surrogate_out_of_range_and_truncated_sequences) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./utf8/test_utf8_invalid_sequences.lua", {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_utf8_invalid_sequences", result);
+        EXPECT_EQ(result, 1);
+    }
+}

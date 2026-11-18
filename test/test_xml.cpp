@@ -197,3 +197,13 @@ TEST(test_xml, decode_too_deep) {
         FakeluaDeleteState(s);
     }
 }
+
+TEST(test_xml, repeated_siblings_nested_arrays_and_scalar_roots) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./xml/test_xml_structure_contracts.lua", {});
+    for (auto backend: AllJitTypes()) {
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_xml_structure_contracts", result);
+        EXPECT_EQ(result, 1) << JitTypeName(backend);
+    }
+}

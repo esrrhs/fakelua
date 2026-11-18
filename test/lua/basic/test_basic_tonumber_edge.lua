@@ -79,3 +79,13 @@ function test_basic_tonumber_edge()
 
     return 5000
 end
+
+function test_tonumber_base_and_hex_bounds()
+    assert(not pcall(function() tonumber("1", "not-a-base") end))
+    assert(tonumber("1", "1.5") == nil)
+    assert(tonumber("0xnan") == nil)
+    assert(tonumber("0xxyz") == nil)
+    assert(tonumber("-0xffffffffffffffff") < -1e19)
+    assert(tonumber("-0xffffffffffffffff", 16) == nil)
+    return 1
+end

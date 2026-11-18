@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "fakelua.h"
+#include "jit/vm.h"
 #include "test_jit.h"
 
 using namespace fakelua;
@@ -1343,4 +1344,33 @@ TEST(test_math, cov_math_inline_extra) {
         EXPECT_EQ(res, 0.0) << "jit=" << JitTypeName(jit_type);
     }
     FakeluaDeleteState(s);
+}
+
+TEST(test_math, integer_for_clamps_finite_and_infinite_float_limits) {
+    FakeluaStateGuard state;
+    CompileFile(state.GetState(), "./math/test_for_int64_overflow.lua", {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t result = 0;
+        Call(state.GetState(), backend, "test_for_clamped_float_limits", result);
+        EXPECT_EQ(result, 1);
+    }
+}
+
+TEST(test_math, native_extrema_coerce_numeric_strings_and_compare_fractional_values) {
+    FakeluaStateGuard state;
+    auto *s = state.GetState();
+    auto extrema = [&](const char *name, CVar first, CVar second) {
+        CVar args[] = {first, second};
+        return inter::CVarToNumber(CallByNameArgs(s, JIT_INTERP, name, 2, args));
+    };
+    EXPECT_DOUBLE_EQ(extrema("math.max", inter::NativeToFakeluaString(s, "1"), inter::NativeToFakeluaString(s, "2")), 2);
+    EXPECT_DOUBLE_EQ(extrema("math.max", inter::NativeToFakeluaString(s, "1.25"), inter::NativeToFakeluaString(s, "2.5")), 2.5);
+    EXPECT_DOUBLE_EQ(extrema("math.min", inter::NativeToFakeluaString(s, "1"), inter::NativeToFakeluaString(s, "2")), 1);
+    EXPECT_DOUBLE_EQ(extrema("math.min", inter::NativeToFakeluaString(s, "1.25"), inter::NativeToFakeluaString(s, "2.5")), 1.25);
+    EXPECT_DOUBLE_EQ(extrema("math.max", inter::NativeToFakeluaInt(s, 1), inter::NativeToFakeluaDouble(s, 1.5)), 1.5);
+    EXPECT_DOUBLE_EQ(extrema("math.max", inter::NativeToFakeluaInt(s, 2), inter::NativeToFakeluaDouble(s, 1.5)), 2);
+    EXPECT_DOUBLE_EQ(extrema("math.min", inter::NativeToFakeluaDouble(s, 1.0), inter::NativeToFakeluaInt(s, 1)), 1);
+    CVar bounds[] = {inter::NativeToFakeluaInt(s, 1), inter::NativeToFakeluaInt(s, 2), inter::NativeToFakeluaInt(s, 0)};
+    EXPECT_THROW(CallByNameArgs(s, JIT_INTERP, "math.clamp", 3, bounds), std::exception);
 }
