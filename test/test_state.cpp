@@ -550,3 +550,215 @@ TEST(state, cvar_to_number_bool_string) {
     EXPECT_EQ(inter::CVarToString(CVar{}, "def"), "def");
     EXPECT_EQ(inter::CVarToString(CVar{}, nullptr), "");
 }
+
+TEST(state, two_states_same_thread_same_function_names) {
+    FakeluaStateGuard guard1;
+    FakeluaStateGuard guard2;
+    auto *s1 = guard1.GetState();
+    auto *s2 = guard2.GetState();
+
+    // 同一线程上的两个 State：注册同名但实现不同的原生函数组
+    RegisterNativeFunction(s1, "host_tag", false, std::function<int64_t(State *, int64_t)>([](State *, int64_t x) -> int64_t { return x + 100; }));
+    RegisterNativeFunction(s1, "host_combine", false, std::function<int64_t(State *, int64_t, int64_t)>([](State *, int64_t a, int64_t b) -> int64_t { return a * 10 + b; }));
+
+    RegisterNativeFunction(s2, "host_tag", false, std::function<int64_t(State *, int64_t)>([](State *, int64_t x) -> int64_t { return x * 1000; }));
+    RegisterNativeFunction(s2, "host_combine", false, std::function<int64_t(State *, int64_t, int64_t)>([](State *, int64_t a, int64_t b) -> int64_t { return a - b; }));
+
+    const char *script1 = R"(
+        local g_bias = 7
+
+        function compute(a, b)
+            return a + b + g_bias
+        end
+
+        function transform_label(name)
+            return "s1:" .. name
+        end
+
+        function make_step_sum(base, n)
+            local acc = base
+            local function step(v)
+                acc = acc + v
+                return acc
+            end
+            for i = 1, n do
+                step(i)
+            end
+            return acc
+        end
+
+        function tail_acc(n, acc)
+            if n <= 0 then
+                return acc
+            end
+            return tail_acc(n - 1, acc + n)
+        end
+
+        function run_suite(x, y)
+            local c = compute(x, y)
+            local h = host_tag(x)
+            local m = make_step_sum(10, y)
+            local t = tail_acc(y, 0)
+            return host_combine(c, h) + m + t
+        end
+    )";
+
+    const char *script2 = R"(
+        local g_bias = 50
+
+        function compute(a, b)
+            return a * b + g_bias
+        end
+
+        function transform_label(name)
+            return "s2[" .. name .. "]"
+        end
+
+        function make_step_sum(base, n)
+            local acc = base
+            local function step(v)
+                acc = acc + v * 10
+                return acc
+            end
+            for i = 1, n do
+                step(i)
+            end
+            return acc
+        end
+
+        function tail_acc(n, acc)
+            if n <= 0 then
+                return acc
+            end
+            return tail_acc(n - 1, acc + n * 2)
+        end
+
+        function run_suite(x, y)
+            local c = compute(x, y)
+            local h = host_tag(x)
+            local m = make_step_sum(10, y)
+            local t = tail_acc(y, 0)
+            return host_combine(c, h) + m + t
+        end
+    )";
+
+    ASSERT_NO_THROW(CompileString(s1, script1, {}));
+    ASSERT_NO_THROW(CompileString(s2, script2, {}));
+
+    // 在同一个线程里按全后端交替调用两个 State 上的同名函数，验证完全隔离
+    for (const auto jit_type: AllJitTypes()) {
+        SCOPED_TRACE(::testing::Message() << "jit=" << JitTypeName(jit_type));
+
+        int64_t r1_compute = 0;
+        int64_t r2_compute = 0;
+        Call(s1, jit_type, "compute", r1_compute, int64_t{3}, int64_t{4});// 3 + 4 + 7 = 14
+        Call(s2, jit_type, "compute", r2_compute, int64_t{3}, int64_t{4});// 3 * 4 + 50 = 62
+        EXPECT_EQ(r1_compute, 14);
+        EXPECT_EQ(r2_compute, 62);
+
+        std::string r1_str;
+        std::string r2_str;
+        Call(s1, jit_type, "transform_label", r1_str, std::string("alpha"));
+        Call(s2, jit_type, "transform_label", r2_str, std::string("alpha"));
+        EXPECT_EQ(r1_str, "s1:alpha");
+        EXPECT_EQ(r2_str, "s2[alpha]");
+
+        int64_t r1_closure = 0;
+        int64_t r2_closure = 0;
+        Call(s1, jit_type, "make_step_sum", r1_closure, int64_t{10}, int64_t{4});// 10 + (1+2+3+4) = 20
+        Call(s2, jit_type, "make_step_sum", r2_closure, int64_t{10}, int64_t{4});// 10 + 10*(1+2+3+4) = 110
+        EXPECT_EQ(r1_closure, 20);
+        EXPECT_EQ(r2_closure, 110);
+
+        int64_t r1_tail = 0;
+        int64_t r2_tail = 0;
+        Call(s1, jit_type, "tail_acc", r1_tail, int64_t{4}, int64_t{5});// 5 + 10 = 15
+        Call(s2, jit_type, "tail_acc", r2_tail, int64_t{4}, int64_t{5});// 5 + 20 = 25
+        EXPECT_EQ(r1_tail, 15);
+        EXPECT_EQ(r2_tail, 25);
+
+        // run_suite(3, 4):
+        // s1: c=14, h=103, m=20, t=10 -> combine(14,103)=243 -> 243+20+10 = 273
+        // s2: c=62, h=3000, m=110, t=20 -> combine(62,3000)=-2938 -> -2938+110+20 = -2808
+        int64_t r1_suite = 0;
+        int64_t r2_suite = 0;
+        Call(s1, jit_type, "run_suite", r1_suite, int64_t{3}, int64_t{4});
+        Call(s2, jit_type, "run_suite", r2_suite, int64_t{3}, int64_t{4});
+        EXPECT_EQ(r1_suite, 273);
+        EXPECT_EQ(r2_suite, -2808);
+    }
+
+    EXPECT_EQ(s1->GetInterpState().top, 0u);
+    EXPECT_EQ(s1->GetInterpState().boxed_frames, 0);
+    EXPECT_FALSE(s1->GetInterpState().tail.pending);
+    EXPECT_EQ(s2->GetInterpState().top, 0u);
+    EXPECT_EQ(s2->GetInterpState().boxed_frames, 0);
+    EXPECT_FALSE(s2->GetInterpState().tail.pending);
+}
+
+TEST(state, two_states_same_thread_interleaved_interp_reentry) {
+    FakeluaStateGuard guard1;
+    FakeluaStateGuard guard2;
+    auto *s1 = guard1.GetState();
+    auto *s2 = guard2.GetState();
+
+    // 验证解释器在同线程下从 State1 帧中回调进入 State2 的同名函数时，
+    // 栈顶 saved、boxed_frames 和尾调用 trampoline 各自独立且互不干扰。
+    RegisterNativeFunction(s1, "bridge_call", false, std::function<int64_t(State *, int64_t)>([s2](State *, int64_t x) -> int64_t {
+        int64_t r2 = 0;
+        Call(s2, JIT_INTERP, "outer_boxed", r2, x);
+        return r2;
+    }));
+    RegisterNativeFunction(s2, "bridge_call", false, std::function<int64_t(State *, int64_t)>([](State *, int64_t x) -> int64_t { return x + 5; }));
+
+    const char *script1 = R"(
+        function boxed_tail(v)
+            local box = v * 2
+            local function read_box()
+                return box
+            end
+            local sub = bridge_call(v)
+            return read_box() + sub
+        end
+
+        function outer_boxed(x)
+            return boxed_tail(x + 1)
+        end
+    )";
+
+    const char *script2 = R"(
+        function boxed_tail(v)
+            local box = v * 10
+            local function read_box()
+                return box
+            end
+            return read_box() + bridge_call(v)
+        end
+
+        function outer_boxed(x)
+            return boxed_tail(x * 3)
+        end
+    )";
+
+    ASSERT_NO_THROW(CompileString(s1, script1, {}));
+    ASSERT_NO_THROW(CompileString(s2, script2, {}));
+
+    int64_t result = 0;
+    // x = 4 -> s1.outer_boxed(4) -> s1.boxed_tail(5): box=10, bridge_call(5)
+    //   -> s2.outer_boxed(5) -> s2.boxed_tail(15): box=150, s2.bridge_call(15)=20 -> 170
+    // -> back to s1.boxed_tail(5): read_box()=10 + 170 = 180
+    Call(s1, JIT_INTERP, "outer_boxed", result, int64_t{4});
+    EXPECT_EQ(result, 180);
+
+    // 再单独直接调用 s2 的同名入口验证
+    int64_t direct_s2 = 0;
+    Call(s2, JIT_INTERP, "outer_boxed", direct_s2, int64_t{4});// boxed_tail(12): 120 + 17 = 137
+    EXPECT_EQ(direct_s2, 137);
+
+    EXPECT_EQ(s1->GetInterpState().top, 0u);
+    EXPECT_EQ(s1->GetInterpState().boxed_frames, 0);
+    EXPECT_FALSE(s1->GetInterpState().tail.pending);
+    EXPECT_EQ(s2->GetInterpState().top, 0u);
+    EXPECT_EQ(s2->GetInterpState().boxed_frames, 0);
+    EXPECT_FALSE(s2->GetInterpState().tail.pending);
+}

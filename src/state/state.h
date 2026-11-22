@@ -2,6 +2,7 @@
 
 #include "compile/compiler.h"
 #include "fakelua.h"
+#include "interp/interpreter.h"
 #include "jit/vm.h"
 #include "state/const_string.h"
 #include "state/heap.h"
@@ -49,6 +50,7 @@ public:
     void Reset() {
         DEBUG_ASSERT(reentrant_count_ == 0);
         heap_.Reset();
+        interp_state_.Reset();
     }
 
     [[nodiscard]] const StateConfig &GetStateConfig() const {
@@ -69,6 +71,10 @@ public:
 
     Vm &GetVM() {
         return vm_;
+    }
+
+    InterpState &GetInterpState() {
+        return interp_state_;
     }
 
     [[nodiscard]] int GetReentrantCount() const {
@@ -289,6 +295,7 @@ private:
     Heap heap_;
     ConstString const_string_;
     Vm vm_;
+    InterpState interp_state_;
 
     // 下面三个的声明顺序是有讲究的：销毁是声明的逆序，而它们之间有依赖，写反会在
     // ~State 里踩到已经析构的成员。

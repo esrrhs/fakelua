@@ -56,11 +56,6 @@ void SetGlobal(FuncProto *proto, std::string_view name, CVar v) {
     g.emplace(std::string(name), v);
 }
 
-thread_local std::vector<CVar> g_interp_stack;
-thread_local std::vector<CVar *> g_interp_boxes;
-thread_local size_t g_interp_top = 0;
-thread_local int g_interp_boxed_frames = 0;
-
 // 出错指令的行号：取值时 ip 已自增，异常抛出点对应的就是刚取出的那条指令。
 // 只在这一层补位置，内层帧已经补过的不再覆盖，于是位置总是最内层那条 Lua 指令。
 void AnnotateInterpLocation(FuncProto *proto, const Inst *ip, FakeluaException &e) {
@@ -110,26 +105,14 @@ bool TryInterpNamedCall(State *s, std::string_view name, const CVar *args, int n
     return true;
 }
 
-// 尾调用跨 InterpreterExecuteT 模板（无 boxes 的帧尾调到 uses_boxes 函数）
-// 或需要在根帧重新 reserve 时，通过此槽把目标原型交还给 InterpreterExecute 的外层循环。
-// 不增加 C 栈深度。
-struct InterpTailJob {
-    bool pending = false;
-    FuncProto *proto = nullptr;
-    VarClosure *cl = nullptr;
-    int arg_count = 0;
-    CVar args[kMaxFunctionInputParams]{};
-};
-
-thread_local InterpTailJob g_interp_tail;
-
-void RequestTailTrampoline(FuncProto *new_proto, VarClosure *new_cl, const CVar *args, int arg_count) {
-    g_interp_tail.pending = true;
-    g_interp_tail.proto = new_proto;
-    g_interp_tail.cl = new_cl;
-    g_interp_tail.arg_count = arg_count;
+void RequestTailTrampoline(State *s, FuncProto *new_proto, VarClosure *new_cl, const CVar *args, int arg_count) {
+    auto &tail = s->GetInterpState().tail;
+    tail.pending = true;
+    tail.proto = new_proto;
+    tail.cl = new_cl;
+    tail.arg_count = arg_count;
     for (int i = 0; i < arg_count; ++i) {
-        g_interp_tail.args[i] = args[i];
+        tail.args[i] = args[i];
     }
 }
 
@@ -229,42 +212,43 @@ bool ApplyInterpTail(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const s
         copy[i] = args[i];
     }
     if (new_proto->uses_boxes && !HasBoxes) {
-        RequestTailTrampoline(new_proto, new_cl, copy, arg_count);
+        RequestTailTrampoline(s, new_proto, new_cl, copy, arg_count);
         ret = {};
         return false;
     }
+    auto &ist = s->GetInterpState();
     const size_t new_slots = static_cast<size_t>(std::max(new_proto->max_stack, new_proto->param_count)) + 8;
     const size_t need = saved + new_slots;
     // 不在本帧 realloc：父帧可能仍持有 data() 指针。容量不够就 trampoline（根帧）或报溢出。
     // 因此 stk/boxp 地址不变，热路径可以把它们当成不变指针。
-    if (need > g_interp_stack.capacity()) {
+    if (need > ist.stack.capacity()) {
         if (saved == 0) {
-            RequestTailTrampoline(new_proto, new_cl, copy, arg_count);
+            RequestTailTrampoline(s, new_proto, new_cl, copy, arg_count);
             ret = {};
             return false;
         }
         ThrowFakeluaException("interpreter stack overflow");
     }
-    if (HasBoxes && need > g_interp_boxes.capacity()) {
-        if (g_interp_boxed_frames > 1) {
+    if (HasBoxes && need > ist.boxes.capacity()) {
+        if (ist.boxed_frames > 1) {
             ThrowFakeluaException("interpreter stack overflow");
         }
-        RequestTailTrampoline(new_proto, new_cl, copy, arg_count);
+        RequestTailTrampoline(s, new_proto, new_cl, copy, arg_count);
         ret = {};
         return false;
     }
-    if (need > g_interp_top) {
-        g_interp_stack.resize(need);
+    if (need > ist.top) {
+        ist.stack.resize(need);
     }
-    g_interp_top = need;
+    ist.top = need;
     const int nparam = new_proto->param_count;
     // 形参马上覆盖，不必先清；只清剩余寄存器，避免脏局部漏到下一帧。
     if (new_slots > static_cast<size_t>(nparam)) {
         std::fill(stk + nparam, stk + new_slots, CVar{});
     }
     if (HasBoxes) {
-        if (need > g_interp_boxes.size()) {
-            g_interp_boxes.resize(need);
+        if (need > ist.boxes.size()) {
+            ist.boxes.resize(need);
         }
         std::fill(boxp, boxp + new_slots, nullptr);
     }
@@ -282,14 +266,14 @@ bool ApplyInterpTail(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const s
 }
 
 // 精确自尾调用：复用当前帧与 proto/cl，不做查表、装箱、整帧 memset。
-// 参数先拷到 TLS（可能与 R(0..) 重叠），再写形参并清空其余寄存器。
+// 参数先拷到 State 的 tail 暂存槽（可能与 R(0..) 重叠），再写形参并清空其余寄存器。
 // 不用 InterpreterExecuteT 的栈上大数组，以免抬高非尾调用的 C 帧。
 template<bool HasBoxes>
 #if defined(__GNUC__)
 __attribute__((always_inline))
 #endif
-inline bool ReuseFrameSelfTail(FuncProto *proto, CVar *const stk, CVar **const boxp, const Inst *&ip, int arg_base, int nargs) {
-    CVar *const tmp = g_interp_tail.args;
+inline bool ReuseFrameSelfTail(State *s, FuncProto *proto, CVar *const stk, CVar **const boxp, const Inst *&ip, int arg_base, int nargs) {
+    CVar *const tmp = s->GetInterpState().tail.args;
     for (int i = 0; i < nargs; ++i) {
         tmp[i] = interp_rt::VmSlot<HasBoxes>(stk, boxp, arg_base + i);
     }
@@ -394,48 +378,49 @@ bool InterpDoTailName(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const 
 constexpr size_t kInterpStackReserve = 262144;// 4 MiB of CVar; nested realloc would invalidate parent pointers
 
 struct InterpFrame {
+    InterpState &ist;
     size_t saved;
     CVar *stk;
     CVar **boxp;
 
-    InterpFrame(size_t nslots, bool want_boxes) {
-        saved = g_interp_top;
+    InterpFrame(InterpState &interp_state, size_t nslots, bool want_boxes) : ist(interp_state) {
+        saved = ist.top;
         const size_t need = saved + nslots;
-        if (g_interp_stack.capacity() < kInterpStackReserve) {
-            g_interp_stack.reserve(kInterpStackReserve);
+        if (ist.stack.capacity() < kInterpStackReserve) {
+            ist.stack.reserve(kInterpStackReserve);
         }
-        if (need > g_interp_stack.capacity()) {
+        if (need > ist.stack.capacity()) {
             if (saved != 0) {
                 ThrowFakeluaException("interpreter stack overflow");
             }
-            g_interp_stack.reserve(std::max(need, kInterpStackReserve));
+            ist.stack.reserve(std::max(need, kInterpStackReserve));
         }
-        g_interp_stack.resize(need);
-        stk = g_interp_stack.data() + saved;
+        ist.stack.resize(need);
+        stk = ist.stack.data() + saved;
         std::fill(stk, stk + nslots, CVar{});
         if (want_boxes) {
             // 父帧没开 boxes 时可以 realloc；有活着的 boxp 时只能用已 reserve 的容量。
-            if (need > g_interp_boxes.capacity()) {
-                if (g_interp_boxed_frames != 0) {
+            if (need > ist.boxes.capacity()) {
+                if (ist.boxed_frames != 0) {
                     ThrowFakeluaException("interpreter stack overflow");
                 }
-                g_interp_boxes.reserve(std::max(need, kInterpStackReserve));
+                ist.boxes.reserve(std::max(need, kInterpStackReserve));
             }
-            g_interp_boxes.resize(need);
-            boxp = g_interp_boxes.data() + saved;
+            ist.boxes.resize(need);
+            boxp = ist.boxes.data() + saved;
             std::fill(boxp, boxp + nslots, nullptr);
-            ++g_interp_boxed_frames;
+            ++ist.boxed_frames;
         } else {
             boxp = nullptr;
         }
-        g_interp_top = need;
+        ist.top = need;
     }
 
     ~InterpFrame() {
         if (boxp) {
-            --g_interp_boxed_frames;
+            --ist.boxed_frames;
         }
-        g_interp_top = saved;
+        ist.top = saved;
     }
 };
 
@@ -445,7 +430,7 @@ __attribute__((hot))
 #endif
 CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_count, VarClosure *cl) {
     const int max_stack = std::max(proto->max_stack, proto->param_count);
-    InterpFrame frame(static_cast<size_t>(max_stack) + 8, HasBoxes);
+    InterpFrame frame(s->GetInterpState(), static_cast<size_t>(max_stack) + 8, HasBoxes);
     CVar *const stk = frame.stk;
     CVar **const boxp [[maybe_unused]] = frame.boxp;
 #define VM_R(r) ::fakelua::interp_rt::VmSlot<HasBoxes>(stk, boxp, (r))
@@ -723,7 +708,7 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
         VM_CASE(TAIL) {
             if (inst.c == kTailSelfExact) {
                 // 本函数精确自尾调用：保持 cl，直接重置 ip。
-                if (ReuseFrameSelfTail<HasBoxes>(proto, stk, boxp, ip, inst.a + 1, inst.b)) {
+                if (ReuseFrameSelfTail<HasBoxes>(s, proto, stk, boxp, ip, inst.a + 1, inst.b)) {
                     VM_DISPATCH_NEXT();
                 }
                 return interp_rt::Nil();
@@ -737,7 +722,7 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
         }
         VM_CASE(TAILNAME) {
             if (inst.c == kTailSelfExact) {
-                if (ReuseFrameSelfTail<HasBoxes>(proto, stk, boxp, ip, inst.a, inst.b)) {
+                if (ReuseFrameSelfTail<HasBoxes>(s, proto, stk, boxp, ip, inst.a, inst.b)) {
                     VM_DISPATCH_NEXT();
                 }
                 return interp_rt::Nil();
@@ -901,15 +886,16 @@ CVar InterpreterExecute(State *s, FuncProto *proto, const CVar *args, int arg_co
     if (!proto) {
         ThrowFakeluaException("interpreter: null function prototype");
     }
+    auto &tail = s->GetInterpState().tail;
     // 热路径与引入尾调用前相同：一次 ExecuteT 后直接返回。
-    // 仅在需要换 HasBoxes 模板或根帧重新 reserve 时，才用 TLS 槽循环再进入（C 栈深度仍为 1）。
+    // 仅在需要换 HasBoxes 模板或根帧重新 reserve 时，才用 State 内的 tail 槽循环再进入（C 栈深度仍为 1）。
     CVar ret = proto->uses_boxes ? InterpreterExecuteT<true>(s, proto, args, arg_count, cl) : InterpreterExecuteT<false>(s, proto, args, arg_count, cl);
-    while (UNLIKELY(g_interp_tail.pending)) {
-        proto = g_interp_tail.proto;
-        cl = g_interp_tail.cl;
-        arg_count = g_interp_tail.arg_count;
-        args = g_interp_tail.args;
-        g_interp_tail.pending = false;
+    while (UNLIKELY(tail.pending)) {
+        proto = tail.proto;
+        cl = tail.cl;
+        arg_count = tail.arg_count;
+        args = tail.args;
+        tail.pending = false;
         ret = proto->uses_boxes ? InterpreterExecuteT<true>(s, proto, args, arg_count, cl) : InterpreterExecuteT<false>(s, proto, args, arg_count, cl);
     }
     return ret;
