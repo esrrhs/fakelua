@@ -65,7 +65,7 @@ private:
     void AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);
     // 每函数寄存器高峰：与 InterpCodegen 的 AllocLocal/AllocReg/FreeTo/EnsureStack
     // 寿命规则相同。不生成字节码，不创建 FuncProto / InterpUnit，不 intern 常量串。
-    void CheckRegisterLimits(const ParseResult &pr, const AnalysisResult &ar);
+    void CheckRegisterLimits(const ParseResult &pr, AnalysisResult &ar);
     std::string GetCalleeName(const SyntaxTreeInterfacePtr &exp_node);
 
 private:

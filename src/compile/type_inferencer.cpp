@@ -410,6 +410,7 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 
 InferResult TypeInferencer::InferTypes(const ParseResult &pr, const AnalysisResult &ar, const CompileConfig &cfg) {
     LOG_DEBUG(s_, "engine", "InferTypes: start for {}", pr.file_name);
+    ar_ = &ar;
     file_name_ = pr.file_name;
     file_level_types_.clear();
     file_level_init_exps_.clear();
@@ -469,6 +470,7 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const AnalysisResu
     ComputeVarSpecAnnotations(pr, ir);
 
     LOG_DEBUG(s_, "engine", "InferTypes: complete for {}", pr.file_name);
+    ar_ = nullptr;
     return ir;
 }
 
@@ -653,6 +655,9 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
         if (i < exps.size()) {
             type = InferNode(exps[i], tctx);
         }
+        if (ar_ && ar_->captured_decl_vars.contains({local_var.get(), names[i]})) {
+            type = T_DYNAMIC;
+        }
         SyntaxTreeInterface *init_node = (i < exps.size()) ? exps[i].get() : nullptr;
         tctx.env.Define(names[i], type, init_node);
         // 文件顶层局部变量（非试推断且作用域深度 <= 2）：
@@ -697,7 +702,9 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
 
     const InferredType rhs_type = InferNode(explist->Exps()[0], tctx);
 
-    if (tctx.IsPinnedVar(name)) {
+    if (ar_ && ar_->captured_var_nodes.contains(var.get())) {
+        current = tctx.env.Update(name, T_DYNAMIC, current_map);
+    } else if (tctx.IsPinnedVar(name)) {
         current = tctx.env.Lookup(name);
     } else {
         current = tctx.env.Update(name, rhs_type, current_map);
@@ -743,16 +750,17 @@ InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoo
     const bool all_numeric_boundaries = begin_valid && end_valid && (begin_type == T_INT || begin_type == T_FLOAT) && (end_type == T_INT || end_type == T_FLOAT) && step_numeric;
     // Lua 5.4：init 与 step 都是整数时走整数 for（limit 可以是 float）。
     const bool lua_int_loop = begin_valid && begin_type == T_INT && (!for_loop->ExpStep() || step_type == T_INT) && (end_type == T_INT || end_type == T_FLOAT);
-    const InferredType loop_var_type = lua_int_loop ? T_INT : (all_numeric_boundaries ? T_FLOAT : T_DYNAMIC);
+    const bool is_captured_loop = ar_ && ar_->captured_decl_vars.contains({for_loop.get(), for_loop->Name()});
+    const InferredType loop_var_type = is_captured_loop ? T_DYNAMIC : (lua_int_loop ? T_INT : (all_numeric_boundaries ? T_FLOAT : T_DYNAMIC));
 
     auto &current_map = tctx.current_map;
     tctx.env.EnterScope();
     tctx.env.Define(for_loop->Name(), loop_var_type, for_loop.get());
     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false, tctx);
     // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
-    // 从初始的 T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量 of
+    // 从初始的 T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量的
     // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
-    const InferredType final_loop_var_type = tctx.env.Lookup(for_loop->Name());
+    const InferredType final_loop_var_type = is_captured_loop ? T_DYNAMIC : tctx.env.Lookup(for_loop->Name());
     tctx.env.ExitScope();
 
     return RecordType(current_map, for_loop.get(), final_loop_var_type);
@@ -975,6 +983,12 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var,
     auto &current_map = tctx.current_map;
     switch (var->GetVarKind()) {
         case VarKind::kSimple: {
+            if (ar_ && ar_->captured_var_nodes.contains(var.get())) {
+                if (const auto *init = tctx.env.LookupInitNode(var->GetName())) {
+                    tctx.var_define_nodes[var.get()] = init;
+                }
+                return RecordType(current_map, var.get(), T_DYNAMIC);
+            }
             const auto ret = tctx.env.Lookup(var->GetName());
             if (const auto *init = tctx.env.LookupInitNode(var->GetName())) {
                 tctx.var_define_nodes[var.get()] = init;
@@ -1250,7 +1264,7 @@ EvalTypeSnapshot TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr 
                                                    std::unordered_map<const SyntaxTreeInterface *, const SyntaxTreeInterface *> &var_define_nodes) {
     std::unordered_set<std::string> pinned_vars;
     for (const auto &[name, t]: assumed_types) {
-        if (t == T_INT || t == T_FLOAT) {
+        if ((t == T_INT || t == T_FLOAT) && !(ar_ && ar_->captured_decl_vars.contains({func_block.get(), name}))) {
             pinned_vars.insert(name);
         }
     }
@@ -1276,8 +1290,9 @@ EvalTypeSnapshot TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr 
             env.Define(fname, ftype);
         }
         for (const auto &p: params) {
+            const bool is_cap = ar_ && ar_->captured_decl_vars.contains({func_block.get(), p});
             const auto it = assumed_types.find(p);
-            env.Define(p, it != assumed_types.end() ? it->second : T_DYNAMIC);
+            env.Define(p, (!is_cap && it != assumed_types.end()) ? it->second : T_DYNAMIC);
         }
 
         // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。

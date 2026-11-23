@@ -71,12 +71,32 @@ struct NativeObjectSpec {
 
 // NativeObject: 完整实现（pImpl 的 Impl 部分）
 // public API 在 fakelua.h 中声明
+struct NativeStringHash {
+    using is_transparent = void;
+
+    size_t operator()(std::string_view s) const noexcept {
+        return std::hash<std::string_view>{}(s);
+    }
+
+    size_t operator()(const std::string &s) const noexcept {
+        return std::hash<std::string_view>{}(s);
+    }
+};
+
+struct NativeStringEq {
+    using is_transparent = void;
+
+    bool operator()(std::string_view a, std::string_view b) const noexcept {
+        return a == b;
+    }
+};
+
 struct NativeObject::Impl {
     std::string type_name;
     int64_t id = 0;
     int64_t group_id = 0;
-    std::unordered_map<std::string, NativeField> kv;
-    std::unordered_map<std::string, NativeMethod> methods;
+    std::unordered_map<std::string, NativeField, NativeStringHash, NativeStringEq> kv;
+    std::unordered_map<std::string, NativeMethod, NativeStringHash, NativeStringEq> methods;
     // 可选销毁回调：NativeObject 被 Destroy 时调用（无论是否经 close 方法），用于释放关联资源
     std::function<void(NativeObject *self)> finalizer;
 

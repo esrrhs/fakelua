@@ -284,6 +284,7 @@ private:
 
 private:
     State *s_ = nullptr;
+    const AnalysisResult *ar_ = nullptr;
     std::string file_name_;
     // 正在推断 __fakelua_init。它里面的 x = func() 是文件级复杂初值的唯一赋值点，不是再赋值。
     bool in_init_function_ = false;

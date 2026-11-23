@@ -1646,7 +1646,7 @@ namespace {
 // 必须与解释器后端保持一致；本类不是字节码生成器，也不对外暴露。
 class RegisterPeakChecker {
 public:
-    void Check(const ParseResult &pr, const AnalysisResult &ar) {
+    void Check(const ParseResult &pr, AnalysisResult &ar) {
         Walk(pr, ar);
     }
 
@@ -1726,7 +1726,7 @@ private:
     int EmitClosure(FuncInfo *child);
     void EmitCallArgs(const std::shared_ptr<class SyntaxTreeArgs> &args_ptr, std::vector<int> &arg_regs, bool &last_expand);
 
-    void Walk(const ParseResult &pr, const AnalysisResult &ar);
+    void Walk(const ParseResult &pr, AnalysisResult &ar);
     int CodeSize() const;
     int64_t StringId(const std::string &s);
 
@@ -3498,7 +3498,7 @@ int RegisterPeakChecker::CompileUnop(const SyntaxTreeInterfacePtr &exp, int dest
     return r;
 }
 
-void RegisterPeakChecker::Walk(const ParseResult &pr, const AnalysisResult &ar) {
+void RegisterPeakChecker::Walk(const ParseResult &pr, AnalysisResult &ar) {
     file_name_ = pr.file_name;
     ar_ = &ar;
 
@@ -3537,6 +3537,25 @@ void RegisterPeakChecker::Walk(const ParseResult &pr, const AnalysisResult &ar) 
     std::vector<FuncInfo *> func_stack;
     ResolveScopes(pr.chunk, scopes, func_stack, nullptr);
 
+    for (const auto &[var_ptr, def]: var_to_def_map_) {
+        if (def && def->is_captured) {
+            ar.captured_var_nodes.insert(var_ptr);
+        }
+    }
+    for (const auto &def: all_defs_) {
+        if (!def || !def->is_captured) continue;
+        if (def->def_node) {
+            ar.captured_decl_vars.insert({def->def_node, def->name});
+        }
+        if (def->defining_func && def->defining_func->funcbody) {
+            if (const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(def->defining_func->funcbody)) {
+                if (fb->Block()) {
+                    ar.captured_decl_vars.insert({fb->Block().get(), def->name});
+                }
+            }
+        }
+    }
+
     // 先登记所有文件级函数的签名：调用点可能在函数定义之前，等 CompileFunction 再登记就漏了。
     for (const auto &func: all_funcs_) {
         if (func->parent != nullptr) continue;
@@ -3567,7 +3586,7 @@ void RegisterPeakChecker::Walk(const ParseResult &pr, const AnalysisResult &ar) 
 
 }// namespace
 
-void SemanticAnalysis::CheckRegisterLimits(const ParseResult &pr, const AnalysisResult &ar) {
+void SemanticAnalysis::CheckRegisterLimits(const ParseResult &pr, AnalysisResult &ar) {
     RegisterPeakChecker checker;
     checker.Check(pr, ar);
 }

@@ -586,6 +586,23 @@ GccCache::GccCache(const StateGCCConfig &cfg, const std::string &compiler, const
             driver.read(magic, 2);
             if (!driver || (magic[0] == '#' && magic[1] == '!')) return;
         }
+        // Cache compiler --version per (canonical path, stamp, DEVELOPER_DIR) so multi-chunk
+        // startup avoids spawning clang/gcc --version dozens of times.
+        const auto cc_canon = fs::canonical(cc);
+        const char *dev_dir = std::getenv("DEVELOPER_DIR");
+        const std::string ver_cache_key = cc_canon.string() + '\n' + FileStamp(cc_canon) + '\n' + (dev_dir ? dev_dir : "");
+        std::string cc_version;
+        {
+            static std::mutex ver_mutex;
+            static std::map<std::string, std::string> ver_cache;
+            std::lock_guard lock(ver_mutex);
+            if (auto it = ver_cache.find(ver_cache_key); it != ver_cache.end()) {
+                cc_version = it->second;
+            } else {
+                cc_version = QueryCompiler(cc, "--version");
+                ver_cache.emplace(ver_cache_key, cc_version);
+            }
+        }
         std::ostringstream key;
         key << "fakelua-gcc-cache-v1\n"
             << HostIdentity() << '\n'
@@ -597,7 +614,7 @@ GccCache::GccCache(const StateGCCConfig &cfg, const std::string &compiler, const
             << '\n'
             // Apple /usr/bin/clang can be a stable shim for a newly selected
             // Xcode toolchain. Version/InstalledDir must be part of the key.
-            << QueryCompiler(cc, "--version") << '\n';
+            << cc_version << '\n';
         // Environment affecting compiler search, preprocessing, linking, SDK and
         // reproducibility. Each value is length-delimited to avoid ambiguity.
         for (auto name: {"PATH", "CPATH", "C_INCLUDE_PATH", "LIBRARY_PATH", "COMPILER_PATH", "GCC_EXEC_PREFIX", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET", "DEVELOPER_DIR", "SOURCE_DATE_EPOCH", "LANG",

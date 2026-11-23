@@ -311,6 +311,10 @@ struct AnalysisResult {
     std::unordered_map<const SyntaxTreeInterface *, std::string> callee_names;
     // 文件级/全局常量名称集合
     std::unordered_set<std::string> global_const_names;
+    // 被内层闭包捕获的简单变量读取/写入节点集合（*__box_* 动态槽）
+    std::unordered_set<const SyntaxTreeInterface *> captured_var_nodes;
+    // 被内层闭包捕获的声明变量集合：{(def_node 或 func_block), 变量名}
+    std::set<std::pair<const SyntaxTreeInterface *, std::string>> captured_decl_vars;
 };
 
 // ---- 阶段四：类型推断结果 ---------------------------------------------------

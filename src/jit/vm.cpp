@@ -62,6 +62,14 @@ extern "C" __attribute__((used)) void FakeluaRegisterLuaLoc(State *s, int jit_ty
     }
 }
 
+struct FlCallCache {
+    uint64_t version;
+    void *target;
+    int expected_args;
+    uint8_t kind;
+    uint8_t is_vararg;
+};
+
 static CVar CallByNameImpl(State *state, int jit_type, std::string_view name, int arg_num, const CVar *raw_arg_arr);
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
@@ -240,6 +248,56 @@ static CVar CallByNameImpl(State *state, int jit_type, std::string_view name, in
 
 CVar CallByNameArgs(State *state, int jit_type, std::string_view name, int arg_num, const CVar *args) {
     return GuardJitEntry(state, [&] { return CallByNameImpl(state, jit_type, name, arg_num, args); });
+}
+
+extern "C" __attribute__((used)) CVar FakeluaCallNativeCached(State *state, const void *native_entry_ptr, int arg_num, CVar *args) {
+    return GuardJitEntry(state, [&] {
+        const auto *entry = static_cast<const NativeFuncEntry *>(native_entry_ptr);
+        return entry->callback(state, args, arg_num);
+    });
+}
+
+extern "C" __attribute__((used)) CVar FakeluaCallByNameCached(State *state, int jit_type, const char *name, FlCallCache *cache, int arg_num, ...) {
+    CVar raw_arg_arr[kMaxFunctionInputParams];
+    if (LIKELY(arg_num > 0 && arg_num <= static_cast<int>(kMaxFunctionInputParams))) {
+        va_list args_list;
+        va_start(args_list, arg_num);
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-pod-varargs"
+#endif
+        for (int i = 0; i < arg_num; ++i) {
+            // NOLINTNEXTLINE(clang-analyzer-valist.Uninitialized)
+            raw_arg_arr[i] = va_arg(args_list, CVar);
+        }
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+        va_end(args_list);
+    }
+
+    return GuardJitEntry(state, [&] {
+        if (cache && jit_type == JIT_GCC && name) {
+            const auto &vm = state->GetVM();
+            const std::string_view sv(name);
+            if (const VmFunction *jf = vm.FindFunction(sv)) {
+                if (void *addr = jf->GetAddr(JIT_GCC)) {
+                    cache->target = addr;
+                    cache->expected_args = jf->GetArgCount();
+                    cache->is_vararg = jf->IsVararg() ? 1 : 0;
+                    cache->kind = 1;
+                    cache->version = *vm.VersionPtr();
+                }
+            } else if (const NativeFuncEntry *ne = vm.FindNativeFunction(sv)) {
+                cache->target = const_cast<NativeFuncEntry *>(ne);
+                cache->expected_args = ne->arg_count;
+                cache->is_vararg = ne->is_vararg ? 1 : 0;
+                cache->kind = 2;
+                cache->version = *vm.VersionPtr();
+            }
+        }
+        return CallByNameImpl(state, jit_type, name, arg_num, raw_arg_arr);
+    });
 }
 
 }// namespace fakelua

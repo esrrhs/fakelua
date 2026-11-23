@@ -406,7 +406,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     // Own this exact image's location before init: init may throw or compile
     // another module recursively, so GetLuaLocs().back() is not reliable.
-    handle->SetLuaLoc(BindGeneratedCode(dlsym_lambda("__fakelua_bind"), s_, pr.file_name));
+    handle->SetLuaLoc(BindGeneratedCode(dlsym_lambda("__fakelua_bind"), s_, JIT_GCC, pr.file_name));
     // Validate before publication/registration. Runtime init executes separately
     // for every private image, including cache hits.
     for (const auto &[name, info]: gr.function_names) {

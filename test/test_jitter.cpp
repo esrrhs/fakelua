@@ -4360,3 +4360,149 @@ TEST(jitter, gcc_cache_makefile_dependencies_with_escaped_names_and_line_endings
     }
 }
 #endif
+
+TEST(jitter, call_site_cache_invalidation_and_multi_state_isolation) {
+    JitCacheTestDir dir;
+    {
+        FakeluaStateGuard guard(dir.Config());
+        State *s = guard.GetState();
+        RegisterNativeFunction(s, "host_scale", false, std::function<int64_t(State *, int64_t)>([](State *, int64_t x) { return x * 2; }));
+        CompileString(s, R"(
+            function helper_fn(x)
+                return x + 10
+            end
+            function two_vals(x)
+                return x, x + 1
+            end
+            function add_pair(a, b)
+                return a * 10 + b
+            end
+            function sum10(a, b, c, d, e, f, g, h, i, j)
+                return a + b + c + d + e + f + g + h + i + j
+            end
+        )", {});
+        CompileString(s, R"(
+            function driver_fn(x)
+                return helper_fn(x) + host_scale(x)
+            end
+            function call_with_trailing_expansion(x)
+                return add_pair(two_vals(x)) + add_pair(1, helper_fn(x)) + sum10(1, 2, 3, 4, 5, 6, 7, 8, 9, helper_fn(x))
+            end
+        )", {});
+        for (int iter = 0; iter < 5; ++iter) {
+            int64_t out = 0;
+            Call(s, JIT_GCC, "driver_fn", out, int64_t{3});
+            EXPECT_EQ(out, 19);
+        }
+        int64_t exp_res = 0;
+        Call(s, JIT_GCC, "call_with_trailing_expansion", exp_res, int64_t{3});
+        // add_pair(3, 4)=34, add_pair(1, 13)=23, sum10(1..9, 13)=45+13=58 -> 34+23+58=115
+        EXPECT_EQ(exp_res, 115);
+        // Override both Lua helper_fn and native host_scale: cached FlCallCache sites must refresh.
+        RegisterNativeFunction(s, "host_scale", false, std::function<int64_t(State *, int64_t)>([](State *, int64_t x) { return x * 100; }));
+        CompileString(s, R"(
+            function helper_fn(x)
+                return x + 1000
+            end
+        )", {});
+        int64_t updated = 0;
+        Call(s, JIT_GCC, "driver_fn", updated, int64_t{3});
+        EXPECT_EQ(updated, 1303);
+    }
+
+    // Two sequential states compiling identical Lua source with GCC cache enabled must isolate targets via unique Vm versions.
+    const char *shared_src = R"(
+        function cached_dispatch(x)
+            return multi_nat(x) + 1
+        end
+    )";
+    FakeluaStateGuard g1(dir.Config());
+    FakeluaStateGuard g2(dir.Config());
+    RegisterNativeFunction(g1.GetState(), "multi_nat", false, std::function<int64_t(State *, int64_t)>([](State *, int64_t x) { return x + 10; }));
+    RegisterNativeFunction(g2.GetState(), "multi_nat", false, std::function<int64_t(State *, int64_t)>([](State *, int64_t x) { return x + 200; }));
+    CompileString(g1.GetState(), shared_src, {});
+    int64_t r1 = 0;
+    Call(g1.GetState(), JIT_GCC, "cached_dispatch", r1, int64_t{5});
+    EXPECT_EQ(r1, 16);
+
+    CompileString(g2.GetState(), shared_src, {});
+    int64_t r2 = 0;
+    Call(g2.GetState(), JIT_GCC, "cached_dispatch", r2, int64_t{5});
+    EXPECT_EQ(r2, 206);
+}
+
+TEST(jitter, multi_module_active_loc_across_pcall_and_errors) {
+    FakeluaStateGuard guard;
+    State *s = guard.GetState();
+    CompileString(s, R"(
+        function mod_leaf_fail()
+            error("leaf_boom")
+        end
+        function mod_leaf_ok(x)
+            return x + 1
+        end
+    )", {});
+    CompileString(s, R"(
+        function mod_caller_recovered(x)
+            local ok, _ = pcall(function()
+                return mod_leaf_fail()
+            end)
+            assert(not ok)
+            local y = mod_leaf_ok(x)
+            error("caller_boom")
+            return y
+        end
+    )", {});
+
+    for (auto backend: AllJitTypes()) {
+        int64_t ret = 0;
+        try {
+            Call(s, backend, "mod_caller_recovered", ret, int64_t{7});
+            FAIL() << "expected exception on " << JitTypeName(backend);
+        } catch (const FakeluaException &e) {
+            const std::string what = e.what();
+            EXPECT_NE(what.find("caller_boom"), std::string::npos) << what;
+            EXPECT_NE(what.find(":8"), std::string::npos) << what;
+        }
+    }
+}
+
+TEST(jitter, captured_int_var_or_param_reassigned_to_float_never_reads_int_bits) {
+    FakeluaStateGuard guard;
+    State *s = guard.GetState();
+    RegisterNativeFunction(s, "dyn_width", false, std::function<double(State *)>([](State *) { return 300.5; }));
+    CompileString(s, R"(
+        function chart_like(w)
+            local function read_w()
+                return w
+            end
+            if w <= 0 then
+                w = dyn_width()
+            end
+            local iw = w - 54
+            return iw + read_w()
+        end
+
+        function captured_local_reassigned_float()
+            local a = 10
+            local function bump()
+                a = a + 0.5
+            end
+            bump()
+            local b = a - 2
+            return b
+        end
+    )", {});
+
+    for (auto backend: AllJitTypes()) {
+        double r1 = 0.0;
+        Call(s, backend, "chart_like", r1, int64_t{0});
+        EXPECT_DOUBLE_EQ(r1, 547.0) << JitTypeName(backend);
+
+        double r2 = 0.0;
+        Call(s, backend, "captured_local_reassigned_float", r2);
+        EXPECT_DOUBLE_EQ(r2, 8.5) << JitTypeName(backend);
+    }
+}
+
+

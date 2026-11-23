@@ -395,8 +395,18 @@ static inline int FlDoubleFitsInt64(double d, int64_t *out) {
 extern "C" {
 #endif
 extern void *FakeluaAlloc(State *s, size_t size, bool is_const);
+typedef struct FlCallCache {
+    uint64_t version;
+    void *target;
+    int expected_args;
+    uint8_t kind;
+    uint8_t is_vararg;
+} FlCallCache;
+
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
+extern CVar FakeluaCallByNameCached(State *s, int jit_type, const char *name, FlCallCache *cache, int arg_num, ...);
+extern CVar FakeluaCallNativeCached(State *s, const void *native_entry_ptr, int arg_num, CVar *args);
 extern CVar FakeluaAllocMultiCVar(State *s, int count);
 extern void FakeluaSetMultiCVarElement(CVar *multi, int idx, CVar val);
 extern CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
@@ -410,13 +420,16 @@ extern void FakeluaRegisterLuaLoc(State *s, int jit_type, FlLuaLoc *loc);
 }
 #endif
 
-// 记录当前执行的 Lua 语句位置（文件级全局变量 fl_lua_loc 在 __fakelua_init 时把地址传给宿主 State）。
-// C++ 侧的报错拿不到 Lua 栈，直接通过注册的变量地址读取；#line 则负责把编译告警映射回 Lua 源码。
+// 记录当前执行的 Lua 语句位置：__fakelua_bind 将 fl_active_loc 指向 State 上的活动槽位；
+// fl_lua_loc 作为兜底与 RegisterLuaLoc 测试观测点保留。
 static FlLuaLoc fl_lua_loc = {0, 0};
+static FlLuaLoc *fl_active_loc = &fl_lua_loc;
+static const uint64_t fl_vm_version_zero = 0;
+static const uint64_t *fl_vm_version = &fl_vm_version_zero;
 #define FL_LOC_SET(f, l)                                                                                                                                                                               \
     do {                                                                                                                                                                                               \
-        (void) (f);                                                                                                                                                                                    \
-        fl_lua_loc.line = (l);                                                                                                                                                                         \
+        fl_active_loc->file = (f);                                                                                                                                                                     \
+        fl_active_loc->line = (l);                                                                                                                                                                     \
     } while (0)
 
 #define kMaxFunctionInputParams 32
@@ -640,12 +653,12 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
 
 #define FCCASE(N)                                                                                                                                                                                      \
     case N: {                                                                                                                                                                                          \
-        int __fl_saved_line = fl_lua_loc.line;                                                                                                                                                         \
-        fl_lua_loc.line = 0;                                                                                                                                                                           \
+        FlLuaLoc __fl_saved_loc = *fl_active_loc;                                                                                                                                                      \
+        fl_active_loc->line = 0;                                                                                                                                                                       \
         int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);                                                                                                                            \
         CVar __fl_ret = ((CVar (*)(VarClosure * FCCVAR_##N))(addr))(cl FCARG_##N);                                                                                                                     \
         FakeluaJitContextPop(state, __fl_prev_jit);                                                                                                                                                    \
-        fl_lua_loc.line = __fl_saved_line;                                                                                                                                                             \
+        *fl_active_loc = __fl_saved_loc;                                                                                                                                                               \
         return __fl_ret;                                                                                                                                                                               \
     }
 
@@ -752,10 +765,10 @@ static inline CVar FlCallClosure0(State *state, CVar cl_var) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 0 && cl->code_str != (const char *) 1)) {
-            int __fl_saved_line = fl_lua_loc.line;
-            fl_lua_loc.line = 0;
+            FlLuaLoc __fl_saved_loc = *fl_active_loc;
+            fl_active_loc->line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *))(addr))(cl);
-            fl_lua_loc.line = __fl_saved_line;
+            *fl_active_loc = __fl_saved_loc;
             return __fl_ret;
         }
     }
@@ -767,10 +780,10 @@ static inline CVar FlCallClosure1(State *state, CVar cl_var, CVar a0) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 1 && a0.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
-            int __fl_saved_line = fl_lua_loc.line;
-            fl_lua_loc.line = 0;
+            FlLuaLoc __fl_saved_loc = *fl_active_loc;
+            fl_active_loc->line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar))(addr))(cl, a0);
-            fl_lua_loc.line = __fl_saved_line;
+            *fl_active_loc = __fl_saved_loc;
             return __fl_ret;
         }
     }
@@ -782,10 +795,10 @@ static inline CVar FlCallClosure2(State *state, CVar cl_var, CVar a0, CVar a1) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 2 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
-            int __fl_saved_line = fl_lua_loc.line;
-            fl_lua_loc.line = 0;
+            FlLuaLoc __fl_saved_loc = *fl_active_loc;
+            fl_active_loc->line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar))(addr))(cl, a0, a1);
-            fl_lua_loc.line = __fl_saved_line;
+            *fl_active_loc = __fl_saved_loc;
             return __fl_ret;
         }
     }
@@ -797,15 +810,167 @@ static inline CVar FlCallClosure3(State *state, CVar cl_var, CVar a0, CVar a1, C
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 3 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && a2.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
-            int __fl_saved_line = fl_lua_loc.line;
-            fl_lua_loc.line = 0;
+            FlLuaLoc __fl_saved_loc = *fl_active_loc;
+            fl_active_loc->line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar, CVar))(addr))(cl, a0, a1, a2);
-            fl_lua_loc.line = __fl_saved_line;
+            *fl_active_loc = __fl_saved_loc;
             return __fl_ret;
         }
     }
     return FlCallClosure(state, cl_var, 3, a0, a1, a2);
 }
+
+static inline CVar FlCallNamed0(State *state, const char *name, FlCallCache *cache) {
+    if (FAKELUA_JIT_TYPE == 1) {
+        if (LIKELY(cache->version == *fl_vm_version && !cache->is_vararg && cache->expected_args == 0)) {
+            if (cache->kind == 1) {
+                FlLuaLoc __fl_saved_loc = *fl_active_loc;
+                fl_active_loc->line = 0;
+                CVar __fl_ret = ((CVar (*)(VarClosure *))(cache->target))(NULL);
+                *fl_active_loc = __fl_saved_loc;
+                return __fl_ret;
+            }
+            if (cache->kind == 2) {
+                return FakeluaCallNativeCached(state, cache->target, 0, NULL);
+            }
+        }
+    }
+    return FakeluaCallByNameCached(state, FAKELUA_JIT_TYPE, name, cache, 0);
+}
+
+#define FL_DEF_CALL_NAMED(N, PARAMS, ARGS, CHK_MULTI, CTYPES)                                                                                                                                          \
+    static inline CVar FlCallNamed##N(State *state, const char *name, FlCallCache *cache, PARAMS) {                                                                                                    \
+        if (FAKELUA_JIT_TYPE == 1) {                                                                                                                                                                   \
+            if (LIKELY(cache->version == *fl_vm_version && !cache->is_vararg && cache->expected_args == (N) && (CHK_MULTI))) {                                                                        \
+                if (cache->kind == 1) {                                                                                                                                                                \
+                    FlLuaLoc __fl_saved_loc = *fl_active_loc;                                                                                                                                          \
+                    fl_active_loc->line = 0;                                                                                                                                                           \
+                    CVar __fl_ret = ((CVar (*)(VarClosure *, CTYPES))(cache->target))(NULL, ARGS);                                                                                                     \
+                    *fl_active_loc = __fl_saved_loc;                                                                                                                                                   \
+                    return __fl_ret;                                                                                                                                                                   \
+                }                                                                                                                                                                                      \
+                if (cache->kind == 2) {                                                                                                                                                                \
+                    CVar __fl_args[N] = {ARGS};                                                                                                                                                        \
+                    return FakeluaCallNativeCached(state, cache->target, N, __fl_args);                                                                                                                \
+                }                                                                                                                                                                                      \
+            }                                                                                                                                                                                          \
+        }                                                                                                                                                                                              \
+        return FakeluaCallByNameCached(state, FAKELUA_JIT_TYPE, name, cache, N, ARGS);                                                                                                                 \
+    }
+
+#define FL_COMMA ,
+#define FL_P1 CVar a0
+#define FL_P2 FL_P1 FL_COMMA CVar a1
+#define FL_P3 FL_P2 FL_COMMA CVar a2
+#define FL_P4 FL_P3 FL_COMMA CVar a3
+#define FL_P5 FL_P4 FL_COMMA CVar a4
+#define FL_P6 FL_P5 FL_COMMA CVar a5
+#define FL_P7 FL_P6 FL_COMMA CVar a6
+#define FL_P8 FL_P7 FL_COMMA CVar a7
+#define FL_P9 FL_P8 FL_COMMA CVar a8
+#define FL_P10 FL_P9 FL_COMMA CVar a9
+#define FL_P11 FL_P10 FL_COMMA CVar a10
+#define FL_P12 FL_P11 FL_COMMA CVar a11
+#define FL_A1 a0
+#define FL_A2 FL_A1 FL_COMMA a1
+#define FL_A3 FL_A2 FL_COMMA a2
+#define FL_A4 FL_A3 FL_COMMA a3
+#define FL_A5 FL_A4 FL_COMMA a4
+#define FL_A6 FL_A5 FL_COMMA a5
+#define FL_A7 FL_A6 FL_COMMA a6
+#define FL_A8 FL_A7 FL_COMMA a7
+#define FL_A9 FL_A8 FL_COMMA a8
+#define FL_A10 FL_A9 FL_COMMA a9
+#define FL_A11 FL_A10 FL_COMMA a10
+#define FL_A12 FL_A11 FL_COMMA a11
+#define FL_M1 (a0.type_ != VAR_MULTI)
+#define FL_M2 FL_M1 && (a1.type_ != VAR_MULTI)
+#define FL_M3 FL_M2 && (a2.type_ != VAR_MULTI)
+#define FL_M4 FL_M3 && (a3.type_ != VAR_MULTI)
+#define FL_M5 FL_M4 && (a4.type_ != VAR_MULTI)
+#define FL_M6 FL_M5 && (a5.type_ != VAR_MULTI)
+#define FL_M7 FL_M6 && (a6.type_ != VAR_MULTI)
+#define FL_M8 FL_M7 && (a7.type_ != VAR_MULTI)
+#define FL_M9 FL_M8 && (a8.type_ != VAR_MULTI)
+#define FL_M10 FL_M9 && (a9.type_ != VAR_MULTI)
+#define FL_M11 FL_M10 && (a10.type_ != VAR_MULTI)
+#define FL_M12 FL_M11 && (a11.type_ != VAR_MULTI)
+#define FL_T1 CVar
+#define FL_T2 FL_T1 FL_COMMA CVar
+#define FL_T3 FL_T2 FL_COMMA CVar
+#define FL_T4 FL_T3 FL_COMMA CVar
+#define FL_T5 FL_T4 FL_COMMA CVar
+#define FL_T6 FL_T5 FL_COMMA CVar
+#define FL_T7 FL_T6 FL_COMMA CVar
+#define FL_T8 FL_T7 FL_COMMA CVar
+#define FL_T9 FL_T8 FL_COMMA CVar
+#define FL_T10 FL_T9 FL_COMMA CVar
+#define FL_T11 FL_T10 FL_COMMA CVar
+#define FL_T12 FL_T11 FL_COMMA CVar
+
+FL_DEF_CALL_NAMED(1, FL_P1, FL_A1, FL_M1, FL_T1)
+FL_DEF_CALL_NAMED(2, FL_P2, FL_A2, FL_M2, FL_T2)
+FL_DEF_CALL_NAMED(3, FL_P3, FL_A3, FL_M3, FL_T3)
+FL_DEF_CALL_NAMED(4, FL_P4, FL_A4, FL_M4, FL_T4)
+FL_DEF_CALL_NAMED(5, FL_P5, FL_A5, FL_M5, FL_T5)
+FL_DEF_CALL_NAMED(6, FL_P6, FL_A6, FL_M6, FL_T6)
+FL_DEF_CALL_NAMED(7, FL_P7, FL_A7, FL_M7, FL_T7)
+FL_DEF_CALL_NAMED(8, FL_P8, FL_A8, FL_M8, FL_T8)
+FL_DEF_CALL_NAMED(9, FL_P9, FL_A9, FL_M9, FL_T9)
+FL_DEF_CALL_NAMED(10, FL_P10, FL_A10, FL_M10, FL_T10)
+FL_DEF_CALL_NAMED(11, FL_P11, FL_A11, FL_M11, FL_T11)
+FL_DEF_CALL_NAMED(12, FL_P12, FL_A12, FL_M12, FL_T12)
+
+#undef FL_DEF_CALL_NAMED
+#undef FL_COMMA
+#undef FL_P1
+#undef FL_P2
+#undef FL_P3
+#undef FL_P4
+#undef FL_P5
+#undef FL_P6
+#undef FL_P7
+#undef FL_P8
+#undef FL_P9
+#undef FL_P10
+#undef FL_P11
+#undef FL_P12
+#undef FL_A1
+#undef FL_A2
+#undef FL_A3
+#undef FL_A4
+#undef FL_A5
+#undef FL_A6
+#undef FL_A7
+#undef FL_A8
+#undef FL_A9
+#undef FL_A10
+#undef FL_A11
+#undef FL_A12
+#undef FL_M1
+#undef FL_M2
+#undef FL_M3
+#undef FL_M4
+#undef FL_M5
+#undef FL_M6
+#undef FL_M7
+#undef FL_M8
+#undef FL_M9
+#undef FL_M10
+#undef FL_M11
+#undef FL_M12
+#undef FL_T1
+#undef FL_T2
+#undef FL_T3
+#undef FL_T4
+#undef FL_T5
+#undef FL_T6
+#undef FL_T7
+#undef FL_T8
+#undef FL_T9
+#undef FL_T10
+#undef FL_T11
+#undef FL_T12
 
 static inline bool FlIsTrue(CVar v) {
     return LIKELY(v.type_ != VAR_NIL) && (v.type_ != VAR_BOOL || v.data_.b);
