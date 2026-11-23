@@ -24,7 +24,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         ThrowFakeluaException(std::format("TCC compile failed, tcc_relocate failed for {}", pr.file_name));
     }
 
-    handle->SetLuaLoc(BindGeneratedCode(tcc_get_symbol(s, "__fakelua_bind"), s_, pr.file_name));
+    handle->SetLuaLoc(BindGeneratedCode(tcc_get_symbol(s, "__fakelua_bind"), s_, JIT_TCC, pr.file_name));
 
     LOG_DEBUG(s_, "engine", "TCC: registering {} functions", gr.function_names.size());
     for (const auto &[name, info]: gr.function_names) {

@@ -42,6 +42,8 @@ TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) : s_(s) {
     tcc_add_symbol(tcc_state_, "FakeluaAlloc", reinterpret_cast<void *>(FakeluaAlloc));
     tcc_add_symbol(tcc_state_, "FakeluaThrowError", reinterpret_cast<void *>(FakeluaThrowError));
     tcc_add_symbol(tcc_state_, "FakeluaCallByName", reinterpret_cast<void *>(FakeluaCallByName));
+    tcc_add_symbol(tcc_state_, "FakeluaCallByNameCached", reinterpret_cast<void *>(FakeluaCallByNameCached));
+    tcc_add_symbol(tcc_state_, "FakeluaCallNativeCached", reinterpret_cast<void *>(FakeluaCallNativeCached));
     tcc_add_symbol(tcc_state_, "FlEvalLoadClosure", reinterpret_cast<void *>(FlEvalLoadClosure));
     tcc_add_symbol(tcc_state_, "FakeluaInterpCall", reinterpret_cast<void *>(FakeluaInterpCall));
     tcc_add_symbol(tcc_state_, "FakeluaAllocMultiCVar", reinterpret_cast<void *>(FakeluaAllocMultiCVar));

@@ -3,6 +3,7 @@
 #include "fakelua.h"
 #include "jit/vm_function.h"
 #include "var/var.h"
+#include <atomic>
 #include <functional>
 #include <string_view>
 
@@ -35,6 +36,7 @@ public:
         } else {
             iter->second.Merge(func);
         }
+        version_ = NextVersion();
     }
 
     // 获取 JIT 函数（拷贝 VmFunction，含 name 与各后端 handle 的 shared_ptr）
@@ -58,6 +60,11 @@ public:
     // 注册后可在 lua 脚本中直接以函数名调用，通过 FakeluaCallByName 分发
     void RegisterNativeFunction(const std::string &name, int arg_count, bool is_vararg, NativeFuncCallback callback) {
         native_functions_[name] = NativeFuncEntry{arg_count, is_vararg, std::move(callback)};
+        version_ = NextVersion();
+    }
+
+    [[nodiscard]] const uint64_t *VersionPtr() const {
+        return &version_;
     }
 
     // 查找原生函数条目（供 FakeluaCallByName 分发用）
@@ -104,16 +111,28 @@ private:
         }
     };
 
+    static uint64_t NextVersion() {
+        static std::atomic<uint64_t> next_version{1};
+        return next_version.fetch_add(1, std::memory_order_relaxed);
+    }
+
     std::unordered_map<std::string, VmFunction, TransparentStringHash, TransparentStringEq> vm_functions_;
     std::unordered_map<std::string, NativeFuncEntry, TransparentStringHash, TransparentStringEq> native_functions_;
     uint64_t global_name_ = 0;
+    uint64_t version_ = NextVersion();
 };
+
+struct FlCallCache;
 
 extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const);
 
 extern "C" void FakeluaThrowError(State *state, const char *msg);
 
 extern "C" CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...);
+
+extern "C" CVar FakeluaCallByNameCached(State *state, int jit_type, const char *name, FlCallCache *cache, int arg_num, ...);
+
+extern "C" CVar FakeluaCallNativeCached(State *state, const void *native_entry_ptr, int arg_num, CVar *args);
 
 extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
 

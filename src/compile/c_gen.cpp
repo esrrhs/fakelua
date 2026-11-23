@@ -88,7 +88,8 @@ std::string CGen::LookupFuncCName(const std::string &lua_name) const {
 }
 
 void CGen::UniquifyFuncCNames() {
-    file_c_ident_used_.insert({"__fakelua_bind", "_S", "__fakelua_init_flag__", "fl_temp_heap", "fl_const_heap", "fl_lua_loc", "fl_lua_file", "kNil", "kTrue", "kFalse", kInitFunctionName});
+    file_c_ident_used_.insert({"__fakelua_bind", "_S", "__fakelua_init_flag__", "fl_temp_heap", "fl_const_heap", "fl_lua_loc", "fl_active_loc", "fl_vm_version", "fl_lua_file", "kNil", "kTrue",
+                               "kFalse", kInitFunctionName});
 
     FuncInfo *real_init = nullptr;
     for (auto it = all_funcs_.rbegin(); it != all_funcs_.rend(); ++it) {
@@ -293,8 +294,10 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
 
 void CGen::GenerateBindings() {
     SectionGuard sg(*this, Section::Bindings);
-    Out() << "void *__fakelua_bind(void *s, void *temp, void *constant, const char *file, int64_t (*intern)(void *, const char *, size_t)) {\n"
-          << "    _S = s; fl_temp_heap = temp; fl_const_heap = constant; fl_lua_file = file;\n";
+    Out() << "void *__fakelua_bind(void *s, void *temp, void *constant, const char *file, int64_t (*intern)(void *, const char *, size_t), void *active_loc, const void *vm_ver) {\n"
+          << "    _S = s; fl_temp_heap = temp; fl_const_heap = constant; fl_lua_file = file;\n"
+          << "    if (active_loc) fl_active_loc = (FlLuaLoc *) active_loc;\n"
+          << "    if (vm_ver) fl_vm_version = (const uint64_t *) vm_ver;\n";
     for (size_t i = 0; i < string_literals_.size(); ++i) {
         Out() << "    __fakelua_cache_sid_" << i << " = intern(s, \"" << EscapeCStringLiteral(string_literals_[i]) << "\", " << string_literals_[i].size() << ");\n";
     }
@@ -3382,7 +3385,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             }
             std::string cvar_expr = CIdent(vname);
             if (const auto it = var_to_def_map_.find(var.get()); it != var_to_def_map_.end() && it->second->is_captured) {
-                cvar_expr = CompileVar(var);
+                ThrowSpecMiss("captured variable cannot be unboxed directly as numeric", exp);
             }
             if (LookupNodeType(e.get()) == T_FLOAT) {
                 return std::format("{}.data_.f", cvar_expr);
@@ -5152,11 +5155,21 @@ std::string CGen::BuildDynamicCall(const std::string &func_name, SyntaxTreeInter
     }
     std::string call_expr;
     if (!func_name.empty() && !is_local_callee) {
-        call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, args.size());
-        for (const auto &arg: args) {
-            call_expr += ", " + arg;
+        if (args.size() <= 12) {
+            const auto cc_name = std::format("flua_cc_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    static FlCallCache " << cc_name << " = {0, NULL, 0, 0, 0};\n";
+            call_expr = std::format("FlCallNamed{}(_S, \"{}\", &{}", args.size(), EscapeCStringLiteral(func_name), cc_name);
+            for (const auto &arg: args) {
+                call_expr += ", " + arg;
+            }
+            call_expr += ")";
+        } else {
+            call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", EscapeCStringLiteral(func_name), args.size());
+            for (const auto &arg: args) {
+                call_expr += ", " + arg;
+            }
+            call_expr += ")";
         }
-        call_expr += ")";
     } else {
         std::string callee_expr;
         if (var) {

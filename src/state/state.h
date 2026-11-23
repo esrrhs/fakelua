@@ -51,6 +51,9 @@ public:
         DEBUG_ASSERT(reentrant_count_ == 0);
         heap_.Reset();
         interp_state_.Reset();
+        for (auto &loc: active_lua_locs_) {
+            loc = LuaLoc{};
+        }
     }
 
     [[nodiscard]] const StateConfig &GetStateConfig() const {
@@ -155,6 +158,18 @@ public:
     [[nodiscard]] const std::vector<LuaLoc *> &GetLuaLocs(JITType jit_type) const {
         const auto idx = static_cast<size_t>(jit_type);
         return lua_locs_[idx < JIT_MAX ? idx : 0];
+    }
+
+    // 单槽活动源码位置：所有编译单元通过 __fakelua_bind 绑定的指针直接写入对应引擎的槽位，
+    // LuaLocScope 只需按值保存/恢复这一份 16 字节结构体，无需堆分配或 O(N^2) 遍历全部单元。
+    [[nodiscard]] LuaLoc &GetActiveLuaLoc(JITType jit_type) {
+        const auto idx = static_cast<size_t>(jit_type);
+        return active_lua_locs_[idx < JIT_MAX ? idx : 0];
+    }
+
+    [[nodiscard]] const LuaLoc &GetActiveLuaLoc(JITType jit_type) const {
+        const auto idx = static_cast<size_t>(jit_type);
+        return active_lua_locs_[idx < JIT_MAX ? idx : 0];
     }
 
     [[nodiscard]] FlHeapSlot &GetTempHeapSlot() {
@@ -283,6 +298,7 @@ private:
 
     std::function<VarInterface *()> var_interface_new_func_;
     JitErrorBoundary *jit_error_boundary_ = nullptr;
+    LuaLoc active_lua_locs_[JIT_MAX]{};
     std::vector<LuaLoc *> lua_locs_[JIT_MAX];
     FlHeapSlot temp_heap_slot_;
     FlHeapSlot const_heap_slot_;

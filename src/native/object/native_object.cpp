@@ -461,18 +461,17 @@ CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish) {
     }
 
     *finish = true;
-    const std::string skey(key);
 
-    // 1. 优先查找属性 KV 字段
+    // 1. 优先查找属性 KV 字段（透明哈希，避免每次构造 std::string）
     const auto &kv = obj->impl_->kv;
-    const auto it = kv.find(skey);
+    const auto it = kv.find(key);
     if (it != kv.end()) {
         return NativeFieldToCVar(it->second, s);
     }
 
     // 2. 查找绑定的 C++ 成员方法 Methods
     const auto &methods = obj->impl_->methods;
-    const auto mit = methods.find(skey);
+    const auto mit = methods.find(key);
     if (mit != methods.end()) {
         auto &alloc = s->GetValueAllocator();
 
@@ -525,16 +524,21 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
     }
 
     *finish = true;
-    const std::string skey(key);
     State *s = spec->state;
 
     // 快照尚未建立：只写 kv，保持惰性；首次 pairs/next/GET_TABLE_ENTRY 再 RefreshSpecKeys。
     if (!spec->snapshot_ready) {
         if (v.type_ == static_cast<int>(VarType::Nil)) {
-            obj->impl_->kv.erase(skey);
+            if (auto it = obj->impl_->kv.find(key); it != obj->impl_->kv.end()) {
+                obj->impl_->kv.erase(it);
+            }
         } else {
             auto new_field = CVarToNativeField(v);
-            obj->impl_->kv[skey] = new_field;
+            if (auto it = obj->impl_->kv.find(key); it != obj->impl_->kv.end()) {
+                it->second = std::move(new_field);
+            } else {
+                obj->impl_->kv.emplace(std::string(key), std::move(new_field));
+            }
             obj->TouchVersion();
             return;
         }
@@ -544,7 +548,9 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
 
     // 快照已存在：增量维护（更新已有键 / 追加 / swap-remove），避免每次 O(n) 全量重建。
     if (v.type_ == static_cast<int>(VarType::Nil)) {
-        obj->impl_->kv.erase(skey);
+        if (auto it = obj->impl_->kv.find(key); it != obj->impl_->kv.end()) {
+            obj->impl_->kv.erase(it);
+        }
         obj->TouchVersion();
         const int idx = FindSpecKeyIndex(tbl, key);
         if (idx >= 0 && tbl->spec_count > 0) {
@@ -560,9 +566,14 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
     }
 
     auto new_field = CVarToNativeField(v);
-    obj->impl_->kv[skey] = new_field;
+    auto it = obj->impl_->kv.find(key);
+    if (it != obj->impl_->kv.end()) {
+        it->second = std::move(new_field);
+    } else {
+        it = obj->impl_->kv.emplace(std::string(key), std::move(new_field)).first;
+    }
     obj->TouchVersion();
-    const CVar new_val = NativeFieldToCVar(obj->impl_->kv[skey], s);
+    const CVar new_val = NativeFieldToCVar(it->second, s);
 
     const int idx = FindSpecKeyIndex(tbl, key);
     if (idx >= 0) {
@@ -680,12 +691,12 @@ const std::string &NativeObject::GetTypeName() const {
 
 bool NativeObject::Has(std::string_view key) const {
     if (!impl_) return false;
-    return impl_->kv.count(std::string(key)) > 0;
+    return impl_->kv.find(key) != impl_->kv.end();
 }
 
 void NativeObject::Del(std::string_view key) {
     if (!impl_) return;
-    auto it = impl_->kv.find(std::string(key));
+    auto it = impl_->kv.find(key);
     if (it == impl_->kv.end()) {
         // 删除不存在的 key 仍然算一次写，保持「任何写都 bump」的简单语义。
         TouchVersion();
@@ -704,18 +715,24 @@ void NativeObject::Clear() {
 
 void NativeObject::RegisterMethod(std::string_view name, NativeMethod method) {
     if (!impl_) return;
-    impl_->methods[std::string(name)] = std::move(method);
+    if (auto it = impl_->methods.find(name); it != impl_->methods.end()) {
+        it->second = std::move(method);
+    } else {
+        impl_->methods.emplace(std::string(name), std::move(method));
+    }
     TouchVersion();
 }
 
 bool NativeObject::HasMethod(std::string_view name) const {
     if (!impl_) return false;
-    return impl_->methods.contains(std::string(name));
+    return impl_->methods.find(name) != impl_->methods.end();
 }
 
 void NativeObject::UnregisterMethod(std::string_view name) {
     if (!impl_) return;
-    impl_->methods.erase(std::string(name));
+    if (auto it = impl_->methods.find(name); it != impl_->methods.end()) {
+        impl_->methods.erase(it);
+    }
     TouchVersion();
 }
 
@@ -726,16 +743,24 @@ size_t NativeObject::Size() const {
 // Set 系列
 void NativeObject::SetNil(std::string_view key) {
     if (!impl_) return;
-    auto it = impl_->kv.find(std::string(key));
+    auto it = impl_->kv.find(key);
     if (it != impl_->kv.end()) {
         impl_->kv.erase(it);
     }
     TouchVersion();
 }
 
+template<typename Map>
+static NativeField &FindOrCreateField(Map &kv, std::string_view key) {
+    if (auto it = kv.find(key); it != kv.end()) {
+        return it->second;
+    }
+    return kv.emplace(std::string(key), NativeField{}).first->second;
+}
+
 void NativeObject::SetInt(std::string_view key, int64_t val) {
     if (!impl_) return;
-    auto &f = impl_->kv[std::string(key)];
+    auto &f = FindOrCreateField(impl_->kv, key);
     f.kind = NativeField::Kind::Int;
     f.i = val;
     f.obj = nullptr;
@@ -744,7 +769,7 @@ void NativeObject::SetInt(std::string_view key, int64_t val) {
 
 void NativeObject::SetFloat(std::string_view key, double val) {
     if (!impl_) return;
-    auto &f = impl_->kv[std::string(key)];
+    auto &f = FindOrCreateField(impl_->kv, key);
     f.kind = NativeField::Kind::Float;
     f.f = val;
     f.obj = nullptr;
@@ -753,7 +778,7 @@ void NativeObject::SetFloat(std::string_view key, double val) {
 
 void NativeObject::SetBool(std::string_view key, bool val) {
     if (!impl_) return;
-    auto &f = impl_->kv[std::string(key)];
+    auto &f = FindOrCreateField(impl_->kv, key);
     f.kind = NativeField::Kind::Bool;
     f.b = val;
     f.obj = nullptr;
@@ -762,9 +787,9 @@ void NativeObject::SetBool(std::string_view key, bool val) {
 
 void NativeObject::SetString(std::string_view key, std::string_view val) {
     if (!impl_) return;
-    auto &f = impl_->kv[std::string(key)];
+    auto &f = FindOrCreateField(impl_->kv, key);
     f.kind = NativeField::Kind::String;
-    f.s = std::string(val);
+    f.s.assign(val.data(), val.size());
     f.vs_dirty = true;
     f.obj = nullptr;
     TouchVersion();
@@ -772,7 +797,7 @@ void NativeObject::SetString(std::string_view key, std::string_view val) {
 
 void NativeObject::SetObject(std::string_view key, NativeObject *obj) {
     if (!impl_) return;
-    auto &f = impl_->kv[std::string(key)];
+    auto &f = FindOrCreateField(impl_->kv, key);
     f.kind = NativeField::Kind::Object;
     f.obj = obj;
     TouchVersion();
@@ -780,14 +805,14 @@ void NativeObject::SetObject(std::string_view key, NativeObject *obj) {
 
 void NativeObject::SetFromCVar(std::string_view key, CVar v) {
     if (!impl_) return;
-    impl_->kv[std::string(key)] = CVarToNativeField(v);
+    FindOrCreateField(impl_->kv, key) = CVarToNativeField(v);
     TouchVersion();
 }
 
 // Get 系列
 int64_t NativeObject::GetInt(std::string_view key, int64_t def) const {
     if (!impl_) return def;
-    const auto it = impl_->kv.find(std::string(key));
+    const auto it = impl_->kv.find(key);
     if (it == impl_->kv.end()) return def;
     const auto &f = it->second;
     if (f.kind == NativeField::Kind::Int) return f.i;
@@ -804,7 +829,7 @@ int64_t NativeObject::GetInt(std::string_view key, int64_t def) const {
 
 double NativeObject::GetFloat(std::string_view key, double def) const {
     if (!impl_) return def;
-    const auto it = impl_->kv.find(std::string(key));
+    const auto it = impl_->kv.find(key);
     if (it == impl_->kv.end()) return def;
     const auto &f = it->second;
     if (f.kind == NativeField::Kind::Float) return f.f;
@@ -814,7 +839,7 @@ double NativeObject::GetFloat(std::string_view key, double def) const {
 
 bool NativeObject::GetBool(std::string_view key, bool def) const {
     if (!impl_) return def;
-    const auto it = impl_->kv.find(std::string(key));
+    const auto it = impl_->kv.find(key);
     if (it == impl_->kv.end()) return def;
     const auto &f = it->second;
     if (f.kind == NativeField::Kind::Bool) return f.b;
@@ -823,7 +848,7 @@ bool NativeObject::GetBool(std::string_view key, bool def) const {
 
 std::string NativeObject::GetString(std::string_view key, std::string_view def) const {
     if (!impl_) return std::string(def);
-    const auto it = impl_->kv.find(std::string(key));
+    const auto it = impl_->kv.find(key);
     if (it == impl_->kv.end()) return std::string(def);
     const auto &f = it->second;
     if (f.kind == NativeField::Kind::String) return f.s;
@@ -832,7 +857,7 @@ std::string NativeObject::GetString(std::string_view key, std::string_view def) 
 
 NativeObject *NativeObject::GetObject(std::string_view key) const {
     if (!impl_) return nullptr;
-    const auto it = impl_->kv.find(std::string(key));
+    const auto it = impl_->kv.find(key);
     if (it == impl_->kv.end()) return nullptr;
     const auto &f = it->second;
     if (f.kind == NativeField::Kind::Object) return f.obj;
@@ -845,7 +870,7 @@ CVar NativeObject::GetAsCVar(std::string_view key, State *s) const {
         r.type_ = static_cast<int>(VarType::Nil);
         return r;
     }
-    const auto it = impl_->kv.find(std::string(key));
+    const auto it = impl_->kv.find(key);
     if (it == impl_->kv.end()) {
         CVar r{};
         r.type_ = static_cast<int>(VarType::Nil);
