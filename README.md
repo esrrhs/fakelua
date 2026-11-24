@@ -154,7 +154,8 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
 - **Implicit globals**: Local variables must be declared with `local`; implicit global declarations are rejected.
 - **File-level locals are const bindings**: no whole-slot reassign after init; tables from `__fakelua_init` are deep-const; use NativeObject / `new_global_obj` for mutable cross-frame state.
 - **`json.encode` rejects array holes**: integer keys mean array intent, so a table whose keys are positive integers but not contiguous from 1 (`t[1]="a"; t[3]="c"`, or even `{[1001]=...}`) is an error instead of an object with `"1"`/`"3"` keys — the wire shape must not change silently. Keep protocol arrays gap-free (use `""` or `{}` placeholders, not nil), and use string keys (or `container.map`) for id-keyed maps. `#t` still stops at the first nil, like standard Lua; `serialize.encode/decode` keeps non-contiguous keys.
-- **Runtime errors carry the Lua source location**: `attempt to perform arithmetic on non-numeric value at main.lua:4` on all three backends, including errors raised inside native functions.
+- **Syntax diagnostics preserve their own source location**: filename, line and column remain attached to nested compilation errors; multiline strings and Lua newline forms are counted correctly, and unfinished short strings have a clear reason.
+- **Runtime errors carry the Lua source location**: `attempt to perform arithmetic on non-numeric value at main.lua:4` on all three backends, including native errors raised as `FakeluaException`. Arbitrary C++ exceptions retain existing backend-specific propagation behavior. Locations identify the failing statement, not a complete Lua call stack (`stacktrace` is the C++ stack).
 
 ## Built-in Standard Libraries
 
