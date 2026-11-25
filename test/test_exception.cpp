@@ -1,5 +1,6 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
+#include "jit/vm.h"
 #include "util/debug.h"
 #include "util/exception.h"
 #include "util/string_util.h"
@@ -1903,6 +1904,140 @@ TEST(exception, gcc_cache_failed_init_same_state_retry_all_backends) {
             Call(s, type, "retry_init_read", value);
             EXPECT_EQ(value, "ok after retry");
             EXPECT_EQ(calls, 2);
+        }
+    }
+}
+
+static void RegisterHostDiagnosticFunctions(State *s) {
+    RegisterNativeFunction(s, "host_standard_error", 0, false, [](State *, CVar *, int) -> CVar { throw std::runtime_error("host failure"); });
+    RegisterNativeFunction(s, "host_unknown_error", 0, false, [](State *, CVar *, int) -> CVar { throw 7; });
+    RegisterNativeFunction(s, "host_compile_bad_source", 0, false, [](State *state, CVar *, int) -> CVar {
+        CompileFile(state, "./syntax/test_unexpected_parenthesis.lua", {});
+        return {};
+    });
+}
+
+// Diagnostic improvements must not change native exception propagation policy.
+TEST(exception, host_exceptions_preserve_backend_policy) {
+    for (bool debug: {false, true}) {
+        SCOPED_TRACE(debug);
+        StateConfig config;
+        config.log_level = LogLevel::Off;
+        FakeluaStateGuard state(config);
+        auto *s = state.GetState();
+        RegisterHostDiagnosticFunctions(s);
+        CompileConfig cfg;
+        cfg.debug_mode = debug;
+        CompileFile(s, "./exception/test_host_error_location.lua", cfg);
+        for (auto backend: AllJitTypes()) {
+            SCOPED_TRACE(JitTypeName(backend));
+            for (const auto &[name, line, reason]:
+                 {std::tuple{"standard", 4, "host failure"}, std::tuple{"unknown", 9, "unknown exception thrown from native code"}, std::tuple{"nested", 4, "host failure"}}) {
+                int64_t result = 0;
+                try {
+                    Call(s, backend, std::string("HostErrorLocation.") + name, result);
+                    ADD_FAILURE() << "expected host exception";
+                } catch (const FakeluaException &e) {
+                    EXPECT_EQ(backend, JIT_TCC) << "GCC/INTERP must preserve the original host exception";
+                    EXPECT_NE(e.Msg().find(reason), std::string::npos);
+                    EXPECT_EQ(e.Loc(), std::format("./exception/test_host_error_location.lua:{}", line));
+                    const std::string text = e.what();
+                    const auto prefix = text.find("fakelua error:");
+                    EXPECT_EQ(text.find("fakelua error:", prefix + 1), std::string::npos) << text;
+                } catch (const std::runtime_error &e) {
+                    EXPECT_NE(backend, JIT_TCC);
+                    EXPECT_EQ(std::string(e.what()), reason);
+                } catch (int value) {
+                    EXPECT_NE(backend, JIT_TCC);
+                    EXPECT_EQ(std::string(name), "unknown");
+                    EXPECT_EQ(value, 7);
+                } catch (...) {
+                    ADD_FAILURE() << "unexpected host exception type";
+                }
+                Call(s, backend, "HostErrorLocation.success", result);
+                EXPECT_EQ(result, 42);
+            }
+            std::string message;
+            Call(s, backend, "HostErrorLocation.protected_standard", message);
+            if (backend == JIT_TCC) {
+                EXPECT_NE(message.find("test_host_error_location.lua:4"), std::string::npos) << message;
+            }
+            EXPECT_NE(message.find("host failure"), std::string::npos) << message;
+        }
+    }
+}
+
+TEST(exception, nested_parse_failure_keeps_its_own_source_location) {
+    StateConfig config;
+    config.log_level = LogLevel::Off;
+    FakeluaStateGuard state(config);
+    auto *s = state.GetState();
+    RegisterHostDiagnosticFunctions(s);
+    CompileFile(s, "./exception/test_host_error_location.lua", {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t result = 0;
+        try {
+            Call(s, backend, "HostErrorLocation.compile_failure", result);
+            ADD_FAILURE() << "expected parse failure";
+        } catch (const FakeluaException &e) {
+            EXPECT_EQ(e.Loc(), "./syntax/test_unexpected_parenthesis.lua:2.15");
+            EXPECT_NE(e.Msg().find("syntax error"), std::string::npos);
+            EXPECT_EQ(std::string(e.what()).find("test_host_error_location.lua:"), std::string::npos) << e.what();
+        }
+    }
+}
+
+TEST(exception, runtime_location_after_multiline_string) {
+    for (bool debug: {false, true}) {
+        SCOPED_TRACE(debug);
+        StateConfig config;
+        config.log_level = LogLevel::Off;
+        FakeluaStateGuard state(config);
+        auto *s = state.GetState();
+        CompileConfig cfg;
+        cfg.debug_mode = debug;
+        CompileFile(s, "./exception/test_multiline_error_location.lua", cfg);
+        for (auto backend: AllJitTypes()) {
+            SCOPED_TRACE(JitTypeName(backend));
+            int64_t result = 0;
+            try {
+                Call(s, backend, "MultilineErrorLocation.fail", result);
+                ADD_FAILURE() << "expected indexing failure";
+            } catch (const FakeluaException &e) {
+                EXPECT_EQ(e.Loc(), "./exception/test_multiline_error_location.lua:8");
+            }
+            std::string text;
+            Call(s, backend, "MultilineErrorLocation.text", text);
+            EXPECT_EQ(text, "first\nsecond\nthird");
+        }
+    }
+}
+
+TEST(exception, native_calls_without_lua_frame_preserve_host_exceptions) {
+    StateConfig config;
+    config.log_level = LogLevel::Off;
+    FakeluaStateGuard state(config);
+    auto *s = state.GetState();
+    RegisterHostDiagnosticFunctions(s);
+    CompileFile(s, "./exception/test_host_error_location.lua", {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t result = 0;
+        EXPECT_THROW(Call(s, backend, "HostErrorLocation.standard", result), std::exception);
+        try {
+            CallByNameArgs(s, backend, "host_standard_error", 0, nullptr);
+            ADD_FAILURE() << "expected host exception";
+        } catch (const std::runtime_error &e) {
+            EXPECT_EQ(std::string(e.what()), "host failure");
+        }
+        try {
+            CallByNameArgs(s, backend, "host_unknown_error", 0, nullptr);
+            ADD_FAILURE() << "expected host exception";
+        } catch (int value) {
+            EXPECT_EQ(value, 7);
+        } catch (...) {
+            ADD_FAILURE() << "host exception type changed without a Lua frame";
         }
     }
 }

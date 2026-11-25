@@ -1828,5 +1828,5 @@ yy::parser::error (const location_type& l, const std::string& m)
 {
     std::stringstream ss;
     ss << l;
-    fakelua::ThrowFakeluaException(std::format("{}: {}", ss.str(), m));
+    fakelua::ThrowFakeluaExceptionAt(m, ss.str());
 }

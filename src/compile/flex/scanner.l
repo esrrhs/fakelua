@@ -4,12 +4,29 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include "compile/bison/parser.h"
 
 #ifdef yyFlexLexer
 #undef yyFlexLexer
 #endif
 #include "compile/my_flexer.h"
+
+namespace {
+// Compile-time token metadata only; no runtime dispatch changes or new exported symbol.
+void TrackStringLocation(yy::location &loc, std::string_view text) {
+    if (text.empty() || text.front() != '[') return;
+    loc.end = loc.begin;
+    for (size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '\r' || text[i] == '\n') {
+            if (i + 1 < text.size() && (text[i + 1] == '\r' || text[i + 1] == '\n') && text[i + 1] != text[i]) ++i;
+            loc.lines(1);
+        } else {
+            loc.columns(1);
+        }
+    }
+}
+}
 
 // https://westes.github.io/flex/manual/Cxx.html
 
@@ -40,6 +57,7 @@ string2  \'((\\'|[^'\n\r])*)\'
 string3  \[\[([^\]]|(\][^\]]))*\]\]
 string   {string1}|{string2}|{string3}
 name     [_a-zA-Z][_a-zA-Z0-9]*
+newline  \r\n|\n\r|\r|\n
 /* 字面量不带符号：Lua 把 +1 / -1 拆成一元运算符 + 无符号数字。
    若把 - 写进数字 token，x-1、1-1、x -1 都会变成 IDENT/NUMBER NUMBER，无法解析。 */
 num1     [0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
@@ -63,19 +81,16 @@ number   {num1}|{num2}
        ]] 只是普通内容。传统的 --]] 收尾依然有效，因为其中的 ]] 就是 0 级闭括号。 */
 "--"\[=*\[        { long_comment_level_ = static_cast<int>(yyleng) - 4; yy_push_state(MULTI_LINE_COMMENT_STATE); }
 <MULTI_LINE_COMMENT_STATE>\]=*\]   { if (static_cast<int>(yyleng) - 2 == long_comment_level_) yy_pop_state(); }
-<MULTI_LINE_COMMENT_STATE>\n   { loc.lines(yyleng); loc.step(); }
+<MULTI_LINE_COMMENT_STATE>{newline}   { loc.lines(1); loc.step(); }
 <MULTI_LINE_COMMENT_STATE>.    { }
 <MULTI_LINE_COMMENT_STATE><<EOF>>   { throw yy::parser::syntax_error(loc, "unfinished long comment"); }
 
 "--"            { yy_push_state(SINGLE_LINE_COMMENT_STATE); }
-<SINGLE_LINE_COMMENT_STATE>\n   { loc.lines(yyleng); loc.step(); yy_pop_state(); }
-    /* Lua 的行注释遇到 \r 也结束，只认 \n 会把 \r 后面的真实代码一起吞掉。 */
-<SINGLE_LINE_COMMENT_STATE>\r   { yy_pop_state(); }
+<SINGLE_LINE_COMMENT_STATE>{newline}   { loc.lines(1); loc.step(); yy_pop_state(); }
 <SINGLE_LINE_COMMENT_STATE>.    { }
 
 [ \t]+          loc.step ();
-\n+             loc.lines(yyleng); loc.step();
-\r+             {}
+{newline}       loc.lines(1); loc.step();
 
 "%"             return yy::parser::make_MOD(loc);
 "&"             return yy::parser::make_BITAND(loc);
@@ -143,7 +158,10 @@ number   {num1}|{num2}
 
 {name}          return yy::parser::make_IDENTIFIER(yytext, loc);
 
-{string}        return yy::parser::make_STRING(yytext, loc);
+{string}        { TrackStringLocation(loc, std::string_view(yytext, static_cast<size_t>(yyleng))); return yy::parser::make_STRING(yytext, loc); }
+
+    /* A quote reaches this fallback only when no complete short string matched. */
+[\"']          { throw yy::parser::syntax_error(loc, "unfinished string"); }
 
 .               { throw yy::parser::syntax_error(loc, "invalid character: [" + std::string(yytext) + "]"); }
 

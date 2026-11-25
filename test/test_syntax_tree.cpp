@@ -2364,3 +2364,48 @@ end
     exp->SetValue("1");
     EXPECT_THROW(sa.CollectReturnsForBlock(exp, returns), std::exception);
 }
+
+TEST(syntax_tree, unfinished_short_string_reports_reason_and_location) {
+    FakeluaStateGuard state;
+    CompileConfig cfg;
+    cfg.skip_jit = true;
+    for (const auto &source: {"local value = \"unfinished", "local value = 'unfinished"}) {
+        try {
+            CompileString(state.GetState(), source, cfg);
+            ADD_FAILURE() << "expected unfinished string";
+        } catch (const FakeluaException &e) {
+            EXPECT_NE(e.Msg().find("unfinished string"), std::string::npos) << e.what();
+            EXPECT_NE(e.Loc().find(":1.15"), std::string::npos) << e.what();
+        }
+    }
+}
+
+TEST(syntax_tree, syntax_location_after_multiline_string) {
+    FakeluaStateGuard state;
+    CompileConfig cfg;
+    cfg.skip_jit = true;
+    for (const auto &newline: {"\n", "\r\n", "\r", "\n\r"}) {
+        const std::string source = std::string("local value = [[first") + newline + "second" + newline + "third]]" + newline + "local broken = )";
+        try {
+            CompileString(state.GetState(), source, cfg);
+            ADD_FAILURE() << "expected unexpected parenthesis";
+        } catch (const FakeluaException &e) {
+            EXPECT_NE(e.Loc().find(":4.16"), std::string::npos) << e.what();
+        }
+    }
+}
+
+TEST(syntax_tree, syntax_location_counts_lua_line_endings) {
+    FakeluaStateGuard state;
+    CompileConfig cfg;
+    cfg.skip_jit = true;
+    for (const auto &newline: {"\n", "\r\n", "\r", "\n\r"}) {
+        const std::string source = std::string("-- comment") + newline + "--[[long comment" + newline + "]] local broken = )";
+        try {
+            CompileString(state.GetState(), source, cfg);
+            ADD_FAILURE() << "expected unexpected parenthesis";
+        } catch (const FakeluaException &e) {
+            EXPECT_NE(e.Loc().find(":3.19"), std::string::npos) << e.what();
+        }
+    }
+}

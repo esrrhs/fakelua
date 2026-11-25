@@ -158,7 +158,8 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
   数据形状不许静默改变。协议数组请保持无洞（用 `""` 或 `{}` 占位，别留 nil）；要按 id 建映射就
   用字符串键（或 `container.map`）。`#t` 仍与标准 Lua 一致只数到第一个 nil；
   `serialize.encode/decode` 会保留非连续键。
-- **运行期错误带 Lua 源码位置**：三个后端都会输出形如 `attempt to perform arithmetic on non-numeric value at main.lua:4` 的消息，原生函数里抛出的错误同样定位到调用它的那条语句。
+- **语法诊断保留自身源码位置**：嵌套编译失败仍报告其自身文件名、行和列；正确计算长字符串和 Lua 各种换行形式，短字符串未闭合时明确提示原因。
+- **运行期错误带 Lua 源码位置**：三个后端都会输出形如 `attempt to perform arithmetic on non-numeric value at main.lua:4` 的消息，原生函数显式抛出的 `FakeluaException` 也可定位。其他 C++ 异常保留各后端现有传播行为。位置表示出错语句，并非完整 Lua 调用栈（`stacktrace` 是 C++ 堆栈）。
 
 ## 标准内置扩展库
 
