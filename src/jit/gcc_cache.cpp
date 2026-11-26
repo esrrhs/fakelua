@@ -462,22 +462,25 @@ std::vector<CacheEntry> CompleteEntries(const fs::path &root) {
     return result;
 }
 
-void TrimEntries(const fs::path &root, size_t limit) {
+void TrimEntries(const fs::path &root, size_t limit, bool allow_memo = true) {
     if (!limit) return;// zero explicitly means unlimited
+
     struct TrimMemo {
         std::string stamp;
         size_t limit = 0;
     };
+
     static std::mutex memo_mutex;
     static std::map<std::string, TrimMemo> memo;
-    std::string root_stamp;
-    try {
-        root_stamp = FileStamp(root);
-        std::lock_guard lock(memo_mutex);
-        if (auto it = memo.find(root.string()); it != memo.end()) {
-            if (it->second.stamp == root_stamp && it->second.limit > 0 && it->second.limit <= limit) return;
+    if (allow_memo) {
+        try {
+            const auto root_stamp = FileStamp(root);
+            std::lock_guard lock(memo_mutex);
+            if (auto it = memo.find(root.string()); it != memo.end()) {
+                if (it->second.stamp == root_stamp && it->second.limit > 0 && it->second.limit <= limit) return;
+            }
+        } catch (...) {
         }
-    } catch (...) {
     }
     auto entries = CompleteEntries(root);
     auto count = entries.size();
@@ -676,9 +679,9 @@ GccCache::GccCache(const StateGCCConfig &cfg, const std::string &compiler, const
     }
 }
 
-bool TryClaimDirectImagePath(const fs::path &image_path) {
+bool GccCache::TryClaimDirectImagePath(const fs::path &image_path) {
 #if defined(_WIN32)
-    (void)image_path;
+    (void) image_path;
     return false;
 #else
     static std::mutex claim_mutex;
@@ -703,8 +706,7 @@ bool GccCache::Restore(const std::string &destination) {
     }
 }
 
-bool GccCache::RestoreForLoad(const std::string &destination, std::string &load_path, bool &is_direct,
-                              const std::function<void()> &ensure_destination) {
+bool GccCache::RestoreForLoad(const std::string &destination, std::string &load_path, bool &is_direct, const std::function<void()> &ensure_destination) {
     load_path.clear();
     is_direct = false;
     if (!impl_) return false;
@@ -798,7 +800,9 @@ void GccCache::Publish(const std::string &binary, const std::string &dependencie
         }
         RemoveTree(impl_->entry, stale);
         fs::rename(staging, impl_->entry);// only complete, validated images become visible
-        TrimEntries(root, impl_->max_entries);
+        // Publish just added or replaced an entry; do not trust the Restore-path
+        // stamp memo, which can miss a same-tick directory update and skip eviction.
+        TrimEntries(root, impl_->max_entries, false);
     } catch (...) {
         std::error_code ec;
         if (!staging.empty()) RemoveTree(staging, ec);

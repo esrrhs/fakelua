@@ -60,6 +60,14 @@ struct NetObject {
 
     static constexpr size_t kMaxEvents = 1024;
     static constexpr size_t kMaxPendingSends = 4096;
+
+    bool InDispatchContext() const;
+    bool DoSend(const PendingSend &ps);
+    bool SendOrQueue(PendingSend ps);
+    void FlushPendingSends();
+    void PushEvent(std::string_view ev);
+    void HandleCallbackReturn(const CVar &ret, int connid);
+    void DispatchEventFor(const ConnEvent &ev);
 };
 
 // 辅助：从 CVar 提取字符串
@@ -140,10 +148,8 @@ static CVar CallLuaEvent(State *state, const std::string &func_name, const char 
 //   "echo", data → 将 data 发回来源连接
 //   "close"      → 延后关闭本对象（tick 回调内安全）
 
-static bool SendOrQueue(NetObject *obj, NetObject::PendingSend ps);
-
-static void HandleCallbackReturn(NetObject *obj, const CVar &ret, int connid) {
-    if (!obj || obj->close_pending) return;
+void NetObject::HandleCallbackReturn(const CVar &ret, int connid) {
+    if (close_pending) return;
     // 检查是否为 Multi（多返回值）
     if (ret.type_ != static_cast<int>(VarType::Multi)) return;
 
@@ -151,74 +157,74 @@ static void HandleCallbackReturn(NetObject *obj, const CVar &ret, int connid) {
     CVar first = inter::GetMultiCVarElement(ret, 0);
     std::string cmd = CVarToString(first);
     if (cmd == "close") {
-        obj->close_pending = true;
+        close_pending = true;
         return;
     }
     if (cmd == "echo") {
         CVar data_var = inter::GetMultiCVarElement(ret, 1);
         std::string echo_data = CVarToString(data_var);
-        if (obj->udp) {
-            if (obj->udp->Connected()) {
-                SendOrQueue(obj, {NetObject::PendingSend::Kind::UdpPeer, -1, std::move(echo_data)});
+        if (udp) {
+            if (udp->Connected()) {
+                SendOrQueue({PendingSend::Kind::UdpPeer, -1, std::move(echo_data)});
             } else {
-                SendOrQueue(obj, {NetObject::PendingSend::Kind::UdpTo, -1, std::move(echo_data), obj->last_peer_ip, obj->last_peer_port});
+                SendOrQueue({PendingSend::Kind::UdpTo, -1, std::move(echo_data), last_peer_ip, last_peer_port});
             }
-        } else if (obj->is_server) {
-            SendOrQueue(obj, {NetObject::PendingSend::Kind::Server, connid, std::move(echo_data)});
+        } else if (is_server) {
+            SendOrQueue({PendingSend::Kind::Server, connid, std::move(echo_data)});
         } else {
-            SendOrQueue(obj, {NetObject::PendingSend::Kind::Client, -1, std::move(echo_data)});
+            SendOrQueue({PendingSend::Kind::Client, -1, std::move(echo_data)});
         }
     }
 }
 
 // send 的统一实现：按 PendingSend 的 kind 写 socket。返回 false 表示引擎侧
 // 拒绝（连接未就绪/已关闭），调用方记日志，不再静默。
-static bool DoSend(NetObject *obj, const NetObject::PendingSend &ps) {
-    using Kind = NetObject::PendingSend::Kind;
+bool NetObject::DoSend(const PendingSend &ps) {
+    using Kind = PendingSend::Kind;
     switch (ps.kind) {
         case Kind::Server:
-            if (obj->server) return obj->server->Send(ps.connid, ps.data.data(), ps.data.size());
+            if (server) return server->Send(ps.connid, ps.data.data(), ps.data.size());
             return false;
         case Kind::Client:
-            if (obj->client) return obj->client->Send(ps.data.data(), ps.data.size());
+            if (client) return client->Send(ps.data.data(), ps.data.size());
             return false;
         case Kind::UdpPeer:
-            if (obj->udp && obj->udp->Connected()) return obj->udp->Send(ps.data.data(), ps.data.size());
+            if (udp && udp->Connected()) return udp->Send(ps.data.data(), ps.data.size());
             return false;
         case Kind::UdpTo:
-            if (obj->udp) return obj->udp->SendTo(ps.data.data(), ps.data.size(), ps.ip, ps.port);
+            if (udp) return udp->SendTo(ps.data.data(), ps.data.size(), ps.ip, ps.port);
             return false;
     }
     return false;
 }
 
 // 判断是否处于 C++→Lua 回调派发上下文（on_event / mysql/http 回调等）。
-static bool InDispatchContext(NetObject *obj) {
-    return obj && obj->state && obj->state->GetIoContext().InDispatch();
+bool NetObject::InDispatchContext() const {
+    return state && state->GetIoContext().InDispatch();
 }
 
 // send 的统一入口：回调上下文里不直接写 socket，而是入队，由本轮 tick 派发完后
 // 统一泵出——消除"回调里 send 偶尔静默丢失"的平台相关行为；非派发上下文立即发送。
-static bool SendOrQueue(NetObject *obj, NetObject::PendingSend ps) {
-    if (InDispatchContext(obj)) {
-        if (obj->pending_sends.size() >= NetObject::kMaxPendingSends) {
-            LOG_WARN(obj->state, "net", "pending send queue full ({}), dropping {} bytes", obj->pending_sends.size(), ps.data.size());
+bool NetObject::SendOrQueue(PendingSend ps) {
+    if (InDispatchContext()) {
+        if (pending_sends.size() >= kMaxPendingSends) {
+            LOG_WARN(state, "net", "pending send queue full ({}), dropping {} bytes", pending_sends.size(), ps.data.size());
             return false;
         }
-        obj->pending_sends.push_back(std::move(ps));
+        pending_sends.push_back(std::move(ps));
         return true;
     }
-    return DoSend(obj, ps);
+    return DoSend(ps);
 }
 
 // 派发完成后统一泵出积压的 send。此时已脱离 DispatchScope，直接写 socket 是安全的。
-static void FlushPendingSends(NetObject *obj) {
-    if (!obj || obj->pending_sends.empty()) return;
-    auto sends = std::move(obj->pending_sends);
-    obj->pending_sends.clear();
+void NetObject::FlushPendingSends() {
+    if (pending_sends.empty()) return;
+    auto sends = std::move(pending_sends);
+    pending_sends.clear();
     for (const auto &ps: sends) {
-        if (!DoSend(obj, ps)) {
-            LOG_WARN(obj->state, "net", "deferred send failed (kind={} connid={} len={})", static_cast<int>(ps.kind), ps.connid, ps.data.size());
+        if (!DoSend(ps)) {
+            LOG_WARN(state, "net", "deferred send failed (kind={} connid={} len={})", static_cast<int>(ps.kind), ps.connid, ps.data.size());
         }
     }
 }
@@ -262,12 +268,12 @@ void OnStateDeleted(State *s) {
 }
 
 // 事件记录加上限：超过 kMaxEvents 时丢弃最旧的事件，防止长跑无界增长。
-static void PushEvent(NetObject *obj, std::string_view ev) {
-    if (obj->events.size() >= NetObject::kMaxEvents) {
+void NetObject::PushEvent(std::string_view ev) {
+    if (events.size() >= kMaxEvents) {
         // 批量丢弃前半部分，避免每个事件都 O(n) 搬移
-        obj->events.erase(obj->events.begin(), obj->events.begin() + NetObject::kMaxEvents / 2);
+        events.erase(events.begin(), events.begin() + kMaxEvents / 2);
     }
-    obj->events.emplace_back(ev);
+    events.emplace_back(ev);
 }
 
 static void ReleaseNetObject(NativeObject *self);
@@ -299,37 +305,36 @@ static CVar NetDispatch(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 // 派发单条事件给 Lua（在 tick() 同步上下文里执行，保留 tick_depth/close_pending 语义）
-static void DispatchEventFor(NetObject *obj, const ConnEvent &ev) {
-    if (!obj) return;
+void NetObject::DispatchEventFor(const ConnEvent &ev) {
     switch (ev.kind) {
         case EventKind::Connect:
-            obj->conn_count++;
-            obj->server_connid = ev.conn_id;
-            PushEvent(obj, "conn");
+            conn_count++;
+            server_connid = ev.conn_id;
+            PushEvent("conn");
             {
-                CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "conn", ev.conn_id, nullptr, 0, 0);
-                HandleCallbackReturn(obj, ret, ev.conn_id);
+                CVar ret = CallLuaEvent(state, dispatch_name, "conn", ev.conn_id, nullptr, 0, 0);
+                HandleCallbackReturn(ret, ev.conn_id);
             }
             break;
         case EventKind::Recv:
-            obj->recv_count++;
-            obj->last_peer_ip = ev.peer_ip;
-            obj->last_peer_port = ev.peer_port;
-            if (obj->is_server) obj->last_server_data = ev.data;
+            recv_count++;
+            last_peer_ip = ev.peer_ip;
+            last_peer_port = ev.peer_port;
+            if (is_server) last_server_data = ev.data;
             else
-                obj->last_client_data = ev.data;
-            PushEvent(obj, "recv");
-            LOG_DEBUG(obj->state, "net", "{} recv: connid={} len={}", obj->is_server ? "server" : "client", ev.conn_id, ev.data.size());
+                last_client_data = ev.data;
+            PushEvent("recv");
+            LOG_DEBUG(state, "net", "{} recv: connid={} len={}", is_server ? "server" : "client", ev.conn_id, ev.data.size());
             {
-                CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "recv", ev.conn_id, ev.data.data(), ev.data.size(), 0);
-                HandleCallbackReturn(obj, ret, ev.conn_id);
+                CVar ret = CallLuaEvent(state, dispatch_name, "recv", ev.conn_id, ev.data.data(), ev.data.size(), 0);
+                HandleCallbackReturn(ret, ev.conn_id);
             }
             break;
         case EventKind::Close:
-            PushEvent(obj, "close");
+            PushEvent("close");
             {
-                CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "close", ev.conn_id, nullptr, 0, 0);
-                HandleCallbackReturn(obj, ret, ev.conn_id);
+                CVar ret = CallLuaEvent(state, dispatch_name, "close", ev.conn_id, nullptr, 0, 0);
+                HandleCallbackReturn(ret, ev.conn_id);
             }
             break;
     }
@@ -354,21 +359,21 @@ static void TickNetObject(NativeObject *self) {
     obj->tick_depth++;
     try {
         if (obj->udp && obj->udp->Running()) {
-            obj->udp->DrainEventsWith([obj](const ConnEvent &ev) { DispatchEventFor(obj, ev); });
+            obj->udp->DrainEventsWith([obj](const ConnEvent &ev) { obj->DispatchEventFor(ev); });
         } else if (obj->is_server && obj->server && obj->server->Running()) {
-            obj->server->DrainEventsWith([obj](const ConnEvent &ev) { DispatchEventFor(obj, ev); });
+            obj->server->DrainEventsWith([obj](const ConnEvent &ev) { obj->DispatchEventFor(ev); });
         } else if (!obj->is_server && obj->client) {
-            obj->client->DrainEventsWith([obj](const ConnEvent &ev) { DispatchEventFor(obj, ev); });
+            obj->client->DrainEventsWith([obj](const ConnEvent &ev) { obj->DispatchEventFor(ev); });
         }
     } catch (...) {
         obj->tick_depth--;
-        FlushPendingSends(obj);
+        obj->FlushPendingSends();
         finish_tick();
         throw;
     }
     obj->tick_depth--;
     // 回调期间积压的 send 在这里统一泵出（socket 写在派发上下文之外执行）。
-    FlushPendingSends(obj);
+    obj->FlushPendingSends();
     finish_tick();
 }
 
@@ -394,7 +399,7 @@ static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
         if (obj->udp->Connected()) {
             if (n < 1) ThrowBadArgument(1, "send", "data expected");
             std::string data = CVarToString(inter::GetNativeArg(s, args, n, 0));
-            bool ok = SendOrQueue(obj, {NetObject::PendingSend::Kind::UdpPeer, -1, std::move(data)});
+            bool ok = obj->SendOrQueue({NetObject::PendingSend::Kind::UdpPeer, -1, std::move(data)});
             return inter::NativeToFakeluaBool(s, ok);
         }
         if (n < 3) ThrowBadArgument(1, "send", "data, ip and port expected");
@@ -404,7 +409,7 @@ static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
         if (port_val <= 0 || port_val > 65535) {
             ThrowFakeluaException(std::format("net: port {} out of range (1-65535)", port_val));
         }
-        bool ok = SendOrQueue(obj, {NetObject::PendingSend::Kind::UdpTo, -1, std::move(data), std::move(ip), static_cast<uint16_t>(port_val)});
+        bool ok = obj->SendOrQueue({NetObject::PendingSend::Kind::UdpTo, -1, std::move(data), std::move(ip), static_cast<uint16_t>(port_val)});
         return inter::NativeToFakeluaBool(s, ok);
     }
 
@@ -423,7 +428,7 @@ static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
             }
             return std::string();
         }();
-        bool ok = SendOrQueue(obj, {NetObject::PendingSend::Kind::Server, connid, std::move(data)});
+        bool ok = obj->SendOrQueue({NetObject::PendingSend::Kind::Server, connid, std::move(data)});
         return inter::NativeToFakeluaBool(s, ok);
     } else if (!obj->is_server && obj->client) {
         // client: send(data)
@@ -439,7 +444,7 @@ static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
             }
             return std::string();
         }();
-        bool ok = SendOrQueue(obj, {NetObject::PendingSend::Kind::Client, -1, std::move(data)});
+        bool ok = obj->SendOrQueue({NetObject::PendingSend::Kind::Client, -1, std::move(data)});
         return inter::NativeToFakeluaBool(s, ok);
     }
 
@@ -453,9 +458,9 @@ static CVar NetCloseConnection(NativeObject *self, State *s, CVar *args, int n) 
     if (n < 1) ThrowBadArgument(1, "close_connection", "connid expected");
     int connid = static_cast<int>(CheckIntegerArg(inter::GetNativeArg(s, args, n, 0), 1, "close_connection"));
     if (!obj->server->CloseConnection(connid)) return inter::NativeToFakeluaBool(s, false);
-    PushEvent(obj, "close");
+    obj->PushEvent("close");
     CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
-    HandleCallbackReturn(obj, ret, connid);
+    obj->HandleCallbackReturn(ret, connid);
     return inter::NativeToFakeluaBool(s, true);
 }
 
