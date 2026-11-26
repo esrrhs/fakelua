@@ -1941,7 +1941,8 @@ TEST(exception, gcc_cache_preserves_each_string_input_debug_filename) {
             FAIL() << "expected runtime error";
         } catch (const std::exception &e) {
             const std::string message = e.what();
-            EXPECT_NE(message.find(own + ":3"), std::string::npos) << message;
+            // GCC 报函数定义行，这条语句在第 1 行。
+            EXPECT_NE(message.find(own + ":1"), std::string::npos) << message;
             EXPECT_EQ(message.find(other), std::string::npos) << message;
         }
     }

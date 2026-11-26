@@ -457,8 +457,13 @@ static FlLuaLoc fl_lua_loc = {0, 0};
 static FlLuaLoc *fl_active_loc = &fl_lua_loc;
 static const uint64_t fl_vm_version_zero = 0;
 static const uint64_t *fl_vm_version = &fl_vm_version_zero;
+// pcall 用 longjmp 跳出时会跳过 FL_LUA_POP，深度由宿主恢复，指针仍可能指着内层帧。
+// 按恢复后的深度写栈顶，避免后续语句把行号写到已经不在栈上的那一帧。
 #define FL_LOC_SET(f, l)                                                                                                                                                                               \
     do {                                                                                                                                                                                               \
+        if (fl_lua_frames && fl_lua_depth && *fl_lua_depth > 0) {                                                                                                                                      \
+            fl_active_loc = (FlLuaLoc *) &fl_lua_frames[(*fl_lua_depth - 1) % FL_LUA_STACK_MAX];                                                                                                       \
+        }                                                                                                                                                                                              \
         fl_active_loc->file = (f);                                                                                                                                                                     \
         fl_active_loc->line = (l);                                                                                                                                                                     \
     } while (0)

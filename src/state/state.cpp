@@ -1,8 +1,10 @@
 #include "state/state.h"
 #include <algorithm>
 #include <cstring>
+#if !defined(_WIN32)
 #include <dlfcn.h>
 #include <execinfo.h>
+#endif
 #include "fakelua.h"
 #include "jit/tcc_jit.h"
 #include "native/compress/native_compress.h"
@@ -116,6 +118,8 @@ void State::CollectMergedLuaFrames(std::vector<MergedLuaFrame> &out) const {
     std::vector<const JitFnSymbol *> c_frames;
     bool any_spec = false;
     // 只在 GCC 上走 C 栈。TCC 没有展开信息，解释器帧已经写在 lua_frames_ 里。
+    // Windows 没有 dladdr/backtrace，抛错函数仍由 FakeluaThrowSpec 带上。
+#if !defined(_WIN32)
     if (CurrentJit() == JIT_GCC && !jit_fn_symbols_.empty()) {
         void *pcs[128];
         const int n = backtrace(pcs, 128);
@@ -135,6 +139,7 @@ void State::CollectMergedLuaFrames(std::vector<MergedLuaFrame> &out) const {
             c_frames.push_back(&it->second);
         }
     }
+#endif
     const bool hinted = spec_throw_hint_name_ != nullptr && spec_throw_hint_name_[0] != '\0';
     if (!any_spec && !hinted && c_frames.empty()) {
         for (const LuaFrame *fr: lua_recent) {
