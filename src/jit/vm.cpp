@@ -32,13 +32,14 @@ extern "C" void FakeluaThrowSpec(State *state, const char *msg, const char *spec
 }
 
 extern "C" void FakeluaThrowError(State *state, const char *msg) {
-    // 生成代码在每个 Lua 语句前写好的位置。GCC 特化函数不写帧，这里按抛错参数和 C 调用栈补上。
-    const auto loc = LuaLocText(state);
-    const auto lua_stack = state->FormatLuaStack();
+    // TCC 在语句前写好栈顶帧；GCC 不在热路径写帧，按抛错提示和 C 栈一次补齐位置与调用栈。
+    std::string loc;
+    std::string lua_stack;
+    state->CaptureLuaError(loc, lua_stack);
     state->ClearSpecThrow();
     if (InJitFrame(state)) {
         // JIT 代码直接调用本函数，中间没有需要析构的 C++ 帧，可以直接跳转
-        JumpToJitErrorBoundary(state, msg, loc, CaptureStacktrace(), lua_stack);
+        JumpToJitErrorBoundary(state, msg, std::move(loc), CaptureStacktrace(), std::move(lua_stack));
     }
     ThrowFakeluaExceptionAt(msg, loc, lua_stack);
 }

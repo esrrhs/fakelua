@@ -20,12 +20,12 @@ struct TCCState;
 
 namespace fakelua {
 
-// 与生成 C 里的 FlLuaFnMap 同布局。addr 是特化/普通函数的代码地址。
+// 与生成 C 里的 FlLuaFnMap 同布局。dispatcher 仅标记数值特化函数的入口分发器。
 struct FlLuaFnMap {
     const void *addr;
     const char *lua_name;
     int line;
-    int spec;
+    int dispatcher;
 };
 
 namespace native {
@@ -79,8 +79,9 @@ public:
             loc = LuaLoc{};
         }
         lua_depth_ = 0;
-        // 函数地址表跟着已加载的 JIT 镜像走。顶层 Call 每次都会 Reset，不能把表清掉，
-        // 否则特化函数抛错时已经对不上 C 栈上的符号。
+        lua_frames_[kMaxLuaStack] = LuaFrame{};
+        ClearSpecThrow();
+        // 函数地址表跟着已加载的 JIT 镜像走，由镜像卸载时按 owner 清理；顶层 Call 的 Reset 不能清空。
     }
 
     [[nodiscard]] const StateConfig &GetStateConfig() const {
@@ -170,6 +171,9 @@ public:
         if (!loc) {
             return;
         }
+        if (jit_type == JIT_GCC) {
+            std::erase_if(jit_fn_symbols_, [loc](const auto &kv) { return kv.second.owner == loc; });
+        }
         const auto idx = static_cast<size_t>(jit_type);
         if (idx < JIT_MAX) {
             auto &vec = lua_locs_[idx];
@@ -199,8 +203,10 @@ public:
         return active_lua_locs_[idx < JIT_MAX ? idx : 0];
     }
 
-    // Lua 调用栈。生成代码经 __fakelua_bind 拿到 frames/depth 指针，进出函数时直接写；
-    // 解释器走 Push/Pop。环形缓冲只保留最近 kMaxLuaStack 帧。
+    // Lua 调用栈。TCC 经 __fakelua_bind 拿到 frames/depth 指针直接写，解释器走 Push/Pop；
+    // GCC 不在热路径写帧，出错时由栈展开和符号表拼回。
+    // 槽位 0..kMaxLuaStack-1 固定保存前 kMaxLuaStack 层，不因更深递归回绕覆盖；
+    // 槽位 kMaxLuaStack 保存超出上限时的当前最内层帧。
     [[nodiscard]] LuaFrame *LuaFrames() {
         return lua_frames_;
     }
@@ -213,12 +219,17 @@ public:
         return lua_depth_;
     }
 
-    void SetLuaDepth(int depth) {
-        lua_depth_ = depth > 0 ? depth : 0;
+    [[nodiscard]] const LuaFrame &OverflowLuaFrame() const {
+        return lua_frames_[kMaxLuaStack];
     }
 
-    void PushLuaFrame(const char *func, const char *file, int line);
-    void PopLuaFrame();
+    void RestoreLuaStack(int depth, const LuaFrame &overflow) {
+        lua_depth_ = depth > 0 ? depth : 0;
+        lua_frames_[kMaxLuaStack] = overflow;
+    }
+
+    void PushLuaFrame(const char *func, const char *file, int line, LuaFrame *saved_overflow = nullptr);
+    void PopLuaFrame(const LuaFrame *saved_overflow = nullptr);
     // 尾调用替换栈顶，不增加深度。
     void RetargetTopLuaFrame(const char *func, const char *file);
     void SetTopLuaLine(int line);
@@ -227,13 +238,14 @@ public:
         if (lua_depth_ <= 0) {
             return nullptr;
         }
-        return &lua_frames_[(lua_depth_ - 1) % kMaxLuaStack];
+        const int idx = (lua_depth_ - 1) < kMaxLuaStack ? (lua_depth_ - 1) : kMaxLuaStack;
+        return &lua_frames_[idx];
     }
 
     // 最近调用在前。没有帧时返回空串。
     [[nodiscard]] std::string FormatLuaStack() const;
-    // 数值特化函数不写运行时帧。抛错点若在特化函数里，返回它的 file:line，否则空串。
-    [[nodiscard]] std::string SpecThrowLoc() const;
+    // 一次扫栈同时产出出错位置（file:line）与 Lua 调用栈文本，避免报错路径重复展开。
+    void CaptureLuaError(std::string &loc, std::string &lua_stack) const;
     // 只在抛错分支上调用。name 是字符串字面量，file 指向已加载的文件名。
     void NoteSpecThrow(const char *name, const char *file, int line) {
         spec_throw_hint_name_ = name;
@@ -247,12 +259,13 @@ public:
     }
 
     struct JitFnSymbol {
+        const void *owner = nullptr;
         std::string lua_name;
         std::string file;
         int line = 0;
-        bool spec = false;
+        bool dispatcher = false;
     };
-    void RegisterJitFn(const void *addr, const char *lua_name, const char *file, int line, bool spec);
+    void RegisterJitFn(const void *owner, const void *addr, const char *lua_name, const char *file, int line, bool dispatcher);
 
     [[nodiscard]] FlHeapSlot &GetTempHeapSlot() {
         return temp_heap_slot_;
@@ -386,11 +399,11 @@ private:
         const char *file = nullptr;
         int line = 0;
         const char *func = nullptr;
-        bool spec = false;
     };
-    void CollectMergedLuaFrames(std::vector<MergedLuaFrame> &out) const;
+    void CollectMergedLuaFrames(std::vector<MergedLuaFrame> &out, int &omitted_count, int &omitted_pos) const;
+    [[nodiscard]] std::string FormatMergedLuaFrames(const std::vector<MergedLuaFrame> &frames, int omitted_count, int omitted_pos) const;
 
-    LuaFrame lua_frames_[kMaxLuaStack]{};
+    LuaFrame lua_frames_[kMaxLuaStack + 1]{};
     int lua_depth_ = 0;
     const char *spec_throw_hint_name_ = nullptr;
     const char *spec_throw_hint_file_ = nullptr;

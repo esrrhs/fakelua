@@ -57,7 +57,7 @@ inline std::string SanitizeCIdent(const std::string &lua_name) {
             "VarType",    "VarTable",  "VarClosure",     "State",         "stdin",    "stdout",    "stderr",        "_S",           "_CL",       "kNil",
             "kTrue",      "kFalse",
     };
-    if (kReserved.contains(lua_name) || lua_name.starts_with("__fakelua_cache_")) {
+    if (kReserved.contains(lua_name) || lua_name.starts_with("__fakelua_cache_") || lua_name.starts_with("__fl_") || lua_name.starts_with("fl_lua_")) {
         return "flua_id_" + lua_name;
     }
     return lua_name;

@@ -88,13 +88,14 @@ void AnnotateInterpLocation(State *s, FuncProto *proto, const Inst *ip, FakeluaE
 
 struct InterpLuaStackFrame {
     State *s;
+    LuaFrame saved_overflow{};
     explicit InterpLuaStackFrame(State *state, FuncProto *proto) : s(state) {
         const char *file = (proto != nullptr && proto->unit != nullptr) ? proto->unit->file_name.c_str() : nullptr;
         const char *name = (proto != nullptr) ? proto->name.c_str() : nullptr;
-        s->PushLuaFrame(name, file, 0);
+        s->PushLuaFrame(name, file, 0, &saved_overflow);
     }
     ~InterpLuaStackFrame() {
-        s->PopLuaFrame();
+        s->PopLuaFrame(&saved_overflow);
     }
     InterpLuaStackFrame(const InterpLuaStackFrame &) = delete;
     InterpLuaStackFrame &operator=(const InterpLuaStackFrame &) = delete;

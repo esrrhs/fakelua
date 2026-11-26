@@ -88,8 +88,8 @@ std::string CGen::LookupFuncCName(const std::string &lua_name) const {
 }
 
 void CGen::UniquifyFuncCNames() {
-    file_c_ident_used_.insert({"__fakelua_bind", "_S", "__fakelua_init_flag__", "fl_temp_heap", "fl_const_heap", "fl_lua_loc", "fl_active_loc", "fl_vm_version", "fl_lua_file", "kNil", "kTrue",
-                               "kFalse", kInitFunctionName});
+    file_c_ident_used_.insert({"__fakelua_bind", "_S", "__fakelua_init_flag__", "fl_temp_heap", "fl_const_heap", "fl_lua_loc", "fl_active_loc", "fl_vm_version", "fl_lua_file", "fl_lua_frames",
+                               "fl_lua_depth", "fl_active_base", "fl_lua_fn_map", "fl_lua_fn_map_n", "__fl_saved_frame", "__fl_frame_ret", "kNil", "kTrue", "kFalse", kInitFunctionName});
 
     FuncInfo *real_init = nullptr;
     for (auto it = all_funcs_.rbegin(); it != all_funcs_.rend(); ++it) {
@@ -294,25 +294,28 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
 
 void CGen::GenerateBindings() {
     SectionGuard sg(*this, Section::Bindings);
+    Out() << "#if !FL_SPEC_TRACK_FRAME\n";
     Out() << "static const FlLuaFnMap fl_lua_fn_map[] = {\n";
     int fn_map_n = 0;
     for (const auto &func: all_funcs_) {
+        if (!func->funcbody) continue;
         const int line = (func->node) ? static_cast<int>(func->node->Loc().begin.line) : 0;
         const std::string lua_name = LuaCallFrameName(func->name, func->parent == nullptr, cur_package_name_);
-        const auto emit_entry = [&](const std::string &c_name, int spec) {
-            Out() << "    { (const void *)" << c_name << ", \"" << EscapeCStringLiteral(lua_name) << "\", " << line << ", " << spec << " },\n";
+        const auto emit_entry = [&](const std::string &c_name, int dispatcher) {
+            Out() << "    { (const void *)" << c_name << ", \"" << EscapeCStringLiteral(lua_name) << "\", " << line << ", " << dispatcher << " },\n";
             ++fn_map_n;
         };
-        emit_entry(func->unique_c_name, 0);
-        if (func->parent == nullptr) {
-            if (const auto math_it = ir().math_param_positions.find(func->name); math_it != ir().math_param_positions.end()) {
-                const auto &math_params = math_it->second;
-                const int num_specs = 1 << static_cast<int>(math_params.size());
-                for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
-                    emit_entry(SpecFuncName(func->unique_c_name, math_params, bitmask), 1);
-                }
-                emit_entry(func->unique_c_name + "__dyn", 0);
+        const auto math_it = (func->parent == nullptr) ? ir().math_param_positions.find(func->name) : ir().math_param_positions.end();
+        if (math_it != ir().math_param_positions.end()) {
+            emit_entry(func->unique_c_name, 1);
+            const auto &math_params = math_it->second;
+            const int num_specs = 1 << static_cast<int>(math_params.size());
+            for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+                emit_entry(SpecFuncName(func->unique_c_name, math_params, bitmask), 0);
             }
+            emit_entry(func->unique_c_name + "__dyn", 0);
+        } else {
+            emit_entry(func->unique_c_name, 0);
         }
     }
     if (fn_map_n == 0) {
@@ -320,13 +323,16 @@ void CGen::GenerateBindings() {
     }
     Out() << "};\n";
     Out() << "static const int fl_lua_fn_map_n = " << fn_map_n << ";\n";
+    Out() << "#endif\n";
     Out() << "void *__fakelua_bind(void *s, void *temp, void *constant, const char *file, int64_t (*intern)(void *, const char *, size_t), void *active_loc, const void *vm_ver, void *lua_frames, int *lua_depth) {\n"
           << "    _S = s; fl_temp_heap = temp; fl_const_heap = constant; fl_lua_file = file;\n"
           << "    if (active_loc) { fl_active_loc = (FlLuaLoc *) active_loc; fl_active_base = fl_active_loc; }\n"
           << "    if (vm_ver) fl_vm_version = (const uint64_t *) vm_ver;\n"
           << "    if (lua_frames) fl_lua_frames = (FlLuaFrame *) lua_frames;\n"
           << "    if (lua_depth) fl_lua_depth = lua_depth;\n"
-          << "    if (fl_lua_fn_map_n > 0) FakeluaRegisterFnMap((State *) s, fl_lua_fn_map, fl_lua_fn_map_n, file);\n";
+          << "#if !FL_SPEC_TRACK_FRAME\n"
+          << "    if (fl_lua_fn_map_n > 0) FakeluaRegisterFnMap((State *) s, &fl_lua_loc, fl_lua_fn_map, fl_lua_fn_map_n, file);\n"
+          << "#endif\n";
     for (size_t i = 0; i < string_literals_.size(); ++i) {
         Out() << "    __fakelua_cache_sid_" << i << " = intern(s, \"" << EscapeCStringLiteral(string_literals_[i]) << "\", " << string_literals_[i].size() << ");\n";
     }
@@ -784,7 +790,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 Out() << ") {\n";
                 CompileFuncBody(func->name, func_block, bitmask, sections_[static_cast<size_t>(Section::Impls)]);
                 if (!BlockEndsWithReturn(func_block)) {
-                    Out() << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_POP();\n#endif\n";
+                    Out() << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_POP(&__fl_saved_frame);\n#endif\n";
                     if (spec_ret == T_INT) {
                         Out() << "    return 0;\n";
                     } else if (spec_ret == T_FLOAT) {
@@ -807,7 +813,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
             Out() << ") {\n";
             CompileFuncBody(func->name, func_block, -1, sections_[static_cast<size_t>(Section::Impls)]);
             if (!BlockEndsWithReturn(func_block)) {
-                Out() << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_POP();\n#endif\n    return kNil;\n";
+                Out() << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_POP(&__fl_saved_frame);\n#endif\n    return kNil;\n";
             }
             Out() << "}\n";
             GenerateEntryDispatcher(name, func->name, c_func_params, math_params, dyn_name);
@@ -819,7 +825,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
             Out() << ") {\n";
             CompileFuncBody(func->name, func_block, -1, sections_[static_cast<size_t>(Section::Impls)]);
             if (!BlockEndsWithReturn(func_block)) {
-                Out() << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_POP();\n#endif\n    return kNil;\n";
+                Out() << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_POP(&__fl_saved_frame);\n#endif\n    return kNil;\n";
             }
             Out() << "}\n";
         }
@@ -915,7 +921,7 @@ void CGen::EmitFramedReturn(const std::string &expr, const std::string &ctype) {
     Out() << "#if FL_SPEC_TRACK_FRAME\n";
     Out() << tab << "{\n";
     Out() << tab << "    " << ctype << " __fl_frame_ret = " << expr << ";\n";
-    Out() << tab << "    FL_LUA_POP();\n";
+    Out() << tab << "    FL_LUA_POP(&__fl_saved_frame);\n";
     Out() << tab << "    return __fl_frame_ret;\n";
     Out() << tab << "}\n";
     Out() << "#else\n";
@@ -1175,7 +1181,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
         out << "#define FL_SPEC_NAME \"" << EscapeCStringLiteral(frame_name) << "\"\n";
         out << "#define FL_SPEC_FILE fl_lua_file\n";
         out << "#define FL_SPEC_LINE " << def_line << "\n";
-        out << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_PUSH(\"" << EscapeCStringLiteral(frame_name) << "\", " << def_line << ");\n#endif\n";
+        out << "#if FL_SPEC_TRACK_FRAME\n    FlLuaFrame __fl_saved_frame;\n    FL_LUA_PUSH(\"" << EscapeCStringLiteral(frame_name) << "\", " << def_line << ", &__fl_saved_frame);\n#endif\n";
     }
     out << func_temp_decls_.str();
     if (func_name == kInitFunctionName) out << global_initializers_.str();

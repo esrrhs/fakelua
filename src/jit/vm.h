@@ -128,6 +128,8 @@ extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const);
 
 extern "C" void FakeluaThrowError(State *state, const char *msg);
 
+extern "C" void FakeluaThrowSpec(State *state, const char *msg, const char *spec_name, const char *spec_file, int spec_line);
+
 extern "C" CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...);
 
 extern "C" CVar FakeluaCallByNameCached(State *state, int jit_type, const char *name, FlCallCache *cache, int arg_num, ...);

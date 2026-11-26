@@ -16,6 +16,7 @@ extern "C" int GetLogLevel(State *s);
 struct VarTable;
 extern "C" void FlEnsureNativeSpecSnapshot(VarTable *t);
 extern "C" void FakeluaRegisterLuaLoc(State *s, int jit_type, LuaLoc *loc);
+extern "C" void FakeluaRegisterFnMap(State *s, const void *owner, const FlLuaFnMap *map, int count, const char *file);
 
 TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) : s_(s) {
     const auto &config = s->GetStateConfig();
@@ -41,6 +42,7 @@ TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) : s_(s) {
     // 添加 JIT 代码可能调用的符号
     tcc_add_symbol(tcc_state_, "FakeluaAlloc", reinterpret_cast<void *>(FakeluaAlloc));
     tcc_add_symbol(tcc_state_, "FakeluaThrowError", reinterpret_cast<void *>(FakeluaThrowError));
+    tcc_add_symbol(tcc_state_, "FakeluaThrowSpec", reinterpret_cast<void *>(FakeluaThrowSpec));
     tcc_add_symbol(tcc_state_, "FakeluaCallByName", reinterpret_cast<void *>(FakeluaCallByName));
     tcc_add_symbol(tcc_state_, "FakeluaCallByNameCached", reinterpret_cast<void *>(FakeluaCallByNameCached));
     tcc_add_symbol(tcc_state_, "FakeluaCallNativeCached", reinterpret_cast<void *>(FakeluaCallNativeCached));
@@ -54,6 +56,7 @@ TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) : s_(s) {
     tcc_add_symbol(tcc_state_, "GetLogLevel", reinterpret_cast<void *>(GetLogLevel));
     tcc_add_symbol(tcc_state_, "FlEnsureNativeSpecSnapshot", reinterpret_cast<void *>(FlEnsureNativeSpecSnapshot));
     tcc_add_symbol(tcc_state_, "FakeluaRegisterLuaLoc", reinterpret_cast<void *>(FakeluaRegisterLuaLoc));
+    tcc_add_symbol(tcc_state_, "FakeluaRegisterFnMap", reinterpret_cast<void *>(FakeluaRegisterFnMap));
     tcc_define_symbol(tcc_state_, "FAKELUA_JIT_TYPE", std::to_string(static_cast<int>(JIT_TCC)).c_str());
 }
 

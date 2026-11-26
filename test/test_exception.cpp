@@ -2122,3 +2122,183 @@ TEST(exception, native_calls_without_lua_frame_preserve_host_exceptions) {
         }
     }
 }
+
+namespace {
+size_t CountSubstr(std::string_view haystack, std::string_view needle) {
+    if (needle.empty()) return 0;
+    size_t count = 0;
+    size_t pos = 0;
+    while ((pos = haystack.find(needle, pos)) != std::string_view::npos) {
+        ++count;
+        pos += needle.size();
+    }
+    return count;
+}
+}// namespace
+
+// -O3 下 local 函数和运行时表访问辅助函数都会内联，报错仍要保留内联进去的叶子函数与外层主叫。
+TEST(exception, gcc_o3_inlined_helper_throw_keeps_leaf_and_caller) {
+    StateConfig sc;
+    sc.log_level = LogLevel::Off;
+    FakeluaStateGuard sg(sc);
+    State *s = sg.GetState();
+    CompileConfig cfg;
+    cfg.debug_mode = false;
+    cfg.disable_jit[JIT_TCC] = true;
+    cfg.disable_jit[JIT_INTERP] = true;
+    CompileString(s,
+                  "local function leaf_index(v)\n"
+                  "    return v.missing\n"
+                  "end\n"
+                  "function o3_caller()\n"
+                  "    return leaf_index(nil) + 1\n"
+                  "end\n",
+                  cfg);
+    int64_t ret = 0;
+    try {
+        Call(s, JIT_GCC, "o3_caller", ret);
+        FAIL() << "expected runtime error";
+    } catch (const FakeluaException &e) {
+        const std::string stack = e.LuaStack();
+        const auto leaf = stack.find("in function 'leaf_index'");
+        const auto caller = stack.find("in function 'o3_caller'");
+        EXPECT_NE(leaf, std::string::npos) << e.what();
+        EXPECT_NE(caller, std::string::npos) << e.what();
+        EXPECT_LT(leaf, caller) << e.what();
+        EXPECT_TRUE(e.Loc().ends_with(":1")) << e.Loc() << "\n" << e.what();
+    }
+}
+
+// 普通递归函数和嵌套匿名闭包的 dispatcher 为 false，不能被当成入口分发器折叠成一帧。
+TEST(exception, ordinary_recursion_and_nested_anonymous_closures_keep_all_frames) {
+    StateConfig sc;
+    sc.log_level = LogLevel::Off;
+    FakeluaStateGuard sg(sc);
+    State *s = sg.GetState();
+    CompileString(s, R"(
+        function rec_plain(tag, n)
+            if n <= 0 then
+                error(tag)
+            end
+            return (rec_plain(tag, n - 1))
+        end
+
+        function nested_anon()
+            local outer = function()
+                local inner = function()
+                    error("anon_boom")
+                end
+                return (inner())
+            end
+            return (outer())
+        end
+    )",
+                  {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t ret = 0;
+        try {
+            Call(s, backend, "rec_plain", ret, std::string("rec_boom"), int64_t{3});
+            ADD_FAILURE() << "expected recursion error";
+        } catch (const FakeluaException &e) {
+            EXPECT_EQ(CountSubstr(e.LuaStack(), "in function 'rec_plain'"), 4u) << e.LuaStack();
+        }
+        try {
+            Call(s, backend, "nested_anon", ret);
+            ADD_FAILURE() << "expected nested closure error";
+        } catch (const FakeluaException &e) {
+            EXPECT_GE(CountSubstr(e.LuaStack(), "in function '(anonymous)'"), 2u) << e.LuaStack();
+            EXPECT_NE(e.LuaStack().find("in function 'nested_anon'"), std::string::npos) << e.LuaStack();
+        }
+    }
+}
+
+// 超过 256 层的深递归正常返回或经 pcall 恢复后不得污染浅层帧；未捕获超深报错要带省略帧提示。
+TEST(exception, deep_recursion_overflow_preserves_shallow_frames_and_marks_omitted) {
+    StateConfig sc;
+    sc.log_level = LogLevel::Off;
+    FakeluaStateGuard sg(sc);
+    State *s = sg.GetState();
+    CompileString(s, R"(
+        function deep_ok(tag, n)
+            if n <= 0 then
+                return 1
+            end
+            return 1 + deep_ok(tag, n - 1)
+        end
+
+        function deep_fail(tag, n)
+            if n <= 0 then
+                error(tag)
+            end
+            return (deep_fail(tag, n - 1))
+        end
+
+        function shallow_after_deep()
+            local v = deep_ok("ok", 270)
+            local ok, _ = pcall(function()
+                return deep_fail("caught", 270)
+            end)
+            assert(v == 271 and not ok)
+            error("shallow_boom")
+        end
+    )",
+                  {});
+    for (auto backend: AllJitTypes()) {
+        SCOPED_TRACE(JitTypeName(backend));
+        int64_t ret = 0;
+        try {
+            Call(s, backend, "shallow_after_deep", ret);
+            ADD_FAILURE() << "expected shallow_boom";
+        } catch (const FakeluaException &e) {
+            EXPECT_NE(e.LuaStack().find("in function 'shallow_after_deep'"), std::string::npos) << e.LuaStack();
+            EXPECT_EQ(e.LuaStack().find("deep_ok"), std::string::npos) << e.LuaStack();
+            EXPECT_EQ(e.LuaStack().find("deep_fail"), std::string::npos) << e.LuaStack();
+        }
+        try {
+            Call(s, backend, "deep_fail", ret, std::string("overflow_boom"), int64_t{270});
+            ADD_FAILURE() << "expected overflow_boom";
+        } catch (const FakeluaException &e) {
+            EXPECT_NE(e.LuaStack().find("... ("), std::string::npos) << e.LuaStack();
+            EXPECT_NE(e.LuaStack().find("more frames)"), std::string::npos) << e.LuaStack();
+        }
+    }
+}
+
+// GCC 函数回调解释器闭包并在内层抛错时，解释器帧在前、外层 GCC 帧也保留在调用栈里。
+TEST(exception, cross_engine_closure_throw_merges_gcc_and_interp_frames) {
+    StateConfig sc;
+    sc.log_level = LogLevel::Off;
+    FakeluaStateGuard sg(sc);
+    State *s = sg.GetState();
+    CompileString(s,
+                  "local function interp_leaf()\n"
+                  "    error(\"cross_boom\")\n"
+                  "end\n"
+                  "function make_interp_closure()\n"
+                  "    return function()\n"
+                  "        return (interp_leaf())\n"
+                  "    end\n"
+                  "end\n"
+                  "function gcc_invoker(fn)\n"
+                  "    return (fn())\n"
+                  "end\n"
+                  "function run_cross()\n"
+                  "    return 0\n"
+                  "end\n",
+                  {});
+    CVar cl{};
+    cl = CallByNameArgs(s, JIT_INTERP, "make_interp_closure", 0, nullptr);
+    try {
+        (void) CallByNameArgs(s, JIT_GCC, "gcc_invoker", 1, &cl);
+        FAIL() << "expected cross_boom";
+    } catch (const FakeluaException &e) {
+        const std::string stack = e.LuaStack();
+        const auto leaf = stack.find("in function 'interp_leaf'");
+        const auto invoker = stack.find("in function 'gcc_invoker'");
+        EXPECT_NE(leaf, std::string::npos) << e.what();
+        EXPECT_NE(invoker, std::string::npos) << e.what();
+        EXPECT_LT(leaf, invoker) << e.what();
+        EXPECT_TRUE(e.Loc().ends_with(":2")) << e.Loc() << "\n" << e.what();
+    }
+}
