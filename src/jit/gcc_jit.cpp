@@ -99,60 +99,74 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
             }
         }
     } workspace;
-#if defined(USE_COV)
-    // Coverage builds: put JIT temps under the CMake build tree so .gcno/.gcda are
-    // visible to `lcov --directory build`. Keep random names to avoid collisions.
     std::string c_file;
-    {
-        const std::filesystem::path cov_dir(FAKELUA_JIT_COV_DIR);
-        std::error_code ec;
-        std::filesystem::create_directories(cov_dir, ec);
-        std::mt19937 rng{std::random_device{}()};
-        std::uniform_int_distribution<int> dist(100000, 999999);
-        do {
-            c_file = (cov_dir / ("fakelua_jit_" + std::to_string(dist(rng)) + ".c")).string();
-        } while (std::ifstream(c_file));
-    }
-#else
-    // An exclusive private directory prevents temp-file collisions/symlink
-    // races and ensures every dlopen/LoadLibrary sees a distinct image inode.
-    workspace.path = GenerateTmpFilename("fakelua_jit_", ".dir");
-#if defined(_WIN32)
-    if (!std::filesystem::create_directory(workspace.path))
-#else
-    if (::mkdir(workspace.path.c_str(), 0700) != 0)
-#endif
-        ThrowFakeluaException("GCC compile failed, cannot create private workspace");
-    workspace.created = true;
-    const std::string c_file = (std::filesystem::path(workspace.path) / "module.c").string();
-#endif
-    const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
-#if defined(_WIN32)
-                                ".dll";
-#elif defined(__APPLE__)
-                                ".dylib";
-#else
-                                ".so";
-#endif
-    const std::string log_file = c_file.substr(0, c_file.size() - kCExtLen) + ".gcc.log";
+    std::string so_file;
+    std::string log_file;
+    std::string obj_file;
+    bool c_written = false;
 
-    const std::string obj_file = c_file.substr(0, c_file.size() - kCExtLen) + ".o";
+    auto ensure_workspace = [&]() {
+        if (workspace.created || !c_file.empty()) return;
+#if defined(USE_COV)
+        // Coverage builds: put JIT temps under the CMake build tree so .gcno/.gcda are
+        // visible to `lcov --directory build`. Keep random names to avoid collisions.
+        {
+            const std::filesystem::path cov_dir(FAKELUA_JIT_COV_DIR);
+            std::error_code ec;
+            std::filesystem::create_directories(cov_dir, ec);
+            std::mt19937 rng{std::random_device{}()};
+            std::uniform_int_distribution<int> dist(100000, 999999);
+            do {
+                c_file = (cov_dir / ("fakelua_jit_" + std::to_string(dist(rng)) + ".c")).string();
+            } while (std::ifstream(c_file));
+        }
+#else
+        // An exclusive private directory prevents temp-file collisions/symlink
+        // races and ensures every dlopen/LoadLibrary sees a distinct image inode.
+        workspace.path = GenerateTmpFilename("fakelua_jit_", ".dir");
+#if defined(_WIN32)
+        if (!std::filesystem::create_directory(workspace.path))
+#else
+        if (::mkdir(workspace.path.c_str(), 0700) != 0)
+#endif
+            ThrowFakeluaException("GCC compile failed, cannot create private workspace");
+        workspace.created = true;
+        c_file = (std::filesystem::path(workspace.path) / "module.c").string();
+#endif
+        so_file = c_file.substr(0, c_file.size() - kCExtLen) +
+#if defined(_WIN32)
+                  ".dll";
+#elif defined(__APPLE__)
+                  ".dylib";
+#else
+                  ".so";
+#endif
+        log_file = c_file.substr(0, c_file.size() - kCExtLen) + ".gcc.log";
+        obj_file = c_file.substr(0, c_file.size() - kCExtLen) + ".o";
+    };
 
     // RAII cleanup for temp files on early error paths (before GCCHandle takes ownership).
     const auto CleanupOnError = [&]() {
         std::error_code ec;
-        std::filesystem::remove(c_file, ec);
-        std::filesystem::remove(obj_file, ec);
-        std::filesystem::remove(so_file, ec);
-        std::filesystem::remove(log_file, ec);
+        if (!c_file.empty()) std::filesystem::remove(c_file, ec);
+        if (!obj_file.empty()) std::filesystem::remove(obj_file, ec);
+        if (!so_file.empty()) std::filesystem::remove(so_file, ec);
+        if (!log_file.empty()) std::filesystem::remove(log_file, ec);
     };
 
-    if (std::ofstream ofs(c_file); !ofs.is_open()) {
-        ThrowFakeluaException(std::format("GCC compile failed, cannot open c file {}", c_file));
-    } else {
-        ofs << gr.c_code;
-        ofs.close();
-    }
+    auto ensure_c_and_log = [&]() {
+        ensure_workspace();
+        if (!c_written) {
+            if (std::ofstream ofs(c_file); !ofs.is_open()) {
+                ThrowFakeluaException(std::format("GCC compile failed, cannot open c file {}", c_file));
+            } else {
+                ofs << gr.c_code;
+                ofs.close();
+            }
+            c_written = true;
+        }
+        std::ofstream trunc(log_file, std::ios::trunc);
+    };
 
     std::string compiler = "gcc";
     if (const char *env_cc = std::getenv("FAKELUA_CC"); env_cc && *env_cc) {
@@ -172,15 +186,21 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     cache_config.enable_cache = false;
 #endif
     GccCache cache(cache_config, compiler, gr.c_code, cfg.debug_mode);
-    bool cache_hit = cache.Restore(so_file);
-    const std::string dep_file = c_file + ".d";
+    std::string load_path;
+    bool direct_cache_image = false;
+    bool cache_hit = cache.RestoreForLoad(so_file, load_path, direct_cache_image, [&]() {
+        ensure_workspace();
+    });
+    std::string dep_file;
 
     struct DependencyCleanup {
         const std::string &path;
 
         ~DependencyCleanup() {
-            std::error_code ec;
-            std::filesystem::remove(path, ec);
+            if (!path.empty()) {
+                std::error_code ec;
+                std::filesystem::remove(path, ec);
+            }
         }
     } dependency_cleanup{dep_file};
 
@@ -218,10 +238,6 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         argv.emplace_back(nullptr);
         return argv;
     };
-
-    {
-        std::ofstream trunc(log_file, std::ios::trunc);
-    }
 
     auto run_gcc = [&](std::vector<std::string> &a) {
 #if defined(_WIN32)
@@ -288,6 +304,8 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     };
 
     auto compile_image = [&]() {
+        ensure_c_and_log();
+        dep_file = c_file + ".d";
 #if defined(USE_COV)
         // Two-step compile so gcov notes/data are named `<stem>.gcno/.gcda` (not
         // `<stem>.so-<stem>.gcno` from one-shot -shared of a .c file).
@@ -357,19 +375,37 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         }
 #endif
     };
-    if (!cache_hit) compile_image();
+    bool published_before_load = false;
+    if (!cache_hit) {
+        compile_image();
+        load_path = so_file;
+#if !defined(_WIN32) && !defined(USE_COV)
+        // Publish before dlopen on POSIX so the OS code-signing trust cache
+        // (e.g. macOS syspolicyd) is warmed on the stable cache path on launch 1,
+        // making launch 2 fast as well. If dlopen or symbol checks fail below,
+        // cache.Invalidate() immediately removes the entry.
+        cache.Publish(so_file, dep_file, c_file);
+        published_before_load = true;
+        if (auto direct_path = cache.TryClaimPublishedImage(); !direct_path.empty()) {
+            load_path = std::move(direct_path);
+            direct_cache_image = true;
+        }
+#endif
+    }
 
 #if defined(_WIN32)
-    HMODULE module_handle = LoadLibraryA(so_file.c_str());
+    HMODULE module_handle = LoadLibraryA(load_path.c_str());
     if (!module_handle && cache_hit) {
         cache.Invalidate();
         cache_hit = false;
+        direct_cache_image = false;
         compile_image();
-        module_handle = LoadLibraryA(so_file.c_str());
+        load_path = so_file;
+        module_handle = LoadLibraryA(load_path.c_str());
     }
     if (!module_handle) {
         CleanupOnError();
-        ThrowFakeluaException(std::format("GCC compile failed, LoadLibrary failed for {}: {}", so_file, WinErrToString(GetLastError())));
+        ThrowFakeluaException(std::format("GCC compile failed, LoadLibrary failed for {}: {}", load_path, WinErrToString(GetLastError())));
     }
     const auto handle = std::make_shared<GCCHandle>(s_, c_file, so_file, log_file, module_handle, workspace.path);
     workspace.transferred = true;
@@ -380,26 +416,40 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         return p ? reinterpret_cast<void *>(p) : nullptr;
     };
 #else
-    void *dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
+    void *dl_handle = dlopen(load_path.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!dl_handle && cache_hit) {
         cache.Invalidate();
         cache_hit = false;
+        direct_cache_image = false;
         compile_image();
-        dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
+        load_path = so_file;
+        dl_handle = dlopen(load_path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    }
+    if (!dl_handle && direct_cache_image && !so_file.empty()) {
+        // Fallback if the published cache file was concurrently evicted before dlopen.
+        direct_cache_image = false;
+        load_path = so_file;
+        dl_handle = dlopen(load_path.c_str(), RTLD_NOW | RTLD_LOCAL);
     }
     if (!dl_handle) {
         // 在高并发多进程测试场景下，macOS 内核 AMFI 代码签名检查偶现缓存同步微延迟，重试以确保平滑加载
         for (int retry = 0; retry < 5 && !dl_handle; ++retry) {
             usleep(2000 * (retry + 1));
-            dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
+            dl_handle = dlopen(load_path.c_str(), RTLD_NOW | RTLD_LOCAL);
         }
     }
     if (!dl_handle) {
+        if (published_before_load) cache.Invalidate();
         CleanupOnError();
-        ThrowFakeluaException(std::format("GCC compile failed, dlopen failed for {}: {}", so_file, dlerror()));
+        ThrowFakeluaException(std::format("GCC compile failed, dlopen failed for {}: {}", load_path, dlerror()));
     }
-    const auto handle = std::make_shared<GCCHandle>(s_, c_file, so_file, log_file, dl_handle, workspace.path);
-    workspace.transferred = true;
+    // When loaded directly from the persistent cache image, do not pass the cache
+    // path to GCCHandle (so ~GCCHandle never deletes cached artifacts); temporary
+    // workspace (if created during cold compile) is still cleaned up on scope exit.
+    const auto handle = direct_cache_image
+                            ? std::make_shared<GCCHandle>(s_, std::string{}, std::string{}, std::string{}, dl_handle, std::string{})
+                            : std::make_shared<GCCHandle>(s_, c_file, so_file, log_file, dl_handle, workspace.path);
+    if (!direct_cache_image) workspace.transferred = true;
 
     auto dlsym_lambda = [&](const std::string &sym) -> void * { return dlsym(dl_handle, sym.c_str()); };
 #endif
@@ -416,7 +466,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
             ThrowFakeluaException("GCC image missing function " + symbol);
         }
     }
-    if (!cache_hit) cache.Publish(so_file, dep_file, c_file);
+    if (!cache_hit && !published_before_load) cache.Publish(so_file, dep_file, c_file);
     cache.Release();// init may call native code which recursively compiles Lua
 
     // ---- Common post-load: register compiled functions + call init ----

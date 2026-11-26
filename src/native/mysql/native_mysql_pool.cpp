@@ -34,6 +34,9 @@ struct PoolObject {
     std::unique_ptr<MysqlConnectionPool> pool;
     PoolConfig config;
     std::unordered_set<NativeObject *> wrappers;
+
+    void ZeroAcquiredConnPtrs();
+    void InvalidateAcquiredWrappers();
 };
 
 // Helpers
@@ -59,9 +62,8 @@ static PoolObject *UnwrapPool(NativeObject *self) {
     return reinterpret_cast<PoolObject *>(self->GetInt("__mysql_pool__", 0));
 }
 
-static void ZeroAcquiredConnPtrs(PoolObject *po) {
-    if (!po) return;
-    for (auto *nat: po->wrappers) {
+void PoolObject::ZeroAcquiredConnPtrs() {
+    for (auto *nat: wrappers) {
         if (!nat) continue;
         auto *c = UnwrapConnNative(nat);
         if (c) c->SetNativeObject(nullptr);
@@ -69,11 +71,10 @@ static void ZeroAcquiredConnPtrs(PoolObject *po) {
     }
 }
 
-static void InvalidateAcquiredWrappers(PoolObject *po) {
-    if (!po) return;
-    auto wrappers = std::move(po->wrappers);
-    po->wrappers.clear();
-    for (auto *nat: wrappers) {
+void PoolObject::InvalidateAcquiredWrappers() {
+    auto held = std::move(wrappers);
+    wrappers.clear();
+    for (auto *nat: held) {
         if (!nat) continue;
         auto *c = UnwrapConnNative(nat);
         if (c) c->SetNativeObject(nullptr);
@@ -204,7 +205,7 @@ static CVar PoolCreate(State *s, CVar *args, int n) {
         UnregisterMysqlNativeWrapper(self);
         auto *p = UnwrapPool(self);
         if (p) {
-            InvalidateAcquiredWrappers(p);
+            p->InvalidateAcquiredWrappers();
             delete p;
             self->SetInt("__mysql_pool__", 0);
         }
@@ -328,7 +329,7 @@ int TestPoolWithFnThrowReturnsConnection(State *s, CVar fn) {
         UnregisterMysqlNativeWrapper(self);
         auto *p = UnwrapPool(self);
         if (p) {
-            InvalidateAcquiredWrappers(p);
+            p->InvalidateAcquiredWrappers();
             delete p;
             self->SetInt("__mysql_pool__", 0);
         }
@@ -376,7 +377,7 @@ int TestPoolWithAsyncQueryAutoRelease(State *s, CVar fn) {
         UnregisterMysqlNativeWrapper(self);
         auto *p = UnwrapPool(self);
         if (p) {
-            InvalidateAcquiredWrappers(p);
+            p->InvalidateAcquiredWrappers();
             delete p;
             self->SetInt("__mysql_pool__", 0);
         }
@@ -438,7 +439,7 @@ void TickMysqlPool(NativeObject *self) {
 static CVar PoolClose(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     auto *pool_obj = UnwrapPool(self);
     if (pool_obj && pool_obj->pool) {
-        ZeroAcquiredConnPtrs(pool_obj);
+        pool_obj->ZeroAcquiredConnPtrs();
         pool_obj->pool->Close();
         pool_obj->pool->Reap();
     }

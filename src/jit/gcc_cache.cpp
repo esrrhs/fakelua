@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <string_view>
 #include <system_error>
+#include <unordered_set>
 #include <vector>
 #if defined(_WIN32)
 #define NOMINMAX
@@ -461,8 +462,26 @@ std::vector<CacheEntry> CompleteEntries(const fs::path &root) {
     return result;
 }
 
-void TrimEntries(const fs::path &root, size_t limit) {
+void TrimEntries(const fs::path &root, size_t limit, bool allow_memo = true) {
     if (!limit) return;// zero explicitly means unlimited
+
+    struct TrimMemo {
+        std::string stamp;
+        size_t limit = 0;
+    };
+
+    static std::mutex memo_mutex;
+    static std::map<std::string, TrimMemo> memo;
+    if (allow_memo) {
+        try {
+            const auto root_stamp = FileStamp(root);
+            std::lock_guard lock(memo_mutex);
+            if (auto it = memo.find(root.string()); it != memo.end()) {
+                if (it->second.stamp == root_stamp && it->second.limit > 0 && it->second.limit <= limit) return;
+            }
+        } catch (...) {
+        }
+    }
     auto entries = CompleteEntries(root);
     auto count = entries.size();
     for (const auto &entry: entries) {
@@ -470,6 +489,12 @@ void TrimEntries(const fs::path &root, size_t limit) {
         std::error_code ec;
         RemoveTree(entry.path, ec);
         if (!ec) --count;// permission/cleanup races are best effort, never Lua errors
+    }
+    try {
+        const auto after_stamp = FileStamp(root);
+        std::lock_guard lock(memo_mutex);
+        memo[root.string()] = {after_stamp, limit};
+    } catch (...) {
     }
 }
 
@@ -557,6 +582,25 @@ struct GccCache::Impl {
         if (!key_lock->StillLinked()) throw std::runtime_error("cache lock removed");
         return CacheFileLock(entry.parent_path() / "index.lock");
     }
+
+    bool ValidateAndReadImage(std::string &bytes) const {
+        auto index_lock = IndexLock();
+        if (!index_lock.StillLinked()) return false;
+        TrimEntries(entry.parent_path(), max_entries);
+        std::istringstream meta(ReadBytes(entry / "manifest"));
+        std::string binary_hash, path, hash;
+        if (!(meta >> binary_hash) || binary_hash.size() != 64) throw std::runtime_error("cache manifest");
+        size_t count = 0;
+        if (!(meta >> count) || count == 0 || count > 10000) throw std::runtime_error("cache dependency count");
+        for (size_t i = 0; i < count; ++i) {
+            if (!(meta >> std::quoted(path) >> hash)) throw std::runtime_error("cache dependency");
+            const auto actual = hash.starts_with("directory:") ? "directory:" + Digest(FileStamp(path)) : FileDigest(path);
+            if (actual != hash) throw std::runtime_error("cache stale dependency");
+        }
+        bytes = ReadBytes(entry / "image");
+        if (Digest(bytes) != binary_hash) throw std::runtime_error("cache corrupt image");
+        return true;
+    }
 };
 
 GccCache::~GccCache() = default;
@@ -635,24 +679,23 @@ GccCache::GccCache(const StateGCCConfig &cfg, const std::string &compiler, const
     }
 }
 
+bool GccCache::TryClaimDirectImagePath(const fs::path &image_path) {
+#if defined(_WIN32)
+    (void) image_path;
+    return false;
+#else
+    static std::mutex claim_mutex;
+    static std::unordered_set<std::string> claimed_paths;
+    std::lock_guard lock(claim_mutex);
+    return claimed_paths.emplace(image_path.string()).second;
+#endif
+}
+
 bool GccCache::Restore(const std::string &destination) {
     if (!impl_) return false;
     try {
-        auto index_lock = impl_->IndexLock();
-        if (!index_lock.StillLinked()) return false;
-        TrimEntries(impl_->entry.parent_path(), impl_->max_entries);
-        std::istringstream meta(ReadBytes(impl_->entry / "manifest"));
-        std::string binary_hash, path, hash;
-        if (!(meta >> binary_hash) || binary_hash.size() != 64) throw std::runtime_error("cache manifest");
-        size_t count = 0;
-        if (!(meta >> count) || count == 0 || count > 10000) throw std::runtime_error("cache dependency count");
-        for (size_t i = 0; i < count; ++i) {
-            if (!(meta >> std::quoted(path) >> hash)) throw std::runtime_error("cache dependency");
-            const auto actual = hash.starts_with("directory:") ? "directory:" + Digest(FileStamp(path)) : FileDigest(path);
-            if (actual != hash) throw std::runtime_error("cache stale dependency");
-        }
-        std::string bytes = ReadBytes(impl_->entry / "image");
-        if (Digest(bytes) != binary_hash) throw std::runtime_error("cache corrupt image");
+        std::string bytes;
+        if (!impl_->ValidateAndReadImage(bytes)) return false;
         // A byte copy, not a hardlink: dlopen deduplicates mapped inodes and would
         // otherwise share _S, init flags, Lua locations and module globals.
         WriteBytes(destination, bytes);
@@ -661,6 +704,42 @@ bool GccCache::Restore(const std::string &destination) {
         Invalidate();
         return false;
     }
+}
+
+bool GccCache::RestoreForLoad(const std::string &destination, std::string &load_path, bool &is_direct, const std::function<void()> &ensure_destination) {
+    load_path.clear();
+    is_direct = false;
+    if (!impl_) return false;
+    try {
+        std::string bytes;
+        if (!impl_->ValidateAndReadImage(bytes)) return false;
+        const auto image_path = impl_->entry / "image";
+        if (TryClaimDirectImagePath(image_path)) {
+            load_path = image_path.string();
+            is_direct = true;
+            return true;
+        }
+        if (ensure_destination) ensure_destination();
+        WriteBytes(destination, bytes);
+        load_path = destination;
+        return true;
+    } catch (...) {
+        Invalidate();
+        return false;
+    }
+}
+
+std::string GccCache::TryClaimPublishedImage() {
+    if (!impl_) return {};
+#if defined(_WIN32)
+    return {};
+#else
+    const auto image_path = impl_->entry / "image";
+    std::error_code ec;
+    if (!fs::is_regular_file(image_path, ec)) return {};
+    if (!TryClaimDirectImagePath(image_path)) return {};
+    return image_path.string();
+#endif
 }
 
 void GccCache::Invalidate() {
@@ -721,7 +800,9 @@ void GccCache::Publish(const std::string &binary, const std::string &dependencie
         }
         RemoveTree(impl_->entry, stale);
         fs::rename(staging, impl_->entry);// only complete, validated images become visible
-        TrimEntries(root, impl_->max_entries);
+        // Publish just added or replaced an entry; do not trust the Restore-path
+        // stamp memo, which can miss a same-tick directory update and skip eviction.
+        TrimEntries(root, impl_->max_entries, false);
     } catch (...) {
         std::error_code ec;
         if (!staging.empty()) RemoveTree(staging, ec);
