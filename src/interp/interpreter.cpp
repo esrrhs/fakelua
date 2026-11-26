@@ -57,21 +57,48 @@ void SetGlobal(FuncProto *proto, std::string_view name, CVar v) {
 }
 
 // 出错指令的行号：取值时 ip 已自增，异常抛出点对应的就是刚取出的那条指令。
-// 只在这一层补位置，内层帧已经补过的不再覆盖，于是位置总是最内层那条 Lua 指令。
-void AnnotateInterpLocation(FuncProto *proto, const Inst *ip, FakeluaException &e) {
-    if (e.HasLoc() || proto == nullptr || proto->unit == nullptr || ip == nullptr || proto->code.empty()) {
-        return;
+int InterpInstLine(FuncProto *proto, const Inst *ip) {
+    if (proto == nullptr || ip == nullptr || proto->code.empty() || proto->lineinfo.empty()) {
+        return 0;
     }
     const auto offset = ip - proto->code.data();
     if (offset <= 0 || static_cast<size_t>(offset) > proto->lineinfo.size()) {
-        return;
+        return 0;
     }
-    const int line = proto->lineinfo[static_cast<size_t>(offset) - 1];
-    if (line <= 0) {
-        return;
-    }
-    e.SetLoc(std::format("{}:{}", proto->unit->file_name, line));
+    return proto->lineinfo[static_cast<size_t>(offset) - 1];
 }
+
+// 调用指令执行前记下主叫方所在行，被调函数抛错时调用栈上这一帧还指着调用点。
+void NoteInterpCallLine(State *s, FuncProto *proto, const Inst *ip) {
+    s->SetTopLuaLine(InterpInstLine(proto, ip));
+}
+
+// 只在这一层补位置，内层帧已经补过的不再覆盖，于是位置总是最内层那条 Lua 指令。
+// 同时把行号写进栈顶帧，再把整条 Lua 调用栈拷进异常。
+void AnnotateInterpLocation(State *s, FuncProto *proto, const Inst *ip, FakeluaException &e) {
+    const int line = InterpInstLine(proto, ip);
+    if (line > 0) {
+        s->SetTopLuaLine(line);
+    }
+    if (!e.HasLoc() && line > 0 && proto != nullptr && proto->unit != nullptr) {
+        e.SetLoc(std::format("{}:{}", proto->unit->file_name, line));
+    }
+    e.SetLuaStack(s->FormatLuaStack());
+}
+
+struct InterpLuaStackFrame {
+    State *s;
+    explicit InterpLuaStackFrame(State *state, FuncProto *proto) : s(state) {
+        const char *file = (proto != nullptr && proto->unit != nullptr) ? proto->unit->file_name.c_str() : nullptr;
+        const char *name = (proto != nullptr) ? proto->name.c_str() : nullptr;
+        s->PushLuaFrame(name, file, 0);
+    }
+    ~InterpLuaStackFrame() {
+        s->PopLuaFrame();
+    }
+    InterpLuaStackFrame(const InterpLuaStackFrame &) = delete;
+    InterpLuaStackFrame &operator=(const InterpLuaStackFrame &) = delete;
+};
 
 // 解释器帧内再调解释器：当前引擎通常已是 INTERP，错误位置走 lineinfo，
 // 不必再套 DispatchCall 的 JitContextScope / LuaLocScope。若从尚未切换引擎
@@ -262,6 +289,8 @@ bool ApplyInterpTail(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const s
         return false;
     }
     ip = proto->code.data();
+    const char *file = new_proto->unit != nullptr ? new_proto->unit->file_name.c_str() : nullptr;
+    s->RetargetTopLuaFrame(new_proto->name.c_str(), file);
     return true;
 }
 
@@ -442,6 +471,7 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
 
     const Inst *ip = proto->code.empty() ? nullptr : proto->code.data();
     Inst inst{};
+    InterpLuaStackFrame lua_frame(s, proto);
 
     // ip 是本帧的局部量，catch 里读到的就是抛出时正在执行的那条指令，
     // 所以补位置不需要在热路径上为每个指令先存一份。
@@ -645,6 +675,7 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
             VM_DISPATCH_NEXT();
         }
         VM_CASE(CALL) {
+            NoteInterpCallLine(s, proto, ip);
             CVar fn = VM_R(inst.a);
             if (fn.type_ != static_cast<int>(VarType::Closure) || !fn.data_.cl) {
                 ThrowFakeluaException("attempt to call a non-function value");
@@ -684,6 +715,7 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
             VM_DISPATCH_NEXT();
         }
         VM_CASE(CALLNAME) {
+            NoteInterpCallLine(s, proto, ip);
             // ConstToName 返回 string_view（interned，不一定带 NUL）。成功路径不再堆分配
             // std::string；报错走 std::format 的 string_view，仅在 CallByNameImpl 的失败路径
             // 才可能分配。
@@ -706,6 +738,7 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
             VM_DISPATCH_NEXT();
         }
         VM_CASE(TAIL) {
+            NoteInterpCallLine(s, proto, ip);
             if (inst.c == kTailSelfExact) {
                 // 本函数精确自尾调用：保持 cl，直接重置 ip。
                 if (ReuseFrameSelfTail<HasBoxes>(s, proto, stk, boxp, ip, inst.a + 1, inst.b)) {
@@ -721,6 +754,7 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
             return ret;
         }
         VM_CASE(TAILNAME) {
+            NoteInterpCallLine(s, proto, ip);
             if (inst.c == kTailSelfExact) {
                 if (ReuseFrameSelfTail<HasBoxes>(s, proto, stk, boxp, ip, inst.a, inst.b)) {
                     VM_DISPATCH_NEXT();
@@ -870,7 +904,7 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
 }
 
 catch (FakeluaException &e) {
-    AnnotateInterpLocation(proto, ip, e);
+    AnnotateInterpLocation(s, proto, ip, e);
     throw;
 }
 

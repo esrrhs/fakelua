@@ -540,6 +540,8 @@ CVar DispatchCall(State *s, void *addr, const CVar *arg_arr, int arg_count, JITT
     State::JitContextScope jit_scope(s, type);
     // 本次调用期间才承认「位置槽里是当前位置」，返回后恢复主叫方的值。
     LuaLocScope loc_scope(s);
+    // 生成代码出错时 FL_LUA_POP 不会执行。深度在这里恢复；调用栈文本已留在异常里。
+    LuaStackScope stack_scope(s);
     // 解释器闭包用 code_str magic 识别，不能看函数指针最低位：GCC 的函数指针可以是奇数。
     // type==JIT_INTERP 且 cl 为空：Call()/CallByName 直接调注册的解释器原型。
     // cl 是 TCC/GCC 闭包时即使 type 是 JIT_INTERP 也必须走 C 函数指针（解释器回调 JIT 闭包）。

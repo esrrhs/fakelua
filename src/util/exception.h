@@ -6,15 +6,16 @@
 
 namespace fakelua {
 
-// 错误文本由三段拼成：原始消息、Lua 源码位置（file:line）、C++ 堆栈。
-// 分开存是因为 Lua 位置只在离错误最近的 Lua 边界才拿得到——解释器帧看自己的当前指令，
-// JIT 那边看生成代码写在 State 上的位置槽——补上位置时要重算 what()。
+// 错误文本由四段拼成：原始消息、Lua 源码位置（file:line）、Lua 调用栈、C++ 堆栈。
+// 分开存是因为 Lua 位置和调用栈只在离错误最近的 Lua 边界才拿得到——解释器帧看自己的
+// 当前指令，JIT 那边看生成代码写在 State 上的帧——补上时要重算 what()。
 class FakeluaException : public std::runtime_error {
 public:
     struct Parts {
         std::string msg;
         std::string loc;
         std::string stack;
+        std::string lua_stack;
     };
 
     explicit FakeluaException(Parts parts);
@@ -41,8 +42,15 @@ public:
         return !parts_.loc.empty();
     }
 
+    [[nodiscard]] const std::string &LuaStack() const noexcept {
+        return parts_.lua_stack;
+    }
+
     // 由最近的 Lua 边界补位置；已有位置的（内层帧已补）保持不动。
     void SetLoc(const std::string &loc);
+
+    // 补 Lua 调用栈。已有的保持不动，空串也不覆盖。
+    void SetLuaStack(const std::string &lua_stack);
 
 protected:
     void Rebuild();
@@ -73,6 +81,7 @@ std::string BuildFakeluaErrorMessage(const std::string &msg, const std::string &
 
 [[noreturn]] void ThrowFakeluaException(const std::string &msg);
 // loc 为 Lua 源码位置文本，形如 "main.lua:12"；未知时传空串。
-[[noreturn]] void ThrowFakeluaExceptionAt(const std::string &msg, const std::string &loc);
+// lua_stack 为 FormatLuaStack() 的结果，未知时传空串。
+[[noreturn]] void ThrowFakeluaExceptionAt(const std::string &msg, const std::string &loc, const std::string &lua_stack = {});
 
 }// namespace fakelua

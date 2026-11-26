@@ -1,4 +1,8 @@
 #include "state/state.h"
+#include <algorithm>
+#include <cstring>
+#include <dlfcn.h>
+#include <execinfo.h>
 #include "fakelua.h"
 #include "jit/tcc_jit.h"
 #include "native/compress/native_compress.h"
@@ -41,6 +45,171 @@ native::IoContext &State::GetIoContext() {
         io_context_ = std::make_unique<native::IoContext>();
     }
     return *io_context_;
+}
+
+void State::PushLuaFrame(const char *func, const char *file, int line) {
+    if (lua_depth_ < 0) {
+        lua_depth_ = 0;
+    }
+    LuaFrame &fr = lua_frames_[lua_depth_ % kMaxLuaStack];
+    fr.file = file;
+    fr.line = line;
+    fr.func = (func != nullptr && func[0] != '\0') ? func : "?";
+    ++lua_depth_;
+}
+
+void State::PopLuaFrame() {
+    if (lua_depth_ > 0) {
+        --lua_depth_;
+    }
+}
+
+void State::RetargetTopLuaFrame(const char *func, const char *file) {
+    if (lua_depth_ <= 0) {
+        PushLuaFrame(func, file, 0);
+        return;
+    }
+    LuaFrame &fr = lua_frames_[(lua_depth_ - 1) % kMaxLuaStack];
+    fr.func = (func != nullptr && func[0] != '\0') ? func : "?";
+    fr.file = file;
+    fr.line = 0;
+}
+
+void State::SetTopLuaLine(int line) {
+    if (lua_depth_ <= 0 || line <= 0) {
+        return;
+    }
+    lua_frames_[(lua_depth_ - 1) % kMaxLuaStack].line = line;
+}
+
+void State::RegisterJitFn(const void *addr, const char *lua_name, const char *file, int line, bool spec) {
+    if (addr == nullptr || lua_name == nullptr || lua_name[0] == '\0') {
+        return;
+    }
+    JitFnSymbol sym;
+    sym.lua_name = lua_name;
+    sym.file = file != nullptr ? file : "";
+    sym.line = line;
+    sym.spec = spec;
+    jit_fn_symbols_[addr] = std::move(sym);
+}
+
+extern "C" void FakeluaRegisterFnMap(State *s, const FlLuaFnMap *map, int count, const char *file) {
+    if (s == nullptr || map == nullptr || count <= 0) {
+        return;
+    }
+    for (int i = 0; i < count; ++i) {
+        s->RegisterJitFn(map[i].addr, map[i].lua_name, file, map[i].line, map[i].spec != 0);
+    }
+}
+
+void State::CollectMergedLuaFrames(std::vector<MergedLuaFrame> &out) const {
+    out.clear();
+    std::vector<const LuaFrame *> lua_recent;
+    lua_recent.reserve(static_cast<size_t>(std::max(lua_depth_, 0)));
+    const int shown_lua = lua_depth_ < kMaxLuaStack ? lua_depth_ : kMaxLuaStack;
+    for (int i = 0; i < shown_lua; ++i) {
+        const int index = lua_depth_ - 1 - i;
+        lua_recent.push_back(&lua_frames_[index % kMaxLuaStack]);
+    }
+
+    std::vector<const JitFnSymbol *> c_frames;
+    bool any_spec = false;
+    // 只在 GCC 上走 C 栈。TCC 没有展开信息，解释器帧已经写在 lua_frames_ 里。
+    if (CurrentJit() == JIT_GCC && !jit_fn_symbols_.empty()) {
+        void *pcs[128];
+        const int n = backtrace(pcs, 128);
+        c_frames.reserve(static_cast<size_t>(std::max(n, 0)));
+        for (int i = 0; i < n; ++i) {
+            Dl_info info{};
+            if (dladdr(pcs[i], &info) == 0 || info.dli_saddr == nullptr) {
+                continue;
+            }
+            const auto it = jit_fn_symbols_.find(info.dli_saddr);
+            if (it == jit_fn_symbols_.end()) {
+                continue;
+            }
+            if (it->second.spec) {
+                any_spec = true;
+            }
+            c_frames.push_back(&it->second);
+        }
+    }
+    const bool hinted = spec_throw_hint_name_ != nullptr && spec_throw_hint_name_[0] != '\0';
+    if (!any_spec && !hinted && c_frames.empty()) {
+        for (const LuaFrame *fr: lua_recent) {
+            out.push_back(MergedLuaFrame{fr->file, fr->line, fr->func, false});
+        }
+        return;
+    }
+
+    if (hinted) {
+        out.push_back(MergedLuaFrame{spec_throw_hint_file_, spec_throw_hint_line_, spec_throw_hint_name_, true});
+    }
+    bool skipped_hint_body = !hinted;
+    size_t lua_i = 0;
+    for (const JitFnSymbol *sym: c_frames) {
+        if (!skipped_hint_body && sym->lua_name == spec_throw_hint_name_) {
+            skipped_hint_body = true;
+            continue;
+        }
+        if (lua_i < lua_recent.size() && lua_recent[lua_i]->func != nullptr && sym->lua_name == lua_recent[lua_i]->func) {
+            const LuaFrame *fr = lua_recent[lua_i++];
+            out.push_back(MergedLuaFrame{fr->file, fr->line, fr->func, false});
+            continue;
+        }
+        if (!sym->spec && !out.empty() && out.back().func != nullptr && sym->lua_name == out.back().func) {
+            continue;
+        }
+        out.push_back(MergedLuaFrame{sym->file.c_str(), sym->line, sym->lua_name.c_str(), sym->spec});
+    }
+    for (; lua_i < lua_recent.size(); ++lua_i) {
+        const LuaFrame *fr = lua_recent[lua_i];
+        out.push_back(MergedLuaFrame{fr->file, fr->line, fr->func, false});
+    }
+}
+
+std::string State::FormatLuaStack() const {
+    std::vector<MergedLuaFrame> frames;
+    CollectMergedLuaFrames(frames);
+    if (frames.empty()) {
+        return {};
+    }
+    const int depth = static_cast<int>(frames.size());
+    const int shown = depth < kMaxLuaStack ? depth : kMaxLuaStack;
+    const int hidden = depth - shown;
+    std::string out = "stack traceback:\n";
+    out.reserve(static_cast<size_t>(shown) * 64);
+    for (int i = 0; i < shown; ++i) {
+        const MergedLuaFrame &fr = frames[static_cast<size_t>(i)];
+        out += '\t';
+        if (fr.file != nullptr && fr.file[0] != '\0') {
+            out += fr.file;
+            if (fr.line > 0) {
+                out += ':';
+                out += std::to_string(fr.line);
+            }
+            out += ": ";
+        }
+        out += "in function '";
+        out += (fr.func != nullptr && fr.func[0] != '\0') ? fr.func : "?";
+        out += "'\n";
+    }
+    if (hidden > 0) {
+        out += "\t... (";
+        out += std::to_string(hidden);
+        out += " more frames)\n";
+    }
+    return out;
+}
+
+std::string State::SpecThrowLoc() const {
+    std::vector<MergedLuaFrame> frames;
+    CollectMergedLuaFrames(frames);
+    if (frames.empty() || frames[0].file == nullptr || frames[0].file[0] == '\0' || frames[0].line <= 0) {
+        return {};
+    }
+    return std::string(frames[0].file) + ":" + std::to_string(frames[0].line);
 }
 
 void State::SetLogFile(const std::string &path, size_t max_size, size_t max_files) {

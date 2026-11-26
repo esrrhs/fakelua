@@ -1583,8 +1583,8 @@ TEST(exception, spec_assign_nonnumeric_int_throws) {
     ASSERT_NE(code.find("(int64_t)"), std::string::npos);
     // Error branch for non-numeric CVar.
     ASSERT_NE(code.find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
-    // Return uses native addition.
-    ASSERT_NE(code.find("return FL_INT_ADD((n), (x))"), std::string::npos);
+    // Return uses native addition. 特化函数的 return 先落到临时量，TCC 才能在返回前弹出 Lua 帧。
+    ASSERT_NE(code.find("__fl_frame_ret = FL_INT_ADD((n), (x))"), std::string::npos);
 
     FakeluaStateGuard sg;
     auto s = sg.GetState();
@@ -1729,30 +1729,98 @@ TEST(exception, runtime_error_carries_lua_location) {
 
     struct Case {
         const char *fn;
-        const char *location;
+        const char *stmt_line;
+        const char *def_line;
     };
 
+    // GCC 不在每次调用时记语句行，报错行是函数定义行。TCC 和解释器仍是语句行。
     const Case cases[] = {
-            {"arith_on_nil", "test_error_location.lua:6"},
-            {"index_non_table", "test_error_location.lua:11"},
-            {"call_non_function", "test_error_location.lua:16"},
-            // 原生函数里抛的错也要定位到调用它的那条 Lua 语句
-            {"native_bad_argument", "test_error_location.lua:22"},
-            // 同一条语句中函数调用返回后，后续表达式出错仍必须定位到本语句
-            {"error_after_callee_returns", "test_error_location.lua:46"},
+            {"arith_on_nil", "test_error_location.lua:6", "test_error_location.lua:4"},
+            {"index_non_table", "test_error_location.lua:11", "test_error_location.lua:9"},
+            {"call_non_function", "test_error_location.lua:16", "test_error_location.lua:14"},
+            {"native_bad_argument", "test_error_location.lua:22", "test_error_location.lua:21"},
+            {"error_after_callee_returns", "test_error_location.lua:46", "test_error_location.lua:45"},
     };
     for (const auto jit_type: AllJitTypes()) {
         for (const auto &c: cases) {
             const std::string name = std::string("ErrorLocation.") + c.fn;
+            const char *location = jit_type == JIT_GCC ? c.def_line : c.stmt_line;
             int64_t ret = 0;
             try {
                 Call(s, jit_type, name, ret);
                 ADD_FAILURE() << JitTypeName(jit_type) << " " << c.fn << " should have thrown";
             } catch (const std::exception &e) {
                 const std::string msg = e.what();
-                EXPECT_NE(msg.find(c.location), std::string::npos) << JitTypeName(jit_type) << " " << c.fn << ": " << msg;
+                EXPECT_NE(msg.find(location), std::string::npos) << JitTypeName(jit_type) << " " << c.fn << ": " << msg;
             }
         }
+    }
+}
+
+// 嵌套调用的报错要带上 Lua 调用栈：最内层在前，主叫方的函数名和调用行也在。
+TEST(exception, runtime_error_includes_lua_call_stack) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, static_cast<int>(LogLevel::Error));
+    CompileFile(s, "./exception/test_error_location.lua", {});
+    for (auto jit_type: AllJitTypes()) {
+        int64_t ret = 0;
+        try {
+            Call(s, jit_type, "ErrorLocation.outer_call", ret);
+            ADD_FAILURE() << JitTypeName(jit_type) << " outer_call should have thrown";
+        } catch (const FakeluaException &e) {
+            const std::string msg = e.what();
+            EXPECT_NE(msg.find("stack traceback:"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+            const auto inner = msg.find("in function 'ErrorLocation.innermost'");
+            const auto outer = msg.find("in function 'ErrorLocation.outer_call'");
+            EXPECT_NE(inner, std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+            EXPECT_NE(outer, std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+            EXPECT_LT(inner, outer) << JitTypeName(jit_type) << ": " << msg;
+            const char *inner_line = jit_type == JIT_GCC ? "test_error_location.lua:26" : "test_error_location.lua:27";
+            const char *outer_line = jit_type == JIT_GCC ? "test_error_location.lua:30" : "test_error_location.lua:31";
+            EXPECT_NE(msg.find(inner_line), std::string::npos) << msg;
+            EXPECT_NE(msg.find(outer_line), std::string::npos) << msg;
+            EXPECT_NE(e.LuaStack().find("ErrorLocation.innermost"), std::string::npos) << e.LuaStack();
+        }
+    }
+}
+
+// 整数特化函数同样会抛 FakeluaException（这里是整除 0）。抛出时特化帧和调用方都要在栈上。
+TEST(exception, spec_function_throw_includes_lua_call_stack) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(s, static_cast<int>(LogLevel::Error));
+    CompileFile(s, "./exception/test_spec_throw.lua", {});
+    for (auto jit_type: AllJitTypes()) {
+        // GCC 特化函数热路径不写行号，抛错时用函数定义行。TCC 和解释器记下语句行。
+        const char *div_line = jit_type == JIT_GCC ? "test_spec_throw.lua:12" : "test_spec_throw.lua:13";
+        const char *spec_caller_line = jit_type == JIT_GCC ? "test_spec_throw.lua:8" : "test_spec_throw.lua:9";
+        const auto check = [&](const char *fn, const char *caller_line, auto &&invoke) {
+            try {
+                invoke();
+                ADD_FAILURE() << JitTypeName(jit_type) << " " << fn << " should have thrown";
+            } catch (const FakeluaException &e) {
+                const std::string msg = e.what();
+                EXPECT_NE(msg.find("floor division by zero"), std::string::npos) << JitTypeName(jit_type) << " " << fn << ": " << msg;
+                const auto inner = msg.find("in function 'SpecThrow.divzero'");
+                const auto outer = msg.find(std::string("in function '") + fn + "'");
+                EXPECT_NE(inner, std::string::npos) << JitTypeName(jit_type) << " " << fn << ": " << msg;
+                EXPECT_NE(outer, std::string::npos) << JitTypeName(jit_type) << " " << fn << ": " << msg;
+                EXPECT_LT(inner, outer) << JitTypeName(jit_type) << " " << fn << ": " << msg;
+                EXPECT_NE(msg.find(div_line), std::string::npos) << msg;
+                EXPECT_NE(msg.find(caller_line), std::string::npos) << msg;
+            }
+        };
+        check("SpecThrow.plain_caller", jit_type == JIT_GCC ? "test_spec_throw.lua:4" : "test_spec_throw.lua:5", [&] {
+            int64_t ret = 0;
+            Call(s, jit_type, "SpecThrow.plain_caller", ret);
+        });
+        check("SpecThrow.caller", spec_caller_line, [&] {
+            int64_t ret = 0;
+            Call(s, jit_type, "SpecThrow.caller", ret, static_cast<int64_t>(3));
+        });
     }
 }
 
@@ -1786,7 +1854,8 @@ TEST(exception, runtime_error_location_multi_so_closure) {
             ADD_FAILURE() << JitTypeName(jit_type) << " call_peer_throwing_closure should have thrown";
         } catch (const std::exception &e) {
             const std::string msg = e.what();
-            EXPECT_NE(msg.find("test_error_location.lua:52"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+            const char *closure_line = jit_type == JIT_GCC ? "test_error_location.lua:51" : "test_error_location.lua:52";
+            EXPECT_NE(msg.find(closure_line), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
         }
 
         try {
@@ -1794,7 +1863,8 @@ TEST(exception, runtime_error_location_multi_so_closure) {
             ADD_FAILURE() << JitTypeName(jit_type) << " error_after_peer_closure_returns should have thrown";
         } catch (const std::exception &e) {
             const std::string msg = e.what();
-            EXPECT_NE(msg.find("test_error_location_peer.lua:13"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+            const char *peer_line = jit_type == JIT_GCC ? "test_error_location_peer.lua:11" : "test_error_location_peer.lua:13";
+            EXPECT_NE(msg.find(peer_line), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
         }
     }
 }
@@ -1814,14 +1884,17 @@ TEST(exception, runtime_error_location_tail_call) {
             ADD_FAILURE() << JitTypeName(jit_type) << " TailErr.boom should have thrown";
         } catch (const std::exception &e) {
             const std::string msg = e.what();
-            EXPECT_NE(msg.find("test_error_location_tail.lua:6"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+            const char *boom_line = jit_type == JIT_GCC ? "test_error_location_tail.lua:4" : "test_error_location_tail.lua:6";
+            EXPECT_NE(msg.find(boom_line), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+            EXPECT_NE(msg.find("TailErr.boom"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
         }
         try {
             Call(s, jit_type, "TailErr.call_missing", ret, 5);
             ADD_FAILURE() << JitTypeName(jit_type) << " TailErr.call_missing should have thrown";
         } catch (const std::exception &e) {
             const std::string msg = e.what();
-            EXPECT_NE(msg.find("test_error_location_tail.lua:13"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
+            const char *missing_line = jit_type == JIT_GCC ? "test_error_location_tail.lua:11" : "test_error_location_tail.lua:13";
+            EXPECT_NE(msg.find(missing_line), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
             EXPECT_NE(msg.find("does_not_exist"), std::string::npos) << JitTypeName(jit_type) << ": " << msg;
         }
     }
@@ -1983,7 +2056,13 @@ TEST(exception, nested_parse_failure_keeps_its_own_source_location) {
         } catch (const FakeluaException &e) {
             EXPECT_EQ(e.Loc(), "./syntax/test_unexpected_parenthesis.lua:2.15");
             EXPECT_NE(e.Msg().find("syntax error"), std::string::npos);
-            EXPECT_EQ(std::string(e.what()).find("test_host_error_location.lua:"), std::string::npos) << e.what();
+            const std::string text = e.what();
+            const auto at = text.find("at ./syntax/test_unexpected_parenthesis.lua:2.15");
+            ASSERT_NE(at, std::string::npos) << text;
+            const auto caller = text.find("test_host_error_location.lua:");
+            if (caller != std::string::npos) {
+                EXPECT_GT(caller, at) << text;
+            }
         }
     }
 }
@@ -2005,7 +2084,8 @@ TEST(exception, runtime_location_after_multiline_string) {
                 Call(s, backend, "MultilineErrorLocation.fail", result);
                 ADD_FAILURE() << "expected indexing failure";
             } catch (const FakeluaException &e) {
-                EXPECT_EQ(e.Loc(), "./exception/test_multiline_error_location.lua:8");
+                const char *fail_line = backend == JIT_GCC ? "./exception/test_multiline_error_location.lua:6" : "./exception/test_multiline_error_location.lua:8";
+                EXPECT_EQ(e.Loc(), fail_line);
             }
             std::string text;
             Call(s, backend, "MultilineErrorLocation.text", text);

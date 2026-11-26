@@ -28,13 +28,13 @@ local function innermost(x)
 end
 
 function outer_call()
-    return innermost(nil)
+    return (innermost(nil)) -- 括号：不是尾调用，调用方留在栈上
 end
 
 function nested_frames()
     local ok, err = pcall(outer_call)
     if ok then return 0 end
-    if string.find(err, "test_error_location.lua:27") == nil then return 0 end
+    if string.find(err, "innermost") == nil then return 0 end
     return 1
 end
 

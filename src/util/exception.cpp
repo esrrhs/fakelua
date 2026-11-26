@@ -21,6 +21,9 @@ void FakeluaException::Rebuild() {
     if (!parts_.loc.empty()) {
         text_ += " at " + parts_.loc;
     }
+    if (!parts_.lua_stack.empty()) {
+        text_ += "\n" + parts_.lua_stack;
+    }
     if (!parts_.stack.empty()) {
         text_ += "\n" + parts_.stack;
     }
@@ -31,6 +34,14 @@ void FakeluaException::SetLoc(const std::string &loc) {
         return;
     }
     parts_.loc = loc;
+    Rebuild();
+}
+
+void FakeluaException::SetLuaStack(const std::string &lua_stack) {
+    if (lua_stack.empty() || !parts_.lua_stack.empty()) {
+        return;
+    }
+    parts_.lua_stack = lua_stack;
     Rebuild();
 }
 
@@ -52,10 +63,18 @@ std::string BuildFakeluaErrorMessage(const std::string &msg, const std::string &
     ThrowFakeluaExceptionAt(msg, {});
 }
 
-[[noreturn]] void ThrowFakeluaExceptionAt(const std::string &msg, const std::string &loc) {
+[[noreturn]] void ThrowFakeluaExceptionAt(const std::string &msg, const std::string &loc, const std::string &lua_stack) {
     const auto stack = CaptureStacktrace();
-    LogFakeluaError(msg, loc, stack);
-    throw FakeluaException(FakeluaException::Parts{msg, loc, stack});
+    std::string logged = stack;
+    if (!lua_stack.empty()) {
+        logged = lua_stack;
+        if (logged.back() != '\n') {
+            logged += '\n';
+        }
+        logged += stack;
+    }
+    LogFakeluaError(msg, loc, logged);
+    throw FakeluaException(FakeluaException::Parts{msg, loc, stack, lua_stack});
 }
 
 }// namespace fakelua

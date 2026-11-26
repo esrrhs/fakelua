@@ -10,11 +10,12 @@
 
 namespace fakelua {
 
-[[noreturn]] void JumpToJitErrorBoundary(State *s, std::string msg, std::string loc, std::string stack) {
+[[noreturn]] void JumpToJitErrorBoundary(State *s, std::string msg, std::string loc, std::string stack, std::string lua_stack) {
     JitErrorBoundary *boundary = s->GetJitErrorBoundary();
     boundary->msg = std::move(msg);
     boundary->loc = std::move(loc);
     boundary->stack = std::move(stack);
+    boundary->lua_stack = std::move(lua_stack);
     FAKELUA_LONGJMP(boundary->buf, 1);
 }
 
@@ -25,14 +26,21 @@ extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const) {
     });
 }
 
+extern "C" void FakeluaThrowSpec(State *state, const char *msg, const char *spec_name, const char *spec_file, int spec_line) {
+    state->NoteSpecThrow(spec_name, spec_file, spec_line);
+    FakeluaThrowError(state, msg);
+}
+
 extern "C" void FakeluaThrowError(State *state, const char *msg) {
-    // 生成代码在每个 Lua 语句前写好的位置，这里直接取来用。
+    // 生成代码在每个 Lua 语句前写好的位置。GCC 特化函数不写帧，这里按抛错参数和 C 调用栈补上。
     const auto loc = LuaLocText(state);
+    const auto lua_stack = state->FormatLuaStack();
+    state->ClearSpecThrow();
     if (InJitFrame(state)) {
         // JIT 代码直接调用本函数，中间没有需要析构的 C++ 帧，可以直接跳转
-        JumpToJitErrorBoundary(state, msg, loc, CaptureStacktrace());
+        JumpToJitErrorBoundary(state, msg, loc, CaptureStacktrace(), lua_stack);
     }
-    ThrowFakeluaExceptionAt(msg, loc);
+    ThrowFakeluaExceptionAt(msg, loc, lua_stack);
 }
 
 // JIT 代码（C 编译）不能直接调用 inter::AllocMultiCVar，需要 extern "C" 包装。

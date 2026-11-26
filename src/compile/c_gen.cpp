@@ -294,10 +294,39 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
 
 void CGen::GenerateBindings() {
     SectionGuard sg(*this, Section::Bindings);
-    Out() << "void *__fakelua_bind(void *s, void *temp, void *constant, const char *file, int64_t (*intern)(void *, const char *, size_t), void *active_loc, const void *vm_ver) {\n"
+    Out() << "static const FlLuaFnMap fl_lua_fn_map[] = {\n";
+    int fn_map_n = 0;
+    for (const auto &func: all_funcs_) {
+        const int line = (func->node) ? static_cast<int>(func->node->Loc().begin.line) : 0;
+        const std::string lua_name = LuaCallFrameName(func->name, func->parent == nullptr, cur_package_name_);
+        const auto emit_entry = [&](const std::string &c_name, int spec) {
+            Out() << "    { (const void *)" << c_name << ", \"" << EscapeCStringLiteral(lua_name) << "\", " << line << ", " << spec << " },\n";
+            ++fn_map_n;
+        };
+        emit_entry(func->unique_c_name, 0);
+        if (func->parent == nullptr) {
+            if (const auto math_it = ir().math_param_positions.find(func->name); math_it != ir().math_param_positions.end()) {
+                const auto &math_params = math_it->second;
+                const int num_specs = 1 << static_cast<int>(math_params.size());
+                for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+                    emit_entry(SpecFuncName(func->unique_c_name, math_params, bitmask), 1);
+                }
+                emit_entry(func->unique_c_name + "__dyn", 0);
+            }
+        }
+    }
+    if (fn_map_n == 0) {
+        Out() << "    { 0, 0, 0, 0 },\n";
+    }
+    Out() << "};\n";
+    Out() << "static const int fl_lua_fn_map_n = " << fn_map_n << ";\n";
+    Out() << "void *__fakelua_bind(void *s, void *temp, void *constant, const char *file, int64_t (*intern)(void *, const char *, size_t), void *active_loc, const void *vm_ver, void *lua_frames, int *lua_depth) {\n"
           << "    _S = s; fl_temp_heap = temp; fl_const_heap = constant; fl_lua_file = file;\n"
-          << "    if (active_loc) fl_active_loc = (FlLuaLoc *) active_loc;\n"
-          << "    if (vm_ver) fl_vm_version = (const uint64_t *) vm_ver;\n";
+          << "    if (active_loc) { fl_active_loc = (FlLuaLoc *) active_loc; fl_active_base = fl_active_loc; }\n"
+          << "    if (vm_ver) fl_vm_version = (const uint64_t *) vm_ver;\n"
+          << "    if (lua_frames) fl_lua_frames = (FlLuaFrame *) lua_frames;\n"
+          << "    if (lua_depth) fl_lua_depth = lua_depth;\n"
+          << "    if (fl_lua_fn_map_n > 0) FakeluaRegisterFnMap((State *) s, fl_lua_fn_map, fl_lua_fn_map_n, file);\n";
     for (size_t i = 0; i < string_literals_.size(); ++i) {
         Out() << "    __fakelua_cache_sid_" << i << " = intern(s, \"" << EscapeCStringLiteral(string_literals_[i]) << "\", " << string_literals_[i].size() << ");\n";
     }
@@ -755,6 +784,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 Out() << ") {\n";
                 CompileFuncBody(func->name, func_block, bitmask, sections_[static_cast<size_t>(Section::Impls)]);
                 if (!BlockEndsWithReturn(func_block)) {
+                    Out() << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_POP();\n#endif\n";
                     if (spec_ret == T_INT) {
                         Out() << "    return 0;\n";
                     } else if (spec_ret == T_FLOAT) {
@@ -777,7 +807,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
             Out() << ") {\n";
             CompileFuncBody(func->name, func_block, -1, sections_[static_cast<size_t>(Section::Impls)]);
             if (!BlockEndsWithReturn(func_block)) {
-                Out() << "    return kNil;\n";
+                Out() << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_POP();\n#endif\n    return kNil;\n";
             }
             Out() << "}\n";
             GenerateEntryDispatcher(name, func->name, c_func_params, math_params, dyn_name);
@@ -789,7 +819,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
             Out() << ") {\n";
             CompileFuncBody(func->name, func_block, -1, sections_[static_cast<size_t>(Section::Impls)]);
             if (!BlockEndsWithReturn(func_block)) {
-                Out() << "    return kNil;\n";
+                Out() << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_POP();\n#endif\n    return kNil;\n";
             }
             Out() << "}\n";
         }
@@ -879,6 +909,20 @@ std::string CGen::GenTab() const {
     return tabs;
 }
 
+void CGen::EmitFramedReturn(const std::string &expr, const std::string &ctype) {
+    const auto tab = GenTab();
+    // GCC 不弹帧。-O0 也不会把临时变量消掉，返回值必须直接 return，否则每次调用多一次结构体拷贝。
+    Out() << "#if FL_SPEC_TRACK_FRAME\n";
+    Out() << tab << "{\n";
+    Out() << tab << "    " << ctype << " __fl_frame_ret = " << expr << ";\n";
+    Out() << tab << "    FL_LUA_POP();\n";
+    Out() << tab << "    return __fl_frame_ret;\n";
+    Out() << tab << "}\n";
+    Out() << "#else\n";
+    Out() << tab << "return " << expr << ";\n";
+    Out() << "#endif\n";
+}
+
 void CGen::EmitLuaLine(const SyntaxTreeInterface *node, bool emit_loc_set) {
     if (node == nullptr) {
         return;
@@ -888,8 +932,10 @@ void CGen::EmitLuaLine(const SyntaxTreeInterface *node, bool emit_loc_set) {
         return;
     }
     Out() << "#line " << line << " \"" << EscapeCStringLiteral(code_file_name_) << "\"\n";
+    // GCC 不在语句上写行号，递归的普通函数也会被这个存储拖慢。抛错时用函数定义行。
+    // TCC 没有展开信息，仍写语句行。
     if (emit_loc_set) {
-        Out() << GenTab() << "FL_LOC_SET(fl_lua_file, " << line << ");\n";
+        Out() << "#if FL_SPEC_TRACK_FRAME\n" << GenTab() << "FL_LOC_SET(fl_lua_file, " << line << ");\n#endif\n";
     }
 }
 
@@ -1069,7 +1115,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
     body_ss.clear();
 
     // 函数体先锚到定义行：prologue（参数装箱、临时声明）里的抛错也有位置。特化原生函数无需打桩。
-    EmitLuaLine(cur_func_info_ ? cur_func_info_->node : nullptr, cur_spec_ctx_ == nullptr);
+    EmitLuaLine(cur_func_info_ ? cur_func_info_->node : nullptr, true);
 
     // Box captured parameters at the start of the function
     if (cur_func_info_) {
@@ -1119,9 +1165,23 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
         out << "    fl_lua_loc.file = fl_lua_file;\n";
         out << "    FakeluaRegisterLuaLoc(_S, FAKELUA_JIT_TYPE, &fl_lua_loc);\n";
     }
+    // 普通函数也会递归。GCC 上谁都不在每次调用时压帧，抛错分支带上函数名。
+    // TCC 没有 .eh_frame，仍写帧。
+    {
+        const int def_line = (cur_func_info_ && cur_func_info_->node) ? static_cast<int>(cur_func_info_->node->Loc().begin.line) : 0;
+        const std::string_view raw_name = cur_func_info_ ? std::string_view(cur_func_info_->name) : std::string_view{};
+        const std::string frame_name = LuaCallFrameName(raw_name, cur_func_info_ && cur_func_info_->parent == nullptr, cur_package_name_);
+        out << "#undef FL_SPEC_NAME\n#undef FL_SPEC_FILE\n#undef FL_SPEC_LINE\n";
+        out << "#define FL_SPEC_NAME \"" << EscapeCStringLiteral(frame_name) << "\"\n";
+        out << "#define FL_SPEC_FILE fl_lua_file\n";
+        out << "#define FL_SPEC_LINE " << def_line << "\n";
+        out << "#if FL_SPEC_TRACK_FRAME\n    FL_LUA_PUSH(\"" << EscapeCStringLiteral(frame_name) << "\", " << def_line << ");\n#endif\n";
+    }
     out << func_temp_decls_.str();
     if (func_name == kInitFunctionName) out << global_initializers_.str();
     out << body_ss.str();
+    out << "#undef FL_SPEC_NAME\n#undef FL_SPEC_FILE\n#undef FL_SPEC_LINE\n";
+    out << "#define FL_SPEC_NAME ((const char *)0)\n#define FL_SPEC_FILE ((const char *)0)\n#define FL_SPEC_LINE 0\n";
     if (func_name == kInitFunctionName) {
         // init 内 SET_TABLE 已给整棵表树打 CONST_FLAG；此处只标记 init 结束，
         // 之后再 SETTABLE const 表才会抛错。
@@ -1554,13 +1614,13 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
         if (cur_spec_ctx_) {
             if (const auto spec_ret = GetSpecReturnType(cur_spec_ctx_->func_name, cur_spec_ctx_->bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
                 const auto native_ret = CompileNumericExp(exp);
-                Out() << GenTab() << "return " << native_ret << ";\n";
+                EmitFramedReturn(native_ret, spec_ret == T_INT ? "int64_t" : "double");
                 return;
             }
         }
         // 始终通过 CompileExp 编译返回表达式。
         const std::string ret = CompileExp(exp, true);
-        Out() << GenTab() << "return " << ret << ";\n";
+        EmitFramedReturn(ret, "CVar");
     } else {
         const auto &exps = explist_ptr->Exps();
         bool last_is_func = ar().function_call_exps.contains(exps.back().get());
@@ -1579,14 +1639,14 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
             for (size_t i = 0; i < prefix_args.size(); ++i) {
                 Out() << GenTab() << prefix_arr_name << "[" << i << "] = " << prefix_args[i] << ";\n";
             }
-            Out() << GenTab() << "return FlCombineMulti(_S, " << prefix_args.size() << ", " << prefix_arr_name << ", " << last_arg << ");\n";
+            EmitFramedReturn(std::format("FlCombineMulti(_S, {}, {}, {})", prefix_args.size(), prefix_arr_name, last_arg), "CVar");
         } else {
             std::string call = std::format("FlMakeMulti(_S, {}", exps.size());
             for (const auto &exp: exps) {
                 call += ", " + CompileExp(exp, false);
             }
             call += ")";
-            Out() << GenTab() << "return " << call << ";\n";
+            EmitFramedReturn(call, "CVar");
         }
     }
 }
@@ -1779,7 +1839,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
                 cur_tab_--;
                 Out() << GenTab() << "} else {\n";
                 cur_tab_++;
-                Out() << GenTab() << "FakeluaThrowError(_S, \"attempt to assign non-numeric value to typed float variable\");\n";
+                Out() << GenTab() << "FL_RAISE(_S, \"attempt to assign non-numeric value to typed float variable\");\n";
                 cur_tab_--;
                 Out() << GenTab() << "}\n";
             } else {
@@ -1794,7 +1854,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
                 cur_tab_--;
                 Out() << GenTab() << "} else {\n";
                 cur_tab_++;
-                Out() << GenTab() << "FakeluaThrowError(_S, \"attempt to assign non-numeric value to typed int variable\");\n";
+                Out() << GenTab() << "FL_RAISE(_S, \"attempt to assign non-numeric value to typed int variable\");\n";
                 cur_tab_--;
                 Out() << GenTab() << "}\n";
             }
@@ -2111,7 +2171,7 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         if (!is_constant_step) {
             const auto native_step = CompileNumericExp(for_stmt->ExpStep());
             Out() << GenTab() << step_var << " = " << native_step << ";\n";
-            Out() << GenTab() << "if (UNLIKELY(" << step_var << " == 0)) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+            Out() << GenTab() << "if (UNLIKELY(" << step_var << " == 0)) { FL_RAISE(_S, \"'for' step is zero\"); }\n";
         }
         Out() << GenTab() << skip_var << " = FlForLimitToInt(" << native_end << ", " << step_expr << ", &" << end_var << ");\n";
         Out() << GenTab() << "if (!" << skip_var << ") {\n";
@@ -2148,7 +2208,7 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
     } else if (!float_end_to_int) {
         const auto native_step = CompileNumericExp(for_stmt->ExpStep());
         Out() << GenTab() << step_var << " = " << cast_prefix << "(" << native_step << ");\n";
-        Out() << GenTab() << "if (UNLIKELY(" << step_var << " == " << zero_str << ")) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+        Out() << GenTab() << "if (UNLIKELY(" << step_var << " == " << zero_str << ")) { FL_RAISE(_S, \"'for' step is zero\"); }\n";
         if (loop_type == T_INT) {
             Out() << GenTab() << stop_var << " = 0;\n";
             Out() << GenTab() << "for (; ((" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var << ")) && !" << stop_var << "; " << stop_var
@@ -2224,12 +2284,12 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     }
 
     Out() << GenTab() << "if (LIKELY(" << step_var << ".type_ == VAR_INT)) {\n";
-    Out() << GenTab() << "    if (UNLIKELY(" << step_var << ".data_.i == 0)) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+    Out() << GenTab() << "    if (UNLIKELY(" << step_var << ".data_.i == 0)) { FL_RAISE(_S, \"'for' step is zero\"); }\n";
     Out() << GenTab() << "    " << step_pos_var << " = (" << step_var << ".data_.i > 0);\n";
     Out() << GenTab() << "} else if (" << step_var << ".type_ == VAR_FLOAT) {\n";
-    Out() << GenTab() << "    if (UNLIKELY(" << step_var << ".data_.f == 0.0)) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+    Out() << GenTab() << "    if (UNLIKELY(" << step_var << ".data_.f == 0.0)) { FL_RAISE(_S, \"'for' step is zero\"); }\n";
     Out() << GenTab() << "    " << step_pos_var << " = (" << step_var << ".data_.f > 0.0);\n";
-    Out() << GenTab() << "} else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
+    Out() << GenTab() << "} else { FL_RAISE(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
 
     // Lua 5.4 FORPREP：init+step 都是整数走 forlimit；否则转 float，用严格 < 跳过（NaN 不跳）。
     Out() << GenTab() << is_int_var << " = (" << ctrl_var << ".type_ == VAR_INT && " << step_var << ".type_ == VAR_INT);\n";
@@ -2240,7 +2300,7 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     Out() << GenTab() << "    " << lim_var << " = " << end_var << ".data_.i;\n";
     Out() << GenTab() << "} else if (" << end_var << ".type_ == VAR_FLOAT) {\n";
     Out() << GenTab() << "    " << skip_var << " = FlForLimitToInt(" << end_var << ".data_.f, " << step_var << ".data_.i, &" << lim_var << ");\n";
-    Out() << GenTab() << "} else { FakeluaThrowError(_S, \"'for' limit must be a number\"); " << lim_var << " = 0; }\n";
+    Out() << GenTab() << "} else { FL_RAISE(_S, \"'for' limit must be a number\"); " << lim_var << " = 0; }\n";
     Out() << GenTab() << "if (!" << skip_var << ") {\n";
     Out() << GenTab() << "    SET_INT(" << end_var << ", " << lim_var << ");\n";
     Out() << GenTab() << "    " << skip_var << " = (" << step_var << ".data_.i > 0) ? (" << ctrl_var << ".data_.i > " << lim_var << ") : (" << ctrl_var << ".data_.i < " << lim_var << ");\n";
@@ -2393,7 +2453,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         func_temp_decls_ << "    int64_t " << idx_var << ";\n";
 
         Out() << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
-        Out() << GenTab() << "if (UNLIKELY(" << tbl_var << ".type_ != VAR_TABLE)) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
+        Out() << GenTab() << "if (UNLIKELY(" << tbl_var << ".type_ != VAR_TABLE)) { FL_RAISE(_S, \"for in: not a table\"); }\n";
         Out() << GenTab() << "for (" << idx_var << " = 1; ; " << idx_var << "++) {\n";
         cur_tab_++;
 
@@ -2428,7 +2488,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         func_temp_decls_ << "    uint32_t " << idx_var << ";\n";
 
         Out() << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
-        Out() << GenTab() << "if (UNLIKELY(" << tbl_var << ".type_ != VAR_TABLE)) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
+        Out() << GenTab() << "if (UNLIKELY(" << tbl_var << ".type_ != VAR_TABLE)) { FL_RAISE(_S, \"for in: not a table\"); }\n";
         Out() << GenTab() << "FlEnsureNativeSpecSnapshotInline(" << tbl_var << ".data_.t);\n";
         Out() << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_ + " << tbl_var << ".data_.t->spec_count + " << tbl_var << ".data_.t->arr_size_;\n";
 
@@ -2521,7 +2581,6 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         if (cur_stmt_node_ != nullptr) {
             EmitLuaLine(cur_stmt_node_);
         }
-
         std::vector<std::string> loop_var_tmps;
         for (size_t i = 0; i < names.size(); ++i) {
             std::string vtmp = std::format("flua_fi_v_{}_{}", i, tmp_var_counter_++);
@@ -4019,7 +4078,7 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             Out() << rv_tmp << " = (uint64_t)FlRandomInt64(); ";
             Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)" << rv_tmp << "}; }\n";
             Out() << GenTab() << "else if (" << val_tmp << " < 0) { ";
-            Out() << "FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (interval is empty)\"); }\n";
+            Out() << "FL_RAISE(_S, \"bad argument #1 to 'math.random' (interval is empty)\"); }\n";
             Out() << GenTab() << "else { " << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = 1 + (rand() % " << val_tmp << ")}; }\n";
             Out() << GenTab() << "} else { " << tmp << " = FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"math.random\", 1, " << a_tmp << "); }\n";
         } else {
@@ -4050,7 +4109,7 @@ std::string CGen::TryCompileBuiltinMathCall(const std::shared_ptr<SyntaxTreeFunc
             func_temp_decls_ << "    uint64_t " << range_tmp << ";\n";
             func_temp_decls_ << "    uint64_t " << rv_tmp << ";\n";
             Out() << GenTab() << "if (" << val1_tmp << " > " << val2_tmp << ") { ";
-            Out() << "FakeluaThrowError(_S, \"bad argument #1 to 'math.random' (interval is empty)\"); }\n";
+            Out() << "FL_RAISE(_S, \"bad argument #1 to 'math.random' (interval is empty)\"); }\n";
             Out() << GenTab() << "else if (" << val1_tmp << " == " << val2_tmp << ") { ";
             Out() << tmp << " = (CVar){.type_ = VAR_INT, .data_.i = " << val1_tmp << "}; }\n";
             Out() << GenTab() << "else { ";
@@ -4216,7 +4275,7 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         Out() << GenTab() << "    " << count_tmp << " = " << seq_tmp << ".data_.i;\n";
         Out() << GenTab() << "    SET_TABLE(" << tmp << ");\n";
         Out() << GenTab() << "    if (" << val_tmp << ".type_ != VAR_NIL) {\n";
-        Out() << GenTab() << "        if ((uint64_t)" << count_tmp << " > 10000000ULL) { FakeluaThrowError(_S, \"table.create: too many items\"); }\n";
+        Out() << GenTab() << "        if ((uint64_t)" << count_tmp << " > 10000000ULL) { FL_RAISE(_S, \"table.create: too many items\"); }\n";
         Out() << GenTab() << "        for (" << idx_tmp << " = 1; " << idx_tmp << " <= " << count_tmp << "; " << idx_tmp << "++) {\n";
         Out() << GenTab() << "            FlSetTableInt(" << tmp << ", " << idx_tmp << ", " << val_tmp << ");\n";
         Out() << GenTab() << "        }\n";
@@ -4243,7 +4302,7 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
             return tmp;
         } else if (raw_args.size() > 3) {
             // 热路径只有 2 参和 3 参。多出来的参数在编译期直接报错，不展开多返回值，也不进原生调用。
-            Out() << GenTab() << "FakeluaThrowError(_S, \"wrong number of arguments to 'insert'\");\n";
+            Out() << GenTab() << "FL_RAISE(_S, \"wrong number of arguments to 'insert'\");\n";
             Out() << GenTab() << tmp << " = kNil;\n";
             return tmp;
         } else if (raw_args.size() == 3) {
@@ -4280,7 +4339,7 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
             Out() << GenTab() << "        }\n";
             Out() << GenTab() << "        FlSetTableInt(" << tbl_tmp << ", " << pos_tmp << ", " << val_tmp << ");\n";
             Out() << GenTab() << "    } else {\n";
-            Out() << GenTab() << "        FakeluaThrowError(_S, \"bad argument #2 to 'insert' (position out of bounds)\");\n";
+            Out() << GenTab() << "        FL_RAISE(_S, \"bad argument #2 to 'insert' (position out of bounds)\");\n";
             Out() << GenTab() << "    }\n";
             Out() << GenTab() << "    " << tmp << " = kNil;\n";
             Out() << GenTab() << "} else {\n";
@@ -4314,7 +4373,7 @@ std::string CGen::TryCompileBuiltinTableCall(const std::shared_ptr<SyntaxTreeFun
         Out() << GenTab() << "    " << pos_tmp << " = (" << pos_c << ".type_ == VAR_INT) ? " << pos_c << ".data_.i : " << len_tmp << ";\n";
         // Lua：省略/nil 位置（即 #t，含空表）不做边界校验；只有显式 INT 才校验 [1, len+1]
         Out() << GenTab() << "    if (" << pos_c << ".type_ == VAR_INT && (" << pos_tmp << " < 1 || " << pos_tmp << " > " << len_tmp << " + 1)) {\n";
-        Out() << GenTab() << "        FakeluaThrowError(_S, \"bad argument #2 to 'remove' (position out of bounds)\");\n";
+        Out() << GenTab() << "        FL_RAISE(_S, \"bad argument #2 to 'remove' (position out of bounds)\");\n";
         Out() << GenTab() << "    }\n";
         Out() << GenTab() << "    if (" << pos_tmp << " >= 1 && " << pos_tmp << " <= " << len_tmp << ") {\n";
         Out() << GenTab() << "        " << tmp << " = FlGetTableInt(" << tbl_tmp << ", " << pos_tmp << ");\n";
