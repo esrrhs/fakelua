@@ -159,7 +159,7 @@ FL_SPEC(Table_Spec_1, point, x) = NativeAdd(FL_SPEC(Table_Spec_1, point, x), (CV
   用字符串键（或 `container.map`）。`#t` 仍与标准 Lua 一致只数到第一个 nil；
   `serialize.encode/decode` 会保留非连续键。
 - **语法诊断保留自身源码位置**：嵌套编译失败仍报告其自身文件名、行和列；正确计算长字符串和 Lua 各种换行形式，短字符串未闭合时明确提示原因。
-- **运行期错误带 Lua 源码位置**：三个后端都会输出形如 `attempt to perform arithmetic on non-numeric value at main.lua:4` 的消息，原生函数显式抛出的 `FakeluaException` 也可定位。其他 C++ 异常保留各后端现有传播行为。位置表示出错语句，并非完整 Lua 调用栈（`stacktrace` 是 C++ 堆栈）。
+- **运行期错误带 Lua 源码位置和调用栈**：三个后端都会输出形如 `attempt to perform arithmetic on non-numeric value at main.lua:4` 的消息，后面跟着 `stack traceback:`（最近的调用在前，含文件、行和函数名）。原生函数显式抛出的 `FakeluaException` 也可定位。其他 C++ 异常保留各后端现有传播行为。`stacktrace` 仍是 C++ 堆栈。解释器的尾调用复用当前帧，不另占一帧。
 
 ## 标准内置扩展库
 

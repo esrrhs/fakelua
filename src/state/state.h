@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <type_traits>
 #include <typeindex>
 #include <unordered_map>
@@ -18,6 +19,14 @@
 struct TCCState;
 
 namespace fakelua {
+
+// 与生成 C 里的 FlLuaFnMap 同布局。dispatcher 仅标记数值特化函数的入口分发器。
+struct FlLuaFnMap {
+    const void *addr;
+    const char *lua_name;
+    int line;
+    int dispatcher;
+};
 
 namespace native {
 class IoContext;
@@ -35,6 +44,21 @@ struct LuaLoc {
 
 static_assert(std::is_standard_layout_v<LuaLoc>);
 static_assert(offsetof(LuaLoc, line) == sizeof(const char *));
+
+// 一条 Lua 调用帧。前两个字段与 LuaLoc / 生成代码里的 FlLuaLoc 对齐，这样
+// FL_LOC_SET 写到栈顶帧时只覆盖 file/line，不会碰到函数名。
+// func 指向稳定存储（生成代码里的字符串字面量，或 FuncProto::name）。
+struct LuaFrame {
+    const char *file = nullptr;
+    int line = 0;
+    const char *func = nullptr;
+};
+
+static_assert(std::is_standard_layout_v<LuaFrame>);
+static_assert(offsetof(LuaFrame, line) == sizeof(const char *));
+static_assert(offsetof(LuaFrame, func) == sizeof(const char *) + alignof(const char *));
+
+inline constexpr int kMaxLuaStack = 256;
 
 // 单个运行实例
 // 线程模型：State 是单线程实体，由调用方保证同一时刻只有一个线程访问它。
@@ -54,6 +78,10 @@ public:
         for (auto &loc: active_lua_locs_) {
             loc = LuaLoc{};
         }
+        lua_depth_ = 0;
+        lua_frames_[kMaxLuaStack] = LuaFrame{};
+        ClearSpecThrow();
+        // 函数地址表跟着已加载的 JIT 镜像走，由镜像卸载时按 owner 清理；顶层 Call 的 Reset 不能清空。
     }
 
     [[nodiscard]] const StateConfig &GetStateConfig() const {
@@ -143,6 +171,9 @@ public:
         if (!loc) {
             return;
         }
+        if (jit_type == JIT_GCC) {
+            std::erase_if(jit_fn_symbols_, [loc](const auto &kv) { return kv.second.owner == loc; });
+        }
         const auto idx = static_cast<size_t>(jit_type);
         if (idx < JIT_MAX) {
             auto &vec = lua_locs_[idx];
@@ -171,6 +202,70 @@ public:
         const auto idx = static_cast<size_t>(jit_type);
         return active_lua_locs_[idx < JIT_MAX ? idx : 0];
     }
+
+    // Lua 调用栈。TCC 经 __fakelua_bind 拿到 frames/depth 指针直接写，解释器走 Push/Pop；
+    // GCC 不在热路径写帧，出错时由栈展开和符号表拼回。
+    // 槽位 0..kMaxLuaStack-1 固定保存前 kMaxLuaStack 层，不因更深递归回绕覆盖；
+    // 槽位 kMaxLuaStack 保存超出上限时的当前最内层帧。
+    [[nodiscard]] LuaFrame *LuaFrames() {
+        return lua_frames_;
+    }
+
+    [[nodiscard]] int *LuaDepthPtr() {
+        return &lua_depth_;
+    }
+
+    [[nodiscard]] int LuaDepth() const {
+        return lua_depth_;
+    }
+
+    [[nodiscard]] const LuaFrame &OverflowLuaFrame() const {
+        return lua_frames_[kMaxLuaStack];
+    }
+
+    void RestoreLuaStack(int depth, const LuaFrame &overflow) {
+        lua_depth_ = depth > 0 ? depth : 0;
+        lua_frames_[kMaxLuaStack] = overflow;
+    }
+
+    void PushLuaFrame(const char *func, const char *file, int line, LuaFrame *saved_overflow = nullptr);
+    void PopLuaFrame(const LuaFrame *saved_overflow = nullptr);
+    // 尾调用替换栈顶，不增加深度。
+    void RetargetTopLuaFrame(const char *func, const char *file);
+    void SetTopLuaLine(int line);
+
+    [[nodiscard]] const LuaFrame *TopLuaFrame() const {
+        if (lua_depth_ <= 0) {
+            return nullptr;
+        }
+        const int idx = (lua_depth_ - 1) < kMaxLuaStack ? (lua_depth_ - 1) : kMaxLuaStack;
+        return &lua_frames_[idx];
+    }
+
+    // 最近调用在前。没有帧时返回空串。
+    [[nodiscard]] std::string FormatLuaStack() const;
+    // 一次扫栈同时产出出错位置（file:line）与 Lua 调用栈文本，避免报错路径重复展开。
+    void CaptureLuaError(std::string &loc, std::string &lua_stack) const;
+    // 只在抛错分支上调用。name 是字符串字面量，file 指向已加载的文件名。
+    void NoteSpecThrow(const char *name, const char *file, int line) {
+        spec_throw_hint_name_ = name;
+        spec_throw_hint_file_ = file;
+        spec_throw_hint_line_ = line;
+    }
+    void ClearSpecThrow() {
+        spec_throw_hint_name_ = nullptr;
+        spec_throw_hint_file_ = nullptr;
+        spec_throw_hint_line_ = 0;
+    }
+
+    struct JitFnSymbol {
+        const void *owner = nullptr;
+        std::string lua_name;
+        std::string file;
+        int line = 0;
+        bool dispatcher = false;
+    };
+    void RegisterJitFn(const void *owner, const void *addr, const char *lua_name, const char *file, int line, bool dispatcher);
 
     [[nodiscard]] FlHeapSlot &GetTempHeapSlot() {
         return temp_heap_slot_;
@@ -300,6 +395,20 @@ private:
     JitErrorBoundary *jit_error_boundary_ = nullptr;
     LuaLoc active_lua_locs_[JIT_MAX]{};
     std::vector<LuaLoc *> lua_locs_[JIT_MAX];
+    struct MergedLuaFrame {
+        const char *file = nullptr;
+        int line = 0;
+        const char *func = nullptr;
+    };
+    void CollectMergedLuaFrames(std::vector<MergedLuaFrame> &out, int &omitted_count, int &omitted_pos) const;
+    [[nodiscard]] std::string FormatMergedLuaFrames(const std::vector<MergedLuaFrame> &frames, int omitted_count, int omitted_pos) const;
+
+    LuaFrame lua_frames_[kMaxLuaStack + 1]{};
+    int lua_depth_ = 0;
+    const char *spec_throw_hint_name_ = nullptr;
+    const char *spec_throw_hint_file_ = nullptr;
+    int spec_throw_hint_line_ = 0;
+    std::unordered_map<const void *, JitFnSymbol> jit_fn_symbols_;
     FlHeapSlot temp_heap_slot_;
     FlHeapSlot const_heap_slot_;
     bool interp_const_alloc_ = false;

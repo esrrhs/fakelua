@@ -674,7 +674,7 @@ void InterpCodegen::CompileFunction(FuncInfo *func) {
     if (!check_only_) {
         auto proto = std::make_unique<FuncProto>();
         proto->unit = unit_;
-        proto->name = func->unique_c_name;
+        proto->name = LuaCallFrameName(func->name, func->parent == nullptr, cur_package_name_);
         proto->param_count = static_cast<int>(func->params.size());
         proto->is_vararg = func->is_vararg;
         proto->max_stack = proto->param_count;

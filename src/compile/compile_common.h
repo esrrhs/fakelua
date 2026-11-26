@@ -13,12 +13,33 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <vector>
 
 namespace fakelua {
 
 inline constexpr const char *kInitFunctionName = "__fakelua_init";
+
+// 运行期 Lua 调用栈上显示的函数名。文件级函数带 package 前缀；匿名函数和
+// __fakelua_init 用固定标签，避免把编译器内部名暴露给报错信息。
+inline std::string LuaCallFrameName(std::string_view name, bool at_file_scope, std::string_view package) {
+    if (name.empty() || name.starts_with("__fakelua_lambda_")) {
+        return "(anonymous)";
+    }
+    if (name == kInitFunctionName) {
+        return "(main chunk)";
+    }
+    if (at_file_scope && !package.empty()) {
+        std::string out;
+        out.reserve(package.size() + name.size() + 1);
+        out.append(package);
+        out.push_back('.');
+        out.append(name);
+        return out;
+    }
+    return std::string(name);
+}
 
 // Lua 标识符已是 [A-Za-z_][A-Za-z0-9_]*，用作 C 标识符时只需避开关键字和运行时保留名。
 inline std::string SanitizeCIdent(const std::string &lua_name) {
@@ -36,7 +57,7 @@ inline std::string SanitizeCIdent(const std::string &lua_name) {
             "VarType",    "VarTable",  "VarClosure",     "State",         "stdin",    "stdout",    "stderr",        "_S",           "_CL",       "kNil",
             "kTrue",      "kFalse",
     };
-    if (kReserved.contains(lua_name) || lua_name.starts_with("__fakelua_cache_")) {
+    if (kReserved.contains(lua_name) || lua_name.starts_with("__fakelua_cache_") || lua_name.starts_with("__fl_") || lua_name.starts_with("fl_lua_")) {
         return "flua_id_" + lua_name;
     }
     return lua_name;

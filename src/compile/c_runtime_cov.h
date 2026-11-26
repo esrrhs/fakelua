@@ -114,7 +114,13 @@ enum {
 #define FL_CHECK_CONST_TABLE(t)                                                                                                                                                                        \
     do {                                                                                                                                                                                               \
         if (UNLIKELY(((t).flag_ & CONST_FLAG) && __fakelua_init_flag__)) {                                                                                                                             \
-            FakeluaThrowError(_S, "attempt to modify a const table");                                                                                                                                  \
+            FL_RAISE(_S, "attempt to modify a const table");                                                                                                                                           \
+        }                                                                                                                                                                                              \
+    } while (0)
+#define FL_CHECK_CONST_TABLE_HINT(t)                                                                                                                                                                   \
+    do {                                                                                                                                                                                               \
+        if (UNLIKELY(((t).flag_ & CONST_FLAG) && __fakelua_init_flag__)) {                                                                                                                             \
+            FL_RAISE_HINT(_S, "attempt to modify a const table");                                                                                                                                      \
         }                                                                                                                                                                                              \
     } while (0)
 
@@ -404,6 +410,64 @@ typedef struct FlCallCache {
 } FlCallCache;
 
 extern void FakeluaThrowError(State *s, const char *msg);
+extern void FakeluaThrowSpec(State *s, const char *msg, const char *spec_name, const char *spec_file, int spec_line);
+#ifndef FL_SPEC_NAME
+#define FL_SPEC_NAME ((const char *)0)
+#define FL_SPEC_FILE ((const char *)0)
+#define FL_SPEC_LINE 0
+#endif
+#ifndef FAKELUA_JIT_TYPE
+#define FAKELUA_JIT_TYPE 0
+#endif
+/* JIT_TCC == 0。TCC 代码页没有 .eh_frame，调用时写 Lua 帧。GCC 不写，抛错分支带上函数名。 */
+#if FAKELUA_JIT_TYPE == 0
+#define FL_SPEC_TRACK_FRAME 1
+#else
+#define FL_SPEC_TRACK_FRAME 0
+#endif
+#define FL_RAISE(s, msg)                                                                                                                                                                               \
+    do {                                                                                                                                                                                               \
+        if (!FL_SPEC_TRACK_FRAME && (FL_SPEC_NAME) != (const char *)0) {                                                                                                                               \
+            FakeluaThrowSpec((s), (msg), (FL_SPEC_NAME), (FL_SPEC_FILE), (FL_SPEC_LINE));                                                                                                              \
+        } else {                                                                                                                                                                                       \
+            FakeluaThrowError((s), (msg));                                                                                                                                                         \
+        }                                                                                                                                                                                              \
+    } while (0)
+// static inline 运行时辅助函数在 Section::Headers 先于函数体预处理，直接写 FL_SPEC_NAME 只能拿到空指针。
+// 开启优化（-O3）时经包装宏把调用点的函数名/文件/定义行传进内联体，内联后只在冷抛错分支具象化，热路径无额外指令；
+// -O0 与 TCC 不做函数内联，不传额外实参，免掉每次调用的参数搬运。
+#if !FL_SPEC_TRACK_FRAME && defined(__OPTIMIZE__)
+#define FL_HINT_PARAMS , const char *__fl_fn, const char *__fl_file, int __fl_line
+#define FL_HINT_PARAMS_HEAD const char *__fl_fn, const char *__fl_file, int __fl_line,
+#define FL_HINT_ARGS , (FL_SPEC_NAME), (FL_SPEC_FILE), (FL_SPEC_LINE)
+#define FL_HINT_ARGS_HEAD (FL_SPEC_NAME), (FL_SPEC_FILE), (FL_SPEC_LINE),
+#define FL_HINT_PASS , __fl_fn, __fl_file, __fl_line
+#define FL_HINT_PASS_HEAD __fl_fn, __fl_file, __fl_line,
+#define FL_RAISE_HINT(s, msg)                                                                                                                                                                          \
+    do {                                                                                                                                                                                               \
+        if (__fl_fn != (const char *) 0) {                                                                                                                                                             \
+            FakeluaThrowSpec((s), (msg), __fl_fn, __fl_file, __fl_line);                                                                                                                               \
+        } else {                                                                                                                                                                                       \
+            FakeluaThrowError((s), (msg));                                                                                                                                                             \
+        }                                                                                                                                                                                              \
+    } while (0)
+#else
+#define FL_HINT_PARAMS
+#define FL_HINT_PARAMS_HEAD
+#define FL_HINT_ARGS
+#define FL_HINT_ARGS_HEAD
+#define FL_HINT_PASS
+#define FL_HINT_PASS_HEAD
+#define FL_RAISE_HINT(s, msg) FL_RAISE((s), (msg))
+#endif
+// GCC 不在热路径写 Lua 帧，抛错时宿主按代码地址查这张表；dispatcher 仅标记数值特化函数的入口分发器。
+typedef struct FlLuaFnMap {
+    const void *addr;
+    const char *lua_name;
+    int line;
+    int dispatcher;
+} FlLuaFnMap;
+extern void FakeluaRegisterFnMap(State *s, const void *owner, const FlLuaFnMap *map, int count, const char *file);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 extern CVar FakeluaCallByNameCached(State *s, int jit_type, const char *name, FlCallCache *cache, int arg_num, ...);
 extern CVar FakeluaCallNativeCached(State *s, const void *native_entry_ptr, int arg_num, CVar *args);
@@ -426,11 +490,64 @@ static FlLuaLoc fl_lua_loc = {0, 0};
 static FlLuaLoc *fl_active_loc = &fl_lua_loc;
 static const uint64_t fl_vm_version_zero = 0;
 static const uint64_t *fl_vm_version = &fl_vm_version_zero;
+// pcall 用 longjmp 跳出时会跳过 FL_LUA_POP，深度由宿主恢复，指针仍可能指着内层帧。
+// 按恢复后的深度定位栈顶槽（超出上限统一落在溢出顶槽 FL_LUA_STACK_MAX），避免写回已出栈的内层帧。
 #define FL_LOC_SET(f, l)                                                                                                                                                                               \
     do {                                                                                                                                                                                               \
+        if (fl_lua_frames && fl_lua_depth && *fl_lua_depth > 0) {                                                                                                                                      \
+            int __fl_top = *fl_lua_depth - 1;                                                                                                                                                          \
+            if (__fl_top >= FL_LUA_STACK_MAX) __fl_top = FL_LUA_STACK_MAX;                                                                                                                             \
+            fl_active_loc = (FlLuaLoc *) &fl_lua_frames[__fl_top];                                                                                                                                     \
+        }                                                                                                                                                                                              \
         fl_active_loc->file = (f);                                                                                                                                                                     \
         fl_active_loc->line = (l);                                                                                                                                                                     \
     } while (0)
+
+// 与 state.h 的 LuaFrame 同布局。file/line 在最前，FL_LOC_SET 写栈顶帧时不会覆盖函数名。
+// 0..FL_LUA_STACK_MAX-1 固定保存浅层帧，不回绕覆盖；FL_LUA_STACK_MAX 保存超深递归时的当前最内层帧。
+typedef struct FlLuaFrame {
+    const char *file;
+    int line;
+    const char *func;
+} FlLuaFrame;
+#define FL_LUA_STACK_MAX 256
+static FlLuaFrame *fl_lua_frames = 0;
+static int *fl_lua_depth = 0;
+static FlLuaLoc *fl_active_base = &fl_lua_loc;
+
+static inline void FlLuaPush(const char *func, int line, FlLuaFrame *saved) {
+    if (!fl_lua_frames || !fl_lua_depth) return;
+    int d = *fl_lua_depth;
+    if (d < 0) d = 0;
+    int idx = d < FL_LUA_STACK_MAX ? d : FL_LUA_STACK_MAX;
+    FlLuaFrame *fr = &fl_lua_frames[idx];
+    if (UNLIKELY(d >= FL_LUA_STACK_MAX) && saved) {
+        *saved = *fr;
+    }
+    fr->file = fl_lua_file;
+    fr->line = line;
+    fr->func = func;
+    fl_active_loc = (FlLuaLoc *) fr;
+    *fl_lua_depth = d + 1;
+}
+
+static inline void FlLuaPop(const FlLuaFrame *saved) {
+    if (!fl_lua_depth || *fl_lua_depth <= 0) return;
+    int d = *fl_lua_depth - 1;
+    *fl_lua_depth = d;
+    if (UNLIKELY(d >= FL_LUA_STACK_MAX) && saved && fl_lua_frames) {
+        fl_lua_frames[FL_LUA_STACK_MAX] = *saved;
+    }
+    if (d > 0 && fl_lua_frames) {
+        int idx = (d - 1) < FL_LUA_STACK_MAX ? (d - 1) : FL_LUA_STACK_MAX;
+        fl_active_loc = (FlLuaLoc *) &fl_lua_frames[idx];
+    } else if (fl_active_base) {
+        fl_active_loc = fl_active_base;
+    }
+}
+
+#define FL_LUA_PUSH(func, line, saved) FlLuaPush((func), (line), (saved))
+#define FL_LUA_POP(saved) FlLuaPop((saved))
 
 #define kMaxFunctionInputParams 32
 
@@ -486,14 +603,14 @@ static inline CVar FlMakeClosure1(State *state, void *func_ptr, int expected_arg
     return res;
 }
 
-static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
+static inline CVar FlCallClosureFn(FL_HINT_PARAMS_HEAD State *state, CVar cl_var, int arg_num, ...) {
     if (UNLIKELY(cl_var.type_ != VAR_CLOSURE)) {
-        FakeluaThrowError(state, "attempt to call a non-function value");
+        FL_RAISE_HINT(state, "attempt to call a non-function value");
     }
     // 与 FakeluaCallByName 一致：先拦超限，再读 varargs。
     // raw_arg_arr 只有 32 槽，arg_num>32 会栈缓冲溢出。
     if (UNLIKELY(arg_num < 0 || arg_num > (int) kMaxFunctionInputParams)) {
-        FakeluaThrowError(state, "too many arguments");
+        FL_RAISE_HINT(state, "too many arguments");
     }
     VarClosure *cl = cl_var.data_.cl;
     void *addr = cl->func_ptr;
@@ -506,7 +623,7 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
     // 形参个数也要限：下面按 expected_arg_count 往 temp_arg_arr（定长 32）里写，
     // 声明了超过上限的形参会栈缓冲溢出（与 vm.cpp 的 CallByNameImpl 一致）。
     if (UNLIKELY(expected_arg_count < 0 || expected_arg_count > (int) kMaxFunctionInputParams)) {
-        FakeluaThrowError(state, "too many arguments");
+        FL_RAISE_HINT(state, "too many arguments");
     }
 
     CVar raw_arg_arr[kMaxFunctionInputParams];
@@ -530,7 +647,7 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
                 const int extra = m ? (int) m->count : 0;
                 if (flat_count + extra > (int) kMaxFunctionInputParams) {
-                    FakeluaThrowError(state, "too many arguments");
+                    FL_RAISE_HINT(state, "too many arguments");
                 }
                 if (m) {
                     for (uint32_t j = 0; j < m->count; ++j) {
@@ -540,12 +657,12 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
             } else if (raw_arg_arr[i].type_ == VAR_MULTI) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
                 if (flat_count >= (int) kMaxFunctionInputParams) {
-                    FakeluaThrowError(state, "too many arguments");
+                    FL_RAISE_HINT(state, "too many arguments");
                 }
                 flat_args_buf[flat_count++] = (m && m->count > 0) ? m->vars[0] : (CVar) {VAR_NIL};
             } else {
                 if (flat_count >= (int) kMaxFunctionInputParams) {
-                    FakeluaThrowError(state, "too many arguments");
+                    FL_RAISE_HINT(state, "too many arguments");
                 }
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
             }
@@ -654,7 +771,6 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
 #define FCCASE(N)                                                                                                                                                                                      \
     case N: {                                                                                                                                                                                          \
         FlLuaLoc __fl_saved_loc = *fl_active_loc;                                                                                                                                                      \
-        fl_active_loc->line = 0;                                                                                                                                                                       \
         int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);                                                                                                                            \
         CVar __fl_ret = ((CVar (*)(VarClosure * FCCVAR_##N))(addr))(cl FCARG_##N);                                                                                                                     \
         FakeluaJitContextPop(state, __fl_prev_jit);                                                                                                                                                    \
@@ -687,7 +803,7 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
         FCCASE(21)
         FCCASE(22)
         FCCASE(23)
-        FCCASE(24) FCCASE(25) FCCASE(26) FCCASE(27) FCCASE(28) FCCASE(29) FCCASE(30) FCCASE(31) FCCASE(32) default : FakeluaThrowError(state, "FlCallClosure: expected_arg_count out of range");
+        FCCASE(24) FCCASE(25) FCCASE(26) FCCASE(27) FCCASE(28) FCCASE(29) FCCASE(30) FCCASE(31) FCCASE(32) default : FL_RAISE_HINT(state, "FlCallClosure: expected_arg_count out of range");
         return (CVar) {VAR_NIL};
     }
 
@@ -759,73 +875,73 @@ static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
 #undef FCARG_31
 #undef FCARG_32
 }
+#define FlCallClosure(...) FlCallClosureFn(FL_HINT_ARGS_HEAD __VA_ARGS__)
 
-static inline CVar FlCallClosure0(State *state, CVar cl_var) {
+static inline CVar FlCallClosure0Fn(State *state, CVar cl_var FL_HINT_PARAMS) {
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 0 && cl->code_str != (const char *) 1)) {
             FlLuaLoc __fl_saved_loc = *fl_active_loc;
-            fl_active_loc->line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *))(addr))(cl);
             *fl_active_loc = __fl_saved_loc;
             return __fl_ret;
         }
     }
-    return FlCallClosure(state, cl_var, 0);
+    return FlCallClosureFn(FL_HINT_PASS_HEAD state, cl_var, 0);
 }
+#define FlCallClosure0(...) FlCallClosure0Fn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline CVar FlCallClosure1(State *state, CVar cl_var, CVar a0) {
+static inline CVar FlCallClosure1Fn(State *state, CVar cl_var, CVar a0 FL_HINT_PARAMS) {
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 1 && a0.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
             FlLuaLoc __fl_saved_loc = *fl_active_loc;
-            fl_active_loc->line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar))(addr))(cl, a0);
             *fl_active_loc = __fl_saved_loc;
             return __fl_ret;
         }
     }
-    return FlCallClosure(state, cl_var, 1, a0);
+    return FlCallClosureFn(FL_HINT_PASS_HEAD state, cl_var, 1, a0);
 }
+#define FlCallClosure1(...) FlCallClosure1Fn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline CVar FlCallClosure2(State *state, CVar cl_var, CVar a0, CVar a1) {
+static inline CVar FlCallClosure2Fn(State *state, CVar cl_var, CVar a0, CVar a1 FL_HINT_PARAMS) {
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 2 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
             FlLuaLoc __fl_saved_loc = *fl_active_loc;
-            fl_active_loc->line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar))(addr))(cl, a0, a1);
             *fl_active_loc = __fl_saved_loc;
             return __fl_ret;
         }
     }
-    return FlCallClosure(state, cl_var, 2, a0, a1);
+    return FlCallClosureFn(FL_HINT_PASS_HEAD state, cl_var, 2, a0, a1);
 }
+#define FlCallClosure2(...) FlCallClosure2Fn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline CVar FlCallClosure3(State *state, CVar cl_var, CVar a0, CVar a1, CVar a2) {
+static inline CVar FlCallClosure3Fn(State *state, CVar cl_var, CVar a0, CVar a1, CVar a2 FL_HINT_PARAMS) {
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
         if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 3 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && a2.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
             FlLuaLoc __fl_saved_loc = *fl_active_loc;
-            fl_active_loc->line = 0;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar, CVar))(addr))(cl, a0, a1, a2);
             *fl_active_loc = __fl_saved_loc;
             return __fl_ret;
         }
     }
-    return FlCallClosure(state, cl_var, 3, a0, a1, a2);
+    return FlCallClosureFn(FL_HINT_PASS_HEAD state, cl_var, 3, a0, a1, a2);
 }
+#define FlCallClosure3(...) FlCallClosure3Fn(__VA_ARGS__ FL_HINT_ARGS)
 
 static inline CVar FlCallNamed0(State *state, const char *name, FlCallCache *cache) {
     if (FAKELUA_JIT_TYPE == 1) {
         if (LIKELY(cache->version == *fl_vm_version && !cache->is_vararg && cache->expected_args == 0)) {
             if (cache->kind == 1) {
                 FlLuaLoc __fl_saved_loc = *fl_active_loc;
-                fl_active_loc->line = 0;
                 CVar __fl_ret = ((CVar (*)(VarClosure *))(cache->target))(NULL);
                 *fl_active_loc = __fl_saved_loc;
                 return __fl_ret;
@@ -844,7 +960,6 @@ static inline CVar FlCallNamed0(State *state, const char *name, FlCallCache *cac
             if (LIKELY(cache->version == *fl_vm_version && !cache->is_vararg && cache->expected_args == (N) && (CHK_MULTI))) {                                                                        \
                 if (cache->kind == 1) {                                                                                                                                                                \
                     FlLuaLoc __fl_saved_loc = *fl_active_loc;                                                                                                                                          \
-                    fl_active_loc->line = 0;                                                                                                                                                           \
                     CVar __fl_ret = ((CVar (*)(VarClosure *, CTYPES))(cache->target))(NULL, ARGS);                                                                                                     \
                     *fl_active_loc = __fl_saved_loc;                                                                                                                                                   \
                     return __fl_ret;                                                                                                                                                                   \
@@ -976,9 +1091,6 @@ static inline bool FlIsTrue(CVar v) {
     return LIKELY(v.type_ != VAR_NIL) && (v.type_ != VAR_BOOL || v.data_.b);
 }
 
-#ifndef FAKELUA_JIT_TYPE
-#define FAKELUA_JIT_TYPE 0
-#endif
 
 static inline uint32_t FlHashString(const char *str, int len) {
     uint32_t hash = 5381;
@@ -1190,16 +1302,16 @@ static inline int FlCompareIntDouble(int64_t integer, double floating) {
         }                                                                                                                                                                                              \
     } while (0)
 
-static inline CVar FlGetTable(CVar t, CVar k) {
+static inline CVar FlGetTableFn(CVar t, CVar k FL_HINT_PARAMS) {
     k = NORMALIZE_TABLE_KEY(k);
     if (UNLIKELY(t.type_ != VAR_TABLE)) {
-        FakeluaThrowError(_S, "attempt to index a non-table value");
+        FL_RAISE_HINT(_S, "attempt to index a non-table value");
     }
     if (UNLIKELY(k.type_ == VAR_NIL)) {
-        FakeluaThrowError(_S, "table index is nil");
+        FL_RAISE_HINT(_S, "table index is nil");
     }
     if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) {
-        FakeluaThrowError(_S, "table index is NaN");
+        FL_RAISE_HINT(_S, "table index is NaN");
     }
     VarTable *tbl = t.data_.t;
     if (tbl->spec_get) {
@@ -1289,6 +1401,7 @@ static inline CVar FlGetTable(CVar t, CVar k) {
     }
     return (CVar) {VAR_NIL};
 }
+#define FlGetTable(...) FlGetTableFn(__VA_ARGS__ FL_HINT_ARGS)
 
 static inline uint32_t NextPowerOfTwo(uint32_t v) {
     v--;
@@ -1861,17 +1974,17 @@ static inline bool FlArrResizeInsert(VarTable *tbl, CVar k, CVar v) {
     return false;
 }
 
-static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
+static inline void FlSetTableImpl(CVar t, CVar k, CVar v FL_HINT_PARAMS) {
     k = NORMALIZE_TABLE_KEY(k);
     if (UNLIKELY(t.type_ != VAR_TABLE)) {
-        FakeluaThrowError(_S, "attempt to index a non-table value");
+        FL_RAISE_HINT(_S, "attempt to index a non-table value");
     }
-    FL_CHECK_CONST_TABLE(t);
+    FL_CHECK_CONST_TABLE_HINT(t);
     if (UNLIKELY(k.type_ == VAR_NIL)) {
-        FakeluaThrowError(_S, "table index is nil");
+        FL_RAISE_HINT(_S, "table index is nil");
     }
     if (UNLIKELY(k.type_ == VAR_FLOAT && isnan(k.data_.f))) {
-        FakeluaThrowError(_S, "table index is NaN");
+        FL_RAISE_HINT(_S, "table index is NaN");
     }
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_set)) {
@@ -1885,19 +1998,20 @@ static inline void FlSetTableImpl(CVar t, CVar k, CVar v) {
     FlHashSet(tbl, k, v);
 }
 
-static inline void FlSetTable(CVar t, CVar k, CVar v) {
+static inline void FlSetTableFn(CVar t, CVar k, CVar v FL_HINT_PARAMS) {
     k = NORMALIZE_TABLE_KEY(k);
-    FlSetTableImpl(t, k, v);
+    FlSetTableImpl(t, k, v FL_HINT_PASS);
     if (LIKELY(t.type_ == VAR_TABLE)) {
         if (k.type_ == VAR_INT) {
             FlSeqNoteIntSet(t.data_.t, k.data_.i, v.type_ == VAR_NIL);
         }
     }
 }
+#define FlSetTable(...) FlSetTableFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline CVar FlGetTableInt(CVar t, int64_t k) {
+static inline CVar FlGetTableIntFn(CVar t, int64_t k FL_HINT_PARAMS) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) {
-        FakeluaThrowError(_S, "attempt to index a non-table value");
+        FL_RAISE_HINT(_S, "attempt to index a non-table value");
     }
     VarTable *tbl = t.data_.t;
     if (LIKELY((uint64_t) k - 1 < (uint64_t) tbl->arr_size_)) {
@@ -1914,12 +2028,13 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
     }
     return FlHashGetInt(tbl, k);
 }
+#define FlGetTableInt(...) FlGetTableIntFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
+static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v FL_HINT_PARAMS) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) {
-        FakeluaThrowError(_S, "attempt to index a non-table value");
+        FL_RAISE_HINT(_S, "attempt to index a non-table value");
     }
-    FL_CHECK_CONST_TABLE(t);
+    FL_CHECK_CONST_TABLE_HINT(t);
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_set)) {
         CVar key_cvar;
@@ -1970,7 +2085,7 @@ static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v) {
     FlTableInsertRaw(tbl, key_cvar, v, h);
 }
 
-static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
+static inline void FlSetTableIntFn(CVar t, int64_t k, CVar v FL_HINT_PARAMS) {
     if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
         VarTable *tbl = t.data_.t;
         uint64_t idx = (uint64_t) k - 1;
@@ -1980,13 +2095,14 @@ static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
             return;
         }
     }
-    FlSetTableIntImpl(t, k, v);
+    FlSetTableIntImpl(t, k, v FL_HINT_PASS);
     if (LIKELY(t.type_ == VAR_TABLE)) {
         FlSeqNoteIntSet(t.data_.t, k, v.type_ == VAR_NIL);
     }
 }
+#define FlSetTableInt(...) FlSetTableIntFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline void FlSetTableInt_Int(CVar t, int64_t k, int64_t v) {
+static inline void FlSetTableInt_IntFn(CVar t, int64_t k, int64_t v FL_HINT_PARAMS) {
     if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
         VarTable *tbl = t.data_.t;
         uint64_t idx = (uint64_t) k - 1;
@@ -2001,13 +2117,14 @@ static inline void FlSetTableInt_Int(CVar t, int64_t k, int64_t v) {
     cv.type_ = VAR_INT;
     cv.flag_ = 0;
     cv.data_.i = v;
-    FlSetTableIntImpl(t, k, cv);
+    FlSetTableIntImpl(t, k, cv FL_HINT_PASS);
     if (LIKELY(t.type_ == VAR_TABLE)) {
         FlSeqNoteIntSet(t.data_.t, k, false);
     }
 }
+#define FlSetTableInt_Int(...) FlSetTableInt_IntFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline void FlSetTableInt_Float(CVar t, int64_t k, double v) {
+static inline void FlSetTableInt_FloatFn(CVar t, int64_t k, double v FL_HINT_PARAMS) {
     if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
         VarTable *tbl = t.data_.t;
         uint64_t idx = (uint64_t) k - 1;
@@ -2022,13 +2139,14 @@ static inline void FlSetTableInt_Float(CVar t, int64_t k, double v) {
     cv.type_ = VAR_FLOAT;
     cv.flag_ = 0;
     cv.data_.f = v;
-    FlSetTableIntImpl(t, k, cv);
+    FlSetTableIntImpl(t, k, cv FL_HINT_PASS);
     if (LIKELY(t.type_ == VAR_TABLE)) {
         FlSeqNoteIntSet(t.data_.t, k, false);
     }
 }
+#define FlSetTableInt_Float(...) FlSetTableInt_FloatFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline void FlSetTableInt_Bool(CVar t, int64_t k, bool b) {
+static inline void FlSetTableInt_BoolFn(CVar t, int64_t k, bool b FL_HINT_PARAMS) {
     if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
         VarTable *tbl = t.data_.t;
         uint64_t idx = (uint64_t) k - 1;
@@ -2043,15 +2161,16 @@ static inline void FlSetTableInt_Bool(CVar t, int64_t k, bool b) {
     cv.type_ = VAR_BOOL;
     cv.flag_ = 0;
     cv.data_.b = b;
-    FlSetTableIntImpl(t, k, cv);
+    FlSetTableIntImpl(t, k, cv FL_HINT_PASS);
     if (LIKELY(t.type_ == VAR_TABLE)) {
         FlSeqNoteIntSet(t.data_.t, k, false);
     }
 }
+#define FlSetTableInt_Bool(...) FlSetTableInt_BoolFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
+static inline CVar FlGetTableStrIdFn(CVar t, int64_t str_id FL_HINT_PARAMS) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) {
-        FakeluaThrowError(_S, "attempt to index a non-table value");
+        FL_RAISE_HINT(_S, "attempt to index a non-table value");
     }
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_get)) {
@@ -2121,12 +2240,13 @@ static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
     }
     return (CVar) {VAR_NIL};
 }
+#define FlGetTableStrId(...) FlGetTableStrIdFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
+static inline void FlSetTableStrIdFn(CVar t, int64_t str_id, CVar v FL_HINT_PARAMS) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) {
-        FakeluaThrowError(_S, "attempt to index a non-table value");
+        FL_RAISE_HINT(_S, "attempt to index a non-table value");
     }
-    FL_CHECK_CONST_TABLE(t);
+    FL_CHECK_CONST_TABLE_HINT(t);
     VarTable *tbl = t.data_.t;
     if (UNLIKELY(tbl->spec_set)) {
         CVar k;
@@ -2145,7 +2265,7 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     key_cvar.flag_ = 0;
     key_cvar.data_.i = str_id;
     if (UNLIKELY(v.type_ == VAR_NIL)) {
-        FlSetTable((CVar) {.type_ = VAR_TABLE, .data_.t = tbl}, key_cvar, v);
+        FlSetTableFn((CVar) {.type_ = VAR_TABLE, .data_.t = tbl}, key_cvar, v FL_HINT_PASS);
         return;
     }
     if (LIKELY(tbl->bucket_count_ == 0)) {
@@ -2184,22 +2304,30 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     }
     FlTableInsertRaw(tbl, key_cvar, v, h);
 }
+#define FlSetTableStrId(...) FlSetTableStrIdFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
+static inline void FlTableExpandMultiFn(CVar t, int64_t start_idx, CVar v FL_HINT_PARAMS) {
     if (LIKELY(v.type_ != VAR_MULTI)) {
-        FlSetTableInt(t, start_idx, v);
+        FlSetTableIntFn(t, start_idx, v FL_HINT_PASS);
     } else {
         VarMulti *m = v.data_.m;
         for (uint32_t i = 0; i < m->count; ++i) {
-            FlSetTableInt(t, start_idx + i, m->vars[i]);
+            FlSetTableIntFn(t, start_idx + i, m->vars[i] FL_HINT_PASS);
         }
     }
 }
+#define FlTableExpandMulti(...) FlTableExpandMultiFn(__VA_ARGS__ FL_HINT_ARGS)
 
 #define CheckNum(v)                                                                                                                                                                                    \
     do {                                                                                                                                                                                               \
         if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) {                                                                                                                                \
-            FakeluaThrowError(_S, "attempt to perform arithmetic on non-numeric value");                                                                                                               \
+            FL_RAISE(_S, "attempt to perform arithmetic on non-numeric value");                                                                                                                        \
+        }                                                                                                                                                                                              \
+    } while (0)
+#define CheckNumHint(v)                                                                                                                                                                                \
+    do {                                                                                                                                                                                               \
+        if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) {                                                                                                                                \
+            FL_RAISE_HINT(_S, "attempt to perform arithmetic on non-numeric value");                                                                                                                   \
         }                                                                                                                                                                                              \
     } while (0)
 
@@ -2209,10 +2337,10 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
             (result) = (v).data_.i;                                                                                                                                                                    \
         } else if (UNLIKELY((v).type_ == VAR_FLOAT)) {                                                                                                                                                 \
             if (!FlDoubleFitsInt64((v).data_.f, &(result))) {                                                                                                                                          \
-                FakeluaThrowError(_S, "number has no integer representation");                                                                                                                         \
+                FL_RAISE(_S, "number has no integer representation");                                                                                                                         \
             }                                                                                                                                                                                          \
         } else {                                                                                                                                                                                       \
-            FakeluaThrowError(_S, "attempt to perform bitwise operation on non-numeric value");                                                                                                        \
+            FL_RAISE(_S, "attempt to perform bitwise operation on non-numeric value");                                                                                                        \
             (result) = 0;                                                                                                                                                                              \
         }                                                                                                                                                                                              \
     } while (0)
@@ -2354,12 +2482,12 @@ static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
 #define OpRightShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 1)
 #define OpLeftShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 0)
 
-static inline bool FlCmpLt(CVar a, CVar b) {
+static inline bool FlCmpLtFn(CVar a, CVar b FL_HINT_PARAMS) {
     if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) {
         return a.data_.i < b.data_.i;
     }
-    CheckNum(a);
-    CheckNum(b);
+    CheckNumHint(a);
+    CheckNumHint(b);
     if (a.type_ == VAR_INT) {
         return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) < 0;
     } else if (b.type_ == VAR_INT) {
@@ -2368,13 +2496,14 @@ static inline bool FlCmpLt(CVar a, CVar b) {
         return a.data_.f < b.data_.f;
     }
 }
+#define FlCmpLt(...) FlCmpLtFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline bool FlCmpGt(CVar a, CVar b) {
+static inline bool FlCmpGtFn(CVar a, CVar b FL_HINT_PARAMS) {
     if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) {
         return a.data_.i > b.data_.i;
     }
-    CheckNum(a);
-    CheckNum(b);
+    CheckNumHint(a);
+    CheckNumHint(b);
     if (a.type_ == VAR_INT) {
         return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) > 0;
     } else if (b.type_ == VAR_INT) {
@@ -2383,13 +2512,14 @@ static inline bool FlCmpGt(CVar a, CVar b) {
         return a.data_.f > b.data_.f;
     }
 }
+#define FlCmpGt(...) FlCmpGtFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline bool FlCmpLe(CVar a, CVar b) {
+static inline bool FlCmpLeFn(CVar a, CVar b FL_HINT_PARAMS) {
     if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) {
         return a.data_.i <= b.data_.i;
     }
-    CheckNum(a);
-    CheckNum(b);
+    CheckNumHint(a);
+    CheckNumHint(b);
     if (a.type_ == VAR_INT) {
         return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) <= 0;
     } else if (b.type_ == VAR_INT) {
@@ -2398,13 +2528,14 @@ static inline bool FlCmpLe(CVar a, CVar b) {
         return a.data_.f <= b.data_.f;
     }
 }
+#define FlCmpLe(...) FlCmpLeFn(__VA_ARGS__ FL_HINT_ARGS)
 
-static inline bool FlCmpGe(CVar a, CVar b) {
+static inline bool FlCmpGeFn(CVar a, CVar b FL_HINT_PARAMS) {
     if (LIKELY(a.type_ == VAR_INT && b.type_ == VAR_INT)) {
         return a.data_.i >= b.data_.i;
     }
-    CheckNum(a);
-    CheckNum(b);
+    CheckNumHint(a);
+    CheckNumHint(b);
     if (a.type_ == VAR_INT) {
         return !isnan(b.data_.f) && FlCompareIntDouble(a.data_.i, b.data_.f) >= 0;
     } else if (b.type_ == VAR_INT) {
@@ -2413,6 +2544,7 @@ static inline bool FlCmpGe(CVar a, CVar b) {
         return a.data_.f >= b.data_.f;
     }
 }
+#define FlCmpGe(...) FlCmpGeFn(__VA_ARGS__ FL_HINT_ARGS)
 
 static inline bool FlCmpEq(CVar a, CVar b) {
     bool _eq;
@@ -2470,7 +2602,7 @@ static inline bool FlCmpNe(CVar a, CVar b) {
         } else if (_lv.type_ == VAR_TABLE) {                                                                                                                                                           \
             SET_INT(res, FlGetTableSeqLen(_lv.data_.t));                                                                                                                                               \
         } else {                                                                                                                                                                                       \
-            FakeluaThrowError(_S, "attempt to get length of a non-string/table value");                                                                                                                \
+            FL_RAISE(_S, "attempt to get length of a non-string/table value");                                                                                                                \
         }                                                                                                                                                                                              \
     } while (0)
 
@@ -2508,7 +2640,7 @@ static inline int FlFastItoA(int64_t v, char *buf) {
     return len;
 }
 
-static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
+static inline int FlVarToStr(CVar v, char *buf, int buf_size FL_HINT_PARAMS) {
     switch (v.type_) {
         case VAR_NIL:
             memcpy(buf, "nil", 3);
@@ -2545,7 +2677,7 @@ static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
         }
         case VAR_STRING:
         case VAR_STRINGID:
-            FakeluaThrowError(_S, "FlVarToStr: string type should be handled by caller");
+            FL_RAISE_HINT(_S, "FlVarToStr: string type should be handled by caller");
             return 0;
         case VAR_TABLE: {
             int __n = snprintf(buf, buf_size - 1, "table(0x%llx", (unsigned long long) (uintptr_t) v.data_.t);
@@ -2574,10 +2706,10 @@ static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
 // 检查放在非字符串分支里，字符串拼接的快路径不受影响。
 #define CONCAT_CHECK_NUMERIC(v)                                                                                                                                                                        \
     if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) {                                                                                                                                    \
-        FakeluaThrowError(_S, "attempt to concatenate a non-string value");                                                                                                                            \
+        FL_RAISE(_S, "attempt to concatenate a non-string value");                                                                                                                            \
     }
 
-static inline CVar FlConcat(CVar a, CVar b) {
+static inline CVar FlConcatFn(CVar a, CVar b FL_HINT_PARAMS) {
     char buf_a[64], buf_b[64];
     const char *sa = buf_a;
     int la;
@@ -2593,9 +2725,9 @@ static inline CVar FlConcat(CVar a, CVar b) {
     } else if (a.type_ == VAR_INT) {
         la = FlFastItoA(a.data_.i, buf_a);
     } else if (a.type_ == VAR_FLOAT) {
-        la = FlVarToStr(a, buf_a, sizeof(buf_a));
+        la = FlVarToStr(a, buf_a, sizeof(buf_a) FL_HINT_PASS);
     } else {
-        FakeluaThrowError(_S, "attempt to concatenate a non-string value");
+        FL_RAISE_HINT(_S, "attempt to concatenate a non-string value");
         return (CVar) {VAR_NIL};
     }
 
@@ -2609,15 +2741,15 @@ static inline CVar FlConcat(CVar a, CVar b) {
     } else if (b.type_ == VAR_INT) {
         lb = FlFastItoA(b.data_.i, buf_b);
     } else if (b.type_ == VAR_FLOAT) {
-        lb = FlVarToStr(b, buf_b, sizeof(buf_b));
+        lb = FlVarToStr(b, buf_b, sizeof(buf_b) FL_HINT_PASS);
     } else {
-        FakeluaThrowError(_S, "attempt to concatenate a non-string value");
+        FL_RAISE_HINT(_S, "attempt to concatenate a non-string value");
         return (CVar) {VAR_NIL};
     }
 
     int total = la + lb;
     if (UNLIKELY(total < la || total < lb)) {
-        FakeluaThrowError(_S, "string concatenation result too long");
+        FL_RAISE_HINT(_S, "string concatenation result too long");
     }
     VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
     vs->size_ = total;
@@ -2630,11 +2762,12 @@ static inline CVar FlConcat(CVar a, CVar b) {
     result.data_.s = vs;
     return result;
 }
+#define FlConcat(...) FlConcatFn(__VA_ARGS__ FL_HINT_ARGS)
 
 // string.char(c) 单字节快路径
-static inline CVar FlStringChar1(int64_t c) {
+static inline CVar FlStringChar1Fn(int64_t c FL_HINT_PARAMS) {
     if (UNLIKELY(c < 0 || c > 255)) {
-        FakeluaThrowError(_S, "bad argument to string.char: value out of range");
+        FL_RAISE_HINT(_S, "bad argument to string.char: value out of range");
     }
     VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + 1, !__fakelua_init_flag__);
     vs->size_ = 1;
@@ -2646,6 +2779,7 @@ static inline CVar FlStringChar1(int64_t c) {
     r.data_.s = vs;
     return r;
 }
+#define FlStringChar1(...) FlStringChar1Fn(__VA_ARGS__ FL_HINT_ARGS)
 
 // string.lower / upper：ASCII 单遍 + 一次 arena 分配
 static inline CVar FlStringLower(CVar s) {
@@ -2857,15 +2991,15 @@ static inline CVar FlSelectHash(CVar vararg) {
     return (CVar) {.type_ = VAR_INT, .data_.i = 1};
 }
 
-static inline CVar FlSelectIndex(int64_t idx, CVar vararg) {
+static inline CVar FlSelectIndexFn(int64_t idx, CVar vararg FL_HINT_PARAMS) {
     if (vararg.type_ == VAR_MULTI) {
         VarMulti *m = vararg.data_.m;
         int64_t count = (m != NULL) ? (int64_t) m->count : 0;
         if (idx < 0) {
-            if (idx < -count - 1) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
+            if (idx < -count - 1) FL_RAISE_HINT(_S, "bad argument #1 to 'select': index out of range");
             idx = count + idx + 1;
         }
-        if (idx < 1) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
+        if (idx < 1) FL_RAISE_HINT(_S, "bad argument #1 to 'select': index out of range");
         if (idx > count || m == NULL) return FlAllocMulti(_S, 0);
         uint32_t start = (uint32_t) (idx - 1);
         uint32_t nret = m->count - start;
@@ -2875,18 +3009,19 @@ static inline CVar FlSelectIndex(int64_t idx, CVar vararg) {
     // 没有实参的 ... 传进来是 nil，和空 Multi 一样是 0 个值。
     // 正下标返回空，0 和负数都越界。Multi 在上面已经返回，这里碰不到热路径。
     if (vararg.type_ == VAR_NIL) {
-        if (idx < 1) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
+        if (idx < 1) FL_RAISE_HINT(_S, "bad argument #1 to 'select': index out of range");
         return FlAllocMulti(_S, 0);
     }
     /* 其它单个实参是 1 个值。越界下标报错；超过末尾返回 0 个值。 */
     if (idx < 0) {
-        if (idx < -2) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
+        if (idx < -2) FL_RAISE_HINT(_S, "bad argument #1 to 'select': index out of range");
         idx = idx + 2;
     }
-    if (idx < 1) FakeluaThrowError(_S, "bad argument #1 to 'select': index out of range");
+    if (idx < 1) FL_RAISE_HINT(_S, "bad argument #1 to 'select': index out of range");
     if (idx > 1) return FlAllocMulti(_S, 0);
     return vararg;
 }
+#define FlSelectIndex(...) FlSelectIndexFn(__VA_ARGS__ FL_HINT_ARGS)
 
 // tonumber 热路径：数字直通；纯十进制整数字符串本地解析；其余回退 native
 static inline int FlIsSpaceByte(unsigned char c) {
@@ -2990,20 +3125,20 @@ static inline int FlMovePresizeFits(uint64_t count) {
 }
 
 // table.move 内联实现（完整对齐 Lua 5.4 边界/回绕检查与同表重叠后向拷贝）
-static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar dst) {
+static inline CVar FlTableMoveFn(CVar src, int64_t f, int64_t e, int64_t t, CVar dst FL_HINT_PARAMS) {
     if (dst.type_ == VAR_NIL) dst = src;
     if (UNLIKELY(src.type_ != VAR_TABLE || !src.data_.t || dst.type_ != VAR_TABLE || !dst.data_.t)) {
-        FakeluaThrowError(_S, "bad argument to 'table.move' (table expected)");
+        FL_RAISE_HINT(_S, "bad argument to 'table.move' (table expected)");
     }
-    FL_CHECK_CONST_TABLE(dst);
+    FL_CHECK_CONST_TABLE_HINT(dst);
     if (e >= f) {
         uint64_t count = (uint64_t) e - (uint64_t) f + 1;
         if (UNLIKELY(count == 0 || count > (uint64_t) INT64_MAX)) {
-            FakeluaThrowError(_S, "bad argument #3 to 'table.move' (too many elements to move)");
+            FL_RAISE_HINT(_S, "bad argument #3 to 'table.move' (too many elements to move)");
         }
         uint64_t last_off = count - 1;
         if (UNLIKELY(t > 0 && (uint64_t) t > (uint64_t) INT64_MAX - last_off)) {
-            FakeluaThrowError(_S, "bad argument #4 to 'table.move' (destination wrap around)");
+            FL_RAISE_HINT(_S, "bad argument #4 to 'table.move' (destination wrap around)");
         }
         int64_t icount = (int64_t) count;
         int same = (src.data_.t == dst.data_.t);
@@ -3013,36 +3148,38 @@ static inline CVar FlTableMove(CVar src, int64_t f, int64_t e, int64_t t, CVar d
         if (!same || t <= f || t > e) {
             int64_t i;
             for (i = 0; i < icount; ++i) {
-                CVar val = FlGetTableInt(src, (int64_t) ((uint64_t) f + (uint64_t) i));
-                FlSetTableInt(dst, (int64_t) ((uint64_t) t + (uint64_t) i), val);
+                CVar val = FlGetTableIntFn(src, (int64_t) ((uint64_t) f + (uint64_t) i) FL_HINT_PASS);
+                FlSetTableIntFn(dst, (int64_t) ((uint64_t) t + (uint64_t) i), val FL_HINT_PASS);
             }
         } else {
             int64_t i;
             for (i = icount - 1; i >= 0; --i) {
-                CVar val = FlGetTableInt(src, (int64_t) ((uint64_t) f + (uint64_t) i));
-                FlSetTableInt(dst, (int64_t) ((uint64_t) t + (uint64_t) i), val);
+                CVar val = FlGetTableIntFn(src, (int64_t) ((uint64_t) f + (uint64_t) i) FL_HINT_PASS);
+                FlSetTableIntFn(dst, (int64_t) ((uint64_t) t + (uint64_t) i), val FL_HINT_PASS);
             }
         }
     }
     return dst;
 }
+#define FlTableMove(...) FlTableMoveFn(__VA_ARGS__ FL_HINT_ARGS)
 
 // table.unpack 内联实现（完整对齐 Lua 5.4 区间回绕与单块分配上限检查）
-static inline CVar FlTableUnpack(CVar tbl, int64_t start_i, int64_t end_j) {
+static inline CVar FlTableUnpackFn(CVar tbl, int64_t start_i, int64_t end_j FL_HINT_PARAMS) {
     if (start_i > end_j) return FlAllocMulti(_S, 0);
     uint64_t count64 = (uint64_t) end_j - (uint64_t) start_i + 1;
     uint64_t max_unpack = (1024ULL * 1024ULL - sizeof(VarMulti)) / sizeof(CVar);
     if (UNLIKELY(count64 == 0 || count64 > 2147483647ULL || count64 > max_unpack)) {
-        FakeluaThrowError(_S, "too many results to unpack");
+        FL_RAISE_HINT(_S, "too many results to unpack");
     }
     uint32_t count = (uint32_t) count64;
     CVar multi = FlAllocMulti(_S, count);
     uint32_t i;
     for (i = 0; i < count; ++i) {
-        multi.data_.m->vars[i] = FlGetTableInt(tbl, (int64_t) ((uint64_t) start_i + (uint64_t) i));
+        multi.data_.m->vars[i] = FlGetTableIntFn(tbl, (int64_t) ((uint64_t) start_i + (uint64_t) i) FL_HINT_PASS);
     }
     return multi;
 }
+#define FlTableUnpack(...) FlTableUnpackFn(__VA_ARGS__ FL_HINT_ARGS)
 
 #define GET_TABLE_ENTRY(tbl, idx, k, v)                                                                                                                                                                \
     do {                                                                                                                                                                                               \
@@ -3093,7 +3230,7 @@ static inline CVar FlTableUnpack(CVar tbl, int64_t start_i, int64_t end_j) {
         int64_t __fl_a = (a);                                                                                                                                                                          \
         int64_t __fl_b = (b);                                                                                                                                                                          \
         if (UNLIKELY(__fl_b == 0)) {                                                                                                                                                                   \
-            FakeluaThrowError(_S, "floor division by zero");                                                                                                                                           \
+            FL_RAISE(_S, "floor division by zero");                                                                                                                                           \
         }                                                                                                                                                                                              \
         int64_t __fl_q;                                                                                                                                                                                \
         FlFloorDivQuotient(__fl_a, __fl_b, __fl_q);                                                                                                                                                    \
@@ -3105,7 +3242,7 @@ static inline CVar FlTableUnpack(CVar tbl, int64_t start_i, int64_t end_j) {
         int64_t __fm_a = (a);                                                                                                                                                                          \
         int64_t __fm_b = (b);                                                                                                                                                                          \
         if (UNLIKELY(__fm_b == 0)) {                                                                                                                                                                   \
-            FakeluaThrowError(_S, "modulo by zero");                                                                                                                                                   \
+            FL_RAISE(_S, "modulo by zero");                                                                                                                                                   \
         }                                                                                                                                                                                              \
         if (UNLIKELY(__fm_b == (int64_t) -1)) {                                                                                                                                                        \
             (result) = 0;                                                                                                                                                                              \
@@ -3149,14 +3286,14 @@ static inline CVar FlMathCeil(CVar v) {
 
 // Lua 5.4 math.fmod：两整数走整数取模（0 报错、-1 特判为 0 避开溢出），
 // 任一浮点恒返回 float（浮点除零是 NaN，不报错）。
-static inline CVar FlMathFmod(CVar a, CVar b) {
+static inline CVar FlMathFmodFn(CVar a, CVar b FL_HINT_PARAMS) {
     CVar r;
     if (a.type_ == VAR_INT && b.type_ == VAR_INT) {
         int64_t d = b.data_.i;
         if (d == 0) {
             // 错误串结尾不能紧贴右圆括号：本头文件整体以 R 圆括号原始串内嵌进 c_gen，
             // 右圆括号紧跟双引号会提前终止原始串。
-            FakeluaThrowError(_S, "bad argument #2 to 'fmod': zero divisor");
+            FL_RAISE_HINT(_S, "bad argument #2 to 'fmod': zero divisor");
         }
         r.type_ = VAR_INT;
         r.data_.i = (d == -1) ? 0 : a.data_.i % d;
@@ -3166,6 +3303,7 @@ static inline CVar FlMathFmod(CVar a, CVar b) {
     r.data_.f = fmod(CVAR_TO_DOUBLE(a), CVAR_TO_DOUBLE(b));
     return r;
 }
+#define FlMathFmod(...) FlMathFmodFn(__VA_ARGS__ FL_HINT_ARGS)
 
 // Lua 5.4 math.modf：整数部分向零取整并按 pushnumint 决定 int/float，
 // 无小数部分（整数值或 inf）时小数部分为 +0.0。
@@ -3247,7 +3385,7 @@ static inline int FlForLimitToInt(double flim, int64_t step, int64_t *out) {
 #define FlToIntChecked(v, result)                                                                                                                                                                      \
     do {                                                                                                                                                                                               \
         if (!FlDoubleFitsInt64((double) (v), &(result))) {                                                                                                                                             \
-            FakeluaThrowError(_S, "number has no integer representation");                                                                                                                             \
+            FL_RAISE(_S, "number has no integer representation");                                                                                                                             \
         }                                                                                                                                                                                              \
     } while (0)
 
@@ -3278,7 +3416,7 @@ static inline int FlForLimitToInt(double flim, int64_t step, int64_t *out) {
         } else if (UNLIKELY(__fl_v.type_ == VAR_TABLE)) {                                                                                                                                              \
             (result) = (int64_t) FlGetTableSeqLen(__fl_v.data_.t);                                                                                                                                     \
         } else {                                                                                                                                                                                       \
-            FakeluaThrowError(_S, "attempt to get length of a non-string/table value");                                                                                                                \
+            FL_RAISE(_S, "attempt to get length of a non-string/table value");                                                                                                                \
             (result) = 0;                                                                                                                                                                              \
         }                                                                                                                                                                                              \
     } while (0)
