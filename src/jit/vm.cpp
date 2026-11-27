@@ -10,6 +10,43 @@
 
 namespace fakelua {
 
+void Vm::RegisterFunction(const VmFunction &func) {
+    const auto &name = func.GetName();
+    if (const auto iter = vm_functions_.find(name); iter == vm_functions_.end()) {
+        vm_functions_.emplace(name, func);
+    } else {
+        if (owner_ && owner_->InActiveDispatch()) {
+            for (int i = 0; i < JIT_MAX; ++i) {
+                const auto jt = static_cast<JITType>(i);
+                if (!func.GetAddr(jt)) {
+                    continue;
+                }
+                if (auto old_handle = iter->second.GetHandle(jt); old_handle && old_handle != func.GetHandle(jt)) {
+                    owner_->DeferJitHandleUnload(std::move(old_handle));
+                }
+            }
+        }
+        iter->second.Merge(func);
+    }
+    version_ = NextVersion();
+}
+
+void Vm::RetainHandleForCodeAddr(const void *func_ptr) {
+    if (!owner_ || !func_ptr) {
+        return;
+    }
+    for (const auto &[name, fn]: vm_functions_) {
+        for (int i = 0; i < JIT_MAX; ++i) {
+            const auto jt = static_cast<JITType>(i);
+            if (fn.GetAddr(jt) == func_ptr) {
+                if (auto h = fn.GetHandle(jt)) {
+                    owner_->RetainJitHandle(std::move(h));
+                }
+            }
+        }
+    }
+}
+
 [[noreturn]] void JumpToJitErrorBoundary(State *s, std::string msg, std::string loc, std::string stack, std::string lua_stack) {
     JitErrorBoundary *boundary = s->GetJitErrorBoundary();
     boundary->msg = std::move(msg);

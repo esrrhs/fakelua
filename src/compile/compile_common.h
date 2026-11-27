@@ -341,7 +341,43 @@ struct AnalysisResult {
 // ---- 阶段四：类型推断结果 ---------------------------------------------------
 enum class TableKeyKind { kString, kInt, kBool, kFloat };
 
-// 把 Lua 数字字面量（含 0x10 / 1.0 / 0x1p4）分类成 table 键。
+inline bool TryParseLuaIntLiteral(std::string_view s, int64_t &out) {
+    if (!IsInteger(s)) {
+        return false;
+    }
+    try {
+        out = ToInteger(s);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+inline std::string FormatCInt64Literal(int64_t v) {
+    if (v == std::numeric_limits<int64_t>::min()) {
+        return "(-9223372036854775807LL - 1LL)";
+    }
+    if (v > std::numeric_limits<int32_t>::max() || v < std::numeric_limits<int32_t>::min()) {
+        return std::format("{}LL", v);
+    }
+    return std::to_string(v);
+}
+
+inline std::string FormatCDoubleLiteral(double d) {
+    if (std::isnan(d)) {
+        return "NAN";
+    }
+    if (!std::isfinite(d)) {
+        return d < 0.0 ? "(-HUGE_VAL)" : "HUGE_VAL";
+    }
+    std::string s = std::format("{:.17g}", d);
+    if (s.find('.') == std::string::npos && s.find('e') == std::string::npos && s.find('E') == std::string::npos) {
+        s += ".0";
+    }
+    return s;
+}
+
+// 把 Lua 数字字面量（含 0x10 / 1.0 / 0x1p4 / 0x1.8）分类成 table 键。
 // 能无损落成 int64 的浮点（1.0）按整数键处理，与运行时 NORMALIZE_TABLE_KEY 一致。
 inline bool ClassifyLuaNumberKey(const std::string &num_str, TableKeyKind &kind, std::string &canonical, int64_t &int_value, double &float_value) {
     if (num_str.empty()) return false;
@@ -374,7 +410,7 @@ inline bool ClassifyLuaNumberKey(const std::string &num_str, TableKeyKind &kind,
         }
         kind = TableKeyKind::kFloat;
         float_value = d;
-        canonical = num_str;
+        canonical = FormatCDoubleLiteral(d);
         int_value = 0;
         return true;
     } catch (...) {
@@ -405,7 +441,7 @@ inline bool ClassifyConstNumberExp(const SyntaxTreeInterfacePtr &node, TableKeyK
         if (int_value == std::numeric_limits<int64_t>::min()) {
             kind = TableKeyKind::kFloat;
             float_value = -static_cast<double>(int_value);
-            canonical = std::format("{:.17g}", float_value);
+            canonical = FormatCDoubleLiteral(float_value);
             int_value = 0;
         } else {
             int_value = -int_value;
@@ -421,10 +457,8 @@ inline bool ClassifyConstNumberExp(const SyntaxTreeInterfacePtr &node, TableKeyK
             int_value = std::numeric_limits<int64_t>::min();
             canonical = std::to_string(int_value);
             float_value = 0.0;
-        } else if (!canonical.empty() && canonical.front() == '-') {
-            canonical = canonical.substr(1);
         } else {
-            canonical.insert(canonical.begin(), '-');
+            canonical = FormatCDoubleLiteral(float_value);
         }
     }
     return true;
@@ -450,7 +484,25 @@ inline bool ConstNumberExpHasFloatSyntax(const SyntaxTreeInterfacePtr &node) {
 }
 
 inline bool ConstNumberExpIsIntValue(TableKeyKind kind, const SyntaxTreeInterfacePtr &node) {
-    return kind == TableKeyKind::kInt && !ConstNumberExpHasFloatSyntax(node);
+    if (kind != TableKeyKind::kInt || ConstNumberExpHasFloatSyntax(node)) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+    if (!exp) {
+        return false;
+    }
+    int64_t dummy = 0;
+    if (exp->GetExpKind() == ExpKind::kNumber) {
+        return TryParseLuaIntLiteral(exp->ExpValue(), dummy);
+    }
+    if (exp->GetExpKind() == ExpKind::kUnop) {
+        if (const auto right_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp->Right()); right_exp && right_exp->GetExpKind() == ExpKind::kNumber) {
+            return TryParseLuaIntLiteral("-" + right_exp->ExpValue(), dummy);
+        }
+        // Multiple unary minuses on a valid integer expression stay integer (two's-complement wrap in Lua 5.4).
+        return ConstNumberExpIsIntValue(TableKeyKind::kInt, exp->Right());
+    }
+    return true;
 }
 
 // 值语境（区别于表键归一化）下，把 ClassifyConstNumberExp 的结果还原成 double。
@@ -476,14 +528,6 @@ inline double ConstNumberExpToDouble(TableKeyKind kind, int64_t int_value, doubl
         d = (minuses % 2 != 0) ? -0.0 : 0.0;
     }
     return d;
-}
-
-inline std::string FormatCDoubleLiteral(double d) {
-    std::string s = std::format("{:.17g}", d);
-    if (s.find('.') == std::string::npos && s.find('e') == std::string::npos && s.find('E') == std::string::npos) {
-        s += ".0";
-    }
-    return s;
 }
 
 inline std::string EscapeCStringLiteral(const std::string &s) {

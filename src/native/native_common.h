@@ -155,4 +155,78 @@ inline CVar MakeIteratorClosure(State *state, void *func_ptr, void *iter_state) 
     return res;
 }
 
+// 按 Lua 调用语义（缺参补 nil、多余实参丢弃、vararg 打包为 Multi）分发具名回调，
+// 优先采用登记时或当前活跃的执行后端，未编译该后端时依次回退 TCC / GCC / INTERP，支持原生函数回退。
+inline CVar DispatchNamedLuaCallback(State *state, std::string_view func_name, const CVar *args, int arg_count, JITType preferred_jit) {
+    if (!state || func_name.empty()) {
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+    if (!args || arg_count < 0) {
+        arg_count = 0;
+    }
+    if (arg_count > static_cast<int>(kMaxFunctionInputParams)) {
+        ThrowFakeluaException(std::format("callback '{}' passed too many arguments ({}), max is {}", func_name, arg_count, kMaxFunctionInputParams));
+    }
+
+    if (const VmFunction *jit_func = state->GetVM().FindFunction(func_name)) {
+        const bool is_vararg = jit_func->IsVararg();
+        const int expected = jit_func->GetArgCount();
+        JITType target_jit = preferred_jit;
+        void *addr = nullptr;
+        const JITType candidates[5] = {preferred_jit, state->CurrentJit(), JIT_TCC, JIT_GCC, JIT_INTERP};
+        for (JITType cand: candidates) {
+            if (static_cast<unsigned>(cand) < static_cast<unsigned>(JIT_MAX)) {
+                if (void *p = jit_func->GetAddr(cand)) {
+                    addr = p;
+                    target_jit = cand;
+                    break;
+                }
+            }
+        }
+        jit_func = nullptr;
+        if (!addr) {
+            return CVar{static_cast<int>(VarType::Nil)};
+        }
+        if (expected < 0 || expected > static_cast<int>(kMaxFunctionInputParams)) {
+            ThrowFakeluaException(std::format("callback '{}' declares too many parameters ({}), max is {}", func_name, expected, kMaxFunctionInputParams));
+        }
+        if (is_vararg) {
+            CVar padded[kMaxFunctionInputParams]{};
+            const int fixed = (expected > 0) ? (expected - 1) : 0;
+            for (int i = 0; i < fixed; ++i) {
+                padded[i] = (i < arg_count) ? args[i] : inter::NativeToFakeluaNil(state);
+            }
+            const int extra = (arg_count > fixed) ? (arg_count - fixed) : 0;
+            CVar multi = inter::AllocMultiCVar(state, extra);
+            for (int i = 0; i < extra; ++i) {
+                inter::SetMultiCVarElement(multi, i, args[fixed + i]);
+            }
+            padded[fixed] = multi;
+            const int n_dispatch = (expected > 0) ? expected : 1;
+            return inter::DispatchCall(state, addr, padded, n_dispatch, target_jit);
+        }
+        if (arg_count == expected && (expected == 0 || args != nullptr)) {
+            return inter::DispatchCall(state, addr, args, expected, target_jit);
+        }
+        CVar padded[kMaxFunctionInputParams]{};
+        for (int i = 0; i < expected; ++i) {
+            padded[i] = (i < arg_count) ? args[i] : inter::NativeToFakeluaNil(state);
+        }
+        return inter::DispatchCall(state, addr, padded, expected, target_jit);
+    }
+
+    if (const auto *entry = state->GetVM().FindNativeFunction(func_name); entry && entry->callback) {
+        CVar buf[kMaxFunctionInputParams]{};
+        for (int i = 0; i < arg_count; ++i) {
+            buf[i] = args[i];
+        }
+        return entry->callback(state, buf, arg_count);
+    }
+    return CVar{static_cast<int>(VarType::Nil)};
+}
+
+inline CVar DispatchNamedLuaCallback(State *state, std::string_view func_name, const CVar *args, int arg_count) {
+    return DispatchNamedLuaCallback(state, func_name, args, arg_count, state ? state->CurrentJit() : JIT_TCC);
+}
+
 }// namespace fakelua

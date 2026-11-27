@@ -32,14 +32,21 @@ static std::string CVarToString(const CVar &v) {
     return {};
 }
 
+static int EffectiveArgCount(CVar *args, int n) {
+    if (n > 0 && args && args[0].type_ == static_cast<int>(VarType::Multi)) {
+        return inter::GetMultiCVarCount(args[0]);
+    }
+    return n;
+}
+
 // protobuf.load(proto_text)
 // 解析 .proto 文本，注册所有 message/enum。成功返回 "ok"，失败返回错误信息字符串。
 
 static CVar PbLoad(State *s, CVar *args, int n) {
-    if (n < 1) {
+    if (EffectiveArgCount(args, n) < 1) {
         return inter::NativeToFakeluaString(s, "protobuf.load: missing argument");
     }
-    std::string text = CVarToString(args[0]);
+    std::string text = CVarToString(inter::GetNativeArg(s, args, n, 0));
     std::string err = ParseProto(s, text);
     if (!err.empty()) {
         LOG_ERROR(s, "protobuf", "protobuf.load failed: {}", err);
@@ -51,11 +58,11 @@ static CVar PbLoad(State *s, CVar *args, int n) {
 
 // protobuf.encode(message_name, table) → binary
 static CVar PbEncode(State *s, CVar *args, int n) {
-    if (n < 2) {
+    if (EffectiveArgCount(args, n) < 2) {
         ThrowFakeluaException("protobuf.encode: requires message_name and table");
     }
-    std::string msg_name = CVarToString(args[0]);
-    CVar table = args[1];
+    std::string msg_name = CVarToString(inter::GetNativeArg(s, args, n, 0));
+    CVar table = inter::GetNativeArg(s, args, n, 1);
 
     std::string bin = EncodeMessage(s, msg_name, table);
     LOG_DEBUG(s, "protobuf", "protobuf.encode: msg={} bytes={}", msg_name, bin.size());
@@ -64,11 +71,11 @@ static CVar PbEncode(State *s, CVar *args, int n) {
 
 // protobuf.decode(message_name, binary) → table
 static CVar PbDecode(State *s, CVar *args, int n) {
-    if (n < 2) {
+    if (EffectiveArgCount(args, n) < 2) {
         ThrowFakeluaException("protobuf.decode: requires message_name and binary");
     }
-    std::string msg_name = CVarToString(args[0]);
-    std::string data = CVarToString(args[1]);
+    std::string msg_name = CVarToString(inter::GetNativeArg(s, args, n, 0));
+    std::string data = CVarToString(inter::GetNativeArg(s, args, n, 1));
 
     LOG_DEBUG(s, "protobuf", "protobuf.decode: msg={} bytes={}", msg_name, data.size());
     return DecodeMessage(s, msg_name, data);
@@ -76,6 +83,8 @@ static CVar PbDecode(State *s, CVar *args, int n) {
 
 // protobuf.types() → 已注册消息名列表
 static CVar PbTypes(State *s, CVar *args, int n) {
+    (void) args;
+    (void) n;
     auto names = GetProtobufState(s).MessageNames();
     CVar tbl = TableHelper::CreateTable(s);
     for (size_t i = 0; i < names.size(); ++i) {
@@ -86,10 +95,10 @@ static CVar PbTypes(State *s, CVar *args, int n) {
 
 // protobuf.fields(message_name) → 字段信息表
 static CVar PbFields(State *s, CVar *args, int n) {
-    if (n < 1) {
+    if (EffectiveArgCount(args, n) < 1) {
         ThrowFakeluaException("protobuf.fields: requires message_name");
     }
-    std::string msg_name = CVarToString(args[0]);
+    std::string msg_name = CVarToString(inter::GetNativeArg(s, args, n, 0));
     const MessageDef *msg = GetProtobufState(s).FindMessage(msg_name);
     if (!msg) {
         ThrowFakeluaException(std::format("protobuf.fields: unknown message '{}'", msg_name));

@@ -30,6 +30,24 @@ static constexpr const char *kPopenKey = "__popen__";
 static constexpr const char *kIoStateKey = "__io_state__";
 static constexpr const char *kLinesCloseKey = "__io_lines_close__";
 
+struct OwnedLinesFile {
+    FILE *fp = nullptr;
+
+    explicit OwnedLinesFile(FILE *f) : fp(f) {
+    }
+
+    void Close() {
+        if (fp) {
+            std::fclose(fp);
+            fp = nullptr;
+        }
+    }
+
+    ~OwnedLinesFile() {
+        Close();
+    }
+};
+
 // 存在 State 上而不是这里的 static map：后者是全进程一份，多个线程各跑自己的 State 时
 // 会并发改同一个容器。
 struct IoState {
@@ -183,7 +201,25 @@ extern "C" CVar FileLinesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
     if (!ReadLine(fp, result)) {
         if (obj->GetBool(kLinesCloseKey, false)) {
             CloseIoFileHandle(obj);
+            UnregisterIoWrapper(obj);
         }
+        return inter::NativeToFakeluaNil(iter_state);
+    }
+    return inter::NativeToFakeluaString(iter_state, result);
+}
+
+extern "C" CVar OwnedFileLinesIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
+    if (!cl || cl->upvalue_count < 2) {
+        return CVar{static_cast<int>(VarType::Nil)};
+    }
+    State *iter_state = reinterpret_cast<State *>(cl->upvalues[0]->data_.i);
+    auto *holder = reinterpret_cast<OwnedLinesFile *>(cl->upvalues[1]->data_.i);
+    if (!iter_state || !holder || !holder->fp) {
+        return inter::NativeToFakeluaNil(iter_state);
+    }
+    std::string result;
+    if (!ReadLine(holder->fp, result)) {
+        holder->Close();
         return inter::NativeToFakeluaNil(iter_state);
     }
     return inter::NativeToFakeluaString(iter_state, result);
@@ -402,6 +438,7 @@ static NativeObject *MakeIoFile(State *s, FILE *fp, bool is_popen = false) {
         bool is_popen = self->GetBool(kPopenKey, false);
         int ret = is_popen ? ::pclose(fp) : std::fclose(fp);
         self->SetInt(kFpKey, 0);
+        UnregisterIoWrapper(self);
         if (ret == 0) {
             LOG_DEBUG(state, "io", "file:close: success");
             return inter::NativeToFakeluaBool(state, true);
@@ -582,6 +619,7 @@ void RegisterIoLibraryApi(State *s) {
         bool is_popen = obj->GetBool(kPopenKey, false);
         int ret = is_popen ? ::pclose(fp) : std::fclose(fp);
         obj->SetInt(kFpKey, 0);
+        UnregisterIoWrapper(obj);
         return ret == 0 ? inter::NativeToFakeluaBool(state, true) : inter::NativeToFakeluaNil(state);
     });
 
@@ -707,7 +745,6 @@ void RegisterIoLibraryApi(State *s) {
     });
 
     // io.lines([filename]) → iterator|nil
-    // 简化：如果指定文件名则打开文件返回对象（用户手动循环 read），否则返回 nil
     RegisterNativeFunction(s, "io.lines", 0, true, [](State *state, CVar *args, int n) -> CVar {
         if (n < 1) {
             return MakeFileLinesClosure(state, CurrentInObj(state));
@@ -719,9 +756,10 @@ void RegisterIoLibraryApi(State *s) {
         if (filename.empty()) return inter::NativeToFakeluaNil(state);
         FILE *fp = utf8_io::Fopen(std::string(filename).c_str(), "r");
         if (!fp) return inter::NativeToFakeluaNil(state);
-        auto *obj = MakeIoFile(state, fp);
-        obj->SetBool(kLinesCloseKey, true);
-        return MakeFileLinesClosure(state, obj);
+        // 挂在当前值分配器（常规执行期为 temp 堆）上注册析构器：
+        // 若循环因 break/return/报错提前退出，State::Reset() 也会立即 fclose，不泄漏 fd。
+        auto *holder = state->GetValueAllocator().New<OwnedLinesFile>(fp);
+        return MakeIteratorClosure(state, reinterpret_cast<void *>(OwnedFileLinesIterator), holder);
     });
 
     // io.stdin / io.stdout / io.stderr 文件对象

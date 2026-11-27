@@ -14,6 +14,7 @@
 #include <mysql.h>
 
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -99,7 +100,9 @@ public:
     void Query(const std::string &sql);
     void Query(const std::string &sql, const ResultCallback &callback);
     void StmtPrepare(const std::string &sql);
+    void StmtPrepare(const std::string &sql, const ResultCallback &callback);
     void StmtExecute(uint32_t stmt_id, const std::vector<StmtParam> &params);
+    void StmtExecute(uint32_t stmt_id, const std::vector<StmtParam> &params, const ResultCallback &callback);
     void StmtClose(uint32_t stmt_id);
     bool Ping();
     void Close();
@@ -121,7 +124,9 @@ public:
 
     int TickDepth() const;
     bool ClosePending() const;
+    bool DeletePending() const;
     void RequestClose();
+    void RequestDelete();
     bool HasPendingWork() const;
 
 private:
@@ -147,6 +152,13 @@ private:
 
     std::vector<QueuedQuery> queued_queries_;
 
+    struct DeferredError {
+        ResultCallback cb;
+        std::string err;
+    };
+
+    std::deque<DeferredError> deferred_errors_;
+
     enum class QueryType { None, Query, StmtPrepare, StmtExecute, Ping };
     QueryType query_type_ = QueryType::None;
 
@@ -157,6 +169,7 @@ private:
     uint32_t next_stmt_id_ = 1;
     uint32_t pending_exec_stmt_id_ = 0;
     MYSQL_STMT *pending_stmt_ = nullptr;
+    MYSQL_STMT *closing_exec_stmt_ = nullptr;
     std::vector<StmtParam> pending_stmt_params_;
     std::vector<MYSQL_BIND> pending_binds_;
     std::vector<unsigned long> pending_bind_lens_;
@@ -186,6 +199,7 @@ private:
     bool ready_ = false;
     int tick_depth_ = 0;
     bool close_pending_ = false;
+    bool delete_on_unwind_ = false;
 
     native::LifeToken life_;
 

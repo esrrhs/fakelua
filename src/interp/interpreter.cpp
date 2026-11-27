@@ -227,6 +227,18 @@ int PackNamedCallArgs(State *s, std::string_view name, bool is_vararg, int expec
     return expected;
 }
 
+CVar CallUnitLocalProto(State *s, std::string_view name, FuncProto *callee, const CVar *raw, int nargs) {
+    const bool last_is_multi = (nargs > 0 && raw[nargs - 1].type_ == static_cast<int>(VarType::Multi));
+    if (FL_VM_LIKELY(!callee->is_vararg && !last_is_multi && nargs == callee->param_count)) {
+        return InterpExecuteInContext(s, callee, raw, nargs, nullptr);
+    }
+    CVar flat[kMaxFunctionInputParams];
+    const int nflat = FlattenByNameArgs(raw, nargs, flat);
+    CVar packed[kMaxFunctionInputParams];
+    const int n_dispatch = PackNamedCallArgs(s, name, callee->is_vararg, callee->param_count, raw, nargs, flat, nflat, packed);
+    return InterpExecuteInContext(s, callee, packed, n_dispatch, nullptr);
+}
+
 // 在本 InterpreterExecuteT 帧内切到新的 INTERP 原型；需要换 HasBoxes 模板或扩容时走 trampoline。
 // 成功且应继续分发返回 true（已更新 proto/cl/ip/stk）；应 return ret 则返回 false。
 template<bool HasBoxes>
@@ -361,7 +373,7 @@ bool InterpDoTail(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const stk,
     }
     VarClosure *callee = fn.data_.cl;
     if (!IsInterpClosure(callee)) {
-        ret = inter::DispatchCallClosure(s, callee, call_args, nflat, JIT_INTERP);
+        ret = inter::DispatchCallClosure(s, callee, call_args, nflat, IsGccClosure(callee) ? JIT_GCC : JIT_INTERP);
         return false;
     }
     CVar packed[kMaxFunctionInputParams];
@@ -383,6 +395,16 @@ bool InterpDoTailName(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const 
     for (int i = 0; i < nargs; ++i) {
         raw[i] = interp_rt::VmSlot<HasBoxes>(stk, boxp, inst.a + i);
     }
+    if ((inst.c & kCallLocalUnit) != 0 && proto->unit) {
+        if (const auto it = proto->unit->local_funcs.find(name); it != proto->unit->local_funcs.end() && it->second) {
+            FuncProto *callee = it->second;
+            CVar flat[kMaxFunctionInputParams];
+            const int nflat = FlattenByNameArgs(raw, nargs, flat);
+            CVar packed[kMaxFunctionInputParams];
+            const int n_dispatch = PackNamedCallArgs(s, name, callee->is_vararg, callee->param_count, raw, nargs, flat, nflat, packed);
+            return ApplyInterpTail<HasBoxes>(s, proto, cl, stk, boxp, saved, ip, callee, nullptr, packed, n_dispatch, ret);
+        }
+    }
     const VmFunction *fn = s->GetVM().FindFunction(name);
     if (fn) {
         void *addr = fn->GetAddr(JIT_INTERP);
@@ -403,6 +425,91 @@ bool InterpDoTailName(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const 
     }
     ret = CallByNameArgs(s, JIT_INTERP, name, nargs, raw);
     return false;
+}
+
+template<bool HasBoxes>
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+bool InterpDoStrMethod(State *s, FuncProto *&proto, VarClosure *&cl, CVar *const stk, CVar **const boxp, size_t saved, const Inst *&ip, const Inst &inst, CVar &ret) {
+    const size_t kidx = static_cast<size_t>(inst.sbx);
+    const std::string_view full_name = ConstToName(proto->constants[kidx + 1]);
+    const int nargs = inst.b;
+    if (nargs < 1 || nargs > static_cast<int>(kMaxFunctionInputParams)) {
+        ThrowFakeluaException(std::format("interpreter: too many arguments ({}) passed for function '{}', max is {}", nargs, full_name, kMaxFunctionInputParams));
+    }
+    const CVar self = interp_rt::VmSlot<HasBoxes>(stk, boxp, inst.a);
+    if (self.type_ == interp_rt::kTable) {
+        const CVar key = proto->constants[kidx];
+        const CVar fn = table::TableHelper::GetTable(s, self, key);
+        if (fn.type_ != static_cast<int>(VarType::Closure) || !fn.data_.cl) {
+            ThrowFakeluaException("attempt to call a non-function value");
+        }
+        CVar call_args[kMaxFunctionInputParams];
+        int nflat = 0;
+        call_args[nflat++] = interp_rt::UnboxMulti(self, 0);
+        for (int i = 1; i < nargs; ++i) {
+            CVar av = interp_rt::VmSlot<HasBoxes>(stk, boxp, inst.a + i);
+            if (i == nargs - 1 && av.type_ == static_cast<int>(VarType::Multi)) {
+                VarMulti *m = av.data_.m;
+                const int extra = m ? static_cast<int>(m->GetCount()) : 0;
+                if (nflat + extra > static_cast<int>(kMaxFunctionInputParams)) {
+                    ThrowFakeluaException(std::format("interpreter: too many arguments ({}), max is {}", nflat + extra, kMaxFunctionInputParams));
+                }
+                if (m) {
+                    for (uint32_t j = 0; j < m->GetCount(); ++j) {
+                        call_args[nflat++] = m->GetVars()[j];
+                    }
+                }
+            } else {
+                call_args[nflat++] = interp_rt::UnboxMulti(av, 0);
+            }
+        }
+        VarClosure *callee = fn.data_.cl;
+        if (inst.c == kStrMethodTail) {
+            if (!IsInterpClosure(callee)) {
+                ret = inter::DispatchCallClosure(s, callee, call_args, nflat, IsGccClosure(callee) ? JIT_GCC : JIT_INTERP);
+                return false;
+            }
+            CVar packed[kMaxFunctionInputParams];
+            const int n_dispatch = PackClosureCallArgs(s, callee, call_args, nflat, packed);
+            return ApplyInterpTail<HasBoxes>(s, proto, cl, stk, boxp, saved, ip, AsInterpProto(callee->func_ptr), callee, packed, n_dispatch, ret);
+        }
+        CVar mret;
+        if (IsInterpClosure(callee) && !callee->is_vararg && callee->expected_arg_count == nflat && nflat <= static_cast<int>(kMaxFunctionInputParams)) {
+            mret = InterpExecuteInContext(s, AsInterpProto(callee->func_ptr), call_args, nflat, callee);
+        } else {
+            mret = inter::DispatchCallClosure(s, callee, call_args, nflat, IsGccClosure(callee) ? JIT_GCC : JIT_INTERP);
+        }
+        interp_rt::VmWrite<HasBoxes>(stk, boxp, inst.a, inst.c == 0 ? mret : interp_rt::UnboxMulti(mret, 0));
+        return true;
+    }
+
+    CVar raw[kMaxFunctionInputParams];
+    for (int i = 0; i < nargs; ++i) {
+        raw[i] = interp_rt::VmSlot<HasBoxes>(stk, boxp, inst.a + i);
+    }
+    if (inst.c == kStrMethodTail) {
+        const VmFunction *fn = s->GetVM().FindFunction(full_name);
+        if (fn) {
+            void *addr = fn->GetAddr(JIT_INTERP);
+            if (addr) {
+                CVar flat[kMaxFunctionInputParams];
+                const int nflat = FlattenByNameArgs(raw, nargs, flat);
+                CVar packed[kMaxFunctionInputParams];
+                const int n_dispatch = PackNamedCallArgs(s, full_name, fn->IsVararg(), fn->GetArgCount(), raw, nargs, flat, nflat, packed);
+                return ApplyInterpTail<HasBoxes>(s, proto, cl, stk, boxp, saved, ip, AsInterpProto(addr), nullptr, packed, n_dispatch, ret);
+            }
+        }
+        ret = CallByNameArgs(s, JIT_INTERP, full_name, nargs, raw);
+        return false;
+    }
+    CVar sret;
+    if (!TryInterpNamedCall(s, full_name, raw, nargs, sret)) {
+        sret = CallByNameArgs(s, JIT_INTERP, full_name, nargs, raw);
+    }
+    interp_rt::VmWrite<HasBoxes>(stk, boxp, inst.a, inst.c == 0 ? sret : interp_rt::UnboxMulti(sret, 0));
+    return true;
 }
 
 constexpr size_t kInterpStackReserve = 262144;// 4 MiB of CVar; nested realloc would invalidate parent pointers
@@ -535,13 +642,23 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
             if (!cl || inst.b >= static_cast<uint16_t>(cl->upvalue_count) || !cl->upvalues[inst.b]) {
                 VM_W(inst.a, interp_rt::Nil());
             } else {
-                VM_W(inst.a, *cl->upvalues[inst.b]);
+                CVar uv = *cl->upvalues[inst.b];
+                uv.flag_ &= ~interp_rt::kConstBoxFlag;
+                VM_W(inst.a, uv);
             }
             VM_DISPATCH_NEXT();
         }
         VM_CASE(SETUPVAL) {
             if (cl && inst.b < static_cast<uint16_t>(cl->upvalue_count) && cl->upvalues[inst.b]) {
-                *cl->upvalues[inst.b] = VM_R(inst.a);
+                CVar *const box = cl->upvalues[inst.b];
+                CVar v = VM_R(inst.a);
+                if (FL_VM_UNLIKELY((box->flag_ & interp_rt::kConstBoxFlag) != 0)) {
+                    if (!s->InterpConstAlloc()) {
+                        v = PromoteConstBoxValue(s, v);
+                    }
+                    v.flag_ |= interp_rt::kConstBoxFlag;
+                }
+                *box = v;
             }
             VM_DISPATCH_NEXT();
         }
@@ -575,6 +692,11 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
             } else {
                 auto *box = static_cast<CVar *>(interp_rt::Alloc(s, sizeof(CVar)));
                 *box = VM_R(inst.a);
+                if (s->InterpConstAlloc()) {
+                    box->flag_ |= interp_rt::kConstBoxFlag;
+                } else {
+                    box->flag_ &= ~interp_rt::kConstBoxFlag;
+                }
                 boxp[inst.a] = box;
             }
             VM_DISPATCH_NEXT();
@@ -710,7 +832,7 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
             if (IsInterpClosure(callee) && !callee->is_vararg && callee->expected_arg_count == nflat && nflat <= static_cast<int>(kMaxFunctionInputParams)) {
                 ret = InterpExecuteInContext(s, AsInterpProto(callee->func_ptr), call_args, nflat, callee);
             } else {
-                ret = inter::DispatchCallClosure(s, callee, call_args, nflat, JIT_INTERP);
+                ret = inter::DispatchCallClosure(s, callee, call_args, nflat, IsGccClosure(callee) ? JIT_GCC : JIT_INTERP);
             }
             VM_W(inst.a, inst.c == 0 ? ret : interp_rt::UnboxMulti(ret, 0));
             VM_DISPATCH_NEXT();
@@ -731,10 +853,17 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
                     call_args[i] = VM_R(inst.a + i);
                 }
                 CVar ret;
-                if (!TryInterpNamedCall(s, name, call_args, nargs, ret)) {
+                bool handled = false;
+                if ((inst.c & kCallLocalUnit) != 0 && proto->unit) {
+                    if (const auto it = proto->unit->local_funcs.find(name); it != proto->unit->local_funcs.end() && it->second) {
+                        ret = CallUnitLocalProto(s, name, it->second, call_args, nargs);
+                        handled = true;
+                    }
+                }
+                if (!handled && !TryInterpNamedCall(s, name, call_args, nargs, ret)) {
                     ret = CallByNameArgs(s, JIT_INTERP, name, nargs, call_args);
                 }
-                VM_W(inst.a, inst.c == 0 ? ret : interp_rt::UnboxMulti(ret, 0));
+                VM_W(inst.a, (inst.c & 1) == 0 ? ret : interp_rt::UnboxMulti(ret, 0));
             }
             VM_DISPATCH_NEXT();
         }
@@ -756,11 +885,27 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
         }
         VM_CASE(TAILNAME) {
             NoteInterpCallLine(s, proto, ip);
-            if (inst.c == kTailSelfExact) {
-                if (ReuseFrameSelfTail<HasBoxes>(s, proto, stk, boxp, ip, inst.a, inst.b)) {
-                    VM_DISPATCH_NEXT();
+            if ((inst.c & kTailSelfExact) != 0) {
+                bool self_ok = (inst.c & kCallLocalUnit) != 0;
+                if (!self_ok) {
+                    const uint64_t cur_ver = *s->GetVM().VersionPtr();
+                    if (FL_VM_LIKELY(cur_ver == proto->self_tail_vm_version)) {
+                        self_ok = true;
+                    } else {
+                        const std::string_view name = ConstToName(proto->constants[static_cast<size_t>(inst.sbx)]);
+                        const VmFunction *fn = s->GetVM().FindFunction(name);
+                        if (fn && fn->GetAddr(JIT_INTERP) == TagInterpProto(proto)) {
+                            proto->self_tail_vm_version = cur_ver;
+                            self_ok = true;
+                        }
+                    }
                 }
-                return interp_rt::Nil();
+                if (FL_VM_LIKELY(self_ok)) {
+                    if (ReuseFrameSelfTail<HasBoxes>(s, proto, stk, boxp, ip, inst.a, inst.b)) {
+                        VM_DISPATCH_NEXT();
+                    }
+                    return interp_rt::Nil();
+                }
             }
             CVar ret{};
             const bool cont = InterpDoTailName<HasBoxes>(s, proto, cl, stk, boxp, frame.saved, ip, inst, ret);
@@ -787,6 +932,11 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
                             if (!boxp[uv.idx]) {
                                 auto *box = static_cast<CVar *>(interp_rt::Alloc(s, sizeof(CVar)));
                                 *box = VM_R(uv.idx);
+                                if (s->InterpConstAlloc()) {
+                                    box->flag_ |= interp_rt::kConstBoxFlag;
+                                } else {
+                                    box->flag_ &= ~interp_rt::kConstBoxFlag;
+                                }
                                 boxp[uv.idx] = box;
                             }
                             upbufs[i] = boxp[uv.idx];
@@ -895,6 +1045,14 @@ CVar InterpreterExecuteT(State *s, FuncProto *proto, const CVar *args, int arg_c
                 ip += inst.sbx;
             }
             VM_DISPATCH_NEXT();
+        }
+        VM_CASE(STRMETHOD) {
+            NoteInterpCallLine(s, proto, ip);
+            CVar ret{};
+            if (InterpDoStrMethod<HasBoxes>(s, proto, cl, stk, boxp, frame.saved, ip, inst, ret)) {
+                VM_DISPATCH_NEXT();
+            }
+            return ret;
         }
 
 #if !defined(__GNUC__)

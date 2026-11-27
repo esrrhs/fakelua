@@ -24,6 +24,7 @@ public:
     static void SetTableInt(State *s, CVar tbl, int64_t idx, CVar val);
     static void SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val);
     static void SetTableStrId(State *s, CVar tbl, std::string_view str_key, CVar val);
+    static void SetTableTempStr(State *s, CVar tbl, std::string_view key, CVar val);
     // 任意类型键的写入。键会先做浮点归一化，再按与 JIT 侧一致的哈希布局落槽。
     static void SetTable(State *s, CVar tbl, CVar key, CVar val);
     // 分配一张空表（init 期间走 const arena 并打 CONST_FLAG，其余时候走 temp arena）。

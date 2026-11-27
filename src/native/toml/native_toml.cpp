@@ -15,14 +15,88 @@
 
 namespace fakelua::toml {
 
+static constexpr int kMaxTomlDepth = 64;
+
+static void CheckTomlTextNesting(const std::string &str) {
+    int depth = 0;
+    enum class StrMode { None, Basic, Literal, MultiBasic, MultiLiteral };
+    StrMode mode = StrMode::None;
+    for (size_t i = 0; i < str.size(); ++i) {
+        const char c = str[i];
+        if (mode == StrMode::Basic) {
+            if (c == '\\' && i + 1 < str.size()) {
+                ++i;
+            } else if (c == '"' || c == '\n') {
+                mode = StrMode::None;
+            }
+            continue;
+        }
+        if (mode == StrMode::Literal) {
+            if (c == '\'' || c == '\n') {
+                mode = StrMode::None;
+            }
+            continue;
+        }
+        if (mode == StrMode::MultiBasic) {
+            if (c == '\\' && i + 1 < str.size()) {
+                ++i;
+            } else if (c == '"' && i + 2 < str.size() && str[i + 1] == '"' && str[i + 2] == '"') {
+                i += 2;
+                mode = StrMode::None;
+            }
+            continue;
+        }
+        if (mode == StrMode::MultiLiteral) {
+            if (c == '\'' && i + 2 < str.size() && str[i + 1] == '\'' && str[i + 2] == '\'') {
+                i += 2;
+                mode = StrMode::None;
+            }
+            continue;
+        }
+        if (c == '#') {
+            while (i + 1 < str.size() && str[i + 1] != '\n') ++i;
+            continue;
+        }
+        if (c == '"') {
+            if (i + 2 < str.size() && str[i + 1] == '"' && str[i + 2] == '"') {
+                i += 2;
+                mode = StrMode::MultiBasic;
+            } else {
+                mode = StrMode::Basic;
+            }
+            continue;
+        }
+        if (c == '\'') {
+            if (i + 2 < str.size() && str[i + 1] == '\'' && str[i + 2] == '\'') {
+                i += 2;
+                mode = StrMode::MultiLiteral;
+            } else {
+                mode = StrMode::Literal;
+            }
+            continue;
+        }
+        if (c == '[' || c == '{') {
+            ++depth;
+            if (depth > kMaxTomlDepth) {
+                ThrowFakeluaException("TOML decode: nesting too deep");
+            }
+        } else if ((c == ']' || c == '}') && depth > 0) {
+            --depth;
+        }
+    }
+}
+
 // ::toml::node → CVar
-static CVar NodeToLua(State *s, const ::toml::node &node) {
+static CVar NodeToLua(State *s, const ::toml::node &node, int depth = 0) {
+    if (depth > kMaxTomlDepth) {
+        ThrowFakeluaException("TOML decode: nesting too deep");
+    }
     if (node.is_table()) {
         CVar tbl = table::TableHelper::CreateTable(s);
         auto *t = node.as_table();
         if (t) {
             for (auto it = t->begin(); it != t->end(); ++it) {
-                table::TableHelper::SetTableStrId(s, tbl, std::string(it->first.str()).c_str(), NodeToLua(s, it->second));
+                table::TableHelper::SetTableTempStr(s, tbl, it->first.str(), NodeToLua(s, it->second, depth + 1));
             }
         }
         return tbl;
@@ -33,7 +107,7 @@ static CVar NodeToLua(State *s, const ::toml::node &node) {
         if (arr) {
             size_t idx = 1;
             for (auto it = arr->begin(); it != arr->end(); ++it, ++idx) {
-                table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(idx), NodeToLua(s, *it));
+                table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(idx), NodeToLua(s, *it, depth + 1));
             }
         }
         return tbl;
@@ -78,7 +152,6 @@ static CVar NodeToLua(State *s, const ::toml::node &node) {
 }
 
 // CVar → ::toml::table/array
-static const int kMaxTomlDepth = 64;
 
 static ::toml::value<double> MakeTomlFloat(double f) {
     return ::toml::value<double>(f);
@@ -160,8 +233,9 @@ static CVar TomlDecode(State *s, CVar *args, int n) {
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     std::string str = inter::FakeluaToNativeString(s, a0);
     try {
+        CheckTomlTextNesting(str);
         auto result = ::toml::parse(str);
-        return NodeToLua(s, result);
+        return NodeToLua(s, result, 0);
     } catch (const ::toml::parse_error &e) {
         ThrowFakeluaException(std::format("TOML parse error: {}", e.description()));
     }

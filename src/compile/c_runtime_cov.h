@@ -110,16 +110,20 @@ enum {
 // __fakelua_init_flag__：false=仍在 __fakelua_init（可填充 const 表）；true=init 已结束。
 // init 期间 NEWTABLE/SET_TABLE 创建的表直接打 CONST_FLAG（整棵树，含嵌套）；
 // SETTABLE 仅在 init 结束后才因 CONST_FLAG 抛错，以便构造器写字段。
+static const bool fl_const_alloc_false = false;
+static const bool *fl_const_alloc = &fl_const_alloc_false;
+#define FL_IN_CONST_INIT (!__fakelua_init_flag__ || *fl_const_alloc)
+
 #define CONST_FLAG 0x1
 #define FL_CHECK_CONST_TABLE(t)                                                                                                                                                                        \
     do {                                                                                                                                                                                               \
-        if (UNLIKELY(((t).flag_ & CONST_FLAG) && __fakelua_init_flag__)) {                                                                                                                             \
+        if (UNLIKELY(((t).flag_ & CONST_FLAG) && !FL_IN_CONST_INIT)) {                                                                                                                                 \
             FL_RAISE(_S, "attempt to modify a const table");                                                                                                                                           \
         }                                                                                                                                                                                              \
     } while (0)
 #define FL_CHECK_CONST_TABLE_HINT(t)                                                                                                                                                                   \
     do {                                                                                                                                                                                               \
-        if (UNLIKELY(((t).flag_ & CONST_FLAG) && __fakelua_init_flag__)) {                                                                                                                             \
+        if (UNLIKELY(((t).flag_ & CONST_FLAG) && !FL_IN_CONST_INIT)) {                                                                                                                                 \
             FL_RAISE_HINT(_S, "attempt to modify a const table");                                                                                                                                      \
         }                                                                                                                                                                                              \
     } while (0)
@@ -243,11 +247,11 @@ typedef struct FlHeapSlot {
 extern void *FakeluaAlloc(State *s, size_t size, bool is_const);
 
 static inline void *FlFastAlloc(State *state, size_t size, bool is_const) {
-    FlHeapSlot *hs = (is_const || !__fakelua_init_flag__) ? (FlHeapSlot *) fl_const_heap : (FlHeapSlot *) fl_temp_heap;
+    FlHeapSlot *hs = (is_const || FL_IN_CONST_INIT) ? (FlHeapSlot *) fl_const_heap : (FlHeapSlot *) fl_temp_heap;
     if (LIKELY(hs != NULL)) {
         size_t aligned_size = (size + 15) & ~(size_t) 15;
         char *c = hs->curr;
-        if (LIKELY(c != NULL && aligned_size >= size && c + aligned_size > c && c + aligned_size <= hs->end)) {
+        if (LIKELY(c != NULL && aligned_size >= size && hs->end >= c && (size_t) (hs->end - c) >= aligned_size)) {
             hs->curr = c + aligned_size;
             return (void *) c;
         }
@@ -256,7 +260,7 @@ static inline void *FlFastAlloc(State *state, size_t size, bool is_const) {
 }
 
 static inline CVar FlAllocMulti(State *state, uint32_t count) {
-    VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), FL_IN_CONST_INIT);
     m->count = count;
     CVar res;
     res.type_ = VAR_MULTI;
@@ -274,7 +278,7 @@ static inline void FlSetMultiCVarElement(CVar multi, int idx, CVar val) {
 }
 
 static inline CVar FlMakeMulti(State *state, uint32_t count, ...) {
-    VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), FL_IN_CONST_INIT);
     m->count = count;
     va_list args_list;
     va_start(args_list, count);
@@ -299,7 +303,7 @@ static inline CVar FlCombineMulti(State *state, uint32_t prefix_count, const CVa
     }
 
     uint32_t total_count = prefix_count + last_count;
-    VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + total_count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + total_count * sizeof(CVar), FL_IN_CONST_INIT);
     m->count = total_count;
 
     for (uint32_t i = 0; i < prefix_count; ++i) {
@@ -337,7 +341,7 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
         return (CVar) {VAR_NIL};
     }
     uint32_t count = m->count - start_idx;
-    VarMulti *nm = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
+    VarMulti *nm = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), FL_IN_CONST_INIT);
     nm->count = count;
     for (uint32_t i = 0; i < count; ++i) {
         nm->vars[i] = m->vars[start_idx + i];
@@ -475,6 +479,7 @@ extern CVar FakeluaAllocMultiCVar(State *s, int count);
 extern void FakeluaSetMultiCVarElement(CVar *multi, int idx, CVar val);
 extern CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args);
 extern CVar FakeluaInterpCall(State *state, VarClosure *cl, int arg_num, const CVar *args);
+extern CVar FakeluaPromoteConstBoxValue(State *state, CVar val);
 // 当前执行引擎上下文（供 JIT C 代码调用闭包前后维护）：push 切到 jit 并返回上一个引擎，
 // pop 恢复。native 对象方法等在闭包内执行时据此登记派回本引擎的异步回调。
 extern int FakeluaJitContextPush(State *s, int jit);
@@ -551,16 +556,42 @@ static inline void FlLuaPop(const FlLuaFrame *saved) {
 
 #define kMaxFunctionInputParams 32
 
+#define FL_CONST_BOX_FLAG 0x2
+
+static inline CVar *FlAllocUpvalueBox(State *state, bool is_const) {
+    CVar *box = (CVar *) FlFastAlloc(state, sizeof(CVar), is_const);
+    box->type_ = VAR_NIL;
+    box->flag_ = is_const ? FL_CONST_BOX_FLAG : 0;
+    box->data_.i = 0;
+    return box;
+}
+
+static inline CVar FlLoadUpvalueBox(const CVar *box) {
+    CVar v = *box;
+    v.flag_ &= ~FL_CONST_BOX_FLAG;
+    return v;
+}
+
+static inline void FlStoreUpvalueBox(State *state, CVar *box, CVar v) {
+    if (UNLIKELY((box->flag_ & FL_CONST_BOX_FLAG) != 0)) {
+        if (!FL_IN_CONST_INIT) {
+            v = FakeluaPromoteConstBoxValue(state, v);
+        }
+        v.flag_ |= FL_CONST_BOX_FLAG;
+    }
+    *box = v;
+}
+
 // 注意：is_vararg 必须声明为 int 而非 bool。C17 7.16.1.4 规定 va_start 的最后一个
 // 具名形参若类型会受默认实参提升影响（bool/_Bool 会被提升为 int），行为未定义。
 // 调用处传入的 true/false 会隐式转换为 int。
 static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count, int expected_arg_count, int is_vararg, ...) {
-    VarClosure *cl = (VarClosure *) FlFastAlloc(state, sizeof(VarClosure) + upvalue_count * sizeof(CVar *), !__fakelua_init_flag__);
+    VarClosure *cl = (VarClosure *) FlFastAlloc(state, sizeof(VarClosure) + upvalue_count * sizeof(CVar *), FL_IN_CONST_INIT);
     cl->func_ptr = func_ptr;
     cl->upvalue_count = upvalue_count;
     cl->expected_arg_count = expected_arg_count;
     cl->is_vararg = is_vararg;
-    cl->code_str = NULL;
+    cl->code_str = (FAKELUA_JIT_TYPE == 1) ? (const char *) 2 : NULL;
     va_list args_list;
     va_start(args_list, is_vararg);
     for (int i = 0; i < upvalue_count; ++i) {
@@ -575,12 +606,12 @@ static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count
 }
 
 static inline CVar FlMakeClosure0(State *state, void *func_ptr, int expected_arg_count, int is_vararg) {
-    VarClosure *cl = (VarClosure *) FlFastAlloc(state, sizeof(VarClosure), !__fakelua_init_flag__);
+    VarClosure *cl = (VarClosure *) FlFastAlloc(state, sizeof(VarClosure), FL_IN_CONST_INIT);
     cl->func_ptr = func_ptr;
     cl->upvalue_count = 0;
     cl->expected_arg_count = expected_arg_count;
     cl->is_vararg = is_vararg;
-    cl->code_str = NULL;
+    cl->code_str = (FAKELUA_JIT_TYPE == 1) ? (const char *) 2 : NULL;
     CVar res;
     res.type_ = VAR_CLOSURE;
     res.flag_ = 0;
@@ -589,12 +620,12 @@ static inline CVar FlMakeClosure0(State *state, void *func_ptr, int expected_arg
 }
 
 static inline CVar FlMakeClosure1(State *state, void *func_ptr, int expected_arg_count, int is_vararg, CVar *up0) {
-    VarClosure *cl = (VarClosure *) FlFastAlloc(state, sizeof(VarClosure) + sizeof(CVar *), !__fakelua_init_flag__);
+    VarClosure *cl = (VarClosure *) FlFastAlloc(state, sizeof(VarClosure) + sizeof(CVar *), FL_IN_CONST_INIT);
     cl->func_ptr = func_ptr;
     cl->upvalue_count = 1;
     cl->expected_arg_count = expected_arg_count;
     cl->is_vararg = is_vararg;
-    cl->code_str = NULL;
+    cl->code_str = (FAKELUA_JIT_TYPE == 1) ? (const char *) 2 : NULL;
     cl->upvalues[0] = up0;
     CVar res;
     res.type_ = VAR_CLOSURE;
@@ -612,19 +643,6 @@ static inline CVar FlCallClosureFn(FL_HINT_PARAMS_HEAD State *state, CVar cl_var
     if (UNLIKELY(arg_num < 0 || arg_num > (int) kMaxFunctionInputParams)) {
         FL_RAISE_HINT(state, "too many arguments");
     }
-    VarClosure *cl = cl_var.data_.cl;
-    void *addr = cl->func_ptr;
-    if (UNLIKELY(addr == NULL)) {
-        return FlEvalLoadClosure(state, cl, arg_num, cl_var.type_ == VAR_CLOSURE ? (const CVar *) &cl_var : NULL);
-    }
-    const bool is_vararg = cl->is_vararg;
-    const int expected_arg_count = cl->expected_arg_count;
-    const int fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
-    // 形参个数也要限：下面按 expected_arg_count 往 temp_arg_arr（定长 32）里写，
-    // 声明了超过上限的形参会栈缓冲溢出（与 vm.cpp 的 CallByNameImpl 一致）。
-    if (UNLIKELY(expected_arg_count < 0 || expected_arg_count > (int) kMaxFunctionInputParams)) {
-        FL_RAISE_HINT(state, "too many arguments");
-    }
 
     CVar raw_arg_arr[kMaxFunctionInputParams];
     va_list args_list;
@@ -633,6 +651,20 @@ static inline CVar FlCallClosureFn(FL_HINT_PARAMS_HEAD State *state, CVar cl_var
         raw_arg_arr[i] = va_arg(args_list, CVar);
     }
     va_end(args_list);
+
+    VarClosure *cl = cl_var.data_.cl;
+    void *addr = cl->func_ptr;
+    if (UNLIKELY(addr == NULL)) {
+        return FlEvalLoadClosure(state, cl, arg_num, arg_num > 0 ? raw_arg_arr : NULL);
+    }
+    const bool is_vararg = cl->is_vararg;
+    const int expected_arg_count = cl->expected_arg_count;
+    const int fixed_arg_count = is_vararg ? (expected_arg_count > 0 ? expected_arg_count - 1 : 0) : expected_arg_count;
+    // 形参个数也要限：下面按 expected_arg_count 往 temp_arg_arr（定长 32）里写，
+    // 声明了超过上限的形参会栈缓冲溢出（与 vm.cpp 的 CallByNameImpl 一致）。
+    if (UNLIKELY(expected_arg_count < 0 || expected_arg_count > (int) kMaxFunctionInputParams)) {
+        FL_RAISE_HINT(state, "too many arguments");
+    }
 
     const CVar *arg_arr = NULL;
     const bool last_is_multi = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == VAR_MULTI);
@@ -673,7 +705,7 @@ static inline CVar FlCallClosureFn(FL_HINT_PARAMS_HEAD State *state, CVar cl_var
                 temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {VAR_NIL};
             }
             const int vararg_count = flat_count - fixed_arg_count;
-            VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + (vararg_count > 0 ? vararg_count : 0) * sizeof(CVar), !__fakelua_init_flag__);
+            VarMulti *m = (VarMulti *) FlFastAlloc(state, sizeof(VarMulti) + (vararg_count > 0 ? vararg_count : 0) * sizeof(CVar), FL_IN_CONST_INIT);
             m->count = vararg_count > 0 ? vararg_count : 0;
             for (int i = 0; i < vararg_count; ++i) {
                 m->vars[i] = flat_args_buf[fixed_arg_count + i];
@@ -771,7 +803,7 @@ static inline CVar FlCallClosureFn(FL_HINT_PARAMS_HEAD State *state, CVar cl_var
 #define FCCASE(N)                                                                                                                                                                                      \
     case N: {                                                                                                                                                                                          \
         FlLuaLoc __fl_saved_loc = *fl_active_loc;                                                                                                                                                      \
-        int __fl_prev_jit = FakeluaJitContextPush(state, FAKELUA_JIT_TYPE);                                                                                                                            \
+        int __fl_prev_jit = FakeluaJitContextPush(state, (cl->code_str == (const char *) 2 ? 1 : 0));                                                                                                  \
         CVar __fl_ret = ((CVar (*)(VarClosure * FCCVAR_##N))(addr))(cl FCARG_##N);                                                                                                                     \
         FakeluaJitContextPop(state, __fl_prev_jit);                                                                                                                                                    \
         *fl_active_loc = __fl_saved_loc;                                                                                                                                                               \
@@ -881,7 +913,7 @@ static inline CVar FlCallClosure0Fn(State *state, CVar cl_var FL_HINT_PARAMS) {
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
-        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 0 && cl->code_str != (const char *) 1)) {
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 0 && cl->code_str == ((FAKELUA_JIT_TYPE == 1) ? (const char *) 2 : (const char *) 0))) {
             FlLuaLoc __fl_saved_loc = *fl_active_loc;
             CVar __fl_ret = ((CVar (*)(VarClosure *))(addr))(cl);
             *fl_active_loc = __fl_saved_loc;
@@ -896,7 +928,7 @@ static inline CVar FlCallClosure1Fn(State *state, CVar cl_var, CVar a0 FL_HINT_P
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
-        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 1 && a0.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 1 && a0.type_ != VAR_MULTI && cl->code_str == ((FAKELUA_JIT_TYPE == 1) ? (const char *) 2 : (const char *) 0))) {
             FlLuaLoc __fl_saved_loc = *fl_active_loc;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar))(addr))(cl, a0);
             *fl_active_loc = __fl_saved_loc;
@@ -911,7 +943,7 @@ static inline CVar FlCallClosure2Fn(State *state, CVar cl_var, CVar a0, CVar a1 
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
-        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 2 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 2 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && cl->code_str == ((FAKELUA_JIT_TYPE == 1) ? (const char *) 2 : (const char *) 0))) {
             FlLuaLoc __fl_saved_loc = *fl_active_loc;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar))(addr))(cl, a0, a1);
             *fl_active_loc = __fl_saved_loc;
@@ -926,7 +958,7 @@ static inline CVar FlCallClosure3Fn(State *state, CVar cl_var, CVar a0, CVar a1,
     if (LIKELY(cl_var.type_ == VAR_CLOSURE)) {
         VarClosure *cl = cl_var.data_.cl;
         void *addr = cl->func_ptr;
-        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 3 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && a2.type_ != VAR_MULTI && cl->code_str != (const char *) 1)) {
+        if (LIKELY(addr != NULL && !cl->is_vararg && cl->expected_arg_count == 3 && a0.type_ != VAR_MULTI && a1.type_ != VAR_MULTI && a2.type_ != VAR_MULTI && cl->code_str == ((FAKELUA_JIT_TYPE == 1) ? (const char *) 2 : (const char *) 0))) {
             FlLuaLoc __fl_saved_loc = *fl_active_loc;
             CVar __fl_ret = ((CVar (*)(VarClosure *, CVar, CVar, CVar))(addr))(cl, a0, a1, a2);
             *fl_active_loc = __fl_saved_loc;
@@ -1108,7 +1140,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
     do {                                                                                                                                                                                               \
         int __len = (len);                                                                                                                                                                             \
         const char *__s_ptr = (str);                                                                                                                                                                   \
-        VarString *__vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + __len, !__fakelua_init_flag__);                                                                                            \
+        VarString *__vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + __len, FL_IN_CONST_INIT);                                                                                            \
         __vs->size_ = __len;                                                                                                                                                                           \
         __vs->hash_ = 0;                                                                                                                                                                               \
         memcpy(__vs->data_, __s_ptr, __len);                                                                                                                                                           \
@@ -1118,7 +1150,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
 
 #define SET_TABLE(v)                                                                                                                                                                                   \
     do {                                                                                                                                                                                               \
-        VarTable *__t = (VarTable *) FlFastAlloc(_S, sizeof(VarTable), !__fakelua_init_flag__);                                                                                                        \
+        VarTable *__t = (VarTable *) FlFastAlloc(_S, sizeof(VarTable), FL_IN_CONST_INIT);                                                                                                        \
         __t->count_ = 0;                                                                                                                                                                               \
         __t->bucket_count_ = 0;                                                                                                                                                                        \
         __t->nodes_ = NULL;                                                                                                                                                                            \
@@ -1146,19 +1178,19 @@ static inline uint32_t FlHashString(const char *str, int len) {
         }                                                                                                                                                                                              \
         (v).type_ = VAR_TABLE;                                                                                                                                                                         \
         /* init 中创建 → CONST_FLAG（嵌套表同样走 SET_TABLE，整树只读）；init 后创建 → 可变 */                                                                                                         \
-        (v).flag_ = __fakelua_init_flag__ ? 0 : CONST_FLAG;                                                                                                                                            \
+        (v).flag_ = FL_IN_CONST_INIT ? CONST_FLAG : 0;                                                                                                                                                  \
         (v).data_.t = __t;                                                                                                                                                                             \
     } while (0)
 
 #define SET_TABLE_SPEC(v, SpecType, get_fn, set_fn, field_count)                                                                                                                                       \
     do {                                                                                                                                                                                               \
         SET_TABLE(v);                                                                                                                                                                                  \
-        SpecType *__sp = (SpecType *) FlFastAlloc(_S, sizeof(SpecType), !__fakelua_init_flag__);                                                                                                       \
+        SpecType *__sp = (SpecType *) FlFastAlloc(_S, sizeof(SpecType), FL_IN_CONST_INIT);                                                                                                       \
         (v).data_.t->spec = __sp;                                                                                                                                                                      \
         (v).data_.t->spec_get = (get_fn);                                                                                                                                                              \
         (v).data_.t->spec_set = (set_fn);                                                                                                                                                              \
-        (v).data_.t->spec_keys = (CVar *) FlFastAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__);                                                                                       \
-        (v).data_.t->spec_vals = (CVar *) FlFastAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__);                                                                                       \
+        (v).data_.t->spec_keys = (CVar *) FlFastAlloc(_S, sizeof(CVar) * (field_count), FL_IN_CONST_INIT);                                                                                       \
+        (v).data_.t->spec_vals = (CVar *) FlFastAlloc(_S, sizeof(CVar) * (field_count), FL_IN_CONST_INIT);                                                                                       \
         (v).data_.t->spec_count = (field_count);                                                                                                                                                       \
         assert(sizeof(SpecType) == (field_count) * sizeof(CVar));                                                                                                                                      \
     } while (0)
@@ -1476,7 +1508,7 @@ static inline void FlTableRehash(VarTable *tbl) {
         uint32_t total_nodes = new_bucket_count + overflow_count;
         size_t nodes_size = total_nodes * sizeof(TableNode);
         size_t active_list_size = total_nodes * sizeof(uint32_t);
-        char *buffer = (char *) FlFastAlloc(_S, nodes_size + active_list_size, !__fakelua_init_flag__);
+        char *buffer = (char *) FlFastAlloc(_S, nodes_size + active_list_size, FL_IN_CONST_INIT);
         TableNode *new_nodes = (TableNode *) buffer;
         uint32_t *new_active_list = (uint32_t *) (buffer + nodes_size);
         {
@@ -1821,7 +1853,7 @@ static inline CVar FlHashGetInt(VarTable *tbl, int64_t k) {
 
 __attribute__((noinline)) static void FlArrGrow(VarTable *tbl) {
     uint32_t cap = tbl->arr_cap_ ? tbl->arr_cap_ * 2 : 4;
-    CVar *na = (CVar *) FlFastAlloc(_S, (size_t) cap * sizeof(CVar), !__fakelua_init_flag__);
+    CVar *na = (CVar *) FlFastAlloc(_S, (size_t) cap * sizeof(CVar), FL_IN_CONST_INIT);
     if (tbl->arr_size_ > 0) {
         memcpy(na, tbl->arr_, (size_t) tbl->arr_size_ * sizeof(CVar));
     }
@@ -1917,7 +1949,7 @@ __attribute__((noinline)) static bool FlArrTryResize(VarTable *tbl, int64_t nk) 
     }
     {
         uint32_t old_size = tbl->arr_size_;
-        CVar *na = (CVar *) FlFastAlloc(_S, (size_t) optimal * sizeof(CVar), !__fakelua_init_flag__);
+        CVar *na = (CVar *) FlFastAlloc(_S, (size_t) optimal * sizeof(CVar), FL_IN_CONST_INIT);
         if (old_size > 0) {
             memcpy(na, tbl->arr_, (size_t) old_size * sizeof(CVar));
         }
@@ -2086,7 +2118,7 @@ static inline void FlSetTableIntImpl(CVar t, int64_t k, CVar v FL_HINT_PARAMS) {
 }
 
 static inline void FlSetTableIntFn(CVar t, int64_t k, CVar v FL_HINT_PARAMS) {
-    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || FL_IN_CONST_INIT))) {
         VarTable *tbl = t.data_.t;
         uint64_t idx = (uint64_t) k - 1;
         /* 新旧值都非 nil 时序列长度不变，可跳过缓存维护。*/
@@ -2103,7 +2135,7 @@ static inline void FlSetTableIntFn(CVar t, int64_t k, CVar v FL_HINT_PARAMS) {
 #define FlSetTableInt(...) FlSetTableIntFn(__VA_ARGS__ FL_HINT_ARGS)
 
 static inline void FlSetTableInt_IntFn(CVar t, int64_t k, int64_t v FL_HINT_PARAMS) {
-    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || FL_IN_CONST_INIT))) {
         VarTable *tbl = t.data_.t;
         uint64_t idx = (uint64_t) k - 1;
         if (LIKELY(idx < (uint64_t) tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
@@ -2125,7 +2157,7 @@ static inline void FlSetTableInt_IntFn(CVar t, int64_t k, int64_t v FL_HINT_PARA
 #define FlSetTableInt_Int(...) FlSetTableInt_IntFn(__VA_ARGS__ FL_HINT_ARGS)
 
 static inline void FlSetTableInt_FloatFn(CVar t, int64_t k, double v FL_HINT_PARAMS) {
-    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || FL_IN_CONST_INIT))) {
         VarTable *tbl = t.data_.t;
         uint64_t idx = (uint64_t) k - 1;
         if (LIKELY(idx < (uint64_t) tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
@@ -2147,7 +2179,7 @@ static inline void FlSetTableInt_FloatFn(CVar t, int64_t k, double v FL_HINT_PAR
 #define FlSetTableInt_Float(...) FlSetTableInt_FloatFn(__VA_ARGS__ FL_HINT_ARGS)
 
 static inline void FlSetTableInt_BoolFn(CVar t, int64_t k, bool b FL_HINT_PARAMS) {
-    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || !__fakelua_init_flag__))) {
+    if (LIKELY(t.type_ == VAR_TABLE && (!(t.flag_ & CONST_FLAG) || FL_IN_CONST_INIT))) {
         VarTable *tbl = t.data_.t;
         uint64_t idx = (uint64_t) k - 1;
         if (LIKELY(idx < (uint64_t) tbl->arr_size_ && tbl->arr_[idx].type_ != VAR_NIL)) {
@@ -2751,7 +2783,7 @@ static inline CVar FlConcatFn(CVar a, CVar b FL_HINT_PARAMS) {
     if (UNLIKELY(total < la || total < lb)) {
         FL_RAISE_HINT(_S, "string concatenation result too long");
     }
-    VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
+    VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + total, FL_IN_CONST_INIT);
     vs->size_ = total;
     vs->hash_ = 0;
     memcpy(vs->data_, sa, la);
@@ -2769,7 +2801,7 @@ static inline CVar FlStringChar1Fn(int64_t c FL_HINT_PARAMS) {
     if (UNLIKELY(c < 0 || c > 255)) {
         FL_RAISE_HINT(_S, "bad argument to string.char: value out of range");
     }
-    VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + 1, !__fakelua_init_flag__);
+    VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + 1, FL_IN_CONST_INIT);
     vs->size_ = 1;
     vs->hash_ = 0;
     vs->data_[0] = (char) c;
@@ -2795,7 +2827,7 @@ static inline CVar FlStringLower(CVar s) {
     } else {
         return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.lower", 1, s);
     }
-    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + len, FL_IN_CONST_INIT);
     out->size_ = len;
     out->hash_ = 0;
     for (int i = 0; i < len; ++i) {
@@ -2822,7 +2854,7 @@ static inline CVar FlStringUpper(CVar s) {
     } else {
         return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.upper", 1, s);
     }
-    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + len, FL_IN_CONST_INIT);
     out->size_ = len;
     out->hash_ = 0;
     for (int i = 0; i < len; ++i) {
@@ -2851,7 +2883,7 @@ static inline CVar FlStringByte1(CVar s, int64_t i) {
         return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.byte", 2, s, (CVar) {.type_ = VAR_INT, .data_.i = i});
     }
     if (i < 0) i = len + i + 1;
-    if (i < 1 || i > len) return (CVar) {VAR_NIL};
+    if (UNLIKELY(i < 1 || i > len)) return FlAllocMulti(_S, 0);
     return (CVar) {.type_ = VAR_INT, .data_.i = (unsigned char) src[i - 1]};
 }
 
@@ -2870,7 +2902,7 @@ static inline CVar FlStringRep(CVar s, int64_t n) {
         return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar) {.type_ = VAR_INT, .data_.i = n});
     }
     if (n <= 0 || len == 0) {
-        VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString), !__fakelua_init_flag__);
+        VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + 1, FL_IN_CONST_INIT);
         vs->size_ = 0;
         vs->hash_ = 0;
         vs->data_[0] = '\0';
@@ -2885,7 +2917,7 @@ static inline CVar FlStringRep(CVar s, int64_t n) {
         return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.rep", 2, s, (CVar) {.type_ = VAR_INT, .data_.i = n});
     }
     int64_t total = (int64_t) len * n;
-    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
+    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + total, FL_IN_CONST_INIT);
     out->size_ = total;
     out->hash_ = 0;
     char *dst = out->data_;
@@ -2914,7 +2946,7 @@ static inline CVar FlStringReverse(CVar s) {
     } else {
         return FakeluaCallByName(_S, FAKELUA_JIT_TYPE, "string.reverse", 1, s);
     }
-    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + len, !__fakelua_init_flag__);
+    VarString *out = (VarString *) FlFastAlloc(_S, sizeof(VarString) + len, FL_IN_CONST_INIT);
     out->size_ = len;
     out->hash_ = 0;
     for (int i = 0; i < len; ++i) {
@@ -2968,7 +3000,7 @@ static inline CVar FlStringFindPlain(CVar s, CVar pat) {
 static inline CVar FlFormatInt(int64_t v) {
     char buf[32];
     int n = FlFastItoA(v, buf);
-    VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + n, !__fakelua_init_flag__);
+    VarString *vs = (VarString *) FlFastAlloc(_S, sizeof(VarString) + n, FL_IN_CONST_INIT);
     vs->size_ = n;
     vs->hash_ = 0;
     memcpy(vs->data_, buf, (size_t) n);
@@ -3244,13 +3276,11 @@ static inline CVar FlTableUnpackFn(CVar tbl, int64_t start_i, int64_t end_j FL_H
         if (UNLIKELY(__fm_b == 0)) {                                                                                                                                                                   \
             FL_RAISE(_S, "modulo by zero");                                                                                                                                                   \
         }                                                                                                                                                                                              \
-        if (UNLIKELY(__fm_b == (int64_t) -1)) {                                                                                                                                                        \
-            (result) = 0;                                                                                                                                                                              \
-        } else {                                                                                                                                                                                       \
-            int64_t __fm_q;                                                                                                                                                                            \
-            FlFloorDivQuotient(__fm_a, __fm_b, __fm_q);                                                                                                                                                \
-            (result) = __fm_a - __fm_b * __fm_q;                                                                                                                                                       \
+        int64_t __fm_r = UNLIKELY(__fm_b == (int64_t) -1) ? 0 : (__fm_a % __fm_b);                                                                                                                     \
+        if (__fm_r != 0 && ((__fm_r < 0) != (__fm_b < 0))) {                                                                                                                                           \
+            __fm_r += __fm_b;                                                                                                                                                                          \
         }                                                                                                                                                                                              \
+        (result) = __fm_r;                                                                                                                                                                             \
     } while (0)
 
 #define FlModFloat(a, b, result)                                                                                                                                                                       \

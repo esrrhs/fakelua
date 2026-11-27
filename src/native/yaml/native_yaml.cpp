@@ -79,62 +79,137 @@ static CVar ScalarToLua(State *s, const std::string &str) {
 }
 
 static constexpr int kMaxYamlDepth = 64;
+static constexpr size_t kMaxYamlNodes = 100000;
 
 static void CheckYamlTextNesting(const std::string &str) {
-    int depth = 0;
+    int flow_depth = 0;
     bool in_single = false;
     bool in_double = false;
+    bool at_node_start = true;
+    size_t col = 0;
+    std::vector<size_t> block_indents;
+    block_indents.reserve(static_cast<size_t>(kMaxYamlDepth) + 4);
+
+    auto push_block_indent = [&](size_t c_pos) {
+        while (!block_indents.empty() && block_indents.back() >= c_pos) {
+            block_indents.pop_back();
+        }
+        block_indents.push_back(c_pos);
+        if (block_indents.size() + static_cast<size_t>(flow_depth) > static_cast<size_t>(kMaxYamlDepth * 2)) {
+            ThrowFakeluaException("yaml.decode: nesting too deep");
+        }
+    };
+
     for (size_t i = 0; i < str.size(); ++i) {
         const char c = str[i];
         if (in_single) {
-            if (c == '\'') {
+            if (c == '\n') {
+                col = 0;
+            } else if (c == '\'') {
                 if (i + 1 < str.size() && str[i + 1] == '\'') {
                     ++i;
+                    col += 2;
                 } else {
                     in_single = false;
+                    ++col;
                 }
+            } else if (c != '\r') {
+                ++col;
             }
             continue;
         }
         if (in_double) {
+            if (c == '\n') {
+                col = 0;
+                continue;
+            }
             if (c == '\\' && i + 1 < str.size()) {
                 ++i;
+                col += 2;
                 continue;
             }
             if (c == '"') {
                 in_double = false;
             }
+            if (c != '\r') {
+                ++col;
+            }
+            continue;
+        }
+        if (c == '\r') {
+            continue;
+        }
+        if (c == '\n') {
+            col = 0;
+            if (flow_depth == 0) {
+                at_node_start = true;
+            }
             continue;
         }
         if (c == '#') {
-            while (i < str.size() && str[i] != '\n') {
+            while (i + 1 < str.size() && str[i + 1] != '\n') {
                 ++i;
             }
             continue;
         }
+        if (flow_depth == 0 && at_node_start) {
+            if (c == ' ' || c == '\t') {
+                ++col;
+                continue;
+            }
+            if ((c == '-' || c == '?') &&
+                (i + 1 == str.size() || str[i + 1] == ' ' || str[i + 1] == '\t' || str[i + 1] == '\r' || str[i + 1] == '\n')) {
+                push_block_indent(col);
+                ++col;
+                continue;
+            }
+            if (c == '&' || c == '!') {
+                while (i + 1 < str.size() && str[i + 1] != ' ' && str[i + 1] != '\t' && str[i + 1] != '\r' && str[i + 1] != '\n' &&
+                       str[i + 1] != '[' && str[i + 1] != '{' && str[i + 1] != ',') {
+                    ++i;
+                    ++col;
+                }
+                ++col;
+                continue;
+            }
+            push_block_indent(col);
+            at_node_start = false;
+        }
         if (c == '\'') {
             in_single = true;
+            ++col;
             continue;
         }
         if (c == '"') {
             in_double = true;
+            ++col;
+            continue;
+        }
+        if (flow_depth == 0 && c == ':' &&
+            (i + 1 == str.size() || str[i + 1] == ' ' || str[i + 1] == '\t' || str[i + 1] == '\r' || str[i + 1] == '\n')) {
+            at_node_start = true;
+            ++col;
             continue;
         }
         if (c == '[' || c == '{') {
-            ++depth;
-            if (depth > kMaxYamlDepth) {
+            ++flow_depth;
+            if (flow_depth > kMaxYamlDepth) {
                 ThrowFakeluaException("yaml.decode: nesting too deep");
             }
-        } else if ((c == ']' || c == '}') && depth > 0) {
-            --depth;
+        } else if ((c == ']' || c == '}') && flow_depth > 0) {
+            --flow_depth;
         }
+        ++col;
     }
 }
 
 // YAML::Node → CVar
-static CVar NodeToLua(State *s, const YAML::Node &node, int depth, std::vector<YAML::Node> &stack) {
+static CVar NodeToLua(State *s, const YAML::Node &node, int depth, std::vector<YAML::Node> &stack, size_t &visited_nodes) {
     if (depth > kMaxYamlDepth) {
         ThrowFakeluaException("yaml.decode: nesting too deep");
+    }
+    if (++visited_nodes > kMaxYamlNodes) {
+        ThrowFakeluaException("yaml.decode: node limit exceeded");
     }
     if (!node.IsDefined() || node.IsNull()) {
         return inter::NativeToFakeluaNil(s);
@@ -161,15 +236,18 @@ static CVar NodeToLua(State *s, const YAML::Node &node, int depth, std::vector<Y
         CVar tbl = table::TableHelper::CreateTable(s);
         size_t idx = 1;
         for (auto it = node.begin(); it != node.end(); ++it, ++idx) {
-            table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(idx), NodeToLua(s, *it, depth + 1, stack));
+            table::TableHelper::SetTableInt(s, tbl, static_cast<int64_t>(idx), NodeToLua(s, *it, depth + 1, stack, visited_nodes));
         }
         return tbl;
     }
     if (node.IsMap()) {
         CVar tbl = table::TableHelper::CreateTable(s);
         for (auto it = node.begin(); it != node.end(); ++it) {
+            if (++visited_nodes > kMaxYamlNodes) {
+                ThrowFakeluaException("yaml.decode: node limit exceeded");
+            }
             std::string key = it->first.as<std::string>();
-            table::TableHelper::SetTableStrId(s, tbl, key.c_str(), NodeToLua(s, it->second, depth + 1, stack));
+            table::TableHelper::SetTableTempStr(s, tbl, key, NodeToLua(s, it->second, depth + 1, stack, visited_nodes));
         }
         return tbl;
     }
@@ -266,7 +344,8 @@ static CVar YamlDecode(State *s, CVar *args, int n) {
         CheckYamlTextNesting(str);
         YAML::Node root = YAML::Load(str);
         std::vector<YAML::Node> stack;
-        return NodeToLua(s, root, 0, stack);
+        size_t visited_nodes = 0;
+        return NodeToLua(s, root, 0, stack, visited_nodes);
     } catch (const YAML::Exception &e) {
         ThrowFakeluaException(std::format("YAML parse error: {}", e.what()));
     }

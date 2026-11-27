@@ -33,7 +33,7 @@ static CVar NodeToLua(State *s, pugi::xml_node node, int depth) {
 
     // Attributes → "_attr_attrname" (prefix avoids illegal C identifiers)
     for (auto attr = node.first_attribute(); attr; attr = attr.next_attribute()) {
-        table::TableHelper::SetTableStrId(s, tbl, std::format("_attr_{}", attr.name()).c_str(), inter::NativeToFakeluaString(s, std::string(attr.value())));
+        table::TableHelper::SetTableTempStr(s, tbl, std::format("_attr_{}", attr.name()), inter::NativeToFakeluaString(s, std::string(attr.value())));
     }
 
     // Children: group element children by tag name; text → "_text"
@@ -77,16 +77,16 @@ static CVar NodeToLua(State *s, pugi::xml_node node, int depth) {
             // Concatenate all text fragments
             std::string combined;
             for (auto &n: g.nodes) combined += n.value();
-            table::TableHelper::SetTableStrId(s, tbl, "_text", inter::NativeToFakeluaString(s, combined));
+            table::TableHelper::SetTableTempStr(s, tbl, "_text", inter::NativeToFakeluaString(s, combined));
         } else if (g.nodes.size() == 1) {
-            table::TableHelper::SetTableStrId(s, tbl, g.tag.c_str(), NodeToLua(s, g.nodes[0], depth + 1));
+            table::TableHelper::SetTableTempStr(s, tbl, g.tag, NodeToLua(s, g.nodes[0], depth + 1));
         } else {
             // Multiple same-tag siblings → array
             CVar arr = table::TableHelper::CreateTable(s);
             for (size_t i = 0; i < g.nodes.size(); i++) {
                 table::TableHelper::SetTableInt(s, arr, static_cast<int64_t>(i + 1), NodeToLua(s, g.nodes[i], depth + 1));
             }
-            table::TableHelper::SetTableStrId(s, tbl, g.tag.c_str(), arr);
+            table::TableHelper::SetTableTempStr(s, tbl, g.tag, arr);
         }
     }
 

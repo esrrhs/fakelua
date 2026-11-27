@@ -21,10 +21,14 @@
 #if defined(_WIN32)
 #include <windows.h>
 #else
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/stat.h>
+#if defined(__linux__)
+#include <sys/syscall.h>
+#endif
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -37,9 +41,11 @@ using table::TableHelper;
 
 static constexpr size_t kMaxOutput = 8 * 1024 * 1024;
 
+#if defined(_WIN32)
 static boost::filesystem::path MakeProcTempPath() {
     return boost::filesystem::temp_directory_path() / boost::filesystem::unique_path("fakelua-proc-%%%%-%%%%.tmp");
 }
+#endif
 
 static std::string ReadCappedFile(const boost::filesystem::path &p) {
     std::string out;
@@ -163,6 +169,69 @@ static std::string FindExecutable(const std::string &name) {
     return name;
 }
 
+#if !defined(_WIN32)
+static int CreateSecureTempFile(boost::filesystem::path &out_path) {
+    boost::system::error_code ec;
+    boost::filesystem::path dir = boost::filesystem::temp_directory_path(ec);
+    if (ec || dir.empty()) dir = "/tmp";
+    std::string tmpl = (dir / "fakelua-proc-XXXXXX").string();
+    std::vector<char> buf(tmpl.begin(), tmpl.end());
+    buf.push_back('\0');
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+    int fd = ::mkostemp(buf.data(), O_CLOEXEC);
+#else
+    int fd = ::mkstemp(buf.data());
+    if (fd >= 0) {
+        int flags = ::fcntl(fd, F_GETFD);
+        if (flags >= 0) ::fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+    }
+#endif
+    if (fd < 0) {
+        ThrowFakeluaException(std::format("process.run: mkstemp failed: {}", std::strerror(errno)));
+    }
+    ::fchmod(fd, 0600);
+    out_path = boost::filesystem::path(buf.data());
+    return fd;
+}
+
+static void CloseExtraFdsFrom(int first_fd) {
+#if defined(__linux__) && defined(SYS_close_range)
+    if (::syscall(SYS_close_range, static_cast<unsigned int>(first_fd), ~0U, 0) == 0) {
+        return;
+    }
+#endif
+#if defined(__APPLE__)
+    const char *fd_dir_path = "/dev/fd";
+#else
+    const char *fd_dir_path = "/proc/self/fd";
+#endif
+    if (DIR *dir = ::opendir(fd_dir_path)) {
+        const int dfd = ::dirfd(dir);
+        std::vector<int> to_close;
+        while (struct dirent *ent = ::readdir(dir)) {
+            if (ent->d_name[0] < '0' || ent->d_name[0] > '9') continue;
+            char *end = nullptr;
+            long val = std::strtol(ent->d_name, &end, 10);
+            if (!end || *end != '\0') continue;
+            if (val >= first_fd && val <= std::numeric_limits<int>::max() && static_cast<int>(val) != dfd) {
+                to_close.push_back(static_cast<int>(val));
+            }
+        }
+        ::closedir(dir);
+        for (int fd: to_close) {
+            ::close(fd);
+        }
+        return;
+    }
+    long max_fd = ::sysconf(_SC_OPEN_MAX);
+    if (max_fd < 0) max_fd = 1024;
+    if (max_fd > 65536) max_fd = 65536;
+    for (int fd = first_fd; fd < static_cast<int>(max_fd); ++fd) {
+        ::close(fd);
+    }
+}
+#endif
+
 #if defined(_WIN32)
 struct FileStdio {
     HANDLE hin = INVALID_HANDLE_VALUE;
@@ -263,21 +332,32 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     int exit_code = -1;
     bool timed_out = false;
 
-    const auto out_path = MakeProcTempPath();
-    const auto err_path = MakeProcTempPath();
-    boost::filesystem::path in_path;
+    struct TempFilesGuard {
+        boost::filesystem::path out_path;
+        boost::filesystem::path err_path;
+        boost::filesystem::path in_path;
+        ~TempFilesGuard() {
+            boost::system::error_code ec;
+            if (!out_path.empty()) boost::filesystem::remove(out_path, ec);
+            if (!err_path.empty()) boost::filesystem::remove(err_path, ec);
+            if (!in_path.empty()) boost::filesystem::remove(in_path, ec);
+        }
+    } temp_files;
+
+#if defined(_WIN32)
+    temp_files.out_path = MakeProcTempPath();
+    temp_files.err_path = MakeProcTempPath();
     {
-        boost::nowide::ofstream{out_path.string(), std::ios::binary};
-        boost::nowide::ofstream{err_path.string(), std::ios::binary};
+        boost::nowide::ofstream{temp_files.out_path.string(), std::ios::binary};
+        boost::nowide::ofstream{temp_files.err_path.string(), std::ios::binary};
     }
     if (!stdin_data.empty()) {
-        in_path = MakeProcTempPath();
-        boost::nowide::ofstream in(in_path.string(), std::ios::binary);
+        temp_files.in_path = MakeProcTempPath();
+        boost::nowide::ofstream in(temp_files.in_path.string(), std::ios::binary);
         in.write(stdin_data.data(), static_cast<std::streamsize>(stdin_data.size()));
         in.close();
     }
 
-#if defined(_WIN32)
     auto QuoteWinArg = [](const std::wstring &arg) -> std::wstring {
         std::wstring out = L"\"";
         int backslashes = 0;
@@ -300,9 +380,9 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     };
 
     FileStdio stdio;
-    stdio.hin = FileStdio::Open(in_path.empty() ? L"NUL" : in_path.wstring().c_str(), true);
-    stdio.hout = FileStdio::Open(out_path.wstring().c_str(), false);
-    stdio.herr = FileStdio::Open(err_path.wstring().c_str(), false);
+    stdio.hin = FileStdio::Open(temp_files.in_path.empty() ? L"NUL" : temp_files.in_path.wstring().c_str(), true);
+    stdio.hout = FileStdio::Open(temp_files.out_path.wstring().c_str(), false);
+    stdio.herr = FileStdio::Open(temp_files.err_path.wstring().c_str(), false);
 
     std::wstring cmd = QuoteWinArg(boost::nowide::widen(exe));
     for (size_t i = 1; i < argv.size(); ++i) {
@@ -358,86 +438,149 @@ static CVar ProcessRun(State *s, CVar *args, int n) {
     ::CloseHandle(pi.hProcess);
     ::CloseHandle(pi.hThread);
 #else
-    int in_fd = ::open(in_path.empty() ? "/dev/null" : in_path.string().c_str(), O_RDONLY);
-    int out_fd = ::open(out_path.string().c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
-    int err_fd = ::open(err_path.string().c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
-    if (in_fd < 0 || out_fd < 0 || err_fd < 0) {
-        if (in_fd >= 0) ::close(in_fd);
-        if (out_fd >= 0) ::close(out_fd);
-        if (err_fd >= 0) ::close(err_fd);
+    struct PosixFdGuard {
+        int in_fd = -1;
+        int out_fd = -1;
+        int err_fd = -1;
+        void Close() {
+            if (in_fd >= 0) {
+                ::close(in_fd);
+                in_fd = -1;
+            }
+            if (out_fd >= 0) {
+                ::close(out_fd);
+                out_fd = -1;
+            }
+            if (err_fd >= 0) {
+                ::close(err_fd);
+                err_fd = -1;
+            }
+        }
+        ~PosixFdGuard() {
+            Close();
+        }
+    } stdio_fds;
+
+    stdio_fds.out_fd = CreateSecureTempFile(temp_files.out_path);
+    stdio_fds.err_fd = CreateSecureTempFile(temp_files.err_path);
+    if (stdin_data.empty()) {
+#if defined(O_CLOEXEC)
+        stdio_fds.in_fd = ::open("/dev/null", O_RDONLY | O_CLOEXEC);
+#else
+        stdio_fds.in_fd = ::open("/dev/null", O_RDONLY);
+#endif
+    } else {
+        int wfd = CreateSecureTempFile(temp_files.in_path);
+        size_t written = 0;
+        while (written < stdin_data.size()) {
+            ssize_t nw = ::write(wfd, stdin_data.data() + written, stdin_data.size() - written);
+            if (nw < 0) {
+                if (errno == EINTR) continue;
+                ::close(wfd);
+                ThrowFakeluaException("process.run: failed to write stdin file");
+            }
+            written += static_cast<size_t>(nw);
+        }
+        ::close(wfd);
+#if defined(O_CLOEXEC)
+        stdio_fds.in_fd = ::open(temp_files.in_path.string().c_str(), O_RDONLY | O_CLOEXEC);
+#else
+        stdio_fds.in_fd = ::open(temp_files.in_path.string().c_str(), O_RDONLY);
+#endif
+    }
+    if (stdio_fds.in_fd < 0 || stdio_fds.out_fd < 0 || stdio_fds.err_fd < 0) {
         ThrowFakeluaException("process.run: failed to open stdio files");
     }
+
+    std::vector<char *> cargv;
+    cargv.reserve(argv.size() + 1);
+    for (auto &a: argv) cargv.push_back(a.data());
+    cargv.push_back(nullptr);
+    auto env_list = CurrentEnviron();
+    ApplyEnvOverrides(env_list, env_overrides);
+    std::vector<char *> cenv;
+    cenv.reserve(env_list.size() + 1);
+    for (auto &e: env_list) cenv.push_back(e.data());
+    cenv.push_back(nullptr);
+
     pid_t pid = ::fork();
     if (pid < 0) {
-        ::close(in_fd);
-        ::close(out_fd);
-        ::close(err_fd);
         ThrowFakeluaException(std::format("process.run: failed to spawn '{}': {}", argv[0], strerror(errno)));
     }
     if (pid == 0) {
         if (!cwd.empty() && ::chdir(cwd.c_str()) != 0) _exit(127);
-        dup2(in_fd, STDIN_FILENO);
-        dup2(out_fd, STDOUT_FILENO);
-        dup2(err_fd, STDERR_FILENO);
-        if (in_fd > 2) ::close(in_fd);
-        if (out_fd > 2) ::close(out_fd);
-        if (err_fd > 2) ::close(err_fd);
-        std::vector<char *> cargv;
-        for (auto &a: argv) cargv.push_back(a.data());
-        cargv.push_back(nullptr);
-        auto env_list = CurrentEnviron();
-        ApplyEnvOverrides(env_list, env_overrides);
-        std::vector<char *> cenv;
-        for (auto &e: env_list) cenv.push_back(e.data());
-        cenv.push_back(nullptr);
+        int in_fd = stdio_fds.in_fd;
+        int out_fd = stdio_fds.out_fd;
+        int err_fd = stdio_fds.err_fd;
+        if (in_fd < 3) {
+            in_fd = ::fcntl(in_fd, F_DUPFD, 3);
+            if (in_fd < 0) _exit(127);
+        }
+        if (out_fd < 3) {
+            out_fd = ::fcntl(out_fd, F_DUPFD, 3);
+            if (out_fd < 0) _exit(127);
+        }
+        if (err_fd < 3) {
+            err_fd = ::fcntl(err_fd, F_DUPFD, 3);
+            if (err_fd < 0) _exit(127);
+        }
+        if (::dup2(in_fd, STDIN_FILENO) < 0 || ::dup2(out_fd, STDOUT_FILENO) < 0 || ::dup2(err_fd, STDERR_FILENO) < 0) {
+            _exit(127);
+        }
+        CloseExtraFdsFrom(3);
         execve(exe.c_str(), cargv.data(), cenv.data());
         _exit(127);
     }
-    ::close(in_fd);
-    ::close(out_fd);
-    ::close(err_fd);
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms > 0 ? timeout_ms : 0);
-    for (;;) {
+    stdio_fds.Close();
+
+    if (timeout_ms <= 0) {
         int status = 0;
-        pid_t r = ::waitpid(pid, &status, WNOHANG);
+        pid_t r = -1;
+        do {
+            r = ::waitpid(pid, &status, 0);
+        } while (r < 0 && errno == EINTR);
         if (r == pid) {
             if (WIFEXITED(status)) exit_code = WEXITSTATUS(status);
             else if (WIFSIGNALED(status))
                 exit_code = 128 + WTERMSIG(status);
             else
                 exit_code = -1;
-            break;
-        }
-        if (r < 0 && errno != EINTR) {
+        } else {
             exit_code = -1;
-            break;
         }
-        if (timeout_ms > 0 && std::chrono::steady_clock::now() >= deadline) {
-            timed_out = true;
-            ::kill(pid, SIGKILL);
-            ::waitpid(pid, &status, 0);
-            exit_code = 9;
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        if (timeout_ms == 0) {
-            r = ::waitpid(pid, &status, 0);
+    } else {
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        for (;;) {
+            int status = 0;
+            pid_t r = ::waitpid(pid, &status, WNOHANG);
             if (r == pid) {
                 if (WIFEXITED(status)) exit_code = WEXITSTATUS(status);
                 else if (WIFSIGNALED(status))
                     exit_code = 128 + WTERMSIG(status);
+                else
+                    exit_code = -1;
+                break;
             }
-            break;
+            if (r < 0 && errno != EINTR) {
+                exit_code = -1;
+                break;
+            }
+            if (std::chrono::steady_clock::now() >= deadline) {
+                timed_out = true;
+                ::kill(pid, SIGKILL);
+                do {
+                    r = ::waitpid(pid, &status, 0);
+                } while (r < 0 && errno == EINTR);
+                exit_code = 9;
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
 #endif
 
-    stdout_s = ReadCappedFile(out_path);
-    stderr_s = ReadCappedFile(err_path);
-    boost::system::error_code rec;
-    boost::filesystem::remove(out_path, rec);
-    boost::filesystem::remove(err_path, rec);
-    if (!in_path.empty()) boost::filesystem::remove(in_path, rec);
+    stdout_s = ReadCappedFile(temp_files.out_path);
+    stderr_s = ReadCappedFile(temp_files.err_path);
 
     if (timed_out && exit_code < 0) exit_code = 9;
 

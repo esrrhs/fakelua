@@ -338,6 +338,7 @@ CVar StmtClose(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
     obj->db = nullptr;
     delete obj;
     self->SetInt("__sqlite_stmt__", 0);
+    UnregisterSqliteWrapper(self);
     if (rc != SQLITE_OK) {
         error(std::string("stmt:close: ") + sqlite3_errstr(rc));
     }
@@ -368,6 +369,7 @@ CVar DbClose(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
         }
         delete obj;
         self->SetInt("__sqlite_db__", 0);
+        UnregisterSqliteWrapper(self);
     }
     return inter::NativeToFakeluaNil(s);
 }

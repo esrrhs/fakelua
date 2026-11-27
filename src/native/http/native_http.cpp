@@ -23,6 +23,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <format>
 #include <limits>
 #include <stdexcept>
@@ -55,19 +56,10 @@ static bool CVarToBoolFlag(CVar v, bool default_val) {
     return true;
 }
 
-static CVar CallNamed(State *s, const std::string &name, CVar *args, int n) {
+static CVar CallNamed(State *s, const std::string &name, CVar *args, int n, JITType preferred_jit) {
     if (!s || name.empty()) return inter::NativeToFakeluaNil(s);
-    auto func = s->GetVM().GetFunction(name);
-    if (func.Empty()) return inter::NativeToFakeluaNil(s);
-    void *addr = func.GetAddr(JIT_TCC);
-    JITType jit_type = JIT_TCC;
-    if (!addr) {
-        addr = func.GetAddr(JIT_GCC);
-        jit_type = JIT_GCC;
-    }
-    if (!addr) return inter::NativeToFakeluaNil(s);
     native::IoContext::DispatchScope scope(s->GetIoContext());
-    return inter::DispatchCall(s, addr, args, n, jit_type);
+    return DispatchNamedLuaCallback(s, name, args, n, preferred_jit);
 }
 
 static CVar HeadersToTable(State *s, const HeaderList &fields) {
@@ -356,6 +348,14 @@ struct HttpResponseData {
     std::string err;
 };
 
+class HttpClientOp;
+
+struct ClientHold {
+    std::shared_ptr<HttpClientOp> ptr;
+};
+
+static void ReleaseClientOp(NativeObject *nat);
+
 class HttpClientOp : public std::enable_shared_from_this<HttpClientOp> {
 public:
     HttpClientOp(State *state, NativeObject *nat) : io_(state->GetIoContext()), lua_state_(state), native_obj_(nat) {
@@ -382,7 +382,8 @@ public:
             return;
         }
         use_tls_ = https;
-        host_ = std::string(u.host());
+        std::string raw_host = std::string(u.host());
+        host_ = tls::HostnameWithoutPort(raw_host);
         if (host_.empty()) {
             Finish("url missing host");
             return;
@@ -397,7 +398,7 @@ public:
             target.push_back('?');
             target += std::string(u.encoded_query());
         }
-        HeaderSet(headers, "Host", u.has_port() ? (host_ + ":" + std::to_string(port)) : host_);
+        HeaderSet(headers, "Host", u.has_port() ? (raw_host + ":" + std::to_string(port)) : raw_host);
         HeaderSet(headers, "User-Agent", "fakelua");
         HeaderSet(headers, "Connection", "close");
         req_wire_ = FormatRequest(method, target, version, std::move(headers), body);
@@ -424,9 +425,16 @@ public:
     }
 
     void Tick() {
+        auto self_guard = shared_from_this();
         io_.Poll();
         if (!pending_) return;
         pending_ = false;
+        struct CleanupGuard {
+            HttpClientOp *self;
+            ~CleanupGuard() {
+                ReleaseClientOp(self->native_obj_);
+            }
+        } cleanup{this};
         Dispatch();
     }
 
@@ -436,12 +444,17 @@ public:
         if (!done_) Finish("closed");
     }
 
+    void ClearNativeObject() {
+        native_obj_ = nullptr;
+    }
+
     bool Done() const {
         return done_ && !pending_;
     }
 
-    void SetCallback(std::string name) {
+    void SetCallback(std::string name, JITType jit) {
         cb_ = std::move(name);
+        cb_jit_ = jit;
     }
 
 private:
@@ -449,7 +462,10 @@ private:
         if (ssl_ctx_) {
             SSL *ssl = SSL_new(ssl_ctx_);
             if (!ssl) return nullptr;
-            tls::SetSniHostname(ssl, host_);
+            if (!tls::ConfigurePeerVerification(ssl, host_, tls_verify_)) {
+                SSL_free(ssl);
+                return nullptr;
+            }
             auto *bev = bufferevent_openssl_socket_new(io_.Get(), -1, ssl, BUFFEREVENT_SSL_CONNECTING, BEV_OPT_CLOSE_ON_FREE);
             if (!bev) {
                 SSL_free(ssl);
@@ -471,7 +487,15 @@ private:
     void ArmTimeout() {
         ClearTimeout();
         if (timeout_ms_ <= 0) return;
-        timeout_ev_ = evtimer_new(io_.Get(), [](evutil_socket_t, short, void *p) { static_cast<HttpClientOp *>(p)->Finish("timeout"); }, this);
+        timeout_ev_ = evtimer_new(
+                io_.Get(),
+                [](evutil_socket_t, short, void *p) {
+                    auto *self = static_cast<HttpClientOp *>(p);
+                    if (!self) return;
+                    auto self_guard = self->shared_from_this();
+                    self->Finish("timeout");
+                },
+                this);
         timeval tv{};
         tv.tv_sec = timeout_ms_ / 1000;
         tv.tv_usec = (timeout_ms_ % 1000) * 1000;
@@ -498,9 +522,13 @@ private:
     }
 
     void OnConnected() {
-        if (bev_ && !req_wire_.empty()) {
-            bufferevent_write(bev_, req_wire_.data(), req_wire_.size());
-            req_wire_.clear();
+        if (bev_) {
+            evutil_socket_t fd = bufferevent_getfd(bev_);
+            if (fd != -1) evutil_make_socket_closeonexec(fd);
+            if (!req_wire_.empty()) {
+                bufferevent_write(bev_, req_wire_.data(), req_wire_.size());
+                req_wire_.clear();
+            }
         }
     }
 
@@ -524,17 +552,20 @@ private:
             args[1] = inter::NativeToFakeluaNil(lua_state_);
             args[2] = ResponseToTable(lua_state_, resp_.status, resp_.reason, resp_.headers, resp_.body);
         }
-        CallNamed(lua_state_, cb_, args, 3);
+        CallNamed(lua_state_, cb_, args, 3, cb_jit_);
     }
 
     static void ReadCb(bufferevent *, void *ctx) {
         auto *self = static_cast<HttpClientOp *>(ctx);
-        if (self) self->HandleRead(false);
+        if (!self) return;
+        auto self_guard = self->shared_from_this();
+        self->HandleRead(false);
     }
 
     static void EventCb(bufferevent *, short what, void *ctx) {
         auto *self = static_cast<HttpClientOp *>(ctx);
         if (!self) return;
+        auto self_guard = self->shared_from_this();
         if (what & BEV_EVENT_CONNECTED) {
             self->OnConnected();
             return;
@@ -592,6 +623,7 @@ private:
     HttpResponseData resp_;
     std::string host_;
     std::string cb_;
+    JITType cb_jit_ = JIT_TCC;
     std::string tls_ca_;
     State *lua_state_ = nullptr;
     NativeObject *native_obj_ = nullptr;
@@ -656,7 +688,9 @@ public:
             bufferevent_free(bev_);
             bev_ = nullptr;
         }
-        if (on_close_) on_close_(conn_id_);
+        auto on_close = std::move(on_close_);
+        on_request_ = nullptr;
+        if (on_close) on_close(conn_id_);
     }
 
     int ConnId() const {
@@ -667,7 +701,15 @@ private:
     void ArmTimeout() {
         ClearTimeout();
         if (timeout_ms_ <= 0) return;
-        timeout_ev_ = evtimer_new(io_.Get(), [](evutil_socket_t, short, void *p) { static_cast<HttpServerConn *>(p)->Close(); }, this);
+        timeout_ev_ = evtimer_new(
+                io_.Get(),
+                [](evutil_socket_t, short, void *p) {
+                    auto *self = static_cast<HttpServerConn *>(p);
+                    if (!self) return;
+                    auto self_guard = self->shared_from_this();
+                    if (!self->closed_) self->Close();
+                },
+                this);
         timeval tv{};
         tv.tv_sec = timeout_ms_ / 1000;
         tv.tv_usec = (timeout_ms_ % 1000) * 1000;
@@ -707,26 +749,32 @@ private:
         }
         recv_.swap(tmp);
         req_ = req;
-        if (on_request_) on_request_(conn_id_, std::move(req));
+        auto on_req = on_request_;
+        if (on_req) on_req(conn_id_, std::move(req));
     }
 
     static void ReadCb(bufferevent *, void *ctx) {
         auto *self = static_cast<HttpServerConn *>(ctx);
-        if (self) self->HandleRead(false);
+        if (!self) return;
+        auto self_guard = self->shared_from_this();
+        self->HandleRead(false);
     }
 
     static void EventCb(bufferevent *, short what, void *ctx) {
         auto *self = static_cast<HttpServerConn *>(ctx);
         if (!self) return;
+        auto self_guard = self->shared_from_this();
         if (what & BEV_EVENT_CONNECTED) return;
         if (what & BEV_EVENT_EOF) {
             self->HandleRead(true);
-            if (self->writing_ || self->closed_) {
+            if (self->writing_ && !self->closed_) {
                 self->Close();
             }
             return;
         }
-        if (what & (BEV_EVENT_ERROR | BEV_EVENT_TIMEOUT)) self->Close();
+        if ((what & (BEV_EVENT_ERROR | BEV_EVENT_TIMEOUT)) && !self->closed_) {
+            self->Close();
+        }
     }
 
     native::IoContext &io_;
@@ -760,8 +808,8 @@ public:
             throw std::runtime_error("invalid listen address");
         }
         listener_ = evconnlistener_new_bind(
-                io_.Get(), [](evconnlistener *, evutil_socket_t fd, sockaddr *, int, void *p) { static_cast<HttpServer *>(p)->OnAccept(fd); }, this, LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE,
-                backlog > 0 ? backlog : -1, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
+                io_.Get(), [](evconnlistener *, evutil_socket_t fd, sockaddr *, int, void *p) { static_cast<HttpServer *>(p)->OnAccept(fd); }, this,
+                LEV_OPT_CLOSE_ON_FREE | LEV_OPT_CLOSE_ON_EXEC | LEV_OPT_REUSEABLE, backlog > 0 ? backlog : -1, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
         if (!listener_) throw std::runtime_error("listen failed");
         auto fd = evconnlistener_get_fd(listener_);
         sockaddr_in local{};
@@ -775,8 +823,9 @@ public:
         return bound_port_;
     }
 
-    void SetDispatch(std::string name) {
+    void SetDispatch(std::string name, JITType jit) {
         dispatch_ = std::move(name);
+        dispatch_jit_ = jit;
     }
 
     void SetNativeObject(NativeObject *nat) {
@@ -785,15 +834,22 @@ public:
 
     void Tick() {
         io_.Poll();
-        auto pending = std::move(pending_requests_);
-        pending_requests_.clear();
-        for (auto &item: pending) {
+        struct ConnsCleanupGuard {
+            std::unordered_map<int, std::shared_ptr<HttpServerConn>> &conns;
+            ~ConnsCleanupGuard() {
+                for (auto it = conns.begin(); it != conns.end();) {
+                    if (!it->second) it = conns.erase(it);
+                    else
+                        ++it;
+                }
+            }
+        } cleanup{conns_};
+
+        const size_t n = pending_requests_.size();
+        for (size_t i = 0; i < n && !pending_requests_.empty() && !closed_; ++i) {
+            auto item = std::move(pending_requests_.front());
+            pending_requests_.pop_front();
             DispatchRequest(item.first, item.second);
-        }
-        for (auto it = conns_.begin(); it != conns_.end();) {
-            if (!it->second) it = conns_.erase(it);
-            else
-                ++it;
         }
     }
 
@@ -810,6 +866,7 @@ public:
             evconnlistener_free(listener_);
             listener_ = nullptr;
         }
+        pending_requests_.clear();
         auto conns = conns_;
         for (auto &kv: conns) {
             if (kv.second) kv.second->Close();
@@ -823,6 +880,7 @@ public:
 
 private:
     void OnAccept(evutil_socket_t fd) {
+        evutil_make_socket_closeonexec(fd);
         if (closed_) {
             evutil_closesocket(fd);
             return;
@@ -839,7 +897,7 @@ private:
         args[0] = inter::NativeToFakeluaString(lua_state_, "request");
         args[1] = inter::NativeToFakeluaInt(lua_state_, conn_id);
         args[2] = RequestToTable(lua_state_, req);
-        CVar ret = CallNamed(lua_state_, dispatch_, args, 3);
+        CVar ret = CallNamed(lua_state_, dispatch_, args, 3, dispatch_jit_);
         if (ret.type_ == static_cast<int>(VarType::Multi) && ret.data_.m && ret.data_.m->GetCount() > 0) {
             ret = ret.data_.m->GetVars()[0];
         }
@@ -866,8 +924,9 @@ private:
     evconnlistener *listener_ = nullptr;
     SSL_CTX *ssl_ctx_ = nullptr;
     std::unordered_map<int, std::shared_ptr<HttpServerConn>> conns_;
-    std::vector<std::pair<int, HttpRequestData>> pending_requests_;
+    std::deque<std::pair<int, HttpRequestData>> pending_requests_;
     std::string dispatch_;
+    JITType dispatch_jit_ = JIT_TCC;
     State *lua_state_ = nullptr;
     NativeObject *native_obj_ = nullptr;
     uint16_t bound_port_ = 0;
@@ -889,7 +948,9 @@ static std::vector<NativeObject *> &WrapperList(State *s, bool is_server) {
 
 static void EraseWrapper(State *st, bool is_server, NativeObject *nat) {
     if (!st) return;
-    auto &v = WrapperList(st, is_server);
+    auto *ws = st->TryGetModuleState<HttpWrappers>();
+    if (!ws) return;
+    auto &v = is_server ? ws->servers : ws->clients;
     v.erase(std::remove(v.begin(), v.end(), nat), v.end());
 }
 
@@ -916,6 +977,22 @@ static HttpClientOp *UnwrapClient(NativeObject *self) {
 static HttpServer *UnwrapServer(NativeObject *self) {
     if (!self) return nullptr;
     return reinterpret_cast<HttpServer *>(self->GetInt("__http_server__", 0));
+}
+
+static void ReleaseClientOp(NativeObject *nat) {
+    if (!nat) return;
+    UnregisterWrapper(nat);
+    auto *c = UnwrapClient(nat);
+    if (c) {
+        nat->SetInt("__http_client__", 0);
+        c->ClearNativeObject();
+        c->Close();
+    }
+    auto *hold = reinterpret_cast<ClientHold *>(nat->GetInt("__http_hold__", 0));
+    if (hold) {
+        nat->SetInt("__http_hold__", 0);
+        delete hold;
+    }
 }
 
 static void DestroyWrappers(State *s, bool is_server) {
@@ -952,9 +1029,7 @@ void OnStateDeleted(State *s) {
 }
 
 static CVar ClientClose(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
-    auto *op = UnwrapClient(self);
-    if (op) op->Close();
-    (void) s;
+    ReleaseClientOp(self);
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -962,7 +1037,7 @@ static CVar ServerDispatch(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "dispatch", "function name expected");
     auto *srv = UnwrapServer(self);
     if (!srv) return inter::NativeToFakeluaNil(s);
-    srv->SetDispatch(CVarToString(inter::GetNativeArg(s, args, n, 0)));
+    srv->SetDispatch(CVarToString(inter::GetNativeArg(s, args, n, 0)), s->CurrentJit());
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -992,8 +1067,13 @@ static CVar ServerReply(NativeObject *self, State *s, CVar *args, int n) {
 }
 
 static CVar ServerClose(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    UnregisterWrapper(self);
     auto *srv = UnwrapServer(self);
-    if (srv) srv->Close();
+    if (srv) {
+        self->SetInt("__http_server__", 0);
+        srv->Close();
+        delete srv;
+    }
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -1040,29 +1120,21 @@ static CVar StartClient(State *s, std::string method, std::string url, HeaderLis
     int64_t gid = s->GetNativeObjectManager().CreateGroup();
     auto *nat = s->GetNativeObjectManager().Create(gid, "http_request");
     auto op = std::make_shared<HttpClientOp>(s, nat);
-    op->SetCallback(std::move(cb));
+    op->SetCallback(std::move(cb), s->CurrentJit());
     nat->SetInt("__http_client__", reinterpret_cast<int64_t>(op.get()));
     nat->SetInt("__http_owned__", 1);
     nat->RegisterMethod("close", ClientClose);
     RegisterWrapper(s, nat, false);
 
-    struct ClientHold {
-        std::shared_ptr<HttpClientOp> ptr;
-    };
-
     auto *hold = new ClientHold{op};
     nat->SetInt("__http_hold__", reinterpret_cast<int64_t>(hold));
-    nat->SetFinalizer([hold](NativeObject *self) {
-        UnregisterWrapper(self);
-        auto *c = UnwrapClient(self);
-        if (c) {
-            self->SetInt("__http_client__", 0);
-            c->Close();
-        }
-        self->SetInt("__http_hold__", 0);
-        delete hold;
-    });
-    op->Start(std::move(method), std::move(url), std::move(headers), std::move(body), timeout_ms, version, tls_verify, std::move(tls_ca));
+    nat->SetFinalizer([](NativeObject *self) { ReleaseClientOp(self); });
+    try {
+        op->Start(std::move(method), std::move(url), std::move(headers), std::move(body), timeout_ms, version, tls_verify, std::move(tls_ca));
+    } catch (...) {
+        s->GetNativeObjectManager().DestroyGroup(gid);
+        throw;
+    }
     return inter::NativeToFakeluaNativeObject(s, nat);
 }
 

@@ -33,9 +33,10 @@ private:
     void CheckNode(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
     void CheckGotoOrLabel(const SyntaxTreeInterfacePtr &node);
     void ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels, int loop_depth);
+    void ValidateGotoInExprs(const SyntaxTreeInterfacePtr &node);
     void CollectGotosInStmt(const SyntaxTreeInterfacePtr &stmt, std::vector<std::pair<std::string, SyntaxTreeInterfacePtr>> &out);
     void CollectGotosInBlock(const SyntaxTreeInterfacePtr &block, std::vector<std::pair<std::string, SyntaxTreeInterfacePtr>> &out);
-    void ValidateConstAssignInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_set<std::string> const_names);
+    void ValidateConstAssignInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_set<std::string> const_names, const SyntaxTreeInterfacePtr &trailing_until_exp = nullptr);
     // 在表达式树中查找匿名 FunctionDef，并按外层词法 const 集合校验其函数体。
     void ValidateConstInExprs(const SyntaxTreeInterfacePtr &node, const std::unordered_set<std::string> &const_names);
     // 进入函数体：继承外层 const，参数名 / extra_shadow 遮蔽同名 const。

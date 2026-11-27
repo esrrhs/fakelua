@@ -32,9 +32,11 @@ struct TransparentStringHash {
 struct InterpUnit final : JITHandle {
     std::vector<std::unique_ptr<FuncProto>> protos;
     std::unordered_map<std::string, CVar, TransparentStringHash, std::equal_to<>> globals;
+    std::unordered_map<std::string, FuncProto *, TransparentStringHash, std::equal_to<>> local_funcs;
     std::unordered_set<std::string> const_global_names;
     FuncProto *init_proto = nullptr;
     State *state = nullptr;
+    uint64_t vm_version = 0;
     // 运行期报错时附带的源文件名，随 FuncProto::lineinfo 一起定位到语句。
     std::string file_name;
 };
@@ -47,6 +49,8 @@ struct FuncProto {
     int max_stack = 0;
     // 本函数有被捕获的局部（NEWBOX / CLOSURE in_stack）。无捕获时解释器走纯栈寄存器路径。
     bool uses_boxes = false;
+    // 自尾调用热更新校验缓存的 VM 版本号：版本一致时跳过查表，版本变化后校验一次并刷新。
+    uint64_t self_tail_vm_version = 0;
     std::vector<Inst> code;
     std::vector<CVar> constants;
     std::vector<UpvalDesc> upvalues;

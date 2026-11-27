@@ -33,6 +33,7 @@ struct NativeField {
     std::string s;              // Kind::String 时的原始字符串
     NativeObject *obj = nullptr;// Kind::Object 时的嵌套对象（不拥有）
     VarTable *t = nullptr;      // Kind::Table 时的 Lua 表指针
+    uint64_t table_epoch = 0;   // 0 表示 const_heap 持久表；非 0 仅在 s->ArenaEpoch() 相同时有效
 
     // 惰性构建 VarString 缓存（存在 C++ 堆，供 spec_get 返回 VAR_STRING CVar）
     // 当 s 内容变化时重建；由于 fakelua 是单线程的，此处不加锁。
@@ -67,6 +68,7 @@ struct NativeObjectSpec {
     // 首次遍历时再 EnsureNativeSpecSnapshot。snapshot_ready 为真后，NativeSpecSet
     // 走增量维护；为假时写入只改 kv，快照仍保持惰性。
     bool snapshot_ready = false;
+    uint64_t snapshot_epoch = 0;
 };
 
 // NativeObject: 完整实现（pImpl 的 Impl 部分）
@@ -99,6 +101,7 @@ struct NativeObject::Impl {
     std::unordered_map<std::string, NativeMethod, NativeStringHash, NativeStringEq> methods;
     // 可选销毁回调：NativeObject 被 Destroy 时调用（无论是否经 close 方法），用于释放关联资源
     std::function<void(NativeObject *self)> finalizer;
+    std::function<void(int64_t old_id, int64_t new_id)> on_rebind_id;
 
     // ---- 对象级版本号的内部簿记（不进入存档，不改变既有数据格式）----
     // 版本号只是「本对象可能变过」的信号，不做精确引用账本：
@@ -149,7 +152,7 @@ inline std::string_view KeyToStringView(CVar k) {
 CVar NativeFieldToCVar(const NativeField &field, State *s);
 
 // CVar → NativeField（将 fakelua 值转为 C++ 持久值）
-NativeField CVarToNativeField(CVar v);
+NativeField CVarToNativeField(CVar v, State *s = nullptr);
 
 }// namespace fakelua
 

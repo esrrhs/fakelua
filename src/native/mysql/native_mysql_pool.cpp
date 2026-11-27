@@ -76,22 +76,36 @@ void PoolObject::InvalidateAcquiredWrappers() {
     wrappers.clear();
     for (auto *nat: held) {
         if (!nat) continue;
+        UnregisterMysqlNativeWrapper(nat);
         auto *c = UnwrapConnNative(nat);
         if (c) c->SetNativeObject(nullptr);
         nat->SetInt("__mysql_conn__", 0);
         nat->SetInt("__mysql_pool_ptr__", 0);
         nat->SetInt("__mysql_pool_obj__", 0);
+        nat->SetInt("__mysql_auto_release__", 0);
     }
 }
 
-void DetachAcquiredWrapper(NativeObject *nat) {
+static void DetachAcquiredWrapperImpl(NativeObject *nat, bool destroy_group) {
     if (!nat) return;
+    auto *st = reinterpret_cast<State *>(nat->GetInt("__mysql_owner_state__", 0));
+    if (!st) st = reinterpret_cast<State *>(nat->GetInt("__mysql_state__", 0));
+    const int64_t gid = nat->GetGroupId();
+
+    UnregisterMysqlNativeWrapper(nat);
     auto *po = reinterpret_cast<PoolObject *>(nat->GetInt("__mysql_pool_obj__", 0));
     auto *c = UnwrapConnNative(nat);
     if (po) {
         po->wrappers.erase(nat);
         if (po->pool && c) {
             c->SetNativeObject(nullptr);
+            if (c->HasPendingWork()) {
+                if (c->TickDepth() > 0) {
+                    c->RequestClose();
+                } else {
+                    c->Close();
+                }
+            }
             po->pool->Release(c);
         }
     }
@@ -99,6 +113,15 @@ void DetachAcquiredWrapper(NativeObject *nat) {
     nat->SetInt("__mysql_pool_ptr__", 0);
     nat->SetInt("__mysql_pool_obj__", 0);
     nat->SetInt("__mysql_auto_release__", 0);
+    nat->SetInt("__mysql_owner_state__", 0);
+
+    if (destroy_group && st && gid != 0) {
+        st->GetNativeObjectManager().DestroyGroup(gid);
+    }
+}
+
+void DetachAcquiredWrapper(NativeObject *nat) {
+    DetachAcquiredWrapperImpl(nat, true);
 }
 
 void MaybeReleasePooledConn(NativeObject *self) {
@@ -231,13 +254,11 @@ static NativeObject *AcquireConnObject(State *s, PoolObject *pool_obj) {
     nat->SetInt("__mysql_conn__", reinterpret_cast<int64_t>(conn));
     nat->SetInt("__mysql_pool_ptr__", reinterpret_cast<int64_t>(pool_obj->pool.get()));
     nat->SetInt("__mysql_pool_obj__", reinterpret_cast<int64_t>(pool_obj));
+    nat->SetInt("__mysql_owner_state__", reinterpret_cast<int64_t>(s));
     nat->SetInt("__mysql_owned__", 0);
     pool_obj->wrappers.insert(nat);
     RegisterMysqlNativeWrapper(s, nat, false);
-    nat->SetFinalizer([](NativeObject *self) {
-        UnregisterMysqlNativeWrapper(self);
-        DetachAcquiredWrapper(self);
-    });
+    nat->SetFinalizer([](NativeObject *self) { DetachAcquiredWrapperImpl(self, false); });
     nat->RegisterMethod("query", ConnQuery);
     nat->RegisterMethod("stmt_prepare", ConnStmtPrepare);
     nat->RegisterMethod("stmt_execute", ConnStmtExecute);

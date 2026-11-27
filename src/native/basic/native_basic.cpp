@@ -1,5 +1,6 @@
 #include "native/basic/native_basic.h"
 #include "compile/c_runtime_header.h"
+#include "jit/jit_error_boundary.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
@@ -66,7 +67,7 @@ static bool CallClosure(State *state, VarClosure *cl, CVar *args, int n, CVar &r
         void *addr = cl->func_ptr;
         if (addr != nullptr) {
             result = inter::DispatchCallClosure(state, cl, args, n, state->CurrentJit());
-        } else if (cl->code_str) {
+        } else if (IsSourceLoadClosure(cl)) {
             result = FlEvalLoadClosure(state, cl, n, args);
         } else {
             ThrowFakeluaException("closure has no code");
@@ -151,40 +152,42 @@ extern "C" CVar BasicPairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         return CVar{static_cast<int>(VarType::Nil)};
     }
 
-    CVar tbl = st->table;
-    CVar last = st->last_key;
+    return GuardJitEntry(state, [&]() -> CVar {
+        CVar tbl = st->table;
+        CVar last = st->last_key;
 
-    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
-        return inter::NativeToFakeluaNil(state);
-    }
-
-    // 遍历查找 last_key 的下一个（与 GET_TABLE_ENTRY 一致：spec + quick XOR buckets）
-    bool found_last = (last.type_ == static_cast<int>(VarType::Nil));// nil 表示刚开始
-    CVar next_key{static_cast<int>(VarType::Nil)};
-    CVar next_val{static_cast<int>(VarType::Nil)};
-    bool has_next = false;
-
-    TableHelper::ForEachKV(tbl, [&](CVar k, CVar v) {
-        if (has_next) return;
-        if (found_last) {
-            next_key = k;
-            next_val = v;
-            has_next = true;
-            return;
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            return inter::NativeToFakeluaNil(state);
         }
-        if (KeysEqual(k, last)) {
-            found_last = true;
-        }
+
+        // 遍历查找 last_key 的下一个（与 GET_TABLE_ENTRY 一致：spec + quick XOR buckets）
+        bool found_last = (last.type_ == static_cast<int>(VarType::Nil));// nil 表示刚开始
+        CVar next_key{static_cast<int>(VarType::Nil)};
+        CVar next_val{static_cast<int>(VarType::Nil)};
+        bool has_next = false;
+
+        TableHelper::ForEachKV(tbl, [&](CVar k, CVar v) {
+            if (has_next) return;
+            if (found_last) {
+                next_key = k;
+                next_val = v;
+                has_next = true;
+                return;
+            }
+            if (KeysEqual(k, last)) {
+                found_last = true;
+            }
+        });
+
+        if (!has_next) return inter::NativeToFakeluaNil(state);
+
+        st->last_key = next_key;
+
+        CVar multi = inter::AllocMultiCVar(state, 2);
+        inter::SetMultiCVarElement(multi, 0, next_key);
+        inter::SetMultiCVarElement(multi, 1, next_val);
+        return multi;
     });
-
-    if (!has_next) return inter::NativeToFakeluaNil(state);
-
-    st->last_key = next_key;
-
-    CVar multi = inter::AllocMultiCVar(state, 2);
-    inter::SetMultiCVarElement(multi, 0, next_key);
-    inter::SetMultiCVarElement(multi, 1, next_val);
-    return multi;
 }
 
 // ipairs 迭代器原生函数
@@ -198,24 +201,26 @@ extern "C" CVar BasicIpairsIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         return CVar{static_cast<int>(VarType::Nil)};
     }
 
-    CVar tbl = st->table;
-    int64_t idx = st->next_idx;
+    return GuardJitEntry(state, [&]() -> CVar {
+        CVar tbl = st->table;
+        int64_t idx = st->next_idx;
 
-    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
-        return inter::NativeToFakeluaNil(state);
-    }
+        if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) {
+            return inter::NativeToFakeluaNil(state);
+        }
 
-    CVar val = TableHelper::GetTableInt(state, tbl, idx);
-    if (val.type_ == static_cast<int>(VarType::Nil)) {
-        return inter::NativeToFakeluaNil(state);
-    }
+        CVar val = TableHelper::GetTableInt(state, tbl, idx);
+        if (val.type_ == static_cast<int>(VarType::Nil)) {
+            return inter::NativeToFakeluaNil(state);
+        }
 
-    st->next_idx = idx + 1;
+        st->next_idx = idx + 1;
 
-    CVar multi = inter::AllocMultiCVar(state, 2);
-    inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaInt(state, idx));
-    inter::SetMultiCVarElement(multi, 1, val);
-    return multi;
+        CVar multi = inter::AllocMultiCVar(state, 2);
+        inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaInt(state, idx));
+        inter::SetMultiCVarElement(multi, 1, val);
+        return multi;
+    });
 }
 
 void RegisterBasicLibraryApi(State *s) {
@@ -558,7 +563,7 @@ void RegisterBasicLibraryApi(State *s) {
                 CVar err_result{static_cast<int>(VarType::Nil)};
                 if (addr != nullptr) {
                     err_result = inter::DispatchCallClosure(state, err_cl, &err_arg, 1, JIT_TCC);
-                } else if (err_cl->code_str) {
+                } else if (IsSourceLoadClosure(err_cl)) {
                     err_result = FlEvalLoadClosure(state, err_cl, 1, &err_arg);
                 } else {
                     err_result = inter::NativeToFakeluaString(state, err_msg);

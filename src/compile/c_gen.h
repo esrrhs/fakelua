@@ -42,9 +42,44 @@ private:
         }
     };
 
-    // ==========================================
-    // 第一部分：核心调度与编排
-    // ==========================================
+    // RAII 快照：在试探性编译（TryCompileNative* / TryCompileSpec*）失败或抛 SpecMiss 时，
+    // 完整回滚当前输出段、函数头临时声明、缩进层级与临时计数器，防止半截语句泄漏。
+    struct CodegenSnapshot {
+        CGen &gen;
+        Section sec;
+        std::string out_str;
+        std::string temp_decls_str;
+        int cur_tab;
+        int tmp_counter;
+        bool committed = false;
+
+        explicit CodegenSnapshot(CGen &g)
+            : gen(g), sec(g.cur_section_), out_str(g.sections_[static_cast<size_t>(g.cur_section_)].str()), temp_decls_str(g.func_temp_decls_.str()), cur_tab(g.cur_tab_),
+              tmp_counter(g.tmp_var_counter_) {
+        }
+
+        void Commit() {
+            committed = true;
+        }
+
+        void Restore() {
+            auto &ss = gen.sections_[static_cast<size_t>(sec)];
+            ss.str(out_str);
+            ss.clear();
+            ss.seekp(0, std::ios::end);
+            gen.func_temp_decls_.str(temp_decls_str);
+            gen.func_temp_decls_.clear();
+            gen.func_temp_decls_.seekp(0, std::ios::end);
+            gen.cur_tab_ = cur_tab;
+            gen.tmp_var_counter_ = tmp_counter;
+        }
+
+        ~CodegenSnapshot() {
+            if (!committed) {
+                Restore();
+            }
+        }
+    };
     // 核心构建主流程：根据 AST 和编译配置构建出最终的 C 语言源码字符串
     GenResult Build(const ParseResult &pr, const CompileConfig &cfg);
     // 为一个 spec 类型发射 typedef + 特化 get/set 函数到 Headers section。
@@ -193,6 +228,8 @@ private:
     // 表达式（每轮读取 C 变量/字面量即重新求值）。判定口径必须与 CompileNumericExp、
     // CompileRawNativeArithBinop、CompileRawNativeUnop 的语句发射点严格一致。
     [[nodiscard]] bool IsPureNativeNumericExp(const SyntaxTreeInterfacePtr &exp) const;
+    // 纯 AST 查询：判断布尔条件能否编译为无副作用、不抛错的纯原生比较/取反表达式（不向 Out() 写任何内容）。
+    [[nodiscard]] bool IsPureNativeBoolExp(const SyntaxTreeInterfacePtr &exp) const;
     // 尝试对强类型数学特化库调用（如 math.sin, math.cos）进行原生直接映射优化
     std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
 
@@ -220,17 +257,23 @@ private:
     // 检查变量是否为已知强类型的原生变量
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name, const SyntaxTreeInterface *var_node) const {
         if (const auto it = var_to_def_map_.find(var_node); it != var_to_def_map_.end()) {
-            if (it->second->is_captured) {
+            const VarDef *def = it->second;
+            if (def->is_captured) {
                 return false;
             }
-        }
-        // 1. 检查是否为特化函数参数，且参数类型为原生数值类型
-        if (cur_spec_ctx_) {
-            if (const auto it = cur_spec_ctx_->param_types.find(name); it != cur_spec_ctx_->param_types.end()) {
-                return it->second == T_INT || it->second == T_FLOAT;
+            if (def->defining_func == cur_func_info_ && def->def_node && def->def_node->Type() == SyntaxTreeType::ParList) {
+                if (cur_spec_ctx_) {
+                    if (const auto pit = cur_spec_ctx_->param_types.find(name); pit != cur_spec_ctx_->param_types.end()) {
+                        return pit->second == T_INT || pit->second == T_FLOAT;
+                    }
+                }
+                return false;
+            }
+        } else if (cur_spec_ctx_) {
+            if (const auto pit = cur_spec_ctx_->param_types.find(name); pit != cur_spec_ctx_->param_types.end()) {
+                return pit->second == T_INT || pit->second == T_FLOAT;
             }
         }
-        // 2. 检查变量引用是否有定义节点映射，且该定义节点最终推断为原生数值类型
         if (const auto it = ir().var_define_nodes.find(var_node); it != ir().var_define_nodes.end()) {
             const auto def_type = LookupNodeType(const_cast<SyntaxTreeInterface *>(it->second));
             return def_type == T_INT || def_type == T_FLOAT;
@@ -241,13 +284,21 @@ private:
     // 获取原生强类型变量在作用域中的推断类型
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name, const SyntaxTreeInterface *var_node) const {
         if (const auto it = var_to_def_map_.find(var_node); it != var_to_def_map_.end()) {
-            if (it->second->is_captured) {
+            const VarDef *def = it->second;
+            if (def->is_captured) {
                 return T_DYNAMIC;
             }
-        }
-        if (cur_spec_ctx_) {
-            if (const auto it = cur_spec_ctx_->param_types.find(name); it != cur_spec_ctx_->param_types.end()) {
-                return it->second;
+            if (def->defining_func == cur_func_info_ && def->def_node && def->def_node->Type() == SyntaxTreeType::ParList) {
+                if (cur_spec_ctx_) {
+                    if (const auto pit = cur_spec_ctx_->param_types.find(name); pit != cur_spec_ctx_->param_types.end()) {
+                        return pit->second;
+                    }
+                }
+                return T_DYNAMIC;
+            }
+        } else if (cur_spec_ctx_) {
+            if (const auto pit = cur_spec_ctx_->param_types.find(name); pit != cur_spec_ctx_->param_types.end()) {
+                return pit->second;
             }
         }
         if (const auto it = ir().var_define_nodes.find(var_node); it != ir().var_define_nodes.end()) {
@@ -329,6 +380,7 @@ private:
 
     struct VarDef {
         std::string name;
+        std::string c_ident;
         const SyntaxTreeInterface *def_node = nullptr;// local stmt, parameter list, or loop stmt
         FuncInfo *defining_func = nullptr;
         bool is_captured = false;
@@ -368,6 +420,7 @@ private:
     };
 
     std::unordered_map<std::pair<const SyntaxTreeInterface *, std::string>, VarDef *, PairHash> stmt_var_to_def_;
+    std::unordered_map<const SyntaxTreeInterface *, std::vector<VarDef *>> stmt_defs_;
     std::unordered_map<const SyntaxTreeInterface *, VarDef *> var_to_def_map_;
 
     FuncInfo *cur_func_info_ = nullptr;                 // The function currently being compiled
@@ -382,6 +435,10 @@ private:
     std::unordered_set<std::string> file_c_ident_used_;
 
     std::string CIdent(const std::string &lua_name);
+    std::string FileCIdent(const std::string &lua_name);
+    std::string AllocFuncVarCIdent(FuncInfo *func, const std::string &lua_name);
+    std::string DefSlotCIdent(const SyntaxTreeInterface *stmt_ptr, size_t slot, const std::string &fallback_name);
+    std::string VarCIdent(const SyntaxTreeVar *var_ptr);
     std::vector<std::string> CIdents(const std::vector<std::string> &names);
     void UniquifyFuncCNames();
     [[nodiscard]] bool IsFuncLocalName(const std::string &lua_name) const;
@@ -395,16 +452,17 @@ private:
 
     // 查询 name 在 stmt_ptr 对应语句节点上是否被标记为 captured
     [[nodiscard]] bool IsCapturedInStmt(const SyntaxTreeInterface *stmt_ptr, const std::string &name) const;
+    [[nodiscard]] bool IsSlotCapturedInStmt(const SyntaxTreeInterface *stmt_ptr, size_t slot, const std::string &name) const;
 
     // 变量引用的是形参、局部变量或嵌套 local function。
     // 文件级 local function 不算：它的 C 变量只存在于 init，其它函数仍按文件级符号调用。
     [[nodiscard]] bool BindsLocalValue(const SyntaxTreeVar *var) const;
 
     // 发射 heap-boxed captured var 声明：
-    //   CVar *__box_<name> = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);
-    //   *__box_<name> = <init_expr>;
+    //   CVar *__box_<c_ident> = (CVar *)FlFastAlloc(_S, sizeof(CVar), FL_IN_CONST_INIT);
+    //   *__box_<c_ident> = <init_expr>;
     // init_expr 为空字符串时省略第二行（仅 alloc box）
-    void EmitCapturedBoxDecl(const std::string &name, const std::string &init_expr);
+    void EmitCapturedBoxDecl(const std::string &c_ident, const std::string &init_expr);
 
     // 向当前输出流发射特化函数的参数类型+名称列表。
     // 遍历 params，对命中 math_params 的参数输出原生类型，其余输出 CVar。
@@ -423,6 +481,8 @@ private:
                           // - kInt: 十进制整数字符串
                           // - kFloat: 浮点数字符串
                           // - kBool: "true" 或 "false"
+        int64_t int_value = 0;
+        double float_value = 0.0;
     };
 
     // 若 exp 是可静态分类的字面量 key，填充 out 并返回 true；否则返回 false。

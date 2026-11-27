@@ -24,6 +24,7 @@ bool IsWebSocket(const NetConfig &cfg) {
 }
 
 void ApplyFdOptions(evutil_socket_t fd, const NetConfig &cfg) {
+    evutil_make_socket_closeonexec(fd);
     SetSocketOptions(static_cast<socket_t>(fd), cfg);
 }
 
@@ -245,6 +246,10 @@ public:
     }
 
     void OnConnected() {
+        if (bev_) {
+            evutil_socket_t fd = bufferevent_getfd(bev_);
+            if (fd != -1) evutil_make_socket_closeonexec(fd);
+        }
         if (IsWebSocket(cfg_)) return;
         MarkReady(from_client_ || tls_);
     }
@@ -384,12 +389,15 @@ private:
 
     static void ReadCb(bufferevent *, void *ctx) {
         auto *self = static_cast<EventConn *>(ctx);
-        if (self) self->HandleRead();
+        if (!self) return;
+        auto self_guard = self->shared_from_this();
+        self->HandleRead();
     }
 
     static void EventCb(bufferevent *, short what, void *ctx) {
         auto *self = static_cast<EventConn *>(ctx);
         if (!self) return;
+        auto self_guard = self->shared_from_this();
         if (what & BEV_EVENT_CONNECTED) {
             self->OnConnected();
             return;
@@ -444,8 +452,8 @@ void TcpServer::Start() {
     sockaddr_in addr{};
     if (!FillSockaddr(addr, config_.ip, config_.port)) return;
     listener_ = evconnlistener_new_bind(
-            io_.Get(), [](evconnlistener *, evutil_socket_t fd, sockaddr *, int, void *p) { static_cast<TcpServer *>(p)->OnAccept(fd); }, this, LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE,
-            config_.backlog > 0 ? config_.backlog : -1, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
+            io_.Get(), [](evconnlistener *, evutil_socket_t fd, sockaddr *, int, void *p) { static_cast<TcpServer *>(p)->OnAccept(fd); }, this,
+            LEV_OPT_CLOSE_ON_FREE | LEV_OPT_CLOSE_ON_EXEC | LEV_OPT_REUSEABLE, config_.backlog > 0 ? config_.backlog : -1, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
 }
 
 void TcpServer::Stop() {
@@ -458,6 +466,7 @@ void TcpServer::Stop() {
         if (c) c->Close(false);
     }
     conns_.clear();
+    events_.clear();
 }
 
 void TcpServer::OnAccept(evutil_socket_t fd) {
@@ -494,12 +503,20 @@ void TcpServer::EmitEvent(ConnEvent ev) {
 
 void TcpServer::DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher) {
     io_.Poll();
-    std::vector<ConnEvent> evs;
-    evs.swap(events_);
+    struct CleanupGuard {
+        std::vector<std::shared_ptr<EventConn>> &conns;
+        ~CleanupGuard() {
+            for (auto &c: conns) {
+                if (c && !c->IsOpen()) c.reset();
+            }
+        }
+    } cleanup{conns_};
     native::IoContext::DispatchScope scope(io_);
-    for (const auto &ev: evs) dispatcher(ev);
-    for (auto &c: conns_) {
-        if (c && !c->IsOpen()) c.reset();
+    const size_t n = events_.size();
+    for (size_t i = 0; i < n && !events_.empty(); ++i) {
+        ConnEvent ev = std::move(events_.front());
+        events_.pop_front();
+        dispatcher(ev);
     }
 }
 
@@ -508,9 +525,11 @@ bool TcpServer::Send(int conn_id, const char *data, size_t len) {
     return conns_[static_cast<size_t>(conn_id)]->Send(data, len);
 }
 
-bool TcpServer::CloseConnection(int conn_id) {
-    if (conn_id < 0 || conn_id >= static_cast<int>(conns_.size()) || !conns_[static_cast<size_t>(conn_id)]) return false;
-    conns_[static_cast<size_t>(conn_id)]->Close(true);
+bool TcpServer::CloseConnection(int conn_id, bool notify) {
+    if (conn_id < 0 || conn_id >= static_cast<int>(conns_.size())) return false;
+    auto conn = std::move(conns_[static_cast<size_t>(conn_id)]);
+    if (!conn || !conn->IsOpen()) return false;
+    conn->Close(notify);
     return true;
 }
 
@@ -540,7 +559,14 @@ void TcpClient::Connect() {
     }
     if (ssl_ctx_) {
         SSL *ssl = bufferevent_openssl_get_ssl(bev);
-        tls::SetSniHostname(ssl, tls::HostnameWithoutPort(config_.ip));
+        const std::string peer_host = !config_.ws_host.empty() ? tls::HostnameWithoutPort(config_.ws_host) : tls::HostnameWithoutPort(config_.ip);
+        if (!tls::ConfigurePeerVerification(ssl, peer_host, config_.tls_verify)) {
+            connecting_ = false;
+            bufferevent_free(bev);
+            conn_.reset();
+            EmitEvent({EventKind::Close, 0, {}});
+            return;
+        }
     }
     conn_->Attach(bev);
     sockaddr_in addr{};
@@ -557,6 +583,7 @@ void TcpClient::Disconnect() {
         conn_->Close(false);
         conn_.reset();
     }
+    events_.clear();
 }
 
 void TcpClient::EmitEvent(ConnEvent ev) {
@@ -567,11 +594,19 @@ void TcpClient::EmitEvent(ConnEvent ev) {
 
 void TcpClient::DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher) {
     io_.Poll();
-    std::vector<ConnEvent> evs;
-    evs.swap(events_);
+    struct CleanupGuard {
+        std::shared_ptr<EventConn> &conn;
+        ~CleanupGuard() {
+            if (conn && !conn->IsOpen()) conn.reset();
+        }
+    } cleanup{conn_};
     native::IoContext::DispatchScope scope(io_);
-    for (const auto &ev: evs) dispatcher(ev);
-    if (conn_ && !conn_->IsOpen()) conn_.reset();
+    const size_t n = events_.size();
+    for (size_t i = 0; i < n && !events_.empty(); ++i) {
+        ConnEvent ev = std::move(events_.front());
+        events_.pop_front();
+        dispatcher(ev);
+    }
 }
 
 bool TcpClient::Send(const char *data, size_t len) {
@@ -591,8 +626,13 @@ UdpSocket::~UdpSocket() {
 }
 
 bool UdpSocket::Start() {
+#if defined(SOCK_CLOEXEC) && !defined(_WIN32)
+    fd_ = static_cast<socket_t>(socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0));
+#else
     fd_ = static_cast<socket_t>(socket(AF_INET, SOCK_DGRAM, 0));
+#endif
     if (fd_ == INVALID_SOCKET_VAL) return false;
+    evutil_make_socket_closeonexec(fd_);
     evutil_make_socket_nonblocking(fd_);
     int opt = 1;
     setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&opt), sizeof(opt));
@@ -631,6 +671,7 @@ void UdpSocket::Stop() {
         CloseSocket(fd_);
         fd_ = INVALID_SOCKET_VAL;
     }
+    events_.clear();
 }
 
 void UdpSocket::OnRecv() {
@@ -657,10 +698,13 @@ void UdpSocket::EmitEvent(ConnEvent ev) {
 
 void UdpSocket::DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher) {
     io_.Poll();
-    std::vector<ConnEvent> evs;
-    evs.swap(events_);
     native::IoContext::DispatchScope scope(io_);
-    for (const auto &ev: evs) dispatcher(ev);
+    const size_t n = events_.size();
+    for (size_t i = 0; i < n && !events_.empty(); ++i) {
+        ConnEvent ev = std::move(events_.front());
+        events_.pop_front();
+        dispatcher(ev);
+    }
 }
 
 bool UdpSocket::Send(const char *data, size_t len) {

@@ -67,15 +67,20 @@ std::string CurrentTime() {
 
 // 滚动日志文件
 void RotateLogs(const std::string &path, size_t max_files) {
+    std::error_code ec;
+    if (max_files == 0) {
+        std::filesystem::remove(path, ec);
+        return;
+    }
+
     // 删除最旧的文件
     std::string oldest = std::format("{}.{}", path, max_files);
-    std::error_code ec;
     std::filesystem::remove(oldest, ec);
 
-    // 将现有文件向后移动
-    for (size_t i = max_files - 1; i >= 1; --i) {
-        std::string old_name = std::format("{}.{}", path, i);
-        std::string new_name = std::format("{}.{}", path, i + 1);
+    // 将现有文件向后移动（用 i > 1 避免无符号下溢）
+    for (size_t i = max_files; i > 1; --i) {
+        std::string old_name = std::format("{}.{}", path, i - 1);
+        std::string new_name = std::format("{}.{}", path, i);
         std::filesystem::rename(old_name, new_name, ec);
     }
 
@@ -122,7 +127,8 @@ public:
         file_.flush();
 
         // 检查文件大小，超过限制则滚动
-        if (static_cast<size_t>(file_.tellp()) >= max_size_) {
+        const auto pos = file_.tellp();
+        if (pos != std::streampos(-1) && static_cast<size_t>(pos) >= max_size_) {
             file_.close();
             RotateLogs(file_path_, max_files_);
             file_.open(file_path_, std::ios::app);
@@ -231,7 +237,7 @@ extern "C" void FakeluaLogLua(State *s, int level, CVar msg, const char *file, i
             msg_str = "nil";
             break;
         case VarType::Bool:
-            msg_str = (msg.data_.i != 0) ? "true" : "false";
+            msg_str = msg.data_.b ? "true" : "false";
             break;
         case VarType::Int:
             msg_str = std::to_string(msg.data_.i);

@@ -44,6 +44,7 @@ protected:
         const SyntaxTreeInterface *def_node = nullptr;
         FuncInfo *defining_func = nullptr;
         bool is_captured = false;
+        bool is_assigned = false;
         int reg = -1;
     };
 
@@ -131,6 +132,7 @@ protected:
     int EmitThrow(const std::string &msg);
     bool LastPreservesMulti(const SyntaxTreeInterfacePtr &exp) const;
     bool IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const;
+    bool IsLocalVarAssigned(const VarDef *def) const;
     CVar LiteralFromExp(const SyntaxTreeInterfacePtr &exp);
 
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
@@ -160,6 +162,7 @@ protected:
     // 静默补 nil，三个后端语义就不一致了。
     std::unordered_map<std::string, std::pair<int, bool>> file_func_sigs_;
     std::string cur_package_name_;
+    std::unordered_set<std::string> pkg_func_names_;
     std::unordered_set<std::string> file_level_names_;
 
     FuncInfo *cur_func_ = nullptr;

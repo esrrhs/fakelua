@@ -902,6 +902,103 @@ YY_DECL
   // Code run each time yylex is called.
   loc.step ();
 
+  auto scan_short_string = [&]() -> yy::parser::symbol_type {
+      const char quote = yytext[0];
+      loc.end = loc.begin;
+      loc.columns(1);
+      const yy::location start_loc = loc;
+      yyless(1);
+
+      auto peek_char = [&]() -> int {
+          if ((yy_hold_char) != YY_END_OF_BUFFER_CHAR || (yy_c_buf_p) < &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[(yy_n_chars)]) {
+              return static_cast<unsigned char>(yy_hold_char);
+          }
+          *(yy_c_buf_p) = (yy_hold_char);
+          (yytext_ptr) = (yy_c_buf_p);
+          ++(yy_c_buf_p);
+          switch (yy_get_next_buffer()) {
+              case EOB_ACT_LAST_MATCH:
+                  yyrestart(yyin);
+                  [[fallthrough]];
+              case EOB_ACT_END_OF_FILE:
+                  return -1;
+              case EOB_ACT_CONTINUE_SCAN:
+                  (yy_c_buf_p) = (yytext_ptr);
+                  (yy_hold_char) = *(yy_c_buf_p);
+                  *(yy_c_buf_p) = '\0';
+                  return static_cast<unsigned char>(yy_hold_char);
+          }
+          return -1;
+      };
+
+      auto advance_char = [&]() -> int {
+          const int c = peek_char();
+          if (c < 0) {
+              return -1;
+          }
+          *(yy_c_buf_p) = '\0';
+          (yy_hold_char) = *++(yy_c_buf_p);
+          if (c == '\n') {
+              ++yylineno;
+          }
+          return c;
+      };
+
+      std::string raw;
+      raw.push_back(quote);
+      for (;;) {
+          const int c = advance_char();
+          if (c < 0 || c == '\n' || c == '\r') {
+              throw yy::parser::syntax_error(start_loc, "unfinished string");
+          }
+          if (c == static_cast<unsigned char>(quote)) {
+              loc.columns(1);
+              raw.push_back(quote);
+              return yy::parser::make_STRING(raw, loc);
+          }
+          if (c == '\\') {
+              loc.columns(1);
+              const int esc = advance_char();
+              if (esc < 0) {
+                  throw yy::parser::syntax_error(start_loc, "unfinished string");
+              }
+              if (esc == '\n' || esc == '\r') {
+                  const int next_nl = peek_char();
+                  if ((next_nl == '\n' || next_nl == '\r') && next_nl != esc) {
+                      advance_char();
+                  }
+                  loc.lines(1);
+                  raw += "\\n";
+              } else if (esc == 'z') {
+                  loc.columns(1);
+                  for (;;) {
+                      const int w = peek_char();
+                      if (w != ' ' && w != '\t' && w != '\f' && w != '\v' && w != '\n' && w != '\r') {
+                          break;
+                      }
+                      advance_char();
+                      if (w == '\n' || w == '\r') {
+                          const int w2 = peek_char();
+                          if ((w2 == '\n' || w2 == '\r') && w2 != w) {
+                              advance_char();
+                          }
+                          loc.lines(1);
+                      } else {
+                          loc.columns(1);
+                      }
+                  }
+              } else {
+                  loc.columns(1);
+                  raw.push_back('\\');
+                  raw.push_back(static_cast<char>(esc));
+              }
+          } else {
+              loc.columns(1);
+              raw.push_back(static_cast<char>(c));
+          }
+      }
+  };
+
 
     /* 长注释按 Lua 的长括号层级处理：--[[ 配 ]]，--[==[ 配 ]==]，层级不匹配的
        ]] 只是普通内容。传统的 --]] 收尾依然有效，因为其中的 ]] 就是 0 级闭括号。 */
@@ -1344,13 +1441,19 @@ case 69:
 /* rule 69 can match eol */
 YY_RULE_SETUP
 #line 162 "scanner.l"
-{ TrackStringLocation(loc, std::string_view(yytext, static_cast<size_t>(yyleng))); return yy::parser::make_STRING(yytext, loc); }
+{
+    if (yytext[0] == '"' || yytext[0] == '\'') {
+        return scan_short_string();
+    }
+    TrackStringLocation(loc, std::string_view(yytext, static_cast<size_t>(yyleng)));
+    return yy::parser::make_STRING(std::string(yytext, static_cast<size_t>(yyleng)), loc);
+}
 	YY_BREAK
-/* A quote reaches this fallback only when no complete short string matched. */
+/* A quote reaches this fallback when a short string contains escaped newlines or is unfinished. */
 case 70:
 YY_RULE_SETUP
 #line 165 "scanner.l"
-{ throw yy::parser::syntax_error(loc, "unfinished string"); }
+{ return scan_short_string(); }
 	YY_BREAK
 case 71:
 YY_RULE_SETUP

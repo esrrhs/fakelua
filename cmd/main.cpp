@@ -241,14 +241,17 @@ int main(int argc, char **argv) {
     try {
         RegisterExitApi(s);
 
+        if (FLAGS_jit_type < 0 || FLAGS_jit_type >= static_cast<int>(JIT_MAX)) {
+            std::cerr << "flua: invalid --jit_type=" << FLAGS_jit_type << " (expected 0=TCC, 1=GCC, 2=INTERP)" << std::endl;
+            return 1;
+        }
         CompileConfig cfg;
         cfg.debug_mode = FLAGS_debug;
-        // 只编译实际要用的后端：三个都编的话，选 interp 也要为每个文件付一次 GCC 编译
-        // （几百毫秒）和它的告警。interp 模式下仍留 TCC：pcall / load 的源码闭包按
-        // JIT_TCC 调起，关掉会让它们没有可去的引擎。
+        // 只编译并初始化实际选中的那一个后端，避免 __fakelua_init 在多个后端重复执行副作用。
         const auto chosen = static_cast<JITType>(FLAGS_jit_type);
-        cfg.disable_jit[JIT_TCC] = (chosen != JIT_TCC && chosen != JIT_INTERP);
+        cfg.disable_jit[JIT_TCC] = (chosen != JIT_TCC);
         cfg.disable_jit[JIT_GCC] = (chosen != JIT_GCC);
+        cfg.disable_jit[JIT_INTERP] = (chosen != JIT_INTERP);
         for (const auto &file: CollectLuaFiles(argv[1])) {
             CompileFile(s, file, cfg);
         }

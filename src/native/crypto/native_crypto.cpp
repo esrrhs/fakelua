@@ -9,9 +9,11 @@
 #include <boost/crc.hpp>
 #include <boost/hash2/xxhash.hpp>
 #include <boost/uuid.hpp>
+#include <climits>
 #include <cstdint>
 #include <format>
 #include <iterator>
+#include <memory>
 #include <mutex>
 #include <openssl/evp.h>
 #include <openssl/opensslv.h>
@@ -72,6 +74,9 @@ static CVar CryptoAesEncryptEcb(State *s, CVar *args, int n) {
     uint8_t key[16];
     ReadKeyArg(s, key_arg, key, "key");
 
+    if (data.size() > static_cast<size_t>(INT_MAX) - static_cast<size_t>(EVP_MAX_BLOCK_LENGTH)) {
+        ThrowFakeluaException("crypto.aes_encrypt_ecb: data too long");
+    }
     if (data.size() % 16 != 0) {
         LOG_ERROR(s, "crypto", "aes_encrypt_ecb: data length {} not multiple of 16", data.size());
         ThrowFakeluaException("crypto.aes_encrypt_ecb: data length must be a multiple of 16");
@@ -93,6 +98,9 @@ static CVar CryptoAesDecryptEcb(State *s, CVar *args, int n) {
     uint8_t key[16];
     ReadKeyArg(s, key_arg, key, "key");
 
+    if (data.size() > static_cast<size_t>(INT_MAX) - static_cast<size_t>(EVP_MAX_BLOCK_LENGTH)) {
+        ThrowFakeluaException("crypto.aes_decrypt_ecb: data too long");
+    }
     if (data.size() % 16 != 0) {
         LOG_ERROR(s, "crypto", "aes_decrypt_ecb: data length {} not multiple of 16", data.size());
         ThrowFakeluaException("crypto.aes_decrypt_ecb: data length must be a multiple of 16");
@@ -338,8 +346,33 @@ static CVar CryptoTripleDesDecrypt(State *s, CVar *args, int n) {
 //   only non-AEAD ciphers are reliably supported.
 // =============================================================================
 
+struct EvpCipherCtxDeleter {
+    void operator()(EVP_CIPHER_CTX *p) const noexcept {
+        EVP_CIPHER_CTX_free(p);
+    }
+};
+
+using EvpCipherCtxPtr = std::unique_ptr<EVP_CIPHER_CTX, EvpCipherCtxDeleter>;
+
+struct EvpMdCtxDeleter {
+    void operator()(EVP_MD_CTX *p) const noexcept {
+        EVP_MD_CTX_free(p);
+    }
+};
+
+using EvpMdCtxPtr = std::unique_ptr<EVP_MD_CTX, EvpMdCtxDeleter>;
+
 // Internal: run an EVP cipher operation (encrypt or decrypt)
 static std::vector<uint8_t> EvpCipherOp(const std::string &algo, const std::string &key, const std::string &iv, const uint8_t *data, size_t data_len, bool encrypt, bool no_padding) {
+    if (data_len > static_cast<size_t>(INT_MAX) - static_cast<size_t>(EVP_MAX_BLOCK_LENGTH)) {
+        ThrowFakeluaException(std::format("crypto.{}: data too long", encrypt ? "encrypt" : "decrypt"));
+    }
+    if (key.size() > static_cast<size_t>(INT_MAX)) {
+        ThrowFakeluaException(std::format("crypto.{}: key too long", encrypt ? "encrypt" : "decrypt"));
+    }
+    if (iv.size() > static_cast<size_t>(INT_MAX)) {
+        ThrowFakeluaException(std::format("crypto.{}: IV too long", encrypt ? "encrypt" : "decrypt"));
+    }
 
     const EVP_CIPHER *cipher = EVP_get_cipherbyname(algo.c_str());
     if (!cipher) {
@@ -348,34 +381,31 @@ static std::vector<uint8_t> EvpCipherOp(const std::string &algo, const std::stri
                                           encrypt ? "encrypt" : "decrypt", algo));
     }
 
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    EvpCipherCtxPtr ctx(EVP_CIPHER_CTX_new());
     if (!ctx) {
         ThrowFakeluaException(std::format("crypto.{}: failed to create EVP_CIPHER_CTX", encrypt ? "encrypt" : "decrypt"));
     }
 
     // Phase 1: init with cipher only (no key/iv yet) so we can adjust key length
     auto init_fn = encrypt ? EVP_EncryptInit_ex : EVP_DecryptInit_ex;
-    if (init_fn(ctx, cipher, nullptr, nullptr, nullptr) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
+    if (init_fn(ctx.get(), cipher, nullptr, nullptr, nullptr) != 1) {
         ThrowFakeluaException(std::format("crypto.{}: EVP init failed for cipher '{}'", encrypt ? "encrypt" : "decrypt", algo));
     }
 
     // For variable-key-length ciphers (RC4, Blowfish, ChaCha20, ...),
     // set the actual key length before providing the key bytes.
-    int expected_key_len = EVP_CIPHER_CTX_key_length(ctx);
+    int expected_key_len = EVP_CIPHER_CTX_key_length(ctx.get());
     if (static_cast<int>(key.size()) != expected_key_len) {
-        if (EVP_CIPHER_CTX_set_key_length(ctx, static_cast<int>(key.size())) != 1) {
-            EVP_CIPHER_CTX_free(ctx);
+        if (EVP_CIPHER_CTX_set_key_length(ctx.get(), static_cast<int>(key.size())) != 1) {
             ThrowFakeluaException(std::format("crypto.{}: key length {} is not valid for cipher '{}' (expected {} bytes)", encrypt ? "encrypt" : "decrypt", key.size(), algo, expected_key_len));
         }
     }
 
     // Validate IV length
-    int cipher_iv_len = EVP_CIPHER_CTX_iv_length(ctx);
+    int cipher_iv_len = EVP_CIPHER_CTX_iv_length(ctx.get());
     const uint8_t *iv_ptr = nullptr;
     if (cipher_iv_len > 0) {
         if (static_cast<int>(iv.size()) != cipher_iv_len) {
-            EVP_CIPHER_CTX_free(ctx);
             ThrowFakeluaException(std::format("crypto.{}: IV length {} is not valid for cipher '{}' (expected {} bytes)", encrypt ? "encrypt" : "decrypt", iv.size(), algo, cipher_iv_len));
         }
         iv_ptr = reinterpret_cast<const uint8_t *>(iv.data());
@@ -385,42 +415,37 @@ static std::vector<uint8_t> EvpCipherOp(const std::string &algo, const std::stri
     }
 
     // Phase 2: provide key and IV
-    if (init_fn(ctx, nullptr, nullptr, reinterpret_cast<const uint8_t *>(key.data()), iv_ptr) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
+    if (init_fn(ctx.get(), nullptr, nullptr, reinterpret_cast<const uint8_t *>(key.data()), iv_ptr) != 1) {
         ThrowFakeluaException(std::format("crypto.{}: failed to set key/IV for cipher '{}'", encrypt ? "encrypt" : "decrypt", algo));
     }
 
     // Configure padding
-    if (EVP_CIPHER_CTX_set_padding(ctx, no_padding ? 0 : 1) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
+    if (EVP_CIPHER_CTX_set_padding(ctx.get(), no_padding ? 0 : 1) != 1) {
         ThrowFakeluaException(std::format("crypto.{}: EVP_CIPHER_CTX_set_padding failed", encrypt ? "encrypt" : "decrypt"));
     }
 
     // Allocate output: max size = data_len + one full block for padding
-    int block_size = EVP_CIPHER_CTX_block_size(ctx);
+    int block_size = EVP_CIPHER_CTX_block_size(ctx.get());
     if (block_size < 1) block_size = 1;
     std::vector<uint8_t> out(data_len + static_cast<size_t>(block_size));
 
     int outlen = 0;
     if (data_len > 0) {
         auto update_fn = encrypt ? EVP_EncryptUpdate : EVP_DecryptUpdate;
-        if (update_fn(ctx, out.data(), &outlen, data, static_cast<int>(data_len)) != 1) {
-            EVP_CIPHER_CTX_free(ctx);
+        if (update_fn(ctx.get(), out.data(), &outlen, data, static_cast<int>(data_len)) != 1) {
             ThrowFakeluaException(std::format("crypto.{}: EVP_Update failed for cipher '{}'", encrypt ? "encrypt" : "decrypt", algo));
         }
     }
 
     int final_len = 0;
     auto final_fn = encrypt ? EVP_EncryptFinal_ex : EVP_DecryptFinal_ex;
-    if (final_fn(ctx, out.data() + outlen, &final_len) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
+    if (final_fn(ctx.get(), out.data() + outlen, &final_len) != 1) {
         ThrowFakeluaException(std::format("crypto.{}: EVP_Final failed for cipher '{}' — "
                                           "check key/IV length, padding setting, or data integrity",
                                           encrypt ? "encrypt" : "decrypt", algo));
     }
 
     out.resize(static_cast<size_t>(outlen) + static_cast<size_t>(final_len));
-    EVP_CIPHER_CTX_free(ctx);
     return out;
 }
 
@@ -437,25 +462,21 @@ static CVar CryptoDigest(State *s, CVar *args, int n) {
                                           algo));
     }
 
-    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    EvpMdCtxPtr ctx(EVP_MD_CTX_new());
     if (!ctx) ThrowFakeluaException("crypto.digest: failed to create EVP_MD_CTX");
 
-    if (EVP_DigestInit_ex(ctx, md, nullptr) != 1) {
-        EVP_MD_CTX_free(ctx);
+    if (EVP_DigestInit_ex(ctx.get(), md, nullptr) != 1) {
         ThrowFakeluaException(std::format("crypto.digest: EVP_DigestInit_ex failed for '{}'", algo));
     }
-    if (!data.empty() && EVP_DigestUpdate(ctx, data.data(), data.size()) != 1) {
-        EVP_MD_CTX_free(ctx);
+    if (!data.empty() && EVP_DigestUpdate(ctx.get(), data.data(), data.size()) != 1) {
         ThrowFakeluaException(std::format("crypto.digest: EVP_DigestUpdate failed for '{}'", algo));
     }
 
     uint8_t digest_buf[EVP_MAX_MD_SIZE];
     unsigned int digest_len = 0;
-    if (EVP_DigestFinal_ex(ctx, digest_buf, &digest_len) != 1) {
-        EVP_MD_CTX_free(ctx);
+    if (EVP_DigestFinal_ex(ctx.get(), digest_buf, &digest_len) != 1) {
         ThrowFakeluaException(std::format("crypto.digest: EVP_DigestFinal_ex failed for '{}'", algo));
     }
-    EVP_MD_CTX_free(ctx);
 
     return inter::NativeToFakeluaString(s, ToHex(digest_buf, digest_len));
 }
@@ -472,25 +493,21 @@ static CVar CryptoDigestRaw(State *s, CVar *args, int n) {
         ThrowFakeluaException(std::format("crypto.digest_raw: unknown digest algorithm '{}'", algo));
     }
 
-    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    EvpMdCtxPtr ctx(EVP_MD_CTX_new());
     if (!ctx) ThrowFakeluaException("crypto.digest_raw: failed to create EVP_MD_CTX");
 
-    if (EVP_DigestInit_ex(ctx, md, nullptr) != 1) {
-        EVP_MD_CTX_free(ctx);
+    if (EVP_DigestInit_ex(ctx.get(), md, nullptr) != 1) {
         ThrowFakeluaException(std::format("crypto.digest_raw: EVP_DigestInit_ex failed for '{}'", algo));
     }
-    if (!data.empty() && EVP_DigestUpdate(ctx, data.data(), data.size()) != 1) {
-        EVP_MD_CTX_free(ctx);
+    if (!data.empty() && EVP_DigestUpdate(ctx.get(), data.data(), data.size()) != 1) {
         ThrowFakeluaException(std::format("crypto.digest_raw: EVP_DigestUpdate failed for '{}'", algo));
     }
 
     uint8_t digest_buf[EVP_MAX_MD_SIZE];
     unsigned int digest_len = 0;
-    if (EVP_DigestFinal_ex(ctx, digest_buf, &digest_len) != 1) {
-        EVP_MD_CTX_free(ctx);
+    if (EVP_DigestFinal_ex(ctx.get(), digest_buf, &digest_len) != 1) {
         ThrowFakeluaException(std::format("crypto.digest_raw: EVP_DigestFinal_ex failed for '{}'", algo));
     }
-    EVP_MD_CTX_free(ctx);
 
     return inter::NativeToFakeluaString(s, std::string(reinterpret_cast<const char *>(digest_buf), digest_len));
 }

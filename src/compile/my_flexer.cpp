@@ -18,13 +18,13 @@ void MyFlexer::InputFile(const std::string &file) {
     switch_streams(&file_, nullptr);
 }
 
-// 输入字符串进行解析，通过生成临时文件来实现
+// 输入字符串进行解析
 void MyFlexer::InputString(const std::string &str) {
     is_string_ = true;
     filename_ = GenerateTmpFile(str);
     location_.initialize(&filename_);
     set_debug(0);
-    string_ = std::istringstream(str.data(), std::ios::binary);
+    string_ = std::istringstream(str, std::ios::binary);
     switch_streams(&string_, nullptr);
 }
 
@@ -54,14 +54,10 @@ std::string MyFlexer::RemoveQuotes(const std::string &str) {
     }
 }
 
-// 将输入的字符串写入系统临时文件，便于后续 Flex 读取
+// 为字符串输入分配唯一文件名标识（不在磁盘上创建空临时文件）
 std::string MyFlexer::GenerateTmpFile(const std::string &str) {
-    std::string fileName = GenerateTmpFilename("fakelua_myflexer_", ".lua");
-    std::ofstream file(fileName);
-    DEBUG_ASSERT(file.is_open());
-    file << str;
-    file.close();
-    return fileName;
+    (void) str;
+    return GenerateTmpFilename("fakelua_myflexer_", ".lua");
 }
 
 }// namespace fakelua

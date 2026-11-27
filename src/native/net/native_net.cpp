@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <exception>
 #include <format>
 #include <limits>
 #include <memory>
@@ -25,6 +26,7 @@ namespace fakelua::net {
 struct NetObject {
     State *state = nullptr;
     std::string dispatch_name;// Lua 回调函数名（统一入口）
+    JITType dispatch_jit = JIT_TCC;
     bool is_server = false;
 
     // 可变状态全部存 C++ 侧
@@ -45,6 +47,8 @@ struct NetObject {
     // tick 回调里 Lua 可能 :close()，不能立刻 delete this。延后到 tick 返回。
     int tick_depth = 0;
     bool close_pending = false;
+    std::exception_ptr pending_exception;
+    native::LifeToken life;
 
     // 回调上下文（native dispatch 期间）里的 send 先入队，由本轮 tick 派发完后统一
     // 泵出——消除"回调里 send 是否生效"的平台相关行为（事件驱动改轮询驱动）。
@@ -87,59 +91,23 @@ static std::string CVarToString(CVar v) {
 // C++ → Lua 回调派发（核心：按函数名查找，不存闭包）
 // 回调是纯函数：接收事件参数，返回可选指令（echo 等）
 
-static CVar CallLuaEvent(State *state, const std::string &func_name, const char *type, int connid, const char *data, size_t len, int reason) {
-    if (func_name.empty()) return CVar{static_cast<int>(VarType::Nil)};
+static CVar CallLuaEvent(State *state, const std::string &func_name, JITType preferred_jit, const char *type, int connid, const char *data, size_t len, int reason) {
+    if (!state || func_name.empty()) return CVar{static_cast<int>(VarType::Nil)};
 
-    // 优先查找 JIT 编译的 Lua 函数
-    auto func = state->GetVM().GetFunction(func_name);
-    void *addr = nullptr;
-    JITType jit_type = JIT_TCC;
-    if (!func.Empty()) {
-        addr = func.GetAddr(JIT_TCC);
-        if (!addr) {
-            addr = func.GetAddr(JIT_GCC);
-            jit_type = JIT_GCC;
-        }
-    }
-
-    if (addr) {
-        // 构造参数: (type, connid, data, len, reason)
-        CVar args[5];
-        args[0] = inter::NativeToFakeluaString(state, type);
-        args[1] = inter::NativeToFakeluaInt(state, connid);
-        if (data && len > 0) {
-            args[2] = inter::NativeToFakeluaString(state, std::string(data, len));
-            args[3] = inter::NativeToFakeluaInt(state, static_cast<int64_t>(len));
-        } else {
-            CVar nil{};
-            nil.type_ = static_cast<int>(VarType::Nil);
-            args[2] = nil;
-            args[3] = nil;
-        }
-        args[4] = inter::NativeToFakeluaInt(state, reason);
-
-        return inter::DispatchCall(state, addr, args, 5, jit_type);
+    CVar args[5];
+    args[0] = inter::NativeToFakeluaString(state, type);
+    args[1] = inter::NativeToFakeluaInt(state, connid);
+    if (data && len > 0) {
+        args[2] = inter::NativeToFakeluaString(state, std::string(data, len));
+        args[3] = inter::NativeToFakeluaInt(state, static_cast<int64_t>(len));
     } else {
-        // 回退：尝试原生函数
-        auto *entry = state->GetVM().FindNativeFunction(func_name);
-        if (entry && entry->callback) {
-            CVar args[5];
-            args[0] = inter::NativeToFakeluaString(state, type);
-            args[1] = inter::NativeToFakeluaInt(state, connid);
-            if (data && len > 0) {
-                args[2] = inter::NativeToFakeluaString(state, std::string(data, len));
-                args[3] = inter::NativeToFakeluaInt(state, static_cast<int64_t>(len));
-            } else {
-                CVar nil{};
-                nil.type_ = static_cast<int>(VarType::Nil);
-                args[2] = nil;
-                args[3] = nil;
-            }
-            args[4] = inter::NativeToFakeluaInt(state, reason);
-            return entry->callback(state, args, 5);
-        }
+        CVar nil{};
+        nil.type_ = static_cast<int>(VarType::Nil);
+        args[2] = nil;
+        args[3] = nil;
     }
-    return CVar{static_cast<int>(VarType::Nil)};
+    args[4] = inter::NativeToFakeluaInt(state, reason);
+    return DispatchNamedLuaCallback(state, func_name, args, 5, preferred_jit);
 }
 
 // 处理回调返回值：解析 Lua 返回的指令
@@ -301,18 +269,20 @@ static CVar NetDispatch(NativeObject *self, State *s, CVar *args, int n) {
         }
     }
     obj->dispatch_name = std::move(fname);
+    obj->dispatch_jit = s->CurrentJit();
     return inter::NativeToFakeluaNil(s);
 }
 
 // 派发单条事件给 Lua（在 tick() 同步上下文里执行，保留 tick_depth/close_pending 语义）
 void NetObject::DispatchEventFor(const ConnEvent &ev) {
+    if (close_pending) return;
     switch (ev.kind) {
         case EventKind::Connect:
             conn_count++;
             server_connid = ev.conn_id;
             PushEvent("conn");
             {
-                CVar ret = CallLuaEvent(state, dispatch_name, "conn", ev.conn_id, nullptr, 0, 0);
+                CVar ret = CallLuaEvent(state, dispatch_name, dispatch_jit, "conn", ev.conn_id, nullptr, 0, 0);
                 HandleCallbackReturn(ret, ev.conn_id);
             }
             break;
@@ -326,14 +296,14 @@ void NetObject::DispatchEventFor(const ConnEvent &ev) {
             PushEvent("recv");
             LOG_DEBUG(state, "net", "{} recv: connid={} len={}", is_server ? "server" : "client", ev.conn_id, ev.data.size());
             {
-                CVar ret = CallLuaEvent(state, dispatch_name, "recv", ev.conn_id, ev.data.data(), ev.data.size(), 0);
+                CVar ret = CallLuaEvent(state, dispatch_name, dispatch_jit, "recv", ev.conn_id, ev.data.data(), ev.data.size(), 0);
                 HandleCallbackReturn(ret, ev.conn_id);
             }
             break;
         case EventKind::Close:
             PushEvent("close");
             {
-                CVar ret = CallLuaEvent(state, dispatch_name, "close", ev.conn_id, nullptr, 0, 0);
+                CVar ret = CallLuaEvent(state, dispatch_name, dispatch_jit, "close", ev.conn_id, nullptr, 0, 0);
                 HandleCallbackReturn(ret, ev.conn_id);
             }
             break;
@@ -341,13 +311,16 @@ void NetObject::DispatchEventFor(const ConnEvent &ev) {
 }
 
 // 驱动 IO 处理，由 runtime.tick() 调用
-// 新版：Boost.Asio 引擎在后台线程跑，事件入队；tick() 排空队列并同步派发 Lua 回调。
 // tick_depth + close_pending 语义保持不变。
 // 关闭后的对象 unwrap 返回空，于是自然变成 no-op。
 static void TickNetObject(NativeObject *self) {
     auto *obj = Unwrap(self);
     if (!obj) return;
     if (obj->tick_depth > 0) return;
+    if (obj->close_pending && !obj->pending_exception) {
+        ReleaseNetObject(self);
+        return;
+    }
 
     auto finish_tick = [self, obj]() {
         if (obj->tick_depth < 0) obj->tick_depth = 0;
@@ -366,10 +339,19 @@ static void TickNetObject(NativeObject *self) {
             obj->client->DrainEventsWith([obj](const ConnEvent &ev) { obj->DispatchEventFor(ev); });
         }
     } catch (...) {
+        obj->pending_exception = nullptr;
         obj->tick_depth--;
         obj->FlushPendingSends();
         finish_tick();
         throw;
+    }
+    if (obj->pending_exception) {
+        auto ex = obj->pending_exception;
+        obj->pending_exception = nullptr;
+        obj->tick_depth--;
+        obj->FlushPendingSends();
+        finish_tick();
+        std::rethrow_exception(ex);
     }
     obj->tick_depth--;
     // 回调期间积压的 send 在这里统一泵出（socket 写在派发上下文之外执行）。
@@ -386,6 +368,16 @@ void TickAll(State *s) {
     auto wrappers = ws->list;
     for (auto *nat: wrappers) {
         TickNetObject(nat);
+    }
+    auto post_wrappers = ws->list;
+    for (auto *nat: post_wrappers) {
+        auto *obj = Unwrap(nat);
+        if (!obj || obj->tick_depth > 0) continue;
+        if (obj->pending_exception) {
+            TickNetObject(nat);
+        } else if (obj->close_pending) {
+            ReleaseNetObject(nat);
+        }
     }
 }
 
@@ -454,12 +446,29 @@ static CVar NetSend(NativeObject *self, State *s, CVar *args, int n) {
 // server:close_connection(connid) — 关闭单条连接（C++ 已有能力，现导出到 Lua）
 static CVar NetCloseConnection(NativeObject *self, State *s, CVar *args, int n) {
     auto *obj = Unwrap(self);
-    if (!obj || !obj->is_server || !obj->server) return inter::NativeToFakeluaBool(s, false);
+    if (!obj || !obj->is_server || !obj->server || obj->close_pending) return inter::NativeToFakeluaBool(s, false);
     if (n < 1) ThrowBadArgument(1, "close_connection", "connid expected");
     int connid = static_cast<int>(CheckIntegerArg(inter::GetNativeArg(s, args, n, 0), 1, "close_connection"));
-    if (!obj->server->CloseConnection(connid)) return inter::NativeToFakeluaBool(s, false);
+    if (!obj->server->CloseConnection(connid, false)) return inter::NativeToFakeluaBool(s, false);
     obj->PushEvent("close");
-    CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, "close", connid, nullptr, 0, 0);
+    struct CloseDispatchGuard {
+        NativeObject *self;
+        NetObject *obj;
+        explicit CloseDispatchGuard(NativeObject *nat, NetObject *o) : self(nat), obj(o) {
+            ++obj->tick_depth;
+        }
+        ~CloseDispatchGuard() {
+            if (obj->tick_depth > 0) --obj->tick_depth;
+            if (obj->tick_depth == 0) {
+                obj->FlushPendingSends();
+                if (obj->close_pending) {
+                    ReleaseNetObject(self);
+                }
+            }
+        }
+    } guard(self, obj);
+    native::IoContext::DispatchScope dispatch_scope(s->GetIoContext());
+    CVar ret = CallLuaEvent(obj->state, obj->dispatch_name, obj->dispatch_jit, "close", connid, nullptr, 0, 0);
     obj->HandleCallbackReturn(ret, connid);
     return inter::NativeToFakeluaBool(s, true);
 }
@@ -719,17 +728,19 @@ static net::NetConfig ParseConfig(State *s, CVar *args, int n) {
 }
 
 // 辅助：建立 Lua 自定义解包函数的 C++ parser 桥接
-static void SetupLuaCustomParser(State *s, net::NetConfig &cfg, const std::string &parser_name) {
-    if (parser_name.empty()) return;
+static void SetupLuaCustomParser(State *s, NetObject *obj, net::NetConfig &cfg, const std::string &parser_name) {
+    if (parser_name.empty() || !obj) return;
 
     cfg.framer = net::FramerType::Custom;
     cfg.custom_parser_name = parser_name;
 
     // 创建捕获 parser_name 的 C++ 回调，从 CircularBuffer 窥视数据，调用 Lua parser 解包
-    // 按值捕获 max_packet_len，避免 lambda 存入 cfg 后引用工厂局部 cfg 导致悬空
+    // 按值捕获 max_packet_len 与登记时的脚本引擎，避免悬空或走错后端
     const int max_pkt = cfg.max_packet_len;
-    cfg.custom_parser_fn = [s, parser_name, max_pkt](net::CircularBuffer &buf, const char *&out_payload, uint32_t &out_len) -> bool {
-        if (buf.Empty()) return false;
+    const JITType parser_jit = s->CurrentJit();
+    auto watch = obj->life.GetWatch();
+    cfg.custom_parser_fn = [s, obj, watch, parser_name, parser_jit, max_pkt](net::CircularBuffer &buf, const char *&out_payload, uint32_t &out_len) -> bool {
+        if (!watch.Alive() || obj->close_pending || obj->pending_exception || buf.Empty()) return false;
 
         // 用 buf 自己的暂存区：写在 lambda 体内的 static 是所有连接、所有 State 共享同一
         // 份，按缓冲区各存一份既没有竞争，也不会解析另一条连接就把这里的数据冲掉。
@@ -741,55 +752,53 @@ static void SetupLuaCustomParser(State *s, net::NetConfig &cfg, const std::strin
         if (peek_buf.size() < total) peek_buf.resize(total);
         buf.Peek(peek_buf.data(), total);
 
+        struct ParserTickGuard {
+            NetObject *obj;
+            explicit ParserTickGuard(NetObject *o) : obj(o) {
+                ++obj->tick_depth;
+            }
+            ~ParserTickGuard() {
+                if (obj->tick_depth > 0) --obj->tick_depth;
+            }
+        } tick_guard(obj);
+        native::IoContext::DispatchScope dispatch_scope(s->GetIoContext());
+
         // 调用 Lua 解包函数: parser(buffer_str)
-        // 期望返回值:
-        // 1. (packet_str, consumed_bytes)
-        // 2. 或仅 packet_str（默认 consumed_bytes = packet_str.length()）
-        // 3. 或 nil（表示数据尚未就绪，需等待更多数据）
-        auto func = s->GetVM().GetFunction(parser_name);
-        void *addr = nullptr;
-        JITType jit_type = JIT_TCC;
-        if (!func.Empty()) {
-            addr = func.GetAddr(JIT_TCC);
-            if (!addr) {
-                addr = func.GetAddr(JIT_GCC);
-                jit_type = JIT_GCC;
-            }
-        }
-
-        CVar res{static_cast<int>(VarType::Nil)};
-        CVar in_arg = inter::NativeToFakeluaString(s, std::string(peek_buf.data(), total));
-
-        if (addr) {
-            CVar args[1] = {in_arg};
-            res = inter::DispatchCall(s, addr, args, 1, jit_type);
-        } else {
-            auto *entry = s->GetVM().FindNativeFunction(parser_name);
-            if (entry && entry->callback) {
-                CVar args[1] = {in_arg};
-                res = entry->callback(s, args, 1);
-            }
-        }
-
-        if (res.type_ == static_cast<int>(VarType::Nil)) {
-            return false;
-        }
-
+        // 必须在此处拦截 C++ 异常，绝不让异常穿过 C 编译的 libevent 栈帧：
+        // 异常暂存在 obj->pending_exception，并在不消费 buf 的前提下返回 true，
+        // 使 TryParsePacket 标记 out_error=true 并干净关闭连接，随后由 TickNetObject 在外层重抛。
         std::string parsed_str;
         size_t consumed = 0;
+        try {
+            CVar in_arg = inter::NativeToFakeluaString(s, std::string(peek_buf.data(), total));
+            CVar args[1] = {in_arg};
+            CVar res = DispatchNamedLuaCallback(s, parser_name, args, 1, parser_jit);
 
-        if (res.type_ == static_cast<int>(VarType::Multi)) {
-            CVar p_var = inter::GetMultiCVarElement(res, 0);
-            parsed_str = CVarToString(p_var);
-            CVar c_var = inter::GetMultiCVarElement(res, 1);
-            if (c_var.type_ != static_cast<int>(VarType::Nil)) {
-                consumed = static_cast<size_t>(inter::CVarToInteger(c_var, static_cast<int64_t>(parsed_str.size())));
+            if (obj->close_pending || res.type_ == static_cast<int>(VarType::Nil)) {
+                return false;
+            }
+
+            if (res.type_ == static_cast<int>(VarType::Multi)) {
+                CVar p_var = inter::GetMultiCVarElement(res, 0);
+                parsed_str = CVarToString(p_var);
+                CVar c_var = inter::GetMultiCVarElement(res, 1);
+                if (c_var.type_ != static_cast<int>(VarType::Nil)) {
+                    int64_t raw_consumed = inter::CVarToInteger(c_var, static_cast<int64_t>(parsed_str.size()));
+                    consumed = raw_consumed > 0 ? static_cast<size_t>(raw_consumed) : 0;
+                } else {
+                    consumed = parsed_str.size();
+                }
             } else {
+                parsed_str = CVarToString(res);
                 consumed = parsed_str.size();
             }
-        } else {
-            parsed_str = CVarToString(res);
-            consumed = parsed_str.size();
+        } catch (...) {
+            if (!obj->pending_exception) {
+                obj->pending_exception = std::current_exception();
+            }
+            out_payload = nullptr;
+            out_len = 0;
+            return true;
         }
 
         if (consumed == 0 && parsed_str.empty()) {
@@ -812,9 +821,6 @@ static void SetupLuaCustomParser(State *s, net::NetConfig &cfg, const std::strin
 }
 
 static CVar CreateNetServer(State *s, net::NetConfig cfg, const char *type_name) {
-    if (!cfg.custom_parser_name.empty()) {
-        SetupLuaCustomParser(s, cfg, cfg.custom_parser_name);
-    }
     if (cfg.tls && (cfg.tls_cert.empty() || cfg.tls_key.empty())) {
         ThrowFakeluaException(std::format("{}: tls=true requires cert and key", type_name));
     }
@@ -824,6 +830,9 @@ static CVar CreateNetServer(State *s, net::NetConfig cfg, const char *type_name)
     auto *obj = new NetObject();
     obj->state = s;
     obj->is_server = true;
+    if (!cfg.custom_parser_name.empty()) {
+        SetupLuaCustomParser(s, obj, cfg, cfg.custom_parser_name);
+    }
     obj->server = std::make_unique<net::TcpServer>(cfg, s);
     obj->server->Start();
 
@@ -859,15 +868,14 @@ static CVar CreateNetServer(State *s, net::NetConfig cfg, const char *type_name)
 }
 
 static CVar CreateNetClient(State *s, net::NetConfig cfg, const char *type_name) {
-    if (!cfg.custom_parser_name.empty()) {
-        SetupLuaCustomParser(s, cfg, cfg.custom_parser_name);
-    }
-
     net::NetInit();
 
     auto *obj = new NetObject();
     obj->state = s;
     obj->is_server = false;
+    if (!cfg.custom_parser_name.empty()) {
+        SetupLuaCustomParser(s, obj, cfg, cfg.custom_parser_name);
+    }
     obj->client = std::make_unique<net::TcpClient>(cfg, s);
     obj->client->Connect();
 

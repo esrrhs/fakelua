@@ -37,15 +37,17 @@ void *HeapAllocator::Alloc(size_t size) {
         }
     }
 
-    // 仅检查 size 本身是否超出块容量。padding 在同一块内才有意义，
-    // 跨块时 offset 会重置为 0 导致 padding 为 0，因此不参与上限判断。
-    if (UNLIKELY(size > BLOCK_SIZE)) {
+    // 保持 current_block_offset_ 与 slot_->curr 始终按 alignment（16 字节）对齐，
+    // 否则 C++ 侧分配任意非 16 倍数字节后，JIT 快速路径 FlFastAlloc 直接使用 hs->curr
+    // 会发出非对齐的 VarTable / CVar / VarClosure 指针。
+    const size_t aligned_size = ((size == 0 ? 1 : size) + alignment - 1) & ~(alignment - 1);
+    if (UNLIKELY(aligned_size > BLOCK_SIZE)) {
         ThrowFakeluaException(std::format("Alloc failed, requested size {} exceeds block size {}", size, BLOCK_SIZE));
     }
 
     size_t padding = (alignment - (current_block_offset_ % alignment)) % alignment;
 
-    if (UNLIKELY(current_block_offset_ + padding + size > BLOCK_SIZE)) {
+    if (UNLIKELY(current_block_offset_ + padding + aligned_size > BLOCK_SIZE)) {
         current_block_offset_ = 0;
         current_block_index_++;
         padding = 0;
@@ -68,7 +70,7 @@ void *HeapAllocator::Alloc(size_t size) {
 
     current_block_offset_ += padding;
     void *ptr = static_cast<char *>(blocks_[current_block_index_]) + current_block_offset_;
-    current_block_offset_ += size;
+    current_block_offset_ += aligned_size;
     if (slot_) {
         slot_->curr = static_cast<char *>(blocks_[current_block_index_]) + current_block_offset_;
         slot_->end = static_cast<char *>(blocks_[current_block_index_]) + BLOCK_SIZE;
@@ -95,7 +97,15 @@ void HeapAllocator::Reset() {
 }
 
 size_t HeapAllocator::Size() const {
-    return current_block_index_ * BLOCK_SIZE + current_block_offset_;
+    size_t offset = current_block_offset_;
+    if (slot_ && slot_->curr && current_block_index_ < blocks_.size()) {
+        const char *base = static_cast<const char *>(blocks_[current_block_index_]);
+        const char *end = base + BLOCK_SIZE;
+        if (slot_->curr >= base && slot_->curr <= end) {
+            offset = static_cast<size_t>(slot_->curr - base);
+        }
+    }
+    return current_block_index_ * BLOCK_SIZE + offset;
 }
 
 }// namespace fakelua

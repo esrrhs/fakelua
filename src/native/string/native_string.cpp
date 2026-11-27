@@ -681,34 +681,36 @@ extern "C" CVar GMatchIterator(VarClosure *cl, CVar /*s*/, CVar /*var*/) {
         return inter::NativeToFakeluaNil(iter_state);
     }
 
-    const size_t slen = gs->text.size();
-    size_t pos = (gs->prev == std::numeric_limits<size_t>::max()) ? 0 : gs->prev;
-    // gmatch 不像 gsub/find 有锚定概念：模式里的 '^' 是普通字符。
-    const char *src = gs->text.data();
-    const char *pat = gs->pattern.c_str();
-    while (pos <= slen) {
-        lua_pattern::MatchResult m;
-        if (lua_pattern::MatchAt(src, slen, pat, gs->pattern.size(), pos, m, /*leading_caret_is_anchor=*/false)) {
-            const size_t mend = static_cast<size_t>(m.end - src);
-            // 零宽匹配只在「不是紧跟上一个产出位置」时产出，否则跳过一位，
-            // 避免重复空匹配（PUC-Rio gmatch_iter 语义）。
-            if (mend != pos || pos != gs->prev) {
-                gs->prev = mend;
-                CheckCapturesFinished(m);
-                if (m.level > 0) {
-                    CVar multi = inter::AllocMultiCVar(iter_state, m.level);
-                    for (int i = 0; i < m.level; ++i) {
-                        inter::SetMultiCVarElement(multi, i, CaptureToCVar(iter_state, src, m, i));
+    return GuardJitEntry(iter_state, [&]() -> CVar {
+        const size_t slen = gs->text.size();
+        size_t pos = (gs->prev == std::numeric_limits<size_t>::max()) ? 0 : gs->prev;
+        // gmatch 不像 gsub/find 有锚定概念：模式里的 '^' 是普通字符。
+        const char *src = gs->text.data();
+        const char *pat = gs->pattern.c_str();
+        while (pos <= slen) {
+            lua_pattern::MatchResult m;
+            if (lua_pattern::MatchAt(src, slen, pat, gs->pattern.size(), pos, m, /*leading_caret_is_anchor=*/false)) {
+                const size_t mend = static_cast<size_t>(m.end - src);
+                // 零宽匹配只在「不是紧跟上一个产出位置」时产出，否则跳过一位，
+                // 避免重复空匹配（PUC-Rio gmatch_iter 语义）。
+                if (mend != pos || pos != gs->prev) {
+                    gs->prev = mend;
+                    CheckCapturesFinished(m);
+                    if (m.level > 0) {
+                        CVar multi = inter::AllocMultiCVar(iter_state, m.level);
+                        for (int i = 0; i < m.level; ++i) {
+                            inter::SetMultiCVarElement(multi, i, CaptureToCVar(iter_state, src, m, i));
+                        }
+                        return multi;
                     }
-                    return multi;
+                    return inter::NativeToFakeluaStringView(iter_state, std::string_view(m.begin, static_cast<size_t>(m.end - m.begin)));
                 }
-                return inter::NativeToFakeluaStringView(iter_state, std::string_view(m.begin, static_cast<size_t>(m.end - m.begin)));
             }
+            ++pos;
         }
-        ++pos;
-    }
-    gs->prev = std::numeric_limits<size_t>::max();// 标记迭代结束
-    return inter::NativeToFakeluaNil(iter_state);
+        gs->prev = std::numeric_limits<size_t>::max();// 标记迭代结束
+        return inter::NativeToFakeluaNil(iter_state);
+    });
 }
 
 std::string_view GetStringArgView(CVar a, std::string &temp) {
@@ -1525,13 +1527,20 @@ void RegisterStringLibraryApi(State *s) {
             }
         }
 
-        // 标准 Lua：gsub 的替换参数必须是 string/function/table，Bool 不合法
-        if (repl_var.type_ == static_cast<int>(VarType::Bool)) {
-            ThrowFakeluaException("bad argument #3 to 'string.gsub' (string/function/table expected, got boolean)");
-        }
+        // 标准 Lua：gsub 的第 3 参数必须是 string/number/function/table
         const bool repl_is_table = (repl_var.type_ == static_cast<int>(VarType::Table) && repl_var.data_.t);
         const bool repl_is_closure = (repl_var.type_ == static_cast<int>(VarType::Closure) && repl_var.data_.cl);
-        const std::string repl_str = (repl_is_table || repl_is_closure) ? std::string() : std::string(KeyToStringView(repl_var));
+        std::string repl_num_tmp;
+        if (!repl_is_table && !repl_is_closure) {
+            if (repl_var.type_ == static_cast<int>(VarType::Bool)) {
+                ThrowFakeluaException("bad argument #3 to 'string.gsub' (string/function/table expected, got boolean)");
+            }
+            if (repl_var.type_ != static_cast<int>(VarType::String) && repl_var.type_ != static_cast<int>(VarType::StringId) &&
+                repl_var.type_ != static_cast<int>(VarType::Int) && repl_var.type_ != static_cast<int>(VarType::Float)) {
+                ThrowFakeluaException("bad argument #3 to 'string.gsub' (string/function/table expected)");
+            }
+        }
+        const std::string repl_str = (repl_is_table || repl_is_closure) ? std::string() : std::string(GetStringArgView(repl_var, repl_num_tmp));
 
         const bool anchored = !pat_view.empty() && pat_view[0] == '^';
         const char *eff_pat = pat_view.data() + (anchored ? 1 : 0);
@@ -1577,6 +1586,26 @@ void RegisterStringLibraryApi(State *s) {
             std::string replacement;
             bool keep_original = false;
 
+            const auto apply_repl_value = [&](CVar rv) {
+                while (rv.type_ == static_cast<int>(VarType::Multi)) {
+                    VarMulti *mm = rv.data_.m;
+                    rv = (mm && mm->GetCount() > 0) ? mm->GetVars()[0] : CVar{static_cast<int>(VarType::Nil)};
+                }
+                if (rv.type_ == static_cast<int>(VarType::Nil) || (rv.type_ == static_cast<int>(VarType::Bool) && !rv.data_.b)) {
+                    keep_original = true;
+                } else if (rv.type_ == static_cast<int>(VarType::String) || rv.type_ == static_cast<int>(VarType::StringId)) {
+                    replacement = std::string(KeyToStringView(rv));
+                } else if (rv.type_ == static_cast<int>(VarType::Int) || rv.type_ == static_cast<int>(VarType::Float)) {
+                    replacement = AsVar(rv).ToString(/*has_quote=*/false, /*has_postfix=*/false);
+                } else if (rv.type_ == static_cast<int>(VarType::Bool)) {
+                    ThrowFakeluaException("invalid replacement value (a boolean)");
+                } else if (rv.type_ == static_cast<int>(VarType::Table)) {
+                    ThrowFakeluaException("invalid replacement value (a table)");
+                } else {
+                    ThrowFakeluaException("invalid replacement value (a function)");
+                }
+            };
+
             if (repl_is_closure) {
                 VarClosure *cl = repl_var.data_.cl;
                 const int call_arg_count = (m.level > 0) ? m.level : 1;
@@ -1594,15 +1623,7 @@ void RegisterStringLibraryApi(State *s) {
                 // 在发起 gsub 的引擎里同步调用替换函数（与 pool:with 同理）。
                 CVar fn_res = (cl->func_ptr != nullptr) ? inter::DispatchCallClosure(state, cl, call_args.data(), call_arg_count, state->CurrentJit())
                                                         : FlEvalLoadClosure(state, cl, call_arg_count, call_args.data());
-                if (fn_res.type_ == static_cast<int>(VarType::Nil) || (fn_res.type_ == static_cast<int>(VarType::Bool) && !fn_res.data_.b)) {
-                    keep_original = true;
-                } else if (fn_res.type_ == static_cast<int>(VarType::Bool)) {
-                    ThrowFakeluaException("invalid replacement value (a boolean)");
-                } else if (fn_res.type_ == static_cast<int>(VarType::Table)) {
-                    ThrowFakeluaException("invalid replacement value (a table)");
-                } else {
-                    replacement = std::string(KeyToStringView(fn_res));
-                }
+                apply_repl_value(fn_res);
             } else if (repl_is_table) {
                 CVar val;
                 if (m.level > 0) {
@@ -1610,20 +1631,14 @@ void RegisterStringLibraryApi(State *s) {
                     if (cap0.len == lua_pattern::kCapPosition) {
                         val = table::TableHelper::GetTableInt(state, repl_var, static_cast<int64_t>(cap0.init - sv.data()) + 1);
                     } else {
-                        std::string key(cap0.init, static_cast<size_t>(cap0.len));
-                        val = table::TableHelper::GetTableStrId(state, repl_var, key.c_str());
+                        CVar k_var = inter::NativeToFakeluaStringView(state, std::string_view(cap0.init, static_cast<size_t>(cap0.len)));
+                        val = table::TableHelper::GetTable(state, repl_var, k_var);
                     }
                 } else {
-                    std::string key(whole);
-                    val = table::TableHelper::GetTableStrId(state, repl_var, key.c_str());
+                    CVar k_var = inter::NativeToFakeluaStringView(state, whole);
+                    val = table::TableHelper::GetTable(state, repl_var, k_var);
                 }
-                if (val.type_ == static_cast<int>(VarType::Nil) || (val.type_ == static_cast<int>(VarType::Bool) && !val.data_.b)) {
-                    keep_original = true;
-                } else if (val.type_ == static_cast<int>(VarType::Bool) || val.type_ == static_cast<int>(VarType::Table)) {
-                    ThrowFakeluaException("invalid replacement value (a boolean)");
-                } else {
-                    replacement = std::string(KeyToStringView(val));
-                }
+                apply_repl_value(val);
             } else {
                 // 字符串替换：%0=整个匹配，%1-%9=捕获，%%=百分号，其余 %x 报错。
                 for (size_t i = 0; i < repl_str.size(); ++i) {
@@ -1690,7 +1705,7 @@ void RegisterStringLibraryApi(State *s) {
         }
         VarClosure *cl = fn_var.data_.cl;
         std::string code;
-        if (cl->code_str && cl->code_str != reinterpret_cast<const char *>(static_cast<uintptr_t>(1))) {
+        if (IsSourceLoadClosure(cl)) {
             code = cl->code_str;
         }
         std::string payload = "\x1bLua";
@@ -1772,7 +1787,8 @@ void RegisterStringLibraryApi(State *s) {
                         if (len > sv.size() - idx) {
                             uv.type_ = static_cast<int>(VarType::Nil);
                         } else {
-                            uv = inter::NativeToFakeluaStringView(state, std::string_view(sv.data() + idx, len));
+                            uv.type_ = static_cast<int>(VarType::StringId);
+                            uv.data_.i = state->GetConstString().Alloc(std::string_view(sv.data() + idx, len));
                             idx += len;
                         }
                     } else if (type != static_cast<int>(VarType::Nil)) {
@@ -1787,7 +1803,6 @@ void RegisterStringLibraryApi(State *s) {
         }
 
         try {
-            CompileConfig config;
             std::string wrapper_code;
             if (!code.empty()) {
                 if (code.find("function") == std::string::npos && code.find("return") == std::string::npos) {
@@ -1797,11 +1812,15 @@ void RegisterStringLibraryApi(State *s) {
                 }
             }
 
-            auto &alloc = state->GetValueAllocator();
+            // load() 返回的闭包可能被脚本保存在模块/全局状态中跨 Call() 调用，分配在 const_heap 避免 Reset() 悬空。
+            auto &alloc = state->GetHeap().GetAllocator(true);
             char *saved_code = nullptr;
             if (!wrapper_code.empty()) {
                 saved_code = static_cast<char *>(alloc.Alloc(wrapper_code.size() + 1));
                 std::memcpy(saved_code, wrapper_code.c_str(), wrapper_code.size() + 1);
+            } else {
+                saved_code = static_cast<char *>(alloc.Alloc(1));
+                saved_code[0] = '\0';
             }
 
             VarClosure *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + static_cast<size_t>(upval_cnt) * sizeof(CVar *)));
@@ -1846,10 +1865,15 @@ void RegisterStringLibraryApi(State *s) {
         std::string source((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
         ifs.close();
 
-        // 编译文件内容，顶层函数注册为全局，编译器自动执行 __fakelua_init
+        // 仅在当前活跃引擎上编译并执行 __fakelua_init，避免重复触发多遍初始化副作用与无谓的 GCC 编译。
         try {
             CompileConfig config;
-            CompileString(state, source, config);
+            config.debug_mode = false;
+            const JITType active_jit = state->CurrentJit();
+            for (int j = 0; j < JIT_MAX; ++j) {
+                config.disable_jit[j] = (j != static_cast<int>(active_jit));
+            }
+            CompileFile(state, std::string(filename_sv), config);
         } catch (...) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -1869,12 +1893,16 @@ void RegisterStringLibraryApi(State *s) {
 
         utf8_io::ifstream ifs(std::string(filename_sv), std::ios::in | std::ios::binary);
         if (!ifs.is_open()) return inter::NativeToFakeluaNil(state);
-        std::string source((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
         ifs.close();
 
         try {
             CompileConfig config;
-            CompileString(state, source, config);
+            config.debug_mode = false;
+            const JITType active_jit = state->CurrentJit();
+            for (int j = 0; j < JIT_MAX; ++j) {
+                config.disable_jit[j] = (j != static_cast<int>(active_jit));
+            }
+            CompileFile(state, std::string(filename_sv), config);
         } catch (...) {
             return inter::NativeToFakeluaNil(state);
         }
@@ -2441,7 +2469,7 @@ struct EvalCounter {
 };
 
 extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, const CVar *args) {
-    if (!state || !cl || !cl->code_str) {
+    if (!state || !IsSourceLoadClosure(cl)) {
         return inter::NativeToFakeluaNil(state);
     }
     std::string code = cl->code_str;
@@ -2451,38 +2479,65 @@ extern "C" CVar FlEvalLoadClosure(State *state, VarClosure *cl, int arg_num, con
     }
 
     // 每 State 一份：生成的函数名只需在本 State 的函数表里唯一（下面的 CompileString 和
-    // FakeluaCallByName 都是按 State 查的），所以不需要一个全进程共享的发号器。
+    // CallByNameArgs 都是按 State 查的），所以不需要一个全进程共享的发号器。
     auto &eval_counter = state->GetModuleState<EvalCounter>();
     std::string eval_fn_name = "__flua_eval_ld_" + std::to_string(++eval_counter.next);
+
+    auto escape_lua_str = [](std::string_view sv) -> std::string {
+        std::string out = "\"";
+        out.reserve(sv.size() + 2);
+        for (unsigned char ch: sv) {
+            if (ch == '\\') out += "\\\\";
+            else if (ch == '"') out += "\\\"";
+            else if (ch == '\n') out += "\\n";
+            else if (ch == '\r') out += "\\r";
+            else if (ch == '\0') out += "\\000";
+            else if (ch < 32 || ch >= 127) out += std::format("\\{:03d}", static_cast<unsigned>(ch));
+            else out.push_back(static_cast<char>(ch));
+        }
+        out.push_back('"');
+        return out;
+    };
 
     std::string upval_decls;
     for (int i = 0; i < cl->upvalue_count; ++i) {
         if (cl->upvalues[i]) {
+            const std::string uv_name = (i == 0) ? "x" : ("__fl_uv_" + std::to_string(i));
             CVar uv = *cl->upvalues[i];
             if (uv.type_ == static_cast<int>(VarType::Int)) {
-                upval_decls += "local x = " + std::to_string(uv.data_.i) + "\n";
+                upval_decls += "local " + uv_name + " = " + std::to_string(uv.data_.i) + "\n";
             } else if (uv.type_ == static_cast<int>(VarType::Float)) {
-                upval_decls += "local x = " + std::to_string(uv.data_.f) + "\n";
+                upval_decls += "local " + uv_name + " = " + std::to_string(uv.data_.f) + "\n";
             } else if (uv.type_ == static_cast<int>(VarType::Bool)) {
-                upval_decls += "local x = " + std::string(uv.data_.b ? "true\n" : "false\n");
+                upval_decls += "local " + uv_name + " = " + std::string(uv.data_.b ? "true\n" : "false\n");
+            } else if (uv.type_ == static_cast<int>(VarType::String) || uv.type_ == static_cast<int>(VarType::StringId)) {
+                upval_decls += "local " + uv_name + " = " + escape_lua_str(KeyToStringView(uv)) + "\n";
             }
         }
     }
 
     std::string full_code;
     if (code.find("function") == std::string::npos && code.find("return") == std::string::npos) {
-        full_code = upval_decls + "function " + eval_fn_name + "()\nreturn " + code + "\nend";
+        full_code = upval_decls + "function " + eval_fn_name + "(...)\nreturn " + code + "\nend";
     } else {
-        full_code = upval_decls + "function " + eval_fn_name + "()\n" + code + "\nend";
+        full_code = upval_decls + "function " + eval_fn_name + "(...)\n" + code + "\nend";
     }
 
     try {
         CompileConfig config;
+        config.debug_mode = false;
+        const JITType active_jit = state->CurrentJit();
+        for (int j = 0; j < JIT_MAX; ++j) {
+            config.disable_jit[j] = (j != static_cast<int>(active_jit));
+        }
         CompileString(state, full_code, config);
         // 边界不能省：本函数要靠下面的 catch 把错误吞成 nil，若让错误直接跳到更外层的
         // 边界，这里的 std::string 就不会析构，语义也从"返回 nil"变成了向上抛。
-        CVar res = RunWithJitErrorBoundary(state, [&] { return FakeluaCallByName(state, JIT_TCC, eval_fn_name.c_str(), 0); });
-        return res;
+        const int safe_n = (args && arg_num > 0) ? arg_num : 0;
+        if (active_jit == JIT_TCC) {
+            return RunWithJitErrorBoundary(state, [&] { return CallByNameArgs(state, static_cast<int>(active_jit), eval_fn_name, safe_n, safe_n > 0 ? args : nullptr); });
+        }
+        return CallByNameArgs(state, static_cast<int>(active_jit), eval_fn_name, safe_n, safe_n > 0 ? args : nullptr);
     } catch (...) {
         return inter::NativeToFakeluaNil(state);
     }

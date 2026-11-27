@@ -231,6 +231,10 @@ bool InterpCodegen::IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) cons
     return ExtractPackageName(stmt, ignored);
 }
 
+bool InterpCodegen::IsLocalVarAssigned(const VarDef *def) const {
+    return def != nullptr && def->is_assigned;
+}
+
 CVar InterpCodegen::LiteralFromExp(const SyntaxTreeInterfacePtr &exp) {
     CVar v = interp_rt::Nil();
     if (!exp || exp->Type() != SyntaxTreeType::Exp) return v;
@@ -286,9 +290,20 @@ int InterpCodegen::ResolveSimpleName(const SyntaxTreeVar *var, const std::string
         if (def->defining_func == cur_func_ || def->defining_func != nullptr) {
             return LoadLocal(def);
         }
-        // 文件级 local function：没有函数内局部槽，按注册原型构造闭包（对齐 CGen FlMakeClosure）。
-    }
-    if (const auto nit = named_protos_.find(name); nit != named_protos_.end()) {
+        // 文件级 local function：没有函数内局部槽，按绑定定义节点的原型构造闭包（对齐 CGen FlMakeClosure）。
+        if (def->def_node && def->def_node->Type() == SyntaxTreeType::LocalFunction) {
+            if (const auto fit = func_map_.find(def->def_node); fit != func_map_.end() && (check_only_ || fit->second->proto)) {
+                const int r = AllocReg();
+                int idx = 0;
+                if (!check_only_) {
+                    idx = static_cast<int>(cur_proto_->child_protos.size());
+                    cur_proto_->child_protos.push_back(fit->second->proto);
+                }
+                Emit(Op::CLOSURE, r, 0, 0, idx);
+                return r;
+            }
+        }
+    } else if (const auto nit = named_protos_.find(name); nit != named_protos_.end()) {
         const int r = AllocReg();
         int idx = 0;
         if (!check_only_) {
@@ -534,6 +549,16 @@ void InterpCodegen::ResolveScopes(const SyntaxTreeInterfacePtr &node, std::vecto
             const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
             ResolveScopes(assign->Varlist(), scopes, func_stack, cur_func);
             ResolveScopes(assign->Explist(), scopes, func_stack, cur_func);
+            if (const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist())) {
+                for (const auto &v: vl->Vars()) {
+                    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
+                    if (var && var->GetVarKind() == VarKind::kSimple) {
+                        if (const auto it = var_to_def_map_.find(var.get()); it != var_to_def_map_.end()) {
+                            it->second->is_assigned = true;
+                        }
+                    }
+                }
+            }
             break;
         }
         case SyntaxTreeType::FunctionCall: {
@@ -671,7 +696,7 @@ void InterpCodegen::CompileFunction(FuncInfo *func) {
     func->compiled = true;
     const int prev_check_ip = check_ip_;
     check_ip_ = 0;
-    if (!check_only_) {
+    if (!check_only_ && !func->proto) {
         auto proto = std::make_unique<FuncProto>();
         proto->unit = unit_;
         proto->name = LuaCallFrameName(func->name, func->parent == nullptr, cur_package_name_);
@@ -682,10 +707,17 @@ void InterpCodegen::CompileFunction(FuncInfo *func) {
         unit_->protos.push_back(std::move(proto));
     }
 
-    if (func->parent == nullptr && !func->unique_c_name.empty()) {
-        named_protos_[func->unique_c_name] = func->proto;
-        if (!func->name.empty() && func->name != func->unique_c_name) {
-            named_protos_[func->name] = func->proto;
+    if (func->parent == nullptr) {
+        const bool is_local_fn = func->node && func->node->Type() == SyntaxTreeType::LocalFunction;
+        if (is_local_fn) {
+            if (!check_only_ && !func->name.empty()) {
+                unit_->local_funcs[func->name] = func->proto;
+            }
+        } else if (!func->unique_c_name.empty()) {
+            named_protos_[func->unique_c_name] = func->proto;
+            if (!func->name.empty() && func->name != func->unique_c_name) {
+                named_protos_[func->name] = func->proto;
+            }
         }
     }
 
@@ -1205,6 +1237,12 @@ void InterpCodegen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
             }
             StoreLocal(defs[1]->reg, vreg);
         }
+        for (size_t i = 2; i < defs.size(); ++i) {
+            if (defs[i]->is_captured) {
+                Emit(Op::NEWBOX, defs[i]->reg);
+            }
+            Emit(Op::LOADNIL, defs[i]->reg);
+        }
     };
     if (kind == PairsIpairsKind::kIpairs) {
         const int tbl = CompileExp(tbl_exp_node, false);
@@ -1463,7 +1501,8 @@ int InterpCodegen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool prese
     if (pe_ptr->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
         return CommitDest(dest, CompileFunctioncall(pe_ptr->GetValue(), preserve_multi));
     }
-    return CompileExp(pe_ptr->GetValue(), preserve_multi, dest);
+    // Lua 语义：括号表达式 `(exp)` 强制把多返回值与 `...` 截断成单个标量值。
+    return CompileExp(pe_ptr->GetValue(), false, dest);
 }
 
 int InterpCodegen::CompileVar(const SyntaxTreeInterfacePtr &v) {
@@ -1589,7 +1628,7 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
 
     std::vector<int> arg_regs;
     bool last_expand = false;
-    auto self_tail_c = [&](int n, bool named, const std::string &name, bool self_closure) -> int {
+    auto self_tail_c = [&](int n, bool named, const std::string &name, bool self_closure, bool local_unit_func = false, const SyntaxTreeInterface *local_def_node = nullptr) -> int {
         if (!is_tail || last_expand || !cur_func_ || cur_func_->is_vararg || !cur_func_->proto) {
             return 0;
         }
@@ -1599,17 +1638,22 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
         if (self_closure) {
             return kTailSelfExact;
         }
-        if (named && !name.empty()) {
-            if (name == cur_func_->name || name == cur_func_->unique_c_name) {
-                return kTailSelfExact;
+        if (named && cur_func_->parent == nullptr && !name.empty()) {
+            if (cur_func_->node && cur_func_->node->Type() == SyntaxTreeType::LocalFunction) {
+                return (local_unit_func && local_def_node == cur_func_->node) ? kTailSelfExact : 0;
             }
-            if (!cur_package_name_.empty() && !cur_func_->name.empty() && name == cur_package_name_ + "." + cur_func_->name) {
-                return kTailSelfExact;
+            if (!local_unit_func) {
+                if (name == cur_func_->name || name == cur_func_->unique_c_name) {
+                    return kTailSelfExact;
+                }
+                if (!cur_package_name_.empty() && !cur_func_->name.empty() && name == cur_package_name_ + "." + cur_func_->name) {
+                    return kTailSelfExact;
+                }
             }
         }
         return 0;
     };
-    auto place_callname = [&](const std::string &name, const std::vector<int> &args) {
+    auto place_callname = [&](const std::string &name, const std::vector<int> &args, bool local_unit_func = false, const SyntaxTreeInterface *local_def_node = nullptr) {
         const int n = static_cast<int>(args.size());
         // 末尾是 f() / ... 这类展开时实参个数运行期才知道，检查不了。
         if (!last_expand) {
@@ -1631,7 +1675,10 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
             }
             stack_top_ = base + n;
         }
-        const int c = is_tail ? self_tail_c(n, true, name, false) : unbox;
+        int c = is_tail ? self_tail_c(n, true, name, false, local_unit_func, local_def_node) : unbox;
+        if (local_unit_func) {
+            c |= kCallLocalUnit;
+        }
         Emit(is_tail ? Op::TAILNAME : Op::CALLNAME, base, n, c, AddStringConst(name));
         stack_top_ = base + 1;
         return base;
@@ -1685,7 +1732,18 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
         final_args.push_back(method_obj);
         for (int a: arg_regs) final_args.push_back(a);
         if (kStringLibraryMethods.contains(fc->Name())) {
-            return place_callname("string." + fc->Name(), final_args);
+            const int n = static_cast<int>(final_args.size());
+            const int base = stack_top_;
+            EnsureStack(base + n);
+            for (int i = 0; i < n; ++i) {
+                MoveTo(base + i, final_args[i]);
+            }
+            stack_top_ = base + n;
+            const int k = AddStringConst(fc->Name());
+            (void) AddStringConst("string." + fc->Name());
+            Emit(Op::STRMETHOD, base, n, is_tail ? kStrMethodTail : unbox, k);
+            stack_top_ = base + 1;
+            return base;
         }
         const int k = AllocReg();
         CVar key{};
@@ -1699,6 +1757,7 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
 
     std::string func_name;
     const SyntaxTreeVar *var_ptr = nullptr;
+    const SyntaxTreeInterface *local_def_node = nullptr;
     bool is_local_callee = false;
     bool file_level_func = false;
     if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
@@ -1708,11 +1767,14 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
             var_ptr = var.get();
             if (const auto it = var_to_def_map_.find(var_ptr); it != var_to_def_map_.end()) {
                 is_local_callee = true;
-                // 只有文件级 local function 才能走 CALLNAME：named_protos_ 只登记
-                // 函数定义。文件级 local 变量（如 local gv = f）即使 defining_func
-                // 为 nullptr 也不在 named_protos_ 里，必须按闭包调用，否则运行时报
-                // "function 'gv' not found"（C 后端此处按闭包处理，行为一致）。
+                local_def_node = it->second->def_node;
+                // 只有文件级 local function 才能走 CALLNAME：local_funcs 只登记
+                // 文件级 local function。文件级 local 变量（如 local gv = f）即使 defining_func
+                // 为 nullptr 也必须按闭包调用（与 C 后端一致）。
                 file_level_func = it->second->defining_func == nullptr && it->second->def_node != nullptr && it->second->def_node->Type() == SyntaxTreeType::LocalFunction;
+            } else if (!cur_package_name_.empty() && pkg_func_names_.contains(func_name)) {
+                // 本 package 内导出的同名函数走包限定名，既与其他 package 的同名函数隔离，又保留本包热更新语义。
+                func_name = cur_package_name_ + "." + func_name;
             }
         } else if (var && var->GetVarKind() == VarKind::kDot) {
             const auto base_pe = var->GetPrefixexp();
@@ -1729,9 +1791,8 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
     }
 
     // 形参、局部变量、嵌套 local function 即使与文件级函数同名，也必须调用这个绑定。
-    // named_protos_ 只登记文件级函数，不能拿来覆盖局部值。
     if (!func_name.empty() && (!is_local_callee || file_level_func)) {
-        return place_callname(func_name, arg_regs);
+        return place_callname(func_name, arg_regs, file_level_func, local_def_node);
     }
 
     int fn;
@@ -1742,7 +1803,7 @@ int InterpCodegen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncal
     }
     bool self_closure = false;
     if (is_tail && is_local_callee && var_ptr && cur_func_ && cur_func_->node) {
-        if (const auto it = var_to_def_map_.find(var_ptr); it != var_to_def_map_.end() && it->second->def_node == cur_func_->node) {
+        if (const auto it = var_to_def_map_.find(var_ptr); it != var_to_def_map_.end() && it->second->def_node == cur_func_->node && !IsLocalVarAssigned(it->second)) {
             self_closure = true;
         }
     }
@@ -1909,6 +1970,7 @@ void InterpCodegen::Walk(const ParseResult &pr, const AnalysisResult &ar) {
     ar_ = &ar;
 
     cur_package_name_.clear();
+    pkg_func_names_.clear();
     if (pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block) {
         const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
         const std::vector<SyntaxTreeInterfacePtr> *stmts_to_check = &blk->Stmts();
@@ -1949,6 +2011,10 @@ void InterpCodegen::Walk(const ParseResult &pr, const AnalysisResult &ar) {
         const std::pair<int, bool> sig(static_cast<int>(func->params.size()), func->is_vararg);
         if (!func->name.empty()) file_func_sigs_[func->name] = sig;
         if (!func->unique_c_name.empty()) file_func_sigs_[func->unique_c_name] = sig;
+        if (!cur_package_name_.empty() && func->node && func->node->Type() == SyntaxTreeType::Function && func->unique_c_name != kInitFunctionName && !func->name.empty()) {
+            pkg_func_names_.insert(func->name);
+            file_func_sigs_[cur_package_name_ + "." + func->name] = sig;
+        }
     }
 
     if (!check_only_) {
@@ -1956,6 +2022,31 @@ void InterpCodegen::Walk(const ParseResult &pr, const AnalysisResult &ar) {
         unit_hold_->state = s_;
         unit_hold_->file_name = pr.file_name;
         unit_ = unit_hold_.get();
+
+        // 预先创建所有文件级函数原型并登记到 local_funcs / named_protos_，支持文件级函数前向值引用。
+        for (const auto &func: all_funcs_) {
+            if (func->parent != nullptr) continue;
+            auto proto = std::make_unique<FuncProto>();
+            proto->unit = unit_;
+            proto->name = LuaCallFrameName(func->name, true, cur_package_name_);
+            proto->param_count = static_cast<int>(func->params.size());
+            proto->is_vararg = func->is_vararg;
+            proto->max_stack = proto->param_count;
+            func->proto = proto.get();
+            unit_->protos.push_back(std::move(proto));
+
+            const bool is_local_fn = func->node && func->node->Type() == SyntaxTreeType::LocalFunction;
+            if (is_local_fn) {
+                if (!func->name.empty()) {
+                    unit_->local_funcs[func->name] = func->proto;
+                }
+            } else if (!func->unique_c_name.empty()) {
+                named_protos_[func->unique_c_name] = func->proto;
+                if (!func->name.empty() && func->name != func->unique_c_name) {
+                    named_protos_[func->name] = func->proto;
+                }
+            }
+        }
     }
 
     if (pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block) {
@@ -1991,6 +2082,8 @@ void InterpCodegen::RegisterAndInit() {
     }
 
     const auto handle = std::static_pointer_cast<JITHandle>(unit_hold_);
+    s_->RetainJitHandle(handle);
+
     for (const auto &func: all_funcs_) {
         if (func->parent != nullptr || !func->proto) continue;
         const std::string &c_name = func->unique_c_name;
@@ -2006,10 +2099,20 @@ void InterpCodegen::RegisterAndInit() {
         }
     }
 
+    auto sync_vm_version = [&]() {
+        const uint64_t vm_ver = *s_->GetVM().VersionPtr();
+        unit_->vm_version = vm_ver;
+        for (auto &p: unit_->protos) {
+            p->self_tail_vm_version = vm_ver;
+        }
+    };
+    sync_vm_version();
+
     if (unit_->init_proto) {
         // ConstAllocScope：init 期间 NewTable 创建即带 CONST_FLAG（与 JIT SET_TABLE 对齐）。
         State::ConstAllocScope const_alloc(s_);
         InterpreterExecute(s_, unit_->init_proto, nullptr, 0, nullptr);
+        sync_vm_version();
     }
 }
 
