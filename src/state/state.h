@@ -81,8 +81,52 @@ public:
         lua_depth_ = 0;
         lua_frames_[kMaxLuaStack] = LuaFrame{};
         ClearSpecThrow();
+        ++arena_epoch_;
         // 函数地址表跟着已加载的 JIT 镜像走，由镜像卸载时按 owner 清理；顶层 Call 的 Reset 不能清空。
     }
+
+    [[nodiscard]] uint64_t ArenaEpoch() const {
+        return arena_epoch_;
+    }
+
+    void RetainJitHandle(JITHandlePtr handle) {
+        if (handle) {
+            retained_jit_handles_.push_back(std::move(handle));
+        }
+    }
+
+    [[nodiscard]] bool InActiveDispatch() const {
+        return active_dispatch_depth_ > 0;
+    }
+
+    void DeferJitHandleUnload(JITHandlePtr handle) {
+        if (handle) {
+            deferred_unload_handles_.push_back(std::move(handle));
+        }
+    }
+
+    uint64_t NextAnonFnSeq() {
+        return ++next_anon_fn_seq_;
+    }
+
+    struct ActiveDispatchScope {
+        explicit ActiveDispatchScope(State *s) : s_(s) {
+            if (s_) {
+                ++s_->active_dispatch_depth_;
+            }
+        }
+        ~ActiveDispatchScope() {
+            if (s_ && --s_->active_dispatch_depth_ == 0 && !s_->deferred_unload_handles_.empty()) {
+                auto to_release = std::move(s_->deferred_unload_handles_);
+                s_->deferred_unload_handles_.clear();
+            }
+        }
+        ActiveDispatchScope(const ActiveDispatchScope &) = delete;
+        ActiveDispatchScope &operator=(const ActiveDispatchScope &) = delete;
+
+    private:
+        State *s_;
+    };
 
     [[nodiscard]] const StateConfig &GetStateConfig() const {
         return config_;
@@ -284,6 +328,10 @@ public:
         return interp_const_alloc_;
     }
 
+    [[nodiscard]] const bool *InterpConstAllocPtr() const {
+        return &interp_const_alloc_;
+    }
+
     // 分配会跨帧存活的 Lua 值（表、字符串、闭包等）。init 期间切到常量堆。
     HeapAllocator &GetValueAllocator() {
         return heap_.GetAllocator(interp_const_alloc_);
@@ -412,6 +460,7 @@ private:
     FlHeapSlot temp_heap_slot_;
     FlHeapSlot const_heap_slot_;
     bool interp_const_alloc_ = false;
+    uint64_t arena_epoch_ = 1;
     // 当前执行引擎，初值 TCC（无 Lua 调用栈的边界场景，与 kNativeCallbackJit 一致）。
     JITType current_jit_ = JIT_TCC;
     int reentrant_count_ = 0;
@@ -419,7 +468,11 @@ private:
     Compiler compiler_;
     Heap heap_;
     ConstString const_string_;
-    Vm vm_;
+    Vm vm_{this};
+    std::vector<JITHandlePtr> retained_jit_handles_;
+    std::vector<JITHandlePtr> deferred_unload_handles_;
+    int active_dispatch_depth_ = 0;
+    uint64_t next_anon_fn_seq_ = 0;
     InterpState interp_state_;
 
     // 下面三个的声明顺序是有讲究的：销毁是声明的逆序，而它们之间有依赖，写反会在

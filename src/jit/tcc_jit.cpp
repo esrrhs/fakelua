@@ -27,6 +27,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     handle->SetLuaLoc(BindGeneratedCode(tcc_get_symbol(s, "__fakelua_bind"), s_, JIT_TCC, pr.file_name));
 
     LOG_DEBUG(s_, "engine", "TCC: registering {} functions", gr.function_names.size());
+    const uint64_t anon_seq = s_->NextAnonFnSeq();
     for (const auto &[name, info]: gr.function_names) {
         const std::string &sym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
         void *func_ptr = tcc_get_symbol(s, sym.c_str());
@@ -37,8 +38,9 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         // 这里把 handle (shared_ptr<TCCHandle>) 一并交给 VmFunction 持有，VmFunction 又
         // 被存放到 State 的 Vm 中（见 src/jit/vm_function.h 的 handle_ 成员）。
         // 因此只要 VmFunction 还活着，func_ptr 就保证可用；State 析构才会一并释放。
-        s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_TCC, func_ptr, handle, info.is_vararg));
-        LOG_DEBUG(s_, "engine", "Registered function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
+        const std::string vm_name = name.starts_with("__fl_func_") ? std::format("{}#{}", name, anon_seq) : name;
+        s_->GetVM().RegisterFunction(VmFunction(vm_name, info.params_count, JIT_TCC, func_ptr, handle, info.is_vararg));
+        LOG_DEBUG(s_, "engine", "Registered function {} with {} params (vararg: {}) at address {}", vm_name, info.params_count, info.is_vararg, func_ptr);
     }
 
     void *init_ptr = tcc_get_symbol(s, kInitFunctionName);

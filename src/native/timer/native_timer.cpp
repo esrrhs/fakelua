@@ -6,29 +6,41 @@
 #include "var/var.h"
 #include "var/var_string.h"
 
+#include <algorithm>
 #include <chrono>
+#include <deque>
 #include <limits>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace fakelua::timer {
 
 // 每个 State 一份定时器状态（避免跨 VM 串数据）
 
+struct TimerEntry {
+    std::string cb;
+    JITType cb_jit = JIT_TCC;
+};
+
+struct PendingTimer {
+    HeapTimer::TimerId id = 0;
+    TimerEntry entry;
+};
+
 struct TimerState {
     HeapTimer heap;
-    // timer id → Lua 回调函数名（定时器到期时按函数名派发，不存闭包）
-    std::unordered_map<HeapTimer::TimerId, std::string> callbacks;
+    // timer id → Lua 回调函数名及登记引擎（定时器到期时按函数名派发，不存闭包）
+    std::unordered_map<HeapTimer::TimerId, TimerEntry> callbacks;
+    std::deque<PendingTimer> ready_queue;
 
     // 心跳（周期性，永不自动删除）
     std::string heartbeat_cb;             // 心跳回调函数名
+    JITType heartbeat_jit = JIT_TCC;      // 登记心跳时的脚本引擎
     HeapTimer::TimePoint heartbeat_next{};// 下次触发时间
     uint32_t heartbeat_interval_ms = 0;   // 心跳间隔
     bool heartbeat_active = false;        // 是否已注册心跳
     bool in_tick = false;
-    std::unordered_set<HeapTimer::TimerId> cancelled_this_tick;
 };
 
 // 每个 State 一份，随 State 销毁。放在 State 上而不是这里的 static map：后者是全进程
@@ -98,38 +110,12 @@ static CVar TimerRegisterObjMethods(State *s, CVar *args, int n) {
 // C++ → Lua 回调派发（核心：按函数名查找，不存闭包）
 // 与 net 模块 call_lua_event 同款机制，type = "timer"
 
-static CVar CallLuaTimerEvent(State *state, const std::string &func_name, HeapTimer::TimerId id) {
-    if (func_name.empty()) return CVar{static_cast<int>(VarType::Nil)};
-
-    // 优先查找 JIT 编译的 Lua 函数
-    auto func = state->GetVM().GetFunction(func_name);
-    void *addr = nullptr;
-    JITType jit_type = JIT_TCC;
-    if (!func.Empty()) {
-        addr = func.GetAddr(JIT_TCC);
-        if (!addr) {
-            addr = func.GetAddr(JIT_GCC);
-            jit_type = JIT_GCC;
-        }
-    }
-
-    if (addr) {
-        // 构造参数: (type="timer", timer_id)
-        CVar args[2];
-        args[0] = inter::NativeToFakeluaString(state, "timer");
-        args[1] = inter::NativeToFakeluaInt(state, static_cast<int64_t>(id));
-        return inter::DispatchCall(state, addr, args, 2, jit_type);
-    } else {
-        // 回退：尝试原生函数
-        auto *entry = state->GetVM().FindNativeFunction(func_name);
-        if (entry && entry->callback) {
-            CVar args[2];
-            args[0] = inter::NativeToFakeluaString(state, "timer");
-            args[1] = inter::NativeToFakeluaInt(state, static_cast<int64_t>(id));
-            return entry->callback(state, args, 2);
-        }
-    }
-    return CVar{static_cast<int>(VarType::Nil)};
+static CVar CallLuaTimerEvent(State *state, const std::string &func_name, HeapTimer::TimerId id, JITType preferred_jit) {
+    if (!state || func_name.empty()) return CVar{static_cast<int>(VarType::Nil)};
+    CVar args[2];
+    args[0] = inter::NativeToFakeluaString(state, "timer");
+    args[1] = inter::NativeToFakeluaInt(state, static_cast<int64_t>(id));
+    return DispatchNamedLuaCallback(state, func_name, args, 2, preferred_jit);
 }
 
 // 原生函数实现
@@ -170,7 +156,7 @@ static CVar TimerSet(State *s, CVar *args, int n) {
         LOG_ERROR(s, "timer", "timer.set failed: heap full (delay_ms={})", delay_val);
         return inter::NativeToFakeluaNil(s);
     }
-    ts.callbacks[id] = std::move(fname);
+    ts.callbacks[id] = TimerEntry{std::move(fname), s->CurrentJit()};
     LOG_DEBUG(s, "timer", "timer.set: id={} delay_ms={}", id, delay_val);
     return inter::NativeToFakeluaInt(s, static_cast<int64_t>(id));
 }
@@ -189,7 +175,13 @@ static CVar TimerDel(State *s, CVar *args, int n) {
     auto &ts = GetTimerState(s);
     bool ok = ts.heap.Del(id);
     if (ts.callbacks.erase(id) > 0) ok = true;
-    if (ts.in_tick) ts.cancelled_this_tick.insert(id);
+    for (auto it = ts.ready_queue.begin(); it != ts.ready_queue.end(); ++it) {
+        if (it->id == id) {
+            ts.ready_queue.erase(it);
+            ok = true;
+            break;
+        }
+    }
     LOG_DEBUG(s, "timer", "timer.del: id={} ok={}", id, ok);
     return inter::NativeToFakeluaBool(s, ok);
 }
@@ -203,45 +195,41 @@ void TickAll(State *s) {
     auto &ts = *ts_ptr;
     if (ts.in_tick) return;
 
+    struct InTickGuard {
+        bool &in_tick;
+        ~InTickGuard() {
+            in_tick = false;
+        }
+    } guard{ts.in_tick};
     ts.in_tick = true;
-    ts.cancelled_this_tick.clear();
 
-    try {
-        // 1) 一次性定时器：先把本批到期回调全部摘掉再派发，避免迭代中改 map；
-        //    同一批里 timer.del 的 id 记入 cancelled，不再触发。
-        auto expired = ts.heap.Update();
-        std::vector<std::pair<HeapTimer::TimerId, std::string>> to_fire;
-        to_fire.reserve(expired.size());
-        for (auto id: expired) {
-            auto it = ts.callbacks.find(id);
-            if (it != ts.callbacks.end()) {
-                to_fire.emplace_back(id, std::move(it->second));
-                ts.callbacks.erase(it);
-            }
+    // 1) 一次性定时器：把本轮新到期的回调迁入持久 ready_queue，逐条弹出派发；
+    //    若某条回调抛异常（例如外层 pcall 捕获），未派发的到期定时器仍留在 ready_queue，不会静默丢失。
+    auto expired = ts.heap.Update();
+    for (auto id: expired) {
+        auto it = ts.callbacks.find(id);
+        if (it != ts.callbacks.end()) {
+            ts.ready_queue.push_back(PendingTimer{id, std::move(it->second)});
+            ts.callbacks.erase(it);
         }
-        for (auto &[id, cb]: to_fire) {
-            if (ts.cancelled_this_tick.count(id)) continue;
-            LOG_DEBUG(s, "timer", "timer.fire: id={}", id);
-            CallLuaTimerEvent(s, cb, id);
-        }
-
-        // 2) 心跳：先推进下一跳再回调，避免回调里嵌套 runtime.tick() 栈溢出
-        if (ts.heartbeat_active && now >= ts.heartbeat_next) {
-            std::string cb = ts.heartbeat_cb;
-            ts.heartbeat_next += std::chrono::milliseconds(ts.heartbeat_interval_ms);
-            if (ts.heartbeat_next < now) {
-                ts.heartbeat_next = now + std::chrono::milliseconds(ts.heartbeat_interval_ms);
-            }
-            CallLuaTimerEvent(s, cb, 0);
-        }
-    } catch (...) {
-        ts.in_tick = false;
-        ts.cancelled_this_tick.clear();
-        throw;
+    }
+    while (!ts.ready_queue.empty()) {
+        PendingTimer cur = std::move(ts.ready_queue.front());
+        ts.ready_queue.pop_front();
+        LOG_DEBUG(s, "timer", "timer.fire: id={}", cur.id);
+        CallLuaTimerEvent(s, cur.entry.cb, cur.id, cur.entry.cb_jit);
     }
 
-    ts.in_tick = false;
-    ts.cancelled_this_tick.clear();
+    // 2) 心跳：先推进下一跳再回调，避免回调里嵌套 runtime.tick() 栈溢出
+    if (ts.heartbeat_active && now >= ts.heartbeat_next) {
+        std::string cb = ts.heartbeat_cb;
+        JITType cb_jit = ts.heartbeat_jit;
+        ts.heartbeat_next += std::chrono::milliseconds(ts.heartbeat_interval_ms);
+        if (ts.heartbeat_next < now) {
+            ts.heartbeat_next = now + std::chrono::milliseconds(ts.heartbeat_interval_ms);
+        }
+        CallLuaTimerEvent(s, cb, 0, cb_jit);
+    }
 }
 
 // timer.set_heartbeat(interval_ms, func_name) — 注册周期性心跳，永不自动删除
@@ -274,6 +262,7 @@ static CVar TimerSetHeartbeat(State *s, CVar *args, int n) {
 
     auto &ts = GetTimerState(s);
     ts.heartbeat_cb = std::move(fname);
+    ts.heartbeat_jit = s->CurrentJit();
     ts.heartbeat_interval_ms = static_cast<uint32_t>(interval_val);
     ts.heartbeat_next = HeapTimer::Clock::now() + std::chrono::milliseconds(ts.heartbeat_interval_ms);
     ts.heartbeat_active = true;

@@ -6,6 +6,7 @@
 #include "util/number_util.h"
 #include "var_multi.h"
 #include "var_string.h"
+#include <cstring>
 
 namespace fakelua {
 
@@ -99,13 +100,13 @@ size_t Var::Hash() const {
             return static_cast<uint32_t>(data_.i ^ (data_.i >> 32));
         }
         case VarType::Float: {
-            union {
-                double d;
-                uint64_t u;
-            } bits;
-
-            bits.d = data_.f;
-            return static_cast<uint32_t>(bits.u ^ (bits.u >> 32));
+            if (auto iv = TryConvertDoubleToInt64(data_.f)) {
+                const int64_t i = *iv;
+                return static_cast<uint32_t>(i ^ (i >> 32));
+            }
+            uint64_t u = 0;
+            std::memcpy(&u, &data_.f, sizeof(u));
+            return static_cast<uint32_t>(u ^ (u >> 32));
         }
         case VarType::String:
         case VarType::StringId: {
@@ -118,7 +119,13 @@ size_t Var::Hash() const {
             return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data_.cl) ^ (reinterpret_cast<uintptr_t>(data_.cl) >> 32));
         }
         case VarType::Multi: {
-            return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data_.m) ^ (reinterpret_cast<uintptr_t>(data_.m) >> 32));
+            VarMulti *m = data_.m;
+            if (!m) return 0;
+            uint32_t h = 2166136261u ^ m->GetCount();
+            for (uint32_t i = 0; i < m->GetCount(); ++i) {
+                h = (h ^ static_cast<uint32_t>(static_cast<const Var &>(m->GetVars()[i]).Hash())) * 16777619u;
+            }
+            return h ? h : 1u;
         }
         default: {
             return 0;

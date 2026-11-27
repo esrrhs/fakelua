@@ -77,7 +77,9 @@ static std::vector<NativeObject *> &WrapperList(State *s, bool is_pool) {
 
 static void EraseWrapper(State *st, bool is_pool, NativeObject *nat) {
     if (!st) return;
-    auto &v = WrapperList(st, is_pool);
+    auto *ws = st->TryGetModuleState<MysqlWrappers>();
+    if (!ws) return;
+    auto &v = is_pool ? ws->pools : ws->conns;
     v.erase(std::remove(v.begin(), v.end(), nat), v.end());
 }
 
@@ -227,9 +229,11 @@ static CVar MysqlConnect(State *s, CVar *args, int n) {
         auto *c = UnwrapConnNative(self);
         if (c) {
             self->SetInt("__mysql_conn__", 0);
+            c->SetNativeObject(nullptr);
             if (c->TickDepth() > 0) {
-                c->RequestClose();
+                c->RequestDelete();
             } else {
+                c->Close();
                 delete c;
             }
         }
@@ -298,8 +302,7 @@ CVar ConnStmtPrepare(NativeObject *self, State *s, CVar *args, int n) {
     if (!conn || !conn->Connected()) error("conn:stmt_prepare: connection is closed");
 
     conn->SetState(s);
-    conn->SetResultCallback(cb);
-    conn->StmtPrepare(sql);
+    conn->StmtPrepare(sql, cb);
     MaybeReleaseOwnedConn(self);
 
     return inter::NativeToFakeluaNil(s);
@@ -356,8 +359,7 @@ CVar ConnStmtExecute(NativeObject *self, State *s, CVar *args, int n) {
     if (!conn || !conn->Connected()) error("conn:stmt_execute: connection is closed");
 
     conn->SetState(s);
-    conn->SetResultCallback(cb);
-    conn->StmtExecute(stmt_id, params);
+    conn->StmtExecute(stmt_id, params, cb);
     MaybeReleaseOwnedConn(self);
 
     return inter::NativeToFakeluaNil(s);
@@ -386,11 +388,30 @@ void TickMysqlConnection(NativeObject *self, State *s) {
     if (!conn) return;
     if (conn->TickDepth() > 0) return;
 
+    struct AfterTickGuard {
+        NativeObject *self;
+        MysqlConnection *conn;
+        ~AfterTickGuard() {
+            if (conn->TickDepth() == 0) {
+                if (conn->DeletePending()) {
+                    conn->Close();
+                    delete conn;
+                    return;
+                }
+                if (conn->ClosePending()) {
+                    conn->Close();
+                }
+            }
+            if (self && self->Alive()) {
+                MaybeReleaseOwnedConn(self);
+                MaybeReleasePooledConn(self);
+                MaybeReapPool(self);
+            }
+        }
+    } after{self, conn};
+
     conn->SetState(s);
     conn->Tick();
-    MaybeReleaseOwnedConn(self);
-    MaybeReleasePooledConn(self);
-    MaybeReapPool(self);
 }
 
 // conn:close()

@@ -8,6 +8,7 @@
 #include <event2/event.h>
 #include <event2/util.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <string>
@@ -98,10 +99,19 @@ void MysqlConnection::ClearWait() {
 
 void MysqlConnection::Teardown() {
     ClearWait();
+    if (pending_stmt_) {
+        mysql_stmt_close(pending_stmt_);
+        pending_stmt_ = nullptr;
+    }
+    if (closing_exec_stmt_) {
+        mysql_stmt_close(closing_exec_stmt_);
+        closing_exec_stmt_ = nullptr;
+    }
     for (auto &kv: prepared_statements_) {
         if (kv.second) mysql_stmt_close(kv.second);
     }
     prepared_statements_.clear();
+    pending_exec_stmt_id_ = 0;
     if (mysql_) {
         mysql_close(mysql_);
         mysql_ = nullptr;
@@ -344,15 +354,26 @@ ResultsetData MysqlConnection::ConsumeResult(MYSQL_RES *res, bool is_resultset) 
     return out;
 }
 
-void MysqlConnection::StmtPrepare(const std::string &sql) {
+void MysqlConnection::StmtPrepare(const std::string &sql, const ResultCallback &callback) {
     if (!mysql_ || close_pending_) {
-        pending_result_err_ = !mysql_ ? "connection closed" : "connection closing";
-        pending_result_ = true;
+        deferred_errors_.push_back(DeferredError{callback, !mysql_ ? "connection closed" : "connection closing"});
         return;
     }
     if (state_ != ConnState::Ready || !ready_) {
-        pending_result_err_ = "connection not ready for prepare";
-        pending_result_ = true;
+        deferred_errors_.push_back(DeferredError{callback, "connection not ready for prepare"});
+        return;
+    }
+    result_cb_ = callback;
+    StmtPrepare(sql);
+}
+
+void MysqlConnection::StmtPrepare(const std::string &sql) {
+    if (!mysql_ || close_pending_) {
+        deferred_errors_.push_back(DeferredError{result_cb_, !mysql_ ? "connection closed" : "connection closing"});
+        return;
+    }
+    if (state_ != ConnState::Ready || !ready_) {
+        deferred_errors_.push_back(DeferredError{result_cb_, "connection not ready for prepare"});
         return;
     }
     state_ = ConnState::Querying;
@@ -392,26 +413,35 @@ void MysqlConnection::StmtPrepare(const std::string &sql) {
     wait_op_ = WaitOp::None;
 }
 
-void MysqlConnection::StmtExecute(uint32_t stmt_id, const std::vector<StmtParam> &params) {
+void MysqlConnection::StmtExecute(uint32_t stmt_id, const std::vector<StmtParam> &params, const ResultCallback &callback) {
     if (!mysql_ || close_pending_) {
-        pending_result_err_ = !mysql_ ? "connection closed" : "connection closing";
-        pending_result_ = true;
+        deferred_errors_.push_back(DeferredError{callback, !mysql_ ? "connection closed" : "connection closing"});
         return;
     }
     if (state_ != ConnState::Ready || !ready_) {
-        pending_result_err_ = "connection not ready for execute";
-        pending_result_ = true;
+        deferred_errors_.push_back(DeferredError{callback, "connection not ready for execute"});
+        return;
+    }
+    result_cb_ = callback;
+    StmtExecute(stmt_id, params);
+}
+
+void MysqlConnection::StmtExecute(uint32_t stmt_id, const std::vector<StmtParam> &params) {
+    if (!mysql_ || close_pending_) {
+        deferred_errors_.push_back(DeferredError{result_cb_, !mysql_ ? "connection closed" : "connection closing"});
+        return;
+    }
+    if (state_ != ConnState::Ready || !ready_) {
+        deferred_errors_.push_back(DeferredError{result_cb_, "connection not ready for execute"});
         return;
     }
     auto it = prepared_statements_.find(stmt_id);
     if (it == prepared_statements_.end() || !it->second) {
-        pending_result_err_ = "statement not prepared";
-        pending_result_ = true;
+        deferred_errors_.push_back(DeferredError{result_cb_, "statement not prepared"});
         return;
     }
     if (params.size() != mysql_stmt_param_count(it->second)) {
-        pending_result_err_ = "statement parameter count mismatch";
-        pending_result_ = true;
+        deferred_errors_.push_back(DeferredError{result_cb_, "statement parameter count mismatch"});
         return;
     }
     state_ = ConnState::Querying;
@@ -446,6 +476,7 @@ void MysqlConnection::StmtExecute(uint32_t stmt_id, const std::vector<StmtParam>
         ArmWait(st);
         return;
     }
+    pending_exec_stmt_id_ = 0;
     if (err) {
         pending_result_err_ = mysql_stmt_error(stmt);
         pending_result_ = true;
@@ -458,6 +489,9 @@ void MysqlConnection::StmtExecute(uint32_t stmt_id, const std::vector<StmtParam>
 }
 
 ResultsetData MysqlConnection::ConsumeStmtResult(MYSQL_STMT *stmt) {
+    static constexpr size_t kMaxInitialStmtColBuf = 1024 * 1024;
+    static constexpr size_t kMaxStmtCellBytes = 64 * 1024 * 1024;
+
     ResultsetData out;
     MYSQL_RES *meta = mysql_stmt_result_metadata(stmt);
     if (!meta) {
@@ -479,9 +513,9 @@ ResultsetData MysqlConnection::ConsumeStmtResult(MYSQL_STMT *stmt) {
     std::vector<my_bool> nulls(n);
     std::memset(binds.data(), 0, n * sizeof(MYSQL_BIND));
     for (unsigned int i = 0; i < n; ++i) {
-        unsigned long sz = fields[i].length ? fields[i].length + 1 : 256;
-        if (sz > 1024 * 1024) sz = 1024 * 1024;
-        bufs[i].assign(sz, 0);
+        const uint64_t raw_len = fields[i].length;
+        const size_t alloc_len = raw_len > 0 ? (raw_len >= kMaxInitialStmtColBuf ? kMaxInitialStmtColBuf : static_cast<size_t>(raw_len) + 1) : 256;
+        bufs[i].assign(alloc_len, 0);
         binds[i].buffer_type = MYSQL_TYPE_STRING;
         binds[i].buffer = bufs[i].data();
         binds[i].buffer_length = static_cast<unsigned long>(bufs[i].size() - 1);
@@ -497,10 +531,22 @@ ResultsetData MysqlConnection::ConsumeStmtResult(MYSQL_STMT *stmt) {
             FieldCell c;
             if (nulls[i]) {
                 c.is_null = true;
+            } else if (lens[i] > binds[i].buffer_length) {
+                const size_t full_len = std::min<size_t>(static_cast<size_t>(lens[i]), kMaxStmtCellBytes);
+                c.value.resize(full_len);
+                MYSQL_BIND col_bind{};
+                unsigned long col_len = 0;
+                my_bool col_null = 0;
+                col_bind.buffer_type = MYSQL_TYPE_STRING;
+                col_bind.buffer = c.value.data();
+                col_bind.buffer_length = static_cast<unsigned long>(full_len);
+                col_bind.length = &col_len;
+                col_bind.is_null = &col_null;
+                if (mysql_stmt_fetch_column(stmt, &col_bind, i, 0) != 0) {
+                    c.value.assign(bufs[i].data(), binds[i].buffer_length);
+                }
             } else {
-                unsigned long ncopy = lens[i];
-                if (ncopy > binds[i].buffer_length) ncopy = binds[i].buffer_length;
-                c.value.assign(bufs[i].data(), ncopy);
+                c.value.assign(bufs[i].data(), static_cast<size_t>(lens[i]));
             }
             cells.push_back(std::move(c));
         }
@@ -514,8 +560,17 @@ ResultsetData MysqlConnection::ConsumeStmtResult(MYSQL_STMT *stmt) {
 void MysqlConnection::StmtClose(uint32_t stmt_id) {
     auto it = prepared_statements_.find(stmt_id);
     if (it == prepared_statements_.end()) return;
-    if (it->second) mysql_stmt_close(it->second);
+    MYSQL_STMT *stmt = it->second;
     prepared_statements_.erase(it);
+    if (!stmt) return;
+    if (wait_op_ == WaitOp::StmtExecute && pending_exec_stmt_id_ == stmt_id) {
+        if (closing_exec_stmt_ && closing_exec_stmt_ != stmt) {
+            mysql_stmt_close(closing_exec_stmt_);
+        }
+        closing_exec_stmt_ = stmt;
+        return;
+    }
+    mysql_stmt_close(stmt);
 }
 
 bool MysqlConnection::Ping() {
@@ -524,8 +579,9 @@ bool MysqlConnection::Ping() {
     query_type_ = QueryType::Ping;
     int err = 0;
     int st = mysql_ping_start(&err, mysql_);
-    wait_op_ = WaitOp::Ping;
     if (st) {
+        state_ = ConnState::Querying;
+        wait_op_ = WaitOp::Ping;
         ArmWait(st);
         return true;
     }
@@ -540,10 +596,21 @@ bool MysqlConnection::Ping() {
 void MysqlConnection::Close() {
     Teardown();
     state_ = ConnState::Idle;
+    close_pending_ = false;
     pending_connect_ = false;
+    pending_connect_err_.clear();
     pending_result_ = false;
+    pending_result_err_.clear();
     pending_results_.clear();
+    has_pending_stmt_id_ = false;
+    pending_stmt_id_ = 0;
+    dispatch_stmt_id_ = 0;
     next_stmt_id_ = 1;
+    while (!deferred_errors_.empty()) {
+        DeferredError item = std::move(deferred_errors_.front());
+        deferred_errors_.pop_front();
+        DispatchCallbackWithResult(item.cb, item.err.c_str());
+    }
     DrainQueryQueue();
 }
 
@@ -646,6 +713,8 @@ void MysqlConnection::Continue(int ready) {
             if (err) {
                 state_ = ConnState::Error;
                 ready_ = false;
+            } else {
+                state_ = ConnState::Ready;
             }
             break;
         }
@@ -679,9 +748,20 @@ void MysqlConnection::Continue(int ready) {
             break;
         }
         case WaitOp::StmtExecute: {
-            auto it = prepared_statements_.find(pending_exec_stmt_id_);
-            MYSQL_STMT *stmt = it != prepared_statements_.end() ? it->second : nullptr;
-            if (!stmt) return;
+            MYSQL_STMT *stmt = closing_exec_stmt_;
+            if (!stmt) {
+                auto it = prepared_statements_.find(pending_exec_stmt_id_);
+                if (it != prepared_statements_.end()) stmt = it->second;
+            }
+            if (!stmt) {
+                wait_op_ = WaitOp::None;
+                pending_exec_stmt_id_ = 0;
+                ClearWait();
+                pending_result_err_ = "statement closed";
+                pending_result_ = true;
+                state_ = ConnState::Ready;
+                return;
+            }
             int err = 0;
             int st = mysql_stmt_execute_cont(&err, stmt, ready);
             if (st) {
@@ -689,14 +769,23 @@ void MysqlConnection::Continue(int ready) {
                 return;
             }
             wait_op_ = WaitOp::None;
+            pending_exec_stmt_id_ = 0;
             ClearWait();
             if (err) {
                 pending_result_err_ = mysql_stmt_error(stmt);
+                if (closing_exec_stmt_ == stmt) {
+                    mysql_stmt_close(closing_exec_stmt_);
+                    closing_exec_stmt_ = nullptr;
+                }
                 pending_result_ = true;
                 state_ = ConnState::Ready;
                 return;
             }
             pending_results_.push_back(ConsumeStmtResult(stmt));
+            if (closing_exec_stmt_ == stmt) {
+                mysql_stmt_close(closing_exec_stmt_);
+                closing_exec_stmt_ = nullptr;
+            }
             FinishQueryOk();
             break;
         }
@@ -707,6 +796,14 @@ void MysqlConnection::Continue(int ready) {
 
 void MysqlConnection::Tick() {
     if (tick_depth_ > 0) return;
+    struct DeferredCloseOnUnwind {
+        MysqlConnection *self;
+        ~DeferredCloseOnUnwind() {
+            if (self->tick_depth_ == 0 && self->close_pending_ && !self->delete_on_unwind_) {
+                self->Close();
+            }
+        }
+    } close_on_unwind{this};
     TickDepthGuard guard(tick_depth_);
 
     if (state_ == ConnState::Connecting && timeout_ms_ > 0) {
@@ -722,29 +819,46 @@ void MysqlConnection::Tick() {
 
     if (pending_connect_) {
         pending_connect_ = false;
-        if (!pending_connect_err_.empty()) DispatchConnect(pending_connect_err_.c_str());
+        std::string connect_err = std::move(pending_connect_err_);
+        pending_connect_err_.clear();
+        if (!connect_err.empty()) DispatchConnect(connect_err.c_str());
         else
             DispatchConnect(nullptr);
-        pending_connect_err_.clear();
     }
 
     if (pending_result_) {
         pending_result_ = false;
-        bool had_stmt_id = has_pending_stmt_id_;
-        uint32_t stmt_id_for_dispatch = pending_stmt_id_;
+        const bool had_stmt_id = has_pending_stmt_id_;
+        const uint32_t stmt_id_for_dispatch = pending_stmt_id_;
         has_pending_stmt_id_ = false;
         pending_stmt_id_ = 0;
-        if (!pending_result_err_.empty()) {
-            DispatchResult(pending_result_err_.c_str());
+        std::string result_err = std::move(pending_result_err_);
+        pending_result_err_.clear();
+
+        struct ResultScopeGuard {
+            uint32_t &dispatch_stmt_id;
+            std::vector<ResultsetData> &pending_results;
+            ~ResultScopeGuard() {
+                dispatch_stmt_id = 0;
+                pending_results.clear();
+            }
+        } result_guard{dispatch_stmt_id_, pending_results_};
+
+        if (!result_err.empty()) {
+            DispatchResult(result_err.c_str());
         } else if (had_stmt_id) {
             dispatch_stmt_id_ = stmt_id_for_dispatch;
             DispatchResult(nullptr);
-            dispatch_stmt_id_ = 0;
         } else {
             DispatchResult(nullptr);
         }
-        pending_result_err_.clear();
-        pending_results_.clear();
+    }
+
+    while (!deferred_errors_.empty()) {
+        DeferredError item = std::move(deferred_errors_.front());
+        deferred_errors_.pop_front();
+        DispatchCallbackWithResult(item.cb, item.err.c_str());
+        if (close_pending_) break;
     }
 
     if (!queued_queries_.empty()) {
@@ -804,7 +918,7 @@ void MysqlConnection::SetNativeObject(::fakelua::NativeObject *obj) {
 }
 
 bool MysqlConnection::Connected() const {
-    return ready_;
+    return ready_ && !close_pending_;
 }
 
 void MysqlConnection::MarkConnectedForTest() {
@@ -815,6 +929,7 @@ void MysqlConnection::MarkConnectedForTest() {
     state_ = ConnState::Ready;
     ready_ = true;
     close_pending_ = false;
+    delete_on_unwind_ = false;
 }
 
 bool MysqlConnection::Connecting() const {
@@ -829,13 +944,23 @@ bool MysqlConnection::ClosePending() const {
     return close_pending_;
 }
 
+bool MysqlConnection::DeletePending() const {
+    return delete_on_unwind_;
+}
+
 void MysqlConnection::RequestClose() {
     close_pending_ = true;
 }
 
+void MysqlConnection::RequestDelete() {
+    close_pending_ = true;
+    native_obj_ = nullptr;
+    delete_on_unwind_ = true;
+}
+
 bool MysqlConnection::HasPendingWork() const {
     return state_ == ConnState::Querying || state_ == ConnState::Connecting || state_ == ConnState::Handshaking || wait_op_ != WaitOp::None || pending_result_ || pending_connect_ ||
-           !queued_queries_.empty();
+           !queued_queries_.empty() || !deferred_errors_.empty();
 }
 
 void MysqlConnection::SetError(MysqlErrorType type, uint16_t code, const std::string &msg, const std::string &sql_state) {
@@ -846,26 +971,7 @@ void MysqlConnection::SetError(MysqlErrorType type, uint16_t code, const std::st
 }
 
 void MysqlConnection::InvokeCallback(const ResultCallback &cb, CVar *args, int n) {
-    // 派回【登记回调时的引擎】（与旧内联闭包自带 func_ptr 的语义一致）。
-    auto func = lua_state_->GetVM().GetFunction(cb.name);
-    if (func.Empty()) return;
-    JITType jit_type = cb.jit;
-    void *addr = func.GetAddr(jit_type);
-    if (!addr) {
-        // 兜底：登记引擎没有该函数的编译产物（正常不应发生——同一份脚本三引擎都会编译）。
-        // 按其余引擎依次找，避免回调静默丢失。
-        static constexpr JITType kFallbacks[] = {JIT_TCC, JIT_GCC, JIT_INTERP};
-        for (JITType t: kFallbacks) {
-            if (t == jit_type) continue;
-            addr = func.GetAddr(t);
-            if (addr) {
-                jit_type = t;
-                break;
-            }
-        }
-    }
-    if (!addr) return;
-    inter::DispatchCall(lua_state_, addr, args, n, jit_type);
+    DispatchNamedLuaCallback(lua_state_, cb.name, args, n, cb.jit);
 }
 
 namespace {
@@ -910,7 +1016,21 @@ void MysqlConnection::DispatchConnect(const char *err_msg) {
 void MysqlConnection::DispatchCallbackWithResult(const ResultCallback &cb, const char *err_msg) {
     TickDepthGuard guard(tick_depth_);
     native::IoContext::DispatchScope dispatch_scope(io_);
-    if (!lua_state_ || cb.Empty()) return;
+    if (!lua_state_ || cb.Empty()) {
+        if (!err_msg) {
+            dispatch_stmt_id_ = 0;
+            pending_results_.clear();
+        }
+        return;
+    }
+
+    const uint32_t stmt_id = !err_msg ? dispatch_stmt_id_ : 0;
+    std::vector<ResultsetData> local_results;
+    if (!err_msg) {
+        dispatch_stmt_id_ = 0;
+        local_results = std::move(pending_results_);
+        pending_results_.clear();
+    }
 
     // 多结果集可能在本函数内多次调用同一回调；绑定参数只 decode 一次，各次调用复用。
     // decoded 必须活到最后一次 InvokeCallback 返回。
@@ -924,14 +1044,14 @@ void MysqlConnection::DispatchCallbackWithResult(const ResultCallback &cb, const
     if (err_msg) {
         std::vector<CVar> args = BuildCallbackArgs(a0, inter::NativeToFakeluaString(lua_state_, msg), nil, decoded);
         InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
-    } else if (dispatch_stmt_id_ != 0) {
-        std::vector<CVar> args = BuildCallbackArgs(a0, nil, inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(dispatch_stmt_id_)), decoded);
+    } else if (stmt_id != 0) {
+        std::vector<CVar> args = BuildCallbackArgs(a0, nil, inter::NativeToFakeluaInt(lua_state_, static_cast<int64_t>(stmt_id)), decoded);
         InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
-    } else if (pending_results_.empty()) {
+    } else if (local_results.empty()) {
         std::vector<CVar> args = BuildCallbackArgs(a0, nil, table::TableHelper::CreateTable(lua_state_), decoded);
         InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
     } else {
-        for (const auto &rs: pending_results_) {
+        for (const auto &rs: local_results) {
             std::vector<CVar> args = BuildCallbackArgs(a0, nil, ResultsetToLua(lua_state_, rs), decoded);
             InvokeCallback(cb, args.data(), static_cast<int>(args.size()));
             if (close_pending_) break;

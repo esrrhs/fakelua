@@ -81,11 +81,11 @@ public:
             return ReadString(c, start_line);
         }
         // 数字
-        if (std::isdigit(c) || (c == '.' && pos_ + 1 < text_.size() && std::isdigit(text_[pos_ + 1]))) {
+        if (std::isdigit(static_cast<unsigned char>(c)) || (c == '.' && pos_ + 1 < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_ + 1])))) {
             return ReadNumber(start_line);
         }
         // 标识符 / 关键字
-        if (std::isalpha(c) || c == '_') {
+        if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
             return ReadIdent(start_line);
         }
         // 符号
@@ -174,13 +174,13 @@ private:
         bool is_float = false;
         if (text_[pos_] == '0' && pos_ + 1 < text_.size() && (text_[pos_ + 1] == 'x' || text_[pos_ + 1] == 'X')) {
             pos_ += 2;
-            while (pos_ < text_.size() && std::isxdigit(text_[pos_])) pos_++;
+            while (pos_ < text_.size() && std::isxdigit(static_cast<unsigned char>(text_[pos_]))) pos_++;
         } else {
-            while (pos_ < text_.size() && std::isdigit(text_[pos_])) pos_++;
+            while (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) pos_++;
             if (pos_ < text_.size() && text_[pos_] == '.') {
                 is_float = true;
                 pos_++;
-                while (pos_ < text_.size() && std::isdigit(text_[pos_])) pos_++;
+                while (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) pos_++;
             }
         }
         return {is_float ? Token::T_FLOAT : Token::T_INT, std::string(text_, start, pos_ - start), 0, start_line};
@@ -188,7 +188,7 @@ private:
 
     Token ReadIdent(int start_line) {
         size_t start = pos_;
-        while (pos_ < text_.size() && (std::isalnum(text_[pos_]) || text_[pos_] == '_')) pos_++;
+        while (pos_ < text_.size() && (std::isalnum(static_cast<unsigned char>(text_[pos_])) || text_[pos_] == '_')) pos_++;
         std::string word(text_, start, pos_ - start);
         auto &kw = Keywords();
         auto it = kw.find(word);
@@ -214,14 +214,31 @@ public:
         while (current_.type != Token::T_EOF) {
             ParseStatement(lexer, "");
         }
+        ResolvePendingMessages();
     }
 
 private:
+    static constexpr int kMaxProtoNestingDepth = 64;
+
+    struct PendingFieldRef {
+        size_t field_index = 0;
+        std::string raw_type_name;
+        bool is_map_val = false;
+    };
+
+    struct PendingMessage {
+        MessageDef def;
+        std::string scope;
+        std::vector<PendingFieldRef> refs;
+    };
+
     Token current_;
     State *s_ = nullptr;// schema 注册表所属的 State
     std::string filename_;
     std::string package_;// 当前 package
     std::string syntax_; // "proto2" / "proto3"
+    int message_depth_ = 0;
+    std::vector<PendingMessage> pending_messages_;
 
     void Advance(Lexer &lexer) {
         current_ = lexer.Next();
@@ -242,10 +259,17 @@ private:
     }
 
     std::string ParseQualifiedName(Lexer &lexer) {
-        if (current_.type != Token::T_IDENT) {
+        std::string name;
+        if (current_.type == Token::T_SYMBOL && current_.value == ".") {
+            name = ".";
+            Advance(lexer);
+            if (current_.type != Token::T_IDENT) {
+                ThrowFakeluaException(std::format("proto parse error at line {}: expected type name", current_.line));
+            }
+        } else if (current_.type != Token::T_IDENT) {
             ThrowFakeluaException(std::format("proto parse error at line {}: expected type name", current_.line));
         }
-        std::string name = current_.value;
+        name += current_.value;
         Advance(lexer);
         while (current_.type == Token::T_SYMBOL && current_.value == ".") {
             Advance(lexer);
@@ -373,33 +397,82 @@ private:
         return name;
     }
 
-    // 将相对类型名解析为完全限定名
+    // 将相对类型名解析为完全限定名（可重入：首次按已注册类型解析，Parse 结束后对整份文件做二次解析）
     std::string ResolveTypeName(const std::string &name, const std::string &prefix) {
-        // 已经是完全限定名（以 package 开头或含点）
-        if (!package_.empty() && name.find('.') != std::string::npos) return name;
+        if (name.empty()) return {};
         // 以点开头 = 绝对名
-        if (!name.empty() && name[0] == '.') return name.substr(1);
-        // 有 prefix（嵌套类型内）
-        if (!prefix.empty()) {
-            // 先在 prefix 下查找
-            std::string candidate = prefix + "." + name;
-            if (GetProtobufState(s_).FindMessage(candidate) || GetProtobufState(s_).FindEnum(candidate)) {
+        if (name[0] == '.') return name.substr(1);
+        auto &st = GetProtobufState(s_);
+        // 从最内层消息作用域逐级向外查找（包含 package_）
+        std::string cur = prefix;
+        while (!cur.empty()) {
+            std::string candidate = cur + "." + name;
+            if (st.FindMessage(candidate) || st.FindEnum(candidate)) {
                 return candidate;
+            }
+            auto dot = cur.rfind('.');
+            if (dot == std::string::npos) {
+                cur.clear();
+            } else {
+                cur.erase(dot);
             }
         }
         // 在 package 下查找
         if (!package_.empty()) {
             std::string candidate = package_ + "." + name;
-            if (GetProtobufState(s_).FindMessage(candidate) || GetProtobufState(s_).FindEnum(candidate)) {
+            if (st.FindMessage(candidate) || st.FindEnum(candidate)) {
                 return candidate;
             }
         }
-        // 无法解析，返回原名（后续可能报错）
+        // 已是完全限定名或全局名
+        if (st.FindMessage(name) || st.FindEnum(name)) {
+            return name;
+        }
+        // 尚未定义（可能是跨文件前向引用）：简单名称归属当前 package
+        if (!package_.empty() && name.find('.') == std::string::npos) {
+            return package_ + "." + name;
+        }
         return name;
+    }
+
+    void ResolvePendingMessages() {
+        auto &st = GetProtobufState(s_);
+        for (auto &pm: pending_messages_) {
+            for (const auto &ref: pm.refs) {
+                if (ref.field_index >= pm.def.fields.size()) continue;
+                FieldDef &field = pm.def.fields[ref.field_index];
+                std::string resolved = ResolveTypeName(ref.raw_type_name, pm.scope);
+                if (ref.is_map_val) {
+                    field.map_value_type_name = resolved;
+                    if (st.FindEnum(resolved)) {
+                        field.map_value_type = TYPE_ENUM;
+                    }
+                } else {
+                    field.type_name = resolved;
+                    if (st.FindEnum(resolved)) {
+                        field.type = TYPE_ENUM;
+                    }
+                }
+            }
+            st.RegisterMessage(std::move(pm.def));
+        }
     }
 
     // Message
     void ParseMessage(Lexer &lexer, const std::string &prefix) {
+        if (message_depth_ >= kMaxProtoNestingDepth) {
+            ThrowFakeluaException(std::format("proto parse error at line {}: message nesting too deep", current_.line));
+        }
+        struct DepthGuard {
+            int &d;
+            explicit DepthGuard(int &depth) : d(depth) {
+                ++d;
+            }
+            ~DepthGuard() {
+                --d;
+            }
+        } depth_guard(message_depth_);
+
         Advance(lexer);// 跳过 'message'
         if (current_.type != Token::T_IDENT) {
             ThrowFakeluaException(std::format("proto parse error at line {}: expected message name", current_.line));
@@ -412,24 +485,26 @@ private:
             full_name = package_ + "." + msg_name;
         }
 
-        MessageDef def;
-        def.name = full_name;
+        PendingMessage pm;
+        pm.def.name = full_name;
+        pm.scope = full_name;
 
         ExpectSymbol(lexer, "{");
         std::string nested_prefix = full_name;
 
         while (!(current_.type == Token::T_SYMBOL && current_.value == "}")) {
-            ParseMessageBody(lexer, def, nested_prefix);
+            ParseMessageBody(lexer, pm, nested_prefix);
         }
         ExpectSymbol(lexer, "}");
 
         // 可选的尾随分号
         if (current_.type == Token::T_SYMBOL && current_.value == ";") Advance(lexer);
 
-        GetProtobufState(s_).RegisterMessage(std::move(def));
+        GetProtobufState(s_).RegisterMessage(pm.def);
+        pending_messages_.push_back(std::move(pm));
     }
 
-    void ParseMessageBody(Lexer &lexer, MessageDef &def, const std::string &prefix) {
+    void ParseMessageBody(Lexer &lexer, PendingMessage &pm, const std::string &prefix) {
         if (current_.type == Token::T_KEYWORD) {
             switch (current_.keyword_id) {
                 case 4:// 嵌套 message
@@ -439,18 +514,18 @@ private:
                     ParseEnum(lexer, prefix);
                     return;
                 case 6:// oneof
-                    ParseOneof(lexer, def, prefix);
+                    ParseOneof(lexer, pm, prefix);
                     return;
                 case 7:// map
-                    ParseMapField(lexer, def, prefix);
+                    ParseMapField(lexer, pm, prefix);
                     return;
                 case 8:            // repeated
                     Advance(lexer);// 跳过 'repeated'，指向类型名
-                    ParseField(lexer, def, prefix, true, false);
+                    ParseField(lexer, pm, prefix, true, false);
                     return;
                 case 9:            // optional
                     Advance(lexer);// 跳过 'optional'，指向类型名
-                    ParseField(lexer, def, prefix, false, true);
+                    ParseField(lexer, pm, prefix, false, true);
                     return;
                 case 10:// reserved
                     ParseReserved(lexer);
@@ -470,25 +545,25 @@ private:
             return;
         }
         // 普通字段（无 label）
-        ParseField(lexer, def, prefix, false, false);
+        ParseField(lexer, pm, prefix, false, false);
     }
 
     // Field
-    void ParseField(Lexer &lexer, MessageDef &def, const std::string &prefix, bool repeated, bool is_optional) {
+    void ParseField(Lexer &lexer, PendingMessage &pm, const std::string &prefix, bool repeated, bool is_optional) {
+        std::string raw_type_name;
         std::string type_name;
         FieldType type = TYPE_INT32;
+        bool is_non_scalar = false;
 
-        if (current_.type == Token::T_IDENT) {
-            type_name = ParseQualifiedName(lexer);
-            if (type_name.find('.') == std::string::npos && IsScalarType(type_name)) {
-                type = ParseScalarType(type_name);
+        if (current_.type == Token::T_IDENT || (current_.type == Token::T_SYMBOL && current_.value == ".")) {
+            raw_type_name = ParseQualifiedName(lexer);
+            if (raw_type_name.find('.') == std::string::npos && IsScalarType(raw_type_name)) {
+                type = ParseScalarType(raw_type_name);
                 type_name.clear();
-            } else if (GetProtobufState(s_).FindEnum(type_name)) {
-                type = TYPE_ENUM;
-                type_name = ResolveTypeName(type_name, prefix);
             } else {
-                type = TYPE_MESSAGE;
-                type_name = ResolveTypeName(type_name, prefix);
+                is_non_scalar = true;
+                type_name = ResolveTypeName(raw_type_name, prefix);
+                type = GetProtobufState(s_).FindEnum(type_name) ? TYPE_ENUM : TYPE_MESSAGE;
             }
         } else {
             ThrowFakeluaException(std::format("proto parse error at line {}: expected field type", current_.line));
@@ -515,6 +590,10 @@ private:
 
         ExpectSymbol(lexer, ";");
 
+        if (is_non_scalar) {
+            pm.refs.push_back({pm.def.fields.size(), raw_type_name, false});
+        }
+
         FieldDef field;
         field.name = field_name;
         field.number = field_number;
@@ -522,11 +601,11 @@ private:
         field.type_name = type_name;
         field.repeated = repeated;
         field.optional = is_optional;
-        def.fields.push_back(std::move(field));
+        pm.def.fields.push_back(std::move(field));
     }
 
     // Map field
-    void ParseMapField(Lexer &lexer, MessageDef &def, const std::string &prefix) {
+    void ParseMapField(Lexer &lexer, PendingMessage &pm, const std::string &prefix) {
         Advance(lexer);// 跳过 'map'
         ExpectSymbol(lexer, "<");
         if (current_.type != Token::T_IDENT) {
@@ -565,17 +644,18 @@ private:
         field.type = TYPE_MESSAGE;// map 编码为 message
         field.is_map = true;
         field.map_key_type = ParseScalarType(key_type_name);
-        if (IsScalarType(val_type_name)) {
+        if (val_type_name.find('.') == std::string::npos && IsScalarType(val_type_name)) {
             field.map_value_type = ParseScalarType(val_type_name);
         } else {
-            field.map_value_type = TYPE_MESSAGE;
+            pm.refs.push_back({pm.def.fields.size(), val_type_name, true});
             field.map_value_type_name = ResolveTypeName(val_type_name, prefix);
+            field.map_value_type = GetProtobufState(s_).FindEnum(field.map_value_type_name) ? TYPE_ENUM : TYPE_MESSAGE;
         }
-        def.fields.push_back(std::move(field));
+        pm.def.fields.push_back(std::move(field));
     }
 
     // Oneof
-    void ParseOneof(Lexer &lexer, MessageDef &def, const std::string &prefix) {
+    void ParseOneof(Lexer &lexer, PendingMessage &pm, const std::string &prefix) {
         Advance(lexer);// 跳过 'oneof'
         if (current_.type != Token::T_IDENT) {
             ThrowFakeluaException(std::format("proto parse error at line {}: expected oneof name", current_.line));
@@ -584,7 +664,7 @@ private:
         Advance(lexer);
 
         ExpectSymbol(lexer, "{");
-        int oneof_index = static_cast<int>(def.fields.size());// 简单编号
+        int oneof_index = static_cast<int>(pm.def.fields.size());// 简单编号
 
         while (!(current_.type == Token::T_SYMBOL && current_.value == "}")) {
             if (current_.type == Token::T_KEYWORD && current_.keyword_id == 12) {
@@ -596,22 +676,25 @@ private:
                 continue;
             }
             // oneof 内字段
-            ParseOneofField(lexer, def, prefix, oneof_index);
+            ParseOneofField(lexer, pm, prefix, oneof_index);
         }
         ExpectSymbol(lexer, "}");
     }
 
-    void ParseOneofField(Lexer &lexer, MessageDef &def, const std::string &prefix, int oneof_index) {
+    void ParseOneofField(Lexer &lexer, PendingMessage &pm, const std::string &prefix, int oneof_index) {
+        std::string raw_type_name;
         std::string type_name;
         FieldType type = TYPE_INT32;
+        bool is_non_scalar = false;
 
-        type_name = ParseQualifiedName(lexer);
-        if (type_name.find('.') == std::string::npos && IsScalarType(type_name)) {
-            type = ParseScalarType(type_name);
+        raw_type_name = ParseQualifiedName(lexer);
+        if (raw_type_name.find('.') == std::string::npos && IsScalarType(raw_type_name)) {
+            type = ParseScalarType(raw_type_name);
             type_name.clear();
         } else {
-            type = TYPE_MESSAGE;
-            type_name = ResolveTypeName(type_name, prefix);
+            is_non_scalar = true;
+            type_name = ResolveTypeName(raw_type_name, prefix);
+            type = GetProtobufState(s_).FindEnum(type_name) ? TYPE_ENUM : TYPE_MESSAGE;
         }
 
         if (current_.type != Token::T_IDENT) {
@@ -635,13 +718,17 @@ private:
 
         ExpectSymbol(lexer, ";");
 
+        if (is_non_scalar) {
+            pm.refs.push_back({pm.def.fields.size(), raw_type_name, false});
+        }
+
         FieldDef field;
         field.name = field_name;
         field.number = field_number;
         field.type = type;
         field.type_name = type_name;
         field.oneof_index = oneof_index;
-        def.fields.push_back(std::move(field));
+        pm.def.fields.push_back(std::move(field));
     }
 
     // Enum

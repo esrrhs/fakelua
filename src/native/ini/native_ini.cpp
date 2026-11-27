@@ -75,7 +75,7 @@ static int IniHandlerV2(void *user, const char *section, const char *name, const
     } else {
         idx = it->second;
     }
-    table::TableHelper::SetTableStrId(st->state, st->sections[idx].tbl, name, ValueToLua(st->state, value ? value : ""));
+    table::TableHelper::SetTableTempStr(st->state, st->sections[idx].tbl, name, ValueToLua(st->state, value ? value : ""));
     return 1;
 }
 
@@ -98,7 +98,7 @@ static CVar IniDecode(State *s, CVar *args, int n) {
     }
 
     for (auto &sec: st.sections) {
-        table::TableHelper::SetTableStrId(s, st.root, sec.name.c_str(), sec.tbl);
+        table::TableHelper::SetTableTempStr(s, st.root, sec.name, sec.tbl);
     }
     return st.root;
 }

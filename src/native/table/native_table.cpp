@@ -1,5 +1,6 @@
 #include "native/table/native_table.h"
 #include "compile/c_runtime_header.h"
+#include "interp/func_proto.h"
 #include "native/native_common.h"
 #include "native/object/native_object.h"
 #include "native/string/native_string.h"
@@ -569,6 +570,34 @@ void CheckConstTable(State *s, CVar tbl) {
     }
 }
 
+template<typename Comp>
+void SafeMergeSort(std::vector<CVar> &vec, Comp &&comp) {
+    const size_t n = vec.size();
+    if (n <= 1) return;
+    std::vector<CVar> tmp(n);
+    for (size_t width = 1; width < n; width *= 2) {
+        for (size_t left = 0; left < n; left += 2 * width) {
+            const size_t mid = std::min(left + width, n);
+            const size_t right = std::min(left + 2 * width, n);
+            size_t i = left;
+            size_t j = mid;
+            size_t k = left;
+            while (i < mid && j < right) {
+                if (comp(vec[j], vec[i])) {
+                    tmp[k++] = vec[j++];
+                } else {
+                    tmp[k++] = vec[i++];
+                }
+            }
+            while (i < mid) tmp[k++] = vec[i++];
+            while (j < right) tmp[k++] = vec[j++];
+            for (size_t p = left; p < right; ++p) {
+                vec[p] = tmp[p];
+            }
+        }
+    }
+}
+
 }// namespace
 
 bool TableHelper::VarKeyEqualInt(CVar k, int64_t idx) {
@@ -689,12 +718,15 @@ CVar TableHelper::GetTableInt(State *s, CVar tbl, int64_t idx) {
 
 CVar TableHelper::GetTable(State *s, CVar tbl, CVar key) {
     (void) s;
-    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return CVar{static_cast<int>(VarType::Nil)};
-    VarTable *t = tbl.data_.t;
-    key = NormalizeTableKey(key);
-    if (key.type_ == kFloatType && std::isnan(key.data_.f)) {
+    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return CVar{kNilType};
+    if (key.type_ == kNilType) {
+        return CVar{kNilType};
+    }
+    if (UNLIKELY(key.type_ == kFloatType && std::isnan(key.data_.f))) {
         ThrowFakeluaException("table index is NaN");
     }
+    VarTable *t = tbl.data_.t;
+    key = NormalizeTableKey(key);
 
     if (t->spec_get) {
         using SpecGetFn = CVar (*)(VarTable *, CVar, bool *);
@@ -718,17 +750,18 @@ CVar TableHelper::GetTable(State *s, CVar tbl, CVar key) {
             const auto &qd = t->quick_data_[i];
             if (qd.hash == hash && VarKeyEqual(qd.key, key)) return qd.val;
         }
-        return CVar{static_cast<int>(VarType::Nil)};
+        return CVar{kNilType};
     }
-    if (!t->nodes_) return CVar{static_cast<int>(VarType::Nil)};
+    if (!t->nodes_) return CVar{kNilType};
     const uint32_t mask = t->bucket_count_ - 1;
     const auto *curr = &t->nodes_[hash & mask];
+    if (curr->entry.key.type_ == kNilType) return CVar{kNilType};
     while (true) {
         if (curr->entry.hash == hash && VarKeyEqual(curr->entry.key, key)) return curr->entry.val;
         if (curr->next == VarTable::INVALID_INDEX) break;
         curr = &t->nodes_[curr->next];
     }
-    return CVar{static_cast<int>(VarType::Nil)};
+    return CVar{kNilType};
 }
 
 CVar TableHelper::GetTableStrId(State *s, CVar tbl, const char *str_key) {
@@ -834,7 +867,9 @@ void TableHelper::SetTable(State *s, CVar tbl, CVar key, CVar val) {
     VarTable *t = tbl.data_.t;
 
     key = NormalizeTableKey(key);
-    if (key.type_ == kNilType) return;
+    if (key.type_ == kNilType) {
+        ThrowFakeluaException("table index is nil");
+    }
     if (key.type_ == kFloatType && std::isnan(key.data_.f)) {
         ThrowFakeluaException("table index is NaN");
     }
@@ -866,11 +901,20 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, std::string_view str_key, CV
     CheckConstTable(s, tbl);
     VarTable *t = tbl.data_.t;
     const int64_t id = s->GetConstString().Alloc(str_key);
-    const auto *vs = reinterpret_cast<const VarString *>(id);
-    const uint32_t hash = vs->Hash();
 
     CVar key{static_cast<int>(VarType::StringId)};
     key.data_.i = id;
+
+    if (t->spec_set) {
+        using SpecSetFn = void (*)(VarTable *, CVar, CVar, bool *);
+        auto set_fn = reinterpret_cast<SpecSetFn>(t->spec_set);
+        bool finish = false;
+        set_fn(t, key, val, &finish);
+        if (finish) return;
+    }
+
+    const auto *vs = reinterpret_cast<const VarString *>(id);
+    const uint32_t hash = vs->Hash();
 
     if (val.type_ == kNilType) {
         TableDelete(t, key, hash);
@@ -881,6 +925,13 @@ void TableHelper::SetTableStrId(State *s, CVar tbl, std::string_view str_key, CV
 
 void TableHelper::SetTableStrId(State *s, CVar tbl, const char *str_key, CVar val) {
     SetTableStrId(s, tbl, std::string_view(str_key ? str_key : ""), val);
+}
+
+void TableHelper::SetTableTempStr(State *s, CVar tbl, std::string_view key, CVar val) {
+    if (tbl.type_ != static_cast<int>(VarType::Table) || !tbl.data_.t) return;
+    CVar key_cvar{kStringType};
+    key_cvar.data_.s = VarString::AllocTemp(s, key);
+    SetTable(s, tbl, key_cvar, val);
 }
 
 // Use shared CheckNumberArg from native_common.h
@@ -1197,61 +1248,71 @@ void RegisterTableLibraryApi(State *s) {
             ThrowBadArgument(2, "table.sort", "function expected");
         }
 
-        if (comp.type_ == static_cast<int>(VarType::Closure) && comp.data_.cl) {
+        if (comp.type_ == static_cast<int>(VarType::Closure)) {
             VarClosure *cl = comp.data_.cl;
-            auto comp_func = [&](const CVar &a, const CVar &b) -> bool {
-                CVar res{static_cast<int>(VarType::Nil)};
+            if (!cl) {
+                ThrowFakeluaException("closure has no code");
+            }
+            auto call_comp = [&](const CVar &a, const CVar &b) -> bool {
+                CVar res{kNilType};
                 if (cl->func_ptr) {
                     CVar cmp_args[2] = {a, b};
-                    // DispatchCallClosure 走 JIT_TCC 边界，错误能穿过 stable_sort 回到这里
                     res = inter::DispatchCallClosure(state, cl, cmp_args, 2, JIT_TCC);
-                } else if (cl->code_str) {
+                } else if (IsSourceLoadClosure(cl)) {
                     CVar args_arr[2] = {a, b};
                     res = FlEvalLoadClosure(state, cl, 2, args_arr);
+                } else {
+                    ThrowFakeluaException("closure has no code");
                 }
-                bool is_true = !(res.type_ == static_cast<int>(VarType::Nil) || (res.type_ == static_cast<int>(VarType::Bool) && !res.data_.b));
-                return is_true;
+                while (res.type_ == static_cast<int>(VarType::Multi)) {
+                    res = (res.data_.m && res.data_.m->GetCount() > 0) ? res.data_.m->GetVars()[0] : CVar{kNilType};
+                }
+                return !(res.type_ == kNilType || (res.type_ == static_cast<int>(VarType::Bool) && !res.data_.b));
             };
-            std::stable_sort(vec.begin(), vec.end(), comp_func);
+            if (call_comp(vec.front(), vec.front()) || call_comp(vec.back(), vec.back())) {
+                ThrowFakeluaException("invalid order function for sorting");
+            }
+            auto comp_func = [&](const CVar &a, const CVar &b) -> bool {
+                if (call_comp(a, b)) {
+                    if (call_comp(b, a)) {
+                        ThrowFakeluaException("invalid order function for sorting");
+                    }
+                    return true;
+                }
+                return false;
+            };
+            SafeMergeSort(vec, comp_func);
         } else {
             auto default_comp = [](const CVar &a, const CVar &b) -> bool {
-                // NaN 对 < 双向都是 false，破坏 strict weak ordering，std::stable_sort 是 UB。
-                // 对齐 Lua 5.4：报 invalid order function for sorting。
-                if ((a.type_ == static_cast<int>(VarType::Float) && std::isnan(a.data_.f)) || (b.type_ == static_cast<int>(VarType::Float) && std::isnan(b.data_.f))) {
+                if ((a.type_ == kFloatType && std::isnan(a.data_.f)) || (b.type_ == kFloatType && std::isnan(b.data_.f))) {
                     ThrowFakeluaException("invalid order function for sorting");
                 }
-                if (a.type_ == static_cast<int>(VarType::Int) && b.type_ == static_cast<int>(VarType::Int)) {
-                    return a.data_.i < b.data_.i;
+                const bool a_is_num = (a.type_ == kIntType || a.type_ == kFloatType);
+                const bool b_is_num = (b.type_ == kIntType || b.type_ == kFloatType);
+                const bool a_is_str = (a.type_ == kStringType || a.type_ == kStringIdType);
+                const bool b_is_str = (b.type_ == kStringType || b.type_ == kStringIdType);
+                if ((!a_is_num && !a_is_str) || (!b_is_num && !b_is_str)) {
+                    ThrowFakeluaException("attempt to compare two values");
                 }
-                if (a.type_ == static_cast<int>(VarType::Float) && b.type_ == static_cast<int>(VarType::Float)) {
-                    return a.data_.f < b.data_.f;
-                }
-                if (a.type_ == static_cast<int>(VarType::Int) && b.type_ == static_cast<int>(VarType::Float)) {
-                    return CompareInt64Double(a.data_.i, b.data_.f) < 0;
-                }
-                if (a.type_ == static_cast<int>(VarType::Float) && b.type_ == static_cast<int>(VarType::Int)) {
+                if (a_is_num && b_is_num) {
+                    if (a.type_ == kIntType && b.type_ == kIntType) {
+                        return a.data_.i < b.data_.i;
+                    }
+                    if (a.type_ == kFloatType && b.type_ == kFloatType) {
+                        return a.data_.f < b.data_.f;
+                    }
+                    if (a.type_ == kIntType) {
+                        return CompareInt64Double(a.data_.i, b.data_.f) < 0;
+                    }
                     return CompareInt64Double(b.data_.i, a.data_.f) > 0;
                 }
-                // fakelua 扩展：允许 number 与 string 混合比较（转换为 string）
-                // 标准 Lua 5.3 只允许 string-string 或 number-number，但 fakelua 支持混合
-                bool a_is_str = (a.type_ == static_cast<int>(VarType::String) || a.type_ == static_cast<int>(VarType::StringId));
-                bool b_is_str = (b.type_ == static_cast<int>(VarType::String) || b.type_ == static_cast<int>(VarType::StringId));
-                bool a_is_num = (a.type_ == static_cast<int>(VarType::Int) || a.type_ == static_cast<int>(VarType::Float));
-                bool b_is_num = (b.type_ == static_cast<int>(VarType::Int) || b.type_ == static_cast<int>(VarType::Float));
                 if (a_is_str && b_is_str) {
-                    return std::string(KeyToStringView(a)) < std::string(KeyToStringView(b));
+                    return KeyToStringView(a) < KeyToStringView(b);
                 }
-                // number 与 string 混合：都转换为 string比较（fakelua 扩展）
-                if ((a_is_num && b_is_str) || (a_is_str && b_is_num)) {
-                    std::string sa = a_is_str ? std::string(KeyToStringView(a)) : AsVar(a).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-                    std::string sb = b_is_str ? std::string(KeyToStringView(b)) : AsVar(b).ToString(/*has_quote=*/false, /*has_postfix=*/false);
-                    return sa < sb;
-                }
-                // 其他类型组合（bool 等）抛出异常
-                ThrowFakeluaException("attempt to compare two values");
-                return false;// unreachable
+                // Deterministic strict weak ordering across mixed numbers and strings: numbers < strings.
+                return a_is_num;
             };
-            std::stable_sort(vec.begin(), vec.end(), default_comp);
+            SafeMergeSort(vec, default_comp);
         }
 
         for (int64_t i = 0; i < len; ++i) {

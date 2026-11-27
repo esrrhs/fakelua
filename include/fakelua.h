@@ -666,12 +666,22 @@ CVar AllocMultiCVar(State *s, int count);
 void SetMultiCVarElement(CVar &multi, int idx, CVar val);
 CVar GetMultiCVarElement(const CVar &multi, int idx);
 int GetMultiCVarCount(const CVar &multi);
+CVar GetReturnElement(State *s, const CVar &ret_var, std::size_t idx);
+CVar UnboxFirstReturn(State *s, const CVar &ret_var);
 int64_t CVarToInteger(const CVar &v, int64_t default_val = 0);
 double CVarToNumber(const CVar &v, double default_val = 0.0);
 bool CVarToBool(const CVar &v, bool default_val);
 std::string CVarToString(const CVar &v, const char *default_val);
 
 CVar GetNativeArg(State *s, CVar *args, int n, int idx);
+
+struct PreservedCVarArg {
+    CVar raw{};
+    bool has_saved_str = false;
+    std::string saved_str;
+};
+PreservedCVarArg PreserveCVarBeforeReset(const CVar &v, bool will_reset);
+CVar MaterializePreservedCVar(State *s, const PreservedCVarArg &p);
 
 }// namespace inter
 
@@ -692,7 +702,31 @@ namespace inter {
 
 template<typename Tuple, std::size_t... I>
 void UnpackMultiToTuple(State *s, const CVar &ret_var, Tuple &tuple, std::index_sequence<I...>) {
-    ((std::get<I>(tuple) = FakeluaToNative<std::remove_cvref_t<std::tuple_element_t<I, std::remove_cvref_t<Tuple>>>>(s, inter::GetMultiCVarElement(ret_var, I))), ...);
+    ((std::get<I>(tuple) = FakeluaToNative<std::remove_cvref_t<std::tuple_element_t<I, std::remove_cvref_t<Tuple>>>>(s, inter::GetReturnElement(s, ret_var, I))), ...);
+}
+
+template<typename T>
+decltype(auto) PrepareCallArgBeforeReset(T &&arg, [[maybe_unused]] bool will_reset) {
+    using Decayed = std::remove_cvref_t<T>;
+    if constexpr (std::is_same_v<Decayed, std::string_view>) {
+        return std::string(arg);
+    } else if constexpr (std::is_same_v<Decayed, const char *> || std::is_same_v<Decayed, char *>) {
+        return arg ? std::string(arg) : std::string{};
+    } else if constexpr (std::is_same_v<Decayed, CVar>) {
+        return PreserveCVarBeforeReset(arg, will_reset);
+    } else {
+        return std::forward<T>(arg);
+    }
+}
+
+template<typename T>
+CVar MarshalPreparedCallArg(State *s, T &&prepared) {
+    using Decayed = std::remove_cvref_t<T>;
+    if constexpr (std::is_same_v<Decayed, PreservedCVarArg>) {
+        return MaterializePreservedCVar(s, prepared);
+    } else {
+        return NativeToFakelua(s, std::forward<T>(prepared));
+    }
 }
 
 }// namespace inter
@@ -727,17 +761,27 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
         inter::ThrowInterFakeluaException(std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, user_arg_count));
     }
 
-    if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {
-        inter::Reset(s);
+    const bool will_reset = !inter::GetReentrantCount(s);
+    CVar call_cvars[kMaxFunctionInputParams] = {};
+    if constexpr (sizeof...(Args) == 0) {
+        if (will_reset) {
+            inter::Reset(s);
+        }
+    } else {
+        // 先保存可能指向旧 temp_heap 的 string_view / const char* / CVar 字符串，再 Reset，避免被新实参原地覆盖。
+        auto prepared_args = std::tuple<decltype(inter::PrepareCallArgBeforeReset(std::forward<Args>(args), will_reset))...>{
+                inter::PrepareCallArgBeforeReset(std::forward<Args>(args), will_reset)...};
+        if (will_reset) {
+            inter::Reset(s);
+        }
+        std::apply(
+                [&](auto &&...items) {
+                    int idx = 0;
+                    ((call_cvars[idx++] = inter::MarshalPreparedCallArg(s, std::forward<decltype(items)>(items))), ...);
+                },
+                std::move(prepared_args));
     }
     inter::ReentryCounter rc(s);
-
-    // 将模板参数转为 CVar 数组
-    CVar call_cvars[kMaxFunctionInputParams] = {};
-    if constexpr (sizeof...(Args) > 0) {
-        int idx = 0;
-        ((call_cvars[idx++] = inter::NativeToFakelua(s, std::forward<Args>(args))), ...);
-    }
 
     // vararg：将多余参数打包为 Multi
     if (__builtin_expect(is_vararg, 0)) {
@@ -758,8 +802,10 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
     if constexpr (is_std_tuple_v<RetType>) {
         constexpr std::size_t N = std::tuple_size_v<RetType>;
         inter::UnpackMultiToTuple(s, ret_var, ret, std::make_index_sequence<N>{});
-    } else {
+    } else if constexpr (std::is_same_v<RetType, CVar>) {
         ret = inter::FakeluaToNative<RetType>(s, ret_var);
+    } else {
+        ret = inter::FakeluaToNative<RetType>(s, inter::UnboxFirstReturn(s, ret_var));
     }
 }
 

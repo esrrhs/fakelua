@@ -26,18 +26,13 @@ struct NativeFuncEntry {
 
 class Vm {
 public:
-    Vm() = default;
+    explicit Vm(State *owner = nullptr) : owner_(owner) {}
 
     // 注册 JIT 编译的 fakelua 函数（单线程调用，见类注释）
-    void RegisterFunction(const VmFunction &func) {
-        const auto &name = func.GetName();
-        if (const auto iter = vm_functions_.find(name); iter == vm_functions_.end()) {
-            vm_functions_.emplace(name, func);
-        } else {
-            iter->second.Merge(func);
-        }
-        version_ = NextVersion();
-    }
+    void RegisterFunction(const VmFunction &func);
+
+    // 将包含指定函数代码地址的 JIT 产物句柄钉死在所属 State 上（冷路径：闭包跨帧提升时调用）
+    void RetainHandleForCodeAddr(const void *func_ptr);
 
     // 获取 JIT 函数（拷贝 VmFunction，含 name 与各后端 handle 的 shared_ptr）
     [[nodiscard]] VmFunction GetFunction(std::string_view name) const {
@@ -118,6 +113,7 @@ private:
 
     std::unordered_map<std::string, VmFunction, TransparentStringHash, TransparentStringEq> vm_functions_;
     std::unordered_map<std::string, NativeFuncEntry, TransparentStringHash, TransparentStringEq> native_functions_;
+    State *owner_ = nullptr;
     uint64_t global_name_ = 0;
     uint64_t version_ = NextVersion();
 };
@@ -145,6 +141,10 @@ extern "C" void FakeluaSetMultiCVarElement(CVar *multi, int idx, CVar val);
 extern "C" int FakeluaJitContextPush(State *s, int jit);
 
 extern "C" void FakeluaJitContextPop(State *s, int prev);
+
+extern "C" CVar FakeluaPromoteConstBoxValue(State *state, CVar val);
+
+CVar PromoteConstBoxValue(State *state, CVar val);
 
 // 数组版 FakeluaCallByName，供解释器使用
 CVar CallByNameArgs(State *state, int jit_type, std::string_view name, int arg_num, const CVar *args);

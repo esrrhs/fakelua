@@ -93,13 +93,13 @@ void PreProcessor::Process(const ParseResult &pr, const CompileConfig &cfg) {
 
     // 拆分多赋值语句 比如 'a, b = 1, 2' to 'a = 1; b = 2;'
     PreprocessSplitAssigns(chunk);
-    if (cfg.debug_mode) {
+    if (cfg.debug_mode && s_ && s_->GetLogLevel() <= LogLevel::Debug) {
         DumpDebugFile(chunk, debug_step++);
     }
 
     // 替换table赋值语句 比如 'a.b.c = 1' to 'FAKELUA_SET_TABLE(a.b, "c", 1)'
     PreprocessTableAssigns(chunk);
-    if (cfg.debug_mode) {
+    if (cfg.debug_mode && s_ && s_->GetLogLevel() <= LogLevel::Debug) {
         DumpDebugFile(chunk, debug_step);
     }
 

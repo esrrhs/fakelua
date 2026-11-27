@@ -6,6 +6,7 @@
 
 #include "compile/syntax_tree.h"
 #include "fakelua.h"
+#include "state/state.h"
 #include "util/common.h"
 #include "util/file_util.h"
 
@@ -340,21 +341,37 @@ void TypeInferencer::TypeEnvironment::ExitScope() {
     }
 }
 
-void TypeInferencer::TypeEnvironment::Define(const std::string &name, const InferredType type, SyntaxTreeInterface *init_node) {
-    scopes_.back()[name] = EnvEntry{type, init_node};
+void TypeInferencer::TypeEnvironment::Define(const std::string &name, const InferredType type, SyntaxTreeInterface *init_node, const SyntaxTreeInterface *decl_node, const size_t decl_slot,
+                                              const bool is_param) {
+    scopes_.back()[name] = EnvEntry{type, init_node, decl_node, decl_slot, is_param};
 }
 
-InferredType TypeInferencer::TypeEnvironment::Update(const std::string &name, const InferredType type, EvalTypeSnapshot &current_map) {
+InferredType TypeInferencer::TypeEnvironment::Update(const std::string &name, const InferredType type, EvalTypeSnapshot &current_map, const bool skip_post_processing, DeclOverrideMap *decl_overrides,
+                                                     bool *any_widened, const bool loop_carried) {
     for (auto &scope: std::views::reverse(scopes_)) {
         if (const auto found = scope.find(name); found != scope.end()) {
             const InferredType old_type = found->second.type;
             const InferredType merged = MergeType(old_type, type);
             found->second.type = merged;
 
-            // 逆向传播：当变量类型退化为 T_DYNAMIC（如后续赋了非数值类型）时，
-            // 将初始声明/赋值表达式的类型也退化为 T_DYNAMIC，防止 CGen 将其声明为 C 的原生强类型。
-            if (merged == T_DYNAMIC && old_type != T_DYNAMIC && found->second.init_node != nullptr) {
-                current_map[found->second.init_node] = T_DYNAMIC;
+            // 声明的 C 类型跟最终存储对齐（直线上 a = "hello" 也要把 a 收成 CVar）。
+            // 不动点重跑只服务循环回边：直线上更早的表达式保持当时的类型。
+            if (merged != old_type) {
+                if (!skip_post_processing && found->second.init_node != nullptr) {
+                    current_map[found->second.init_node] = merged;
+                }
+                if (loop_carried && decl_overrides != nullptr && found->second.decl_node != nullptr) {
+                    const DeclOverrideKey key{found->second.decl_node, name, found->second.decl_slot};
+                    const auto it = decl_overrides->find(key);
+                    const InferredType prev_ov = (it != decl_overrides->end()) ? it->second : old_type;
+                    const InferredType next_ov = MergeType(prev_ov, merged);
+                    if (it == decl_overrides->end() || it->second != next_ov) {
+                        (*decl_overrides)[key] = next_ov;
+                        if (any_widened != nullptr) {
+                            *any_widened = true;
+                        }
+                    }
+                }
             }
             return merged;
         }
@@ -366,6 +383,15 @@ bool TypeInferencer::TypeEnvironment::Has(const std::string &name) const {
     for (const auto &scope: std::views::reverse(scopes_)) {
         if (scope.contains(name)) {
             return true;
+        }
+    }
+    return false;
+}
+
+bool TypeInferencer::TypeEnvironment::IsParamBinding(const std::string &name) const {
+    for (const auto &scope: std::views::reverse(scopes_)) {
+        if (const auto found = scope.find(name); found != scope.end()) {
+            return found->second.is_param;
         }
     }
     return false;
@@ -443,7 +469,7 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const AnalysisResu
         InferSpecializationReturnTypes(ir, math_func_info, func_ret_cache);
     }
 
-    if (cfg.debug_mode) {
+    if (cfg.debug_mode && s_ && s_->GetLogLevel() <= LogLevel::Debug) {
         DumpTypesToTmpFile(pr, ir);
     }
 
@@ -534,16 +560,31 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
         }
         case SyntaxTreeType::FuncBody: {
             const auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
-            tctx.env.EnterScope();
-            if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(funcbody->Parlist())) {
-                if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
-                    for (const auto &name: namelist->Names()) {
-                        tctx.env.Define(name, T_DYNAMIC);
+            const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block());
+            DeclOverrideMap local_overrides;
+            EvalTypeSnapshot func_map;
+            for (int round = 0; round < kMaxSpecIterations; ++round) {
+                func_map.clear();
+                tctx.env.EnterScope();
+                if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(funcbody->Parlist())) {
+                    if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
+                        const auto &pnames = namelist->Names();
+                        for (size_t pi = 0; pi < pnames.size(); ++pi) {
+                            tctx.env.Define(pnames[pi], T_DYNAMIC, nullptr, parlist.get(), pi, true);
+                        }
                     }
                 }
+                TraversalContext body_tctx{func_map, tctx.env, tctx.ctx, tctx.var_define_nodes, tctx.shadowed_decls, std::move(local_overrides), false};
+                InferBlock(block_ptr, false, body_tctx);
+                local_overrides = std::move(body_tctx.decl_type_overrides);
+                tctx.env.ExitScope();
+                if (!body_tctx.any_decl_widened) {
+                    break;
+                }
             }
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false, tctx);
-            tctx.env.ExitScope();
+            for (const auto &[k, v]: func_map) {
+                current_map[k] = v;
+            }
             return RecordType(current_map, node.get(), T_UNKNOWN);
         }
         case SyntaxTreeType::Return: {
@@ -658,8 +699,11 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
         if (ar_ && ar_->captured_decl_vars.contains({local_var.get(), names[i]})) {
             type = T_DYNAMIC;
         }
+        if (const auto ov_it = tctx.decl_type_overrides.find({local_var.get(), names[i], i}); ov_it != tctx.decl_type_overrides.end()) {
+            type = TypeEnvironment::MergeType(type, ov_it->second);
+        }
         SyntaxTreeInterface *init_node = (i < exps.size()) ? exps[i].get() : nullptr;
-        tctx.env.Define(names[i], type, init_node);
+        tctx.env.Define(names[i], type, init_node, local_var.get(), i, false);
         // 文件顶层局部变量（非试推断且作用域深度 <= 2）：
         // 数值类型记入 file_level_types_，供 RunTrialInference 重置 env 后重注入。
         // 绑定语义等同 C++ const：字面量与复杂初值（预处理降为 nil，真值在
@@ -703,11 +747,11 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
     const InferredType rhs_type = InferNode(explist->Exps()[0], tctx);
 
     if (ar_ && ar_->captured_var_nodes.contains(var.get())) {
-        current = tctx.env.Update(name, T_DYNAMIC, current_map);
+        current = tctx.env.Update(name, T_DYNAMIC, current_map, tctx.SkipPostProcessing(), &tctx.decl_type_overrides, &tctx.any_decl_widened, tctx.loop_depth > 0);
     } else if (tctx.IsPinnedVar(name)) {
         current = tctx.env.Lookup(name);
     } else {
-        current = tctx.env.Update(name, rhs_type, current_map);
+        current = tctx.env.Update(name, rhs_type, current_map, tctx.SkipPostProcessing(), &tctx.decl_type_overrides, &tctx.any_decl_widened, tctx.loop_depth > 0);
     }
 
     if (const auto *init = tctx.env.LookupInitNode(name)) {
@@ -751,12 +795,17 @@ InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoo
     // Lua 5.4：init 与 step 都是整数时走整数 for（limit 可以是 float）。
     const bool lua_int_loop = begin_valid && begin_type == T_INT && (!for_loop->ExpStep() || step_type == T_INT) && (end_type == T_INT || end_type == T_FLOAT);
     const bool is_captured_loop = ar_ && ar_->captured_decl_vars.contains({for_loop.get(), for_loop->Name()});
-    const InferredType loop_var_type = is_captured_loop ? T_DYNAMIC : (lua_int_loop ? T_INT : (all_numeric_boundaries ? T_FLOAT : T_DYNAMIC));
+    InferredType loop_var_type = is_captured_loop ? T_DYNAMIC : (lua_int_loop ? T_INT : (all_numeric_boundaries ? T_FLOAT : T_DYNAMIC));
+    if (const auto ov_it = tctx.decl_type_overrides.find({for_loop.get(), for_loop->Name(), 0}); ov_it != tctx.decl_type_overrides.end()) {
+        loop_var_type = TypeEnvironment::MergeType(loop_var_type, ov_it->second);
+    }
 
     auto &current_map = tctx.current_map;
     tctx.env.EnterScope();
-    tctx.env.Define(for_loop->Name(), loop_var_type, for_loop.get());
+    tctx.env.Define(for_loop->Name(), loop_var_type, for_loop.get(), for_loop.get(), 0, false);
+    ++tctx.loop_depth;
     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false, tctx);
+    --tctx.loop_depth;
     // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
     // 从初始的 T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量的
     // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
@@ -776,14 +825,18 @@ InferredType TypeInferencer::InferForIn(const std::shared_ptr<SyntaxTreeForIn> &
     for (const auto &name: namelist->Names()) {
         tctx.env.Define(name, T_DYNAMIC);
     }
+    ++tctx.loop_depth;
     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), false, tctx);
+    --tctx.loop_depth;
     tctx.env.ExitScope();
     return RecordType(tctx.current_map, for_in.get(), T_UNKNOWN);
 }
 
 InferredType TypeInferencer::InferWhile(const std::shared_ptr<SyntaxTreeWhile> &while_stmt, TraversalContext &tctx) {
     InferNode(while_stmt->Exp(), tctx);
+    ++tctx.loop_depth;
     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(while_stmt->Block()), true, tctx);
+    --tctx.loop_depth;
     return RecordType(tctx.current_map, while_stmt.get(), T_UNKNOWN);
 }
 
@@ -791,8 +844,10 @@ InferredType TypeInferencer::InferRepeat(const std::shared_ptr<SyntaxTreeRepeat>
     // Lua 语义：until 条件可以访问 repeat 块内声明 of local 变量。
     // 因此必须在 until 条件推断完成之后再退出作用域，而不能在块结束时立即退出。
     tctx.env.EnterScope();
+    ++tctx.loop_depth;
     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), false, tctx);
     InferNode(repeat_stmt->Exp(), tctx);
+    --tctx.loop_depth;
     tctx.env.ExitScope();
     return RecordType(tctx.current_map, repeat_stmt.get(), T_UNKNOWN);
 }
@@ -817,7 +872,8 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
     switch (exp_kind) {
         case ExpKind::kNumber: {
             const auto &value = exp->ExpValue();
-            const auto ret = IsInteger(value) ? T_INT : T_FLOAT;
+            int64_t dummy = 0;
+            const auto ret = TryParseLuaIntLiteral(value, dummy) ? T_INT : T_FLOAT;
             return RecordType(current_map, exp.get(), ret);
         }
         case ExpKind::kPrefixExp: {
@@ -841,10 +897,11 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                             if (const auto val1_type = (it != current_map.end()) ? it->second : T_DYNAMIC; IsNumericInferredType(val1_type) && IsNumericInferredType(right_type)) {
                                 return RecordType(current_map, exp.get(), (val1_type == right_type) ? val1_type : T_FLOAT);
                             }
+                            return RecordType(current_map, exp.get(), T_DYNAMIC);
                         }
                     }
                 }
-                return RecordType(current_map, exp.get(), IsNumericInferredType(left_type) ? left_type : T_DYNAMIC);
+                return RecordType(current_map, exp.get(), (IsNumericInferredType(left_type) && IsNumericInferredType(right_type)) ? left_type : T_DYNAMIC);
             }
 
             if (left_type == T_DYNAMIC || right_type == T_DYNAMIC) {
@@ -1219,6 +1276,191 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
     return math_func_info;
 }
 
+namespace {
+
+bool IsStaticallyNonNumericExp(const SyntaxTreeInterfacePtr &node) {
+    if (!node || node->Type() != SyntaxTreeType::Exp) return false;
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+    if (!exp) return false;
+    switch (exp->GetExpKind()) {
+        case ExpKind::kNil:
+        case ExpKind::kTrue:
+        case ExpKind::kFalse:
+        case ExpKind::kString:
+        case ExpKind::kTableConstructor:
+        case ExpKind::kFunctionDef:
+            return true;
+        case ExpKind::kPrefixExp: {
+            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
+            if (pe && pe->GetPrefixKind() == PrefixExpKind::kExp) {
+                return IsStaticallyNonNumericExp(pe->GetValue());
+            }
+            return false;
+        }
+        case ExpKind::kUnop: {
+            const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
+            return op && op->GetOpKind() == UnOpKind::kNot;
+        }
+        case ExpKind::kBinop: {
+            const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+            if (!op) return false;
+            switch (op->GetOpKind()) {
+                case BinOpKind::kConcat:
+                case BinOpKind::kLess:
+                case BinOpKind::kLessEqual:
+                case BinOpKind::kMore:
+                case BinOpKind::kMoreEqual:
+                case BinOpKind::kEqual:
+                case BinOpKind::kNotEqual:
+                    return true;
+                case BinOpKind::kAnd:
+                    return IsStaticallyNonNumericExp(exp->Right());
+                case BinOpKind::kOr:
+                    return IsStaticallyNonNumericExp(exp->Left()) && IsStaticallyNonNumericExp(exp->Right());
+                default:
+                    return false;
+            }
+        }
+        default:
+            return false;
+    }
+}
+
+bool IsParamCompatibleWithMathSpec(const SyntaxTreeInterfacePtr &func_block, const std::string &param_name,
+                                   const std::unordered_map<const SyntaxTreeInterface *, const SyntaxTreeInterface *> &var_define_nodes) {
+    std::unordered_set<const SyntaxTreeInterface *> non_numeric_inits;
+    std::unordered_set<std::string> reassigned_locals;
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) {
+        if (!n) return;
+        if (n->Type() == SyntaxTreeType::LocalVar) {
+            const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(n);
+            const auto el = lv ? std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist()) : nullptr;
+            if (el) {
+                for (const auto &e: el->Exps()) {
+                    if (IsStaticallyNonNumericExp(e)) {
+                        non_numeric_inits.insert(e.get());
+                    }
+                }
+            }
+        } else if (n->Type() == SyntaxTreeType::Assign) {
+            const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(n);
+            const auto vl = assign ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist()) : nullptr;
+            const auto el = assign ? std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist()) : nullptr;
+            if (vl && !vl->Vars().empty() && el && !el->Exps().empty()) {
+                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vl->Vars()[0]);
+                if (v && v->GetVarKind() == VarKind::kSimple && !IsStaticallyNonNumericExp(el->Exps()[0])) {
+                    reassigned_locals.insert(v->GetName());
+                }
+            }
+        }
+    });
+
+    std::function<bool(const SyntaxTreeInterfacePtr &, bool &)> check_stmt = [&](const SyntaxTreeInterfacePtr &stmt, bool &shadowed) -> bool {
+        if (!stmt) return true;
+        switch (stmt->Type()) {
+            case SyntaxTreeType::Block: {
+                const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(stmt);
+                if (!blk) return true;
+                bool inner_shadowed = shadowed;
+                for (const auto &s: blk->Stmts()) {
+                    if (!check_stmt(s, inner_shadowed)) return false;
+                }
+                return true;
+            }
+            case SyntaxTreeType::LocalVar: {
+                const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+                if (const auto nl = lv ? std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist()) : nullptr) {
+                    for (const auto &n: nl->Names()) {
+                        if (n == param_name) shadowed = true;
+                    }
+                }
+                return true;
+            }
+            case SyntaxTreeType::LocalFunction: {
+                const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+                if (lf && lf->Name() == param_name) shadowed = true;
+                return true;
+            }
+            case SyntaxTreeType::Assign: {
+                if (shadowed) return true;
+                const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+                const auto vl = assign ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist()) : nullptr;
+                const auto el = assign ? std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist()) : nullptr;
+                if (!vl || vl->Vars().empty() || !el || el->Exps().empty()) return true;
+                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vl->Vars()[0]);
+                if (!v || v->GetVarKind() != VarKind::kSimple || v->GetName() != param_name) return true;
+                const auto &rhs = el->Exps()[0];
+                if (IsStaticallyNonNumericExp(rhs)) {
+                    return false;
+                }
+                if (rhs && rhs->Type() == SyntaxTreeType::Exp) {
+                    const auto rexp = std::dynamic_pointer_cast<SyntaxTreeExp>(rhs);
+                    if (rexp && rexp->GetExpKind() == ExpKind::kPrefixExp) {
+                        const auto rpe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(rexp->Right());
+                        if (rpe && rpe->GetPrefixKind() == PrefixExpKind::kVar) {
+                            const auto rvar = std::dynamic_pointer_cast<SyntaxTreeVar>(rpe->GetValue());
+                            if (rvar && rvar->GetVarKind() == VarKind::kSimple && !reassigned_locals.contains(rvar->GetName())) {
+                                if (const auto dit = var_define_nodes.find(rvar.get()); dit != var_define_nodes.end() && non_numeric_inits.contains(dit->second)) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+            case SyntaxTreeType::If: {
+                const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+                {
+                    bool s = shadowed;
+                    if (!check_stmt(if_node->Block(), s)) return false;
+                }
+                if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_node->ElseIfs())) {
+                    for (const auto &eblk: elseifs->ElseifBlocks()) {
+                        bool s = shadowed;
+                        if (!check_stmt(eblk, s)) return false;
+                    }
+                }
+                if (if_node->ElseBlock()) {
+                    bool s = shadowed;
+                    if (!check_stmt(if_node->ElseBlock(), s)) return false;
+                }
+                return true;
+            }
+            case SyntaxTreeType::While: {
+                bool s = shadowed;
+                return check_stmt(std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt)->Block(), s);
+            }
+            case SyntaxTreeType::Repeat: {
+                bool s = shadowed;
+                return check_stmt(std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt)->Block(), s);
+            }
+            case SyntaxTreeType::ForLoop: {
+                const auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
+                bool s = shadowed || (fl->Name() == param_name);
+                return check_stmt(fl->Block(), s);
+            }
+            case SyntaxTreeType::ForIn: {
+                const auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
+                bool s = shadowed;
+                if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(fi->Namelist())) {
+                    for (const auto &n: nl->Names()) {
+                        if (n == param_name) s = true;
+                    }
+                }
+                return check_stmt(fi->Block(), s);
+            }
+            default:
+                return true;
+        }
+    };
+
+    bool root_shadowed = false;
+    return check_stmt(func_block, root_shadowed);
+}
+
+}// namespace
+
 std::vector<int> TypeInferencer::FindMathParamIndices(const FunctionSpecInfo &info, const EvalTypeSnapshot &baseline, const EvalTypeSnapshot &all_int,
                                                       const std::unordered_map<std::string, std::vector<int>> &known_math_positions,
                                                       std::unordered_map<const SyntaxTreeInterface *, const SyntaxTreeInterface *> &var_define_nodes) {
@@ -1229,6 +1471,9 @@ std::vector<int> TypeInferencer::FindMathParamIndices(const FunctionSpecInfo &in
     }
 
     for (int i = 0; i < static_cast<int>(info.params.size()); ++i) {
+        if (!IsParamCompatibleWithMathSpec(info.block, info.params[i], var_define_nodes)) {
+            continue;
+        }
         // without_p：除 p_i 为 T_DYNAMIC 外，其余参数均为 T_INT。
         const auto without_p_assumed = MakeAssumedParamTypes(info.params, info.params[i], T_DYNAMIC, T_INT);
         // 若去掉 p_i 后算术/比较/for-loop 退化，则 p_i 是数学参数。
@@ -1278,6 +1523,7 @@ EvalTypeSnapshot TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr 
 
     EvalTypeSnapshot prev_map;
     EvalTypeSnapshot current_map;
+    DeclOverrideMap decl_overrides;
 
     for (int round = 0; round < kMaxSpecIterations; ++round) {
         // 每轮清除 func_block 节点在 current_map 中的旧条目，保证推断从干净状态开始。
@@ -1289,18 +1535,20 @@ EvalTypeSnapshot TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr 
         for (const auto &[fname, ftype]: file_level_types_) {
             env.Define(fname, ftype);
         }
-        for (const auto &p: params) {
+        for (size_t pi = 0; pi < params.size(); ++pi) {
+            const auto &p = params[pi];
             const bool is_cap = ar_ && ar_->captured_decl_vars.contains({func_block.get(), p});
             const auto it = assumed_types.find(p);
-            env.Define(p, (!is_cap && it != assumed_types.end()) ? it->second : T_DYNAMIC);
+            env.Define(p, (!is_cap && it != assumed_types.end()) ? it->second : T_DYNAMIC, nullptr, func_block.get(), pi, !is_cap);
         }
 
         // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
         // Trial 推断不消费 shadow 信息（shadow 只与 AST 结构相关，主推断已覆盖），
         // 但 TraversalContext 需要一个引用，因此用丢弃式的容器占位。
         std::set<std::pair<const SyntaxTreeInterface *, std::string>> dummy_shadowed_decls;
-        TraversalContext tctx{current_map, env, &ctx, var_define_nodes, dummy_shadowed_decls};
+        TraversalContext tctx{current_map, env, &ctx, var_define_nodes, dummy_shadowed_decls, std::move(decl_overrides), false};
         InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, tctx);
+        decl_overrides = std::move(tctx.decl_type_overrides);
 
         // 快照本轮推断结果：为未被推断触及的节点补 T_UNKNOWN，
         // 使 curr_map 与 prev_map 具有相同的键集，从而能直接比较。
@@ -1311,7 +1559,7 @@ EvalTypeSnapshot TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr 
             curr_map[n.get()] = (it != current_map.end()) ? it->second : T_UNKNOWN;
         });
 
-        if (curr_map == prev_map) {
+        if (curr_map == prev_map && !tctx.any_decl_widened) {
             // 已达到不动点，提前退出。
             break;
         }
@@ -1500,6 +1748,9 @@ bool TypeInferencer::CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, con
     }
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
     if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+        return false;
+    }
+    if (ar_ && ar_->callee_names.contains(fc.get()) && ar_->callee_names.at(fc.get()).empty()) {
         return false;
     }
     const auto &callee_name = callee_var->GetName();
@@ -1696,6 +1947,7 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
             case SyntaxTreeType::Function:
             case SyntaxTreeType::FunctionCall:
             case SyntaxTreeType::Break:
+            case SyntaxTreeType::Continue:
             case SyntaxTreeType::Goto:
             case SyntaxTreeType::Label:
             case SyntaxTreeType::Empty:
@@ -1726,7 +1978,13 @@ InferredType TypeInferencer::ResolveCallReturnType(const std::shared_ptr<SyntaxT
     if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
         return T_DYNAMIC;
     }
+    if (ar_ && ar_->callee_names.contains(fc.get()) && ar_->callee_names.at(fc.get()).empty()) {
+        return T_DYNAMIC;
+    }
     const auto &callee_name = callee_var->GetName();
+    if (tctx.env.Has(callee_name)) {
+        return T_DYNAMIC;
+    }
 
     const auto math_it = tctx.ctx->math_positions->find(callee_name);
     if (math_it == tctx.ctx->math_positions->end()) {
@@ -1964,10 +2222,17 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
     };
 
     std::vector<std::shared_ptr<FuncAnalysisArena>> frames;
-    auto PushFrame = [&]() { frames.push_back(std::make_shared<FuncAnalysisArena>()); };
-    // 注意：不 pop frame。所有 frame 保留到 stamping 阶段供查询，
-    // 因为 ctor_target_vars / var_fields 在函数退出后仍需被 stamp 循环访问。
-    // 函数级隔离由 push_frame 实现（每个 function body 进入时新开 frame）。
+    std::vector<int> frame_stack;
+    auto PushFrame = [&]() {
+        const int idx = static_cast<int>(frames.size());
+        frames.push_back(std::make_shared<FuncAnalysisArena>());
+        frame_stack.push_back(idx);
+    };
+    auto PopFrame = [&]() {
+        if (frame_stack.size() > 1) {
+            frame_stack.pop_back();
+        }
+    };
     PushFrame();// 顶层 frame（文件级 / __fakelua_init）
 
     // 辅助：从 table constructor 节点构建 own_fields 并登记
@@ -1998,53 +2263,73 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
 
     std::vector<PendingVarCtor> pending_var_ctors;
 
-    WalkSyntaxTree(chunk, [&](const SyntaxTreeInterfacePtr &node) {
-        if (!node) return;
-        switch (node->Type()) {
-            case SyntaxTreeType::TableConstructor:
-                RecordCtorNode(node);
-                break;
-            case SyntaxTreeType::Exp: {
-                auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-                if (exp->GetExpKind() == ExpKind::kTableConstructor) {
-                    RecordCtorNode(exp->Right());
-                }
-                break;
-            }
-            case SyntaxTreeType::Function:
-            case SyntaxTreeType::LocalFunction:
-                PushFrame();
-                break;
-            case SyntaxTreeType::LocalVar: {
-                auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
-                const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
-                const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist());
-                if (namelist && explist) {
-                    const auto &names = namelist->Names();
-                    const auto &exps = explist->Exps();
-                    const int frame_idx = static_cast<int>(frames.size()) - 1;
-                    for (size_t i = 0; i < names.size() && i < exps.size(); ++i) {
-                        pending_var_ctors.push_back({names[i], exps[i], frame_idx});
+    std::function<void(const SyntaxTreeInterfacePtr &)> walk_shapes = [&](const SyntaxTreeInterfacePtr &sub_root) {
+        WalkSyntaxTreePruned(sub_root, [&](const SyntaxTreeInterfacePtr &node) -> bool {
+            if (!node) return false;
+            switch (node->Type()) {
+                case SyntaxTreeType::TableConstructor:
+                    RecordCtorNode(node);
+                    return true;
+                case SyntaxTreeType::Exp: {
+                    auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+                    if (exp->GetExpKind() == ExpKind::kTableConstructor) {
+                        RecordCtorNode(exp->Right());
                     }
+                    return true;
                 }
-                break;
-            }
-            case SyntaxTreeType::Assign: {
-                auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
-                const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
-                const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
-                if (varlist && explist && !explist->Exps().empty()) {
-                    const auto v = varlist->Vars().empty() ? nullptr : std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
-                    if (v && v->GetVarKind() == VarKind::kSimple) {
-                        pending_var_ctors.push_back({v->GetName(), explist->Exps()[0], static_cast<int>(frames.size()) - 1});
+                case SyntaxTreeType::Function: {
+                    if (node.get() == sub_root.get()) return true;
+                    PushFrame();
+                    walk_shapes(std::dynamic_pointer_cast<SyntaxTreeFunction>(node)->Funcbody());
+                    PopFrame();
+                    return false;
+                }
+                case SyntaxTreeType::LocalFunction: {
+                    if (node.get() == sub_root.get()) return true;
+                    PushFrame();
+                    walk_shapes(std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node)->Funcbody());
+                    PopFrame();
+                    return false;
+                }
+                case SyntaxTreeType::FunctionDef: {
+                    if (node.get() == sub_root.get()) return true;
+                    PushFrame();
+                    walk_shapes(std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node)->Funcbody());
+                    PopFrame();
+                    return false;
+                }
+                case SyntaxTreeType::LocalVar: {
+                    auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
+                    const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+                    const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist());
+                    if (namelist && explist) {
+                        const auto &names = namelist->Names();
+                        const auto &exps = explist->Exps();
+                        const int frame_idx = frame_stack.back();
+                        for (size_t i = 0; i < names.size() && i < exps.size(); ++i) {
+                            pending_var_ctors.push_back({names[i], exps[i], frame_idx});
+                        }
                     }
+                    return true;
                 }
-                break;
+                case SyntaxTreeType::Assign: {
+                    auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+                    const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+                    const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+                    if (varlist && explist && !explist->Exps().empty()) {
+                        const auto v = varlist->Vars().empty() ? nullptr : std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
+                        if (v && v->GetVarKind() == VarKind::kSimple) {
+                            pending_var_ctors.push_back({v->GetName(), explist->Exps()[0], frame_stack.back()});
+                        }
+                    }
+                    return true;
+                }
+                default:
+                    return true;
             }
-            default:
-                break;
-        }
-    });
+        });
+    };
+    walk_shapes(chunk);
 
     // 后处理：此时所有子节点已遍历，ctor_own_fields 已填充完毕
     for (const auto &pending: pending_var_ctors) {
@@ -2151,8 +2436,8 @@ std::string TypeInferencer::SpecFromRhs(const SyntaxTreeInterfacePtr &exp, const
     return "";
 }
 
-void TypeInferencer::AnnotateExprs(const SyntaxTreeInterfacePtr &node, FlowState &st, InferResult &ir) {
-    if (!node) return;
+void TypeInferencer::AnnotateExprs(const SyntaxTreeInterfacePtr &node, FlowState &st, InferResult &ir, const FlowContext &fctx) {
+    if (!fctx.emit || !node) return;
 
     switch (node->Type()) {
         case SyntaxTreeType::Var: {
@@ -2170,12 +2455,12 @@ void TypeInferencer::AnnotateExprs(const SyntaxTreeInterfacePtr &node, FlowState
                     }
                     // CGen 会通过 CompileExp 继续编译 prefixexp 子表达式：若它本身是 Var 字段读，
                     // 则会被单独再调一次 CompileVar + GetSpecTypeForVar，故这里也递归前缀以逐层标注。
-                    AnnotateExprs(receiver, st, ir);
+                    AnnotateExprs(receiver, st, ir, fctx);
                 }
             }
             if (var_kind == VarKind::kSquare) {
                 // 下标表达式里可能含字段读。
-                AnnotateExprs(var->GetExp(), st, ir);
+                AnnotateExprs(var->GetExp(), st, ir, fctx);
             }
             return;
         }
@@ -2196,6 +2481,10 @@ void TypeInferencer::AnnotateExprs(const SyntaxTreeInterfacePtr &node, FlowState
                                 if (!spec.empty()) {
                                     ir.var_spec_annotations[first.get()] = spec;
                                 }
+                                AnnotateExprs(first, st, ir, fctx);
+                                for (size_t ai = 1; ai < explist->Exps().size(); ++ai) {
+                                    AnnotateExprs(explist->Exps()[ai], st, ir, fctx);
+                                }
                             }
                         }
                         return;
@@ -2203,63 +2492,70 @@ void TypeInferencer::AnnotateExprs(const SyntaxTreeInterfacePtr &node, FlowState
                 }
             }
             // 普通调用：遍历前缀与参数，捕获其内的字段读。
-            AnnotateExprs(fc->prefixexp(), st, ir);
-            AnnotateExprs(fc->Args(), st, ir);
+            AnnotateExprs(fc->prefixexp(), st, ir, fctx);
+            AnnotateExprs(fc->Args(), st, ir, fctx);
             return;
         }
         case SyntaxTreeType::Args: {
             const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
-            AnnotateExprs(args->Explist(), st, ir);
-            AnnotateExprs(args->Tableconstructor(), st, ir);
-            AnnotateExprs(args->String(), st, ir);
+            AnnotateExprs(args->Explist(), st, ir, fctx);
+            AnnotateExprs(args->Tableconstructor(), st, ir, fctx);
+            AnnotateExprs(args->String(), st, ir, fctx);
             return;
         }
         case SyntaxTreeType::ExpList: {
             const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
-            for (const auto &exp: el->Exps()) AnnotateExprs(exp, st, ir);
+            for (const auto &exp: el->Exps()) AnnotateExprs(exp, st, ir, fctx);
             return;
         }
         case SyntaxTreeType::Exp: {
             const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
             const auto k = exp_node->GetExpKind();
             if (k == ExpKind::kPrefixExp) {
-                AnnotateExprs(exp_node->Right(), st, ir);
+                AnnotateExprs(exp_node->Right(), st, ir, fctx);
             } else if (k == ExpKind::kBinop) {
-                AnnotateExprs(exp_node->Left(), st, ir);
-                AnnotateExprs(exp_node->Right(), st, ir);
+                AnnotateExprs(exp_node->Left(), st, ir, fctx);
+                AnnotateExprs(exp_node->Right(), st, ir, fctx);
             } else if (k == ExpKind::kUnop) {
-                AnnotateExprs(exp_node->Right(), st, ir);
+                AnnotateExprs(exp_node->Right(), st, ir, fctx);
             } else if (k == ExpKind::kTableConstructor) {
                 // 构造器字段值里可能包含字段读。
                 const auto tc = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(exp_node->Right());
-                if (tc) AnnotateExprs(tc->Fieldlist(), st, ir);
+                if (tc) AnnotateExprs(tc->Fieldlist(), st, ir, fctx);
+            } else if (k == ExpKind::kFunctionDef) {
+                const auto fdef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(exp_node->Right());
+                if (fdef && fdef->Funcbody() && fctx.mutated_captured_defs) {
+                    std::unordered_set<std::string> enclosing;
+                    for (const auto &[lname, _]: st.local) enclosing.insert(lname);
+                    FlowFuncBody(fdef->Funcbody(), st.global, enclosing, *fctx.mutated_captured_defs, ir);
+                }
             }
             return;
         }
         case SyntaxTreeType::FieldList: {
             const auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
-            for (const auto &field: fl->Fields()) AnnotateExprs(field, st, ir);
+            for (const auto &field: fl->Fields()) AnnotateExprs(field, st, ir, fctx);
             return;
         }
         case SyntaxTreeType::Field: {
             const auto field_node = std::dynamic_pointer_cast<SyntaxTreeField>(node);
-            AnnotateExprs(field_node->Key(), st, ir);
-            AnnotateExprs(field_node->Value(), st, ir);
+            AnnotateExprs(field_node->Key(), st, ir, fctx);
+            AnnotateExprs(field_node->Value(), st, ir, fctx);
             return;
         }
         case SyntaxTreeType::PrefixExp: {
             const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
-            AnnotateExprs(pe->GetValue(), st, ir);
+            AnnotateExprs(pe->GetValue(), st, ir, fctx);
             return;
         }
         case SyntaxTreeType::TableConstructor: {
             const auto tc = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
-            AnnotateExprs(tc->Fieldlist(), st, ir);
+            AnnotateExprs(tc->Fieldlist(), st, ir, fctx);
             return;
         }
         case SyntaxTreeType::Return: {
             const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
-            AnnotateExprs(ret->Explist(), st, ir);
+            AnnotateExprs(ret->Explist(), st, ir, fctx);
             return;
         }
         default:
@@ -2267,33 +2563,91 @@ void TypeInferencer::AnnotateExprs(const SyntaxTreeInterfacePtr &node, FlowState
     }
 }
 
-void TypeInferencer::FlowBlock(const SyntaxTreeInterfacePtr &block, FlowState &st, InferResult &ir, const bool is_top_level) {
-    if (!block || block->Type() != SyntaxTreeType::Block) return;
-    const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
-    for (const auto &stmt: block_ptr->Stmts()) {
-        FlowStmt(stmt, st, ir, is_top_level);
+namespace {
+
+void DeclareFlowLocal(const std::string &name, const std::string &spec, TypeInferencer::FlowState &st, TypeInferencer::FlowContext &fctx) {
+    if (!fctx.is_top_level && !fctx.scope_saved_locals.empty()) {
+        auto &saved = fctx.scope_saved_locals.back();
+        if (!saved.contains(name)) {
+            if (const auto it = st.local.find(name); it != st.local.end()) {
+                saved[name] = it->second;
+            } else {
+                saved[name] = std::nullopt;
+            }
+        }
+    }
+    if (fctx.is_top_level) {
+        if (spec.empty()) {
+            st.local.erase(name);
+            st.global.erase(name);
+        } else {
+            st.local[name] = spec;
+            st.global[name] = spec;
+        }
+    } else {
+        // 函数局部始终保留 st.local[name]（空串代表 dynamic），防止同名遮蔽回退到 st.global。
+        st.local[name] = spec;
     }
 }
 
-void TypeInferencer::FlowStmt(const SyntaxTreeInterfacePtr &stmt, FlowState &st, InferResult &ir, const bool is_top_level) {
-    if (!stmt) return;
+void RestoreFlowScope(TypeInferencer::FlowState &st, const std::unordered_map<std::string, std::optional<std::string>> &saved) {
+    for (const auto &[name, prev]: saved) {
+        if (prev.has_value()) {
+            st.local[name] = *prev;
+        } else {
+            st.local.erase(name);
+        }
+    }
+}
+
+TypeInferencer::FlowState UnwindFlowStateToLoopDepth(const TypeInferencer::FlowState &st, const TypeInferencer::FlowContext &fctx) {
+    TypeInferencer::FlowState copy = st;
+    for (size_t d = fctx.scope_saved_locals.size(); d > fctx.loop_scope_depth; --d) {
+        RestoreFlowScope(copy, fctx.scope_saved_locals[d - 1]);
+    }
+    return copy;
+}
+
+}// namespace
+
+bool TypeInferencer::FlowBlock(const SyntaxTreeInterfacePtr &block, FlowState &st, InferResult &ir, FlowContext &fctx, const bool new_scope) {
+    if (!block || block->Type() != SyntaxTreeType::Block) return false;
+    const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
+    if (new_scope && !fctx.is_top_level) {
+        fctx.scope_saved_locals.emplace_back();
+    }
+    bool terminated = false;
+    for (const auto &stmt: block_ptr->Stmts()) {
+        if (FlowStmt(stmt, st, ir, fctx) && !fctx.has_goto_or_label) {
+            terminated = true;
+        }
+    }
+    if (new_scope && !fctx.is_top_level) {
+        RestoreFlowScope(st, fctx.scope_saved_locals.back());
+        fctx.scope_saved_locals.pop_back();
+    }
+    return terminated;
+}
+
+bool TypeInferencer::FlowStmt(const SyntaxTreeInterfacePtr &stmt, FlowState &st, InferResult &ir, FlowContext &fctx) {
+    if (!stmt) return false;
 
     switch (stmt->Type()) {
+        case SyntaxTreeType::Block: {
+            return FlowBlock(stmt, st, ir, fctx, true);
+        }
         case SyntaxTreeType::LocalVar: {
-            // 先标注所有读（右侧表达式里的字段引用）。
             const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist())) {
-                for (const auto &exp: explist->Exps()) AnnotateExprs(exp, st, ir);
+                for (const auto &exp: explist->Exps()) AnnotateExprs(exp, st, ir, fctx);
             }
-            // 再按语义更新 local / global。
             const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
-            if (!namelist) return;
+            if (!namelist) return false;
             const auto exps = [&]() -> std::vector<SyntaxTreeInterfacePtr> {
                 if (const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist())) return el->Exps();
                 return {};
             }();
             const auto &names = namelist->Names();
-            // 多返回值（函数调用 / varargs 最后一位 + 名字多于表达式）：尾部全部降 dynamic。
             const bool multi_return = names.size() > exps.size();
             for (size_t i = 0; i < names.size(); ++i) {
                 const auto &name = names[i];
@@ -2301,175 +2655,683 @@ void TypeInferencer::FlowStmt(const SyntaxTreeInterfacePtr &stmt, FlowState &st,
                 if (i < exps.size()) {
                     spec = SpecFromRhs(exps[i], st, ir);
                 }
-                // 多返回：从 exps.size()-1 位起全部 dynamic (i >= exps.size()-1 即尾部)。
                 if (multi_return && static_cast<int>(i) >= static_cast<int>(exps.size()) - 1) {
                     spec.clear();
                 }
+                if (fctx.mutated_captured_defs && fctx.mutated_captured_defs->contains({lv.get(), name})) {
+                    spec.clear();
+                }
+                if (fctx.goto_reassigned_names && fctx.goto_reassigned_names->contains(name)) {
+                    spec.clear();
+                }
+                DeclareFlowLocal(name, spec, st, fctx);
+            }
+            return false;
+        }
+        case SyntaxTreeType::LocalFunction: {
+            const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+            DeclareFlowLocal(lf->Name(), "", st, fctx);
+            if (fctx.emit && lf->Funcbody() && fctx.mutated_captured_defs) {
+                std::unordered_set<std::string> enclosing;
+                for (const auto &[lname, _]: st.local) enclosing.insert(lname);
+                FlowFuncBody(lf->Funcbody(), st.global, enclosing, *fctx.mutated_captured_defs, ir);
+            }
+            return false;
+        }
+        case SyntaxTreeType::Assign: {
+            const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+            const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+            const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+            if (varlist) {
+                for (const auto &vnode: varlist->Vars()) {
+                    if (const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vnode)) {
+                        AnnotateExprs(v->GetPrefixexp(), st, ir, fctx);
+                        AnnotateExprs(v->GetExp(), st, ir, fctx);
+                    }
+                }
+            }
+            if (explist) {
+                for (const auto &exp: explist->Exps()) AnnotateExprs(exp, st, ir, fctx);
+            }
+            if (!varlist || !explist || varlist->Vars().empty() || explist->Exps().empty()) return false;
+            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
+            if (!var || var->GetVarKind() != VarKind::kSimple) return false;
+            const auto name = var->GetName();
+            std::string spec = SpecFromRhs(explist->Exps()[0], st, ir);
+            if ((ar_ && ar_->captured_var_nodes.contains(var.get())) || (fctx.goto_reassigned_names && fctx.goto_reassigned_names->contains(name))) {
+                spec.clear();
+            }
+            if (fctx.is_top_level) {
                 if (spec.empty()) {
                     st.local.erase(name);
                     st.global.erase(name);
                 } else {
                     st.local[name] = spec;
-                    if (is_top_level) st.global[name] = spec;
+                    st.global[name] = spec;
                 }
-            }
-            return;
-        }
-        case SyntaxTreeType::Assign: {
-            const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
-            // 标注右侧字段读。
-            if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist())) {
-                for (const auto &exp: explist->Exps()) AnnotateExprs(exp, st, ir);
-            }
-            const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
-            const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
-            // 预处理保证单变量、单表达式。
-            if (!varlist || !explist || varlist->Vars().empty() || explist->Exps().empty()) return;
-            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
-            if (!var) return;
-            const auto name = var->GetName();
-            const auto spec = SpecFromRhs(explist->Exps()[0], st, ir);
-            if (spec.empty()) {
-                st.local.erase(name);
-                st.global.erase(name);
             } else {
                 st.local[name] = spec;
-                if (is_top_level) st.global[name] = spec;
             }
-            return;
+            return false;
         }
         case SyntaxTreeType::If: {
             const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
-            // 条件里的字段读在汇合前求值：用 if 之前的状态。
-            AnnotateExprs(if_node->Exp(), st, ir);
+            AnnotateExprs(if_node->Exp(), st, ir, fctx);
 
-            const auto snapshot_local = st.local;
-            const auto snapshot_global = st.global;
-
+            const FlowState snapshot = st;
             std::vector<FlowState> branch_states;
-            // then 分支
+            bool all_terminated = true;
+
             {
-                FlowState branch;
-                branch.local = st.local;
-                branch.global = st.global;
-                FlowBlock(if_node->Block(), branch, ir, is_top_level);
-                branch_states.push_back(std::move(branch));
-            }
-            // elseif 分支
-            if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_node->ElseIfs())) {
-                for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
-                    // 条件读使用 if 前状态。
-                    AnnotateExprs(elseifs->ElseifExp(i), st, ir);
-                    FlowState branch;
-                    branch.local = snapshot_local;
-                    branch.global = snapshot_global;
-                    FlowBlock(elseifs->ElseifBlock(i), branch, ir, is_top_level);
+                FlowState branch = snapshot;
+                const bool term = FlowBlock(if_node->Block(), branch, ir, fctx, true);
+                if (!term) {
+                    all_terminated = false;
                     branch_states.push_back(std::move(branch));
                 }
             }
-            // else 分支
+            if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_node->ElseIfs())) {
+                for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
+                    AnnotateExprs(elseifs->ElseifExp(i), st, ir, fctx);
+                    FlowState branch = snapshot;
+                    const bool term = FlowBlock(elseifs->ElseifBlock(i), branch, ir, fctx, true);
+                    if (!term) {
+                        all_terminated = false;
+                        branch_states.push_back(std::move(branch));
+                    }
+                }
+            }
             if (const auto else_block = if_node->ElseBlock()) {
-                FlowState branch;
-                branch.local = snapshot_local;
-                branch.global = snapshot_global;
-                FlowBlock(else_block, branch, ir, is_top_level);
-                branch_states.push_back(std::move(branch));
+                FlowState branch = snapshot;
+                const bool term = FlowBlock(else_block, branch, ir, fctx, true);
+                if (!term) {
+                    all_terminated = false;
+                    branch_states.push_back(std::move(branch));
+                }
             } else {
-                // 无 else：隐式 else 路径保持 if 前状态（等同 s0），纳入汇合。
-                FlowState branch;
-                branch.local = snapshot_local;
-                branch.global = snapshot_global;
-                branch_states.push_back(std::move(branch));
+                all_terminated = false;
+                branch_states.push_back(snapshot);
             }
 
-            // 汇合：各分支同 key 值全一致才保留。
-            JoinFlowStates(branch_states, st);
-            return;
+            if (!branch_states.empty()) {
+                JoinFlowStates(branch_states, st);
+            }
+            return all_terminated;
         }
         case SyntaxTreeType::While: {
             const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
-            AnnotateExprs(while_node->Exp(), st, ir);
-            // CGen 不快照循环：精确复现直接贯穿（虽理论上多轮可能降级，但保持与原 emitter 行为一致）。
-            FlowBlock(while_node->Block(), st, ir, is_top_level);
-            return;
+            FlowState head = st;
+            for (int iter = 0; iter < kMaxSpecIterations; ++iter) {
+                std::vector<FlowState> breaks;
+                std::vector<FlowState> continues;
+                FlowContext dry_ctx = fctx;
+                dry_ctx.emit = false;
+                dry_ctx.loop_breaks = &breaks;
+                dry_ctx.loop_continues = &continues;
+                dry_ctx.loop_scope_depth = dry_ctx.scope_saved_locals.size();
+                FlowState body_end = head;
+                const bool body_term = FlowBlock(while_node->Block(), body_end, ir, dry_ctx, true);
+                std::vector<FlowState> back_states = {head};
+                if (!body_term) back_states.push_back(std::move(body_end));
+                for (auto &cs: continues) back_states.push_back(std::move(cs));
+                FlowState next_head;
+                JoinFlowStates(back_states, next_head);
+                if (next_head == head) break;
+                head = std::move(next_head);
+            }
+
+            st = head;
+            AnnotateExprs(while_node->Exp(), st, ir, fctx);
+            std::vector<FlowState> breaks;
+            std::vector<FlowState> continues;
+            auto *saved_breaks = fctx.loop_breaks;
+            auto *saved_continues = fctx.loop_continues;
+            const size_t saved_depth = fctx.loop_scope_depth;
+            fctx.loop_breaks = &breaks;
+            fctx.loop_continues = &continues;
+            fctx.loop_scope_depth = fctx.scope_saved_locals.size();
+            FlowState body_end = head;
+            FlowBlock(while_node->Block(), body_end, ir, fctx, true);
+            fctx.loop_breaks = saved_breaks;
+            fctx.loop_continues = saved_continues;
+            fctx.loop_scope_depth = saved_depth;
+
+            std::vector<FlowState> exit_states = {head};
+            for (auto &bs: breaks) exit_states.push_back(std::move(bs));
+            JoinFlowStates(exit_states, st);
+            return false;
         }
         case SyntaxTreeType::Repeat: {
             const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
-            FlowBlock(rep->Block(), st, ir, is_top_level);
-            AnnotateExprs(rep->Exp(), st, ir);
-            return;
+            FlowState head = st;
+            for (int iter = 0; iter < kMaxSpecIterations; ++iter) {
+                std::vector<FlowState> breaks;
+                std::vector<FlowState> continues;
+                FlowContext dry_ctx = fctx;
+                dry_ctx.emit = false;
+                if (!dry_ctx.is_top_level) {
+                    dry_ctx.scope_saved_locals.emplace_back();
+                }
+                dry_ctx.loop_breaks = &breaks;
+                dry_ctx.loop_continues = &continues;
+                dry_ctx.loop_scope_depth = dry_ctx.scope_saved_locals.size();
+                FlowState body_end = head;
+                const bool body_term = FlowBlock(rep->Block(), body_end, ir, dry_ctx, false);
+                std::vector<FlowState> until_states;
+                if (!body_term) until_states.push_back(std::move(body_end));
+                for (auto &cs: continues) until_states.push_back(std::move(cs));
+                FlowState until_joined = head;
+                if (!until_states.empty()) {
+                    JoinFlowStates(until_states, until_joined);
+                }
+                if (!dry_ctx.is_top_level) {
+                    RestoreFlowScope(until_joined, dry_ctx.scope_saved_locals.back());
+                    dry_ctx.scope_saved_locals.pop_back();
+                }
+                FlowState next_head;
+                std::vector<FlowState> back_states = {head};
+                if (!until_states.empty()) back_states.push_back(std::move(until_joined));
+                JoinFlowStates(back_states, next_head);
+                if (next_head == head) break;
+                head = std::move(next_head);
+            }
+
+            std::vector<FlowState> breaks;
+            std::vector<FlowState> continues;
+            auto *saved_breaks = fctx.loop_breaks;
+            auto *saved_continues = fctx.loop_continues;
+            const size_t saved_depth = fctx.loop_scope_depth;
+            const size_t outer_scope_depth = fctx.scope_saved_locals.size();
+            if (!fctx.is_top_level) {
+                fctx.scope_saved_locals.emplace_back();
+            }
+            fctx.loop_breaks = &breaks;
+            fctx.loop_continues = &continues;
+            // continue 落在 flua_until_N（仍在 repeat body 作用域内），break 跳出整个 repeat
+            fctx.loop_scope_depth = fctx.scope_saved_locals.size();
+            FlowState body_end = head;
+            const bool body_term = FlowBlock(rep->Block(), body_end, ir, fctx, false);
+            fctx.loop_breaks = saved_breaks;
+            fctx.loop_continues = saved_continues;
+            fctx.loop_scope_depth = saved_depth;
+
+            std::vector<FlowState> until_states;
+            if (!body_term) until_states.push_back(std::move(body_end));
+            for (auto &cs: continues) until_states.push_back(std::move(cs));
+            FlowState until_state = head;
+            if (!until_states.empty()) {
+                JoinFlowStates(until_states, until_state);
+            }
+            AnnotateExprs(rep->Exp(), until_state, ir, fctx);
+            if (!fctx.is_top_level) {
+                RestoreFlowScope(until_state, fctx.scope_saved_locals.back());
+                for (auto &bs: breaks) {
+                    if (fctx.scope_saved_locals.size() > outer_scope_depth) {
+                        RestoreFlowScope(bs, fctx.scope_saved_locals.back());
+                    }
+                }
+                fctx.scope_saved_locals.pop_back();
+            }
+
+            std::vector<FlowState> exit_states;
+            if (!until_states.empty()) exit_states.push_back(std::move(until_state));
+            for (auto &bs: breaks) exit_states.push_back(std::move(bs));
+            if (!exit_states.empty()) {
+                JoinFlowStates(exit_states, st);
+            } else {
+                st = head;
+            }
+            return false;
         }
         case SyntaxTreeType::ForLoop: {
             const auto for_node = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
-            AnnotateExprs(for_node->ExpBegin(), st, ir);
-            AnnotateExprs(for_node->ExpEnd(), st, ir);
-            if (for_node->ExpStep()) AnnotateExprs(for_node->ExpStep(), st, ir);
-            FlowBlock(for_node->Block(), st, ir, is_top_level);
-            return;
+            AnnotateExprs(for_node->ExpBegin(), st, ir, fctx);
+            AnnotateExprs(for_node->ExpEnd(), st, ir, fctx);
+            if (for_node->ExpStep()) AnnotateExprs(for_node->ExpStep(), st, ir, fctx);
+
+            FlowState head = st;
+            for (int iter = 0; iter < kMaxSpecIterations; ++iter) {
+                std::vector<FlowState> breaks;
+                std::vector<FlowState> continues;
+                FlowContext dry_ctx = fctx;
+                dry_ctx.emit = false;
+                if (!dry_ctx.is_top_level) {
+                    dry_ctx.scope_saved_locals.emplace_back();
+                }
+                FlowState body_end = head;
+                DeclareFlowLocal(for_node->Name(), "", body_end, dry_ctx);
+                dry_ctx.loop_breaks = &breaks;
+                dry_ctx.loop_continues = &continues;
+                dry_ctx.loop_scope_depth = dry_ctx.scope_saved_locals.size();
+                const bool body_term = FlowBlock(for_node->Block(), body_end, ir, dry_ctx, true);
+                if (!dry_ctx.is_top_level) {
+                    RestoreFlowScope(body_end, dry_ctx.scope_saved_locals.back());
+                    for (auto &cs: continues) RestoreFlowScope(cs, dry_ctx.scope_saved_locals.back());
+                    dry_ctx.scope_saved_locals.pop_back();
+                }
+                std::vector<FlowState> back_states = {head};
+                if (!body_term) back_states.push_back(std::move(body_end));
+                for (auto &cs: continues) back_states.push_back(std::move(cs));
+                FlowState next_head;
+                JoinFlowStates(back_states, next_head);
+                if (next_head == head) break;
+                head = std::move(next_head);
+            }
+
+            std::vector<FlowState> breaks;
+            std::vector<FlowState> continues;
+            auto *saved_breaks = fctx.loop_breaks;
+            auto *saved_continues = fctx.loop_continues;
+            const size_t saved_depth = fctx.loop_scope_depth;
+            if (!fctx.is_top_level) {
+                fctx.scope_saved_locals.emplace_back();
+            }
+            FlowState body_end = head;
+            DeclareFlowLocal(for_node->Name(), "", body_end, fctx);
+            fctx.loop_breaks = &breaks;
+            fctx.loop_continues = &continues;
+            fctx.loop_scope_depth = fctx.scope_saved_locals.size();
+            FlowBlock(for_node->Block(), body_end, ir, fctx, true);
+            fctx.loop_breaks = saved_breaks;
+            fctx.loop_continues = saved_continues;
+            fctx.loop_scope_depth = saved_depth;
+            if (!fctx.is_top_level) {
+                RestoreFlowScope(body_end, fctx.scope_saved_locals.back());
+                for (auto &bs: breaks) RestoreFlowScope(bs, fctx.scope_saved_locals.back());
+                fctx.scope_saved_locals.pop_back();
+            }
+
+            std::vector<FlowState> exit_states = {head};
+            for (auto &bs: breaks) exit_states.push_back(std::move(bs));
+            JoinFlowStates(exit_states, st);
+            return false;
         }
         case SyntaxTreeType::ForIn: {
             const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
             if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(for_in->Explist())) {
-                for (const auto &exp: explist->Exps()) AnnotateExprs(exp, st, ir);
+                for (const auto &exp: explist->Exps()) AnnotateExprs(exp, st, ir, fctx);
             }
-            FlowBlock(for_in->Block(), st, ir, is_top_level);
-            return;
+            const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(for_in->Namelist());
+
+            FlowState head = st;
+            for (int iter = 0; iter < kMaxSpecIterations; ++iter) {
+                std::vector<FlowState> breaks;
+                std::vector<FlowState> continues;
+                FlowContext dry_ctx = fctx;
+                dry_ctx.emit = false;
+                if (!dry_ctx.is_top_level) {
+                    dry_ctx.scope_saved_locals.emplace_back();
+                }
+                FlowState body_end = head;
+                if (nl) {
+                    for (const auto &vname: nl->Names()) DeclareFlowLocal(vname, "", body_end, dry_ctx);
+                }
+                dry_ctx.loop_breaks = &breaks;
+                dry_ctx.loop_continues = &continues;
+                dry_ctx.loop_scope_depth = dry_ctx.scope_saved_locals.size();
+                const bool body_term = FlowBlock(for_in->Block(), body_end, ir, dry_ctx, true);
+                if (!dry_ctx.is_top_level) {
+                    RestoreFlowScope(body_end, dry_ctx.scope_saved_locals.back());
+                    for (auto &cs: continues) RestoreFlowScope(cs, dry_ctx.scope_saved_locals.back());
+                    dry_ctx.scope_saved_locals.pop_back();
+                }
+                std::vector<FlowState> back_states = {head};
+                if (!body_term) back_states.push_back(std::move(body_end));
+                for (auto &cs: continues) back_states.push_back(std::move(cs));
+                FlowState next_head;
+                JoinFlowStates(back_states, next_head);
+                if (next_head == head) break;
+                head = std::move(next_head);
+            }
+
+            std::vector<FlowState> breaks;
+            std::vector<FlowState> continues;
+            auto *saved_breaks = fctx.loop_breaks;
+            auto *saved_continues = fctx.loop_continues;
+            const size_t saved_depth = fctx.loop_scope_depth;
+            if (!fctx.is_top_level) {
+                fctx.scope_saved_locals.emplace_back();
+            }
+            FlowState body_end = head;
+            if (nl) {
+                for (const auto &vname: nl->Names()) DeclareFlowLocal(vname, "", body_end, fctx);
+            }
+            fctx.loop_breaks = &breaks;
+            fctx.loop_continues = &continues;
+            fctx.loop_scope_depth = fctx.scope_saved_locals.size();
+            FlowBlock(for_in->Block(), body_end, ir, fctx, true);
+            fctx.loop_breaks = saved_breaks;
+            fctx.loop_continues = saved_continues;
+            fctx.loop_scope_depth = saved_depth;
+            if (!fctx.is_top_level) {
+                RestoreFlowScope(body_end, fctx.scope_saved_locals.back());
+                for (auto &bs: breaks) RestoreFlowScope(bs, fctx.scope_saved_locals.back());
+                fctx.scope_saved_locals.pop_back();
+            }
+
+            std::vector<FlowState> exit_states = {head};
+            for (auto &bs: breaks) exit_states.push_back(std::move(bs));
+            JoinFlowStates(exit_states, st);
+            return false;
+        }
+        case SyntaxTreeType::Break: {
+            if (fctx.loop_breaks) {
+                fctx.loop_breaks->push_back(UnwindFlowStateToLoopDepth(st, fctx));
+            }
+            return true;
+        }
+        case SyntaxTreeType::Continue: {
+            if (fctx.loop_continues) {
+                fctx.loop_continues->push_back(UnwindFlowStateToLoopDepth(st, fctx));
+            }
+            return true;
+        }
+        case SyntaxTreeType::Return: {
+            AnnotateExprs(stmt, st, ir, fctx);
+            return true;
         }
         default:
-            // Break / Label / Goto / Return / ExprStmt 等无赋值语义，仅标注可能含的字段读。
-            AnnotateExprs(stmt, st, ir);
-            return;
+            AnnotateExprs(stmt, st, ir, fctx);
+            return false;
     }
 }
 
 void TypeInferencer::JoinFlowStates(const std::vector<FlowState> &branch_states, FlowState &out) {
-    // 分别汇合 local 与 global；任一分支缺失该 key 或不一致 → 不写入 out（即 dynamic）。
-    auto JoinOne = [](const std::vector<FlowState> &branches, const auto &selector, auto &out_map) {
-        out_map.clear();
+    // local：保留所有分支共有的局部键（防止同名局部遮蔽消失而回退到 st.global），
+    // 但仅当所有分支都含同一非空 spec 时保留该 spec，否则置为空串（dynamic）。
+    {
+        std::unordered_map<std::string, std::string> joined_local;
         std::unordered_set<std::string> keys;
-        for (const auto &bs: branches) {
-            const auto &m = selector(bs);
-            for (const auto &[k, v]: m) keys.insert(k);
+        for (const auto &bs: branch_states) {
+            for (const auto &[k, _]: bs.local) keys.insert(k);
         }
         for (const auto &k: keys) {
+            bool first = true;
             std::string consistent;
             bool conflict = false;
-            for (const auto &bs: branches) {
-                const auto &m = selector(bs);
-                const auto it = m.find(k);
-                if (it == m.end()) {
+            for (const auto &bs: branch_states) {
+                const auto it = bs.local.find(k);
+                if (it == bs.local.end() || it->second.empty()) {
                     conflict = true;
                     break;
                 }
-                if (consistent.empty()) {
+                if (first) {
                     consistent = it->second;
+                    first = false;
                 } else if (consistent != it->second) {
                     conflict = true;
                     break;
                 }
             }
-            if (!conflict) out_map[k] = consistent;
+            joined_local[k] = conflict ? "" : consistent;
         }
-    };
-    JoinOne(branch_states, [](const FlowState &s) -> const auto & { return s.local; }, out.local);
-    JoinOne(branch_states, [](const FlowState &s) -> const auto & { return s.global; }, out.global);
+        out.local = std::move(joined_local);
+    }
+
+    // global：任一分支缺失该 key 或为空或不一致 → 不写入 out.global（即 dynamic）。
+    {
+        std::unordered_map<std::string, std::string> joined_global;
+        std::unordered_set<std::string> keys;
+        for (const auto &bs: branch_states) {
+            for (const auto &[k, _]: bs.global) keys.insert(k);
+        }
+        for (const auto &k: keys) {
+            bool first = true;
+            std::string consistent;
+            bool conflict = false;
+            for (const auto &bs: branch_states) {
+                const auto it = bs.global.find(k);
+                if (it == bs.global.end() || it->second.empty()) {
+                    conflict = true;
+                    break;
+                }
+                if (first) {
+                    consistent = it->second;
+                    first = false;
+                } else if (consistent != it->second) {
+                    conflict = true;
+                    break;
+                }
+            }
+            if (!conflict) joined_global[k] = consistent;
+        }
+        out.global = std::move(joined_global);
+    }
+}
+
+void TypeInferencer::FlowFuncBody(const SyntaxTreeInterfacePtr &funcbody, const std::unordered_map<std::string, std::string> &global_specs, const std::unordered_set<std::string> &enclosing_locals,
+                                  const std::set<std::pair<const SyntaxTreeInterface *, std::string>> &mutated_captured_defs, InferResult &ir) {
+    if (!funcbody || funcbody->Type() != SyntaxTreeType::FuncBody) return;
+    const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+    if (!fb || !fb->Block()) return;
+
+    bool has_goto_or_label = false;
+    std::unordered_set<std::string> goto_reassigned_names;
+    WalkSyntaxTreePruned(fb->Block(), [&](const SyntaxTreeInterfacePtr &n) -> bool {
+        if (!n) return false;
+        if (n->Type() == SyntaxTreeType::Function || n->Type() == SyntaxTreeType::LocalFunction || n->Type() == SyntaxTreeType::FunctionDef) {
+            return false;
+        }
+        if (n->Type() == SyntaxTreeType::Goto || n->Type() == SyntaxTreeType::Label) {
+            has_goto_or_label = true;
+        } else if (n->Type() == SyntaxTreeType::Assign) {
+            const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(n);
+            const auto vl = assign ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist()) : nullptr;
+            if (vl && !vl->Vars().empty()) {
+                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vl->Vars()[0]);
+                if (v && v->GetVarKind() == VarKind::kSimple) {
+                    goto_reassigned_names.insert(v->GetName());
+                }
+            }
+        }
+        return true;
+    });
+
+    FlowState func_state;
+    func_state.global = global_specs;
+    for (const auto &ename: enclosing_locals) {
+        func_state.local[ename] = "";
+    }
+    if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(fb->Parlist())) {
+        if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
+            for (const auto &pname: nl->Names()) {
+                func_state.local[pname] = "";
+            }
+        }
+    }
+
+    FlowContext fctx;
+    fctx.is_top_level = false;
+    fctx.emit = true;
+    fctx.has_goto_or_label = has_goto_or_label;
+    fctx.mutated_captured_defs = &mutated_captured_defs;
+    fctx.goto_reassigned_names = has_goto_or_label ? &goto_reassigned_names : nullptr;
+    FlowBlock(fb->Block(), func_state, ir, fctx, true);
 }
 
 void TypeInferencer::ComputeVarSpecAnnotations(const ParseResult &pr, InferResult &ir) {
-    FlowState st;
-
-    // 顶层 chunk：CGen 把非函数语句塞进 __fakelua_init，先处理顶层（写 global），再处理各函数。
     if (!pr.chunk || pr.chunk->Type() != SyntaxTreeType::Block) return;
     const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
 
-    // 收集函数定义（顶层函数 + 嵌套函数均独立作用域）。
-    // __fakelua_init 对应 CGen 里"优先编译"的顶层 chunk 初始化函数：其内赋值写 global，
-    // 必须先于其它函数处理，才能使全局特化状态在后续函数读引用中可见。
+    // 预扫描：找出所有被内层闭包捕获且在声明之外发生过再赋值的变量声明 (def_node, name)。
+    std::set<std::pair<const SyntaxTreeInterface *, std::string>> mutated_captured_defs;
+    if (ar_ && !ar_->captured_var_nodes.empty()) {
+        std::vector<std::unordered_map<std::string, const SyntaxTreeInterface *>> def_scopes;
+        std::function<void(const SyntaxTreeInterfacePtr &)> scan_captured_assigns = [&](const SyntaxTreeInterfacePtr &node) {
+            if (!node) return;
+            switch (node->Type()) {
+                case SyntaxTreeType::Block: {
+                    const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+                    def_scopes.emplace_back();
+                    for (const auto &s: blk->Stmts()) scan_captured_assigns(s);
+                    def_scopes.pop_back();
+                    break;
+                }
+                case SyntaxTreeType::Repeat: {
+                    const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+                    def_scopes.emplace_back();
+                    if (const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(rep->Block())) {
+                        for (const auto &s: blk->Stmts()) scan_captured_assigns(s);
+                    }
+                    scan_captured_assigns(rep->Exp());
+                    def_scopes.pop_back();
+                    break;
+                }
+                case SyntaxTreeType::LocalVar: {
+                    const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
+                    scan_captured_assigns(lv->Explist());
+                    if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist())) {
+                        for (const auto &n: nl->Names()) def_scopes.back()[n] = lv.get();
+                    }
+                    break;
+                }
+                case SyntaxTreeType::ForLoop: {
+                    const auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+                    scan_captured_assigns(fl->ExpBegin());
+                    scan_captured_assigns(fl->ExpEnd());
+                    scan_captured_assigns(fl->ExpStep());
+                    def_scopes.emplace_back();
+                    def_scopes.back()[fl->Name()] = fl.get();
+                    scan_captured_assigns(fl->Block());
+                    def_scopes.pop_back();
+                    break;
+                }
+                case SyntaxTreeType::ForIn: {
+                    const auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+                    scan_captured_assigns(fi->Explist());
+                    def_scopes.emplace_back();
+                    if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(fi->Namelist())) {
+                        for (const auto &n: nl->Names()) def_scopes.back()[n] = fi.get();
+                    }
+                    scan_captured_assigns(fi->Block());
+                    def_scopes.pop_back();
+                    break;
+                }
+                case SyntaxTreeType::Function:
+                case SyntaxTreeType::LocalFunction:
+                case SyntaxTreeType::FunctionDef: {
+                    SyntaxTreeInterfacePtr fb_node;
+                    if (node->Type() == SyntaxTreeType::LocalFunction) {
+                        const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
+                        if (!def_scopes.empty()) def_scopes.back()[lf->Name()] = lf.get();
+                        fb_node = lf->Funcbody();
+                    } else if (node->Type() == SyntaxTreeType::Function) {
+                        fb_node = std::dynamic_pointer_cast<SyntaxTreeFunction>(node)->Funcbody();
+                    } else {
+                        fb_node = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node)->Funcbody();
+                    }
+                    def_scopes.emplace_back();
+                    if (const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(fb_node)) {
+                        if (const auto pl = std::dynamic_pointer_cast<SyntaxTreeParlist>(fb->Parlist())) {
+                            if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(pl->Namelist())) {
+                                for (const auto &p: nl->Names()) def_scopes.back()[p] = pl.get();
+                            }
+                        }
+                        scan_captured_assigns(fb->Block());
+                    }
+                    def_scopes.pop_back();
+                    break;
+                }
+                case SyntaxTreeType::Assign: {
+                    const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+                    if (const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist())) {
+                        for (const auto &vn: vl->Vars()) {
+                            const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vn);
+                            if (v && v->GetVarKind() == VarKind::kSimple && ar_->captured_var_nodes.contains(v.get())) {
+                                for (auto it = def_scopes.rbegin(); it != def_scopes.rend(); ++it) {
+                                    if (const auto dit = it->find(v->GetName()); dit != it->end()) {
+                                        mutated_captured_defs.insert({dit->second, v->GetName()});
+                                        break;
+                                    }
+                                }
+                            }
+                            scan_captured_assigns(vn);
+                        }
+                    }
+                    scan_captured_assigns(assign->Explist());
+                    break;
+                }
+                case SyntaxTreeType::If: {
+                    const auto if_s = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+                    scan_captured_assigns(if_s->Exp());
+                    scan_captured_assigns(if_s->Block());
+                    if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_s->ElseIfs())) {
+                        for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
+                            scan_captured_assigns(elseifs->ElseifExp(i));
+                            scan_captured_assigns(elseifs->ElseifBlock(i));
+                        }
+                    }
+                    scan_captured_assigns(if_s->ElseBlock());
+                    break;
+                }
+                case SyntaxTreeType::While: {
+                    const auto w = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+                    scan_captured_assigns(w->Exp());
+                    scan_captured_assigns(w->Block());
+                    break;
+                }
+                case SyntaxTreeType::Return:
+                    scan_captured_assigns(std::dynamic_pointer_cast<SyntaxTreeReturn>(node)->Explist());
+                    break;
+                case SyntaxTreeType::FunctionCall: {
+                    const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+                    scan_captured_assigns(fc->prefixexp());
+                    scan_captured_assigns(fc->Args());
+                    break;
+                }
+                case SyntaxTreeType::Args: {
+                    const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
+                    scan_captured_assigns(args->Explist());
+                    scan_captured_assigns(args->Tableconstructor());
+                    scan_captured_assigns(args->String());
+                    break;
+                }
+                case SyntaxTreeType::ExpList: {
+                    const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
+                    for (const auto &e: el->Exps()) scan_captured_assigns(e);
+                    break;
+                }
+                case SyntaxTreeType::Exp: {
+                    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+                    scan_captured_assigns(e->Left());
+                    scan_captured_assigns(e->Right());
+                    break;
+                }
+                case SyntaxTreeType::PrefixExp:
+                    scan_captured_assigns(std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node)->GetValue());
+                    break;
+                case SyntaxTreeType::Var: {
+                    const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+                    scan_captured_assigns(v->GetPrefixexp());
+                    scan_captured_assigns(v->GetExp());
+                    break;
+                }
+                case SyntaxTreeType::TableConstructor:
+                    scan_captured_assigns(std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node)->Fieldlist());
+                    break;
+                case SyntaxTreeType::FieldList: {
+                    const auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+                    for (const auto &f: fl->Fields()) scan_captured_assigns(f);
+                    break;
+                }
+                case SyntaxTreeType::Field: {
+                    const auto f = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+                    scan_captured_assigns(f->Key());
+                    scan_captured_assigns(f->Value());
+                    break;
+                }
+                default:
+                    break;
+            }
+        };
+        scan_captured_assigns(pr.chunk);
+    }
+
+    FlowState st;
     std::vector<SyntaxTreeInterfacePtr> funcs;
     std::vector<SyntaxTreeInterfacePtr> top_stmts;
     SyntaxTreeInterfacePtr init_func_stmt;
     const auto is_init = [](const SyntaxTreeInterfacePtr &stmt) -> bool {
-        // 与 CGen::CompileFuncName 等价：取函数名链表的唯一定段。
         if (stmt->Type() == SyntaxTreeType::Function) {
             const auto f = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
             const auto fn = std::dynamic_pointer_cast<SyntaxTreeFuncname>(f->Funcname());
@@ -2493,29 +3355,30 @@ void TypeInferencer::ComputeVarSpecAnnotations(const ParseResult &pr, InferResul
         }
     }
 
-    // 顶层语句（top_level=true → 赋值写 global）。
+    FlowContext top_ctx;
+    top_ctx.is_top_level = true;
+    top_ctx.emit = true;
+    top_ctx.mutated_captured_defs = &mutated_captured_defs;
     for (const auto &stmt: top_stmts) {
-        FlowStmt(stmt, st, ir, true);
+        FlowStmt(stmt, st, ir, top_ctx);
     }
 
-    // 先处理 __fakelua_init，使其对全局变量的 spec 赋值流入后续函数。
     if (init_func_stmt) {
         FlowState init_state;
         init_state.global = st.global;
-        if (auto bb = FuncBodyBlock(init_func_stmt)) FlowBlock(bb, init_state, ir, true);
-        // init 内的赋值写入 global（is_top_level=true），但本身也是函数作用域：
-        // 将 init 执行结束后的 global 作为后续函数的 global 基线。
+        if (auto bb = FuncBodyBlock(init_func_stmt)) FlowBlock(bb, init_state, ir, top_ctx, false);
         st.global = std::move(init_state.global);
     }
 
-    // 各函数体：每函数清空 local（global 保持顶层/init 写入）。
+    const std::unordered_set<std::string> empty_enclosing;
     for (const auto &func: funcs) {
-        auto body_block = FuncBodyBlock(func);
-        if (!body_block) continue;
-        // 函数入口清空 local 作用域（对应 CGen 每函数清空 table_spec_types_）。
-        FlowState func_state;
-        func_state.global = st.global;
-        FlowBlock(body_block, func_state, ir, false);
+        SyntaxTreeInterfacePtr funcbody;
+        if (func->Type() == SyntaxTreeType::Function) {
+            funcbody = std::dynamic_pointer_cast<SyntaxTreeFunction>(func)->Funcbody();
+        } else if (func->Type() == SyntaxTreeType::LocalFunction) {
+            funcbody = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(func)->Funcbody();
+        }
+        FlowFuncBody(funcbody, st.global, empty_enclosing, mutated_captured_defs, ir);
     }
 }
 

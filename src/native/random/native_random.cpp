@@ -4,6 +4,7 @@
 #include "native/table/native_table.h"
 #include "var/var.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <limits>
@@ -108,10 +109,13 @@ static CVar RngFloat(NativeObject *self, State *s, CVar *args, int n) {
 
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
     CVar a1 = inter::GetNativeArg(s, args, n, 1);
-    double lo = inter::CVarToNumber(a0, 0.0);
-    double hi = inter::CVarToNumber(a1, 0.0);
+    CheckNumberArg(a0, 1, "rng:float");
+    CheckNumberArg(a1, 2, "rng:float");
+    double lo = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
+    double hi = inter::CVarToNumber(a1, std::numeric_limits<double>::quiet_NaN());
 
-    if (lo >= hi) ThrowBadArgument(2, "rng:float", "max must be > min");
+    if (!std::isfinite(lo)) ThrowBadArgument(1, "rng:float", "finite number expected");
+    if (!std::isfinite(hi) || lo >= hi || !std::isfinite(hi - lo)) ThrowBadArgument(2, "rng:float", "max must be > min and finite");
 
     double val = lo + RngNextUnit(self) * (hi - lo);
     return inter::NativeToFakeluaDouble(s, val);
@@ -155,7 +159,9 @@ static CVar RngChance(NativeObject *self, State *s, CVar *args, int n) {
     if (n < 1) ThrowBadArgument(1, "rng:chance", "probability expected");
 
     CVar a0 = inter::GetNativeArg(s, args, n, 0);
-    double prob = inter::CVarToNumber(a0, 0.0);
+    CheckNumberArg(a0, 1, "rng:chance");
+    double prob = inter::CVarToNumber(a0, std::numeric_limits<double>::quiet_NaN());
+    if (std::isnan(prob)) ThrowBadArgument(1, "rng:chance", "number expected");
 
     if (prob <= 0.0) return inter::NativeToFakeluaBool(s, false);
     if (prob >= 1.0) return inter::NativeToFakeluaBool(s, true);
@@ -182,13 +188,19 @@ static CVar RngWeighted(NativeObject *self, State *s, CVar *args, int n) {
     double total = 0.0;
     for (int64_t i = 1; i <= len; i++) {
         CVar val = table::TableHelper::GetTableInt(s, tbl, i);
-        double w = inter::CVarToNumber(val, 0.0);
+        CheckNumberArg(val, 1, "rng:weighted");
+        double w = inter::CVarToNumber(val, std::numeric_limits<double>::quiet_NaN());
+        if (!std::isfinite(w)) {
+            ThrowBadArgument(1, "rng:weighted", "weights must be finite numbers");
+        }
         if (w < 0.0) w = 0.0;
         weights.push_back(w);
         total += w;
     }
 
-    if (total <= 0.0) return inter::NativeToFakeluaNil(s);
+    if (!std::isfinite(total) || total <= 0.0) {
+        ThrowBadArgument(1, "rng:weighted", "total weight must be positive and finite");
+    }
 
     // 随机选取
     double roll = RngNextUnit(self) * total;
@@ -251,6 +263,14 @@ static CVar RngSetStateMethod(NativeObject *self, State *s, CVar *args, int n) {
     return inter::NativeToFakeluaNil(s);
 }
 
+// rng:close() — 销毁当前 RNG 实例及其所属对象组
+static CVar RngClose(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) {
+    if (self) {
+        s->GetNativeObjectManager().DestroyGroup(self->GetGroupId());
+    }
+    return inter::NativeToFakeluaNil(s);
+}
+
 // 注册
 
 void RegisterRandomLibraryApi(State *s) {
@@ -277,6 +297,7 @@ void RegisterRandomLibraryApi(State *s) {
         obj->RegisterMethod("weighted", RngWeighted);
         obj->RegisterMethod("get_state", RngGetStateMethod);
         obj->RegisterMethod("set_state", RngSetStateMethod);
+        obj->RegisterMethod("close", RngClose);
 
         return obj->Wrap(state);
     });

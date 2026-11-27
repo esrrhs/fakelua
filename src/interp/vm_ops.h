@@ -34,6 +34,7 @@ inline constexpr int kTable = static_cast<int>(::fakelua::VarType::Table);
 inline constexpr int kMulti = static_cast<int>(::fakelua::VarType::Multi);
 inline constexpr int kClosure = static_cast<int>(::fakelua::VarType::Closure);
 inline constexpr int kConstFlag = 0x1;
+inline constexpr int kConstBoxFlag = 0x2;
 
 // HasBoxes=false：寄存器就是 stk[r]，无 boxes[] 检查、无 16 字节中转拷贝。
 // HasBoxes=true：被捕获的局部在 heap box 上，读写走 box，并镜像回 stk。
@@ -53,8 +54,10 @@ FL_VM_INLINE void VmWrite(CVar *stk, CVar **box, int r, const CVar &v) {
     const size_t i = static_cast<size_t>(r);
     stk[i] = v;
     if constexpr (HasBoxes) {
-        if (box[i]) {
-            *box[i] = v;
+        if (CVar *b = box[i]) {
+            const int keep = b->flag_ & kConstBoxFlag;
+            *b = v;
+            b->flag_ |= keep;
         }
     }
 }
@@ -69,7 +72,7 @@ FL_VM_INLINE void VmWriteInt(CVar *stk, CVar **box, int r, int64_t n) {
     if constexpr (HasBoxes) {
         if (CVar *b = box[i]) {
             b->type_ = kInt;
-            b->flag_ = 0;
+            b->flag_ &= kConstBoxFlag;
             b->data_.i = n;
         }
     }

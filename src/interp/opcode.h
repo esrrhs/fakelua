@@ -63,11 +63,16 @@ inline constexpr int kMaxFunctionRegisters = kMaxFunctionRegisterIndex + 1;
     X(COMBINE)   /* R(A) = CombineMulti(prefix R(A)..R(A+B-1), last R(A+B)) */                                                                                                                         \
     X(THROW)     /* throw string constant K(sbx) */                                                                                                                                                    \
     X(FORPREP)   /* int: R(A+1)=count; float: keep limit; skip if empty (pc+=sbx); R(A+3)=R(A) */                                                                                                      \
-    X(FORLOOP)   /* int: if --count>=0: R(A)+=step, R(A+3)=R(A), pc+=sbx; float: add+compare */
+    X(FORLOOP)   /* int: if --count>=0: R(A)+=step, R(A+3)=R(A), pc+=sbx; float: add+compare */                                                                                                        \
+    X(STRMETHOD) /* R(A) = method Kstr(Bx)/Kstr(Bx+1) on B args at R(A)..; C: 0=multi, 1=unbox, 2=tail */
 
 // TAIL/TAILNAME 的 C 操作数：精确自尾调用（非变参、编译期已知实参个数、无末参展开）。
 // 文件级函数不可再赋，因此解释器可跳过查表，原地复用当前 proto/cl。
 constexpr uint8_t kTailSelfExact = 2;
+// CALLNAME/TAILNAME 的 C 操作数位标记：目标是本编译单元私有的文件级 local function。
+constexpr uint8_t kCallLocalUnit = 4;
+// STRMETHOD 的 C 操作数：尾调用形式。
+constexpr uint8_t kStrMethodTail = 2;
 
 enum class Op : uint8_t {
 #define FAKELUA_OP_ENUM(name) name,

@@ -1,6 +1,9 @@
 #pragma once
 
 #include "compile/compile_common.h"
+#include <map>
+#include <optional>
+#include <tuple>
 #include <unordered_set>
 
 namespace fakelua {
@@ -17,11 +20,17 @@ public:
 private:
     struct TraversalContext;
 
+    using DeclOverrideKey = std::tuple<const SyntaxTreeInterface *, std::string, size_t>;
+    using DeclOverrideMap = std::map<DeclOverrideKey, InferredType>;
+
     class TypeEnvironment {
     public:
         struct EnvEntry {
             InferredType type;
             SyntaxTreeInterface *init_node = nullptr;// 变量声明时的 initializer node (如 local x = 1 中的 '1' 表达式)
+            const SyntaxTreeInterface *decl_node = nullptr;
+            size_t decl_slot = 0;
+            bool is_param = false;
         };
 
         TypeEnvironment();
@@ -30,11 +39,14 @@ private:
 
         void ExitScope();
 
-        void Define(const std::string &name, InferredType type, SyntaxTreeInterface *init_node = nullptr);
+        void Define(const std::string &name, InferredType type, SyntaxTreeInterface *init_node = nullptr, const SyntaxTreeInterface *decl_node = nullptr, size_t decl_slot = 0, bool is_param = false);
 
-        InferredType Update(const std::string &name, InferredType type, EvalTypeSnapshot &current_map);
+        InferredType Update(const std::string &name, InferredType type, EvalTypeSnapshot &current_map, bool skip_post_processing = false, DeclOverrideMap *decl_overrides = nullptr,
+                            bool *any_widened = nullptr, bool loop_carried = false);
 
         [[nodiscard]] bool Has(const std::string &name) const;
+
+        [[nodiscard]] bool IsParamBinding(const std::string &name) const;
 
         [[nodiscard]] InferredType Lookup(const std::string &name) const;
 
@@ -44,7 +56,6 @@ private:
             return scopes_.size() <= 2;
         }
 
-    private:
         static InferredType MergeType(InferredType old_type, InferredType new_type);
 
     private:
@@ -95,13 +106,17 @@ private:
         const TrialInferenceContext *ctx = nullptr;
         std::unordered_map<const SyntaxTreeInterface *, const SyntaxTreeInterface *> &var_define_nodes;
         std::set<std::pair<const SyntaxTreeInterface *, std::string>> &shadowed_decls;
+        DeclOverrideMap decl_type_overrides{};
+        bool any_decl_widened = false;
+        // 仅循环（含 repeat）体内的拓宽才触发不动点重跑。直线上后一次赋值不能把前面已经算完的表达式改成最终类型。
+        int loop_depth = 0;
 
         [[nodiscard]] bool IsTrialInference() const {
             return ctx != nullptr;
         }
 
         [[nodiscard]] bool IsPinnedVar(const std::string &name) const {
-            return ctx && ctx->pinned_vars && ctx->pinned_vars->contains(name);
+            return ctx && ctx->pinned_vars && ctx->pinned_vars->contains(name) && env.IsParamBinding(name);
         }
 
         [[nodiscard]] bool SkipPostProcessing() const {
@@ -229,6 +244,7 @@ private:
     // 将 src 的字段并集到 dst（按 key 描述符去重，已存在则保留 dst 中的条目）。
     static void MergeFieldsInto(std::vector<TableFieldInfo> &dst, const std::vector<TableFieldInfo> &src);
 
+public:
     // 流敏感 table 特化前向分析
     // 为每个 Var 引用节点（kDot/kSquare 的 prefixexp 所指简单变量）标注
     // 「在该程序点，该变量的 spec 类型名是什么（空串 = dynamic）」。
@@ -242,8 +258,23 @@ private:
     struct FlowState {
         std::unordered_map<std::string, std::string> local;
         std::unordered_map<std::string, std::string> global;
+
+        bool operator==(const FlowState &other) const = default;
     };
 
+    struct FlowContext {
+        bool is_top_level = false;
+        bool emit = true;
+        bool has_goto_or_label = false;
+        const std::set<std::pair<const SyntaxTreeInterface *, std::string>> *mutated_captured_defs = nullptr;
+        const std::unordered_set<std::string> *goto_reassigned_names = nullptr;
+        std::vector<FlowState> *loop_breaks = nullptr;
+        std::vector<FlowState> *loop_continues = nullptr;
+        size_t loop_scope_depth = 0;
+        std::vector<std::unordered_map<std::string, std::optional<std::string>>> scope_saved_locals;
+    };
+
+private:
     // 在流状态中查找某变量名的 spec 类型名（local 优先，fallback 到 global；都无 = 空串）。
     static std::string LookupSpec(const FlowState &st, const std::string &name);
 
@@ -254,13 +285,17 @@ private:
     // 对一棵表达式子树里所有被读取的 Var(kDot/kSquare) 引用节点做标注：
     // 把 receiver 指代变量在当前流状态下的 spec 类型名写入 ir.var_spec_annotations[node]。
     // FAKELUA_SET_TABLE(args[0]) 走独立分支，receiver 为 args[0] 那段 Exp。
-    void AnnotateExprs(const SyntaxTreeInterfacePtr &node, FlowState &st, InferResult &ir);
+    void AnnotateExprs(const SyntaxTreeInterfacePtr &node, FlowState &st, InferResult &ir, const FlowContext &fctx);
 
-    // 顺序处理一条语句：先标注该语句中所有 Var 引用再按语义更新流状态。
-    void FlowStmt(const SyntaxTreeInterfacePtr &stmt, FlowState &st, InferResult &ir, bool is_top_level);
+    // 顺序处理一条语句：先标注该语句中所有 Var 引用再按语义更新流状态。返回是否无条件跳转离开当前块。
+    bool FlowStmt(const SyntaxTreeInterfacePtr &stmt, FlowState &st, InferResult &ir, FlowContext &fctx);
 
-    // 顺序处理一个语句块。
-    void FlowBlock(const SyntaxTreeInterfacePtr &block, FlowState &st, InferResult &ir, bool is_top_level);
+    // 顺序处理一个语句块（可选开启独立词法作用域并在退出时还原遮蔽局部）。
+    bool FlowBlock(const SyntaxTreeInterfacePtr &block, FlowState &st, InferResult &ir, FlowContext &fctx, bool new_scope = false);
+
+    // 对单个函数体（顶层或嵌套函数/匿名闭包）运行前向流分析。
+    void FlowFuncBody(const SyntaxTreeInterfacePtr &funcbody, const std::unordered_map<std::string, std::string> &global_specs, const std::unordered_set<std::string> &enclosing_locals,
+                      const std::set<std::pair<const SyntaxTreeInterface *, std::string>> &mutated_captured_defs, InferResult &ir);
 
     // 入口：对整个模块（顶层 chunk + 所有函数体）跑前向流分析，填充 ir.var_spec_annotations。
     void ComputeVarSpecAnnotations(const ParseResult &pr, InferResult &ir);

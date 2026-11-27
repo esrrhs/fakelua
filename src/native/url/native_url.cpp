@@ -21,8 +21,8 @@ static CVar TableGetStr(State *s, CVar tbl, const char *key) {
     return table::TableHelper::GetTableStrId(s, tbl, key);
 }
 
-static void SetStr(State *s, CVar tbl, const char *key, std::string_view val) {
-    table::TableHelper::SetTableStrId(s, tbl, key, inter::NativeToFakeluaString(s, std::string(val)));
+static void SetStr(State *s, CVar tbl, std::string_view key, std::string_view val) {
+    table::TableHelper::SetTableTempStr(s, tbl, key, inter::NativeToFakeluaString(s, std::string(val)));
 }
 
 static std::string EncodeView(std::string_view s) {
@@ -44,10 +44,10 @@ static CVar ParamsToTable(State *s, urls::params_view params) {
     for (auto p: params) {
         std::string key(p.key);
         if (!p.has_value) {
-            SetStr(s, tbl, key.c_str(), "");
+            SetStr(s, tbl, key, "");
             continue;
         }
-        SetStr(s, tbl, key.c_str(), p.value);
+        SetStr(s, tbl, key, p.value);
     }
     return tbl;
 }
@@ -70,13 +70,13 @@ static CVar UrlParse(State *s, CVar *args, int n) {
     if (u.has_password()) SetStr(s, tbl, "password", u.password());
     if (u.has_authority()) SetStr(s, tbl, "host", u.host());
     if (u.has_port()) {
-        table::TableHelper::SetTableStrId(s, tbl, "port", inter::NativeToFakeluaInt(s, static_cast<int64_t>(u.port_number())));
+        table::TableHelper::SetTableTempStr(s, tbl, "port", inter::NativeToFakeluaInt(s, static_cast<int64_t>(u.port_number())));
         SetStr(s, tbl, "port_str", u.port());
     }
     SetStr(s, tbl, "path", u.path());
     if (u.has_query()) {
         SetStr(s, tbl, "query", u.query());
-        table::TableHelper::SetTableStrId(s, tbl, "params", ParamsToTable(s, u.params()));
+        table::TableHelper::SetTableTempStr(s, tbl, "params", ParamsToTable(s, u.params()));
     }
     if (u.has_fragment()) SetStr(s, tbl, "fragment", u.fragment());
     SetStr(s, tbl, "href", u.buffer());

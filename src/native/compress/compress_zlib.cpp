@@ -71,10 +71,15 @@ std::vector<uint8_t> GzipCompress(const uint8_t *data, size_t len, int level) {
     // windowBits = 15 + 16 = 31 → gzip format
     int ret = deflateInit2(&zs, level, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);
     if (ret != Z_OK) return {};
+    struct DeflateGuard {
+        z_stream *s;
+        ~DeflateGuard() noexcept {
+            if (s) deflateEnd(s);
+        }
+    } guard{&zs};
 
     uLongf dst_capacity = deflateBound(&zs, static_cast<uLong>(len));
     if (dst_capacity > std::numeric_limits<uInt>::max()) {
-        deflateEnd(&zs);
         ThrowFakeluaException("gzip_compress: payload too large");
     }
     std::vector<uint8_t> out(dst_capacity);
@@ -85,8 +90,6 @@ std::vector<uint8_t> GzipCompress(const uint8_t *data, size_t len, int level) {
     zs.avail_out = static_cast<uInt>(dst_capacity);
 
     ret = deflate(&zs, Z_FINISH);
-    deflateEnd(&zs);
-
     if (ret != Z_STREAM_END) return {};
 
     out.resize(zs.total_out);
@@ -111,24 +114,25 @@ std::vector<uint8_t> GzipDecompress(const uint8_t *data, size_t len) {
     if (ret != Z_OK) {
         ThrowFakeluaException("gzip_decompress: inflateInit2 failed");
     }
-
-    auto fail = [&](const char *msg) {
-        inflateEnd(&zs);
-        ThrowFakeluaException(msg);
-    };
+    struct InflateGuard {
+        z_stream *s;
+        ~InflateGuard() noexcept {
+            if (s) inflateEnd(s);
+        }
+    } guard{&zs};
 
     std::vector<uint8_t> out;
 
     auto inflate_one_member = [&]() {
         for (;;) {
             if (out.size() >= kMaxDecompressBytes) {
-                fail("gzip_decompress: payload too large");
+                ThrowFakeluaException("gzip_decompress: payload too large");
             }
             size_t old_size = out.size();
             size_t next = old_size < 4096 ? 4096 : old_size * 2;
             if (next > kMaxDecompressBytes || next < old_size) next = kMaxDecompressBytes;
             if (next <= old_size) {
-                fail("gzip_decompress: payload too large");
+                ThrowFakeluaException("gzip_decompress: payload too large");
             }
             out.resize(next);
             zs.next_out = out.data() + old_size;
@@ -137,7 +141,7 @@ std::vector<uint8_t> GzipDecompress(const uint8_t *data, size_t len) {
             out.resize(out.size() - zs.avail_out);
             if (ret == Z_STREAM_END) return;
             if (ret != Z_OK) {
-                fail("gzip_decompress: failed");
+                ThrowFakeluaException("gzip_decompress: failed");
             }
         }
     };
@@ -146,12 +150,11 @@ std::vector<uint8_t> GzipDecompress(const uint8_t *data, size_t len) {
     while (zs.avail_in > 0) {
         ret = inflateReset2(&zs, 15 + 16);
         if (ret != Z_OK) {
-            fail("gzip_decompress: failed");
+            ThrowFakeluaException("gzip_decompress: failed");
         }
         inflate_one_member();
     }
 
-    inflateEnd(&zs);
     return out;
 }
 

@@ -29,19 +29,10 @@ static std::string CVarToString(CVar v) {
     return inter::FakeluaToNativeString(nullptr, v);
 }
 
-static void CallNamed(State *s, const std::string &name, CVar *args, int n) {
+static void CallNamed(State *s, const std::string &name, CVar *args, int n, JITType preferred_jit) {
     if (!s || name.empty()) return;
-    auto func = s->GetVM().GetFunction(name);
-    if (func.Empty()) return;
-    void *addr = func.GetAddr(JIT_TCC);
-    JITType jit_type = JIT_TCC;
-    if (!addr) {
-        addr = func.GetAddr(JIT_GCC);
-        jit_type = JIT_GCC;
-    }
-    if (!addr) return;
     native::IoContext::DispatchScope scope(s->GetIoContext());
-    inter::DispatchCall(s, addr, args, n, jit_type);
+    DispatchNamedLuaCallback(s, name, args, n, preferred_jit);
 }
 
 static constexpr int kMaxRedisReplyDepth = 64;
@@ -122,6 +113,7 @@ struct TickDepthGuard {
 
 struct CmdOp {
     std::string cb;
+    JITType cb_jit = JIT_TCC;
     std::string err;
     redisReply *reply = nullptr;
     bool done = false;
@@ -146,18 +138,16 @@ public:
         password_ = password;
         db_ = db;
         connecting_ = true;
-        const int ms = timeout_ms > 0 ? timeout_ms : 10000;
-        deadline_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+        timeout_ms_ = timeout_ms > 0 ? timeout_ms : 10000;
+        deadline_armed_ = false;
 
         redisOptions opt;
         std::memset(&opt, 0, sizeof(opt));
         REDIS_OPTIONS_SET_TCP(&opt, host_.c_str(), port_);
-        timeval tv{};
-        if (timeout_ms > 0) {
-            tv.tv_sec = timeout_ms / 1000;
-            tv.tv_usec = (timeout_ms % 1000) * 1000;
-            opt.connect_timeout = &tv;
-        }
+        // hiredis would arm its connect timer at SetConnectCallback, before the
+        // first runtime.tick(). A slow C++ error path can then expire that timer
+        // (or our wall-clock deadline) before Poll() observes a socket that is
+        // already writable. Count timeout only across ticks that actually poll.
         ac_ = redisAsyncConnectWithOptions(&opt);
         if (!ac_ || ac_->err) {
             std::string err = ac_ && ac_->errstr[0] ? ac_->errstr : "connect failed";
@@ -181,7 +171,7 @@ public:
         redisAsyncSetDisconnectCallback(ac_, &RedisConnection::OnDisconnect);
     }
 
-    void Command(std::vector<std::string> parts, std::string cb) {
+    void Command(std::vector<std::string> parts, std::string cb, JITType cb_jit) {
         if (parts.empty()) ThrowFakeluaException("redis command: empty argv");
         // Pub/Sub 订阅族命令不能走一次性 RPC 通道：订阅成功后 hiredis 会对每条推送
         // 都以同一个 privdata 回调 OnCommand，而该 CmdOp 在首条 ack 派发后即被弹出
@@ -198,6 +188,7 @@ public:
         }
         auto op = std::make_unique<CmdOp>();
         op->cb = std::move(cb);
+        op->cb_jit = cb_jit;
         auto *raw = op.get();
         cmds_.push_back(std::move(op));
         IssueArgv(std::move(parts), &RedisConnection::OnCommand, raw);
@@ -206,6 +197,10 @@ public:
     void Tick() {
         if (tick_depth_ > 0) return;
         TickDepthGuard guard(tick_depth_);
+        if (connecting_ && !connect_notified_ && !deadline_armed_) {
+            deadline_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms_);
+            deadline_armed_ = true;
+        }
         io_.Poll();
         if (connecting_ && !connect_notified_ && std::chrono::steady_clock::now() >= deadline_) {
             connecting_ = false;
@@ -218,28 +213,50 @@ public:
             DispatchConnect();
             if (close_pending_) return;
         }
-        for (auto &op: cmds_) {
-            if (op && op->done && !op->cb.empty()) {
-                DispatchCmd(*op);
-                op->cb.clear();
+        auto reap_completed = [this]() {
+            while (!cmds_.empty() && (!cmds_.front() || (cmds_.front()->done && cmds_.front()->cb.empty()))) {
+                if (cmds_.front() && cmds_.front()->reply) {
+                    freeReplyObject(cmds_.front()->reply);
+                    cmds_.front()->reply = nullptr;
+                }
+                cmds_.pop_front();
             }
-        }
-        while (!cmds_.empty() && cmds_.front() && cmds_.front()->done && cmds_.front()->cb.empty()) {
-            if (cmds_.front()->reply) {
-                freeReplyObject(cmds_.front()->reply);
-                cmds_.front()->reply = nullptr;
+        };
+        struct ReapGuard {
+            decltype(reap_completed) &fn;
+            ~ReapGuard() {
+                fn();
             }
-            cmds_.pop_front();
+        } reap_guard{reap_completed};
+
+        for (size_t i = 0; i < cmds_.size(); ++i) {
+            if (close_pending_) break;
+            CmdOp *op = cmds_[i].get();
+            if (!op || !op->done || op->cb.empty()) continue;
+            std::string cb = std::move(op->cb);
+            op->cb.clear();
+            const JITType cb_jit = op->cb_jit;
+            struct ReplyFreeGuard {
+                CmdOp *op;
+                ~ReplyFreeGuard() {
+                    if (op && op->reply) {
+                        freeReplyObject(op->reply);
+                        op->reply = nullptr;
+                    }
+                }
+            } reply_guard{op};
+            DispatchCmd(*op, cb, cb_jit);
         }
     }
 
     void Close() {
         closed_ = true;
         if (!connect_notified_) NotifyConnect("closed");
-        if (tick_depth_ > 0 || io_.InDispatch()) {
+        if (tick_depth_ > 0) {
             close_pending_ = true;
             return;
         }
+        close_pending_ = false;
         Teardown();
     }
 
@@ -251,13 +268,25 @@ public:
         return close_pending_;
     }
 
+    bool DeletePending() const {
+        return delete_on_unwind_;
+    }
+
     void RequestClose() {
         closed_ = true;
         close_pending_ = true;
     }
 
-    void SetConnectCallback(std::string name) {
+    void RequestDelete() {
+        closed_ = true;
+        close_pending_ = true;
+        native_obj_ = nullptr;
+        delete_on_unwind_ = true;
+    }
+
+    void SetConnectCallback(std::string name, JITType jit) {
         connect_cb_ = std::move(name);
+        connect_cb_jit_ = jit;
     }
 
     void SetNativeObject(NativeObject *obj) {
@@ -457,14 +486,14 @@ private:
             args[1] = inter::NativeToFakeluaNil(lua_state_);
             args[2] = inter::NativeToFakeluaInt(lua_state_, 1);
         }
-        CallNamed(lua_state_, connect_cb_, args, 3);
+        CallNamed(lua_state_, connect_cb_, args, 3, connect_cb_jit_);
     }
 
-    void DispatchCmd(CmdOp &op) {
+    void DispatchCmd(CmdOp &op, const std::string &cb, JITType cb_jit) {
         TickDepthGuard guard(tick_depth_);
         native::IoContext::DispatchScope dispatch_scope(io_);
         if (close_pending_) return;
-        if (!lua_state_ || op.cb.empty()) return;
+        if (!lua_state_ || cb.empty()) return;
         CVar args[3];
         args[0] = native_obj_ ? inter::NativeToFakeluaNativeObject(lua_state_, native_obj_) : inter::NativeToFakeluaNil(lua_state_);
         if (!op.err.empty()) {
@@ -474,7 +503,7 @@ private:
             args[1] = inter::NativeToFakeluaNil(lua_state_);
             args[2] = ReplyToLua(lua_state_, op.reply);
         }
-        CallNamed(lua_state_, op.cb, args, 3);
+        CallNamed(lua_state_, cb, args, 3, cb_jit);
     }
 
     native::IoContext &io_;
@@ -486,8 +515,11 @@ private:
     int db_ = 0;
     int hs_step_ = 0;
     std::chrono::steady_clock::time_point deadline_{};
+    int timeout_ms_ = 10000;
+    bool deadline_armed_ = false;
     std::deque<std::unique_ptr<CmdOp>> cmds_;
     std::string connect_cb_;
+    JITType connect_cb_jit_ = JIT_TCC;
     std::string connect_err_;
     State *lua_state_ = nullptr;
     NativeObject *native_obj_ = nullptr;
@@ -497,6 +529,7 @@ private:
     bool ready_ = false;
     bool closed_ = false;
     bool close_pending_ = false;
+    bool delete_on_unwind_ = false;
     int tick_depth_ = 0;
     native::LifeToken life_;
 };
@@ -526,13 +559,6 @@ static void UnregisterWrapper(NativeObject *nat) {
     ws->conns.erase(std::remove(ws->conns.begin(), ws->conns.end(), nat), ws->conns.end());
 }
 
-static void MaybeReleaseOwnedConn(NativeObject *self) {
-    if (!self) return;
-    auto *conn = Unwrap(self);
-    if (!conn || conn->TickDepth() > 0 || !conn->ClosePending()) return;
-    conn->Close();
-}
-
 void TickAll(State *s) {
     if (!s) return;
     auto *ws = s->TryGetModuleState<RedisWrappers>();
@@ -542,8 +568,28 @@ void TickAll(State *s) {
         auto *c = Unwrap(nat);
         if (!c) continue;
         if (c->TickDepth() > 0) continue;
+        struct AfterTickGuard {
+            NativeObject *nat;
+            RedisConnection *c;
+            ~AfterTickGuard() {
+                if (c->TickDepth() == 0) {
+                    if (c->DeletePending()) {
+                        c->Close();
+                        delete c;
+                        return;
+                    }
+                    if (c->ClosePending()) {
+                        c->Close();
+                        if (nat && nat->Alive()) {
+                            UnregisterWrapper(nat);
+                            nat->SetInt("__redis_conn__", 0);
+                        }
+                        delete c;
+                    }
+                }
+            }
+        } after{nat, c};
         c->Tick();
-        MaybeReleaseOwnedConn(nat);
     }
 }
 
@@ -582,7 +628,7 @@ static CVar ConnCommand(NativeObject *self, State *s, CVar *args, int n) {
     } else {
         ThrowBadArgument(1, "command", "argv table expected");
     }
-    conn->Command(std::move(parts), std::move(cb));
+    conn->Command(std::move(parts), std::move(cb), s->CurrentJit());
     return inter::NativeToFakeluaNil(s);
 }
 
@@ -593,7 +639,10 @@ static CVar ConnClose(NativeObject *self, State *s, CVar * /*args*/, int /*n*/) 
             conn->RequestClose();
             return inter::NativeToFakeluaNil(s);
         }
+        UnregisterWrapper(self);
+        self->SetInt("__redis_conn__", 0);
         conn->Close();
+        delete conn;
     }
     return inter::NativeToFakeluaNil(s);
 }
@@ -634,7 +683,7 @@ static CVar RedisConnect(State *s, CVar *args, int n) {
     int64_t gid = s->GetNativeObjectManager().CreateGroup();
     auto *nat = s->GetNativeObjectManager().Create(gid, "redis_connection");
     auto *conn = new RedisConnection(s);
-    conn->SetConnectCallback(std::move(cb));
+    conn->SetConnectCallback(std::move(cb), s->CurrentJit());
     conn->SetNativeObject(nat);
     nat->SetInt("__redis_conn__", reinterpret_cast<int64_t>(conn));
     nat->RegisterMethod("command", ConnCommand);
@@ -643,10 +692,11 @@ static CVar RedisConnect(State *s, CVar *args, int n) {
         UnregisterWrapper(self);
         auto *c = Unwrap(self);
         if (c) {
+            self->SetInt("__redis_conn__", 0);
+            c->SetNativeObject(nullptr);
             if (c->TickDepth() > 0) {
-                c->RequestClose();
+                c->RequestDelete();
             } else {
-                self->SetInt("__redis_conn__", 0);
                 c->Close();
                 delete c;
             }

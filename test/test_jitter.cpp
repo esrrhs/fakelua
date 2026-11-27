@@ -4137,7 +4137,6 @@ TEST(jitter, gcc_cache_rejects_open_toolchains_and_disabled_configuration) {
         EXPECT_TRUE(f.dir.Entries().empty());
     }
 }
-
 TEST(jitter, gcc_cache_manifest_validation_and_republication) {
     CacheArtifactFixture f;
     const std::vector<std::string> manifests{
@@ -4324,8 +4323,6 @@ TEST(jitter, nested_multivalue_returns_preserve_arity_when_math_specialization_i
         EXPECT_EQ(result, 1) << JitTypeName(backend);
     }
 }
-
-
 #if !defined(_WIN32)
 TEST(jitter, gcc_cache_makefile_dependencies_with_escaped_names_and_line_endings) {
     CacheArtifactFixture fixture;
@@ -4506,5 +4503,119 @@ TEST(jitter, captured_int_var_or_param_reassigned_to_float_never_reads_int_bits)
         EXPECT_DOUBLE_EQ(r2, 8.5) << JitTypeName(backend);
     }
 }
+
+TEST(jitter, top_level_iife_mutable_upvalue_survives_reset_across_backends) {
+    for (auto backend: AllJitTypes()) {
+        FakeluaStateGuard guard;
+        State *s = guard.GetState();
+        CompileConfig cfg{};
+        cfg.disable_jit[JIT_TCC] = (backend != JIT_TCC);
+        cfg.disable_jit[JIT_GCC] = (backend != JIT_GCC);
+        cfg.disable_jit[JIT_INTERP] = (backend != JIT_INTERP);
+
+        CompileString(s, R"(
+            local store, load_val = (function()
+                local box = { tag = "init", n = 0 }
+                return function(v) box = v end, function() return box end
+            end)()
+
+            function save_runtime_table(prefix, num)
+                local nested = { label = prefix .. "_inner", val = num + 10 }
+                local fn = function(delta)
+                    return nested.val + delta
+                end
+                store({ msg = prefix .. "_outer", sub = nested, cb = fn })
+                return 1
+            end
+
+            function read_saved_table()
+                local t = load_val()
+                return t.msg .. ":" .. t.sub.label .. ":" .. tostring(t.cb(5))
+            end
+        )", cfg);
+
+        int64_t ok = 0;
+        Call(s, backend, "save_runtime_table", ok, std::string("frame1"), int64_t{32});
+        EXPECT_EQ(ok, 1) << JitTypeName(backend);
+
+        // Allocate churn in another top-level Call (which triggers Reset() on temp_heap)
+        CompileString(s, R"(
+            function churn_arena()
+                local acc = ""
+                for i = 1, 64 do
+                    local tmp = { a = tostring(i) .. "_overwrite_temp_arena", b = i * 3 }
+                    acc = tmp.a
+                end
+                return #acc
+            end
+        )", cfg);
+        int64_t churn_len = 0;
+        Call(s, backend, "churn_arena", churn_len);
+        EXPECT_GT(churn_len, 0) << JitTypeName(backend);
+
+        std::string out;
+        Call(s, backend, "read_saved_table", out);
+        EXPECT_EQ(out, "frame1_outer:frame1_inner:47") << JitTypeName(backend);
+    }
+}
+
+TEST(jitter, active_self_reload_and_anon_closure_module_keep_code_alive) {
+    for (auto backend: AllJitTypes()) {
+        FakeluaStateGuard guard;
+        State *s = guard.GetState();
+        CompileConfig cfg{};
+        cfg.debug_mode = false;
+        cfg.disable_jit[JIT_TCC] = (backend != JIT_TCC);
+        cfg.disable_jit[JIT_GCC] = (backend != JIT_GCC);
+        cfg.disable_jit[JIT_INTERP] = (backend != JIT_INTERP);
+
+        // 1) Anonymous-closure-only file exported via NativeObject must survive subsequent module loads
+        NativeObject *holder = GetNativeObjectManager(s).GlobalCreate("closure_holder", "Holder", 100);
+        ASSERT_NE(holder, nullptr);
+        holder->SetId(202);
+        EXPECT_EQ(GetNativeObjectManager(s).Get("Holder", 100), nullptr);
+        EXPECT_EQ(GetNativeObjectManager(s).Get("Holder", 202), holder);
+
+        CompileString(s, R"(
+            local secret = 70
+            local exported = function(x) return x + secret end
+            function install_exported()
+                return exported(7)
+            end
+        )", cfg);
+
+        // Second file also defines __fl_func_1 and overwrites install_exported while running via host callback
+        RegisterNativeFunction(s, "host_reload_fn", false, std::function<int64_t(State *)>([cfg](State *st) -> int64_t {
+            CompileString(st, R"(
+                local other = 1000
+                local f = function(y) return y + other end
+                function self_reloader()
+                    return f(9)
+                end
+            )", cfg);
+            return 5;
+        }));
+
+        CompileString(s, R"(
+            function self_reloader()
+                local before = 40
+                local added = host_reload_fn()
+                return before + added
+            end
+        )", cfg);
+
+        int64_t first = 0;
+        Call(s, backend, "self_reloader", first);
+        EXPECT_EQ(first, 45) << JitTypeName(backend);
+
+        int64_t second = 0;
+        Call(s, backend, "self_reloader", second);
+        EXPECT_EQ(second, 1009) << JitTypeName(backend);
+
+        EXPECT_TRUE(GetNativeObjectManager(s).DestroySingle("Holder", 202));
+        EXPECT_EQ(GetNativeObjectManager(s).Get("Holder", 202), nullptr);
+    }
+}
+
 
 

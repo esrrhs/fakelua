@@ -367,8 +367,8 @@ TEST(infer, test_infer_shadowing) {
     // Outer val and res must be int64_t (int literal, never mutated).
     ASSERT_NE(code.find("int64_t val = 100;"), std::string::npos);
     ASSERT_NE(code.find("int64_t res = "), std::string::npos);
-    // Inner val (inside do...end block) is a string → CVar.
-    ASSERT_NE(code.find("CVar val = "), std::string::npos);
+    // Inner val (inside do...end block) is a string → CVar. Shadowed decls get a distinct C name.
+    ASSERT_TRUE(code.find("CVar val = ") != std::string::npos || code.find("CVar flua_s_val_") != std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_shadowing.lua", {.debug_mode = debug_mode});
@@ -470,7 +470,7 @@ TEST(infer, test_infer_for_shadow_case1) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case1.lua");
     ASSERT_NE(code.find("CVar a = "), std::string::npos);// outer a
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos);// loop cursor
+    ASSERT_TRUE(code.find("int64_t a = flua_for_ctrl_") != std::string::npos || code.find("int64_t flua_s_a_") != std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case1.lua", {.debug_mode = debug_mode});
@@ -499,9 +499,9 @@ TEST(infer, test_infer_for_shadow_case2) {
 // typed after loop and support native numeric assignment.
 TEST(infer, test_infer_for_shadow_case3) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case3.lua");
-    ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);            // outer a
-    ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos);// cursor a
-    ASSERT_NE(code.find("a = FL_INT_ADD((a), (1));"), std::string::npos); // outer post-loop assign
+    ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);// outer a
+    ASSERT_TRUE(code.find("int64_t a = flua_for_ctrl_") != std::string::npos || code.find("int64_t flua_s_a_") != std::string::npos);
+    ASSERT_NE(code.find("a = FL_INT_ADD((a), (1));"), std::string::npos);// outer post-loop assign
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case3.lua", {.debug_mode = debug_mode});
@@ -515,9 +515,10 @@ TEST(infer, test_infer_for_shadow_case3) {
 // outer a remains int64_t and is still used natively after loop.
 TEST(infer, test_infer_for_shadow_case4) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case4.lua");
-    ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);                                                       // outer a
-    ASSERT_NE(code.find("CVar a = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(flua_for_ctrl_"), std::string::npos);// cursor a
-    ASSERT_NE(code.find("a = FL_INT_ADD((a), (1));"), std::string::npos);                                            // outer post-loop assign
+    ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);// outer a
+    ASSERT_TRUE(code.find("CVar a = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(flua_for_ctrl_") != std::string::npos ||
+                code.find("CVar flua_s_a_") != std::string::npos);
+    ASSERT_NE(code.find("a = FL_INT_ADD((a), (1));"), std::string::npos);// outer post-loop assign
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case4.lua", {.debug_mode = debug_mode});
@@ -531,8 +532,8 @@ TEST(infer, test_infer_for_shadow_case4) {
 // outer dynamic `a` declaration/assignments after leaving do...end scope.
 TEST(infer, test_infer_do_shadow_typed_over_dynamic) {
     const auto code = InferGetCCode("./infer/test_infer_do_shadow_typed_over_dynamic.lua");
-    ASSERT_NE(code.find("CVar a = "), std::string::npos);   // outer a
-    ASSERT_NE(code.find("int64_t a = "), std::string::npos);// inner a
+    ASSERT_NE(code.find("CVar a = "), std::string::npos);// outer a
+    ASSERT_TRUE(code.find("int64_t a = ") != std::string::npos || code.find("int64_t flua_s_a_") != std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_do_shadow_typed_over_dynamic.lua", {.debug_mode = debug_mode});
@@ -1114,7 +1115,7 @@ TEST(infer, test_infer_typed_int_for_neg_step_1) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_1.lua");
     ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
     ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
-    ASSERT_TRUE(code.find("FlForIntAdvance(") != std::string::npos || code.find("INT64_MIN") != std::string::npos);
+    ASSERT_TRUE(code.find("FlForIntAdvance(") != std::string::npos || code.find("INT64_MIN") != std::string::npos || code.find("(-9223372036854775807LL - 1LL)") != std::string::npos);
     ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -1129,7 +1130,7 @@ TEST(infer, test_infer_typed_int_for_neg_step_2) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_2.lua");
     ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
     ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
-    ASSERT_TRUE(code.find("FlForIntAdvance(") != std::string::npos || code.find("INT64_MIN") != std::string::npos);
+    ASSERT_TRUE(code.find("FlForIntAdvance(") != std::string::npos || code.find("INT64_MIN") != std::string::npos || code.find("(-9223372036854775807LL - 1LL)") != std::string::npos);
     ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {

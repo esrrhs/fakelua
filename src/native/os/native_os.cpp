@@ -24,7 +24,10 @@
 #if defined(_WIN32)
 #include <windows.h>
 #else
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #endif
 
 namespace fakelua::os {
@@ -425,22 +428,37 @@ void RegisterOsLibraryApi(State *s) {
         return inter::NativeToFakeluaInt(state, static_cast<int64_t>(t));
     });
 
-    // os.tmpname() — temp_directory_path + unique_path，并创建空文件（与 mkstemp/GetTempFileName 一致）
+    // os.tmpname() — POSIX 用 mkstemp 创建 0600 独占文件，Windows 用 CREATE_NEW
     RegisterNativeFunction(s, "os.tmpname", 0, false, [](State *state, CVar *args, int n) -> CVar {
+        (void) args;
+        (void) n;
         boost::system::error_code ec;
         auto dir = fs::temp_directory_path(ec);
         if (ec) return inter::NativeToFakeluaNil(state);
+#if !defined(_WIN32)
+        std::string tmpl = (dir / "lua_XXXXXX").string();
+        std::vector<char> buf(tmpl.begin(), tmpl.end());
+        buf.push_back('\0');
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+        int fd = ::mkostemp(buf.data(), O_CLOEXEC);
+#else
+        int fd = ::mkstemp(buf.data());
+#endif
+        if (fd < 0) return inter::NativeToFakeluaNil(state);
+        ::fchmod(fd, 0600);
+        ::close(fd);
+        return inter::NativeToFakeluaStringView(state, std::string_view(buf.data()));
+#else
         for (int i = 0; i < 32; ++i) {
             auto p = dir / fs::unique_path("lua_%%%%-%%%%-%%%%-%%%%", ec);
             if (ec) return inter::NativeToFakeluaNil(state);
-            boost::system::error_code exists_ec;
-            if (fs::exists(p, exists_ec)) continue;
-            utf8_io::ofstream out(p.string(), std::ios::out | std::ios::trunc);
-            if (!out) continue;
-            out.close();
+            HANDLE h = ::CreateFileW(p.wstring().c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (h == INVALID_HANDLE_VALUE) continue;
+            ::CloseHandle(h);
             return inter::NativeToFakeluaStringView(state, p.string());
         }
         return inter::NativeToFakeluaNil(state);
+#endif
     });
 
     // --- Boost.Filesystem 扩展（Lua 5.4 os 没有这些）---

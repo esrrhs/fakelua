@@ -286,7 +286,11 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         close(log_fd);
 
         int status = 0;
-        if (waitpid(pid, &status, 0) < 0) {
+        pid_t waited = -1;
+        do {
+            waited = waitpid(pid, &status, 0);
+        } while (waited < 0 && errno == EINTR);
+        if (waited < 0) {
             pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
             CleanupOnError();
             ThrowFakeluaException(std::format("GCC compile failed, waitpid failed for {}", pr.file_name));
@@ -471,14 +475,16 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     // ---- Common post-load: register compiled functions + call init ----
     LOG_DEBUG(s_, "engine", "GCC: registering {} functions from {}", gr.function_names.size(), so_file);
+    const uint64_t anon_seq = s_->NextAnonFnSeq();
     for (const auto &[name, info]: gr.function_names) {
         const std::string &sym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
         void *func_ptr = dlsym_lambda(sym);
         if (!func_ptr) {
             ThrowFakeluaException(std::format("GCC compile failed, symbol resolution failed for {} in {}", name, so_file));
         }
-        s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_GCC, func_ptr, handle, info.is_vararg));
-        LOG_DEBUG(s_, "engine", "Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
+        const std::string vm_name = name.starts_with("__fl_func_") ? std::format("{}#{}", name, anon_seq) : name;
+        s_->GetVM().RegisterFunction(VmFunction(vm_name, info.params_count, JIT_GCC, func_ptr, handle, info.is_vararg));
+        LOG_DEBUG(s_, "engine", "Registered gcc function {} with {} params (vararg: {}) at address {}", vm_name, info.params_count, info.is_vararg, func_ptr);
     }
 
     void *init_ptr = dlsym_lambda(kInitFunctionName);

@@ -8,6 +8,7 @@
 #if defined(_WIN32)
 #include <process.h>
 #else
+#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
@@ -15,12 +16,20 @@ namespace fakelua {
 
 std::string GetTmpDirectory() {
     boost::system::error_code ec;
-    auto tmpdir = boost::filesystem::temp_directory_path(ec);
+    auto base = boost::filesystem::temp_directory_path(ec);
     if (ec) {
-        tmpdir = boost::filesystem::path(".");
+        base = boost::filesystem::path(".");
     }
-    tmpdir /= "fakelua";
+    auto tmpdir = base / "fakelua";
     boost::filesystem::create_directories(tmpdir, ec);
+#if !defined(_WIN32)
+    struct stat st{};
+    if (ec || ::lstat(tmpdir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode) || st.st_uid != ::getuid()) {
+        tmpdir = base / ("fakelua-" + std::to_string(static_cast<unsigned long>(::getuid())));
+        ec.clear();
+        (void) ::mkdir(tmpdir.c_str(), 0700);
+    }
+#endif
     return tmpdir.string();
 }
 

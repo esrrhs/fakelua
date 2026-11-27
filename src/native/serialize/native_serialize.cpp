@@ -59,6 +59,9 @@ static CVar SerializeDecode(State *s, CVar *args, int n) {
     return result;
 }
 
+static constexpr int kSerMaxDepth = 64;
+static thread_local int g_ser_load_depth = 0;
+
 // Boost.Serialization 树：不替换 encode/decode 的紧凑 wire，提供可读的 text/xml 往返。
 // kind 用 int，避免 int8_t/signed char 被 Boost 当成字符写出。
 struct SerNode {
@@ -74,6 +77,28 @@ struct SerNode {
 
     template<class Archive>
     void serialize(Archive &ar, const unsigned int) {
+        if constexpr (Archive::is_loading::value) {
+            struct LoadDepthGuard {
+                int &d;
+                explicit LoadDepthGuard(int &depth) : d(depth) {
+                    ++d;
+                }
+                ~LoadDepthGuard() {
+                    --d;
+                }
+            } guard(g_ser_load_depth);
+            if (g_ser_load_depth > kSerMaxDepth) {
+                ThrowFakeluaException("serialize.decode: nesting too deep");
+            }
+            ar &BOOST_SERIALIZATION_NVP(kind);
+            ar &BOOST_SERIALIZATION_NVP(b);
+            ar &BOOST_SERIALIZATION_NVP(i);
+            ar &BOOST_SERIALIZATION_NVP(f);
+            ar &BOOST_SERIALIZATION_NVP(s);
+            ar &BOOST_SERIALIZATION_NVP(keys);
+            ar &BOOST_SERIALIZATION_NVP(vals);
+            return;
+        }
         ar &BOOST_SERIALIZATION_NVP(kind);
         ar &BOOST_SERIALIZATION_NVP(b);
         ar &BOOST_SERIALIZATION_NVP(i);
@@ -83,8 +108,6 @@ struct SerNode {
         ar &BOOST_SERIALIZATION_NVP(vals);
     }
 };
-
-static constexpr int kSerMaxDepth = 64;
 
 static SerNode CVarToSerNode(CVar v, std::unordered_set<VarTable *> &visited, int depth, const char *op) {
     SerNode n;
@@ -180,7 +203,9 @@ static CVar SerializeTextEncode(State *s, CVar *args, int n) {
             oa << root;
         }
         return inter::NativeToFakeluaString(s, oss.str());
-    } catch (const boost::archive::archive_exception &e) {
+    } catch (const FakeluaException &) {
+        throw;
+    } catch (const std::exception &e) {
         ThrowFakeluaException(std::format("serialize.text_encode: {}", e.what()));
     }
 }
@@ -195,7 +220,9 @@ static CVar SerializeTextDecode(State *s, CVar *args, int n) {
             ia >> root;
         }
         return SerNodeToCVar(root, s, 0);
-    } catch (const boost::archive::archive_exception &e) {
+    } catch (const FakeluaException &) {
+        throw;
+    } catch (const std::exception &e) {
         ThrowFakeluaException(std::format("serialize.text_decode: {}", e.what()));
     }
 }
@@ -209,7 +236,9 @@ static CVar SerializeXmlEncode(State *s, CVar *args, int n) {
             oa << boost::serialization::make_nvp("value", root);
         }
         return inter::NativeToFakeluaString(s, oss.str());
-    } catch (const boost::archive::archive_exception &e) {
+    } catch (const FakeluaException &) {
+        throw;
+    } catch (const std::exception &e) {
         ThrowFakeluaException(std::format("serialize.xml_encode: {}", e.what()));
     }
 }
@@ -224,7 +253,9 @@ static CVar SerializeXmlDecode(State *s, CVar *args, int n) {
             ia >> boost::serialization::make_nvp("value", root);
         }
         return SerNodeToCVar(root, s, 0);
-    } catch (const boost::archive::archive_exception &e) {
+    } catch (const FakeluaException &) {
+        throw;
+    } catch (const std::exception &e) {
         ThrowFakeluaException(std::format("serialize.xml_decode: {}", e.what()));
     }
 }

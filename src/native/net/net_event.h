@@ -11,6 +11,7 @@
 struct evconnlistener;
 
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <string>
@@ -49,7 +50,7 @@ public:
     void Stop();
     void DrainEventsWith(const std::function<void(const ConnEvent &)> &dispatcher);
     bool Send(int conn_id, const char *data, size_t len);
-    bool CloseConnection(int conn_id);
+    bool CloseConnection(int conn_id, bool notify = true);
 
     [[nodiscard]] bool Running() const {
         return listener_ != nullptr;
@@ -64,7 +65,7 @@ private:
     struct evconnlistener *listener_ = nullptr;
     SSL_CTX *ssl_ctx_ = nullptr;
     std::vector<std::shared_ptr<EventConn>> conns_;
-    std::vector<ConnEvent> events_;
+    std::deque<ConnEvent> events_;
     native::LifeToken life_;
 };
 
@@ -88,7 +89,7 @@ private:
     std::shared_ptr<EventConn> conn_;
     SSL_CTX *ssl_ctx_ = nullptr;
     bool connecting_ = false;
-    std::vector<ConnEvent> events_;
+    std::deque<ConnEvent> events_;
     native::LifeToken life_;
 };
 
@@ -127,7 +128,7 @@ private:
     bool open_ = false;
     uint16_t bound_port_ = 0;
     std::vector<char> recv_buf_;
-    std::vector<ConnEvent> events_;
+    std::deque<ConnEvent> events_;
     native::LifeToken life_;
 };
 

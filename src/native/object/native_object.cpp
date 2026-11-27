@@ -82,10 +82,12 @@ CVar NativeFieldToCVar(const NativeField &field, State *s) {
             r.data_.b = field.b;
             break;
         case NativeField::Kind::String:
-            // 返回指向 C++ 堆 VarString 缓存的指针；
-            // fakelua 不会释放它（arena 仅管理自己的分配），安全。
-            r.type_ = static_cast<int>(VarType::String);
-            r.data_.s = field.GetVarString();
+            if (s != nullptr) {
+                r = inter::NativeToFakeluaStringView(s, field.s);
+            } else {
+                r.type_ = static_cast<int>(VarType::String);
+                r.data_.s = field.GetVarString();
+            }
             break;
         case NativeField::Kind::Object:
             if (field.obj != nullptr && s != nullptr) {
@@ -95,7 +97,7 @@ CVar NativeFieldToCVar(const NativeField &field, State *s) {
             }
             break;
         case NativeField::Kind::Table:
-            if (field.t != nullptr) {
+            if (field.t != nullptr && (field.table_epoch == 0 || (s != nullptr && s->ArenaEpoch() == field.table_epoch))) {
                 r.type_ = static_cast<int>(VarType::Table);
                 r.data_.t = field.t;
             } else {
@@ -106,7 +108,7 @@ CVar NativeFieldToCVar(const NativeField &field, State *s) {
     return r;
 }
 
-NativeField CVarToNativeField(CVar v) {
+NativeField CVarToNativeField(CVar v, State *s) {
     NativeField f;
     const int t = v.type_;
 
@@ -136,10 +138,10 @@ NativeField CVarToNativeField(CVar v) {
             f.kind = NativeField::Kind::Object;
             f.obj = nested;
         } else if (v.data_.t) {
-            // 指针跟 Lua 表同一生命周期：跨 Call() Reset 后失效。存在 C++ 堆上的
-            // NativeObject 不能深拷整个表，所以只保留指针，调用方需在同一帧内使用。
             f.kind = NativeField::Kind::Table;
             f.t = v.data_.t;
+            // CONST_FLAG (0x1) 表存在 const_heap 跨帧持久；其余临时表绑定当前帧 epoch，Reset 后自动失效返回 nil。
+            f.table_epoch = (v.flag_ & 0x1) ? 0 : (s ? s->ArenaEpoch() : 1);
         }
     }
     // Multi / Closure 类型不做转换，保持 Nil
@@ -169,6 +171,13 @@ NativeObject *NativeObjectManager::Create(int64_t group_id, const std::string &t
         return it->second;
     }
     auto *obj = NativeObject::Create(group_id, type_name, id);
+    obj->impl_->on_rebind_id = [this, obj](int64_t old_id, int64_t new_id) {
+        auto old_key = std::make_pair(obj->GetTypeName(), old_id);
+        if (auto oit = objects_.find(old_key); oit != objects_.end() && oit->second == obj) {
+            objects_.erase(oit);
+        }
+        objects_[std::make_pair(obj->GetTypeName(), new_id)] = obj;
+    };
     objects_[key] = obj;
     group_objects_[group_id].push_back(obj);
     return obj;
@@ -221,9 +230,18 @@ NativeObject *NativeObjectManager::GlobalCreate(const std::string &key, const st
     }
     if (id == 0) {
         id = --next_auto_obj_id_;
+    } else if (auto existing = objects_.find(std::make_pair(type_name, id)); existing != objects_.end()) {
+        return existing->second;
     }
     // 全局对象 group_id = 0，不加入 group_objects_ 索引
     auto *obj = NativeObject::Create(0, type_name, id);
+    obj->impl_->on_rebind_id = [this, obj](int64_t old_id, int64_t new_id) {
+        auto old_key = std::make_pair(obj->GetTypeName(), old_id);
+        if (auto oit = objects_.find(old_key); oit != objects_.end() && oit->second == obj) {
+            objects_.erase(oit);
+        }
+        objects_[std::make_pair(obj->GetTypeName(), new_id)] = obj;
+    };
     objects_[std::make_pair(type_name, id)] = obj;
     global_objects_[key] = obj;
     return obj;
@@ -241,7 +259,9 @@ bool NativeObjectManager::GlobalDestroy(const std::string &key) {
     }
     NativeObject *obj = it->second;
     auto obj_key = std::make_pair(obj->GetTypeName(), obj->GetId());
-    objects_.erase(obj_key);
+    if (objects_.erase(obj_key) == 0) {
+        std::erase_if(objects_, [obj](const auto &kv) { return kv.second == obj; });
+    }
     global_objects_.erase(it);
     NativeObject::Destroy(obj);
     zombies_.push_back(obj);
@@ -261,7 +281,9 @@ size_t NativeObjectManager::DestroyGroup(int64_t group_id) {
     for (auto *obj: to_destroy) {
         if (obj) {
             auto key = std::make_pair(obj->GetTypeName(), obj->GetId());
-            objects_.erase(key);
+            if (objects_.erase(key) == 0) {
+                std::erase_if(objects_, [obj](const auto &kv) { return kv.second == obj; });
+            }
             NativeObject::Destroy(obj);
             zombies_.push_back(obj);
             count++;
@@ -275,65 +297,73 @@ void NativeObjectManager::Clear() {
     // (which invoke io::OnStateDeleted) no longer reference freed NativeObjects.
     io::OnNativeObjectManagerCleared(owner_);
 
-    // objects_ 中的对象仍然"存活"（impl_ 非空），必须先调 Destroy 触发 finalizer 再 delete。
-    // zombies_ 中的对象已经由 DestroySingle/GlobalDestroy/DestroyGroup 调用过 Destroy()，
-    // impl_ 已被置 nullptr，只剩一个空壳，只需 delete 释放堆内存即可。
-    // 两个集合保证互不重叠（erase 之后才 push_back），因此不存在 double-free。
+    std::unordered_set<NativeObject *> deleted;
     for (auto &[k, v]: objects_) {
-        NativeObject::Destroy(v);
-        delete v;
+        if (v && deleted.insert(v).second) {
+            NativeObject::Destroy(v);
+            delete v;
+        }
     }
     objects_.clear();
     group_objects_.clear();
     global_objects_.clear();
     for (auto *z: zombies_) {
-        // impl_ 已为 nullptr（Destroy 已清空），直接释放对象本身
-        delete z;
+        if (z && deleted.insert(z).second) {
+            delete z;
+        }
     }
     zombies_.clear();
 }
 
 // NativeMethodBridge — 宿主 C++ 成员回调的方法派发桥接
 
+static CVar AllocSpecKeyCVar(State *s, std::string_view key);
+
 CVar NativeMethodBridge(VarClosure *cl, CVar vararg_cvar) {
-    if (!cl || cl->upvalue_count < 3) {
+    if (!cl || cl->upvalue_count < 3 || !cl->upvalues[1]) {
         ThrowFakeluaException("NativeMethodBridge failed: invalid VarClosure metadata");
     }
-
-    auto *obj = reinterpret_cast<NativeObject *>(cl->upvalues[0]->data_.i);
     auto *state = reinterpret_cast<State *>(cl->upvalues[1]->data_.i);
-    auto *method_ptr = reinterpret_cast<NativeMethod *>(cl->upvalues[2]->data_.i);
-
-    if (!obj || !obj->impl_) {
-        ThrowFakeluaException("native object is destroyed");
-    }
-    if (!method_ptr || !(*method_ptr)) {
-        ThrowFakeluaException("NativeMethodBridge failed: obj or method is null");
+    if (!state) {
+        ThrowFakeluaException("NativeMethodBridge failed: state is null");
     }
 
-    CVar *all_args = nullptr;
-    int total_arg_count = 0;
-    if (vararg_cvar.type_ == static_cast<int>(VarType::Multi) && vararg_cvar.data_.m) {
-        total_arg_count = static_cast<int>(vararg_cvar.data_.m->GetCount());
-        all_args = vararg_cvar.data_.m->GetVars();
-    }
+    return GuardJitEntry(state, [&]() -> CVar {
+        auto *obj = reinterpret_cast<NativeObject *>(cl->upvalues[0]->data_.i);
+        if (!obj || !obj->impl_) {
+            ThrowFakeluaException("native object is destroyed");
+        }
+        const std::string_view method_name = KeyToStringView(*cl->upvalues[2]);
+        const auto mit = obj->impl_->methods.find(method_name);
+        if (mit == obj->impl_->methods.end() || !mit->second) {
+            ThrowFakeluaException("NativeMethodBridge failed: obj or method is null");
+        }
+        const NativeMethod method_copy = mit->second;
 
-    // 自动判断 self 传递 (冒号 player:method(...) / 点号 player.method(player, ...) vs fn(...))
-    NativeObject *passed_self = (total_arg_count > 0) ? NativeObject::Unwrap(all_args[0]) : nullptr;
-    NativeObject *actual_self = (passed_self != nullptr) ? passed_self : obj;
+        CVar *all_args = nullptr;
+        int total_arg_count = 0;
+        if (vararg_cvar.type_ == static_cast<int>(VarType::Multi) && vararg_cvar.data_.m) {
+            total_arg_count = static_cast<int>(vararg_cvar.data_.m->GetCount());
+            all_args = vararg_cvar.data_.m->GetVars();
+        }
 
-    CVar *call_args = nullptr;
-    int call_n = 0;
+        // 自动判断 self 传递 (冒号 player:method(...) / 点号 player.method(player, ...) vs fn(...))
+        NativeObject *passed_self = (total_arg_count > 0) ? NativeObject::Unwrap(all_args[0]) : nullptr;
+        NativeObject *actual_self = (passed_self != nullptr) ? passed_self : obj;
 
-    if (passed_self != nullptr) {
-        call_args = all_args + 1;
-        call_n = total_arg_count - 1;
-    } else {
-        call_args = all_args;
-        call_n = total_arg_count;
-    }
+        CVar *call_args = nullptr;
+        int call_n = 0;
 
-    return GuardJitEntry(state, [&]() -> CVar { return (*method_ptr)(actual_self, state, call_args, call_n); });
+        if (passed_self != nullptr) {
+            call_args = all_args + 1;
+            call_n = total_arg_count - 1;
+        } else {
+            call_args = all_args;
+            call_n = total_arg_count;
+        }
+
+        return method_copy(actual_self, state, call_args, call_n);
+    });
 }
 
 // spec_get / spec_set 实现
@@ -400,6 +430,7 @@ void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
     auto *spec = static_cast<NativeObjectSpec *>(tbl->spec);
     const auto &kv = obj->impl_->kv;
     const size_t n = kv.size();
+    const uint64_t cur_epoch = (s && s->InterpConstAlloc()) ? 0 : (s ? s->ArenaEpoch() : 0);
 
     if (n == 0) {
         tbl->spec_keys = nullptr;
@@ -408,6 +439,7 @@ void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
         if (spec) {
             spec->spec_cap = 0;
             spec->snapshot_ready = true;
+            spec->snapshot_epoch = cur_epoch;
         }
         return;
     }
@@ -422,17 +454,30 @@ void RefreshSpecKeys(VarTable *tbl, const NativeObject *obj, State *s) {
         tbl->spec_vals[i] = NativeFieldToCVar(v, s);
         ++i;
     }
-    if (spec) spec->snapshot_ready = true;
+    if (spec) {
+        spec->snapshot_ready = true;
+        spec->snapshot_epoch = cur_epoch;
+    }
 }
 
 void EnsureNativeSpecSnapshotSlow(VarTable *tbl) {
     if (!tbl || !tbl->spec || tbl->spec_get != reinterpret_cast<void *>(NativeSpecGet)) return;
     auto *spec = static_cast<NativeObjectSpec *>(tbl->spec);
-    if (spec->snapshot_ready) return;
-    NativeObject *obj = spec->obj;
     State *s = spec->state;
+    if (spec->snapshot_ready) {
+        if (spec->snapshot_epoch == 0 || (s && spec->snapshot_epoch == s->ArenaEpoch())) {
+            return;
+        }
+        tbl->spec_keys = nullptr;
+        tbl->spec_vals = nullptr;
+        tbl->spec_count = 0;
+        spec->spec_cap = 0;
+        spec->snapshot_ready = false;
+    }
+    NativeObject *obj = spec->obj;
     if (!obj || !obj->Alive() || !s) {
         spec->snapshot_ready = true;
+        spec->snapshot_epoch = s ? s->ArenaEpoch() : 0;
         return;
     }
     RefreshSpecKeys(tbl, obj, s);
@@ -484,8 +529,7 @@ CVar NativeSpecGet(VarTable *tbl, CVar k, bool *finish) {
         uv1->data_.i = reinterpret_cast<int64_t>(s);
 
         auto *uv2 = static_cast<CVar *>(alloc.Alloc(sizeof(CVar)));
-        uv2->type_ = static_cast<int>(VarType::Int);
-        uv2->data_.i = reinterpret_cast<int64_t>(&mit->second);
+        *uv2 = AllocSpecKeyCVar(s, key);
 
         auto *cl = static_cast<VarClosure *>(alloc.Alloc(sizeof(VarClosure) + 3 * sizeof(CVar *)));
         cl->func_ptr = reinterpret_cast<void *>(NativeMethodBridge);
@@ -526,6 +570,18 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
     *finish = true;
     State *s = spec->state;
 
+    if (spec->snapshot_ready) {
+        const bool epoch_stale = (spec->snapshot_epoch != 0 && (!s || spec->snapshot_epoch != s->ArenaEpoch()));
+        const bool const_snapshot_at_runtime = (spec->snapshot_epoch == 0 && (!s || !s->InterpConstAlloc()));
+        if (epoch_stale || const_snapshot_at_runtime) {
+            tbl->spec_keys = nullptr;
+            tbl->spec_vals = nullptr;
+            tbl->spec_count = 0;
+            spec->spec_cap = 0;
+            spec->snapshot_ready = false;
+        }
+    }
+
     // 快照尚未建立：只写 kv，保持惰性；首次 pairs/next/GET_TABLE_ENTRY 再 RefreshSpecKeys。
     if (!spec->snapshot_ready) {
         if (v.type_ == static_cast<int>(VarType::Nil)) {
@@ -533,7 +589,7 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
                 obj->impl_->kv.erase(it);
             }
         } else {
-            auto new_field = CVarToNativeField(v);
+            auto new_field = CVarToNativeField(v, s);
             if (auto it = obj->impl_->kv.find(key); it != obj->impl_->kv.end()) {
                 it->second = std::move(new_field);
             } else {
@@ -565,7 +621,7 @@ void NativeSpecSet(VarTable *tbl, CVar k, CVar v, bool *finish) {
         return;
     }
 
-    auto new_field = CVarToNativeField(v);
+    auto new_field = CVarToNativeField(v, s);
     auto it = obj->impl_->kv.find(key);
     if (it != obj->impl_->kv.end()) {
         it->second = std::move(new_field);
@@ -885,7 +941,12 @@ int64_t NativeObject::GetId() const {
 
 void NativeObject::SetId(int64_t id) {
     if (!impl_) return;
+    const int64_t old_id = impl_->id;
+    if (old_id == id) return;
     impl_->id = id;
+    if (impl_->on_rebind_id) {
+        impl_->on_rebind_id(old_id, id);
+    }
     TouchVersion();
 }
 

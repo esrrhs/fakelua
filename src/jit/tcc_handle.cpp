@@ -57,6 +57,7 @@ TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) : s_(s) {
     tcc_add_symbol(tcc_state_, "FlEnsureNativeSpecSnapshot", reinterpret_cast<void *>(FlEnsureNativeSpecSnapshot));
     tcc_add_symbol(tcc_state_, "FakeluaRegisterLuaLoc", reinterpret_cast<void *>(FakeluaRegisterLuaLoc));
     tcc_add_symbol(tcc_state_, "FakeluaRegisterFnMap", reinterpret_cast<void *>(FakeluaRegisterFnMap));
+    tcc_add_symbol(tcc_state_, "FakeluaPromoteConstBoxValue", reinterpret_cast<void *>(FakeluaPromoteConstBoxValue));
     tcc_define_symbol(tcc_state_, "FAKELUA_JIT_TYPE", std::to_string(static_cast<int>(JIT_TCC)).c_str());
 }
 

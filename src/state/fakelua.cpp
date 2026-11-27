@@ -8,6 +8,7 @@
 #include "native/io/native_io.h"
 #include "native/mysql/native_mysql.h"
 #include "native/net/native_net.h"
+#include "native/object/native_object.h"
 #include "native/redis/native_redis.h"
 #include "native/sqlite/native_sqlite.h"
 #include "native/table/native_table.h"
@@ -284,9 +285,8 @@ std::string CVarToString(const CVar &v, const char *default_val) {
     return default_val != nullptr ? std::string(default_val) : std::string();
 }
 
-// VarToVi: read CVar into VarInterface* bridge type. Tables are read-only —
-// no VarTable methods needed, just direct field access on the C struct.
-static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
+// VarToVi: read CVar into VarInterface* bridge type.
+static void VarToVi(State *state, const CVar &src, VarInterface *dst, std::unordered_set<const VarTable *> &active_tables) {
     const auto &var_val = AsVar(src);
     DEBUG_ASSERT(var_val.Type() >= VarType::Min && var_val.Type() <= VarType::Max);
     switch (var_val.Type()) {
@@ -308,21 +308,52 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
             break;
         case VarType::Table: {
             const auto table = var_val.GetTable();
+            if (!table) {
+                dst->ViSetNil();
+                break;
+            }
+            if (!active_tables.insert(table).second) {
+                ThrowFakeluaException("VarToVi failed: cyclic table is not supported");
+            }
+            struct ActiveTableGuard {
+                std::unordered_set<const VarTable *> &set;
+                const VarTable *tbl;
+                ~ActiveTableGuard() {
+                    set.erase(tbl);
+                }
+            } active_guard{active_tables, table};
+
+            EnsureNativeSpecSnapshot(table);
+
             const uint32_t count = table->count_;
             std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
+            struct KvsGuard {
+                std::vector<std::pair<VarInterface *, VarInterface *>> &items;
+                ~KvsGuard() {
+                    for (auto &[k, v]: items) {
+                        delete k;
+                        delete v;
+                    }
+                }
+            } kvs_guard{kvs};
             kvs.reserve(table->spec_count + table->arr_size_ + count);
             const auto &new_func = GetVarInterfaceNewFunc(state);
-            auto alloc_vi = [&new_func]() -> VarInterface * { return new_func ? new_func() : new SimpleVarImpl(); };
+            auto alloc_vi = [&new_func]() -> std::unique_ptr<VarInterface> {
+                return std::unique_ptr<VarInterface>(new_func ? new_func() : new SimpleVarImpl());
+            };
 
-            if (table->spec_count > 0) {
+            if (table->spec_count > 0 && table->spec_keys && table->spec_vals) {
                 const auto *sk = reinterpret_cast<const Var *>(table->spec_keys);
                 const auto *sv = reinterpret_cast<const Var *>(table->spec_vals);
                 for (uint32_t i = 0; i < table->spec_count; ++i) {
+                    if (sk[i].Type() == VarType::Nil || sv[i].Type() == VarType::Nil) {
+                        continue;
+                    }
                     auto key_item = alloc_vi();
                     auto val_item = alloc_vi();
-                    VarToVi(state, sk[i], key_item);
-                    VarToVi(state, sv[i], val_item);
-                    kvs.emplace_back(key_item, val_item);
+                    VarToVi(state, sk[i], key_item.get(), active_tables);
+                    VarToVi(state, sv[i], val_item.get(), active_tables);
+                    kvs.emplace_back(key_item.release(), val_item.release());
                 }
             }
             for (uint32_t i = 0; i < table->arr_size_; ++i) {
@@ -333,33 +364,29 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
                 auto key_item = alloc_vi();
                 auto val_item = alloc_vi();
                 key_item->ViSetInt(static_cast<int64_t>(i) + 1);
-                VarToVi(state, table->arr_[i], val_item);
-                kvs.emplace_back(key_item, val_item);
+                VarToVi(state, table->arr_[i], val_item.get(), active_tables);
+                kvs.emplace_back(key_item.release(), val_item.release());
             }
             if (const uint32_t *al = table->active_list_; al == nullptr) {
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &e = table->quick_data_[i];
                     auto key_item = alloc_vi();
                     auto val_item = alloc_vi();
-                    VarToVi(state, e.key, key_item);
-                    VarToVi(state, e.val, val_item);
-                    kvs.emplace_back(key_item, val_item);
+                    VarToVi(state, e.key, key_item.get(), active_tables);
+                    VarToVi(state, e.val, val_item.get(), active_tables);
+                    kvs.emplace_back(key_item.release(), val_item.release());
                 }
             } else {
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &e = table->nodes_[al[i]].entry;
                     auto key_item = alloc_vi();
                     auto val_item = alloc_vi();
-                    VarToVi(state, e.key, key_item);
-                    VarToVi(state, e.val, val_item);
-                    kvs.emplace_back(key_item, val_item);
+                    VarToVi(state, e.key, key_item.get(), active_tables);
+                    VarToVi(state, e.val, val_item.get(), active_tables);
+                    kvs.emplace_back(key_item.release(), val_item.release());
                 }
             }
             dst->ViSetTable(kvs);
-            for (auto &[k, v]: kvs) {
-                delete k;
-                delete v;
-            }
             break;
         }
         case VarType::Closure:
@@ -373,9 +400,10 @@ static void VarToVi(State *state, const CVar &src, VarInterface *dst) {
 
 VarInterface *FakeluaToNativeObj(State *state, CVar val) {
     const auto &new_func = GetVarInterfaceNewFunc(state);
-    const auto ret = new_func ? new_func() : new SimpleVarImpl();
-    VarToVi(state, val, ret);
-    return ret;
+    std::unique_ptr<VarInterface> ret(new_func ? new_func() : new SimpleVarImpl());
+    std::unordered_set<const VarTable *> active_tables;
+    VarToVi(state, val, ret.get(), active_tables);
+    return ret.release();
 }
 
 CVar NativeToFakeluaNativeObject(State *state, const NativeObject *obj) {
@@ -472,18 +500,21 @@ void RegisterNativeVarFunction(State *s, const std::string &name, int arg_count,
             return inter::NativeToFakeluaNil(state);
         }
         std::vector<VarInterface *> vi_args;
+        struct ViArgsGuard {
+            std::vector<VarInterface *> &items;
+            ~ViArgsGuard() {
+                for (auto *vi: items) {
+                    delete vi;
+                }
+            }
+        } args_guard{vi_args};
         vi_args.reserve(n);
         for (int i = 0; i < n; ++i) {
             CVar arg_i = inter::GetNativeArg(state, args, n, i);
             vi_args.push_back(inter::FakeluaToNativeObj(state, arg_i));
         }
-        VarInterface *res_vi = safe_cb(state, vi_args);
-        for (auto *vi: vi_args) {
-            delete vi;
-        }
-        CVar ret = inter::NativeToFakeluaVarInterface(state, res_vi);
-        delete res_vi;
-        return ret;
+        std::unique_ptr<VarInterface> res_vi(safe_cb(state, vi_args));
+        return inter::NativeToFakeluaVarInterface(state, res_vi.get());
     });
 }
 
@@ -535,24 +566,23 @@ void ThrowIfMultiCVar(const CVar &v) {
 static CVar DispatchCallRaw(void *addr, const CVar *arg_arr, int arg_count, VarClosure *cl);
 
 CVar DispatchCall(State *s, void *addr, const CVar *arg_arr, int arg_count, JITType type, VarClosure *cl) {
-    // 进入目标引擎代码：切换当前引擎上下文，使本次执行过程中调起的 native 函数
-    // （含 native 对象方法桥接）能登记派回本引擎的异步回调。嵌套调用逐层保存恢复。
-    State::JitContextScope jit_scope(s, type);
+    State::ActiveDispatchScope active_dispatch_scope(s);
+    const bool use_interp = cl ? IsInterpClosure(cl) : (type == JIT_INTERP);
+    const JITType effective_type = use_interp ? JIT_INTERP : (IsGccClosure(cl) ? JIT_GCC : type);
+    // 进入目标引擎代码：按闭包真实的创建引擎切换上下文（例如 table.sort / xpcall 借用
+    // JIT_TCC 标记请求 setjmp 边界，但被调若是 GCC/解释器闭包，CurrentJit 仍应是真实引擎）。
+    State::JitContextScope jit_scope(s, effective_type);
     // 本次调用期间才承认「位置槽里是当前位置」，返回后恢复主叫方的值。
     LuaLocScope loc_scope(s);
     // 生成代码出错时 FL_LUA_POP 不会执行。深度在这里恢复；调用栈文本已留在异常里。
     LuaStackScope stack_scope(s);
-    // 解释器闭包用 code_str magic 识别，不能看函数指针最低位：GCC 的函数指针可以是奇数。
-    // type==JIT_INTERP 且 cl 为空：Call()/CallByName 直接调注册的解释器原型。
-    // cl 是 TCC/GCC 闭包时即使 type 是 JIT_INTERP 也必须走 C 函数指针（解释器回调 JIT 闭包）。
-    const bool use_interp = cl ? IsInterpClosure(cl) : (type == JIT_INTERP);
     if (use_interp) {
         void *proto = (cl && cl->func_ptr) ? cl->func_ptr : addr;
         return InterpreterExecute(s, AsInterpProto(proto), arg_arr, arg_count, cl);
     }
-    // GCC 后端产出的动态库带 .eh_frame，C++ 异常能正常穿过它的帧，不必付边界的代价。
-    // TCC 把代码生成在自己的内存代码页里，没有展开表，错误只能靠边界跳回来。
-    if (type == JIT_GCC) {
+    // GCC 后端产出的动态库带 .eh_frame，C++ 异常能正常穿过它的帧；
+    // 若调用方显式传 JIT_TCC 请求边界，或闭包本身来自 TCC，则保留 setjmp 边界。
+    if (effective_type == JIT_GCC && type == JIT_GCC) {
         return DispatchCallRaw(addr, arg_arr, arg_count, cl);
     }
     return RunWithJitErrorBoundary(s, [&] { return DispatchCallRaw(addr, arg_arr, arg_count, cl); });
@@ -564,7 +594,7 @@ CVar DispatchCallClosure(State *state, VarClosure *cl, const CVar *args, int arg
     }
     // load() 返回的是源码闭包：func_ptr 为空，code_str 指向待编译文本。
     if (!cl->func_ptr) {
-        if (cl->code_str && cl->code_str != kInterpClosureMagic) {
+        if (IsSourceLoadClosure(cl)) {
             return FlEvalLoadClosure(state, cl, arg_count, args);
         }
         ThrowFakeluaException("closure has no code");
@@ -691,6 +721,38 @@ int GetMultiCVarCount(const CVar &multi) {
     return static_cast<int>(multi.data_.m->GetCount());
 }
 
+CVar GetReturnElement(State *s, const CVar &ret_var, std::size_t idx) {
+    if (ret_var.type_ == static_cast<int>(VarType::Multi)) {
+        VarMulti *m = ret_var.data_.m;
+        if (m && idx < m->GetCount()) {
+            return m->GetVars()[idx];
+        }
+        return NativeToFakeluaNil(s);
+    }
+    return idx == 0 ? ret_var : NativeToFakeluaNil(s);
+}
+
+CVar UnboxFirstReturn(State *s, const CVar &ret_var) {
+    return GetReturnElement(s, ret_var, 0);
+}
+
+PreservedCVarArg PreserveCVarBeforeReset(const CVar &v, bool will_reset) {
+    PreservedCVarArg out;
+    out.raw = v;
+    if (will_reset && v.type_ == static_cast<int>(VarType::String) && v.data_.s != nullptr) {
+        out.has_saved_str = true;
+        out.saved_str.assign(v.data_.s->Str());
+    }
+    return out;
+}
+
+CVar MaterializePreservedCVar(State *s, const PreservedCVarArg &p) {
+    if (p.has_saved_str) {
+        return NativeToFakeluaStringView(s, p.saved_str);
+    }
+    return p.raw;
+}
+
 CVar GetNativeArg(State *s, CVar *args, int n, int idx) {
     (void) s;
     CVar res{static_cast<int>(VarType::Nil)};
@@ -756,6 +818,140 @@ bool HasEntryFunction(State *s, JITType type, const std::string_view &name) {
     int argc = 0;
     bool is_vararg = false;
     return inter::GetFuncAddr(s, type, name, argc, is_vararg) != nullptr;
+}
+
+namespace {
+
+constexpr int kPromoteConstFlagBit = 0x1;
+constexpr int kPromoteConstBoxFlagBit = 0x2;
+
+struct ConstPromoteMemo {
+    std::unordered_map<const VarTable *, CVar> tables;
+    std::unordered_map<const VarClosure *, CVar> closures;
+    std::unordered_map<const CVar *, CVar *> boxes;
+};
+
+CVar PromoteConstBoxValueImpl(State *s, CVar val, ConstPromoteMemo &memo) {
+    if (!s) {
+        val.flag_ &= ~kPromoteConstBoxFlagBit;
+        return val;
+    }
+    switch (static_cast<VarType>(val.type_)) {
+        case VarType::Nil:
+        case VarType::Bool:
+        case VarType::Int:
+        case VarType::Float:
+        case VarType::StringId:
+            val.flag_ &= ~kPromoteConstBoxFlagBit;
+            return val;
+        case VarType::String: {
+            if (!val.data_.s) {
+                return CVar{static_cast<int>(VarType::Nil)};
+            }
+            State::ConstAllocScope const_alloc(s);
+            CVar out{};
+            out.type_ = static_cast<int>(VarType::String);
+            out.flag_ = 0;
+            out.data_.s = VarString::AllocTemp(s, val.data_.s->Str());
+            return out;
+        }
+        case VarType::Table: {
+            if (!val.data_.t) {
+                return CVar{static_cast<int>(VarType::Nil)};
+            }
+            if ((val.flag_ & kPromoteConstFlagBit) != 0) {
+                val.flag_ &= ~kPromoteConstBoxFlagBit;
+                return val;
+            }
+            if (NativeObject *nobj = NativeObject::Unwrap(val)) {
+                State::ConstAllocScope const_alloc(s);
+                CVar wrapped = nobj->Wrap(s);
+                wrapped.flag_ &= ~kPromoteConstBoxFlagBit;
+                return wrapped;
+            }
+            if (const auto it = memo.tables.find(val.data_.t); it != memo.tables.end()) {
+                return it->second;
+            }
+            State::ConstAllocScope const_alloc(s);
+            CVar cloned = table::TableHelper::CreateTable(s);
+            memo.tables.emplace(val.data_.t, cloned);
+            table::TableHelper::ForEachKV(val, [&](CVar k, CVar elem) {
+                CVar pk = PromoteConstBoxValueImpl(s, k, memo);
+                CVar pv = PromoteConstBoxValueImpl(s, elem, memo);
+                table::TableHelper::SetTable(s, cloned, pk, pv);
+            });
+            return cloned;
+        }
+        case VarType::Closure: {
+            VarClosure *cl = val.data_.cl;
+            if (!cl) {
+                return CVar{static_cast<int>(VarType::Nil)};
+            }
+            if (const auto it = memo.closures.find(cl); it != memo.closures.end()) {
+                return it->second;
+            }
+            if (cl->func_ptr != nullptr && !IsInterpClosure(cl)) {
+                s->GetVM().RetainHandleForCodeAddr(cl->func_ptr);
+            }
+            auto &const_arena = s->GetHeap().GetAllocator(true);
+            const int uv_cnt = cl->upvalue_count > 0 ? cl->upvalue_count : 0;
+            auto *new_cl = static_cast<VarClosure *>(const_arena.Alloc(sizeof(VarClosure) + static_cast<size_t>(uv_cnt) * sizeof(CVar *)));
+            new_cl->func_ptr = cl->func_ptr;
+            new_cl->upvalue_count = cl->upvalue_count;
+            new_cl->expected_arg_count = cl->expected_arg_count;
+            new_cl->is_vararg = cl->is_vararg;
+            new_cl->code_str = cl->code_str;
+            for (int i = 0; i < uv_cnt; ++i) {
+                new_cl->upvalues[i] = nullptr;
+            }
+            CVar out{};
+            out.type_ = static_cast<int>(VarType::Closure);
+            out.flag_ = 0;
+            out.data_.cl = new_cl;
+            memo.closures.emplace(cl, out);
+            for (int i = 0; i < uv_cnt; ++i) {
+                CVar *orig_box = cl->upvalues[i];
+                if (!orig_box) {
+                    continue;
+                }
+                if ((orig_box->flag_ & kPromoteConstBoxFlagBit) != 0) {
+                    new_cl->upvalues[i] = orig_box;
+                    continue;
+                }
+                if (const auto bit = memo.boxes.find(orig_box); bit != memo.boxes.end()) {
+                    new_cl->upvalues[i] = bit->second;
+                    continue;
+                }
+                auto *promoted_box = static_cast<CVar *>(const_arena.Alloc(sizeof(CVar)));
+                *promoted_box = CVar{static_cast<int>(VarType::Nil)};
+                promoted_box->flag_ = kPromoteConstBoxFlagBit;
+                memo.boxes.emplace(orig_box, promoted_box);
+                CVar inner = PromoteConstBoxValueImpl(s, *orig_box, memo);
+                inner.flag_ |= kPromoteConstBoxFlagBit;
+                *promoted_box = inner;
+                new_cl->upvalues[i] = promoted_box;
+            }
+            return out;
+        }
+        default:
+            val.flag_ &= ~kPromoteConstBoxFlagBit;
+            return val;
+    }
+}
+
+}// namespace
+
+CVar PromoteConstBoxValue(State *state, CVar val) {
+    ConstPromoteMemo memo;
+    return PromoteConstBoxValueImpl(state, val, memo);
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+extern "C" __attribute__((used)) CVar FakeluaPromoteConstBoxValue(State *state, CVar val) {
+#else
+extern "C" CVar FakeluaPromoteConstBoxValue(State *state, CVar val) {
+#endif
+    return GuardJitEntry(state, [&] { return PromoteConstBoxValue(state, val); });
 }
 
 }// namespace fakelua

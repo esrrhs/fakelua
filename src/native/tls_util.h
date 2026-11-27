@@ -2,7 +2,15 @@
 
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <openssl/x509v3.h>
 #include <string>
+
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#endif
 
 namespace fakelua::tls {
 
@@ -18,7 +26,10 @@ inline SSL_CTX *MakeClientContext(bool verify, const std::string &ca) {
                 return nullptr;
             }
         } else {
-            SSL_CTX_set_default_verify_paths(ctx);
+            if (SSL_CTX_set_default_verify_paths(ctx) != 1) {
+                SSL_CTX_free(ctx);
+                return nullptr;
+            }
         }
     } else {
         SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, nullptr);
@@ -41,11 +52,6 @@ inline SSL_CTX *MakeServerContext(const std::string &cert, const std::string &ke
     return ctx;
 }
 
-inline bool SetSniHostname(SSL *ssl, const std::string &host) {
-    if (!ssl || host.empty()) return true;
-    return SSL_set_tlsext_host_name(ssl, host.c_str()) == 1;
-}
-
 inline std::string HostnameWithoutPort(std::string host) {
     if (!host.empty() && host.front() == '[') {
         auto rb = host.find(']');
@@ -56,6 +62,33 @@ inline std::string HostnameWithoutPort(std::string host) {
         return host.substr(0, colon);
     }
     return host;
+}
+
+inline bool IsIpLiteral(const std::string &host) {
+    if (host.empty()) return false;
+    unsigned char buf[16]{};
+    return inet_pton(AF_INET, host.c_str(), buf) == 1 || inet_pton(AF_INET6, host.c_str(), buf) == 1;
+}
+
+inline bool SetSniHostname(SSL *ssl, const std::string &host) {
+    if (!ssl) return false;
+    const std::string clean = HostnameWithoutPort(host);
+    if (clean.empty() || IsIpLiteral(clean)) return true;
+    return SSL_set_tlsext_host_name(ssl, clean.c_str()) == 1;
+}
+
+inline bool ConfigurePeerVerification(SSL *ssl, const std::string &host, bool verify) {
+    if (!ssl) return false;
+    const std::string clean = HostnameWithoutPort(host);
+    if (!SetSniHostname(ssl, clean)) return false;
+    if (!verify) return true;
+    if (clean.empty()) return false;
+    if (IsIpLiteral(clean)) {
+        X509_VERIFY_PARAM *param = SSL_get0_param(ssl);
+        return param != nullptr && X509_VERIFY_PARAM_set1_ip_asc(param, clean.c_str()) == 1;
+    }
+    SSL_set_hostflags(ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+    return SSL_set1_host(ssl, clean.c_str()) == 1;
 }
 
 }// namespace fakelua::tls

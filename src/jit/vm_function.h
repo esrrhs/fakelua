@@ -34,12 +34,16 @@ public:
     }
 
     [[nodiscard]] void *GetAddr(JITType type) const {
-        DEBUG_ASSERT(type >= 0 && type < JIT_MAX);
+        if (static_cast<unsigned>(type) >= static_cast<unsigned>(JIT_MAX)) {
+            return nullptr;
+        }
         return func_addr_[type];
     }
 
     [[nodiscard]] JITHandlePtr GetHandle(JITType type) const {
-        DEBUG_ASSERT(type >= 0 && type < JIT_MAX);
+        if (static_cast<unsigned>(type) >= static_cast<unsigned>(JIT_MAX)) {
+            return {};
+        }
         return handle_[type];
     }
 
